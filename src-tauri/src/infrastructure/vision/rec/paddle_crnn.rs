@@ -1,0 +1,267 @@
+use crate::domain::vision::result::{DetResult, OcrResult};
+use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
+use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
+use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
+use async_trait::async_trait;
+use image::DynamicImage;
+use imageproc::drawing::Canvas;
+use memmap2::Mmap;
+use ndarray::{Array3, Array4, Axis};
+use rayon::prelude::IntoParallelRefIterator;
+use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
+
+#[derive(Debug)]
+pub struct PaddleRecCrnn {
+    pub base_model: BaseModel,
+    pub dict: Vec<String>,
+}
+
+impl PaddleRecCrnn {
+    pub fn new(
+        input_width: u32,
+        input_height: u32,
+        intra_thread_num : usize,
+        intra_spinning : bool,
+        inter_thread_num: usize,
+        inter_spinning : bool,
+        model_bytes_map: Mmap,
+        execution_provider: InferenceBackend,
+        dict: Vec<String>,
+    ) -> Self {
+        Self {
+            base_model: BaseModel::new(input_width, input_height, model_bytes_map, execution_provider, intra_thread_num, intra_spinning, inter_thread_num,inter_spinning,
+            ModelType::PaddleCrnn5),
+            dict,
+        }
+    }
+}
+
+#[async_trait]
+impl ModelHandler for PaddleRecCrnn {
+    fn load_model(&mut self) {
+        tokio::runtime::Handle::current().block_on(async {
+            self.base_model.load_model_base::<Self>("paddle_rec_crnn").await
+        }).unwrap()
+    }
+    fn get_input_size(&self) -> (u32, u32) {
+        (self.base_model.input_width, self.base_model.input_height)
+    }
+
+    fn preprocess(&self, img: &DynamicImage) -> VisionResult<(Array4<f32>, [f32; 2], [u32; 2])> {
+        // 获取原始图像尺寸
+        let (origin_w, origin_h) = img.dimensions();
+        let target_height = self.get_target_height();
+        // 计算调整大小的比例
+        let ratio = origin_h as f32 / target_height as f32;
+        let resize_w = (origin_w as f32 / ratio).ceil() as u32;
+
+        // CRNN模型需要将宽度调整为8的倍数，以获得最佳性能并避免在下采样层中出现问题
+        let target_width = if resize_w % 8 != 0 {
+            (resize_w / 8 + 1) * 8
+        } else {
+            resize_w
+        }.max(8); // 确保宽度至少为8
+
+        Log::debug(&format!(
+            "Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
+            origin_w, origin_h, resize_w, target_height, target_width, target_height
+        ));
+
+        // 调整图像大小
+        let resized_img = img.resize_exact(
+            resize_w,
+            target_height,
+            image::imageops::FilterType::CatmullRom,
+        );
+
+        // 初始化输入数组 (使用带填充的宽度)
+        let mut input = Array3::<f32>::zeros((3, target_height as usize, target_width as usize));
+
+        // 转换图像格式并归一化
+        for y in 0..target_height {
+            // 填充真实图像数据
+            for x in 0..resize_w {
+                let pixel = resized_img.get_pixel(x, y);
+                // 标准化: (pixel / 255.0 - 0.5) / 0.5
+                input[[0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.5) / 0.5;
+                input[[1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.5) / 0.5;
+                input[[2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.5) / 0.5;
+            }
+            // 对多余的宽度部分进行填充
+            for x in resize_w..target_width {
+                // 使用归一化后的0值 (-1.0) 填充
+                input[[0, y as usize, x as usize]] = -1.0;
+                input[[1, y as usize, x as usize]] = -1.0;
+                input[[2, y as usize, x as usize]] = -1.0;
+            }
+        }
+
+        // 扩展到批次维度 (1, C, H, W)
+        let input = input.insert_axis(Axis(0));
+
+        Ok((input , [ratio, ratio], [origin_h, origin_w]))
+    }
+    
+    async fn inference(&self, input : Array4<f32>) -> VisionResult<Array4<f32>> {
+        // 使用通用推理方法，消除代码重复
+        self.base_model.inference_base(input, self).await
+    }
+    
+    fn get_input_node_name(&self) -> &'static str {
+        "x"
+    }
+    
+    fn get_output_node_name(&self) -> &'static str {
+        "fetch_name_0"
+    }
+
+
+    fn get_target_width(&self) -> u32 {
+        self.base_model.input_width
+    }
+
+    fn get_target_height(&self) -> u32 {
+        self.base_model.input_height
+    }
+}
+
+#[async_trait]
+impl TextRecognizer for PaddleRecCrnn {
+    fn postprocess(&self, output: &Array4<f32>,det_result: &DetResult, batch_size: usize ) -> VisionResult<OcrResult>{
+        let seq_len = output.shape()[1];
+        let class_num = output.shape()[2];
+
+        if self.dict.len() + 1 != class_num - 1 {
+            // 假设最后一个是空白
+            return Err(VisionError::DictSizeErr{out : class_num, dict: self.dict.len()});
+        }
+
+        let mut result_text = String::new();
+        let mut chars = Vec::new();
+        let mut scores = Vec::new();
+        let mut indexs = Vec::new();
+        let mut prev_idx: Option<usize> = None;
+        for t in 0..seq_len {
+            let mut max_idx = 0;
+            let mut max_prob = output[[batch_size, 0, t, 0]];
+
+            for c in 1..class_num {
+                let prob = output[[batch_size, 0, t, c]];
+                if prob > max_prob {
+                    max_prob = prob;
+                    max_idx = c;
+                }
+            }
+
+            if max_idx != class_num - 1 && max_idx > 0 {
+                // 不是空白
+                if let Some(prev) = prev_idx {
+                    if max_idx != prev && max_idx < self.dict.len() {
+                        let char = &self.dict[max_idx - 1];
+                        scores.push(max_prob);
+                        indexs.push(max_idx - 1);
+                        result_text.push_str(char);
+                        chars.push(char.into())
+                    }
+                } else {
+                    if max_idx < self.dict.len() {
+                        let char = &self.dict[max_idx - 1];
+                        scores.push(max_prob);
+                        indexs.push(max_idx - 1);
+                        result_text.push_str(char);
+                        chars.push(char.into())
+                    }
+                }
+                prev_idx = Some(max_idx - 1);
+            } else {
+                prev_idx = None;
+            }
+        }
+        let ocr_result = OcrResult{
+            id: 0,
+            pre_id: 0,
+            next_id: 0,
+            bounding_box: det_result.bounding_box.clone(),
+            txt: result_text,
+            score: scores,
+            index: indexs,
+            txt_char: chars,
+        };
+        Ok(ocr_result)
+    }
+
+    fn preprocess_batch(&self, images: &[DynamicImage]) -> VisionResult<Array4<f32>> {
+        if images.is_empty() {
+            return Err(VisionError::InputImageCollectionEmpty);
+        }
+        
+
+        let mut max_width = 0;
+        let mut widths: Vec<u32> = Vec::with_capacity(images.len());
+
+        // 计算所有图像的目标宽度
+        for img in images.par_iter() {
+            let (origin_w, origin_h) = img.dimensions();
+            let ratio = origin_h  / self.get_target_height() as f32;
+            let resize_w = (origin_w  / ratio).ceil() as u32;
+            let target_width = if resize_w % 8 != 0 {
+                (resize_w / 8 + 1) * 8
+            } else {
+                resize_w
+            }.max(8);
+
+            if target_width > max_width {
+                max_width = target_width;
+            }
+            widths.push(resize_w);
+        }
+
+        // 使用异步并行处理
+        let batch_size = images.len();
+        let mut batch_data = Array4::<f32>::zeros((batch_size, 3, self.get_target_height() as usize, max_width as usize));
+        
+        // TODO: 这里可以进一步优化为真正的异步并行处理
+        // 当前先保持原有逻辑，但为未来的异步优化预留接口
+        for (i, img) in images.par_iter().enumerate() {
+            let resized_img = img.resize_exact(
+                widths[i],
+                self.get_target_height(),
+                image::imageops::FilterType::Nearest,
+            );
+            let rgb_view = resized_img.to_rgb8();
+
+            for y in 0..self.get_target_height() as usize {
+                for x in 0..widths[i] as usize {
+                    let p = rgb_view.get_pixel(x as u32, y as u32);
+                    batch_data[[i, 0, y, x]] = (p[0] as f32 / 255.0 - 0.5) / 0.5;
+                    batch_data[[i, 1, y, x]] = (p[1] as f32 / 255.0 - 0.5) / 0.5;
+                    batch_data[[i, 2, y, x]] = (p[2] as f32 / 255.0 - 0.5) / 0.5;
+                }
+                for x in widths[i] as usize..max_width as usize {
+                    batch_data[[i, 0, y, x]] = -1.0;
+                    batch_data[[i, 1, y, x]] = -1.0;
+                    batch_data[[i, 2, y, x]] = -1.0;
+                }
+            }
+        }
+
+        Ok(batch_data)
+    }
+
+    fn postprocess_batch(&self, output : &Array4<f32>, det_result: &[DetResult]) -> VisionResult<Vec<OcrResult>> {
+        let batch_size = output.shape()[0];
+
+        if batch_size != det_result.len() {
+            return Err(VisionError::BatchMatchDetSizeFailed{ batch: batch_size, det_num :det_result.len() });
+        }
+        // 将CTC解码结果转换为OCR结果
+        let mut ocr_results = Vec::with_capacity(batch_size);
+
+        for (i , det_res) in det_result.par_iter().enumerate(){
+            let ocr_result = self.postprocess(output, det_res, i)?;
+            ocr_results.push(ocr_result);
+        }
+        Ok(ocr_results)
+    }
+}

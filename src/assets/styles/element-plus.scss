@@ -1,0 +1,82 @@
+@use "element-plus/dist/index.css";
+@use "./theme.scss";
+
+// Element Plus 组件样式覆盖
+.el-button--primary {
+  background: var(--primary-gradient) !important;
+  border: none;
+}
+
+.el-button--success {
+  background: var(--success-gradient) !important;
+  border: none;
+}
+
+.el-button--warning {
+  background: var(--warning-gradient) !important;
+  border: none;
+}
+
+.el-button--danger {
+  background: var(--danger-gradient) !important;
+  border: none;
+}
+
+.el-button--info {
+  background: var(--secondary-gradient) !important;
+  border: none;
+}
+
+// 卡片渐变边框效果
+.gradient-card {
+  position: relative;
+  background-color: var(--bg-color-soft);
+  border-radius: 8px;
+  padding: 1px;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: var(--primary-gradient);
+    border-radius: 9px;
+    z-index: -1;
+  }
+}
+
+// 导航菜单样式优化
+.el-menu {
+  background-color: transparent !important;
+  border-right: none !important;
+  
+  .el-menu-item.is-active {
+    background: var(--primary-gradient) !important;
+    color: white !important;
+    border-radius: 4px;
+  }
+  
+  .el-menu-item:hover {
+    background-color: var(--bg-color-mute) !important;
+    border-radius: 4px;
+  }
+}
+
+// 滚动条样式
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color-mute);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--el-color-primary-light-5);
+  border-radius: 4px;
+  
+  &:hover {
+    background: var(--el-color-primary);
+  }
+} 

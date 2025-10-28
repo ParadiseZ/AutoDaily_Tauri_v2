@@ -1,0 +1,11 @@
+[buid]
+rustc-wrapper = "D:/Database/Rust/cargo/bin"
+
+[profile.dev]
+# 以较小的步骤编译您的二进制文件。
+incremental = true
+opt-level = 'z'
+lto = true
+strip = "symbols"
+panic="abort"
+codegen-units=1

@@ -1,0 +1,118 @@
+[package]
+name = "auto_daily"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["小口嗦面"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant,but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+# staticlib：生成一个静态库文件（例如 .a 或 .lib），这种文件在编译时会被完全嵌入到其他程序中。适用于需要将 Rust 代码静态链接到其他项目（例如 C/C++ 项目）的场景。
+# cdylib：生成一个动态链接库文件（例如 .so、.dll 或 .dylib），这种文件可以在运行时被其他程序动态加载。适用于需要将 Rust 代码作为共享库供其他语言或应用调用的场景。
+# rlib：生成一个 Rust 库文件（.rlib），这是 Rust 特有的库格式，包含编译后的代码和元数据，供其他 Rust crate 使用。适用于 Rust 项目之间的库依赖。
+# crate-type = ["staticlib", "cdylib", "rlib"]
+name = "auto_daily_lib"
+crate-type = ["cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+#tauri
+tauri = { version = "2", features = ["uuid", "unstable"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+# 系统通知
+tauri-plugin-notification = "2"
+tauri-plugin-store = "2"
+
+#序列化/yaml
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+#erased-serde = "0.4.6"
+# wincap
+xcap = "0.7"
+fs_extra = "1.3"
+# error
+thiserror = "2.0"
+#anyhow = "1.0"
+# logger
+tracing = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+once_cell = "1.21"
+# time
+chrono  = "0.4"
+# encode/decode
+base64 = "0.22"
+
+#图像处理
+image = { version = "0.25", features = ["png", "jpeg"] }
+ort = {version = "2.0.0-rc.10", features = ["directml", "cuda"] }
+ndarray = "0.16"
+imageproc = "0.25.0"
+
+##绘制/更改为前端绘制检测结果
+#raqote = { version = "0.8", default-features = false,  features = ["text"] }
+#font-kit = { version = "0.14"}
+# cpu核心
+num_cpus = "1.17"
+# cpu亲和性
+core_affinity = "0"
+# 高性能哈希
+ahash = "0.8.12"
+# 内存映射
+memmap2 = "0.9"
+# 双缓冲
+ringbuf = "0.4"
+# 系统信息
+sysinfo = "0.37"
+# 高性能哈希
+twox-hash = { version = "2.1.1", features = ["xxhash3_64"] }
+# 加密/文件一致性
+sha3 = "0.10.8"
+# 进程间通信
+interprocess = { version = "2.2.3", features = ["tokio"] }
+
+#异步
+tokio = { version = "1.46.1", features = ["full"] }
+#并行计算资源分配
+rayon = "1.11.0"
+# 序列化和压缩
+bincode = "2.0.1"
+
+#rmp-serde = "1.3"
+#flate2 = "1.0"
+# 异步特征
+#futures = "0.3"
+
+# 异步trait
+async-trait = "0.1.89"
+uuid = { version = "1.18.0", features = ["v4","v7","serde"] }
+adb_client = "2.1.17"
+
+# 日期口而笑哦
+cron = "0.15.0"
+# 表达式
+rhai = "1.23.4"
+log = "0.4.27"
+which = "8.0.0"
+
+# Windows 原生API（命名共享内存、亲和性）
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Memory", "Win32_System_Threading"] }
+
+# Unix系统调用
+[target.'cfg(unix)'.dependencies]
+nix = "0.30"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-autostart = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-window-state = "2"

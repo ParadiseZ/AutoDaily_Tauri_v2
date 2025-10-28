@@ -1,0 +1,82 @@
+[package]
+name = "auto_daily"
+version = "0.1.0"
+description = "A Tauri App"
+authors = ["小口嗦面"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant,but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+# staticlib：生成一个静态库文件（例如 .a 或 .lib），这种文件在编译时会被完全嵌入到其他程序中。适用于需要将 Rust 代码静态链接到其他项目（例如 C/C++ 项目）的场景。
+# cdylib：生成一个动态链接库文件（例如 .so、.dll 或 .dylib），这种文件可以在运行时被其他程序动态加载。适用于需要将 Rust 代码作为共享库供其他语言或应用调用的场景。
+# rlib：生成一个 Rust 库文件（.rlib），这是 Rust 特有的库格式，包含编译后的代码和元数据，供其他 Rust crate 使用。适用于 Rust 项目之间的库依赖。
+# crate-type = ["staticlib", "cdylib", "rlib"]
+name = "auto_daily_lib"
+crate-type = ["cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+#tauri
+tauri = { version = "2", features = ["uuid", "unstable"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+# 系统通知
+tauri-plugin-notification = "2.0.0"
+tauri-plugin-store = "2"
+
+#序列化/yaml
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+erased-serde = "0.4.6"
+# wincap
+xcap = "0.7"
+fs_extra = "1.3"
+# error
+thiserror = "2.0"
+anyhow = "1.0"
+# logger
+tracing = "0.1"
+tracing-subscriber  = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+once_cell = "1.21"
+# time
+chrono  = "0.4"
+# encode/decode
+base64 = "0.22"
+
+#图像处理
+image = { version = "0.25", features = ["png", "jpeg"] }
+ort = {version = "2.0.0-rc.10", features = ["directml", "cuda"] }
+ndarray = "0.16"
+imageproc = "0.25.0"
+
+##绘制/更改为前端绘制检测结果
+#raqote = { version = "0.8", default-features = false,  features = ["text"] }
+#font-kit = { version = "0.14"}
+# cpu核心
+num_cpus = "1.17"
+# cpu亲和性
+core_affinity = "0"
+ahash = "0.8.12"
+
+#异步
+tokio = "1.46.1"
+#并行计算资源分配
+rayon = "1.10.0"
+
+async-trait = "0.1.89"
+uuid = { version = "1.18.0", features = ["v4","v7"] }
+
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-autostart = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-window-state = "2"

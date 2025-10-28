@@ -1,0 +1,74 @@
+#![feature(portable_simd)]
+
+// 日志系统
+
+// Legacy modules (will be gradually phased out)
+mod constant;
+mod domain;
+mod infrastructure;
+pub mod main_child;
+mod app;
+mod api;
+
+use std::sync::Arc;
+use ort::environment::{Environment, EnvironmentBuilder};
+use tauri::{Manager, State};
+use tauri::path::BaseDirectory;
+// 使用新的模块结构
+use infrastructure::config::conf_mgr::ConfigManager;
+use crate::app::init_start::init_at_start;
+// 临时保留旧的命令导入，后续会重构
+//use crate::command::{cancel_shutdown_cmd, cleanup_finished_processes, get_active_processes_info, get_cpu_cores_cmd, get_log_cmd, get_performance_cmd, get_process_output, get_system_performance_info, get_system_settings_cmd, paddle_ocr_inference_test, save_captured_image, save_window_state_cmd, set_log_cmd, set_performance_cmd, set_system_settings_cmd, start_cpu_intensive_process, start_idle_monitoring_cmd, start_parallel_processes, start_simple_test_process, start_test_process, stop_idle_monitoring_cmd, terminate_process, update_activity_cmd, window_capture_test, yolo_inference_test};
+use crate::constant::project::MAIN_WINDOW;
+use crate::constant::sys_conf_path::{PERFORMANCE_CONFIG_PATH, SYSTEM_SETTINGS_PATH};
+use crate::domain::config::sys_conf::{SystemConfig};
+use crate::infrastructure::ipc::chanel_server::IpcServer;
+use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
+use crate::infrastructure::logging::config::{LogMain};
+use crate::infrastructure::logging::log_trait::Log;
+
+// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
+        .setup(async |app| {
+            Ok(init_at_start(app.app_handle()).await)
+        })
+        .invoke_handler(tauri::generate_handler![
+            //开发者相关
+            window_capture_test,
+            save_captured_image,
+            yolo_inference_test,
+            paddle_ocr_inference_test,
+            //日志
+            set_log_cmd,get_log_cmd,
+            //性能设置
+            get_performance_cmd,set_performance_cmd,get_cpu_cores_cmd,
+            // 常规/系统设置
+            get_system_settings_cmd,set_system_settings_cmd,save_window_state_cmd,
+            // 空闲监控
+            start_idle_monitoring_cmd,stop_idle_monitoring_cmd,update_activity_cmd,cancel_shutdown_cmd,
+            // 进程管理
+            get_system_performance_info,
+            start_test_process,
+            terminate_process,
+            get_active_processes_info,
+            cleanup_finished_processes,
+            get_process_output,
+            start_simple_test_process,
+            start_cpu_intensive_process,
+            start_parallel_processes
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+    IpcServer::start().expect("Failed to start to IPC server");
+    ort::init()
+        .with_telemetry(false)
+        .commit().expect("ort 关闭遥测失败！");
+}
