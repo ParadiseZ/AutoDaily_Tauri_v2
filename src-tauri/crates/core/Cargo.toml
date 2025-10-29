@@ -1,0 +1,26 @@
+[package]
+name = "ad_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace共享依赖
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+# 核心特定依赖
+num_cpus = { workspace = true }
+core_affinity = { workspace = true }
+
+# 平台特定依赖
+[target.'cfg(windows)'.dependencies]
+winapi = { workspace = true }
+windows = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+nix = { workspace = true }

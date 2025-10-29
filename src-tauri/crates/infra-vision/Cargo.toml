@@ -1,0 +1,29 @@
+[package]
+name = "ad_infra_vision"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace共享依赖
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+
+# 视觉和AI相关
+ort = { workspace = true }
+image = { workspace = true }
+
+# 内部依赖
+ad_infra_core = { path = "../infra-core" }
+
+# 平台特定依赖
+[target.'cfg(windows)'.dependencies]
+winapi = { workspace = true }
+windows = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+nix = { workspace = true }

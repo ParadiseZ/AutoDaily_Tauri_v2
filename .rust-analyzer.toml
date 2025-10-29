@@ -1,0 +1,31 @@
+[cargo]
+features = "all"
+
+[procMacro]
+enable = true
+
+[server]
+path = "rust-analyzer"
+
+[diagnostics]
+enable = true
+
+[hover]
+enable = true
+
+[inlayHints]
+enable = true
+
+[lens]
+enable = true
+
+# 限制分析范围，减少内存占用
+files.excludeDirs = ["target", "node_modules", "dist"]
+
+# 禁用一些不必要的功能以减少内存占用
+[completion]
+addCallParentheses = false
+addCallArgumentSnippets = false
+
+[notifications]
+cargoTomlNotFound = false

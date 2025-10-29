@@ -28,3 +28,4 @@ dist-ssr
 .qoderignore
 doc/*
 docx/*
+target/*
