@@ -16,6 +16,8 @@ pub type DeviceConfMap = HashMap<Arc<DeviceId>, Arc<RwLock<DeviceConfig>>>;
 pub struct DeviceConfig{
     // 设备名称
     pub device_name: String,
+
+    pub dev_adb_name: Option<String>,
     // 执行路径
     pub exe_path : Option<String>,
     // 执行参数
@@ -47,6 +49,7 @@ impl ConfigCategory for DeviceConfig{
     fn default() -> Self {
         Self{
             device_name: "MuMu模拟器12".into(),
+            dev_adb_name: None,
             exe_path : None,
             exe_args : None,
             cores : 4,
