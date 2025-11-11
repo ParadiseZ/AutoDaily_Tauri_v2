@@ -388,7 +388,6 @@ dependencies = [
  "num_cpus",
  "once_cell",
  "ort",
- "parking_lot",
  "rayon",
  "rhai",
  "serde",

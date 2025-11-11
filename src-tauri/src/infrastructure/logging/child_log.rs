@@ -1,10 +1,9 @@
-use std::io::Write;
+use crate::infrastructure::context::child_process_sec::get_ipc_client;
 use crate::infrastructure::ipc::chanel_client::IpcClient;
 use crate::infrastructure::ipc::message::{IpcMessage, LogMessage, MessagePayload, MessageType};
+use crate::infrastructure::logging::log_trait::LogTrait;
 use crate::infrastructure::logging::LogLevel;
 use std::sync::atomic::Ordering;
-use crate::infrastructure::context::child_process_sec::get_ipc_client;
-use crate::infrastructure::logging::log_trait::{Log, LogTrait};
 
 pub struct LogChild;
 impl LogTrait for LogChild{

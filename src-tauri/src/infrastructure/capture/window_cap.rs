@@ -50,7 +50,11 @@ impl WindowInfo{
 impl CapHandler for WindowInfo{
     fn capture(&self) -> Option<RgbaImage> {
         if self.window.is_some() {
-            return self.window.as_ref().map(|window| window.capture_image().into_ok());
+            let img_get = self.window.as_ref()
+                .map(|window| window.capture_image());
+            if let Some(img) = img_get {
+                return img.ok();
+            }
         }
         None
     }
