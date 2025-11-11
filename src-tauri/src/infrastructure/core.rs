@@ -5,7 +5,7 @@ pub mod time_format;
 
 // 重新导出主要类型供外部使用
 pub use ahash::AHashMap as HashMap;
-//pub use ahash::AHashSet as HashSet;
+pub use ahash::AHashSet as HashSet;
 pub use serde::{Deserialize, Serialize};
 pub use thiserror::Error;
 

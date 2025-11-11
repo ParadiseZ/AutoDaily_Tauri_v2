@@ -1,20 +1,20 @@
-use std::sync::OnceLock;
+use tokio::sync::OnceCell;
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 
 /// 全局日志
-static LOGGER: OnceLock<Box<dyn LogTrait + Send + Sync>> = OnceLock::new();
+static LOGGER: OnceCell<Box<dyn LogTrait>> = OnceCell::new();
 
-pub trait LogTrait {
-    fn debug(msg: &str);
-    fn info(msg: &str);
-    fn warn(msg: &str);
-    fn error(msg: &str);
+pub trait LogTrait: Send+ Sync {
+    fn debug(&self, msg: &str);
+    fn info(&self, msg: &str);
+    fn warn(&self, msg: &str);
+    fn error(&self, msg: &str);
 }
 
 pub struct Log;
 
 impl Log{
-    pub fn init_logger(log: Box<dyn LogTrait + Send + Sync>) -> InitResult<()> {
+    pub fn init_logger(log: Box<dyn LogTrait>) -> InitResult<()> {
 
         LOGGER.set(log).map_err(|e| InitError::InitLoggerFailed {e: e.to_string()})
     }

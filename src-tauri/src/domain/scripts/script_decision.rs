@@ -1,3 +1,4 @@
+use std::fmt;
 use crate::infrastructure::core::{Deserialize, GuardId, HashMap, PolicyId, ScriptId, Serialize, SubFlowId, TaskId};
 
 #[derive(Debug, thiserror::Error)]
@@ -113,12 +114,25 @@ pub enum  LabelType {
     LabelName {name : String},
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
 #[serde(tag = "op")]
 pub struct Point {
-    x : i32,
-    y : i32
+    pub(crate) x : u32,
+    pub(crate) y : u32
 }
+
+impl Point{
+    pub fn new(x: u32, y: u32) -> Self {
+        Point { x, y }
+    }
+}
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // 输出格式为 "x y"，直接适配ADB的坐标参数
+        write!(f, " {} {}", self.x, self.y)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op")]
 pub struct PointPercent {

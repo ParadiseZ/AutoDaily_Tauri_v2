@@ -10,7 +10,7 @@ pub mod logging;
 // 脚本管理
 pub mod scripts;
 // 共享内存模型管理器
-pub mod shared;
+//pub mod shared;
 // 视觉服务
 pub mod vision;
 pub mod devices;
@@ -21,4 +21,5 @@ mod ort;
 mod hash_calculated;
 pub mod app_handle;
 pub mod path_resolve;
-mod adb_cli_local;
+
+pub mod adb_cli_local;

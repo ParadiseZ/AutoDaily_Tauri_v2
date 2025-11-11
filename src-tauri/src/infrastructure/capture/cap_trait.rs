@@ -1,28 +1,33 @@
+use crate::infrastructure::logging::log_trait::Log;
+use base64::engine::general_purpose;
+use base64::Engine;
 use image::{DynamicImage, RgbaImage};
-use std::cell::OnceCell;
+use lazy_static::lazy_static;
 use std::io::Cursor;
 use std::sync::{Arc, RwLock};
-use base64::Engine;
-use base64::engine::general_purpose;
-use crate::infrastructure::logging::log_trait::Log;
+use tokio::io::AsyncWriteExt;
 
-static CAP_WAY : OnceCell<Arc<RwLock< Option< Box<dyn CapHandler> > >>> = OnceCell::new();
+lazy_static!(
+    pub static ref CAP_WAY: Arc<RwLock< Option<Arc<dyn CapHandler>> >> = Arc::new(RwLock::new( None ) );
+);
+//static CAP_WAY : OnceCell<Arc<RwLock< Option< Arc<dyn CapHandler> > >>> = OnceCell::new();
 
-pub fn set_cap_way<T : CapHandler>(cap_way: T){
+pub fn set_cap_way<T : CapHandler>(cap_way: T)->bool{
     // 确保容器（RwLock）只被初始化一次
-    let cap_arc = CAP_WAY.get_or_init(|| Arc::new(RwLock::new(None)));
+    //let cap_arc = CAP_WAY.get_or_init(|| Arc::new(RwLock::new(None)));
     // 获取写锁，更新内部数据（动态替换）
-    let mut write_guard = if let Ok(w) = cap_arc.write().unwrap(){
+    let mut write_guard = if let Ok(w) = CAP_WAY.clone().write(){
         w
     }else {
         Log::error("切换截图方式失败：获取锁失败");
-        return;
+        return false;
     };
-    *write_guard = Some(Box::new(cap_way));
+    *write_guard = Some(Arc::new(cap_way));
+    true
 }
 
 pub fn get_capture()-> Option<RgbaImage>{
-    if let Ok(read_guard) = CAP_WAY.get()?.read(){
+    if let Ok(read_guard) = CAP_WAY.clone().read(){
         read_guard.as_ref().map(|handler| handler.capture())?
     }else {
         Log::error("截图失败！未初始化截图方式，或获取截图方式锁失败！");

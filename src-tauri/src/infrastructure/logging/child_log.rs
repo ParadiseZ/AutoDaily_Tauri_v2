@@ -1,3 +1,4 @@
+use std::io::Write;
 use crate::infrastructure::ipc::chanel_client::IpcClient;
 use crate::infrastructure::ipc::message::{IpcMessage, LogMessage, MessagePayload, MessageType};
 use crate::infrastructure::logging::LogLevel;
@@ -7,19 +8,20 @@ use crate::infrastructure::logging::log_trait::{Log, LogTrait};
 
 pub struct LogChild;
 impl LogTrait for LogChild{
-    fn debug(msg : &str){
+    fn debug(&self, msg : &str){
         get_ipc_client().debug(msg);
     }
-    fn info(msg : &str){
+    fn info(&self, msg : &str){
         get_ipc_client().info(msg);
     }
-    fn warn(msg : &str){
+    fn warn(&self, msg : &str){
         get_ipc_client().warn(msg);
     }
-    fn error(msg : &str){
+    fn error(&self, msg : &str){
         get_ipc_client().error(msg)
     }
 }
+
 impl IpcClient{
     pub fn set_log_level(&self, level: LogLevel) {
         self.log_level.store(level as u8, Ordering::Relaxed);

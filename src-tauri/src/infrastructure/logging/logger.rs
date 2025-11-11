@@ -3,9 +3,6 @@ use std::path::PathBuf;
 use chrono::Local;
 use once_cell::sync::Lazy;
 use ort::execution_providers::set_gpu_device;
-use ringbuf::consumer::Consumer;
-use ringbuf::producer::Producer;
-use ringbuf::traits::{Observer, RingBuffer};
 use tauri::{Manager, State};
 use tauri::path::BaseDirectory;
 use tokio::sync::Mutex;
@@ -24,8 +21,8 @@ use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::core::time_format::LocalTimer;
 use crate::infrastructure::logging::config::{LogMain};
 use crate::infrastructure::logging::log_error::{LogError, LogResult};
-use crate::infrastructure::logging::log_trait::{LogTrait};
-use crate::infrastructure::path::{get_absolute_path, sure_parent_exists};
+use crate::infrastructure::logging::log_trait::{Log, LogTrait};
+use crate::infrastructure::path_resolve::model_path::PathUtil;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[repr(u8)]
@@ -79,7 +76,7 @@ impl LogMain{
             handle
                 .reload(level_filter)
                 .map_err(|e| LogError::ReloadFilterErr{e})?;
-            Self::info(format!("主线程日志级别变更为: {:?}", level));
+            Log::info(format!("主线程日志级别变更为: {:?}", level));
         } else {
             return Err(LogError::ReloadDataNotInit);
         }
@@ -101,8 +98,9 @@ impl LogMain{
         let log_level_filter = parse_log_level(&conf.log_level);
 
         // Resolve and ensure log directory
-        let log_dir_path: PathBuf = get_absolute_path(&conf.log_dir, BaseDirectory::AppLog)
+        let log_dir_path: PathBuf = PathUtil::get_absolute_path(&conf.log_dir, BaseDirectory::AppLog)
             .map_err(|e| LogError::CreateOrGet{e: e.to_string()})?;
+
         let date_str = Local::now().format("%y%m%d").to_string();
         let log_file = format!("AutoDaily_{}.log", date_str);
 
@@ -186,19 +184,19 @@ impl LogMain{
 }
 
 impl LogTrait for LogMain{
-    fn debug(msg: &str) {
+    fn debug(&self, msg: &str) {
         tracing::debug!("{}", msg);
     }
 
-    fn info(msg: &str) {
+    fn info(&self, msg: &str) {
         tracing::info!("{}", msg);
     }
 
-    fn warn(msg: &str) {
+    fn warn(&self, msg: &str) {
         tracing::warn!("{}", msg);
     }
 
-    fn error(msg: &str) {
+    fn error(&self, msg: &str) {
         tracing::error!("{}", msg);
     }
 }

@@ -2,6 +2,7 @@ use crate::infrastructure::capture::cap_trait::CapHandler;
 use crate::infrastructure::core::{Deserialize, Serialize};
 use image::RgbaImage;
 use xcap::Window;
+use crate::infrastructure::logging::log_trait::Log;
 
 #[derive(Clone, Debug,Serialize,Deserialize)]
 pub struct WindowInfo{
@@ -13,8 +14,8 @@ impl WindowInfo{
     pub(crate) fn init(window_name : &str) -> Self{
         // 获取所有窗口
         let windows =  Window::all();
-        if let Err(_) = windows{
-            //Log::error(&format!("获取窗口列表失败: {:?}", e));
+        if let Err(e) = windows{
+            Log::error(&format!("获取窗口列表失败: {:?}", e));
             return Self{
                 window : None,
                 title : None,
@@ -48,6 +49,9 @@ impl WindowInfo{
 
 impl CapHandler for WindowInfo{
     fn capture(&self) -> Option<RgbaImage> {
-        self.window?.capture_image().ok()
+        if self.window.is_some() {
+            return self.window.as_ref().map(|window| window.capture_image().into_ok());
+        }
+        None
     }
 }
