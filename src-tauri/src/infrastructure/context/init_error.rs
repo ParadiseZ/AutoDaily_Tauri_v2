@@ -1,7 +1,7 @@
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum InitError {
     #[error("child-初始化上下文失败: {e}")]
-    InitChildCtxFailed { e: String },
+    InitChildAppCtxFailed { e: String },
 
     #[error("child初始化IPC客户端失败: {e}")]
     InitChildIpcClientFailed { e: String },

@@ -2,6 +2,7 @@ use crate::constant::adb_command::{click_cmd, input_text_cmd, sleep_cmd, stop_ap
 use crate::infrastructure::adb_cli_local::adb_command::{ADBCmdConv, ADBCommand, ADBCommandResult};
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
+use crate::infrastructure::core::HashSet;
 use adb_client::{ADBDeviceExt, ADBServer, ADBTcpDevice, RebootType};
 use ahash::HashSetExt;
 use core_affinity::CoreId;
@@ -9,11 +10,10 @@ use crossbeam_channel::bounded;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{mpsc, Arc};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use crate::infrastructure::core::HashSet;
 
 pub struct ADBExecutor {
     device: Mutex<Option<Box<dyn ADBDeviceExt>>>,
@@ -21,7 +21,7 @@ pub struct ADBExecutor {
 
     cmd_rx: crossbeam_channel::Receiver<ADBCommand>,
     cmd_loop_rx : crossbeam_channel::Receiver<ADBCommand>,
-    error_tx : mpsc::Sender<ADBCommandResult>,
+    error_tx : crossbeam_channel::Sender<ADBCommandResult>,
 
     core : CoreId,
 
@@ -34,10 +34,10 @@ pub struct ADBExecutor {
 }
 
 impl ADBExecutor {
-    fn new(
+    pub fn new(
         adb_config: Arc<Mutex<ADBConnectConfig>>,
         core: CoreId,
-        error_tx: mpsc::Sender<ADBCommandResult>,
+        error_tx: crossbeam_channel::Sender<ADBCommandResult>,
     ) -> (Self, crossbeam_channel::Sender<ADBCommand>, crossbeam_channel::Sender<ADBCommand>) {
         let (cmd_tx, cmd_rx) = bounded(10);
         let (cmd_loop_tx, cmd_loop_rx) = bounded(10);
@@ -59,7 +59,16 @@ impl ADBExecutor {
             cmd_loop_tx
         )
     }
-    async fn run(mut self) {
+    pub async fn validate_config(&mut self) -> bool {
+        self.try_to_connect().await
+    }
+
+    pub async fn update_config(&mut self, adb_config: ADBConnectConfig) {
+        let guard = self.adb_config.lock().await;
+        *guard = adb_config;
+    }
+
+    pub async fn run(mut self) {
         let (tx, rx) = bounded(1);
 
         loop {

@@ -35,6 +35,7 @@ pub enum ADBCmdConv{
     ADBSleepCommand(ADBCommand::Duration(u64))
 }
 
+#[derive(Debug)]
 pub enum ADBCommandResult{
     Success,
     Failed(String),

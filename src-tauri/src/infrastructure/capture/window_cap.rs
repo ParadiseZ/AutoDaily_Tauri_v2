@@ -1,8 +1,6 @@
-use crate::infrastructure::capture::cap_trait::CapHandler;
 use crate::infrastructure::core::{Deserialize, Serialize};
-use image::RgbaImage;
-use xcap::Window;
 use crate::infrastructure::logging::log_trait::Log;
+use xcap::Window;
 
 #[derive(Clone, Debug,Serialize,Deserialize)]
 pub struct WindowInfo{
@@ -44,18 +42,5 @@ impl WindowInfo{
             window : None,
             title : None,
         }
-    }
-}
-
-impl CapHandler for WindowInfo{
-    fn capture(&self) -> Option<RgbaImage> {
-        if self.window.is_some() {
-            let img_get = self.window.as_ref()
-                .map(|window| window.capture_image());
-            if let Some(img) = img_get {
-                return img.ok();
-            }
-        }
-        None
     }
 }

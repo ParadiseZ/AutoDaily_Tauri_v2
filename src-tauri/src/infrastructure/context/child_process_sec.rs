@@ -1,13 +1,9 @@
-use crate::infrastructure::context::child_process::ChildProcessCtx;
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::ipc::chanel_client::IpcClient;
-use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;
-use rayon::ThreadPool;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
-use tokio::sync::{OnceCell, RwLock};
 
 /// 运行标志
 static RUNNING: AtomicU8 = AtomicU8::new(0);
@@ -49,13 +45,6 @@ pub fn process_need_stop() ->bool{
 }
 
 /// InitData 类型移动到 context::child_process 模块
-static CHILD_CONTEXT: OnceLock<Arc<RwLock<ChildProcessCtx>>> = OnceLock::new();
-pub fn init_child_process_ctx(init_data: Arc<RwLock<ChildProcessCtx>>) -> InitResult<()> {
-    CHILD_CONTEXT.set(init_data).map_err(|e| InitError::InitChildCtxFailed {e: e.to_string()})
-}
-pub fn get_child_process_ctx() -> Arc<RwLock<ChildProcessCtx>> {
-    CHILD_CONTEXT.get().unwrap().clone()
-}
 
 
 /// IPC客户端

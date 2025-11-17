@@ -3,11 +3,11 @@ use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{DeviceId, HashMap};
 use crate::infrastructure::devices::device_conf::DeviceConfMap;
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
-use crate::infrastructure::logging::config::Log;
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
 use memmap2::Mmap;
 use std::sync::{Arc, RwLock};
 use tauri::Manager;
+use crate::infrastructure::logging::log_trait::Log;
 
 pub type MemoryMap = Arc<RwLock<Vec<(String, Mmap)>>>;
 

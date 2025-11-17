@@ -1,4 +1,3 @@
-use crate::infrastructure::capture::window_cap::WindowInfo;
 use crate::infrastructure::config::conf_write_guard::ConfigCategory;
 use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, Serialize};
 use crate::infrastructure::devices::adb_info::{AdbConnectSatus, AdbInfo};
@@ -6,8 +5,6 @@ use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use std::net::Ipv4Addr;
 use std::sync::{Arc, RwLock};
-use image::RgbaImage;
-use crate::infrastructure::capture::cap_trait::CapHandler;
 
 pub type DeviceConfMap = HashMap<Arc<DeviceId>, Arc<RwLock<DeviceConfig>>>;
 
@@ -17,7 +14,6 @@ pub struct DeviceConfig{
     // 设备名称
     pub device_name: String,
 
-    pub dev_adb_name: Option<String>,
     // 执行路径
     pub exe_path : Option<String>,
     // 执行参数
@@ -26,8 +22,7 @@ pub struct DeviceConfig{
     pub cores : u8,
     // 日志级别
     pub log_level: LogLevel,
-    // 窗口信息
-    pub window_info : Option<WindowInfo>,
+
     // 模拟器信息
     pub adb_info : Option<AdbInfo>,
     // 截图方式
@@ -49,12 +44,10 @@ impl ConfigCategory for DeviceConfig{
     fn default() -> Self {
         Self{
             device_name: "MuMu模拟器12".into(),
-            dev_adb_name: None,
             exe_path : None,
             exe_args : None,
             cores : 4,
             log_level: LogLevel::Off,
-            window_info : Some(WindowInfo::init("MuMu模拟器12")),
             adb_info: Some(AdbInfo{
                 ip_addr: Ipv4Addr::new(127,0,0,1),
                 port : 16416,

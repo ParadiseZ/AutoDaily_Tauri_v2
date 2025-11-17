@@ -1,32 +1,49 @@
 use crate::api::api_response::ApiResponse;
 use crate::app::dev_test::{paddle_ocr_infer, yolo_infer_test};
 use crate::domain::vision::result::{DetResult, OcrResult};
-use crate::infrastructure::capture::cap_trait::{get_base64_capture, get_capture, set_cap_way};
-use crate::infrastructure::capture::window_cap::WindowInfo;
-use crate::infrastructure::config::conf_write_guard::ConfigCategory;
+use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
+use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::devices::device_conf::DeviceConfig;
+use crate::infrastructure::devices::device_ctx::DeviceCtx;
 use crate::infrastructure::image::save_image::save_screenshot;
+use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use crate::infrastructure::vision::ocr_factory::{DetectorConfig, DetectorType, RecognizerConfig, RecognizerType};
+use base64::engine::general_purpose;
+use base64::Engine;
+use core_affinity::get_core_ids;
+use image::DynamicImage;
+use std::io::Cursor;
+use std::sync::{Arc, RwLock};
 use tauri::{command, AppHandle};
 
 #[command]
-pub fn dev_capture_test(method: &str, device: &str, win_name: &str) -> ApiResponse<String> {
-    match method {
-        "adb" => {
-            let device : DeviceConfig = DeviceConfig::default();
-            //set_cap_way(device);
-            //screen_cap_test(method, device, win_name)
-        }
-        _ =>{
-            let window_init = WindowInfo::init(win_name);
-            set_cap_way(window_init);
-            if let Some(img) = get_base64_capture(){
-                ApiResponse::success( img)
-            }else {
-                ApiResponse::error( "未获取到截图，详情请查看日志".to_string() )
+pub async fn dev_capture_test(method: u8, device_conf: DeviceConfig, adb_conf:ADBConnectConfig) -> ApiResponse<String> {
+
+    let adb_ctx = ADBCtx::new(adb_conf, get_core_ids()[0]);
+    let device_ctx = DeviceCtx::new(Arc::new(RwLock::new(device_conf)), CaptureMethod::from(method) ,Arc::new(RwLock::new(adb_ctx)));
+
+    if !device_ctx.valid_capture().await {
+        return ApiResponse::error("验证截图功能失败！".into());
+    }
+    match device_ctx.get_screenshot().await{
+        Some(image_data) => {
+            let mut cursor = Cursor::new(Vec::new());
+            match DynamicImage::ImageRgba8(image_data).write_to(&mut cursor, image::ImageFormat::Png) {
+                Ok(_) => {
+                    let buffer = cursor.into_inner();
+                    let base64_string = general_purpose::STANDARD.encode(&buffer);
+                    let msg = format!("转换base64编码截图成功：{}KB", base64_string.len() / 1024);
+                    ApiResponse::success(base64_string,Some(msg))
+                }
+                Err(e) => {
+                    Log::error(&format!("图像转换为base64失败: {:?}", e));
+                    ApiResponse::failed("base64编码失败！".to_string(), None)
+                }
             }
-        }
+        },
+        _ => ApiResponse::error("截图失败！")
     }
 }
 
