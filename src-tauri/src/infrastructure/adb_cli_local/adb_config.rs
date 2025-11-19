@@ -1,7 +1,8 @@
 use std::net::SocketAddrV4;
 use std::path::PathBuf;
+use serde::Deserialize;
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
 struct AdbServerConfig{
     pub(crate) adb_path : Option<String>,
     pub(crate) server_connect : Option<SocketAddrV4>,
@@ -13,7 +14,7 @@ impl AdbServerConfig {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
 pub struct AdbServerConnectName{
     pub adb_config : AdbServerConfig,
     pub device_name: Option<String>,
@@ -25,7 +26,7 @@ impl AdbServerConnectName{
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
 pub struct AdbServerConnectIp{
     pub(crate) adb_config : AdbServerConfig,
     pub(crate) client_connect : Option<SocketAddrV4>,
@@ -37,13 +38,13 @@ impl AdbServerConnectIp{
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
 pub struct DirectUsbConnect{
     vendor_id : u16,
     product_id: u16
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Deserialize)]
 pub enum ADBConnectConfig{
     ServerConnectByName(AdbServerConnectName),
     ServerConnectByIp(AdbServerConnectIp),

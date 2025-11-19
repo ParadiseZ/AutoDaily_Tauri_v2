@@ -1,6 +1,5 @@
 use crate::api::api_response::ApiResponse;
 use crate::app::config::sys_conf::{get_system_settings, save_window_state_if_enabled, set_system_settings};
-use crate::constant::sys_conf_path::SYSTEM_SETTINGS_PATH;
 use crate::domain::config::sys_conf::SystemConfig;
 use crate::infrastructure::config::conf_mgr::ConfigManager;
 use tauri::{command, AppHandle, Manager};
@@ -23,7 +22,7 @@ pub async fn set_system_settings_cmd(
     system_config: SystemConfig
 ) -> ApiResponse<String> {
     match set_system_settings(manager, system_config).await {
-        Ok(_) => ApiResponse::ok(Some("设置成功！".to_string())),
+        Ok(_) => ApiResponse::success(None,Some("设置成功！".to_string())),
         Err(e) => ApiResponse::error(Some("设置快捷键失败！".to_string()))
     }
 }

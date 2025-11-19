@@ -28,7 +28,7 @@ pub async fn set_log_cmd(
         log_config.max_file_size,
         log_config.retention_days
     ).await{
-        Ok(_) => ApiResponse::ok(Some("设置成功！".to_string())),
+        Ok(_) => ApiResponse::success(None,Some("设置成功！".to_string())),
         Err(err) => ApiResponse::error(Some(err.to_string()))
     }
 }

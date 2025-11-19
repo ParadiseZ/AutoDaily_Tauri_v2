@@ -10,6 +10,7 @@ use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, State};
 use tracing::trace;
 use crate::domain::config::notice_conf::EmailConfig;
+use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::logging::log_trait::Log;
 
 pub async fn init_conf_sync(conf_mgr : &State<'_, ConfigManager>) -> InitResult<()>{
@@ -32,8 +33,9 @@ pub async fn init_conf_sync(conf_mgr : &State<'_, ConfigManager>) -> InitResult<
 
     Ok(())
 }
-pub fn init_conf_async(conf_mgr : State<'_, ConfigManager>){
+pub fn init_conf_async(){
     tokio::spawn(async move {
+        let conf_mgr = get_app_handle().state::<ConfigManager>();
         // 设备设置
         if let Err(e) = conf_mgr.init_category::<DeviceConfMap>(DEVICES_CONFIG_PATH,BaseDirectory::AppConfig).await {
             Log::error(&format!("系统-设备设置初始化失败:{}",e));

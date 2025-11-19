@@ -38,7 +38,7 @@ pub async fn init_at_start(app_handle : &AppHandle){
     init_start_model(app_handle, &sys_conf);
 
     // 异步初始化配置，设备设置、脚本设置
-    init_conf_async(state)
+    init_conf_async()
 }
 
 pub fn init_config_manager(app_handle : &AppHandle) {

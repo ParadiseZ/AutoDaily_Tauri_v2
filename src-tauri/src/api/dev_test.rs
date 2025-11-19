@@ -35,11 +35,11 @@ pub async fn dev_capture_test(method: u8, device_conf: DeviceConfig, adb_conf:AD
                     let buffer = cursor.into_inner();
                     let base64_string = general_purpose::STANDARD.encode(&buffer);
                     let msg = format!("转换base64编码截图成功：{}KB", base64_string.len() / 1024);
-                    ApiResponse::success(base64_string,Some(msg))
+                    ApiResponse::success(Some(base64_string),Some(msg))
                 }
                 Err(e) => {
                     Log::error(&format!("图像转换为base64失败: {:?}", e));
-                    ApiResponse::failed("base64编码失败！".to_string(), None)
+                    ApiResponse::error(Some("base64编码失败！".to_string()))
                 }
             }
         },
@@ -56,7 +56,7 @@ pub fn save_captured_image(
 )-> ApiResponse<String>{
     match save_screenshot(image_data, device_name, image_type){
         Ok(msg) => {
-            ApiResponse::success("",Some(msg))
+            ApiResponse::success(None,Some(msg))
         },
         Err(e) => {
             ApiResponse::error(Some(e))
@@ -77,7 +77,7 @@ pub async fn yolo_inference_test(
     inter_spinning: bool,
     confidence_threshold: f32,
     iou_threshold: f32
-) -> ApiResponse<Vec<DetResult>> {
+) -> Result<ApiResponse<Vec<DetResult>>, String> {
     let detector_conf = DetectorConfig{
         detector_type: DetectorType::Yolo11,
         model_path: model_path.into(),
@@ -98,7 +98,8 @@ pub async fn yolo_inference_test(
         unclip_ratio: None,
         use_dilation: None,
     };
-    Ok(yolo_infer_test(image_path, detector_conf).await?)
+    let result = yolo_infer_test(image_path, detector_conf).await;
+    Ok(ApiResponse::from(result))
 }
 
 #[command]
@@ -124,16 +125,16 @@ pub async fn paddle_ocr_inference_test(
     det_execution_provider: &str,
     rec_execution_provider: &str,
     image_path: &str,
-    app_handle: &AppHandle,
-) -> ApiResponse<Vec<OcrResult>> {
+    app_handle: AppHandle,
+) -> Result<ApiResponse<Vec<OcrResult>>, String> {
     let det_type = match det_model_type {
         1 => DetectorType::PaddleDbNet,
         2 => DetectorType::Yolo11,
         _ => DetectorType::Yolo11,
     };
-    let det_model_path = PathUtil::resolve_path(app_handle,model_path_type,det_model_path)?;
-    let rec_path_type = PathUtil::resolve_path(app_handle,model_path_type,rec_model_path)?;
-    let dict_path_type = PathUtil::resolve_path(app_handle,model_path_type,dict_path)?;
+    let det_model_path = PathUtil::resolve_path(&app_handle,model_path_type,det_model_path)?;
+    let rec_path_type = PathUtil::resolve_path(&app_handle,model_path_type,rec_model_path)?;
+    let dict_path_type = PathUtil::resolve_path(&app_handle,model_path_type,dict_path)?;
     let detector_conf = match det_type {
         DetectorType::Yolo11 => DetectorConfig::new_yolo(
             det_type,
@@ -181,9 +182,10 @@ pub async fn paddle_ocr_inference_test(
         inter_thread_num,
         inter_spinning
     };
-    Ok(paddle_ocr_infer(
+    let result = paddle_ocr_infer(
         detector_conf,
         rec_conf,
         image_path
-    ).await?)
+    ).await;
+    Ok(ApiResponse::from(result))
 }
