@@ -1,4 +1,3 @@
-use crate::api::api_response::ApiResponse;
 use crate::app::dev_test::{paddle_ocr_infer, yolo_infer_test};
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
@@ -19,13 +18,13 @@ use std::sync::{Arc, RwLock};
 use tauri::{command, AppHandle};
 
 #[command]
-pub async fn dev_capture_test(method: u8, device_conf: DeviceConfig, adb_conf:ADBConnectConfig) -> ApiResponse<String> {
+pub async fn dev_capture_test(method: u8, device_conf: DeviceConfig, adb_conf:ADBConnectConfig) -> Result<String,String> {
 
     let adb_ctx = ADBCtx::new(adb_conf, get_core_ids()[0]);
     let device_ctx = DeviceCtx::new(Arc::new(RwLock::new(device_conf)), CaptureMethod::from(method) ,Arc::new(RwLock::new(adb_ctx)));
 
     if !device_ctx.valid_capture().await {
-        return ApiResponse::error("验证截图功能失败！".into());
+        return Err("验证截图功能失败！".to_string());
     }
     match device_ctx.get_screenshot().await{
         Some(image_data) => {
@@ -35,15 +34,16 @@ pub async fn dev_capture_test(method: u8, device_conf: DeviceConfig, adb_conf:AD
                     let buffer = cursor.into_inner();
                     let base64_string = general_purpose::STANDARD.encode(&buffer);
                     let msg = format!("转换base64编码截图成功：{}KB", base64_string.len() / 1024);
-                    ApiResponse::success(Some(base64_string),Some(msg))
+                    Log::info(&msg);
+                    Ok(base64_string)
                 }
                 Err(e) => {
                     Log::error(&format!("图像转换为base64失败: {:?}", e));
-                    ApiResponse::error(Some("base64编码失败！".to_string()))
+                    Err("base64编码失败！".to_string())
                 }
             }
         },
-        _ => ApiResponse::error(Some("截图失败！".to_string()))
+        _ => Err("截图失败！".to_string())
     }
 }
 
@@ -53,15 +53,8 @@ pub fn save_captured_image(
     image_data: &str,
     device_name: &str,
     image_type: &str,
-)-> ApiResponse<String>{
-    match save_screenshot(image_data, device_name, image_type){
-        Ok(msg) => {
-            ApiResponse::success(None,Some(msg))
-        },
-        Err(e) => {
-            ApiResponse::error(Some(e))
-        }
-    }
+)-> Result<String, String>{
+    save_screenshot(image_data, device_name, image_type)
 }
 
 #[command]
@@ -77,7 +70,7 @@ pub async fn yolo_inference_test(
     inter_spinning: bool,
     confidence_threshold: f32,
     iou_threshold: f32
-) -> Result<ApiResponse<Vec<DetResult>>, String> {
+) -> Result<Vec<DetResult>, String> {
     let detector_conf = DetectorConfig{
         detector_type: DetectorType::Yolo11,
         model_path: model_path.into(),
@@ -98,8 +91,10 @@ pub async fn yolo_inference_test(
         unclip_ratio: None,
         use_dilation: None,
     };
-    let result = yolo_infer_test(image_path, detector_conf).await;
-    Ok(ApiResponse::from(result))
+    match yolo_infer_test(image_path, detector_conf).await{
+        Ok(result) => Ok(result),
+        Err(e) => Err(e.to_string())
+    }
 }
 
 #[command]
@@ -126,7 +121,7 @@ pub async fn paddle_ocr_inference_test(
     rec_execution_provider: &str,
     image_path: &str,
     app_handle: AppHandle,
-) -> Result<ApiResponse<Vec<OcrResult>>, String> {
+) -> Result<Vec<OcrResult>, String> {
     let det_type = match det_model_type {
         1 => DetectorType::PaddleDbNet,
         2 => DetectorType::Yolo11,
@@ -182,10 +177,12 @@ pub async fn paddle_ocr_inference_test(
         inter_thread_num,
         inter_spinning
     };
-    let result = paddle_ocr_infer(
+    match paddle_ocr_infer(
         detector_conf,
         rec_conf,
         image_path
-    ).await;
-    Ok(ApiResponse::from(result))
+    ).await{
+        Ok(result) => Ok(result),
+        Err(e) => Err(e.to_string())
+    }
 }

@@ -6,11 +6,11 @@ use crate::infrastructure::logging::LogLevel;
 
 pub async fn get_log_config(
     config_manager: tauri::State<'_, ConfigManager>
-) -> AppResult<String>{
+) -> AppResult<LogMain>{
     let log_config= config_manager.get_conf::<LogMain>(LOG_CONFIG_PATH).await?;
-    let res = serde_json::to_string(&log_config)
-        .map_err(|e| AppError::SerializeConfErr{detail: log_config.to_string(), e: e.to_string()})?;
-    Ok(res)
+    //let res = serde_json::to_string_pretty(&log_config)
+        //.map_err(|e| AppError::SerializeConfErr{detail: log_config.to_string(), e: e.to_string()})?;
+    Ok(log_config)
 }
 pub async fn set_log_config(
     config_manager: tauri::State<'_, ConfigManager>,

@@ -10,11 +10,11 @@ use tauri::{AppHandle, Manager};
 
 pub async fn get_system_settings(
     manager: tauri::State<'_, ConfigManager>
-) -> AppResult<String> {
+) -> AppResult<SystemConfig> {
     let system_settings = manager.get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).await?;
-    let res = serde_json::to_string(&system_settings)
-        .map_err(|e| AppError::SetConfigFailed{detail: "序列化失败".to_string(), e: e.to_string()})?;
-    Ok(res)
+    //let res = serde_json::to_string(&system_settings)
+        //.map_err(|e| AppError::SetConfigFailed{detail: "序列化失败".to_string(), e: e.to_string()})?;
+    Ok(system_settings)
 }
 
 pub async  fn set_system_settings(
@@ -132,19 +132,32 @@ fn handle_auto_start_setting(app_handle: &AppHandle, auto_start: bool) -> AppRes
 }
 
 /// 保存窗口状态（在应用退出时调用）
-pub fn save_window_state_if_enabled(
+pub async fn save_window_state_if_enabled(
     app_handle: &AppHandle
-){
-    let sys_conf = app_handle.state::<ConfigManager>().get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).unwrap();
-    if sys_conf.rem_size_position {
-        use tauri_plugin_window_state::{AppHandleExt, StateFlags};
-        match app_handle.save_window_state(StateFlags::all()){
-            Ok(_) => {
-                Log::info("窗口状态已保存");
-            },
-            Err(e) => {
-                Log::error(&format!("保存窗口状态失败: {}", e));
+)-> AppResult<()>{
+    let sys_conf = app_handle.state::<ConfigManager>().get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).await;
+    match sys_conf {
+        Ok(conf) => {
+            if conf.rem_size_position {
+                use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+                return match app_handle.save_window_state(StateFlags::all()) {
+                    Ok(_) => {
+                        Log::info("窗口状态已保存");
+                        Ok(())
+                    },
+                    Err(e) => {
+                        let msg = &format!("保存窗口状态失败: {}", e);
+                        Log::error(msg);
+                        Err(AppError::SetConfigFailed { detail: "保存窗口状态失败".to_string(), e: e.to_string() })
+                    }
+                };
             }
-        };
+            Ok(())
+        },
+        Err(e) => {
+            let msg = &format!("获取系统配置失败: {}", e);
+            Log::error(msg);
+            Err(AppError::SetConfigFailed { detail: "获取系统配置失败".to_string(), e: e.to_string() })
+        }
     }
 }

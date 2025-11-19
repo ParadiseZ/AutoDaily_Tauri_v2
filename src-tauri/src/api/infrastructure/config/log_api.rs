@@ -8,10 +8,10 @@ use crate::infrastructure::logging::config::LogMain;
 #[command]
 pub async fn get_log_cmd(
     config_manager: tauri::State<'_, ConfigManager>
-) -> ApiResponse<String> {
+) -> Result<LogMain,String> {
     match get_log_config(config_manager).await{
-        Ok(config) => ApiResponse::success(Some(config), None),
-        Err(err) => ApiResponse::error(Some(err.to_string()))
+        Ok(config) => Ok( config),
+        Err(err) => Err(format!("获取日志设置失败：{}",err.to_string()))
     }
 }
 
@@ -20,7 +20,7 @@ pub async fn get_log_cmd(
 pub async fn set_log_cmd(
     config_manager: tauri::State<'_, ConfigManager>,
     log_config: LogMain,
-) -> ApiResponse<()> {
+) -> Result<String,String> {
     match set_log_config(
         config_manager,
         &log_config.log_level,
@@ -28,7 +28,7 @@ pub async fn set_log_cmd(
         log_config.max_file_size,
         log_config.retention_days
     ).await{
-        Ok(_) => ApiResponse::success(None,Some("设置成功！".to_string())),
-        Err(err) => ApiResponse::error(Some(err.to_string()))
+        Ok(_) => Ok("设置成功！".to_string()),
+        Err(err) => Err(format!("设置失败：{}",err.to_string()))
     }
 }

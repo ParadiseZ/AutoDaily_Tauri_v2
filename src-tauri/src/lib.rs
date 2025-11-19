@@ -16,7 +16,7 @@ use crate::api::infrastructure::config::sys_conf::{get_system_settings_cmd, save
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
-use tauri::{AppHandle, Manager};
+use tauri::{App, AppHandle, Manager};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -28,9 +28,13 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
-        .setup(async |app| {
-            let app_handle : &AppHandle = app.handle();
-            Ok(init_at_start(app_handle).await)
+        .setup(|app: &mut App| {
+            let app_handle = app.app_handle();
+            tauri::async_runtime::spawn(async move {
+                // 启动时初始化
+                init_at_start(app_handle).await;
+            });
+            Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             //开发者相关
