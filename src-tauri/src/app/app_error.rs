@@ -1,23 +1,24 @@
-use tracing_appender::rolling::InitError;
-use crate::infrastructure::capture::cap_error::CapError;
 use crate::infrastructure::config::conf_error::ConfigError;
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 use crate::infrastructure::image::img_error::ImageError;
 use crate::infrastructure::ipc::channel_error::ChannelError;
 use crate::infrastructure::logging::log_error::LogError;
-use crate::infrastructure::path::PathError;
 use crate::infrastructure::path_resolve::path_error::PathError;
 use crate::infrastructure::scripts::script_error::ScriptError;
 use crate::infrastructure::vision::vision_error::VisionError;
+use tracing_appender::rolling::InitError;
 
 #[derive(Error, Debug, Serialize,Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AppError {
+    #[error("序列化配置{detail}失败{e}")]
+    SerializeConfErr{detail: String, e: String},
+
     #[error(transparent)]
     ConfigErr(#[from] ConfigError),
     
-    #[error(transparent)]
-    CapErr(#[from] CapError),
+    /*#[error(transparent)]
+    CapErr(#[from] CapError),*/
 
     #[error(transparent)]
     ImageErr(#[from] ImageError),

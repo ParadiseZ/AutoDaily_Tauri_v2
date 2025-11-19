@@ -2,7 +2,7 @@ use sysinfo::Signal::Sys;
 use tauri::{App, AppHandle, Manager, State};
 use tauri::path::BaseDirectory;
 use tracing::trace;
-use crate::app::config::short_cut::register_by_config;
+use crate::app::config::short_cut::register_short_cut_by_config;
 use crate::constant::project::MAIN_WINDOW;
 use crate::constant::sys_conf_path::SYSTEM_SETTINGS_PATH;
 use crate::domain::config::sys_conf::{StartMode, SystemConfig};
@@ -20,7 +20,7 @@ pub async fn init_at_start(app_handle : &AppHandle){
     let state = app_handle.state::<ConfigManager>();
     // 同步初始化配置，系统设置、日志设置
     if let Err(e) = init_conf_sync(&state).await{
-        tracing::error!(&format!("同步配置初始化失败：{}",e));
+        tracing::error!("同步配置初始化失败：{}",e);
     };
     // 获取系统配置
     let sys_conf = &state.get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).await.unwrap();
@@ -31,14 +31,14 @@ pub async fn init_at_start(app_handle : &AppHandle){
     // 窗口位置初始化
     init_window_position(app_handle, &sys_conf);
     // 初始化窗口关闭事件
-    init_close_window_event(app_handle,&sys_conf);
+    init_close_window_event(app_handle.clone());
     // 初始化资源路径
     init_resources_path(app_handle);
     // 初始化启动方式
     init_start_model(app_handle, &sys_conf);
 
     // 异步初始化配置，设备设置、脚本设置
-    init_conf_async(&state)
+    init_conf_async(state)
 }
 
 pub fn init_config_manager(app_handle : &AppHandle) {
@@ -97,12 +97,12 @@ pub fn init_autostart(app_handle : &AppHandle, sys_conf: &SystemConfig){
 }
 
 pub fn init_short_cut_by_config(app_handle : &AppHandle, sys_conf : &SystemConfig){
-    if let Err(e) = register_by_config(sys_conf.shortcut, app_handle){
+    if let Err(e) = register_short_cut_by_config(sys_conf.shortcut.clone(), app_handle){
         Log::error(&format!("初始化快捷键设置失败: {}", e));
     };
 }
 
-pub fn init_close_window_event(app_handle: &AppHandle,sys_conf: &SystemConfig){
+pub fn init_close_window_event(app_handle: AppHandle){
     // 设置窗口关闭事件处理，在窗口关闭时保存状态
     if let Some(window) = app_handle.get_webview_window(MAIN_WINDOW) {
         window.on_window_event(move |event| {
@@ -112,7 +112,7 @@ pub fn init_close_window_event(app_handle: &AppHandle,sys_conf: &SystemConfig){
                 tauri::async_runtime::spawn(async move {
                     // 临时注释掉窗口状态保存，等待重构完成
                     use crate::app::config::sys_conf::save_window_state_if_enabled;
-                    save_window_state_if_enabled(&app_handle, sys_conf);
+                    save_window_state_if_enabled(&app_handle);
                     Log::info("窗口关闭事件处理");
                 });
             }

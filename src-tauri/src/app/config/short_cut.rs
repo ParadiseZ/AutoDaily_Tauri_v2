@@ -4,11 +4,10 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, S
 use crate::app::app_error::{AppError, AppResult};
 use crate::constant::project::MAIN_WINDOW;
 use crate::domain::config::shortcut_conf::ShortCut;
-use crate::infrastructure::capture::cap_trait::get_capture;
 use crate::infrastructure::logging::log_trait::Log;
 
 /// 从配置读取并绑定快捷键
-pub fn register_by_config(
+pub fn register_short_cut_by_config(
     shortcut_conf: ShortCut,
     app_handle : &AppHandle
 ) -> AppResult<String>{
@@ -149,6 +148,6 @@ pub fn capture_shortcut_handler(_app_handle: &AppHandle, _shortcut: &Shortcut, e
     if event.state != ShortcutState::Pressed {
         return;
     }
-
-    let _ = get_capture().is_some();
+    Log::info("快捷键截图功能为实现...");
+    //let _ = get_capture().is_some();
 }

@@ -2,13 +2,13 @@ use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::config::conf_error::{CastErr, ConfigResult, DeserializeErr, LoadErr, NotInitErr, SerializeErr, WriteErr};
 use crate::infrastructure::config::conf_write_guard::{ConfigCategory, ConfigWriteGuard};
 use crate::infrastructure::core::HashMap;
-use crate::infrastructure::path::sure_parent_exists;
 use std::any::Any;
 use std::fs;
 use std::sync::{Arc, RwLock};
 use tauri::path::BaseDirectory;
 use tauri::Manager;
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::path_resolve::model_path::PathUtil;
 
 #[derive(Clone)]
 pub struct ConfigManager {
@@ -30,7 +30,7 @@ impl ConfigManager{
             .resolve(format!("{}", category), base_dir)?;
 
         // 确保目录存在
-        sure_parent_exists(&path)?;
+        PathUtil::sure_parent_exists(&path)?;
 
         // 尝试从文件加载
         let config = if path.exists() {

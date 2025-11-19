@@ -4,7 +4,6 @@ use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
 use crate::infrastructure::core::HashSet;
 use adb_client::{ADBDeviceExt, ADBServer, ADBTcpDevice, RebootType};
-use ahash::HashSetExt;
 use core_affinity::CoreId;
 use crossbeam_channel::bounded;
 use std::collections::VecDeque;

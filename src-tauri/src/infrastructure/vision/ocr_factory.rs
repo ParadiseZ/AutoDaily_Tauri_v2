@@ -6,7 +6,7 @@ use crate::infrastructure::vision::rec::paddle_crnn::PaddleRecCrnn;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
+use std::hash::{Hash};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;

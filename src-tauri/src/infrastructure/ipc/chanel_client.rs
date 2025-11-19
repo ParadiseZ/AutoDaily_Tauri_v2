@@ -1,5 +1,5 @@
 use crate::constant::project::{HEARTBEAT_INTERVAL, SOCKET_NAME};
-use crate::infrastructure::context::child_process_sec::{get_child_process_ctx, get_ipc_client, process_need_stop, set_running_status, RunningStatus};
+use crate::infrastructure::context::child_process_sec::{get_ipc_client, process_need_stop, set_running_status, RunningStatus};
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::{ChannelError, ChannelResult};
@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, Mutex};
 use tokio::time;
+use crate::infrastructure::logging::log_trait::Log;
 
 // ===== 子进程逻辑 =====
 pub struct IpcClient {
@@ -36,10 +37,10 @@ impl IpcClient{
         let stream = LocalSocketStream::connect(
             SOCKET_NAME
                 .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
-                .map_err(async |e| ChannelError::ConnectErr { device_id: get_child_process_ctx().read().await.device_id.to_string(), e: e.to_string() })?,
+                .map_err(async |e| ChannelError::ConnectErr { device_id: self.device_id.to_string(), e: e.to_string() })?,
         )
             .await
-            .map_err(async |e| ChannelError::ConnectErr { device_id: get_child_process_ctx().read().await.device_id.to_string(), e: e.to_string() })?;
+            .map_err(async |e| ChannelError::ConnectErr { device_id: self.device_id.to_string(), e: e.to_string() })?;
 
         let (reader, writer) = stream.split();
 
@@ -68,20 +69,21 @@ impl IpcClient{
         *self.log_sender.lock().await = None;
         *self.ensure_sender.lock().await = None;
 
-        Err(ChannelError::ChannelClosed{device_id: get_child_process_ctx().read().await.device_id.to_string()})
+        Err(ChannelError::ChannelClosed{device_id: self.device_id.to_string()})
     }
     
-    pub(crate) fn spawn_reconnect_task(&self) {
+    pub(crate) fn spawn_reconnect_task(&'static self) {
         let self_arc = Arc::new(self.clone());
         let mut connect_num = 0u8;
         tokio::spawn(async move {
             loop {
                 // 只会返回错误，以自动重连
-                if let Err(_) = self_arc.connect_and_run().await{
+                if let Err(_) = self_arc.clone().connect_and_run().await{
                     // 连接失败，等待后重试
                     connect_num += 1;
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     if connect_num > 30 {
+                        Log::error("子进程socket重连次数达到上限30，将放弃重连");
                         set_running_status(RunningStatus::Error);
                         break
                     }
@@ -133,8 +135,8 @@ impl IpcClient{
 
     pub async fn send_heart(&self){
         // 简单协议：[len: u32][data...]
-        let devices_id = get_child_process_ctx().read().await.device_id;
-        let msg = IpcMessage::new(devices_id,MessageType::Heartbeat,MessagePayload::Heartbeat(HeartbeatMessage { cpu_usage: 0.5, memory_usage: 0 }));
+        let dev_id = self.device_id.clone();
+        let msg = IpcMessage::new(*dev_id,MessageType::Heartbeat,MessagePayload::Heartbeat(HeartbeatMessage { cpu_usage: 0.5, memory_usage: 0 }));
         loop {
             time::sleep(HEARTBEAT_INTERVAL).await;
             if let Err(_) = self.send_ensure(msg.clone()).await {
@@ -175,7 +177,7 @@ impl IpcClient{
                 .await
                 .map_err(|_| ChannelError::SendErr)
         } else {
-            Err(ChannelError::ChannelClosed { device_id: get_child_process_ctx().read().await.device_id.to_string() })
+            Err(ChannelError::ChannelClosed { device_id: self.device_id.to_string() })
         }
     }
     

@@ -1,5 +1,5 @@
 use crate::app::app_error::{AppError, AppResult};
-use crate::app::config::short_cut::{register_by_config, unregister_all};
+use crate::app::config::short_cut::{register_short_cut_by_config, unregister_all};
 use crate::constant::project::MAIN_WINDOW;
 use crate::constant::sys_conf_path::SYSTEM_SETTINGS_PATH;
 use crate::domain::config::sys_conf::SystemConfig;
@@ -37,7 +37,7 @@ pub async  fn set_system_settings(
 
     unregister_all(app_handle)?;
     let shortcut = system_settings.shortcut.clone();
-    register_by_config(shortcut, app_handle)?;
+    register_short_cut_by_config(shortcut, app_handle)?;
 
     // 窗口状态记忆功能处理
     handle_window_state_setting(app_handle, old_rem_size_position, config.rem_size_position)?;
@@ -133,12 +133,18 @@ fn handle_auto_start_setting(app_handle: &AppHandle, auto_start: bool) -> AppRes
 
 /// 保存窗口状态（在应用退出时调用）
 pub fn save_window_state_if_enabled(
-    app_handle: &AppHandle,
-    sys_conf: &SystemConfig
+    app_handle: &AppHandle
 ){
+    let sys_conf = app_handle.state::<ConfigManager>().get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).unwrap();
     if sys_conf.rem_size_position {
         use tauri_plugin_window_state::{AppHandleExt, StateFlags};
-        let _ = app_handle.save_window_state(StateFlags::all());
-        Log::info("窗口状态已保存");
+        match app_handle.save_window_state(StateFlags::all()){
+            Ok(_) => {
+                Log::info("窗口状态已保存");
+            },
+            Err(e) => {
+                Log::error(&format!("保存窗口状态失败: {}", e));
+            }
+        };
     }
 }

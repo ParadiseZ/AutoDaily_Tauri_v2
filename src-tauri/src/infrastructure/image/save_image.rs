@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use base64::Engine;
 use base64::engine::general_purpose;
-use fs_extra::dir;
 use tokio::fs;
 use crate::constant::project::SCREENSHOT_DIR;
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::path_resolve::model_path::PathUtil;
 
 /// 成功返回文件路径，失败返回错误信息
 pub fn save_screenshot(
@@ -20,11 +20,10 @@ pub fn save_screenshot(
         }
         "adb" => {
             // 未来用于处理ADB截图
-            Log::warn("ADB截图保存功能尚未实现");
-            Err("ADB截图保存功能尚未实现".to_string())
+            save_base64_image(image_data, device_name)
         }
         _ => {
-            let error_msg = format!("未知的图像类型: {}", image_type);
+            let error_msg = format!("未知的截图方式: {}", image_type);
             Log::error(&error_msg);
             Err(error_msg)
         }
@@ -41,10 +40,10 @@ pub fn save_screenshot(
 /// 保存base64编码的图像到文件
 ///
 /// 返回保存的文件路径或错误信息
-pub fn save_base64_image(base64_image: &str, _title: &str) -> Result<String, String> {
+pub fn save_base64_image(base64_image: &str, title: &str) -> Result<String, String> {
 
     // 确保目录存在
-    match dir::create_all(SCREENSHOT_DIR, true) {
+    match PathUtil::sure_parent_exists(&PathBuf::from(SCREENSHOT_DIR)) {
         Ok(_) => Log::info(&format!("目录 {} 已确认可用", SCREENSHOT_DIR)),
         Err(e) => {
             let error_msg = format!("创建目录失败: {:?}", e);
@@ -65,8 +64,9 @@ pub fn save_base64_image(base64_image: &str, _title: &str) -> Result<String, Str
 
     // 生成文件名和路径
     let filename = format!(
-        "{}.png",
-        chrono::Local::now().format("%Y%m%d%H%M%S").to_string()
+        "{}_{}.png",
+        chrono::Local::now().format("%Y%m%d%H%M%S").to_string(),
+        title
     );
     let file_path = Path::new(SCREENSHOT_DIR).join(filename);
     let path_str = file_path.to_string_lossy().to_string();

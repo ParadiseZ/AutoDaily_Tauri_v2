@@ -21,7 +21,7 @@ pub enum VisionError {
     #[error("配置{path}写入失败: {e}")]
     WriteErr { path:String, e: String },
 
-    #[error("字典大小不匹配:输出：{0}，字典：{1}")]
+    #[error("字典大小不匹配:输出：{out}，字典：{dict}")]
     DictSizeErr{ out: usize, dict: usize },
 
     #[error("输入图像列表为空")]
@@ -39,7 +39,7 @@ pub enum VisionError {
     #[error("识别器未初始化")]
     RecognizeNotInit,
 
-    #[error("映射文件{}失败！请确认文件是否存在！")]
+    #[error("映射文件{path}失败！请确认文件是否存在！")]
     MappingErr{path: String},
 }
 

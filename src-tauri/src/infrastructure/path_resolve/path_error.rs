@@ -1,4 +1,6 @@
-#[derive(Debug)]
+use thiserror::Error;
+
+#[derive(Debug, Error)]
 pub enum PathError {
     #[error("解析路径{path}失败: {e}")]
     ParsingFailed { path: String ,e: String },

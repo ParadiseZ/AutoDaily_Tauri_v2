@@ -289,7 +289,8 @@ async function saveCapture() {
       deviceName: captureMethod.value === 'window' ? windowName.value : selectedDevice.value,
       imageType: captureMethod.value
     });
-    
+    console.log('保存路径:', savedPath);
+    console.log('保存路径json:', JSON.parse(savedPath));
     ElMessage.success(`截图已保存到: ${savedPath}`);
   } catch (error) {
     ElMessage.error(`保存截图失败: ${error}`);

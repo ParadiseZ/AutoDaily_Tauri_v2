@@ -1,8 +1,9 @@
+//核心
 pub mod core;
-// 进程管理器 
-pub mod process;
+// 进程管理器
+// pub mod process;
 // IPC通信框架
-pub mod ipc;
+// pub mod ipc;
 // 程序配置
 pub mod config;
 // 日志服务
@@ -23,3 +24,4 @@ pub mod app_handle;
 pub mod path_resolve;
 
 pub mod adb_cli_local;
+pub mod ipc;

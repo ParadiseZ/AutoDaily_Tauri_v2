@@ -3,7 +3,7 @@ pub enum CoreError {
     #[error("获取可用核心失败: {e}")]
     AffinityMaskErr { e: String },
 
-    #[error("锁已中毒（数据可能不一致）: {0}")]
+    #[error("锁已中毒（数据可能不一致）: {e}")]
     LockPoisoned{ e: String },
 }
 

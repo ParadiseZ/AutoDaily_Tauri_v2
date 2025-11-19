@@ -7,7 +7,6 @@ use crate::infrastructure::core::{Deserialize, Serialize};
 pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
-    pub error: Option<String>,
     pub message: Option<String>,
 }
 
@@ -16,27 +15,25 @@ impl<T> ApiResponse<T>
 where
     T: Serialize,
 {
-    pub fn ok<T: Serialize>(data: T) -> Self {
-        Self::success(data,None)
+    pub fn ok<T: Serialize>(msg: Option<String>) -> Self {
+        Self::success(None,msg)
     }
-    pub fn error<T: Serialize>(data: T) -> Self {
-        Self::failed(data,None)
+    pub fn error<T: Serialize>(msg: Option<String>) -> Self {
+        Self::failed(None,msg)
     }
 
     pub fn success<T: Serialize>(data: T,message: Option<String>) -> Self {
         Self {
             success: true,
             data: Some(data),
-            error: None,
             message,
         }
     }
 
-    pub fn failed<T: Serialize>(error: String, message: Option<String>) -> Self {
+    pub fn failed<T: Serialize>(data: T, message: Option<String>) -> Self {
         Self {
             success: false,
-            data: None,
-            error: Some(error),
+            data,
             message,
         }
     }
@@ -49,7 +46,7 @@ where
     fn from(result: AppResult<T>) -> Self {
         match result {
             Ok(data) => ApiResponse::ok(data),
-            Err(error) => ApiResponse::error(error.to_string()),
+            Err(error) => ApiResponse::error(Some(error.to_string())),
         }
     }
 }

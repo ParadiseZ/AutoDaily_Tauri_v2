@@ -12,19 +12,27 @@ use tracing::trace;
 use crate::domain::config::notice_conf::EmailConfig;
 use crate::infrastructure::logging::log_trait::Log;
 
-pub async fn init_conf_sync(conf_mgr : &State<ConfigManager>) -> InitResult<()>{
+pub async fn init_conf_sync(conf_mgr : &State<'_, ConfigManager>) -> InitResult<()>{
     //系统设置
     conf_mgr.init_category::<SystemConfig>(SYSTEM_SETTINGS_PATH,BaseDirectory::AppConfig).await
         .map_err(|e| InitError::InitMainConfigErr{ category:"系统-系统设置".into(), e: e.to_string()  })?;
     //日志设置
-    if let Err(err) = LogMain::init(conf_mgr, "AutoDaily").await {
-        tracing::error!("初始化日志系统失败: {}", err);
-        //std::process::exit(1);
+    match LogMain::init(conf_mgr, "AutoDaily").await  {
+        Ok(conf) => {
+            if let Err(e) = Log::init_logger(Box::new(conf)){
+                tracing::error!("初始化日志系统失败: {}", e);
+                //std::process::exit(1);
+            };
+        },
+        Err(err) => {
+            tracing::error!("初始化日志系统失败: {}", err);
+            //std::process::exit(1);
+        }
     }
-    Log::init_logger(Box::new(LogMain));
+
     Ok(())
 }
-pub fn init_conf_async(conf_mgr : &State<ConfigManager>){
+pub fn init_conf_async(conf_mgr : State<'_, ConfigManager>){
     tokio::spawn(async move {
         // 设备设置
         if let Err(e) = conf_mgr.init_category::<DeviceConfMap>(DEVICES_CONFIG_PATH,BaseDirectory::AppConfig).await {

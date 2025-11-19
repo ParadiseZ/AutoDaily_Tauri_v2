@@ -45,6 +45,19 @@ impl From<u8> for LogLevel {
     }
 }
 
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+        let s = match self {
+            LogLevel::Debug => "debug",
+            LogLevel::Info => "info",
+            LogLevel::Warn => "warn",
+            LogLevel::Error => "error",
+            LogLevel::Off => "off",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 static LOG_LEVEL_HANDLE: Lazy<Mutex<Option<reload::Handle<LevelFilter, Registry>>>> =
     Lazy::new(|| Mutex::new(None));
 // Convert string log level to LevelFilter
@@ -86,7 +99,7 @@ impl LogMain{
 }
 
 impl LogMain{
-    pub async fn init(mgr: &State<ConfigManager>, app_name: &str) -> LogResult<()> {
+    pub async fn init(mgr: &State<ConfigManager>, app_name: &str) -> LogResult<Self> {
         // 只初始化日志配置，其他配置可以异步加载
         if let Err(e) = mgr.init_category::<LogMain>(LOG_CONFIG_PATH,BaseDirectory::AppConfig).await{
             tracing::error!("Failed to init logging config: {}", e);
@@ -152,7 +165,7 @@ impl LogMain{
         tracing::info!("===== {} 启动 =====", app_name);
         tracing::info!("Log level set to: {:?}", log_level_filter);
 
-        Ok(())
+        Ok(conf)
     }
     
 

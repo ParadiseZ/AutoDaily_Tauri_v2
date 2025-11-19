@@ -43,7 +43,7 @@ pub async fn dev_capture_test(method: u8, device_conf: DeviceConfig, adb_conf:AD
                 }
             }
         },
-        _ => ApiResponse::error("截图失败！")
+        _ => ApiResponse::error(Some("截图失败！".to_string()))
     }
 }
 
@@ -53,8 +53,15 @@ pub fn save_captured_image(
     image_data: &str,
     device_name: &str,
     image_type: &str,
-) -> Result<String, String> {
-    save_screenshot(image_data, device_name, image_type)
+)-> ApiResponse<String>{
+    match save_screenshot(image_data, device_name, image_type){
+        Ok(msg) => {
+            ApiResponse::success("",Some(msg))
+        },
+        Err(e) => {
+            ApiResponse::error(Some(e))
+        }
+    }
 }
 
 #[command]

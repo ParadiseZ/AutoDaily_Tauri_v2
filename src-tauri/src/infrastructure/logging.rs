@@ -8,7 +8,6 @@ pub mod log_error;
 pub mod log_trait;
 // 批量日志处理
 
-pub use batch::BatchLogProcessor;
 //pub use handler::{ConsoleHandler, FileHandler, LogHandler};
 // 重新导出主要类型
 pub use logger::LogLevel;
