@@ -1,4 +1,4 @@
-use crate::app::app_error::{AppError, AppResult};
+use crate::app::app_error::AppResult;
 use crate::constant::sys_conf_path::LOG_CONFIG_PATH;
 use crate::infrastructure::config::conf_mgr::ConfigManager;
 use crate::infrastructure::logging::config::LogMain;

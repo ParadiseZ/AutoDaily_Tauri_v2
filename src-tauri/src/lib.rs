@@ -16,7 +16,7 @@ use crate::api::infrastructure::config::sys_conf::{get_system_settings_cmd, save
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
-use tauri::{App, AppHandle, Manager};
+use tauri::{App, Manager};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

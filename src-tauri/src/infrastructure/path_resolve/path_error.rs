@@ -1,6 +1,7 @@
 use thiserror::Error;
+use crate::infrastructure::core::{Deserialize, Serialize};
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error,Deserialize, Serialize)]
 pub enum PathError {
     #[error("解析路径{path}失败: {e}")]
     ParsingFailed { path: String ,e: String },

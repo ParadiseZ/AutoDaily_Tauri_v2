@@ -78,12 +78,12 @@ impl IpcServer {
                                                             });
                                                             let msg = format!("[ socket ] [{}]加入ipc连接成功！", device_id);
                                                             Log::info(&msg);
-                                                            Self::success_to_ui( msg);
+                                                            Self::success_to_ui(  None, Some(msg));
                                                         }
                                                         Err(_) => {
                                                             let msg = format!("[ socket ] [{}]加入ipc连接失败:获取锁失败！", device_id);
                                                             Log::error(&msg);
-                                                            Self::error_to_ui( msg);
+                                                            Self::error_to_ui(  None, Some(msg));
                                                         }
                                                     }
                                                 }
@@ -99,7 +99,7 @@ impl IpcServer {
                                 }else{
                                     let msg = "解码来自子进程的消息数据失败！";
                                     Log::error(&msg);
-                                    Self::error_to_ui( msg);
+                                    Self::error_to_ui(  None, Some(msg));
                                 }
                             }
                             Err(_) => break, // 连接断开
@@ -121,7 +121,7 @@ impl IpcServer {
                                 Err(_) => {
                                     let msg = format!("[ socket ] ️向设备[{}]发送消息失败：无法获取该设备锁！", device_id);
                                     Log::error(&msg);
-                                    Self::error_to_ui( msg);
+                                    Self::error_to_ui(  None, Some(msg));
                                     return;
                                 }
                             };
@@ -131,7 +131,7 @@ impl IpcServer {
                                 Err(_) => {
                                     let msg = format!("[ socket ] ️向设备[{}]发送消息失败：编码消息失败！", device_id);
                                     Log::error(&msg);
-                                    Self::error_to_ui( msg);
+                                    Self::error_to_ui(  None, Some(msg));
                                     return;
                                 }
                             };
@@ -141,60 +141,60 @@ impl IpcServer {
                                 Err(_) => {
                                     let msg = format!("[ socket ] ️向设备[{}]发送消息失败：计算消息长度失败！", device_id);
                                     Log::error(&msg);
-                                    Self::error_to_ui( msg);
+                                    Self::error_to_ui(  None, Some(msg));
                                     return;
                                 }
                             };
                             if let Err(_) = sender.write_all(&len.to_le_bytes()){
                                 let msg = format!("[ socket ] ️向设备[{}]发送消息失败：写入消息长度失败！", device_id);
                                 Log::error(&msg);
-                                Self::error_to_ui( msg);
+                                Self::error_to_ui(  None, Some(msg));
                                 return;
                             };
                             if let Err(_) = sender.write_all(&buffer).await{
                                 let msg = format!("[ socket ] ️向设备[{}]发送消息失败：写入消息失败！", device_id);
                                 Log::error(&msg);
-                                Self::error_to_ui( msg);
+                                Self::error_to_ui(  None, Some(msg));
                                 return;
                             };
                             if let Err(_) = sender.flush().await{
                                 let msg = format!("[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！！", device_id);
                                 Log::error(&msg);
-                                Self::error_to_ui( msg);
+                                Self::error_to_ui(  None, Some(msg));
                             };
                         }
                         _ => {
                             let msg = format!("[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！", device_id);
                             Log::warn(&msg);
-                            Self::error_to_ui( msg);
+                            Self::error_to_ui(  None, Some(msg));
                         }
                     }
                 }
                 Err(_) => {
                     let msg = format!("[ socket ] ️向设备[{}]发送消息失败：获取ipc通道数据锁失败！", device_id);
                     Log::warn(&msg);
-                    Self::error_to_ui( msg);
+                    Self::error_to_ui( None, Some(msg));
                 }
             }
         });
     }
 
-    fn success_to_ui(data: String){
+    fn success_to_ui(data: Option<String>,msg : Option<String>){
         if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
-            let msg = ApiResponse::success(data);
-            if let Err( _) =  main_window.emit("send-event", msg){
-                Log::warn("向UI发送消息失败: 向前端提交send-event事件失败！");
+            let emit_msg = ApiResponse::success(data,msg);
+            if let Err( e) =  main_window.emit("send-event", emit_msg){
+                Log::error(&format!("向UI发送消息失败: 向前端提交send-event事件失败！{}",e));
             }
         }else {
             Log::warn(&format!("向UI发送消息失败: 未找到窗口[ {MAIN_WINDOW} ]！"));
         }
     }
 
-    fn error_to_ui(data: String){
+    fn error_to_ui(data: Option<String>,msg : Option<String>){
         if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
-            let msg = ApiResponse::error(data);
-            if let Err( _e) =  main_window.emit("send-event", msg){
-                Log::error("向UI发送消息失败: 向前端提交send-event事件失败！");
+            let emit_msg = ApiResponse::failed(data,msg);
+            if let Err( e) =  main_window.emit("send-event", emit_msg){
+                Log::error(&format!("向UI发送消息失败: 向前端提交send-event事件失败！{}",e));
             }
         }else {
             Log::error(&format!("向UI发送消息失败: 未找到窗口[ {MAIN_WINDOW} ]！"));

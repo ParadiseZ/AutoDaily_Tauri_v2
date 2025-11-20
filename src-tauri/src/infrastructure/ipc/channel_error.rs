@@ -1,7 +1,7 @@
-use crate::infrastructure::core::{Error};
+use crate::infrastructure::core::{Deserialize, Error, Serialize};
 
 /// IPC通道错误类型
-#[derive(Error, Debug)]
+#[derive(Debug, Error,Deserialize, Serialize)]
 pub enum ChannelError {
     #[error("初始化全局ipc客户端数据失败：{e}")]
     InitFailed{ e: String},

@@ -18,7 +18,7 @@ use crate::infrastructure::logging::log_trait::Log;
 pub struct IpcClient {
     pub(crate) device_id: Arc<DeviceId>,
     pub(crate) log_level: AtomicU8,
-    log_sender: Arc<Mutex<Option<mpsc::UnboundedSender<IpcMessage>>>>,
+    log_sender: Arc<Mutex<Option<mpsc::Sender<IpcMessage>>>>,
     ensure_sender: Arc<Mutex<Option<mpsc::Sender<IpcMessage>>>>,
 }
 
@@ -45,7 +45,7 @@ impl IpcClient{
         let (reader, writer) = stream.split();
 
         // 2. 创建新的通道（旧通道自动丢弃）
-        let (log_tx, log_rx) = mpsc::unbounded_channel();
+        let (log_tx, log_rx) = mpsc::channel(30);
         let (cmd_tx, cmd_rx) = mpsc::channel(50); // 命令缓冲 100 条
 
         *self.log_sender.lock().await = Some(log_tx);
@@ -81,7 +81,7 @@ impl IpcClient{
                 if let Err(_) = self_arc.clone().connect_and_run().await{
                     // 连接失败，等待后重试
                     connect_num += 1;
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    tokio::time::sleep(time::Duration::from_secs(1)).await;
                     if connect_num > 30 {
                         Log::error("子进程socket重连次数达到上限30，将放弃重连");
                         set_running_status(RunningStatus::Error);
@@ -111,7 +111,7 @@ impl IpcClient{
     /// 1. 优先处理命令消息通道，防止重要命令因日志消息过多而被延迟
     /// 2. 当两个通道都关闭时，循环结束
     async fn send_loop<W: AsyncWriteExt + Unpin>(
-        mut sure_rx: mpsc::UnboundedReceiver<IpcMessage>,
+        mut sure_rx: mpsc::Receiver<IpcMessage>,
         mut uncertain_rx: mpsc::Receiver<IpcMessage>,
         mut writer: W,
     ) {
@@ -166,14 +166,17 @@ impl IpcClient{
     }
 
     fn send_uncertain(&self, log: IpcMessage) {
-        if let Some(tx) = &*self.log_sender.try_lock() {
-            let _ = tx.send(log); // 失败就丢弃
+        if let Ok(tx) = self.log_sender.try_lock() {
+            if let Some(sender) = tx.as_ref(){
+                let _ = sender.send(log);// 失败就丢弃
+            }
         }
     }
 
     async fn send_ensure(&self, msg: IpcMessage) -> ChannelResult<()> {
-        if let Some(tx) = &*self.ensure_sender.lock().await {
-            tx.send(msg)
+        let tx = self.ensure_sender.lock().await;
+        if let Some(sender) = tx.as_ref(){
+            sender.send(msg)
                 .await
                 .map_err(|_| ChannelError::SendErr)
         } else {

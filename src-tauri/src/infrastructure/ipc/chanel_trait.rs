@@ -1,9 +1,7 @@
 use crate::constant::project::MAX_MESSAGE_SIZE;
-use crate::infrastructure::context::child_process_sec::{set_running_status, RunningStatus};
 use crate::infrastructure::ipc::channel_error::{ChannelError, ChannelResult};
 use crate::infrastructure::ipc::message::IpcMessage;
 use async_trait::async_trait;
-use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 
 #[async_trait]
