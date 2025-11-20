@@ -15,7 +15,7 @@ use interprocess::local_socket::traits::tokio::Listener;
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, ToNsName};
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufWriter, WriteHalf};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufWriter, WriteHalf};
 use tokio::sync::RwLock as TokioRwLock;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,7 +42,7 @@ impl IpcServer {
             Ok(l) => l,
         };
         Log::info(&format!("[ socket ] 主进程监听于: {}", SOCKET_NAME));
-        tokio::spawn(async {
+        tokio::spawn(async move {
             loop {
                 let stream= match listener.accept().await {
                     Ok(s) => s,
@@ -53,6 +53,7 @@ impl IpcServer {
                 };
 
                 let (mut reader, writer) = tokio::io::split(stream);
+                let mut writer = Some(writer);
 
                 // 3. 启动读任务
                 //let send_task = Self::send_loop(log_rx, cmd_rx, writer);
@@ -77,7 +78,7 @@ impl IpcServer {
                                                                     pid,
                                                                     device_id: device_id.clone(),
                                                                     last_heartbeat: LocalTimer::DayStamp,
-                                                                    writer: Some(Arc::new(TokioRwLock::new(BufWriter::new(writer)))),
+                                                                    writer: writer.take().map(|w| Arc::new(TokioRwLock::new(BufWriter::new(w)))),
                                                                     running_status: RunningStatus::Idle,
                                                                 }
                                                             ));
@@ -90,7 +91,7 @@ impl IpcServer {
                                                             Log::error(&msg);
                                                             Self::error_to_ui(  None, Some(msg));
                                                         }
-                                                    }
+                                                    };
                                                 }
                                                 _ => {
                                                     Self::handle_msg(msg);
