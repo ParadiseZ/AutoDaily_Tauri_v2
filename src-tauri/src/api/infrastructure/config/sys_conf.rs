@@ -29,9 +29,9 @@ pub async fn set_system_settings_cmd(
 /// 保存窗口状态
 #[command]
 pub async fn save_window_state_cmd(
-    app_handle: &AppHandle
+    app_handle: AppHandle
 )->Result<(),String>{
-    if let Err(e) = save_window_state_if_enabled(app_handle).await{
+    if let Err(e) = save_window_state_if_enabled(&app_handle).await{
         return Err(format!("保存窗口状态失败:{}",e.to_string()))
     }
     Ok(())

@@ -6,7 +6,7 @@ use tokio::io::AsyncReadExt;
 
 #[async_trait]
 pub trait ChannelTrait {
-    async fn recv_message<R: AsyncReadExt + Unpin>(
+    async fn recv_message<R: AsyncReadExt + Unpin + Send>(
         reader: &mut R,
     ) -> ChannelResult<Vec<u8>> {
         let mut len_bytes = [0u8; 4];

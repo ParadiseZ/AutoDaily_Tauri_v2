@@ -112,8 +112,14 @@ pub fn init_close_window_event(app_handle: AppHandle){
                 tauri::async_runtime::spawn(async move {
                     // 临时注释掉窗口状态保存，等待重构完成
                     use crate::app::config::sys_conf::save_window_state_if_enabled;
-                    save_window_state_if_enabled(&app_handle);
-                    Log::info("窗口关闭事件处理");
+                    match save_window_state_if_enabled(&app_handle).await{
+                        Ok(_) => {
+                            Log::info("窗口状态保存成功");
+                        },
+                        Err(e) => {
+                            Log::error(&format!("窗口状态保存失败: {}", e));
+                        }
+                    };
                 });
             }
         });

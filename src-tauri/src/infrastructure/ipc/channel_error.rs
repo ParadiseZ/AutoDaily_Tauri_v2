@@ -1,3 +1,4 @@
+use crate::infrastructure::context::init_error::InitError;
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 
 /// IPC通道错误类型
@@ -5,6 +6,9 @@ use crate::infrastructure::core::{Deserialize, Error, Serialize};
 pub enum ChannelError {
     #[error("初始化全局ipc客户端数据失败：{e}")]
     InitFailed{ e: String},
+
+    #[error(transparent)]
+    InitErr(#[from] InitError::InitMainIpcServerErr),
 
     #[error("消息长度过长：{detail}")]
     MessageTooLong{ detail: String},

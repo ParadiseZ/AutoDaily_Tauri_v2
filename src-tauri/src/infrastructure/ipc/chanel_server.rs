@@ -60,7 +60,7 @@ impl IpcServer {
                             Ok(buffer) => {
                                 // 分发
                                 if let Ok((msg, _)) = bincode::decode_from_slice::<IpcMessage, _>(&buffer, bincode::config::standard()) {
-                                    match msg.payload {
+                                    match msg.message_type {
                                         MessageType::Event => {
                                             match msg.payload {
                                                 MessagePayload::SocketRegistration(pid)=>{
@@ -69,13 +69,15 @@ impl IpcServer {
                                                     let childrens = get_app_handle().state::<MainProcessCtx>().ipc_servers.clone();
                                                     match childrens.write() {
                                                         Ok(mut childrens) => {
-                                                            childrens.insert(device_id.clone(), IpcClientState {
-                                                                pid,
-                                                                device_id,
-                                                                last_heartbeat: Instant::now(),
-                                                                writer,
-                                                                running_status: RunningStatus::Idle,
-                                                            });
+                                                            childrens.insert(device_id.clone(), Arc::new(
+                                                                IpcClientState {
+                                                                    pid,
+                                                                    device_id,
+                                                                    last_heartbeat: Instant::now(),
+                                                                    writer,
+                                                                    running_status: RunningStatus::Idle,
+                                                                }
+                                                            ));
                                                             let msg = format!("[ socket ] [{}]加入ipc连接成功！", device_id);
                                                             Log::info(&msg);
                                                             Self::success_to_ui(  None, Some(msg));
@@ -88,16 +90,16 @@ impl IpcServer {
                                                     }
                                                 }
                                                 _ => {
-                                                    Self::handle_msg(msg).await;
+                                                    Self::handle_msg(msg);
                                                 }
                                             }
                                         }
                                         _ =>{
-                                            Self::handle_msg(msg).await;
+                                            Self::handle_msg(msg);
                                         }
                                     }
                                 }else{
-                                    let msg = "解码来自子进程的消息数据失败！";
+                                    let msg = "解码来自子进程的消息数据失败！".to_string();
                                     Log::error(&msg);
                                     Self::error_to_ui(  None, Some(msg));
                                 }
@@ -116,7 +118,7 @@ impl IpcServer {
                 Ok(childrens) => {
                     match childrens.get(&device_id){
                         Some(ipc_client_state) => {
-                            let mut sender = match ipc_client_state.writer.write() {
+                            let mut sender = match ipc_client_state.writer.clone().write() {
                                 Ok(s) => s,
                                 Err(_) => {
                                     let msg = format!("[ socket ] ️向设备[{}]发送消息失败：无法获取该设备锁！", device_id);
@@ -145,7 +147,7 @@ impl IpcServer {
                                     return;
                                 }
                             };
-                            if let Err(_) = sender.write_all(&len.to_le_bytes()){
+                            if let Err(_) = sender.write_all(&len.to_le_bytes()).await{
                                 let msg = format!("[ socket ] ️向设备[{}]发送消息失败：写入消息长度失败！", device_id);
                                 Log::error(&msg);
                                 Self::error_to_ui(  None, Some(msg));

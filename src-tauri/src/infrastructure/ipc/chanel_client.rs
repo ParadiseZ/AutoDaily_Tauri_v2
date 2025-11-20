@@ -110,7 +110,7 @@ impl IpcClient{
     /// 循环使用 tokio::select! 宏监听两个通道的消息：
     /// 1. 优先处理命令消息通道，防止重要命令因日志消息过多而被延迟
     /// 2. 当两个通道都关闭时，循环结束
-    async fn send_loop<W: AsyncWriteExt + Unpin>(
+    async fn send_loop<W: AsyncWriteExt + Unpin + Send>(
         mut sure_rx: mpsc::Receiver<IpcMessage>,
         mut uncertain_rx: mpsc::Receiver<IpcMessage>,
         mut writer: W,
@@ -147,7 +147,7 @@ impl IpcClient{
         }
     }
 
-    async fn send_message<W: AsyncWriteExt + Unpin>(
+    async fn send_message<W: AsyncWriteExt + Unpin + Send>(
         writer: &mut W,
         msg: &IpcMessage,
     ) -> ChannelResult<()> {
@@ -184,7 +184,7 @@ impl IpcClient{
         }
     }
     
-    async fn recv_loop<R: AsyncReadExt + Unpin,F>(mut reader: R) {
+    async fn recv_loop<R: AsyncReadExt + Unpin + Send>(mut reader: R) {
         loop {
             match Self::recv_message(&mut reader).await {
                 Ok(buffer) => {
