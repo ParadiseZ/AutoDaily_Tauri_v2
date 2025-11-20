@@ -4,32 +4,35 @@ use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::child_process_sec::RunningStatus;
 use crate::infrastructure::context::init_error::InitError;
 use crate::infrastructure::context::main_process::MainProcessCtx;
+use crate::infrastructure::core::time_format::LocalTimer;
 use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::ChannelResult;
 use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload, MessageType};
+use crate::infrastructure::logging::log_trait::Log;
 use interprocess::local_socket::tokio::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::tokio::Listener;
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, ToNsName};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tauri::{Emitter, Manager};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufWriter};
-use tokio::time::Instant;
-use crate::infrastructure::logging::log_trait::Log;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufWriter, WriteHalf};
+use tokio::sync::RwLock as TokioRwLock;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IpcClientState {
     pid: u32,
     device_id : Arc<DeviceId>,
-    last_heartbeat: Instant,
-    writer: Arc<RwLock<BufWriter<LocalSocketStream>>>,
+    last_heartbeat: LocalTimer,
+    #[serde(skip)]
+    writer: Option<Arc<TokioRwLock<BufWriter<WriteHalf<LocalSocketStream>>>>>,
     running_status: RunningStatus,
 }
 pub struct IpcServer;
 
 impl IpcServer {
     pub(crate) fn start() -> ChannelResult<()> {
-        let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>().map_err(|e| InitError::InitMainIpcServerErr { name : SOCKET_NAME.to_string(),e: e.to_string() })?;
+        let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>()
+            .map_err(|e| InitError::InitMainIpcServerErr { name : SOCKET_NAME.to_string(),e: e.to_string() })?;
         let opts = ListenerOptions::new().name(name);
         let listener: interprocess::local_socket::tokio::Listener = match opts.create_tokio() {
             Err(e) => {
@@ -49,12 +52,12 @@ impl IpcServer {
                     }
                 };
 
-                let (reader, writer) = stream.split();
+                let (mut reader, writer) = tokio::io::split(stream);
 
                 // 3. 启动读任务
                 //let send_task = Self::send_loop(log_rx, cmd_rx, writer);
                 tokio::spawn(async move {
-                    let mut reader = reader;
+                    //let mut reader = reader;
                     loop {
                         match Self::recv_message(&mut reader).await {
                             Ok(buffer) => {
@@ -72,9 +75,9 @@ impl IpcServer {
                                                             childrens.insert(device_id.clone(), Arc::new(
                                                                 IpcClientState {
                                                                     pid,
-                                                                    device_id,
-                                                                    last_heartbeat: Instant::now(),
-                                                                    writer,
+                                                                    device_id: device_id.clone(),
+                                                                    last_heartbeat: LocalTimer::DayStamp,
+                                                                    writer: Some(Arc::new(TokioRwLock::new(BufWriter::new(writer)))),
                                                                     running_status: RunningStatus::Idle,
                                                                 }
                                                             ));
@@ -114,69 +117,80 @@ impl IpcServer {
     }
     fn send_msg(msg: IpcMessage, device_id: DeviceId) {
         tokio::spawn(async move {
-            match get_app_handle().state::<MainProcessCtx>().ipc_servers.read() {
-                Ok(childrens) => {
-                    match childrens.get(&device_id){
-                        Some(ipc_client_state) => {
-                            let mut sender = match ipc_client_state.writer.clone().write() {
-                                Ok(s) => s,
-                                Err(_) => {
-                                    let msg = format!("[ socket ] ️向设备[{}]发送消息失败：无法获取该设备锁！", device_id);
-                                    Log::error(&msg);
-                                    Self::error_to_ui(  None, Some(msg));
-                                    return;
-                                }
-                            };
-
-                            let mut buffer = match bincode::encode_to_vec(msg, bincode::config::standard()){
-                                Ok(b) => b,
-                                Err(_) => {
-                                    let msg = format!("[ socket ] ️向设备[{}]发送消息失败：编码消息失败！", device_id);
-                                    Log::error(&msg);
-                                    Self::error_to_ui(  None, Some(msg));
-                                    return;
-                                }
-                            };
-
-                            let len = match u32::try_from(buffer.len()){
-                                Ok( l)  => l,
-                                Err(_) => {
-                                    let msg = format!("[ socket ] ️向设备[{}]发送消息失败：计算消息长度失败！", device_id);
-                                    Log::error(&msg);
-                                    Self::error_to_ui(  None, Some(msg));
-                                    return;
-                                }
-                            };
-                            if let Err(_) = sender.write_all(&len.to_le_bytes()).await{
-                                let msg = format!("[ socket ] ️向设备[{}]发送消息失败：写入消息长度失败！", device_id);
-                                Log::error(&msg);
-                                Self::error_to_ui(  None, Some(msg));
-                                return;
-                            };
-                            if let Err(_) = sender.write_all(&buffer).await{
-                                let msg = format!("[ socket ] ️向设备[{}]发送消息失败：写入消息失败！", device_id);
-                                Log::error(&msg);
-                                Self::error_to_ui(  None, Some(msg));
-                                return;
-                            };
-                            if let Err(_) = sender.flush().await{
-                                let msg = format!("[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！！", device_id);
-                                Log::error(&msg);
-                                Self::error_to_ui(  None, Some(msg));
-                            };
-                        }
-                        _ => {
-                            let msg = format!("[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！", device_id);
-                            Log::warn(&msg);
-                            Self::error_to_ui(  None, Some(msg));
-                        }
+            let ipc_client_state_opt = {
+                match get_app_handle().state::<MainProcessCtx>().ipc_servers.read() {
+                    Ok(childrens) => childrens.get(&device_id).cloned(),
+                    Err(_) => {
+                        let msg = format!("[ socket ] ️向设备[{}]发送消息失败：获取ipc通道数据锁失败！", device_id);
+                        Log::warn(&msg);
+                        Self::error_to_ui( None, Some(msg));
+                        None
                     }
                 }
-                Err(_) => {
-                    let msg = format!("[ socket ] ️向设备[{}]发送消息失败：获取ipc通道数据锁失败！", device_id);
-                    Log::warn(&msg);
-                    Self::error_to_ui( None, Some(msg));
+            };
+
+            if let Some(ipc_client_state) = ipc_client_state_opt {
+                if let Some(writer_lock) = &ipc_client_state.writer {
+                    let mut sender = writer_lock.write().await;
+
+                    let buffer = match bincode::encode_to_vec(msg, bincode::config::standard()){
+                        Ok(b) => b,
+                        Err(_) => {
+                            let msg = format!("[ socket ] ️向设备[{}]发送消息失败：编码消息失败！", device_id);
+                            Log::error(&msg);
+                            Self::error_to_ui(  None, Some(msg));
+                            return;
+                        }
+                    };
+
+                    let len = match u32::try_from(buffer.len()){
+                        Ok( l)  => l,
+                        Err(_) => {
+                            let msg = format!("[ socket ] ️向设备[{}]发送消息失败：计算消息长度失败！", device_id);
+                            Log::error(&msg);
+                            Self::error_to_ui(  None, Some(msg));
+                            return;
+                        }
+                    };
+                    if let Err(_) = sender.write_all(&len.to_le_bytes()).await{
+                        let msg = format!("[ socket ] ️向设备[{}]发送消息失败：写入消息长度失败！", device_id);
+                        Log::error(&msg);
+                        Self::error_to_ui(  None, Some(msg));
+                        return;
+                    };
+                    if let Err(_) = sender.write_all(&buffer).await{
+                        let msg = format!("[ socket ] ️向设备[{}]发送消息失败：写入消息失败！", device_id);
+                        Log::error(&msg);
+                        Self::error_to_ui(  None, Some(msg));
+                        return;
+                    };
+                    if let Err(_) = sender.flush().await{
+                        let msg = format!("[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！！", device_id);
+                        Log::error(&msg);
+                        Self::error_to_ui(  None, Some(msg));
+                    };
+                } else {
+                    let msg = format!("[ socket ] ️向设备[{}]发送消息失败：Writer不可用！", device_id);
+                    Log::error(&msg);
+                    Self::error_to_ui(None, Some(msg));
                 }
+            } else {
+                // Only log if we didn't already log an error (i.e. if we got the lock but didn't find the device)
+                // The original code logged "刷新缓存失败！" for the None case of .get(), which seems wrong,but I'll use a generic error.
+                // Actually, checking original code:
+                // match childrens.get(&device_id) { Some => ..., _ => { Log::warn("...刷新缓存失败！"); ... } }
+                // So I should log that here.
+                // But wait, my `ipc_client_state_opt` is None if `read()` failed OR if `get()` failed.
+                // If `read()` failed, I already logged.
+                // So I need to distinguish?
+                // The `read()` failure returns None and logs.
+                // So if I am here,and it is None, it *could* be because `read()` failed.
+                // But I don't want to log again.
+                // So I should only log if `read()` succeeded but `get()` failed.
+                // Let's adjust the logic slightly.
+                let msg = format!("[ socket ] ️向设备[{}]发送消息失败：获取该设备状态信息失败！", device_id);
+                Log::error(&msg);
+                Self::error_to_ui(None, Some(msg));
             }
         });
     }

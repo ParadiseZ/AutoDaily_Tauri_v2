@@ -8,7 +8,7 @@ pub enum ChannelError {
     InitFailed{ e: String},
 
     #[error(transparent)]
-    InitErr(#[from] InitError::InitMainIpcServerErr),
+    InitErr(#[from] InitError),
 
     #[error("消息长度过长：{detail}")]
     MessageTooLong{ detail: String},

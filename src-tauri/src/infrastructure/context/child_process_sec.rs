@@ -1,5 +1,5 @@
 use crate::infrastructure::context::init_error::{InitError, InitResult};
-use crate::infrastructure::core::DeviceId;
+use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
 use crate::infrastructure::ipc::chanel_client::IpcClient;
 use crate::infrastructure::logging::LogLevel;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -7,7 +7,7 @@ use std::sync::{Arc, OnceLock};
 
 /// 运行标志
 static RUNNING: AtomicU8 = AtomicU8::new(0);
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum RunningStatus{
     Idle = 1,
