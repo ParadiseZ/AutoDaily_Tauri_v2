@@ -4,16 +4,16 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId};
 use crate::infrastructure::logging::LogLevel;
+use bincode_another::{Decode, Encode};
 use std::path::PathBuf;
 use std::time::SystemTime;
-use bincode_another::{Decode, Encode};
 use uuid::Uuid;
 
 /// 消息唯一标识符（使用UUID v7，便于时间排序和调试）
 pub type MessageId = Uuid;
 
 /// IPC消息枚举
-#[derive(Debug,Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct IpcMessage {
     pub id: MessageId,
     pub source_or_target: DeviceId,
@@ -37,97 +37,89 @@ impl IpcMessage {
     }
 
     /// 创建响应消息
-    pub fn create_response(
-        &self,
-        source: DeviceId,
-        response_payload: MessagePayload,
-    ) -> Self {
-        Self::new(
-            source,
-            MessageType::Response,
-            response_payload,
-        )
+    pub fn create_response(&self, source: DeviceId, response_payload: MessagePayload) -> Self {
+        Self::new(source, MessageType::Response, response_payload)
     }
-    
-    pub fn set_heart_payload(mut self, msg_payload: MessagePayload){
+
+    pub fn set_heart_payload(mut self, msg_payload: MessagePayload) {
         self.payload = msg_payload;
     }
 }
 
 /// 消息类型枚举
-#[derive(Debug,Clone, PartialEq, Eq, Encode, Decode, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Hash)]
 pub enum MessageType {
     // 控制消息
-    Request,        // 请求
-    Response,       // 响应
-    Command,        // 命令
-    Event,          // 事件
-    
+    Request,  // 请求
+    Response, // 响应
+    Command,  // 命令
+    Event,    // 事件
+
     // 系统消息
-    Heartbeat,      // 心跳
-    Status,         // 状态报告
-    Error,          // 错误报告
-    
+    Heartbeat, // 心跳
+    Status,    // 状态报告
+    Error,     // 错误报告
+
     // 数据消息
-    Data,           // 数据传输
-    Stream,         // 流数据
-    
+    Data,   // 数据传输
+    Stream, // 流数据
+
     // 通知消息
-    Notification,   // 通知
-    Broadcast,      // 广播
+    Notification, // 通知
+    Broadcast,    // 广播
 
     // 日志信息
-    Logger
+    Logger,
 }
 
 /// 消息载荷枚举
-#[derive(Debug,Clone, PartialEq,  Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum MessagePayload {
     // socket注册
     SocketRegistration(u32),
-    
+
     // 进程控制消息
     ProcessControl(ProcessControlMessage),
-    
+
     // 脚本管理消息
     ScriptManagement(ScriptManagementMessage),
-    
+
     // 状态同步消息
     StateSync(StateSyncMessage),
-    
+
     // 日志消息
     Logger(LogMessage),
-    
+
     // 心跳消息
     Heartbeat(HeartbeatMessage),
-    
+
     // 性能监控消息
     Performance(PerformanceMessage),
-    
+
     // 资源管理消息
     Resource(ResourceMessage),
-    
+
     // 配置更新消息
     Config(ConfigMessage),
-    
+
     // 视觉处理消息
     Vision(VisionMessage),
-    
+
     // 错误消息
     Error(ErrorMessage),
-    
+
     // 空消息（用于ACK等）
     Empty,
 }
 /// 进程控制消息
-#[derive(Debug,  Encode,Clone, Decode, PartialEq)]
+#[derive(Debug, Encode, Clone, Decode, PartialEq)]
 pub struct ProcessControlMessage {
     pub action: ProcessAction,
     pub process_id: DeviceId,
     pub parameters: HashMap<String, String>,
 }
 
-#[derive(Debug,  Encode,Clone, Decode, PartialEq)]
+#[derive(Debug, Encode, Clone, Decode, PartialEq)]
 pub enum ProcessAction {
     Start,
     Stop,
@@ -173,7 +165,7 @@ pub enum StateType {
     SystemState,
     ConfigState,
     ModelState,
-    SocketState
+    SocketState,
 }
 /// 日志消息
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]

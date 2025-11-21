@@ -13,12 +13,14 @@ impl ReactiveExecutor {
         for sf in subflows {
             map.insert(sf.id.clone(), sf);
         }
-        Self { guards, policies, subflows: map }
+        Self {
+            guards,
+            policies,
+            subflows: map,
+        }
     }
 
     pub fn tick(&mut self) {
         // TODO: 感知→守卫→策略→执行
     }
 }
-
-

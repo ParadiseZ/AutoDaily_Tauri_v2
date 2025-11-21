@@ -1,9 +1,9 @@
+use crate::infrastructure::config::conf_mgr::ConfigManager;
+use ahash::AHashMap;
 use std::any::Any;
 use std::path::PathBuf;
 use std::sync::Arc;
-use ahash::AHashMap;
 use tokio::sync::RwLockWriteGuard;
-use crate::infrastructure::config::conf_mgr::ConfigManager;
 
 // 配置存储
 pub trait ConfigCategory {
@@ -14,7 +14,8 @@ pub struct ConfigWriteGuard<'a, C: ConfigCategory> {
     pub(crate) config: C,
     pub(crate) path: PathBuf,
     pub(crate) manager: &'a ConfigManager,
-    pub(crate) _caches_lock: RwLockWriteGuard<'a, AHashMap<String, (Arc<dyn Any + Send + Sync>, PathBuf)>>,
+    pub(crate) _caches_lock:
+        RwLockWriteGuard<'a, AHashMap<String, (Arc<dyn Any + Send + Sync>, PathBuf)>>,
 }
 
 impl<'a, C: ConfigCategory> std::ops::Deref for ConfigWriteGuard<'a, C> {

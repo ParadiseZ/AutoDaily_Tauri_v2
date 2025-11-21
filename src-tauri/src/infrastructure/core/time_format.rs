@@ -1,10 +1,10 @@
+use crate::infrastructure::core::{Deserialize, Serialize};
 use chrono::Local;
 use tracing_subscriber::fmt;
 use tracing_subscriber::fmt::time::FormatTime;
-use crate::infrastructure::core::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum LocalTimer{
+pub enum LocalTimer {
     Time,
     TimeStamp,
     Day,
@@ -15,19 +15,19 @@ pub enum LocalTimer{
 impl FormatTime for LocalTimer {
     fn format_time(&self, w: &mut fmt::format::Writer<'_>) -> std::fmt::Result {
         match self {
-            LocalTimer::Time =>{
+            LocalTimer::Time => {
                 write!(w, "{}", Local::now().format("%Y-%m-%d %H:%M:%S%"))
             }
-            LocalTimer::TimeStamp =>{
+            LocalTimer::TimeStamp => {
                 write!(w, "{}", Local::now().format("%Y-%m-%d %H:%M:%S%.3f"))
             }
-            LocalTimer::Day =>{
+            LocalTimer::Day => {
                 write!(w, "{}", Local::now().format("%Y-%m-%d"))
             }
-            LocalTimer::DayStamp =>{
+            LocalTimer::DayStamp => {
                 write!(w, "{}", Local::now().format("%m-%d %H:%M:%S%.3f"))
             }
-            LocalTimer::DayTime =>{
+            LocalTimer::DayTime => {
                 write!(w, "{}", Local::now().format("%m-%d %H:%M:%S%"))
             }
         }

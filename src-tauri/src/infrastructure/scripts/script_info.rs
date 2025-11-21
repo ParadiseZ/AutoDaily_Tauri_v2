@@ -1,49 +1,47 @@
-use std::sync::Arc;
 use crate::domain::scripts::script_decision::Step;
 use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, ScriptId, Serialize};
 use crate::infrastructure::scripts::script_info_model::ScriptMeta;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ScriptInfo{
+pub struct ScriptInfo {
     #[serde(flatten)]
     pub script_meta: ScriptMeta,
-    
+
     // 设置的变量
-    pub script_args : HashMap<String, String>,
-    
+    pub script_args: HashMap<String, String>,
+
     // 设置的策略
     pub decision: Vec<Step>,
     pub back_decision: Vec<Step>,
-    pub global_decision: Vec<Step>
-    
-    //设置的任务信息
-    
-    //设置的设置模板
-    
-    //设置的账号信息
+    pub global_decision: Vec<Step>, //设置的任务信息
+
+                                    //设置的设置模板
+
+                                    //设置的账号信息
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize,Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
-pub enum RuntimeType{
+pub enum RuntimeType {
     BuildIn,
-    Custom
+    Custom,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize,Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
-pub enum ScriptType{
+pub enum ScriptType {
     Local,
     Cloud,
-    Custom
+    Custom,
 }
 
-pub type   DeviceAccount = HashMap<DeviceId, Option<HashMap<String, String>>>;
+pub type DeviceAccount = HashMap<DeviceId, Option<HashMap<String, String>>>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ScriptShow{
-    pub script_id : ScriptId,
-    pub script_info : ScriptInfo,
-    pub device_account: DeviceAccount
+pub struct ScriptShow {
+    pub script_id: ScriptId,
+    pub script_info: ScriptInfo,
+    pub device_account: DeviceAccount,
 }

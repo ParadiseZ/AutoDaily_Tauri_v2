@@ -1,15 +1,15 @@
-use rayon::prelude::IntoParallelRefIterator;
 use crate::app::app_error::AppResult;
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::image::load_image::load_img_from_path;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_factory::{DetectorConfig, RecognizerConfig};
 use crate::infrastructure::vision::ocr_service::OcrService;
+use rayon::prelude::IntoParallelRefIterator;
 
 pub async fn yolo_infer_test(
     image_path: &str,
-    detector_config: DetectorConfig
-)-> AppResult<Vec<DetResult>>{
+    detector_config: DetectorConfig,
+) -> AppResult<Vec<DetResult>> {
     // 1. 创建OCR服务实例
     let mut ocr_service = OcrService::new();
     ocr_service.init_detector(detector_config).await?;
@@ -17,12 +17,11 @@ pub async fn yolo_infer_test(
     Ok(ocr_service.detect(&image).await?)
 }
 
-
 pub async fn paddle_ocr_infer(
     detector_config: DetectorConfig,
     recognizer_config: RecognizerConfig,
     image_path: &str,
-)-> AppResult<Vec<OcrResult>>{
+) -> AppResult<Vec<OcrResult>> {
     // 1. 创建OCR服务实例
     let mut ocr_service = OcrService::new();
     // det

@@ -3,7 +3,7 @@ use crate::infrastructure::logging::log_trait::Log;
 #[derive(Debug)]
 pub enum CaptureMethod {
     Window = 1,
-    ADB = 2
+    ADB = 2,
 }
 
 impl From<u8> for CaptureMethod {

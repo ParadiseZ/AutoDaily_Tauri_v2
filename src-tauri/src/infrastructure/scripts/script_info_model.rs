@@ -1,12 +1,12 @@
+use crate::infrastructure::core::time_format::LocalTimer;
 use crate::infrastructure::core::{Deserialize, HashMap, ScriptId, Serialize};
+use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_error::{LoadFromCacheErr, ScriptError, ScriptResult};
 use crate::infrastructure::scripts::script_info::{RuntimeType, ScriptInfo, ScriptType};
 use std::cmp::Ordering;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::AtomicU8;
-use crate::infrastructure::core::time_format::LocalTimer;
-use crate::infrastructure::logging::log_trait::Log;
+use std::sync::{Arc, RwLock};
 
 /// 分页查询参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,7 +33,7 @@ pub enum SortField {
     CreateTime,
     Name,
     ExecutionCount,
-    LastModified
+    LastModified,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,7 +74,7 @@ pub struct ScriptMeta {
     pub checked: bool,
     pub script_id: ScriptId,
     pub name: String,
-    pub file_path : PathBuf,
+    pub file_path: PathBuf,
     // 本地（已下载）/云端/本地（自定义）
     pub script_type: ScriptType,
     // 运行时类型：内置/自定义
@@ -94,17 +94,28 @@ impl ScriptManager {
     }
 
     /// 分页查询脚本
-    pub async fn get_scripts_page(&mut self, scripts_dir: &PathBuf, request: ScriptPageReq) -> ScriptResult<ScriptPageResp> {
+    pub async fn get_scripts_page(
+        &mut self,
+        scripts_dir: &PathBuf,
+        request: ScriptPageReq,
+    ) -> ScriptResult<ScriptPageResp> {
         // 1. 从索引中获取符合条件的脚本元数据
         let mut filtered_metadata: Vec<_> = {
-            self.script_index.read().await.values()
+            self.script_index
+                .read()
+                .await
+                .values()
                 .filter(async |meta| self.matches_filter(meta.read().await, &request.filter))
                 .cloned()
                 .collect()
         };
 
         // 2. 排序
-        self.sort_metadata(&mut filtered_metadata, &request.sort_by, &request.sort_order);
+        self.sort_metadata(
+            &mut filtered_metadata,
+            &request.sort_by,
+            &request.sort_order,
+        );
 
         // 3. 分页
         let total_count = filtered_metadata.len();
@@ -114,10 +125,14 @@ impl ScriptManager {
         let page_metadata = &filtered_metadata[start_idx..end_idx];
 
         // 4. 按需加载完整的ScriptInfo（只加载当前页需要的）
-        let scripts = page_metadata.iter()
+        let scripts = page_metadata
+            .iter()
             .map(|meta| self.load_script_info(meta.script_id))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| ScriptError::LoadFromFileErr { path: scripts_dir.to_string_lossy().to_string(), e: e.to_string() })?;
+            .map_err(|e| ScriptError::LoadFromFileErr {
+                path: scripts_dir.to_string_lossy().to_string(),
+                e: e.to_string(),
+            })?;
 
         Ok(ScriptPageResp {
             scripts,
@@ -155,7 +170,10 @@ impl ScriptManager {
         }
     }
 
-    fn load_from_file(&self, file_path: &PathBuf) -> Result<ScriptInfo, Box<dyn std::error::Error>> {
+    fn load_from_file(
+        &self,
+        file_path: &PathBuf,
+    ) -> Result<ScriptInfo, Box<dyn std::error::Error>> {
         let content = std::fs::read_to_string(file_path)?;
         let script: ScriptInfo = serde_json::from_str(&content)?;
         Ok(script)
@@ -177,7 +195,12 @@ impl ScriptManager {
         true
     }
 
-    fn sort_metadata(&self, metadata: &mut Vec<ScriptMeta>, sort_by: &SortField, order: &SortOrder) {
+    fn sort_metadata(
+        &self,
+        metadata: &mut Vec<ScriptMeta>,
+        sort_by: &SortField,
+        order: &SortOrder,
+    ) {
         metadata.sort_by(|a, b| {
             let cmp = self.get_ordering(sort_by);
 
@@ -199,7 +222,10 @@ impl ScriptManager {
 
     /// 从脚本根目录初始化脚本索引
     /// 目录结构：{scripts_dir}/{script_id}/info.json
-    pub async fn load_from_directory(&mut self, scripts_dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn load_from_directory(
+        &mut self,
+        scripts_dir: &PathBuf,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         {
             self.script_index.write().await.clear();
         }
@@ -207,24 +233,35 @@ impl ScriptManager {
         let mut entries = tokio::fs::read_dir(scripts_dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             let dir_path = entry.path();
-            if !dir_path.is_dir() { continue; }
+            if !dir_path.is_dir() {
+                continue;
+            }
             let info_path = dir_path.join("info.json");
-            if !info_path.exists() { continue; }
+            if !info_path.exists() {
+                continue;
+            }
             match self.load_script_metadata_from_file(&info_path).await {
                 Ok(meta) => {
                     self.script_index.write().await.insert(meta.script_id, meta);
-                },
+                }
                 Err(e) => {
                     Log::error(&format!("加载索引数据失败，路径 {:?}: {}", info_path, e));
                 }
             }
         }
-        Log::error(&format!("从{}文件夹加载{}个脚本", scripts_dir.to_string_lossy().to_string(), self.script_index.read().await.len));
+        Log::error(&format!(
+            "从{}文件夹加载{}个脚本",
+            scripts_dir.to_string_lossy().to_string(),
+            self.script_index.read().await.len
+        ));
         Ok(())
     }
 
     /// 从 info.json 加载脚本元数据
-    async fn load_script_metadata_from_file(&self, file_path: &PathBuf) -> Result<ScriptMeta, Box<dyn std::error::Error>> {
+    async fn load_script_metadata_from_file(
+        &self,
+        file_path: &PathBuf,
+    ) -> Result<ScriptMeta, Box<dyn std::error::Error>> {
         let content = tokio::fs::read_to_string(file_path).await?;
         let script: ScriptInfo = serde_json::from_str(&content)?;
         let last_modified = self.compute_last_modified(file_path).await?;
@@ -233,24 +270,39 @@ impl ScriptManager {
         Ok(meta)
     }
 
-    async fn compute_last_modified(&self, info_path: &PathBuf) -> Result<u64, Box<dyn std::error::Error>> {
+    async fn compute_last_modified(
+        &self,
+        info_path: &PathBuf,
+    ) -> Result<u64, Box<dyn std::error::Error>> {
         // 轻量方案：仅 info.json；后续可扩展 decision/*.json 的最大mtime
         let file_meta = tokio::fs::metadata(info_path).await?;
-        let last_modified = file_meta.modified()?.duration_since(std::time::UNIX_EPOCH)?.as_secs();
+        let last_modified = file_meta
+            .modified()?
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_secs();
         Ok(last_modified)
     }
 
     /// 保存脚本到 info.json,参数路径包含script_id+文件名称
-    pub async fn save_script(&mut self, path: &PathBuf, script: &ScriptInfo) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn save_script(
+        &mut self,
+        path: &PathBuf,
+        script: &ScriptInfo,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         //let file_path = scripts_dir.join(script.script_meta.script_id.to_string()).join("info.json");
-        if let Some(parent) = path.parent() { tokio::fs::create_dir_all(parent).await?; }
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
         let content = serde_json::to_string_pretty(script)?;
         tokio::fs::write(path, content).await?;
 
         // 更新索引
         let metadata = script.script_meta.clone();
         {
-            self.script_index.write().await.insert(metadata.script_id, metadata.clone());
+            self.script_index
+                .write()
+                .await
+                .insert(metadata.script_id, metadata.clone());
         }
 
         // 更新缓存
@@ -260,7 +312,11 @@ impl ScriptManager {
     }
 
     /// 删除脚本目录（含 info.json 与其他附属文件）,参数不包含script_id
-    pub async fn delete_script(&mut self, script_dir: &PathBuf, script_id: ScriptId) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn delete_script(
+        &mut self,
+        script_dir: &PathBuf,
+        script_id: ScriptId,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(_entry) = self.script_index.write().await.remove(&script_id) {
             let dir = script_dir.join(script_id.to_string());
             let _ = tokio::fs::remove_dir_all(dir).await;
@@ -274,9 +330,15 @@ impl ScriptManager {
         &mut self,
         page: usize,
         page_size: usize,
-        sort_rules: Vec<(SortField, SortOrder)>
+        sort_rules: Vec<(SortField, SortOrder)>,
     ) -> Result<ScriptPageResp, Box<dyn std::error::Error>> {
-        let mut all_metadata: Vec<_> = self.script_index.read().await.values().map(|e| e.clone()).collect();
+        let mut all_metadata: Vec<_> = self
+            .script_index
+            .read()
+            .await
+            .values()
+            .map(|e| e.clone())
+            .collect();
 
         //self.sort_metadata(all_metadata)
 
@@ -303,7 +365,8 @@ impl ScriptManager {
         let end_idx = (start_idx + page_size).min(total_count);
 
         let page_metadata = &all_metadata[start_idx..end_idx];
-        let scripts = page_metadata.iter()
+        let scripts = page_metadata
+            .iter()
             .map(|meta| self.load_script_info(meta.script_id))
             .collect::<Result<Vec<_>, _>>()?;
 

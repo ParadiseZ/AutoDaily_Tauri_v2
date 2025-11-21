@@ -32,9 +32,15 @@ impl InferenceBackend {
 
     fn build_ep(&self) -> Box<dyn ExecutionProvider> {
         match self {
-            InferenceBackend::Cuda => Box::new(ort::execution_providers::CUDAExecutionProvider::default().build()),
-            InferenceBackend::DirectML => Box::new(ort::execution_providers::DirectMLExecutionProvider::default().build()),
-            InferenceBackend::CPU => Box::new(ort::execution_providers::CPUExecutionProvider::default().build()),
+            InferenceBackend::Cuda => {
+                Box::new(ort::execution_providers::CUDAExecutionProvider::default().build())
+            }
+            InferenceBackend::DirectML => {
+                Box::new(ort::execution_providers::DirectMLExecutionProvider::default().build())
+            }
+            InferenceBackend::CPU => {
+                Box::new(ort::execution_providers::CPUExecutionProvider::default().build())
+            }
         }
     }
 }
@@ -50,8 +56,7 @@ pub fn configure_or_switch_provider(
     current_builder: Option<SessionBuilder>,
     target: &str,
 ) -> Result<ProviderConfigResult, OrtError> {
-    let target_backend = InferenceBackend::from_str(target)
-        .unwrap_or(InferenceBackend::CPU); // 未知默认 CPU
+    let target_backend = InferenceBackend::from_str(target).unwrap_or(InferenceBackend::CPU); // 未知默认 CPU
 
     // 获取基础 builder（首次运行 or 复用）
     let base_builder = match current_builder {

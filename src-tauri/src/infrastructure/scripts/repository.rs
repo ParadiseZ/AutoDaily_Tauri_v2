@@ -1,8 +1,8 @@
-use std::path::Path;
+use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::scripts::script_error::ScriptResult;
 use crate::infrastructure::scripts::script_info::ScriptInfo;
 use crate::infrastructure::scripts::script_info_model::{ScriptMeta, ScriptPageReq};
-use crate::infrastructure::core::ScriptId;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct ScriptMetaPage {
@@ -26,5 +26,3 @@ pub trait CloudScriptRepository: Send + Sync {
     fn get_detail(&self, script_id: ScriptId) -> ScriptResult<ScriptInfo>;
     fn download(&self, script_id: ScriptId, dest_root: &Path) -> ScriptResult<()>;
 }
-
-

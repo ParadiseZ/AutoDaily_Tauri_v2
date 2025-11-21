@@ -13,11 +13,10 @@ pub struct EmailConfig {
     pub recipient: String,
 }
 
-
-impl ConfigCategory for EmailConfig{
+impl ConfigCategory for EmailConfig {
     fn default() -> Self {
-        Self{
-            desktop_notice : true,
+        Self {
+            desktop_notice: true,
             email_notification: false,
             smtp_server: String::new(),
             smtp_port: 465,

@@ -4,22 +4,22 @@ use crate::infrastructure::config::conf_mgr::ConfigManager;
 use crate::infrastructure::logging::config::LogMain;
 use crate::infrastructure::logging::LogLevel;
 
-pub async fn get_log_config(
-    config_manager: tauri::State<'_, ConfigManager>
-) -> AppResult<LogMain>{
-    let log_config= config_manager.get_conf::<LogMain>(LOG_CONFIG_PATH).await?;
+pub async fn get_log_config(config_manager: tauri::State<'_, ConfigManager>) -> AppResult<LogMain> {
+    let log_config = config_manager.get_conf::<LogMain>(LOG_CONFIG_PATH).await?;
     //let res = serde_json::to_string_pretty(&log_config)
-        //.map_err(|e| AppError::SerializeConfErr{detail: log_config.to_string(), e: e.to_string()})?;
+    //.map_err(|e| AppError::SerializeConfErr{detail: log_config.to_string(), e: e.to_string()})?;
     Ok(log_config)
 }
 pub async fn set_log_config(
     config_manager: tauri::State<'_, ConfigManager>,
     log_level: &LogLevel,
-    log_dir : &str,
-    max_file_size : usize,
-    retention_days : u32
-)-> AppResult<()>{
-    let mut log_config= config_manager.get_conf_mut::<LogMain>(LOG_CONFIG_PATH).await?;
+    log_dir: &str,
+    max_file_size: usize,
+    retention_days: u32,
+) -> AppResult<()> {
+    let mut log_config = config_manager
+        .get_conf_mut::<LogMain>(LOG_CONFIG_PATH)
+        .await?;
     //更新日志级别
     LogMain::update_level(&log_level)?;
     log_config.log_level = log_level.clone();

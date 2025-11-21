@@ -10,17 +10,17 @@ use rayon::prelude::{IntoParallelRefIterator, IntoParallelRefMutIterator};
 #[async_trait]
 pub trait ModelHandler: Send + Sync {
     fn load_model(&mut self);
-    
+
     /// 获取模型输入尺寸
     fn get_input_size(&self) -> (u32, u32);
 
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(Array4<f32>, [f32; 2], [u32; 2])>;
     /// 执行模型推理
-    async fn inference(&self, input : Array4<f32>) -> VisionResult<Array4<f32>>;
-    
+    async fn inference(&self, input: Array4<f32>) -> VisionResult<Array4<f32>>;
+
     /// 获取模型输入节点名称
     fn get_input_node_name(&self) -> &'static str;
-    
+
     /// 获取模型输出节点名称  
     fn get_output_node_name(&self) -> &'static str;
 
@@ -36,14 +36,18 @@ pub trait TextDetector: ModelHandler {
         // 通用的检测流程
         let (preprocessed, scale_factor, origin_shape) = self.preprocess(image)?;
         let raw_output = self.inference(preprocessed).await?;
-        let det_res = self.postprocess(&raw_output, scale_factor,origin_shape)?;
+        let det_res = self.postprocess(&raw_output, scale_factor, origin_shape)?;
         //self.parse_detection_result(processed_output)
         Ok(det_res)
     }
     /// 后处理推理结果
-    fn postprocess(&self, output: &Array4<f32>, scale_factor : [f32; 2], origin_shape: [u32; 2] ) -> VisionResult<Vec<DetResult>>;
+    fn postprocess(
+        &self,
+        output: &Array4<f32>,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> VisionResult<Vec<DetResult>>;
 
-    
     /// 获取检测特有的配置参数
     fn get_detection_config(&self) -> DetectionConfig;
 }
@@ -52,26 +56,37 @@ pub trait TextDetector: ModelHandler {
 #[async_trait]
 pub trait TextRecognizer: ModelHandler {
     /// 识别文本内容
-    async fn recognize(&self,  image: &DynamicImage, det_results: &mut [DetResult]) -> VisionResult<Vec<OcrResult>> {
+    async fn recognize(
+        &self,
+        image: &DynamicImage,
+        det_results: &mut [DetResult],
+    ) -> VisionResult<Vec<OcrResult>> {
         // 预处理
         let rgba_img = &image.to_rgba8();
-        let inputs : Vec<Array4<f32>>= det_results.par_iter_mut()
+        let inputs: Vec<Array4<f32>> = det_results
+            .par_iter_mut()
             .map(|&det_res| {
                 let img = self.get_crop_image(rgba_img, det_res)?;
-                let (input, _, _) = self.preprocess( &img )?;
+                let (input, _, _) = self.preprocess(&img)?;
                 input
-            }).collect();
+            })
+            .collect();
         // 推理
-        let outputs: Vec<Array4<f32>> = inputs.into_iter().map(|input| async{
-            self.inference(input).await?;
-        }).collect();
-        
+        let outputs: Vec<Array4<f32>> = inputs
+            .into_iter()
+            .map(|input| async {
+                self.inference(input).await?;
+            })
+            .collect();
+
         // 后处理
-        let ocr_res = outputs.par_iter()
+        let ocr_res = outputs
+            .par_iter()
             .map(|output| async {
-                self.postprocess(output, det_results,0)?;
-            }).collect();
-        
+                self.postprocess(output, det_results, 0)?;
+            })
+            .collect();
+
         /*let imgs = self.get_rotate_crop_image(image, det_results)?;
         let mut ocr_res = Vec::with_capacity(imgs.len());
         let _ = imgs.par_iter()
@@ -91,7 +106,11 @@ pub trait TextRecognizer: ModelHandler {
         Ok(ocr_res)
         //self.parse_recognition_result(processed_output)
     }
-    async fn recognize_batch(&self,  image: &DynamicImage, det_results: &mut [DetResult]) -> VisionResult<Vec<OcrResult>> {
+    async fn recognize_batch(
+        &self,
+        image: &DynamicImage,
+        det_results: &mut [DetResult],
+    ) -> VisionResult<Vec<OcrResult>> {
         let imgs = self.get_crop_images(image, det_results)?;
         let input = self.preprocess_batch(&*imgs)?;
         let raw_output = self.inference(input).await?;
@@ -101,11 +120,19 @@ pub trait TextRecognizer: ModelHandler {
     }
 
     /// 后处理推理结果
-    fn postprocess(&self, output: &Array4<f32>,det_result: &DetResult, batch_size: usize ) -> VisionResult<OcrResult>;
+    fn postprocess(
+        &self,
+        output: &Array4<f32>,
+        det_result: &DetResult,
+        batch_size: usize,
+    ) -> VisionResult<OcrResult>;
 
     /// 批量处理
-    fn preprocess_batch(&self,images: &[DynamicImage]) -> VisionResult<Array4<f32>>;
+    fn preprocess_batch(&self, images: &[DynamicImage]) -> VisionResult<Array4<f32>>;
 
-    fn postprocess_batch(&self, output : &Array4<f32>,det_result:&[DetResult])-> VisionResult<Vec<OcrResult>> ;
+    fn postprocess_batch(
+        &self,
+        output: &Array4<f32>,
+        det_result: &[DetResult],
+    ) -> VisionResult<Vec<OcrResult>>;
 }
-

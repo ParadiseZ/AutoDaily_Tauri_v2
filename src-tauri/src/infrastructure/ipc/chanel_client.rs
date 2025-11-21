@@ -1,9 +1,14 @@
 use crate::constant::project::{HEARTBEAT_INTERVAL, SOCKET_NAME};
-use crate::infrastructure::context::child_process_sec::{get_ipc_client, process_need_stop, set_running_status, RunningStatus};
-use crate::infrastructure::core::{serialize_config, DeviceId,encode_to_vec, decode_from_slice};
+use crate::infrastructure::context::child_process_sec::{
+    get_ipc_client, process_need_stop, set_running_status, RunningStatus,
+};
+use crate::infrastructure::core::{decode_from_slice, encode_to_vec, serialize_config, DeviceId};
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::{ChannelError, ChannelResult};
-use crate::infrastructure::ipc::message::{HeartbeatMessage, IpcMessage, MessagePayload, MessageType};
+use crate::infrastructure::ipc::message::{
+    HeartbeatMessage, IpcMessage, MessagePayload, MessageType,
+};
+use crate::infrastructure::logging::log_trait::Log;
 use interprocess::local_socket::tokio::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::tokio::Stream;
 use interprocess::local_socket::ToNsName;
@@ -12,7 +17,6 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::{mpsc, Mutex};
 use tokio::time;
-use crate::infrastructure::logging::log_trait::Log;
 
 // ===== 子进程逻辑 =====
 pub struct IpcClient {
@@ -22,7 +26,7 @@ pub struct IpcClient {
     ensure_sender: Arc<Mutex<Option<mpsc::Sender<IpcMessage>>>>,
 }
 
-impl IpcClient{
+impl IpcClient {
     pub(crate) fn new(device_id: Arc<DeviceId>, log_level: AtomicU8) -> Self {
         Self {
             device_id,
@@ -37,10 +41,16 @@ impl IpcClient{
         let stream = LocalSocketStream::connect(
             SOCKET_NAME
                 .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
-                .map_err(async |e| ChannelError::ConnectErr { device_id: self.device_id.to_string(), e: e.to_string() })?,
+                .map_err(async |e| ChannelError::ConnectErr {
+                    device_id: self.device_id.to_string(),
+                    e: e.to_string(),
+                })?,
         )
-            .await
-            .map_err(async |e| ChannelError::ConnectErr { device_id: self.device_id.to_string(), e: e.to_string() })?;
+        .await
+        .map_err(async |e| ChannelError::ConnectErr {
+            device_id: self.device_id.to_string(),
+            e: e.to_string(),
+        })?;
 
         let (reader, writer) = stream.split();
 
@@ -69,29 +79,30 @@ impl IpcClient{
         *self.log_sender.lock().await = None;
         *self.ensure_sender.lock().await = None;
 
-        Err(ChannelError::ChannelClosed{device_id: self.device_id.to_string()})
+        Err(ChannelError::ChannelClosed {
+            device_id: self.device_id.to_string(),
+        })
     }
-    
+
     pub(crate) fn spawn_reconnect_task(&'static self) {
         let self_arc = Arc::new(self.clone());
         let mut connect_num = 0u8;
         tokio::spawn(async move {
             loop {
                 // 只会返回错误，以自动重连
-                if let Err(_) = self_arc.clone().connect_and_run().await{
+                if let Err(_) = self_arc.clone().connect_and_run().await {
                     // 连接失败，等待后重试
                     connect_num += 1;
                     tokio::time::sleep(time::Duration::from_secs(1)).await;
                     if connect_num > 30 {
                         Log::error("子进程socket重连次数达到上限30，将放弃重连");
                         set_running_status(RunningStatus::Error);
-                        break
+                        break;
                     }
                 }
             }
         });
     }
-    
 
     /// 发送消息循环函数
     ///
@@ -133,15 +144,22 @@ impl IpcClient{
         }
     }
 
-    pub async fn send_heart(&self){
+    pub async fn send_heart(&self) {
         // 简单协议：[len: u32][data...]
         let dev_id = self.device_id.clone();
-        let msg = IpcMessage::new(*dev_id,MessageType::Heartbeat,MessagePayload::Heartbeat(HeartbeatMessage { cpu_usage: 0.5, memory_usage: 0 }));
+        let msg = IpcMessage::new(
+            *dev_id,
+            MessageType::Heartbeat,
+            MessagePayload::Heartbeat(HeartbeatMessage {
+                cpu_usage: 0.5,
+                memory_usage: 0,
+            }),
+        );
         loop {
             time::sleep(HEARTBEAT_INTERVAL).await;
             if let Err(_) = self.send_ensure(msg.clone()).await {
                 if process_need_stop() {
-                    break
+                    break;
                 }
             }
         }
@@ -154,42 +172,57 @@ impl IpcClient{
         // 简单协议：[len: u32][data...]
         let encoded = encode_to_vec(msg, serialize_config())
             .map_err(|e| ChannelError::EncodeErr { e: e.to_string() })?;
-        let len = u32::try_from(encoded.len())
-            .map_err(|e| ChannelError::MessageTooLong {detail:"发送失败！".to_string()})?;
-        writer.write_all(&len.to_le_bytes()).await
-            .map_err(|e| ChannelError::WriteErr { detail: "写入数据长度失败！".to_string(), e: e.to_string() })?;
-        writer.write_all(&encoded).await
-            .map_err(|e| ChannelError::WriteErr { detail: "写入数据失败！".to_string(), e: e.to_string() })?;
-        writer.flush().await
-            .map_err(|e| ChannelError::WriteErr { detail: "刷新缓存失败！".to_string(), e: e.to_string() })?;
+        let len = u32::try_from(encoded.len()).map_err(|e| ChannelError::MessageTooLong {
+            detail: "发送失败！".to_string(),
+        })?;
+        writer
+            .write_all(&len.to_le_bytes())
+            .await
+            .map_err(|e| ChannelError::WriteErr {
+                detail: "写入数据长度失败！".to_string(),
+                e: e.to_string(),
+            })?;
+        writer
+            .write_all(&encoded)
+            .await
+            .map_err(|e| ChannelError::WriteErr {
+                detail: "写入数据失败！".to_string(),
+                e: e.to_string(),
+            })?;
+        writer.flush().await.map_err(|e| ChannelError::WriteErr {
+            detail: "刷新缓存失败！".to_string(),
+            e: e.to_string(),
+        })?;
         Ok(())
     }
 
     fn send_uncertain(&self, log: IpcMessage) {
         if let Ok(tx) = self.log_sender.try_lock() {
-            if let Some(sender) = tx.as_ref(){
-                let _ = sender.send(log);// 失败就丢弃
+            if let Some(sender) = tx.as_ref() {
+                let _ = sender.send(log); // 失败就丢弃
             }
         }
     }
 
     async fn send_ensure(&self, msg: IpcMessage) -> ChannelResult<()> {
         let tx = self.ensure_sender.lock().await;
-        if let Some(sender) = tx.as_ref(){
-            sender.send(msg)
-                .await
-                .map_err(|_| ChannelError::SendErr)
+        if let Some(sender) = tx.as_ref() {
+            sender.send(msg).await.map_err(|_| ChannelError::SendErr)
         } else {
-            Err(ChannelError::ChannelClosed { device_id: self.device_id.to_string() })
+            Err(ChannelError::ChannelClosed {
+                device_id: self.device_id.to_string(),
+            })
         }
     }
-    
+
     async fn recv_loop<R: AsyncReadExt + Unpin + Send>(mut reader: R) {
         loop {
             match Self::recv_message(&mut reader).await {
                 Ok(buffer) => {
                     // 分发
-                    if let Ok((msg, _)) = decode_from_slice::<IpcMessage, _>(&buffer, serialize_config()) {
+                    if let Ok((msg, _)) =
+                        decode_from_slice::<IpcMessage, _>(&buffer, serialize_config())
+                    {
                         Self::handle_msg(msg).await;
                     }
                 }
@@ -210,9 +243,7 @@ impl ChannelTrait for IpcClient {
                     client.log_level.store(log.level as u8, Ordering::Release)
                 }
             }
-            MessageType::Command => {
-
-            }
+            MessageType::Command => {}
             _ => {}
         }
     }

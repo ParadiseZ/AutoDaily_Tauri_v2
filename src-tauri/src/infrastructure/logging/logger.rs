@@ -1,28 +1,28 @@
-use std::fs;
-use std::path::PathBuf;
+use crate::app::app_error::{AppError, AppResult};
+use crate::constant::sys_conf_path::LOG_CONFIG_PATH;
+use crate::infrastructure::app_handle::get_app_handle;
+use crate::infrastructure::config::conf_mgr::ConfigManager;
+use crate::infrastructure::core::time_format::LocalTimer;
+use crate::infrastructure::core::{Deserialize, Serialize};
+use crate::infrastructure::logging::config::LogMain;
+use crate::infrastructure::logging::log_error::{LogError, LogResult};
+use crate::infrastructure::logging::log_trait::{Log, LogTrait};
+use crate::infrastructure::path_resolve::model_path::PathUtil;
 use chrono::Local;
 use once_cell::sync::Lazy;
 use ort::execution_providers::set_gpu_device;
-use tauri::{Manager, State};
+use std::fs;
+use std::path::PathBuf;
 use tauri::path::BaseDirectory;
+use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use tracing::subscriber::set_global_default;
 use tracing::trace;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::filter::LevelFilter;
-use tracing_subscriber::{fmt, reload, Registry};
 use tracing_subscriber::fmt::time::FormatTime;
 use tracing_subscriber::layer::SubscriberExt;
-use crate::app::app_error::{AppError, AppResult};
-use crate::constant::sys_conf_path::LOG_CONFIG_PATH;
-use crate::infrastructure::app_handle::get_app_handle;
-use crate::infrastructure::config::conf_mgr::ConfigManager;
-use crate::infrastructure::core::{Deserialize, Serialize};
-use crate::infrastructure::core::time_format::LocalTimer;
-use crate::infrastructure::logging::config::{LogMain};
-use crate::infrastructure::logging::log_error::{LogError, LogResult};
-use crate::infrastructure::logging::log_trait::{Log, LogTrait};
-use crate::infrastructure::path_resolve::model_path::PathUtil;
+use tracing_subscriber::{fmt, reload, Registry};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[repr(u8)]
@@ -68,11 +68,11 @@ pub fn parse_log_level(level: &LogLevel) -> LevelFilter {
         LogLevel::Info => LevelFilter::INFO,
         LogLevel::Warn => LevelFilter::WARN,
         LogLevel::Error => LevelFilter::ERROR,
-        LogLevel::Off => LevelFilter::OFF
+        LogLevel::Off => LevelFilter::OFF,
     }
 }
 
-impl LogMain{
+impl LogMain {
     pub fn update_level(level: &LogLevel) -> LogResult<()> {
         let level_filter = parse_log_level(level);
 
@@ -81,14 +81,14 @@ impl LogMain{
             Ok(guard) => guard,
             Err(poison_err) => {
                 // 尝试从有毒的互斥锁中恢复数据
-                return Err(LogError::LockLevelFilterErr{e : poison_err});
+                return Err(LogError::LockLevelFilterErr { e: poison_err });
             }
         };
 
         if let Some(handle) = handle_opt.as_ref() {
             handle
                 .reload(level_filter)
-                .map_err(|e| LogError::ReloadFilterErr{e})?;
+                .map_err(|e| LogError::ReloadFilterErr { e })?;
             Log::info(format!("主线程日志级别变更为: {:?}", level));
         } else {
             return Err(LogError::ReloadDataNotInit);
@@ -98,29 +98,35 @@ impl LogMain{
     }
 }
 
-impl LogMain{
+impl LogMain {
     pub async fn init(mgr: &State<ConfigManager>, app_name: &str) -> LogResult<Self> {
         // 只初始化日志配置，其他配置可以异步加载
-        if let Err(e) = mgr.init_category::<LogMain>(LOG_CONFIG_PATH,BaseDirectory::AppConfig).await{
+        if let Err(e) = mgr
+            .init_category::<LogMain>(LOG_CONFIG_PATH, BaseDirectory::AppConfig)
+            .await
+        {
             tracing::error!("Failed to init logging config: {}", e);
         }
         // 获取日志配置并立即初始化日志系统
-        let conf = mgr.get_conf::<LogMain>(LOG_CONFIG_PATH).await
-            .map_err(|e| LogError::GetLogConfErr{e: e.to_string()})?;
+        let conf = mgr
+            .get_conf::<LogMain>(LOG_CONFIG_PATH)
+            .await
+            .map_err(|e| LogError::GetLogConfErr { e: e.to_string() })?;
 
         let log_level_filter = parse_log_level(&conf.log_level);
 
         // Resolve and ensure log directory
-        let log_dir_path: PathBuf = PathUtil::get_absolute_path(&conf.log_dir, BaseDirectory::AppLog)
-            .map_err(|e| LogError::CreateOrGet{e: e.to_string()})?;
+        let log_dir_path: PathBuf =
+            PathUtil::get_absolute_path(&conf.log_dir, BaseDirectory::AppLog)
+                .map_err(|e| LogError::CreateOrGet { e: e.to_string() })?;
 
         let date_str = Local::now().format("%y%m%d").to_string();
         let log_file = format!("AutoDaily_{}.log", date_str);
 
         // 添加调试信息
         /*        println!("主程序日志目录: {}", log_dir_path.display());
-                println!("日志文件: {}", log_file);
-                println!("日志级别: {:?}", log_level_filter);*/
+        println!("日志文件: {}", log_file);
+        println!("日志级别: {:?}", log_level_filter);*/
 
         // Create a rolling file appender that creates a new file each day
         let file_appender = RollingFileAppender::new(
@@ -135,7 +141,7 @@ impl LogMain{
         // Store the reload handle for later use - safely handle the mutex
         match LOG_LEVEL_HANDLE.lock() {
             Ok(mut handle) => *handle = Some(reload_handle),
-            Err(e) => return Err(LogError::LockLevelFilterErr{e}),
+            Err(e) => return Err(LogError::LockLevelFilterErr { e }),
         }
 
         // Set up a single layer for file logging
@@ -158,8 +164,7 @@ impl LogMain{
             .with(stdout_layer)
             .with(file_layer);
 
-        set_global_default(subscriber)
-            .map_err(|e| LogError::SetRegistryErr)?;
+        set_global_default(subscriber).map_err(|e| LogError::SetRegistryErr)?;
 
         // Record startup log
         tracing::info!("===== {} 启动 =====", app_name);
@@ -167,7 +172,6 @@ impl LogMain{
 
         Ok(conf)
     }
-    
 
     /// 记录带有额外字段的信息日志
     pub fn info_with_fields(message: &str, fields: Vec<(&str, String)>) {
@@ -193,10 +197,9 @@ impl LogMain{
     pub fn info_with_tag(tag: &str, message: &str) {
         tracing::info!(tag = tag, "{}", message);
     }
-
 }
 
-impl LogTrait for LogMain{
+impl LogTrait for LogMain {
     fn debug(&self, msg: &str) {
         tracing::debug!("{}", msg);
     }

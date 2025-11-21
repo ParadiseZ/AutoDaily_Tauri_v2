@@ -2,14 +2,14 @@ use std::path::PathBuf;
 use tokio::fs::File;
 use tokio::io::BufReader;
 
-use twox_hash::XxHash64;
-use std::hash::Hasher;
 use crate::infrastructure::hash_calculated::hash_error::{HashError, HashResult};
 use crate::infrastructure::logging::log_trait::Log;
+use std::hash::Hasher;
+use twox_hash::XxHash64;
 
 macro_rules! compute_hash {
     ($reader:expr, $hasher:ty) => {{
-        let mut hasher = <$hasher>::default();  // 使用 default() 而不是 new()
+        let mut hasher = <$hasher>::default(); // 使用 default() 而不是 new()
         let mut buffer = [0; 8192];
 
         loop {
@@ -17,31 +17,32 @@ macro_rules! compute_hash {
             if bytes_read == 0 {
                 break;
             }
-            hasher.write(&buffer[..bytes_read]);  // 使用 write() 而不是 update()
+            hasher.write(&buffer[..bytes_read]); // 使用 write() 而不是 update()
         }
 
-        Ok(format!("{:x}", hasher.finish()))  // 使用 finish() 而不是 finalize()
+        Ok(format!("{:x}", hasher.finish())) // 使用 finish() 而不是 finalize()
     }};
 }
-
 
 pub fn get_hasher(model_path: &str, length: usize) -> HashResult<String> {
     if !PathBuf::from(model_path).exists() {
         Log::error(&format!("文件{}不存在，计算hash错误！", model_path));
-        return Err(HashError::FileNotFound { path: model_path.to_string() });
+        return Err(HashError::FileNotFound {
+            path: model_path.to_string(),
+        });
     }
 
     let file = File::open(&model_path)?;
     let mut reader = BufReader::new(file);
 
     match length {
-        64 => compute_hash!(reader, XxHash64),  // twox_hash::XxHash64 输出64位
+        64 => compute_hash!(reader, XxHash64), // twox_hash::XxHash64 输出64位
         // 如果需要其他位数的哈希，可以考虑使用：
         // 128 => compute_hash!(reader, twox_hash::XxHash128),
         _ => {
             Log::warn("不支持的hash长度限制，使用默认的64位xxhash");
             compute_hash!(reader, XxHash64)
-        },
+        }
     }
 }
 

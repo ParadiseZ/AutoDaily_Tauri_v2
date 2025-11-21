@@ -1,6 +1,6 @@
-use std::fmt;
 use crate::infrastructure::config::conf_write_guard::ConfigCategory;
 use crate::infrastructure::core::{Deserialize, Serialize};
+use std::fmt;
 // 日志配置 - 临时实现
 use crate::infrastructure::logging::logger::LogLevel;
 
@@ -26,6 +26,10 @@ impl ConfigCategory for LogMain {
 
 impl fmt::Display for LogMain {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "loglevel:{}, log_dir:{}, max_file_size:{}kb, retention_days:{}day", self.log_level, self.log_dir, self.max_file_size, self.retention_days)
+        write!(
+            f,
+            "loglevel:{}, log_dir:{}, max_file_size:{}kb, retention_days:{}day",
+            self.log_level, self.log_dir, self.max_file_size, self.retention_days
+        )
     }
 }

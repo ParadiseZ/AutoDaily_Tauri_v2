@@ -23,10 +23,7 @@ pub fn get_crop_images(
     Ok(cropped_images)
 }
 
-pub fn get_crop_image(
-    img: &RgbaImage,
-    det_res: &DetResult,
-) -> ImageResult<DynamicImage> {
+pub fn get_crop_image(img: &RgbaImage, det_res: &DetResult) -> ImageResult<DynamicImage> {
     // 回退到原始的串行处理逻辑
     let res = &det_res.bounding_box;
     let box_width = (res.x2 as f32 - res.x1 as f32).abs().max(1.0);
@@ -57,8 +54,10 @@ pub fn get_crop_image(
             Rgba([0, 0, 0, 0]),
         );
         Ok(DynamicImage::ImageRgba8(warped).crop_imm(0, 0, width, height))
-    }
-    else {
-        Err(ImageError::CropErr{detail: det_res.clone(), e:"".to_string()})
+    } else {
+        Err(ImageError::CropErr {
+            detail: det_res.clone(),
+            e: "".to_string(),
+        })
     }
 }

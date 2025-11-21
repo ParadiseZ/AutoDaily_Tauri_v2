@@ -1,5 +1,6 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
@@ -9,7 +10,6 @@ use imageproc::drawing::Canvas;
 use memmap2::Mmap;
 use ndarray::{Array3, Array4, Axis};
 use rayon::prelude::IntoParallelRefIterator;
-use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 
 #[derive(Debug)]
 pub struct PaddleRecCrnn {
@@ -21,17 +21,26 @@ impl PaddleRecCrnn {
     pub fn new(
         input_width: u32,
         input_height: u32,
-        intra_thread_num : usize,
-        intra_spinning : bool,
+        intra_thread_num: usize,
+        intra_spinning: bool,
         inter_thread_num: usize,
-        inter_spinning : bool,
+        inter_spinning: bool,
         model_bytes_map: Mmap,
         execution_provider: InferenceBackend,
         dict: Vec<String>,
     ) -> Self {
         Self {
-            base_model: BaseModel::new(input_width, input_height, model_bytes_map, execution_provider, intra_thread_num, intra_spinning, inter_thread_num,inter_spinning,
-            ModelType::PaddleCrnn5),
+            base_model: BaseModel::new(
+                input_width,
+                input_height,
+                model_bytes_map,
+                execution_provider,
+                intra_thread_num,
+                intra_spinning,
+                inter_thread_num,
+                inter_spinning,
+                ModelType::PaddleCrnn5,
+            ),
             dict,
         }
     }
@@ -40,9 +49,13 @@ impl PaddleRecCrnn {
 #[async_trait]
 impl ModelHandler for PaddleRecCrnn {
     fn load_model(&mut self) {
-        tokio::runtime::Handle::current().block_on(async {
-            self.base_model.load_model_base::<Self>("paddle_rec_crnn").await
-        }).unwrap()
+        tokio::runtime::Handle::current()
+            .block_on(async {
+                self.base_model
+                    .load_model_base::<Self>("paddle_rec_crnn")
+                    .await
+            })
+            .unwrap()
     }
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
@@ -61,7 +74,8 @@ impl ModelHandler for PaddleRecCrnn {
             (resize_w / 8 + 1) * 8
         } else {
             resize_w
-        }.max(8); // 确保宽度至少为8
+        }
+        .max(8); // 确保宽度至少为8
 
         Log::debug(&format!(
             "Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
@@ -100,22 +114,21 @@ impl ModelHandler for PaddleRecCrnn {
         // 扩展到批次维度 (1, C, H, W)
         let input = input.insert_axis(Axis(0));
 
-        Ok((input , [ratio, ratio], [origin_h, origin_w]))
+        Ok((input, [ratio, ratio], [origin_h, origin_w]))
     }
-    
-    async fn inference(&self, input : Array4<f32>) -> VisionResult<Array4<f32>> {
+
+    async fn inference(&self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }
-    
+
     fn get_input_node_name(&self) -> &'static str {
         "x"
     }
-    
+
     fn get_output_node_name(&self) -> &'static str {
         "fetch_name_0"
     }
-
 
     fn get_target_width(&self) -> u32 {
         self.base_model.input_width
@@ -128,13 +141,21 @@ impl ModelHandler for PaddleRecCrnn {
 
 #[async_trait]
 impl TextRecognizer for PaddleRecCrnn {
-    fn postprocess(&self, output: &Array4<f32>,det_result: &DetResult, batch_size: usize ) -> VisionResult<OcrResult>{
+    fn postprocess(
+        &self,
+        output: &Array4<f32>,
+        det_result: &DetResult,
+        batch_size: usize,
+    ) -> VisionResult<OcrResult> {
         let seq_len = output.shape()[1];
         let class_num = output.shape()[2];
 
         if self.dict.len() + 1 != class_num - 1 {
             // 假设最后一个是空白
-            return Err(VisionError::DictSizeErr{out : class_num, dict: self.dict.len()});
+            return Err(VisionError::DictSizeErr {
+                out: class_num,
+                dict: self.dict.len(),
+            });
         }
 
         let mut result_text = String::new();
@@ -178,7 +199,7 @@ impl TextRecognizer for PaddleRecCrnn {
                 prev_idx = None;
             }
         }
-        let ocr_result = OcrResult{
+        let ocr_result = OcrResult {
             id: 0,
             pre_id: 0,
             next_id: 0,
@@ -195,7 +216,6 @@ impl TextRecognizer for PaddleRecCrnn {
         if images.is_empty() {
             return Err(VisionError::InputImageCollectionEmpty);
         }
-        
 
         let mut max_width = 0;
         let mut widths: Vec<u32> = Vec::with_capacity(images.len());
@@ -203,13 +223,14 @@ impl TextRecognizer for PaddleRecCrnn {
         // 计算所有图像的目标宽度
         for img in images.par_iter() {
             let (origin_w, origin_h) = img.dimensions();
-            let ratio = origin_h  / self.get_target_height() as f32;
-            let resize_w = (origin_w  / ratio).ceil() as u32;
+            let ratio = origin_h / self.get_target_height() as f32;
+            let resize_w = (origin_w / ratio).ceil() as u32;
             let target_width = if resize_w % 8 != 0 {
                 (resize_w / 8 + 1) * 8
             } else {
                 resize_w
-            }.max(8);
+            }
+            .max(8);
 
             if target_width > max_width {
                 max_width = target_width;
@@ -219,8 +240,13 @@ impl TextRecognizer for PaddleRecCrnn {
 
         // 使用异步并行处理
         let batch_size = images.len();
-        let mut batch_data = Array4::<f32>::zeros((batch_size, 3, self.get_target_height() as usize, max_width as usize));
-        
+        let mut batch_data = Array4::<f32>::zeros((
+            batch_size,
+            3,
+            self.get_target_height() as usize,
+            max_width as usize,
+        ));
+
         // TODO: 这里可以进一步优化为真正的异步并行处理
         // 当前先保持原有逻辑，但为未来的异步优化预留接口
         for (i, img) in images.par_iter().enumerate() {
@@ -249,16 +275,23 @@ impl TextRecognizer for PaddleRecCrnn {
         Ok(batch_data)
     }
 
-    fn postprocess_batch(&self, output : &Array4<f32>, det_result: &[DetResult]) -> VisionResult<Vec<OcrResult>> {
+    fn postprocess_batch(
+        &self,
+        output: &Array4<f32>,
+        det_result: &[DetResult],
+    ) -> VisionResult<Vec<OcrResult>> {
         let batch_size = output.shape()[0];
 
         if batch_size != det_result.len() {
-            return Err(VisionError::BatchMatchDetSizeFailed{ batch: batch_size, det_num :det_result.len() });
+            return Err(VisionError::BatchMatchDetSizeFailed {
+                batch: batch_size,
+                det_num: det_result.len(),
+            });
         }
         // 将CTC解码结果转换为OCR结果
         let mut ocr_results = Vec::with_capacity(batch_size);
 
-        for (i , det_res) in det_result.par_iter().enumerate(){
+        for (i, det_res) in det_result.par_iter().enumerate() {
             let ocr_result = self.postprocess(output, det_res, i)?;
             ocr_results.push(ocr_result);
         }

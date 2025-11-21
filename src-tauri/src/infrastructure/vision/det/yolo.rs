@@ -1,17 +1,15 @@
-use crate::infrastructure::vision::base_traits::{
-    ModelHandler, TextDetector
-};
-use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView};
-use ndarray::{s, Array, Array4, Axis};
-use async_trait::async_trait;
-use memmap2::Mmap;
 use crate::domain::vision::result::{BoundingBox, DetResult};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
+use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::VisionResult;
+use async_trait::async_trait;
+use image::imageops::FilterType;
+use image::{DynamicImage, GenericImageView};
+use memmap2::Mmap;
+use ndarray::{s, Array, Array4, Axis};
 
 #[derive(Debug)]
 pub struct YoloDet {
@@ -26,10 +24,10 @@ impl YoloDet {
     pub fn new(
         input_width: u32,
         input_height: u32,
-        intra_thread_num : usize,
-        intra_spinning : bool,
+        intra_thread_num: usize,
+        intra_spinning: bool,
         inter_thread_num: usize,
-        inter_spinning : bool,
+        inter_spinning: bool,
         model_bytes_map: Mmap,
         execution_provider: InferenceBackend,
         class_count: usize,
@@ -38,8 +36,17 @@ impl YoloDet {
         iou_thresh: f32,
     ) -> Self {
         Self {
-            base_model: BaseModel::new(input_width, input_height, model_bytes_map, execution_provider, intra_thread_num, intra_spinning, inter_thread_num,inter_spinning,
-                                       ModelType::Yolo11),
+            base_model: BaseModel::new(
+                input_width,
+                input_height,
+                model_bytes_map,
+                execution_provider,
+                intra_thread_num,
+                intra_spinning,
+                inter_thread_num,
+                inter_spinning,
+                ModelType::Yolo11,
+            ),
             class_count,
             class_labels,
             confidence_thresh,
@@ -51,11 +58,11 @@ impl YoloDet {
 #[async_trait]
 impl ModelHandler for YoloDet {
     fn load_model(&mut self) {
-        tokio::runtime::Handle::current().block_on(async {
-            self.base_model.load_model_base::<Self>("det_yolo").await
-        }).unwrap()
+        tokio::runtime::Handle::current()
+            .block_on(async { self.base_model.load_model_base::<Self>("det_yolo").await })
+            .unwrap()
     }
-    
+
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
     }
@@ -66,7 +73,7 @@ impl ModelHandler for YoloDet {
         // 2. 尺寸调整为模型输入尺寸
         // 3. 归一化 (0-255 -> 0-1)
         // 4. 通道顺序调整 (HWC -> CHW)
-        let (w ,h ) = self.get_input_size();
+        let (w, h) = self.get_input_size();
         let (origin_w, origin_h) = image.dimensions();
         let scale = origin_w.max(origin_h) as f32 / w as f32;
 
@@ -82,23 +89,21 @@ impl ModelHandler for YoloDet {
             input[[0, 2, y, x]] = (b as f32) / 255.;
         }
 
-        Ok((input ,[scale,scale] , [origin_h, origin_w]))
+        Ok((input, [scale, scale], [origin_h, origin_w]))
     }
-    
-    async fn inference(&self, input : Array4<f32>) -> VisionResult<Array4<f32>> {
+
+    async fn inference(&self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }
-    
+
     fn get_input_node_name(&self) -> &'static str {
         "images"
     }
-    
+
     fn get_output_node_name(&self) -> &'static str {
         "output0"
     }
-    
-
 
     fn get_target_width(&self) -> u32 {
         self.base_model.input_width
@@ -111,14 +116,18 @@ impl ModelHandler for YoloDet {
 
 #[async_trait]
 impl TextDetector for YoloDet {
-
-    fn postprocess(&self, output_data: &Array4<f32>, scale_factor : [f32; 2], _origin_shape: [u32; 2]) -> VisionResult<Vec<DetResult>> {
+    fn postprocess(
+        &self,
+        output_data: &Array4<f32>,
+        scale_factor: [f32; 2],
+        _origin_shape: [u32; 2],
+    ) -> VisionResult<Vec<DetResult>> {
         // 实现YOLO后处理逻辑
         // 1. NMS (非极大值抑制)
         // 2. 置信度过滤
         // 3. 坐标转换
 
-        let mut boxes:Vec<DetResult> = Vec::new();
+        let mut boxes: Vec<DetResult> = Vec::new();
         let output = output_data.slice(s![0, .., .., 0]);
         // let scale = origin_w.max(origin_h) as f32 / target_width as f32;
         let scale = scale_factor[0];
@@ -147,23 +156,26 @@ impl TextDetector for YoloDet {
             let yc = row[1] / (h as f32) * (origin_shape[0] as f32);
             let w = row[2] / (w as f32) * (origin_shape[1] as f32);
             let h = row[3] / (h as f32) * (origin_shape[0] as f32);*/
-            
+
             let xc = row[0] * scale;
             let yc = row[1] * scale;
             let w = row[2] * scale;
             let h = row[3] * scale;
 
-            boxes.push(
-                DetResult{
-                    id:0,
-                    pre_id:0,
-                    next_id:0,
-                    bounding_box:BoundingBox::new((xc - w / 2.) as i32, (yc - h / 2.) as i32, (xc + w / 2.) as i32, (yc + h / 2.) as i32),
-                    index: class_id as i32,
-                    label: label.clone(),
-                    score:prob,
-                }
-            );
+            boxes.push(DetResult {
+                id: 0,
+                pre_id: 0,
+                next_id: 0,
+                bounding_box: BoundingBox::new(
+                    (xc - w / 2.) as i32,
+                    (yc - h / 2.) as i32,
+                    (xc + w / 2.) as i32,
+                    (yc + h / 2.) as i32,
+                ),
+                index: class_id as i32,
+                label: label.clone(),
+                score: prob,
+            });
         }
 
         // 应用非极大值抑制(NMS)
@@ -175,7 +187,6 @@ impl TextDetector for YoloDet {
         Ok(result)
     }
 
-    
     fn get_detection_config(&self) -> DetectionConfig {
         DetectionConfig {
             confidence_thresh: Some(self.confidence_thresh),
@@ -187,7 +198,6 @@ impl TextDetector for YoloDet {
         }
     }
 }
-
 
 // 计算IoU的辅助函数
 fn intersection(box1: &BoundingBox, box2: &BoundingBox) -> i32 {
@@ -212,7 +222,7 @@ fn calculate_iou(box1: &BoundingBox, box2: &BoundingBox) -> f32 {
     intersection_area / union_area
 }
 
-fn apply_nms(boxes: Vec<DetResult>, iou_thresh : f32) -> VisionResult<Vec<DetResult>> {
+fn apply_nms(boxes: Vec<DetResult>, iou_thresh: f32) -> VisionResult<Vec<DetResult>> {
     if boxes.is_empty() {
         return Ok(boxes);
     }
@@ -233,7 +243,11 @@ fn apply_nms(boxes: Vec<DetResult>, iou_thresh : f32) -> VisionResult<Vec<DetRes
     // 对每个类别分别进行 NMS
     for (_class_id, mut class_boxes) in boxes_by_class {
         // 按置信度降序排序
-        class_boxes.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        class_boxes.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let mut keep = Vec::new();
         let mut suppress = vec![false; class_boxes.len()];

@@ -1,4 +1,7 @@
-use crate::domain::scripts::script_decision::{DecisionError, DecisionResult, GuardDef, GuardRepository, PolicyDef, PolicyRepository, SubFlowDef, SubFlowRepository};
+use crate::domain::scripts::script_decision::{
+    DecisionError, DecisionResult, GuardDef, GuardRepository, PolicyDef, PolicyRepository,
+    SubFlowDef, SubFlowRepository,
+};
 use crate::infrastructure::core::{Deserialize, HashMap, Serialize};
 use std::path::PathBuf;
 
@@ -9,13 +12,16 @@ pub struct JsonDecisionRepository {
 }
 
 impl JsonDecisionRepository {
-    pub fn new(base_dir: PathBuf) -> Self { Self { base_dir } }
+    pub fn new(base_dir: PathBuf) -> Self {
+        Self { base_dir }
+    }
 
     fn load_json<T: for<'de> Deserialize<'de>>(&self, file: &str) -> DecisionResult<Vec<T>> {
         let path = self.base_dir.join(file);
         match std::fs::read_to_string(&path) {
             Ok(text) => {
-                let list: Vec<T> = serde_json::from_str(&text).map_err(|e| DecisionError::Repository(e.to_string()))?;
+                let list: Vec<T> = serde_json::from_str(&text)
+                    .map_err(|e| DecisionError::Repository(e.to_string()))?;
                 Ok(list)
             }
             Err(_) => Ok(vec![]), // 不存在则返回空，简化首次集成
@@ -52,5 +58,3 @@ impl SubFlowRepository for JsonDecisionRepository {
         sub.load_json("subflows.json")
     }
 }
-
-

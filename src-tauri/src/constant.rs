@@ -5,9 +5,9 @@ pub mod project {
 
     pub const MAIN_WINDOW: &str = "AutoDaily";
 
-    pub const SCREENSHOT_DIR : &str = "screencap_test";
+    pub const SCREENSHOT_DIR: &str = "screencap_test";
 
-    pub const SOCKET_NAME:&str = "com.auto.daily";
+    pub const SOCKET_NAME: &str = "com.auto.daily";
     pub const MAX_MESSAGE_SIZE: usize = 1024 * 1024 * 10;
     pub const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
     pub const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -25,18 +25,18 @@ pub mod sys_conf_path {
     pub const EMAIL_CONFIG_PATH: &str = "email.json";
 }
 
-pub mod scripts_files{
+pub mod scripts_files {
     pub const SCRIPT_INFO_FILE: &str = "info.json";
 
-    pub const COMMON_GUARD_FILE :&str = "guards.common.json";
+    pub const COMMON_GUARD_FILE: &str = "guards.common.json";
 
-    pub const GUARD_FILE :&str = "guards.json";
+    pub const GUARD_FILE: &str = "guards.json";
 
-    pub const COMMON_POLICIES_FILE:&str  = "policies.common.json";
+    pub const COMMON_POLICIES_FILE: &str = "policies.common.json";
 
-    pub const POLICIES_FILE :&str  = "policies.json";
+    pub const POLICIES_FILE: &str = "policies.json";
 
-    pub const COMMON_SUBFLOW_FILE:&str = "subflows.common.json";
+    pub const COMMON_SUBFLOW_FILE: &str = "subflows.common.json";
 
-    pub const SUBFLOW_FILE :&str = "subflows.json";
+    pub const SUBFLOW_FILE: &str = "subflows.json";
 }

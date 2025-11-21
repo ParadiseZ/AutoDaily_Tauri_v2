@@ -13,14 +13,14 @@ pub mod scripts;
 // 共享内存模型管理器
 //pub mod shared;
 // 视觉服务
-pub mod vision;
-pub mod devices;
+pub mod adb_cli_local;
+pub mod app_handle;
 pub mod capture;
 pub(crate) mod context;
-pub mod image;
-mod ort;
+pub mod devices;
 mod hash_calculated;
-pub mod app_handle;
-pub mod path_resolve;
+pub mod image;
 pub mod ipc;
-pub mod adb_cli_local;
+mod ort;
+pub mod path_resolve;
+pub mod vision;

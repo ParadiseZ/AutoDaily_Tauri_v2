@@ -1,4 +1,3 @@
-
 use crate::infrastructure::core::core_error::{CoreError, CoreResult};
 
 pub struct CurrentProcess {
@@ -11,14 +10,13 @@ pub struct CurrentProcess {
     pub command: String,
 }
 
-
 #[cfg(target_os = "windows")]
 pub fn set_process_affinity(cpu_ids: &[usize]) -> CoreResult<()> {
     use windows::Win32::System::Threading::{GetCurrentProcess, SetProcessAffinityMask};
     // 输入验证
     if cpu_ids.is_empty() {
-        return Err(CoreError::AffinityMaskErr{
-            e: "At least one CPU must be specified".to_string()
+        return Err(CoreError::AffinityMaskErr {
+            e: "At least one CPU must be specified".to_string(),
         });
     }
 
@@ -26,27 +24,27 @@ pub fn set_process_affinity(cpu_ids: &[usize]) -> CoreResult<()> {
     let mut process_mask: usize = 0;
     for &cpu_id in cpu_ids {
         if cpu_id >= 64 {
-            return Err(CoreError::AffinityMaskErr{
-                e: format!("CPU ID {} exceeds maximum 63", cpu_id)
+            return Err(CoreError::AffinityMaskErr {
+                e: format!("CPU ID {} exceeds maximum 63", cpu_id),
             });
         }
         process_mask |= 1usize << cpu_id;
     }
 
     unsafe {
-        SetProcessAffinityMask(GetCurrentProcess(), process_mask)
-            .map_err(|e| CoreError::AffinityMaskErr{
-                e: format!("Failed to set process affinity: {}", e)
-            })?;
+        SetProcessAffinityMask(GetCurrentProcess(), process_mask).map_err(|e| {
+            CoreError::AffinityMaskErr {
+                e: format!("Failed to set process affinity: {}", e),
+            }
+        })?;
 
         Ok(())
     }
 }
 
-
 #[cfg(target_os = "linux")]
 fn set_cpu_affinity(cores: &[usize]) -> Result<(), Box<dyn std::error::Error>> {
-    use sched::{CpuSet, sched_setaffinity, Pid};
+    use sched::{sched_setaffinity, CpuSet, Pid};
 
     let mut cpu_set = CpuSet::new();
     for &core in cores {

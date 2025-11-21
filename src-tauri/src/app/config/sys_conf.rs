@@ -9,19 +9,23 @@ use crate::infrastructure::logging::log_trait::Log;
 use tauri::{AppHandle, Manager};
 
 pub async fn get_system_settings(
-    manager: tauri::State<'_, ConfigManager>
+    manager: tauri::State<'_, ConfigManager>,
 ) -> AppResult<SystemConfig> {
-    let system_settings = manager.get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).await?;
+    let system_settings = manager
+        .get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH)
+        .await?;
     //let res = serde_json::to_string(&system_settings)
-        //.map_err(|e| AppError::SetConfigFailed{detail: "序列化失败".to_string(), e: e.to_string()})?;
+    //.map_err(|e| AppError::SetConfigFailed{detail: "序列化失败".to_string(), e: e.to_string()})?;
     Ok(system_settings)
 }
 
-pub async  fn set_system_settings(
+pub async fn set_system_settings(
     manager: tauri::State<'_, ConfigManager>,
-    config: SystemConfig
+    config: SystemConfig,
 ) -> AppResult<()> {
-    let mut system_settings = manager.get_conf_mut::<SystemConfig>(SYSTEM_SETTINGS_PATH).await?;
+    let mut system_settings = manager
+        .get_conf_mut::<SystemConfig>(SYSTEM_SETTINGS_PATH)
+        .await?;
     let old_rem_size_position = system_settings.rem_size_position;
 
     // 两种方式都可以访问和修改 SystemSettings：
@@ -29,7 +33,7 @@ pub async  fn set_system_settings(
     // 方式1: 通过 Deref 机制（推荐）
     *system_settings = config.clone();
 
-    // 方式2: 直接访问 config 字段（等价但不常用）  
+    // 方式2: 直接访问 config 字段（等价但不常用）
     // system_settings.config = config;
 
     // 快捷键编辑
@@ -102,14 +106,20 @@ fn handle_auto_start_setting(app_handle: &AppHandle, auto_start: bool) -> AppRes
                     if auto_start {
                         if let Err(e) = autostart_manager.enable() {
                             Log::error(&format!("启用开机自启动失败: {}", e));
-                            return Err(AppError::SetConfigFailed{detail: "启用开机自启动失败".to_string(), e: e.to_string()});
+                            return Err(AppError::SetConfigFailed {
+                                detail: "启用开机自启动失败".to_string(),
+                                e: e.to_string(),
+                            });
                         } else {
                             Log::info("开机自启动已启用");
                         }
                     } else {
                         if let Err(e) = autostart_manager.disable() {
                             Log::error(&format!("禁用开机自启动失败: {}", e));
-                            return Err(AppError::SetConfigFailed{detail: "禁用开机自启动失败".to_string(), e: e.to_string()});
+                            return Err(AppError::SetConfigFailed {
+                                detail: "禁用开机自启动失败".to_string(),
+                                e: e.to_string(),
+                            });
                         } else {
                             Log::info("开机自启动已禁用");
                         }
@@ -118,7 +128,10 @@ fn handle_auto_start_setting(app_handle: &AppHandle, auto_start: bool) -> AppRes
             }
             Err(e) => {
                 Log::error(&format!("检测开机自启动状态失败: {}", e));
-                return Err(AppError::SetConfigFailed{detail: "检测开机自启动状态失败".to_string(), e: e.to_string()});
+                return Err(AppError::SetConfigFailed {
+                    detail: "检测开机自启动状态失败".to_string(),
+                    e: e.to_string(),
+                });
             }
         }
     }
@@ -132,10 +145,11 @@ fn handle_auto_start_setting(app_handle: &AppHandle, auto_start: bool) -> AppRes
 }
 
 /// 保存窗口状态（在应用退出时调用）
-pub async fn save_window_state_if_enabled(
-    app_handle: &AppHandle
-)-> AppResult<()>{
-    let sys_conf = app_handle.state::<ConfigManager>().get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).await;
+pub async fn save_window_state_if_enabled(app_handle: &AppHandle) -> AppResult<()> {
+    let sys_conf = app_handle
+        .state::<ConfigManager>()
+        .get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH)
+        .await;
     match sys_conf {
         Ok(conf) => {
             if conf.rem_size_position {
@@ -144,20 +158,26 @@ pub async fn save_window_state_if_enabled(
                     Ok(_) => {
                         Log::info("窗口状态已保存");
                         Ok(())
-                    },
+                    }
                     Err(e) => {
                         let msg = &format!("保存窗口状态失败: {}", e);
                         Log::error(msg);
-                        Err(AppError::SetConfigFailed { detail: "保存窗口状态失败".to_string(), e: e.to_string() })
+                        Err(AppError::SetConfigFailed {
+                            detail: "保存窗口状态失败".to_string(),
+                            e: e.to_string(),
+                        })
                     }
                 };
             }
             Ok(())
-        },
+        }
         Err(e) => {
             let msg = &format!("获取系统配置失败: {}", e);
             Log::error(msg);
-            Err(AppError::SetConfigFailed { detail: "获取系统配置失败".to_string(), e: e.to_string() })
+            Err(AppError::SetConfigFailed {
+                detail: "获取系统配置失败".to_string(),
+                e: e.to_string(),
+            })
         }
     }
 }

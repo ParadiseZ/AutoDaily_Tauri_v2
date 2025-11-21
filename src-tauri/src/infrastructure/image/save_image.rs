@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
-use base64::Engine;
-use base64::engine::general_purpose;
-use tokio::fs;
 use crate::constant::project::SCREENSHOT_DIR;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::path_resolve::model_path::PathUtil;
+use base64::engine::general_purpose;
+use base64::Engine;
+use std::path::{Path, PathBuf};
+use tokio::fs;
 
 /// 成功返回文件路径，失败返回错误信息
 pub fn save_screenshot(
@@ -41,7 +41,6 @@ pub fn save_screenshot(
 ///
 /// 返回保存的文件路径或错误信息
 pub fn save_base64_image(base64_image: &str, title: &str) -> Result<String, String> {
-
     // 确保目录存在
     match PathUtil::sure_parent_exists(&PathBuf::from(SCREENSHOT_DIR)) {
         Ok(_) => Log::info(&format!("目录 {} 已确认可用", SCREENSHOT_DIR)),

@@ -1,3 +1,4 @@
+use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 use crate::infrastructure::vision::base_traits::{TextDetector, TextRecognizer};
 use crate::infrastructure::vision::det::paddle_dbnet::PaddleDetDbNet;
@@ -6,12 +7,11 @@ use crate::infrastructure::vision::rec::paddle_crnn::PaddleRecCrnn;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash};
+use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::fs::{read_to_string, File};
-use crate::infrastructure::logging::log_trait::Log;
 
 /// 检测器类型枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -35,10 +35,10 @@ pub struct DetectorConfig {
     pub input_width: u32,
     pub input_height: u32,
 
-    pub intra_thread_num : usize,
-    pub intra_spinning : bool,
+    pub intra_thread_num: usize,
+    pub intra_spinning: bool,
     pub inter_thread_num: usize,
-    pub inter_spinning : bool,
+    pub inter_spinning: bool,
 
     // YOLO特有配置
     pub confidence_thresh: Option<f32>,
@@ -54,8 +54,7 @@ pub struct DetectorConfig {
     pub use_dilation: Option<bool>,
 }
 
-impl DetectorConfig{
-
+impl DetectorConfig {
     pub fn new_yolo(
         detector_type: DetectorType,
         model_path: PathBuf,
@@ -63,10 +62,10 @@ impl DetectorConfig{
         input_width: u32,
         input_height: u32,
 
-        intra_thread_num : usize,
-        intra_spinning : bool,
+        intra_thread_num: usize,
+        intra_spinning: bool,
         inter_thread_num: usize,
-        inter_spinning : bool,
+        inter_spinning: bool,
 
         // YOLO特有配置
         confidence_thresh: Option<f32>,
@@ -74,8 +73,8 @@ impl DetectorConfig{
         class_count: Option<usize>,
         class_labels: Option<Vec<String>>,
         class_file_path: Option<PathBuf>,
-    )->Self{
-        Self{
+    ) -> Self {
+        Self {
             detector_type,
             model_path,
             execution_provider,
@@ -91,10 +90,10 @@ impl DetectorConfig{
             class_labels,
             class_file_path,
             //dbnet
-            db_thresh : None,
-            db_box_thresh : None,
+            db_thresh: None,
+            db_box_thresh: None,
             unclip_ratio: None,
-            use_dilation : None,
+            use_dilation: None,
         }
     }
 
@@ -105,18 +104,18 @@ impl DetectorConfig{
         input_width: u32,
         input_height: u32,
 
-        intra_thread_num : usize,
-        intra_spinning : bool,
+        intra_thread_num: usize,
+        intra_spinning: bool,
         inter_thread_num: usize,
-        inter_spinning : bool,
+        inter_spinning: bool,
 
         // DBNet特有配置
         db_thresh: Option<f32>,
         db_box_thresh: Option<f32>,
         unclip_ratio: Option<f32>,
         use_dilation: Option<bool>,
-    ) -> Self{
-        Self{
+    ) -> Self {
+        Self {
             detector_type,
             model_path,
             execution_provider,
@@ -126,9 +125,9 @@ impl DetectorConfig{
             intra_spinning,
             inter_thread_num,
             inter_spinning,
-            confidence_thresh : None,
-            iou_thresh : None,
-            class_count :None,
+            confidence_thresh: None,
+            iou_thresh: None,
+            class_count: None,
             class_labels: None,
             class_file_path: None,
             db_thresh,
@@ -149,23 +148,27 @@ pub struct RecognizerConfig {
     pub input_height: u32,
     pub dict_path: Option<PathBuf>,
 
-    pub intra_thread_num : usize,
-    pub intra_spinning : bool,
+    pub intra_thread_num: usize,
+    pub intra_spinning: bool,
     pub inter_thread_num: usize,
-    pub inter_spinning : bool,
+    pub inter_spinning: bool,
 }
-
 
 /// OCR模型工厂
 pub struct OcrModelFactory;
 
 impl OcrModelFactory {
-
     /// 内部方法：创建检测器实现（不通过管理器）
-    pub(crate) async fn create_detector(config: DetectorConfig) -> VisionResult<Arc<dyn TextDetector>> {
+    pub(crate) async fn create_detector(
+        config: DetectorConfig,
+    ) -> VisionResult<Arc<dyn TextDetector>> {
         let file = File::open(&config.model_path)?;
 
-        let mmap = unsafe { Mmap::map(&file).map_err(|e| VisionError::MappingErr{ path: config.model_path.to_string_lossy().to_string()})?  };
+        let mmap = unsafe {
+            Mmap::map(&file).map_err(|e| VisionError::MappingErr {
+                path: config.model_path.to_string_lossy().to_string(),
+            })?
+        };
 
         match config.detector_type {
             DetectorType::Yolo11 => {
@@ -179,7 +182,9 @@ impl OcrModelFactory {
                     mmap,
                     config.execution_provider,
                     config.class_count.unwrap_or(1),
-                    config.class_labels.unwrap_or_else(|| vec!["text".to_string()]),
+                    config
+                        .class_labels
+                        .unwrap_or_else(|| vec!["text".to_string()]),
                     config.confidence_thresh.unwrap_or(0.5),
                     config.iou_thresh.unwrap_or(0.4),
                 );
@@ -206,25 +211,37 @@ impl OcrModelFactory {
     }
 
     /// 内部方法：创建识别器实现（不通过管理器）
-    pub(crate) async fn create_recognizer(config: RecognizerConfig) -> VisionResult<Arc<dyn TextRecognizer>> {
+    pub(crate) async fn create_recognizer(
+        config: RecognizerConfig,
+    ) -> VisionResult<Arc<dyn TextRecognizer>> {
         //let model_bytes = Self::resolve_model_path(&config.model_path).await?;
         let file = File::open(&config.model_path)?;
 
-        let mmap = unsafe { Mmap::map(&file).map_err(|e| VisionError::MappingErr{ path: config.model_path.to_string_lossy().to_string()})?  };
+        let mmap = unsafe {
+            Mmap::map(&file).map_err(|e| VisionError::MappingErr {
+                path: config.model_path.to_string_lossy().to_string(),
+            })?
+        };
 
         match config.recognizer_type {
             RecognizerType::PaddleCrnn => {
                 // 加载字典
                 let dict = if let Some(dict_path) = config.dict_path {
-                    Log::debug(&format!("加载字典{}", dict_path.to_string_lossy().to_string()));
+                    Log::debug(&format!(
+                        "加载字典{}",
+                        dict_path.to_string_lossy().to_string()
+                    ));
                     Self::load_dict(&dict_path).await?
                 } else {
                     // 默认字符集
-                    return Err(VisionError::IoError { path: "".to_string(), e: "字典路径不存在！".to_string()});
+                    return Err(VisionError::IoError {
+                        path: "".to_string(),
+                        e: "字典路径不存在！".to_string(),
+                    });
                     /*(0..=9).map(|i| i.to_string())
-                        .chain(('a'..='z').map(|c| c.to_string()))
-                        .chain(('A'..='Z').map(|c| c.to_string()))
-                        .collect()*/
+                    .chain(('a'..='z').map(|c| c.to_string()))
+                    .chain(('A'..='Z').map(|c| c.to_string()))
+                    .collect()*/
                 };
 
                 let recognizer = PaddleRecCrnn::new(
@@ -243,11 +260,12 @@ impl OcrModelFactory {
         }
     }
 
-
     /// 加载字典文件
     fn load_dict(dict_path: &PathBuf) -> VisionResult<Vec<String>> {
-        let content = read_to_string(dict_path)
-            .map_err(|e| VisionError::IoError{path: dict_path.to_string(), e: e.to_string()})?;
+        let content = read_to_string(dict_path).map_err(|e| VisionError::IoError {
+            path: dict_path.to_string(),
+            e: e.to_string(),
+        })?;
 
         let dict: Vec<String> = content
             .lines()
@@ -256,7 +274,10 @@ impl OcrModelFactory {
             .collect();
 
         if dict.is_empty() {
-            return Err(VisionError::IoError{path: dict_path.to_string(), e: "字典文件为空".to_string()});
+            return Err(VisionError::IoError {
+                path: dict_path.to_string(),
+                e: "字典文件为空".to_string(),
+            });
         }
 
         Ok(dict)

@@ -1,16 +1,15 @@
-
-use image::{DynamicImage, GenericImageView, ImageBuffer};
-use imageproc::contours::find_contours;
-use imageproc::point::Point;
-use ndarray::{s, Array3, Array4, Axis};
-use async_trait::async_trait;
-use memmap2::Mmap;
 use crate::domain::vision::result::{BoundingBox, DetResult};
 use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::VisionResult;
+use async_trait::async_trait;
+use image::{DynamicImage, GenericImageView, ImageBuffer};
+use imageproc::contours::find_contours;
+use imageproc::point::Point;
+use memmap2::Mmap;
+use ndarray::{s, Array3, Array4, Axis};
 
 /// dbNet通常值
 const MIN_AREA: f32 = 3.0;
@@ -30,10 +29,10 @@ impl PaddleDetDbNet {
     pub fn new(
         input_width: u32,
         input_height: u32,
-        intra_thread_num : usize,
-        intra_spinning : bool,
+        intra_thread_num: usize,
+        intra_spinning: bool,
         inter_thread_num: usize,
-        inter_spinning : bool,
+        inter_spinning: bool,
         model_bytes_map: Mmap,
         execution_provider: InferenceBackend,
         db_thresh: f32,
@@ -42,8 +41,17 @@ impl PaddleDetDbNet {
         use_dilation: bool,
     ) -> Self {
         Self {
-            base_model: BaseModel::new(input_width, input_height, model_bytes_map, execution_provider, intra_thread_num, intra_spinning, inter_thread_num,inter_spinning,
-                                       ModelType::PaddleDet5),
+            base_model: BaseModel::new(
+                input_width,
+                input_height,
+                model_bytes_map,
+                execution_provider,
+                intra_thread_num,
+                intra_spinning,
+                inter_thread_num,
+                inter_spinning,
+                ModelType::PaddleDet5,
+            ),
             db_thresh,
             db_box_thresh,
             unclip_ratio,
@@ -55,9 +63,13 @@ impl PaddleDetDbNet {
 #[async_trait]
 impl ModelHandler for PaddleDetDbNet {
     fn load_model(&mut self) {
-        tokio::runtime::Handle::current().block_on(async {
-            self.base_model.load_model_base::<Self>("paddle_det_dbnet").await
-        }).unwrap()
+        tokio::runtime::Handle::current()
+            .block_on(async {
+                self.base_model
+                    .load_model_base::<Self>("paddle_det_dbnet")
+                    .await
+            })
+            .unwrap()
     }
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
@@ -85,10 +97,15 @@ impl ModelHandler for PaddleDetDbNet {
         };
 
         // 调整图像大小
-        let resized_img = image.resize_exact(width, self.get_target_height(), image::imageops::FilterType::Triangle);
+        let resized_img = image.resize_exact(
+            width,
+            self.get_target_height(),
+            image::imageops::FilterType::Triangle,
+        );
 
         // 初始化输入数组 (使用带填充的宽度)
-        let mut input = Array3::<f32>::zeros((3, self.get_target_height() as usize, target_width as usize));
+        let mut input =
+            Array3::<f32>::zeros((3, self.get_target_height() as usize, target_width as usize));
 
         // 转换图像格式并归一化
         for y in 0..self.get_target_height() {
@@ -116,20 +133,18 @@ impl ModelHandler for PaddleDetDbNet {
         Ok((input, scale_factor, origin_shape))
     }
 
-    async fn inference(&self, input : Array4<f32>) -> VisionResult<Array4<f32>> {
+    async fn inference(&self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }
-    
+
     fn get_input_node_name(&self) -> &'static str {
         "x"
     }
-    
+
     fn get_output_node_name(&self) -> &'static str {
         "fetch_name_0"
     }
-
-
 
     fn get_target_width(&self) -> u32 {
         self.base_model.input_width
@@ -142,8 +157,12 @@ impl ModelHandler for PaddleDetDbNet {
 
 #[async_trait]
 impl TextDetector for PaddleDetDbNet {
-
-    fn postprocess(&self, output: &Array4<f32>, scale_factor : [f32; 2], origin_shape: [u32; 2]) -> VisionResult<Vec<DetResult>> {
+    fn postprocess(
+        &self,
+        output: &Array4<f32>,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> VisionResult<Vec<DetResult>> {
         // 实现DBNet后处理逻辑
         // 1. 二值化处理
         // 2. 轮廓提取
@@ -195,7 +214,7 @@ impl TextDetector for PaddleDetDbNet {
         // 查找轮廓
         let contours = find_contours::<i32>(&binary_map);
         // 处理每个轮廓
-        let mut boxes:Vec<DetResult> = Vec::new();
+        let mut boxes: Vec<DetResult> = Vec::new();
         for contour in contours {
             // --- 步骤 1: 计算初始边界框 ---
             // [重要] 这里应该使用 `get_min_area_rect` (最小面积旋转矩形)
@@ -212,7 +231,8 @@ impl TextDetector for PaddleDetDbNet {
             }
 
             // --- 步骤 2: 计算得分并过滤 ---
-            let score = box_score_fast(&prob_map.into_owned().into_dyn(), &contour.points, &min_box);
+            let score =
+                box_score_fast(&prob_map.into_owned().into_dyn(), &contour.points, &min_box);
 
             if score < self.db_box_thresh {
                 continue;
@@ -249,24 +269,27 @@ impl TextDetector for PaddleDetDbNet {
             let scaled_points = scale_polygon(unclipped_poly, scale_factor, origin_shape);
 
             //boxes.push((scaled_points, score));
-            boxes.push(
-                DetResult{
-                    id:0,
-                    pre_id:0,
-                    next_id:0,
-                    bounding_box:BoundingBox::new(scaled_points[0].x, scaled_points[0].y, scaled_points[2].x, scaled_points[2].y),
-                    index: 0,
-                    label: "txt".into(),
-                    score,
-                }
-            );
+            boxes.push(DetResult {
+                id: 0,
+                pre_id: 0,
+                next_id: 0,
+                bounding_box: BoundingBox::new(
+                    scaled_points[0].x,
+                    scaled_points[0].y,
+                    scaled_points[2].x,
+                    scaled_points[2].y,
+                ),
+                index: 0,
+                label: "txt".into(),
+                score,
+            });
         }
 
         // 按分数排序（可选）
         //boxes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         Ok(boxes)
     }
-    
+
     fn get_detection_config(&self) -> DetectionConfig {
         DetectionConfig {
             confidence_thresh: None,
@@ -278,7 +301,6 @@ impl TextDetector for PaddleDetDbNet {
         }
     }
 }
-
 
 // 来计算最小面积的旋转矩形，以正确处理倾斜的文本。
 fn get_bounding_rect(points: &[Point<i32>]) -> (Vec<Point<i32>>, f32) {

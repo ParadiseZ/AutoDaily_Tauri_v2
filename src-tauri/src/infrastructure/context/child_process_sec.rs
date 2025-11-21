@@ -9,7 +9,7 @@ use std::sync::{Arc, OnceLock};
 static RUNNING: AtomicU8 = AtomicU8::new(0);
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
 #[repr(u8)]
-pub enum RunningStatus{
+pub enum RunningStatus {
     Idle = 1,
     Running = 2,
     Paused = 3,
@@ -40,12 +40,11 @@ pub fn set_running_status(status: RunningStatus) {
 pub fn get_running_status() -> RunningStatus {
     RunningStatus::from(RUNNING.load(Ordering::Acquire))
 }
-pub fn process_need_stop() ->bool{
+pub fn process_need_stop() -> bool {
     matches!(RUNNING.load(Ordering::Acquire), 4 | 5) // Stopped=4, Error=5
 }
 
 /// InitData 类型移动到 context::child_process 模块
-
 
 /// IPC客户端
 static IPC_CLIENT: OnceLock<Arc<IpcClient>> = OnceLock::new();
@@ -53,7 +52,9 @@ static IPC_CLIENT: OnceLock<Arc<IpcClient>> = OnceLock::new();
 pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitResult<()> {
     let manager = Arc::new(IpcClient::new(device_id, AtomicU8::from(log_level as u8)));
     manager.spawn_reconnect_task();
-    IPC_CLIENT.set(manager).map_err(|e| InitError::InitChildIpcClientFailed {e: e.to_string()})
+    IPC_CLIENT
+        .set(manager)
+        .map_err(|e| InitError::InitChildIpcClientFailed { e: e.to_string() })
 }
 pub fn get_ipc_client() -> Arc<IpcClient> {
     IPC_CLIENT.get().unwrap().clone()

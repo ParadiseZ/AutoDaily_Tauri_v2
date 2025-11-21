@@ -1,16 +1,16 @@
 use crate::infrastructure::core::{Deserialize, Serialize, TaskId};
 
-#[derive(Debug, Clone, Serialize, Deserialize,Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
-pub struct ScriptTask{
-    pub task_id : TaskId,
-    pub task_name : String,
-    pub exec_period : Period,
+pub struct ScriptTask {
+    pub task_id: TaskId,
+    pub task_name: String,
+    pub exec_period: Period,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize,Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
-pub enum Period{
+pub enum Period {
     EachTime,
     Everyday,
     Monday,
@@ -19,5 +19,5 @@ pub enum Period{
     Thursday,
     Friday,
     Saturday,
-    Sunday
+    Sunday,
 }

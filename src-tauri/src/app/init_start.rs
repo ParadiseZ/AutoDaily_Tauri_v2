@@ -1,7 +1,3 @@
-use sysinfo::Signal::Sys;
-use tauri::{App, AppHandle, Manager, State};
-use tauri::path::BaseDirectory;
-use tracing::trace;
 use crate::app::config::short_cut::register_short_cut_by_config;
 use crate::constant::project::MAIN_WINDOW;
 use crate::constant::sys_conf_path::SYSTEM_SETTINGS_PATH;
@@ -10,8 +6,12 @@ use crate::infrastructure::app_handle::init_app_handle;
 use crate::infrastructure::config::conf_init::{init_conf_async, init_conf_sync};
 use crate::infrastructure::config::conf_mgr::ConfigManager;
 use crate::infrastructure::logging::log_trait::Log;
+use sysinfo::Signal::Sys;
+use tauri::path::BaseDirectory;
+use tauri::{App, AppHandle, Manager, State};
+use tracing::trace;
 
-pub async fn init_at_start(app_handle : &AppHandle){
+pub async fn init_at_start(app_handle: &AppHandle) {
     //初始化app_handle
     init_app_handle(app_handle);
     // 初始化配置管理器
@@ -19,11 +19,14 @@ pub async fn init_at_start(app_handle : &AppHandle){
     // 获取配置管理器
     let state = app_handle.state::<ConfigManager>();
     // 同步初始化配置，系统设置、日志设置
-    if let Err(e) = init_conf_sync(&state).await{
-        tracing::error!("同步配置初始化失败：{}",e);
+    if let Err(e) = init_conf_sync(&state).await {
+        tracing::error!("同步配置初始化失败：{}", e);
     };
     // 获取系统配置
-    let sys_conf = &state.get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH).await.unwrap();
+    let sys_conf = &state
+        .get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH)
+        .await
+        .unwrap();
     // 处理开机自启动
     init_autostart(app_handle, &sys_conf);
     // 初始化快捷键设置
@@ -41,12 +44,12 @@ pub async fn init_at_start(app_handle : &AppHandle){
     init_conf_async()
 }
 
-pub fn init_config_manager(app_handle : &AppHandle) {
+pub fn init_config_manager(app_handle: &AppHandle) {
     let config_manager = ConfigManager::new();
     app_handle.manage(config_manager);
 }
 
-pub fn init_autostart(app_handle : &AppHandle, sys_conf: &SystemConfig){
+pub fn init_autostart(app_handle: &AppHandle, sys_conf: &SystemConfig) {
     // 处理开机自启动设置
     #[cfg(desktop)]
     {
@@ -96,13 +99,13 @@ pub fn init_autostart(app_handle : &AppHandle, sys_conf: &SystemConfig){
     }
 }
 
-pub fn init_short_cut_by_config(app_handle : &AppHandle, sys_conf : &SystemConfig){
-    if let Err(e) = register_short_cut_by_config(sys_conf.shortcut.clone(), app_handle){
+pub fn init_short_cut_by_config(app_handle: &AppHandle, sys_conf: &SystemConfig) {
+    if let Err(e) = register_short_cut_by_config(sys_conf.shortcut.clone(), app_handle) {
         Log::error(&format!("初始化快捷键设置失败: {}", e));
     };
 }
 
-pub fn init_close_window_event(app_handle: AppHandle){
+pub fn init_close_window_event(app_handle: AppHandle) {
     // 设置窗口关闭事件处理，在窗口关闭时保存状态
     if let Some(window) = app_handle.get_webview_window(MAIN_WINDOW) {
         window.on_window_event(move |event| {
@@ -112,10 +115,10 @@ pub fn init_close_window_event(app_handle: AppHandle){
                 tauri::async_runtime::spawn(async move {
                     // 临时注释掉窗口状态保存，等待重构完成
                     use crate::app::config::sys_conf::save_window_state_if_enabled;
-                    match save_window_state_if_enabled(&app_handle).await{
+                    match save_window_state_if_enabled(&app_handle).await {
                         Ok(_) => {
                             Log::info("窗口状态保存成功");
-                        },
+                        }
                         Err(e) => {
                             Log::error(&format!("窗口状态保存失败: {}", e));
                         }
@@ -126,15 +129,12 @@ pub fn init_close_window_event(app_handle: AppHandle){
     }
 }
 
-pub fn init_resources_path(app: &AppHandle){
+pub fn init_resources_path(app: &AppHandle) {
     // 静态资源路径
     #[cfg(debug_assertions)]
     {
         // 开发模式：记录资源路径
-        if let Ok(resource_path) = app
-            .path()
-            .resolve("models", BaseDirectory::Resource)
-        {
+        if let Ok(resource_path) = app.path().resolve("models", BaseDirectory::Resource) {
             tracing::info!("开发模式资源路径: {}", resource_path.display());
         } else {
             tracing::warn!("无法解析开发模式资源路径");
@@ -143,10 +143,7 @@ pub fn init_resources_path(app: &AppHandle){
     #[cfg(not(debug_assertions))]
     {
         // 生产模式：记录资源路径
-        if let Ok(resource_path) = app
-            .path()
-            .resolve("models", BaseDirectory::Resource)
-        {
+        if let Ok(resource_path) = app.path().resolve("models", BaseDirectory::Resource) {
             tracing::info!("生产模式资源路径: {}", resource_path.display());
         } else {
             tracing::warn!("无法解析生产模式资源路径");
@@ -154,10 +151,10 @@ pub fn init_resources_path(app: &AppHandle){
     }
 }
 
-pub fn init_window_position(app_handle: &AppHandle, sys_conf: &SystemConfig){
+pub fn init_window_position(app_handle: &AppHandle, sys_conf: &SystemConfig) {
     // 根据 rem_size_position 设置决定是否恢复窗口状态
     if sys_conf.rem_size_position {
-        use tauri_plugin_window_state::{StateFlags};
+        use tauri_plugin_window_state::StateFlags;
         // 恢复窗口状态
         if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
             use tauri_plugin_window_state::WindowExt;
@@ -169,7 +166,7 @@ pub fn init_window_position(app_handle: &AppHandle, sys_conf: &SystemConfig){
     }
 }
 
-pub fn init_start_model(app_handel: &AppHandle, sys_conf: &SystemConfig){
+pub fn init_start_model(app_handel: &AppHandle, sys_conf: &SystemConfig) {
     // 应用启动模式处理
     if let Some(main_window) = app_handel.get_webview_window(MAIN_WINDOW) {
         match sys_conf.start_mode {
@@ -177,12 +174,12 @@ pub fn init_start_model(app_handel: &AppHandle, sys_conf: &SystemConfig){
                 // 普通模式：显示窗口
                 let _ = main_window.show();
                 Log::info("应用以普通模式启动");
-            },
+            }
             StartMode::Minimized => {
                 // 最小化模式：最小化窗口
                 let _ = main_window.minimize();
                 Log::info("应用以最小化模式启动");
-            },
+            }
             StartMode::Tray => {
                 // 托盘模式：隐藏窗口
                 let _ = main_window.hide();

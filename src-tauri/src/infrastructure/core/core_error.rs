@@ -1,12 +1,11 @@
-#[derive(Error, Debug,Serialize,Deserialize, Decode, Encode)]
+#[derive(Error, Debug, Serialize, Deserialize, Decode, Encode)]
 pub enum CoreError {
     #[error("获取可用核心失败: {e}")]
     AffinityMaskErr { e: String },
 
     #[error("锁已中毒（数据可能不一致）: {e}")]
-    LockPoisoned{ e: String },
+    LockPoisoned { e: String },
 }
-
 
 // 统一处理读锁错误
 pub fn read_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockReadGuard<T> {
@@ -22,8 +21,8 @@ pub fn write_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockWriteGuard<T> {
 
 pub type CoreResult<T> = Result<T, CoreError>;
 
-use std::sync::{Arc, PoisonError};
+use crate::infrastructure::core::{Deserialize, Error, Serialize};
 use bincode_another::{Decode, Encode};
+use std::sync::{Arc, PoisonError};
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub use CoreError::*;
-use crate::infrastructure::core::{Deserialize, Error, Serialize};

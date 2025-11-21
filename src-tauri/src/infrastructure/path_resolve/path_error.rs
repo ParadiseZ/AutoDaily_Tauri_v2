@@ -1,13 +1,13 @@
-use thiserror::Error;
 use crate::infrastructure::core::{Deserialize, Serialize};
+use thiserror::Error;
 
-#[derive(Debug, Error,Deserialize, Serialize)]
+#[derive(Debug, Error, Deserialize, Serialize)]
 pub enum PathError {
     #[error("解析路径{path}失败: {e}")]
-    ParsingFailed { path: String ,e: String },
+    ParsingFailed { path: String, e: String },
 
     #[error("创建目录{path}失败: {e}")]
-    CreateDirErr { path:String,e: String },
+    CreateDirErr { path: String, e: String },
 }
 
 pub type PathResult<T> = Result<T, PathError>;
