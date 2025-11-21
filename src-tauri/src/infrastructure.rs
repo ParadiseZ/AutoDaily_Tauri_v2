@@ -22,6 +22,5 @@ mod ort;
 mod hash_calculated;
 pub mod app_handle;
 pub mod path_resolve;
-
-pub mod adb_cli_local;
 pub mod ipc;
+pub mod adb_cli_local;

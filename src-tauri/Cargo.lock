@@ -49,6 +49,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "adb_executor"
+version = "0.1.0"
+dependencies = [
+ "adb_client",
+ "crossbeam-channel",
+ "image",
+ "serde",
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -369,7 +382,7 @@ dependencies = [
 name = "auto_daily"
 version = "0.1.0"
 dependencies = [
- "adb_client",
+ "adb_executor",
  "ahash",
  "async-trait",
  "base64 0.22.1",
