@@ -8,7 +8,6 @@ use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;
 use crate::infrastructure::vision::base_traits::TextDetector;
 use crate::infrastructure::vision::ocr_service::OcrService;
-use crate::main_child::ChildProcessError;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -50,19 +49,18 @@ impl ChildProcessInitData {
         // 设置线程亲和性
         set_process_affinity(&self.cpu_cores)
             .map_err(|e| InitError::InitChildCoreAffinity { e: e.to_string() })?;
+        //初始化ipc客户端
+        init_ipc_client(Arc::new(self.device_id), self.log_level).map_err(|_| {
+            InitError::InitChildIpcClientFailed {
+                e: "初始化ipc客户端失败".into_string(),
+            }
+        })?;
 
         //初始化日志
         Log::init_logger(Box::new(LogChild))?;
         // 初始化 Rayon 线程池
         //let rayon_pool = ThreadPoolBuilder::new().num_threads(4).build().map_err(|e| ChildProcessError::FailedToInitializeRayonPool)?;
         //init_rayon_pool(Arc::new(RwLock::new(rayon_pool))).map_err(|_| ChildProcessError::FailedToInitialize {e:"初始化全局线程池失败".into_string()})?;
-
-        //初始化ipc客户端
-        init_ipc_client(Arc::new(self.device_id), self.log_level).map_err(|_| {
-            ChildProcessError::FailedToInitialize {
-                e: "初始化ipc客户端失败".into_string(),
-            }
-        })?;
 
         Ok(())
     }

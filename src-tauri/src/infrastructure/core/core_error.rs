@@ -22,7 +22,7 @@ pub fn write_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockWriteGuard<T> {
 pub type CoreResult<T> = Result<T, CoreError>;
 
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
-use bincode_another::{Decode, Encode};
+use bincode::{Decode, Encode};
 use std::sync::{Arc, PoisonError};
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub use CoreError::*;

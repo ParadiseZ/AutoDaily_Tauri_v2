@@ -6,7 +6,7 @@ use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::{DeviceId, ScriptId};
 use crate::infrastructure::devices::device_conf::{DeviceConfMap, DeviceConfig};
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use tauri::{AppHandle, Manager};
 use tokio::sync::Mutex;
 
@@ -17,14 +17,15 @@ pub async fn refresh_devices(device_id: DeviceId, device_conf: DeviceConfig) -> 
         .state::<Arc<Mutex<DeviceConfMap>>>()
         .lock()
         .await
-        .insert(device_id, device_conf.clone());
+        .insert(Arc::new(device_id), Arc::new(RwLock::new(device_conf.clone())));
+
 
     // 写入文件
     let mut devices = handle
         .state::<ConfigManager>()
         .get_conf_mut::<DeviceConfMap>(DEVICES_CONFIG_PATH)
         .await?;
-    devices.config.insert(device_id, device_conf);
+    devices.config.insert(Arc::new(device_id), Arc::new(RwLock::new(device_conf)));
     Ok(())
 }
 
@@ -43,11 +44,10 @@ pub async fn refresh_device_by_script_id(
     //TODO 写入文件
 }
 
-pub async fn refresh_all(handle: &AppHandle) {
-    let main_ctx = handle.state::<Arc<Mutex<MainProcessCtx>>>();
-    let mut ctx = main_ctx.lock().await;
+/*pub async fn refresh_all(handle: &AppHandle) {
+    let main_ctx = handle.state::<Arc<MainProcessCtx>>();
     // 以主上下文内的设备配置为准
-    let _ = ctx
+    let _ = main_ctx
         .log_receiver
         .lock()
         .await
@@ -64,3 +64,4 @@ pub async fn refresh_log_receivers(handle: &AppHandle) {
         .await
         .refresh_from_config(&ctx.device_config);
 }
+*/

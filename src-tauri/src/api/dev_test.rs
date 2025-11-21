@@ -2,6 +2,7 @@ use crate::app::dev_test::{paddle_ocr_infer, yolo_infer_test};
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
+use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::devices::device_conf::DeviceConfig;
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
@@ -13,12 +14,10 @@ use crate::infrastructure::vision::ocr_factory::{
 };
 use base64::engine::general_purpose;
 use base64::Engine;
-use core_affinity::get_core_ids;
 use image::DynamicImage;
 use std::io::Cursor;
 use std::sync::{Arc, RwLock};
 use tauri::{command, AppHandle};
-use adb_executor::ADBCtx;
 
 #[command]
 pub async fn dev_capture_test(
@@ -26,7 +25,7 @@ pub async fn dev_capture_test(
     device_conf: DeviceConfig,
     adb_conf: ADBConnectConfig,
 ) -> Result<String, String> {
-    let adb_ctx = ADBCtx::new(adb_conf, get_core_ids()[0]);
+    let adb_ctx = ADBCtx::new(adb_conf);
     let device_ctx = DeviceCtx::new(
         Arc::new(RwLock::new(device_conf)),
         CaptureMethod::from(method),

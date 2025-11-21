@@ -4,7 +4,7 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId};
 use crate::infrastructure::logging::LogLevel;
-use bincode_another::{Decode, Encode};
+use bincode::{Decode, Encode};
 use std::path::PathBuf;
 use std::time::SystemTime;
 use uuid::Uuid;

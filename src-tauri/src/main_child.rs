@@ -1,8 +1,12 @@
 use crate::infrastructure::context::child_process_sec::{set_running_status, RunningStatus};
+use crate::infrastructure::context::init_error::InitError;
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum ChildProcessError {
+    #[error(transparent)]
+    InitErr(#[from] InitError),
+
     #[error("child-初始化全局上下文失败: {e}")]
     FailedToInitialize { e: String },
 
@@ -26,15 +30,12 @@ pub enum ChildProcessError {
 }
 pub type ChildProcessResult<T> = Result<T, ChildProcessError>;
 pub mod child_process {
-    use crate::infrastructure::context::child_process::{
-        init_data_from_main, ChildProcessCtx, ChildProcessInitData,
-    };
+    use crate::infrastructure::context::child_process::ChildProcessInitData;
     use crate::infrastructure::context::child_process_sec::{
-        get_child_process_ctx, init_child_process_ctx, set_running_status, RunningStatus,
+        set_running_status, RunningStatus,
     };
     use crate::main_child::{ChildProcessError, ChildProcessResult};
-    use std::sync::Arc;
-    use tokio::sync::RwLock;
+    use tokio::io::AsyncWriteExt;
 
     /// 子进程运行函数
     pub async fn run() -> ChildProcessResult<()> {
@@ -66,7 +67,7 @@ pub mod child_process {
         // 设置运行状态
         set_running_status(RunningStatus::Idle);
         // 设置信号处理器，优雅关闭
-        let context_for_signal = ctx.clone();
+        let mut context_for_signal = init_data.clone();
         tokio::spawn(async move {
             tokio::signal::ctrl_c()
                 .await

@@ -1,5 +1,5 @@
 use crate::infrastructure::core::{Deserialize, Serialize};
-use bincode_another::{Decode, Encode};
+use bincode::{Decode, Encode};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq)]
 pub struct DetResult {
