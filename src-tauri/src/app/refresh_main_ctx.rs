@@ -2,12 +2,11 @@ use crate::app::app_error::AppResult;
 use crate::constant::sys_conf_path::DEVICES_CONFIG_PATH;
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::config::conf_mgr::ConfigManager;
-use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::{DeviceId, ScriptId};
 use crate::infrastructure::devices::device_conf::{DeviceConfMap, DeviceConfig};
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
 use std::sync::{Arc, RwLock};
-use tauri::{AppHandle, Manager};
+use tauri::Manager;
 use tokio::sync::Mutex;
 
 pub async fn refresh_devices(device_id: DeviceId, device_conf: DeviceConfig) -> AppResult<()> {

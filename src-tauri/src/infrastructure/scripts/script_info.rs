@@ -1,7 +1,6 @@
 use crate::domain::scripts::script_decision::Step;
 use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, ScriptId, Serialize};
 use crate::infrastructure::scripts::script_info_model::ScriptMeta;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
