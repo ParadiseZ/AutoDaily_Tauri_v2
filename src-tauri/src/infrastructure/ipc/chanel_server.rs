@@ -5,7 +5,7 @@ use crate::infrastructure::context::child_process_sec::RunningStatus;
 use crate::infrastructure::context::init_error::InitError;
 use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::time_format::LocalTimer;
-use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
+use crate::infrastructure::core::{serialize_config, Deserialize, DeviceId, Serialize,decode_from_slice,encode_to_vec};
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::ChannelResult;
 use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload, MessageType};
@@ -63,7 +63,7 @@ impl IpcServer {
                         match Self::recv_message(&mut reader).await {
                             Ok(buffer) => {
                                 // 分发
-                                if let Ok((msg, _)) = bincode::decode_from_slice::<IpcMessage, _>(&buffer, bincode::config::standard()) {
+                                if let Ok((msg, _)) = decode_from_slice::<IpcMessage, _>(&buffer, serialize_config()) {
                                     match msg.message_type {
                                         MessageType::Event => {
                                             match msg.payload {
@@ -134,7 +134,7 @@ impl IpcServer {
                 if let Some(writer_lock) = &ipc_client_state.writer {
                     let mut sender = writer_lock.write().await;
 
-                    let buffer = match bincode::encode_to_vec(msg, bincode::config::standard()){
+                    let buffer = match encode_to_vec(msg, serialize_config()){
                         Ok(b) => b,
                         Err(_) => {
                             let msg = format!("[ socket ] ️向设备[{}]发送消息失败：编码消息失败！", device_id);

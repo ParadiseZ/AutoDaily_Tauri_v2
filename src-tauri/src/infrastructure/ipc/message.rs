@@ -1,13 +1,13 @@
 // IPC消息定义模块
 // 定义进程间通信的消息类型和结构
 
+use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId};
 use crate::infrastructure::logging::LogLevel;
-use bincode::{Decode, Encode};
 use std::path::PathBuf;
 use std::time::SystemTime;
+use bincode_another::{Decode, Encode};
 use uuid::Uuid;
-use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 
 /// 消息唯一标识符（使用UUID v7，便于时间排序和调试）
 pub type MessageId = Uuid;
@@ -211,7 +211,7 @@ pub enum MetricsType {
 pub struct ResourceMessage {
     pub resource_type: ResourceType,
     pub action: ResourceAction,
-    pub details: HashMap<String, serde_json::Value>,
+    //pub details: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]

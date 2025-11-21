@@ -11,3 +11,5 @@
 /logs/
 
 /models/
+
+/adb_cli_local/target/

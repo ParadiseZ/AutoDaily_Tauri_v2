@@ -1,6 +1,6 @@
 use std::net::SocketAddrV4;
 use std::path::PathBuf;
-use serde::Deserialize;
+use crate::infrastructure::core::Deserialize;
 
 #[derive(Debug,Clone,Deserialize)]
 struct AdbServerConfig{

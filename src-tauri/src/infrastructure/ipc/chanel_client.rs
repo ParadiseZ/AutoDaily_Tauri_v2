@@ -1,6 +1,6 @@
 use crate::constant::project::{HEARTBEAT_INTERVAL, SOCKET_NAME};
 use crate::infrastructure::context::child_process_sec::{get_ipc_client, process_need_stop, set_running_status, RunningStatus};
-use crate::infrastructure::core::DeviceId;
+use crate::infrastructure::core::{serialize_config, DeviceId,encode_to_vec, decode_from_slice};
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::{ChannelError, ChannelResult};
 use crate::infrastructure::ipc::message::{HeartbeatMessage, IpcMessage, MessagePayload, MessageType};
@@ -152,7 +152,7 @@ impl IpcClient{
         msg: &IpcMessage,
     ) -> ChannelResult<()> {
         // 简单协议：[len: u32][data...]
-        let encoded = bincode::encode_to_vec(msg, bincode::config::standard())
+        let encoded = encode_to_vec(msg, serialize_config())
             .map_err(|e| ChannelError::EncodeErr { e: e.to_string() })?;
         let len = u32::try_from(encoded.len())
             .map_err(|e| ChannelError::MessageTooLong {detail:"发送失败！".to_string()})?;
@@ -189,7 +189,7 @@ impl IpcClient{
             match Self::recv_message(&mut reader).await {
                 Ok(buffer) => {
                     // 分发
-                    if let Ok((msg, _)) = bincode::decode_from_slice::<IpcMessage, _>(&buffer, bincode::config::standard()) {
+                    if let Ok((msg, _)) = decode_from_slice::<IpcMessage, _>(&buffer, serialize_config()) {
                         Self::handle_msg(msg).await;
                     }
                 }

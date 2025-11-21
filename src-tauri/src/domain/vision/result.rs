@@ -1,6 +1,6 @@
-use bincode::{Decode, Encode};
-use image::DynamicImage;
+use bincode_another::{Decode, Encode};
 use crate::infrastructure::core::{Deserialize, Serialize};
+
 
 #[derive(Debug, Clone, Serialize, Deserialize,Encode, Decode, PartialEq)]
 pub struct DetResult {
