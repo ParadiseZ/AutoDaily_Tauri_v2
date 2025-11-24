@@ -68,12 +68,7 @@ impl BaseModel {
         model_type_name: &str,
     ) -> VisionResult<()> {
         // 1. 解析模型路径
-        /* let model_path = get_app_handle().await
-        .path()
-        .resolve(&self.model_path.clone().unwrap(), tauri::path::BaseDirectory::Resource)
-        .map_err(|e| VisionError::LoadModelErr(format!("解析{}模型路径失败: {}", model_type_name, e)))?
-        .to_string_lossy()
-        .to_string();*/
+
 
         Log::info(&format!("加载{}模型", model_type_name));
 
@@ -125,11 +120,9 @@ impl BaseModel {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
             })?;
-        //.commit_from_file(model_path)
-        //.map_err(|e| VisionError::LoadModelErr(format!("加载{}模型文件失败: {}", model_type_name, e)))?;
+
 
         // 5. 更新状态
-        //self.session = Some(Arc::new(Mutex::new(session)));
         self.session = Some(*session);
         self.is_loaded = true;
 

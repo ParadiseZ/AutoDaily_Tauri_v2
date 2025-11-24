@@ -4,7 +4,7 @@ use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infrastructure::vision::ocr_service::DetectionConfig;
-use crate::infrastructure::vision::vision_error::VisionResult;
+use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use async_trait::async_trait;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
@@ -57,10 +57,9 @@ impl YoloDet {
 
 #[async_trait]
 impl ModelHandler for YoloDet {
-    fn load_model(&mut self) {
+    fn load_model(&mut self) -> VisionResult<()> {
         tokio::runtime::Handle::current()
             .block_on(async { self.base_model.load_model_base::<Self>("det_yolo").await })
-            .unwrap()
     }
 
     fn get_input_size(&self) -> (u32, u32) {
@@ -78,16 +77,21 @@ impl ModelHandler for YoloDet {
         let scale = origin_w.max(origin_h) as f32 / w as f32;
 
         let img = image.resize(w, h, FilterType::Triangle);
-        let mut input = Array::zeros((1, 3, h as usize, w as usize));
+        let (width, height) = img.dimensions();
+        let img_buffer = img.to_rgb8();
+        let raw_pixels = img_buffer.into_raw();
 
-        for pixel in img.pixels() {
-            let x = pixel.0 as _;
-            let y = pixel.1 as _;
-            let [r, g, b, _] = pixel.2 .0;
-            input[[0, 0, y, x]] = (r as f32) / 255.;
-            input[[0, 1, y, x]] = (g as f32) / 255.;
-            input[[0, 2, y, x]] = (b as f32) / 255.;
-        }
+        let img_array = Array::from_shape_vec((height as usize, width as usize, 3), raw_pixels)
+            .map_err(|e| VisionError::DataProcessingErr {
+                method: "preprocess".to_string(),
+                e: e.to_string(),
+            })?;
+
+        // (H, W, C) -> (C, H, W)
+        let img_array = img_array.permuted_axes([2, 0, 1]);
+
+        // Normalize and add batch dimension
+        let input = img_array.mapv(|x| x as f32 / 255.0).insert_axis(Axis(0));
 
         Ok((input, [scale, scale], [origin_h, origin_w]))
     }
@@ -139,7 +143,7 @@ impl TextDetector for YoloDet {
                 .enumerate()
                 .map(|(index, value)| (index, *value))
                 .reduce(|accum, row| if row.1 > accum.1 { row } else { accum })
-                .unwrap();
+                .unwrap_or((0, 0.0));
 
             if prob < self.confidence_thresh {
                 continue;
@@ -152,10 +156,7 @@ impl TextDetector for YoloDet {
             }
             //let (w,h) = self.get_input_size();
             let label: &String = &self.class_labels[class_id];
-            /*let xc = row[0] / (w as f32) * (origin_shape[1] as f32);
-            let yc = row[1] / (h as f32) * (origin_shape[0] as f32);
-            let w = row[2] / (w as f32) * (origin_shape[1] as f32);
-            let h = row[3] / (h as f32) * (origin_shape[0] as f32);*/
+
 
             let xc = row[0] * scale;
             let yc = row[1] * scale;
@@ -180,7 +181,7 @@ impl TextDetector for YoloDet {
 
         // 应用非极大值抑制(NMS)
         // 过滤掉IoU高于阈值的框
-        //boxes.sort_by(|box1, box2| box2.bounding_box.2.total_cmp(&box1.2));
+
         // 应用非极大值抑制(NMS)
         let result = apply_nms(boxes, self.iou_thresh)?;
 

@@ -11,7 +11,7 @@ use rayon::prelude::IntoParallelRefIterator;
 /// 模型处理器的核心trait - 定义了所有模型的通用操作
 #[async_trait]
 pub trait ModelHandler: Send + Sync {
-    fn load_model(&mut self);
+    fn load_model(&mut self) -> VisionResult<()>;
 
     /// 获取模型输入尺寸
     fn get_input_size(&self) -> (u32, u32);

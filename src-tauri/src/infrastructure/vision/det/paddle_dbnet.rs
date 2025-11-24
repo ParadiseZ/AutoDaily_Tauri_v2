@@ -62,14 +62,13 @@ impl PaddleDetDbNet {
 
 #[async_trait]
 impl ModelHandler for PaddleDetDbNet {
-    fn load_model(&mut self) {
+    fn load_model(&mut self) -> VisionResult<()> {
         tokio::runtime::Handle::current()
             .block_on(async {
                 self.base_model
                     .load_model_base::<Self>("paddle_det_dbnet")
                     .await
             })
-            .unwrap()
     }
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
@@ -246,10 +245,7 @@ impl TextDetector for PaddleDetDbNet {
 
             // --- 步骤 4: 对扩展后的多边形计算最终边界框 ---
             // 同样，这里也应该使用 `get_min_area_rect`
-            /*let (final_box, final_min_side) = get_bounding_rect(&unclipped_poly);
-            if final_box.is_empty() {
-                continue;
-            }*/
+
             // 检查扩展后的多边形是否满足最小面积要求
             let final_min_side = if unclipped_poly.len() == 4 {
                 let width = (unclipped_poly[2].x - unclipped_poly[0].x) as f32;
@@ -341,17 +337,17 @@ fn box_score_fast(
     points: &[Point<i32>],
     rect: &[Point<i32>],
 ) -> f32 {
-    let h = prob_map.shape()[0];
-    let w = prob_map.shape()[1];
+    let h = prob_map.shape()[0] as i32;
+    let w = prob_map.shape()[1] as i32;
 
     if rect.is_empty() {
         return 0.0;
     }
 
-    let min_x = rect[0].x.max(0).min(w as i32 - 1);
-    let min_y = rect[0].y.max(0).min(h as i32 - 1);
-    let max_x = rect[2].x.max(0).min(w as i32 - 1);
-    let max_y = rect[2].y.max(0).min(h as i32 - 1);
+    let min_x = rect[0].x.max(0).min(w - 1);
+    let min_y = rect[0].y.max(0).min(h - 1);
+    let max_x = rect[2].x.max(0).min(w - 1);
+    let max_y = rect[2].y.max(0).min(h - 1);
 
     let mut score_sum = 0.0;
     let mut count = 0;
@@ -359,7 +355,10 @@ fn box_score_fast(
     for y in min_y..=max_y {
         for x in min_x..=max_x {
             if point_in_polygon(Point::new(x, y), points) {
-                score_sum += prob_map[[y as usize, x as usize]];
+                // 使用 unsafe 访问以提高性能，因为我们已经确保了边界
+                unsafe {
+                    score_sum += *prob_map.uget([y as usize, x as usize]);
+                }
                 count += 1;
             }
         }

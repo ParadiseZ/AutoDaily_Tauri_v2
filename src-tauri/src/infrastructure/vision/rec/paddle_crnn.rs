@@ -48,14 +48,13 @@ impl PaddleRecCrnn {
 
 #[async_trait]
 impl ModelHandler for PaddleRecCrnn {
-    fn load_model(&mut self) {
+    fn load_model(&mut self) -> VisionResult<()> {
         tokio::runtime::Handle::current()
             .block_on(async {
                 self.base_model
                     .load_model_base::<Self>("paddle_rec_crnn")
                     .await
             })
-            .unwrap()
     }
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
@@ -288,8 +287,7 @@ impl TextRecognizer for PaddleRecCrnn {
                 det_num: det_result.len(),
             });
         }
-        // 将CTC解码结果转换为OCR结果
-        //let mut ocr_results = Vec::with_capacity(batch_size);
+
 
 
         let ocr_res: Vec<OcrResult> = det_result
