@@ -69,12 +69,19 @@ impl ModelHandler for PaddleRecCrnn {
         let resize_w = (origin_w as f32 / ratio).ceil() as u32;
 
         // CRNN模型需要将宽度调整为8的倍数，以获得最佳性能并避免在下采样层中出现问题
-        let target_width = if resize_w % 8 != 0 {
+/*        let target_width = if resize_w % 8 != 0 {
             (resize_w / 8 + 1) * 8
         } else {
             resize_w
         }
-        .max(8); // 确保宽度至少为8
+        .max(8); // 确保宽度至少为8*/
+
+        // 3. 计算目标宽度（带8对齐）
+        let target_width = resize_w
+            .checked_add(7)
+            .map(|v| v & !7) // 更快的8对齐：v - (v % 8) 的优化版
+            .unwrap_or(resize_w)
+            .max(8);
 
         Log::debug(&format!(
             "Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
@@ -92,23 +99,34 @@ impl ModelHandler for PaddleRecCrnn {
         let mut input = Array3::<f32>::zeros((3, target_height as usize, target_width as usize));
 
         // 转换图像格式并归一化
-        for y in 0..target_height {
+        // 优化：先转换为RGB8，避免在循环中进行DynamicImage的动态分发，提高性能
+        let rgb_img = resized_img.to_rgb8();
+
+        // 使用Rayon并行处理每一行
+        // 将每一行(Axis 1)的可变视图收集起来，然后并行迭代
+        let mut rows: Vec<_> = input.axis_iter_mut(Axis(1)).collect();
+        
+        rows.par_iter_mut().enumerate().for_each(|(y, row)| {
+            let y = y as u32;
             // 填充真实图像数据
             for x in 0..resize_w {
-                let pixel = resized_img.get_pixel(x, y);
+                // 直接访问RGB数据，比DynamicImage.get_pixel快
+                let pixel = rgb_img.get_pixel(x, y);
                 // 标准化: (pixel / 255.0 - 0.5) / 0.5
-                input[[0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.5) / 0.5;
-                input[[1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.5) / 0.5;
-                input[[2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.5) / 0.5;
+                let x = x as usize;
+                row[[0, x]] = (pixel[0] as f32 / 255.0 - 0.5) / 0.5;
+                row[[1, x]] = (pixel[1] as f32 / 255.0 - 0.5) / 0.5;
+                row[[2, x]] = (pixel[2] as f32 / 255.0 - 0.5) / 0.5;
             }
             // 对多余的宽度部分进行填充
             for x in resize_w..target_width {
+                let x = x as usize;
                 // 使用归一化后的0值 (-1.0) 填充
-                input[[0, y as usize, x as usize]] = -1.0;
-                input[[1, y as usize, x as usize]] = -1.0;
-                input[[2, y as usize, x as usize]] = -1.0;
+                row[[0, x]] = -1.0;
+                row[[1, x]] = -1.0;
+                row[[2, x]] = -1.0;
             }
-        }
+        });
 
         // 扩展到批次维度 (1, C, H, W)
         let input = input.insert_axis(Axis(0));
