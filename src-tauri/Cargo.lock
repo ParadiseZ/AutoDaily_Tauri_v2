@@ -388,7 +388,6 @@ dependencies = [
  "base64 0.22.1",
  "bincode 2.0.1",
  "chrono",
- "core_affinity",
  "cron",
  "crossbeam-channel",
  "image",
@@ -1018,17 +1017,6 @@ dependencies = [
  "bitflags 2.9.3",
  "core-foundation 0.10.1",
  "libc",
-]
-
-[[package]]
-name = "core_affinity"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a034b3a7b624016c6e13f5df875747cc25f884156aad2abd12b6c46797971342"
-dependencies = [
- "libc",
- "num_cpus",
- "winapi",
 ]
 
 [[package]]

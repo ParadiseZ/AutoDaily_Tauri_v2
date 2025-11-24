@@ -5,6 +5,8 @@ use async_trait::async_trait;
 use image::DynamicImage;
 use ndarray::Array4;
 use rayon::prelude::{IntoParallelRefIterator, IntoParallelRefMutIterator};
+use crate::infrastructure::image::crop_image::{get_crop_image, get_crop_images};
+use crate::infrastructure::logging::log_trait::Log;
 
 /// 模型处理器的核心trait - 定义了所有模型的通用操作
 #[async_trait]
@@ -64,9 +66,9 @@ pub trait TextRecognizer: ModelHandler {
         // 预处理
         let rgba_img = &image.to_rgba8();
         let inputs: Vec<Array4<f32>> = det_results
-            .par_iter_mut()
+            .par_iter()
             .map(|&det_res| {
-                let img = self.get_crop_image(rgba_img, det_res)?;
+                let img = get_crop_image(rgba_img, det_res)?;
                 let (input, _, _) = self.preprocess(&img)?;
                 input
             })
@@ -80,13 +82,15 @@ pub trait TextRecognizer: ModelHandler {
             .collect();
 
         // 后处理
-        let ocr_res = outputs
+        let ocr_res: Vec<OcrResult> = outputs
             .par_iter()
-            .map(|output| async {
-                self.postprocess(output, det_results, 0)?;
+            .filter_map(|output| {
+                self.postprocess(output, det_results, 0).ok()
             })
             .collect();
-
+        if ocr_res.len() != det_results.len() {
+            Log::error("识别部分行的文字错误！");
+        }
         /*let imgs = self.get_rotate_crop_image(image, det_results)?;
         let mut ocr_res = Vec::with_capacity(imgs.len());
         let _ = imgs.par_iter()
@@ -111,10 +115,10 @@ pub trait TextRecognizer: ModelHandler {
         image: &DynamicImage,
         det_results: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
-        let imgs = self.get_crop_images(image, det_results)?;
-        let input = self.preprocess_batch(&*imgs)?;
+        let imgs = get_crop_images(image, det_results)?;
+        let input = self.preprocess_batch(&imgs)?;
         let raw_output = self.inference(input).await?;
-        let ocr_res = self.postprocess_batch(raw_output, det_results)?;
+        let ocr_res = self.postprocess_batch(&raw_output, det_results)?;
         Ok(ocr_res)
         //self.parse_recognition_result(processed_output)
     }

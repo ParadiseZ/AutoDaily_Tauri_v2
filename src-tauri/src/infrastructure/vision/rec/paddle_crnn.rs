@@ -9,7 +9,7 @@ use image::DynamicImage;
 use imageproc::drawing::Canvas;
 use memmap2::Mmap;
 use ndarray::{Array3, Array4, Axis};
-use rayon::prelude::IntoParallelRefIterator;
+use rayon::prelude::*;
 
 #[derive(Debug)]
 pub struct PaddleRecCrnn {
@@ -218,24 +218,26 @@ impl TextRecognizer for PaddleRecCrnn {
         }
 
         let mut max_width = 0;
-        let mut widths: Vec<u32> = Vec::with_capacity(images.len());
-
         // 计算所有图像的目标宽度
-        for img in images.par_iter() {
-            let (origin_w, origin_h) = img.dimensions();
-            let ratio = origin_h / self.get_target_height() as f32;
-            let resize_w = (origin_w / ratio).ceil() as u32;
-            let target_width = if resize_w % 8 != 0 {
-                (resize_w / 8 + 1) * 8
-            } else {
-                resize_w
-            }
-            .max(8);
+        let widths: Vec<u32> = images
+            .par_iter()
+            .map(|img| {
+                let (origin_w, origin_h) = img.dimensions();
+                let ratio = origin_h as f32 / self.get_target_height() as f32;
+                let resize_w = ((origin_w as f32) / ratio).ceil() as u32;
 
-            if target_width > max_width {
-                max_width = target_width;
+                // 3. 计算目标宽度（带8对齐）
+                resize_w
+                    .checked_add(7)
+                    .map(|v| v & !7) // 更快的8对齐：v - (v % 8) 的优化版
+                    .unwrap_or(resize_w)
+                    .max(8)
+            })
+            .collect();
+        for width in widths.iter() {
+            if *width > max_width {
+                max_width = *width;
             }
-            widths.push(resize_w);
         }
 
         // 使用异步并行处理
@@ -247,9 +249,7 @@ impl TextRecognizer for PaddleRecCrnn {
             max_width as usize,
         ));
 
-        // TODO: 这里可以进一步优化为真正的异步并行处理
-        // 当前先保持原有逻辑，但为未来的异步优化预留接口
-        for (i, img) in images.par_iter().enumerate() {
+        images.par_iter().enumerate().for_each(|(i, img)| {
             let resized_img = img.resize_exact(
                 widths[i],
                 self.get_target_height(),
@@ -270,7 +270,7 @@ impl TextRecognizer for PaddleRecCrnn {
                     batch_data[[i, 2, y, x]] = -1.0;
                 }
             }
-        }
+        });
 
         Ok(batch_data)
     }
@@ -289,12 +289,17 @@ impl TextRecognizer for PaddleRecCrnn {
             });
         }
         // 将CTC解码结果转换为OCR结果
-        let mut ocr_results = Vec::with_capacity(batch_size);
+        //let mut ocr_results = Vec::with_capacity(batch_size);
 
-        for (i, det_res) in det_result.par_iter().enumerate() {
-            let ocr_result = self.postprocess(output, det_res, i)?;
-            ocr_results.push(ocr_result);
+
+        let ocr_res: Vec<OcrResult> = det_result
+            .par_iter()
+            .enumerate()
+            .filter_map(|(i, det_res)| self.postprocess(output, det_res, i).ok())
+            .collect();
+        if ocr_res.len() != batch_size {
+            Log::error("识别部分行的文字错误！");
         }
-        Ok(ocr_results)
+        Ok(ocr_res)
     }
 }

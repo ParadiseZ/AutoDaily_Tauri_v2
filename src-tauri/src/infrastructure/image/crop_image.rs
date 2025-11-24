@@ -13,13 +13,13 @@ pub fn get_crop_images(
         return Ok(Vec::new());
     }
     let rgba_img = img.to_rgba8();
-    let mut cropped_images = Vec::with_capacity(results.len());
 
-    results.par_iter().for_each(|&det_res| {
-        if let Ok(img) = get_crop_image(&rgba_img, det_res) {
-            cropped_images.push(img);
-        }
-    });
+    let cropped_images = results
+        .par_iter()
+        .filter_map(|&det_res| {
+            get_crop_image(&rgba_img, det_res).ok()
+        })
+        .collect();
     Ok(cropped_images)
 }
 

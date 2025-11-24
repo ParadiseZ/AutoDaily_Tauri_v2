@@ -18,6 +18,15 @@ edition = "2021"
 name = "auto_daily_lib"
 crate-type = ["cdylib", "rlib"]
 
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+thiserror = "2.0"
+tokio = { version = "1", features = ["full"] }
+crossbeam-channel = "0.5.15"
+image = { version = "0.25", features = ["png", "jpeg"] }
+tracing = "0.1"
+
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -32,11 +41,10 @@ tauri-plugin-notification = "2"
 tauri-plugin-store = "2"
 
 #序列化/yaml
-serde = { version = "1", features = ["derive"] }
+serde = { workspace = true}
 serde_json = "1"
 serde_yaml = "0.9"
 #erased-serde = "0.4.6"
-# 更改版本和adb_client里的包保持一致
 bincode = { version = "2.0.1"}
 
 # 截图
@@ -45,11 +53,11 @@ adb_executor = { path = "adb_executor" }
 
 #fs_extra = "1.3"
 # error
-thiserror = "2.0"
+thiserror = { workspace = true}
 #anyhow = "1.0"
 
 # logger
-tracing = "0.1"
+tracing = { workspace = true }
 tracing-subscriber  = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 once_cell = "1.21"
@@ -59,7 +67,7 @@ chrono  = "0.4"
 base64 = "0.22"
 
 #图像处理
-image = { version = "0.25", features = ["png", "jpeg"] }
+image = { workspace = true }
 ort = {version = "2.0.0-rc.10", features = ["directml", "cuda"] }
 ndarray = "0.17.1"
 imageproc = "0.25.0"
@@ -72,7 +80,7 @@ rayon = "1.11.0"
 # cpu核心
 num_cpus = "1.17"
 # cpu亲和性
-core_affinity = "0"
+#core_affinity = "0"
 # 高性能哈希,hashmap
 ahash = "0.8.12"
 # 高性能哈希,hash值计算/文件一致性
@@ -89,9 +97,9 @@ sysinfo = "0.37"
 interprocess = { version = "2.2.3", features = ["tokio"] }
 
 #异步
-tokio = { version = "1", features = ["full"] }
+tokio = { workspace = true }
 # 异步通道
-crossbeam-channel = {version = "0.5.15"}
+crossbeam-channel = { workspace = true}
 
 # 异步trait
 async-trait = "0.1.89"
