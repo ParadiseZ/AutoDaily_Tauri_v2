@@ -52,9 +52,12 @@ impl PathUtil {
                 Ok(absolute_path)
             }
             "custom" => {
-                let absolute_path = ScriptsConfig::get_dir() + "/ " + path;
-                Log::debug(&format!("自定义模型路径转换[{}]", absolute_path));
-                Ok(PathBuf::from(absolute_path))
+                tokio::runtime::Handle::current()
+                    .block_on(async {
+                        let absolute_path = ScriptsConfig::get_dir().await.join("/").join(path) ;
+                        Log::debug(&format!("自定义模型路径转换[{:?}]", absolute_path));
+                        Ok(PathBuf::from(absolute_path))
+                    })
             }
             _ => Ok(PathBuf::from(path)),
         }

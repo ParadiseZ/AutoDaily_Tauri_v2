@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use image::DynamicImage;
 use imageproc::drawing::Canvas;
 use memmap2::Mmap;
-use ndarray::{Array3, Array4, Axis};
-use rayon::prelude::IntoParallelRefIterator;
+use ndarray::{Array3, Array4, ArrayViewMut3, Axis};
+use rayon::prelude::*;
 
 #[derive(Debug)]
 pub struct PaddleRecCrnn {
@@ -241,35 +241,54 @@ impl TextRecognizer for PaddleRecCrnn {
 
         // 使用异步并行处理
         let batch_size = images.len();
+        let target_height_usize = self.get_target_height() as usize;
+        let max_width_usize = max_width as usize;
+
         let mut batch_data = Array4::<f32>::zeros((
             batch_size,
             3,
-            self.get_target_height() as usize,
-            max_width as usize,
+            target_height_usize,
+            max_width_usize,
         ));
 
-        images.par_iter().enumerate().for_each(|(i, img)| {
-            let resized_img = img.resize_exact(
-                widths[i],
-                self.get_target_height(),
-                image::imageops::FilterType::Nearest,
-            );
-            let rgb_view = resized_img.to_rgb8();
+        let chunk_len = 3 * target_height_usize * max_width_usize;
 
-            for y in 0..self.get_target_height() as usize {
-                for x in 0..widths[i] as usize {
-                    let p = rgb_view.get_pixel(x as u32, y as u32);
-                    batch_data[[i, 0, y, x]] = (p[0] as f32 / 255.0 - 0.5) / 0.5;
-                    batch_data[[i, 1, y, x]] = (p[1] as f32 / 255.0 - 0.5) / 0.5;
-                    batch_data[[i, 2, y, x]] = (p[2] as f32 / 255.0 - 0.5) / 0.5;
-                }
-                for x in widths[i] as usize..max_width as usize {
-                    batch_data[[i, 0, y, x]] = -1.0;
-                    batch_data[[i, 1, y, x]] = -1.0;
-                    batch_data[[i, 2, y, x]] = -1.0;
-                }
-            }
-        });
+        if let Some(flat_data) = batch_data.as_slice_mut() {
+            flat_data
+                .par_chunks_mut(chunk_len)
+                .zip(images.par_iter())
+                .zip(widths.par_iter())
+                .for_each(|((chunk, img), &width)| {
+                    let mut img_view = ArrayViewMut3::from_shape(
+                        (3, target_height_usize, max_width_usize),
+                        chunk,
+                    )
+                    .expect("文字识别失败：批预处理失败【crnn preprocess_batch】Failed to create view from chunk");
+
+                    let resized_img = img.resize_exact(
+                        width,
+                        self.get_target_height(),
+                        image::imageops::FilterType::Nearest,
+                    );
+                    let rgb_view = resized_img.to_rgb8();
+
+                    for y in 0..target_height_usize {
+                        for x in 0..width as usize {
+                            let p = rgb_view.get_pixel(x as u32, y as u32);
+                            img_view[[0, y, x]] = (p[0] as f32 / 255.0 - 0.5) / 0.5;
+                            img_view[[1, y, x]] = (p[1] as f32 / 255.0 - 0.5) / 0.5;
+                            img_view[[2, y, x]] = (p[2] as f32 / 255.0 - 0.5) / 0.5;
+                        }
+                        for x in width as usize..max_width_usize {
+                            img_view[[0, y, x]] = -1.0;
+                            img_view[[1, y, x]] = -1.0;
+                            img_view[[2, y, x]] = -1.0;
+                        }
+                    }
+                });
+        } else {
+            Log::error("文字识别失败：批预处理失败: Batch data 切片失败！");
+        }
 
         Ok(batch_data)
     }
@@ -288,10 +307,8 @@ impl TextRecognizer for PaddleRecCrnn {
             });
         }
 
-
-
         let ocr_res: Vec<OcrResult> = det_result
-            .par_iter()
+            .into_par_iter()
             .enumerate()
             .filter_map(|(i, det_res)| self.postprocess(output, det_res, i).ok())
             .collect();

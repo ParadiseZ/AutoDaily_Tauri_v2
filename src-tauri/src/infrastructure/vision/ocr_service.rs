@@ -126,7 +126,7 @@ impl OcrService {
     }
 
     /// 获取检测器信息
-    pub fn detector_info(&self) -> Option<String> {
+    /*pub fn detector_info(&self) -> Option<String> {
         if let Some(detector) = &self.detector {
             let config = detector.get_detection_config();
             Some(format!(
@@ -136,17 +136,17 @@ impl OcrService {
         } else {
             None
         }
-    }
+    }*/
 
     /// 获取识别器信息
-    pub fn recognizer_info(&self) -> Option<String> {
+    /*pub fn recognizer_info(&self) -> Option<String> {
         if let Some(recognizer) = &self.recognizer {
             let config = recognizer.get_recognition_config();
             Some(format!("识别器配置: 束搜索宽度={:?}", config.beam_width))
         } else {
             None
         }
-    }
+    }*/
 }
 
 impl Default for OcrService {

@@ -65,50 +65,40 @@ pub trait TextRecognizer: ModelHandler {
     ) -> VisionResult<Vec<OcrResult>> {
         // 预处理
         let rgba_img = &image.to_rgba8();
-        let inputs: Vec<Array4<f32>> = det_results
+        let inputs: Vec<_> = det_results
             .par_iter()
-            .map(|&det_res| {
-                let img = get_crop_image(rgba_img, det_res)?;
-                let (input, _, _) = self.preprocess(&img)?;
-                input
+            .filter_map(|&det_res| {
+                get_crop_image(rgba_img, det_res)
+                    .ok()
+                    .and_then(|img| self.preprocess(&img).ok())
             })
             .collect();
+        if inputs.len() != det_results.len() {
+            Log::warn("文字识别-预处理结束：预处理部分图像失败！");
+        }
         // 推理
+        let size = inputs.len();
         let outputs: Vec<Array4<f32>> = inputs
             .into_iter()
-            .map(|input| async {
-                self.inference(input).await?;
+            .filter_map(|(input,_,_)| async {
+                self.inference(input).await.ok()
             })
             .collect();
-
+        if outputs.len() != size {
+            Log::warn("文字识别-推理结束：识别部分行的文字错误！");
+        }
         // 后处理
+        let size = outputs.len();
         let ocr_res: Vec<OcrResult> = outputs
             .par_iter()
             .filter_map(|output| {
                 self.postprocess(output, det_results, 0).ok()
             })
             .collect();
-        if ocr_res.len() != det_results.len() {
-            Log::error("识别部分行的文字错误！");
+        if ocr_res.len() != size {
+            Log::warn("文字识别-后处理结束：识别部分行的文字错误！");
         }
-        /*let imgs = self.get_rotate_crop_image(image, det_results)?;
-        let mut ocr_res = Vec::with_capacity(imgs.len());
-        let _ = imgs.par_iter()
-            .map(|img| async {
-                let (input, _, _) = self.preprocess(img)?;
-                let raw_output = self.inference(input).await?;
-                let processed_output = self.postprocess(raw_output, &det_results[idx])?;
-                Ok(processed_output)
-            });
-        Log::warn("rayon 线程池获取锁失败！将使用单线程处理");
-        for (idx , img) in imgs.par_iter_mut().enumerate() {
-            let (input, _, _) = self.preprocess(&img)?;
-            let raw_output = self.inference(input).await?;
-            let processed_output = self.postprocess(raw_output,&det_results[idx])?;
-            ocr_res.push(processed_output);
-        }*/
         Ok(ocr_res)
-        //self.parse_recognition_result(processed_output)
     }
     async fn recognize_batch(
         &self,
