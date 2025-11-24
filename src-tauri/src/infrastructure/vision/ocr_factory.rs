@@ -261,8 +261,8 @@ impl OcrModelFactory {
     }
 
     /// 加载字典文件
-    fn load_dict(dict_path: &PathBuf) -> VisionResult<Vec<String>> {
-        let content = read_to_string(dict_path).map_err(|e| VisionError::IoError {
+    async fn load_dict(dict_path: &PathBuf) -> VisionResult<Vec<String>> {
+        let content = read_to_string(dict_path).await.map_err(|e| VisionError::IoError {
             path: dict_path.to_string(),
             e: e.to_string(),
         })?;
