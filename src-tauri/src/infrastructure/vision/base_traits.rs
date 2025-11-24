@@ -1,12 +1,12 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
+use crate::infrastructure::image::crop_image::{get_crop_image, get_crop_images};
+use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::VisionResult;
 use async_trait::async_trait;
 use image::DynamicImage;
 use ndarray::Array4;
-use rayon::prelude::{IntoParallelRefIterator, IntoParallelRefMutIterator};
-use crate::infrastructure::image::crop_image::{get_crop_image, get_crop_images};
-use crate::infrastructure::logging::log_trait::Log;
+use rayon::prelude::IntoParallelRefIterator;
 
 /// 模型处理器的核心trait - 定义了所有模型的通用操作
 #[async_trait]

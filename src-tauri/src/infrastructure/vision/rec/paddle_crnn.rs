@@ -9,7 +9,7 @@ use image::DynamicImage;
 use imageproc::drawing::Canvas;
 use memmap2::Mmap;
 use ndarray::{Array3, Array4, Axis};
-use rayon::prelude::*;
+use rayon::prelude::IntoParallelRefIterator;
 
 #[derive(Debug)]
 pub struct PaddleRecCrnn {
@@ -221,9 +221,9 @@ impl TextRecognizer for PaddleRecCrnn {
         // 计算所有图像的目标宽度
         let widths: Vec<u32> = images
             .par_iter()
-            .map(|img| {
+            .map(|img: &DynamicImage| {
                 let (origin_w, origin_h) = img.dimensions();
-                let ratio = origin_h as f32 / self.get_target_height() as f32;
+                let ratio = origin_h as f32 / (self.get_target_height() as f32);
                 let resize_w = ((origin_w as f32) / ratio).ceil() as u32;
 
                 // 3. 计算目标宽度（带8对齐）
