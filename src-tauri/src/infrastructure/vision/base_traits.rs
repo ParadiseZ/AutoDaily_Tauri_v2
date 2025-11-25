@@ -6,7 +6,7 @@ use crate::infrastructure::vision::vision_error::VisionResult;
 use async_trait::async_trait;
 use image::DynamicImage;
 use ndarray::Array4;
-use rayon::prelude::IntoParallelRefIterator;
+use rayon::prelude::*;
 
 /// 模型处理器的核心trait - 定义了所有模型的通用操作
 #[async_trait]
@@ -65,21 +65,23 @@ pub trait TextRecognizer: ModelHandler {
     ) -> VisionResult<Vec<OcrResult>> {
         // 1. 预处理阶段
         // 保留原始索引：(original_index, preprocessed_input)
-        let rgba_img = &image.to_rgba8();
+        //let rgba_img = &image.to_rgba8();//移入预处理阶段
         let preprocessed_inputs: Vec<(usize, Array4<f32>)> = det_results
             .par_iter()
             .enumerate()
             .filter_map(|(idx, det_res)| {
-                get_crop_image(rgba_img, det_res)
+                get_crop_image(image, det_res)
                     .ok()
-                    .and_then(|img| self.preprocess(&img).ok())
-                    .map(|input| (idx, input.0)) // input.0 is Array4<f32> based on preprocess signature
+                    .and_then(|img| {
+                        self.preprocess(&img).ok()
+                    })
+                    .and_then(|input| Some((idx, input.0))) // input.0 is Array4<f32> based on preprocess signature
             })
             .collect();
 
         if preprocessed_inputs.len() != det_results.len() {
             Log::warn(format!(
-                "文字识别-预处理：部分图像处理失败！(总数: {}, 成功: {})",
+                "文字识别-预处理：部分图像预处理失败！(总数: {}, 成功: {})",
                 det_results.len(),
                 preprocessed_inputs.len()
             )
@@ -91,6 +93,7 @@ pub trait TextRecognizer: ModelHandler {
         // 注意：这里为了配合ort调度，我们使用串行await，或者可以使用futures::stream::FuturesOrdered如果需要并发
         let mut inference_outputs: Vec<(usize, Array4<f32>)> =
             Vec::with_capacity(preprocessed_inputs.len());
+
 
         for (idx, input) in preprocessed_inputs {
             match self.inference(input).await {
@@ -116,10 +119,10 @@ pub trait TextRecognizer: ModelHandler {
             .par_iter()
             .filter_map(|(idx, output)| {
                 // 使用原始索引获取对应的检测结果
-                if let Some(det_res) = det_results.get(idx) {
+                if let Some(det_res) = det_results.get(*idx) {
                     self.postprocess(output, det_res, 0).ok()
                 } else {
-                    Log::warn(format!("文字识别-后处理：索引 {} 越界", idx).as_str());
+                    Log::warn(format!("文字识别-后处理：索引 {} 越界", *idx).as_str());
                     None
                 }
             })

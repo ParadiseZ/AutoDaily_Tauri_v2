@@ -1,6 +1,6 @@
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::ort_error::OrtError;
-use ort::execution_providers::ExecutionProvider;
+use ort::execution_providers::{ExecutionProvider, ExecutionProviderDispatch};
 use ort::session::builder::SessionBuilder;
 use ort::session::Session;
 use crate::infrastructure::core::{Deserialize, Serialize};
@@ -31,16 +31,16 @@ impl InferenceBackend {
         }
     }
 
-    fn build_ep(&self) -> Box<dyn ExecutionProvider> {
+    fn build_ep(&self) -> ExecutionProviderDispatch {
         match self {
             InferenceBackend::Cuda => {
-                Box::new(ort::execution_providers::CUDAExecutionProvider::default().build())
+                ort::execution_providers::CUDAExecutionProvider::default().build()
             }
             InferenceBackend::DirectML => {
-                Box::new(ort::execution_providers::DirectMLExecutionProvider::default().build())
+                ort::execution_providers::DirectMLExecutionProvider::default().build()
             }
             InferenceBackend::CPU => {
-                Box::new(ort::execution_providers::CPUExecutionProvider::default().build())
+                ort::execution_providers::CPUExecutionProvider::default().build()
             }
         }
     }
