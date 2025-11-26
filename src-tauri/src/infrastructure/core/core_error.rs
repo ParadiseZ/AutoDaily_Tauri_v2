@@ -8,14 +8,14 @@ pub enum CoreError {
 }
 
 // 统一处理读锁错误
-pub fn read_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockReadGuard<T> {
-    lock.read()
+pub async fn read_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockReadGuard<T> {
+    lock.read().await
         .unwrap_or_else(|e: PoisonError<_>| e.into_inner())
 }
 
 // 统一处理写锁错误
-pub fn write_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockWriteGuard<T> {
-    lock.write()
+pub async fn write_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockWriteGuard<T> {
+    lock.write().await
         .unwrap_or_else(|e: PoisonError<_>| e.into_inner())
 }
 

@@ -35,7 +35,7 @@ impl IpcClient {
             MessageType::Logger,
             MessagePayload::Logger(LogMessage {
                 level: log_level,
-                message: msg.into_string(),
+                message: msg.to_string(),
                 module: None,
             }),
         ));

@@ -1,6 +1,6 @@
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::ort_error::OrtError;
-use ort::execution_providers::{ExecutionProvider, ExecutionProviderDispatch};
+use ort::execution_providers::ExecutionProviderDispatch;
 use ort::session::builder::SessionBuilder;
 use ort::session::Session;
 use crate::infrastructure::core::{Deserialize, Serialize};

@@ -45,12 +45,10 @@ pub enum ConditionNode {
 #[serde(tag = "kind")]
 pub enum ActionRef {
     Builtin {
-        name: String,
-        params: HashMap<String, serde_json::Value>,
+        name: String
     },
     SubFlow {
-        id: SubFlowId,
-        params: HashMap<String, serde_json::Value>,
+        id: SubFlowId
     },
 }
 

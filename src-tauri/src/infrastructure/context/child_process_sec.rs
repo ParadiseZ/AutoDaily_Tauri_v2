@@ -54,7 +54,7 @@ pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitRes
     manager.spawn_reconnect_task();
     IPC_CLIENT
         .set(manager)
-        .map_err(|e| InitError::InitChildIpcClientFailed { e: e.to_string() })
+        .map_err(|e| InitError::InitChildIpcClientFailed { e: e.clone().to_string() })
 }
 pub fn get_ipc_client() -> Arc<IpcClient> {
     IPC_CLIENT.get().unwrap().clone()

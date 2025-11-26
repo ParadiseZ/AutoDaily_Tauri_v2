@@ -9,22 +9,22 @@ use crate::infrastructure::logging::log_error::{LogError, LogResult};
 use crate::infrastructure::logging::log_trait::{Log, LogTrait};
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use chrono::Local;
-use once_cell::sync::Lazy;
 use ort::execution_providers::set_gpu_device;
 use std::fs;
 use std::path::PathBuf;
+use bincode::{Decode, Encode};
+use lazy_static::lazy_static;
 use tauri::path::BaseDirectory;
 use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use tracing::subscriber::set_global_default;
-use tracing::trace;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::fmt::time::FormatTime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, reload, Registry};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq)]
 #[repr(u8)]
 pub enum LogLevel {
     Debug = 1,
@@ -58,8 +58,10 @@ impl std::fmt::Display for LogLevel {
     }
 }
 
-static LOG_LEVEL_HANDLE: Lazy<Mutex<Option<reload::Handle<LevelFilter, Registry>>>> =
-    Lazy::new(|| Mutex::new(None));
+lazy_static!{
+    pub static ref LOG_LEVEL_HANDLE: Mutex<Option<reload::Handle<LevelFilter, Registry>>> = Mutex::new(None);
+}
+
 // Convert string log level to LevelFilter
 pub fn parse_log_level(level: &LogLevel) -> LevelFilter {
     match level {
@@ -73,11 +75,11 @@ pub fn parse_log_level(level: &LogLevel) -> LevelFilter {
 }
 
 impl LogMain {
-    pub fn update_level(level: &LogLevel) -> LogResult<()> {
+    pub async fn update_level(level: &LogLevel) -> LogResult<()> {
         let level_filter = parse_log_level(level);
 
         // Safely handle the mutex and update the log level
-        let handle_opt = match LOG_LEVEL_HANDLE.lock() {
+        let handle_opt = match LOG_LEVEL_HANDLE.lock().await {
             Ok(guard) => guard,
             Err(poison_err) => {
                 // 尝试从有毒的互斥锁中恢复数据
@@ -89,7 +91,7 @@ impl LogMain {
             handle
                 .reload(level_filter)
                 .map_err(|e| LogError::ReloadFilterErr { e })?;
-            Log::info(format!("主线程日志级别变更为: {:?}", level));
+            Log::info(format!("主线程日志级别变更为: {:?}", level).as_ref());
         } else {
             return Err(LogError::ReloadDataNotInit);
         }

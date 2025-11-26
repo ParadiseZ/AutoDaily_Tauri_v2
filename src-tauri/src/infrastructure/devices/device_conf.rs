@@ -62,6 +62,6 @@ impl ConfigCategory for DeviceConfig {
 
 impl ConfigCategory for DeviceConfMap {
     fn default() -> Self {
-        HashMap::default()
+        HashMap::new()
     }
 }

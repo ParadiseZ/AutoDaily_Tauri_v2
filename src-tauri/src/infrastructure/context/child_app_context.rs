@@ -1,13 +1,17 @@
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
 use std::sync::Arc;
+use lazy_static::lazy_static;
 use tokio::sync::RwLock;
 // 应用上下文
 
-static CHILD_APP_CONTEXT: Arc<RwLock<Option<AppCtx>>> = Arc::new(RwLock::new(None));
+lazy_static!{
+    pub static ref  CHILD_APP_CONTEXT: Arc<RwLock<Option<AppCtx>>> = Arc::new(RwLock::new(None));
+}
 
-pub fn init_child_app_ctx(app_ctx: AppCtx) -> InitResult<()> {
-    match CHILD_APP_CONTEXT.write() {
+
+pub async fn init_child_app_ctx(app_ctx: AppCtx) -> InitResult<()> {
+    match CHILD_APP_CONTEXT.write().await {
         Ok(mut ctx) => {
             *ctx = Some(app_ctx);
             Ok(())

@@ -88,7 +88,7 @@ impl ScriptManager {
     pub fn new(cache_size: usize) -> Self {
         Self {
             script_index: Arc::new(RwLock::new(HashMap::new())),
-            cache_size: AtomicU8::from(cache_size),
+            cache_size: AtomicU8::from(cache_size as u8),
             script_cache: std::collections::BTreeMap::new(),
         }
     }
@@ -111,12 +111,12 @@ impl ScriptManager {
         };
 
         // 2. 排序
-        self.sort_metadata(
+        /*self.sort_metadata(
             &mut filtered_metadata,
             &request.sort_by,
             &request.sort_order,
         );
-
+*/
         // 3. 分页
         let total_count = filtered_metadata.len();
         let start_idx = request.page * request.page_size;
@@ -195,7 +195,7 @@ impl ScriptManager {
         true
     }
 
-    fn sort_metadata(
+    /*fn sort_metadata(
         &self,
         metadata: &mut Vec<ScriptMeta>,
         sort_by: &SortField,
@@ -209,7 +209,7 @@ impl ScriptManager {
                 SortOrder::Desc => cmp.reverse(),
             }
         });
-    }
+    }*/
 
     fn get_ordering(a: &ScriptMeta, b: &ScriptMeta, sort_field: &SortField) -> Ordering {
         match sort_field {

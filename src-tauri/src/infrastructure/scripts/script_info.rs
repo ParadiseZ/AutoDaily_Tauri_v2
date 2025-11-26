@@ -36,11 +36,11 @@ pub enum ScriptType {
     Custom,
 }
 
-pub type DeviceAccount = HashMap<DeviceId, Option<HashMap<String, String>>>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ScriptShow {
     pub script_id: ScriptId,
     pub script_info: ScriptInfo,
-    pub device_account: DeviceAccount,
+    pub target_device : Option<Vec<DeviceId>>,
+    pub device_account: Option<HashMap<DeviceId, HashMap<String, String>>>,
 }

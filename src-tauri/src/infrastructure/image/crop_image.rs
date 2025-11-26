@@ -3,7 +3,7 @@ use crate::infrastructure::image::img_error::{ImageError, ImageResult};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::vision_error::VisionResult;
 use image::DynamicImage;
-use rayon::iter::IntoParallelRefIterator;
+use rayon::prelude::*;
 
 pub fn get_crop_images(
     img: &DynamicImage,
@@ -16,7 +16,7 @@ pub fn get_crop_images(
 
     let cropped_images = results
         .par_iter()
-        .filter_map(|&det_res| {
+        .filter_map(|det_res| {
             get_crop_image(img, det_res).ok()
         })
         .collect();
@@ -28,7 +28,7 @@ pub fn get_crop_image(img: &DynamicImage, det_res: &DetResult) -> ImageResult<Dy
     if box_width < 8u32 { // crnn至少为8
         Log::error("图像裁剪错误：box_width < 8,图像区域太小！");
         return Err(ImageError::CropErr {
-            detail: det_res.clone(),
+            detail: det_res.to_string(),
             e: "".to_string(),
         })
     }
@@ -36,7 +36,7 @@ pub fn get_crop_image(img: &DynamicImage, det_res: &DetResult) -> ImageResult<Dy
     if box_height < 8u32 { // crnn至少为8
         Log::error("图像裁剪错误：box_height < 8,图像区域太小！");
         return Err(ImageError::CropErr {
-            detail: det_res.clone(),
+            detail: det_res.to_string(),
             e: "".to_string(),
         })
     }

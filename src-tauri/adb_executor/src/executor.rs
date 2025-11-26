@@ -16,7 +16,7 @@ use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 pub struct ADBExecutor {
-    device: Mutex<Option<Box<dyn ADBDeviceExt>>>,
+    device: Option<Box<dyn ADBDeviceExt>>,
     adb_config: Arc<Mutex<ADBConnectConfig>>, //from RuntimeContext
 
     cmd_rx: crossbeam_channel::Receiver<ADBCommand>,
@@ -45,7 +45,7 @@ impl ADBExecutor {
         let (cmd_loop_tx, cmd_loop_rx) = bounded(10);
         (
             ADBExecutor {
-                device: Mutex::new(None),
+                device: None,
                 adb_config,
                 cmd_rx,
                 cmd_loop_rx,
@@ -347,21 +347,17 @@ impl ADBExecutor {
     async fn execute_adb_command(&mut self, cmd: &ADBCommand) -> AdbResult<ADBCommandResult> {
         match cmd {
             ADBCommand::Reboot => {
-                let mut guard = self.device.lock().await;
-                let device = if let Some(dev) = guard.as_mut() {
-                    dev
-                } else {
-                    return Err(AdbError::ConfigErr {
-                        detail: "Device not connected".to_string(),
-                    });
-                };
-                let res = device
-                    .reboot(RebootType::System)
-                    .map(|_| ADBCommandResult::Success)
-                    .unwrap_or_else(|e| ADBCommandResult::Failed(e.to_string()));
-                Ok(res)
+                if let Some(device) = self.device.as_mut(){
+                    let res = device
+                        .reboot(RebootType::System)
+                        .map(|_| ADBCommandResult::Success)
+                        .unwrap_or_else(|e| ADBCommandResult::Failed(e.to_string()));
+                    return Ok(res);
+                }
+                Err(AdbError::ConfigErr {
+                    detail: "Device not connected".to_string(),
+                })
             }
-
             ADBCommand::Click(point) => {
                 let _ = self.execute_shell(&click_cmd(point)).await;
                 Ok(ADBCommandResult::Success)
@@ -376,40 +372,36 @@ impl ADBExecutor {
             }
 
             ADBCommand::StartActivity(package_name, activity_name) => {
-                let mut guard = self.device.lock().await;
-                let device = if let Some(dev) = guard.as_mut() {
-                    dev
-                } else {
-                    return Err(AdbError::ConfigErr {
+                if let Some(device) =  self.device.as_mut(){
+                    let res = device
+                        .run_activity(package_name, activity_name)
+                        .map(|_| ADBCommandResult::Success)
+                        .unwrap_or_else(|e| ADBCommandResult::Failed(e.to_string()));
+                    Ok(res)
+                }else {
+                    Err(AdbError::ConfigErr {
                         detail: "Device not connected".to_string(),
-                    });
-                };
-                let res = device
-                    .run_activity(package_name, activity_name)
-                    .map(|_| ADBCommandResult::Success)
-                    .unwrap_or_else(|e| ADBCommandResult::Failed(e.to_string()));
-                Ok(res)
+                    })
+                }
             }
 
             ADBCommand::Capture(sender) => {
-                let mut guard = self.device.lock().await;
-                let device = if let Some(dev) = guard.as_mut() {
-                    dev
-                } else {
-                    return Err(AdbError::ConfigErr {
-                        detail: "Device not connected".to_string(),
-                    });
-                };
-                if let Ok(data) = device.framebuffer_inner() {
-                    if let Ok(_) = sender.send(data) {
-                        Ok(ADBCommandResult::Success)
+                if let Some(device) =  self.device.as_mut(){
+                    if let Ok(data) = device.framebuffer_inner() {
+                        if let Ok(_) = sender.send(data) {
+                            Ok(ADBCommandResult::Success)
+                        } else {
+                            Err(AdbError::SendPictureFailed)
+                        }
                     } else {
-                        Err(AdbError::SendPictureFailed)
+                        Err(AdbError::ExecuteShellFailed {
+                            cmd: "framebuffer_inner".to_string(),
+                            e: "".to_string(),
+                        })
                     }
-                } else {
-                    Err(AdbError::ExecuteShellFailed {
-                        cmd: "framebuffer_inner".to_string(),
-                        e: "".to_string(),
+                }else {
+                    Err(AdbError::ConfigErr {
+                        detail: "Device not connected".to_string(),
                     })
                 }
             }
@@ -442,7 +434,7 @@ impl ADBExecutor {
     /// 封装的三方的shell命令
     async fn execute_shell(&mut self, cmd: &str) -> AdbResult<ADBCommandResult> {
         let mut buffer = Vec::new();
-        if let Some(device) = self.device.lock().await.as_mut() {
+        if let Some(device) =  self.device.as_mut(){
             let res = device
                 .shell_command(&[cmd], &mut buffer)
                 .map(|_| ADBCommandResult::Success)
@@ -513,8 +505,7 @@ impl ADBExecutor {
                 if dev.is_none() {
                     None
                 } else {
-                    let tcp_device = ADBTcpDevice::new(SocketAddr::V4(dev.unwrap()));
-                    if let Ok(device) = tcp_device {
+                    if let Ok(device) = ADBTcpDevice::new(SocketAddr::V4(dev.unwrap())) {
                         Some(Box::new(device))
                     } else {
                         None
@@ -523,12 +514,9 @@ impl ADBExecutor {
             }
             ADBConnectConfig::DirectUsb(_) => None,
         };
-        if device.is_some() {
-            let mut guard = self.device.lock().await;
-            *guard = device;
+        self.device =  device;
+        if self.device.is_some(){
             true
-        } else {
-            false
-        }
+        }else { false }
     }
 }

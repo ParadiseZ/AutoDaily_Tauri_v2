@@ -2,6 +2,8 @@
 
 // 日志系统
 
+extern crate core;
+
 // Legacy modules (will be gradually phased out)
 mod api;
 mod app;

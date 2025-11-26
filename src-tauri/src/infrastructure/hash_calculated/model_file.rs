@@ -1,30 +1,12 @@
 use std::path::PathBuf;
 use tokio::fs::File;
-use tokio::io::BufReader;
+use tokio::io::AsyncReadExt;
 
 use crate::infrastructure::hash_calculated::hash_error::{HashError, HashResult};
 use crate::infrastructure::logging::log_trait::Log;
 use std::hash::Hasher;
-use twox_hash::XxHash64;
-
-macro_rules! compute_hash {
-    ($reader:expr, $hasher:ty) => {{
-        let mut hasher = <$hasher>::default(); // 使用 default() 而不是 new()
-        let mut buffer = [0; 8192];
-
-        loop {
-            let bytes_read = $reader.read(&mut buffer)?;
-            if bytes_read == 0 {
-                break;
-            }
-            hasher.write(&buffer[..bytes_read]); // 使用 write() 而不是 update()
-        }
-
-        Ok(format!("{:x}", hasher.finish())) // 使用 finish() 而不是 finalize()
-    }};
-}
-
-pub fn get_hasher(model_path: &str, length: usize) -> HashResult<String> {
+use twox_hash::XxHash3_64;
+pub async fn get_hasher(model_path: &str) -> HashResult<u64> {
     if !PathBuf::from(model_path).exists() {
         Log::error(&format!("文件{}不存在，计算hash错误！", model_path));
         return Err(HashError::FileNotFound {
@@ -32,18 +14,23 @@ pub fn get_hasher(model_path: &str, length: usize) -> HashResult<String> {
         });
     }
 
-    let file = File::open(&model_path)?;
-    let mut reader = BufReader::new(file);
+    let mut file = File::open(&model_path)
+        .await
+        .map_err(|e| HashError::FileNotFound { path: model_path.to_string() })?;
 
-    match length {
-        64 => compute_hash!(reader, XxHash64), // twox_hash::XxHash64 输出64位
-        // 如果需要其他位数的哈希，可以考虑使用：
-        // 128 => compute_hash!(reader, twox_hash::XxHash128),
-        _ => {
-            Log::warn("不支持的hash长度限制，使用默认的64位xxhash");
-            compute_hash!(reader, XxHash64)
+    // 缓冲区大小，可以根据需要调整
+    let mut buffer = [0u8; 8192];
+    let mut hasher = XxHash3_64::default();
+    // 逐块读取文件并更新哈希
+    loop {
+        let bytes_read = file.read(&mut buffer).await
+            .map_err(|e| HashError::FileReadFailed { path: model_path.to_string()})?;
+        if bytes_read == 0 {
+            break; // 文件读取完毕
         }
+        hasher.write(&buffer[..bytes_read]);
     }
+    Ok(hasher.finish())
 }
 
 /*// 支持自定义种子的包装器

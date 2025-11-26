@@ -2,15 +2,10 @@
 // 定义进程间通信的消息类型和结构
 
 use crate::domain::vision::result::{DetResult, OcrResult};
-use crate::infrastructure::core::{DeviceId, HashMap, ScriptId};
+use crate::infrastructure::core::{DeviceId, MessageId, ScriptId};
 use crate::infrastructure::logging::LogLevel;
 use bincode::{Decode, Encode};
 use std::path::PathBuf;
-use std::time::SystemTime;
-use uuid::Uuid;
-
-/// 消息唯一标识符（使用UUID v7，便于时间排序和调试）
-pub type MessageId = Uuid;
 
 /// IPC消息枚举
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
@@ -29,7 +24,7 @@ impl IpcMessage {
         payload: MessagePayload,
     ) -> Self {
         Self {
-            id: Uuid::now_v7(),
+            id: MessageId::new_v7(),
             source_or_target,
             message_type,
             payload,
@@ -94,7 +89,6 @@ pub enum MessagePayload {
     Heartbeat(HeartbeatMessage),
 
     // 性能监控消息
-    Performance(PerformanceMessage),
 
     // 资源管理消息
     Resource(ResourceMessage),
@@ -116,7 +110,7 @@ pub enum MessagePayload {
 pub struct ProcessControlMessage {
     pub action: ProcessAction,
     pub process_id: DeviceId,
-    pub parameters: HashMap<String, String>,
+    //pub parameters: HashMap<String, String>,
 }
 
 #[derive(Debug, Encode, Clone, Decode, PartialEq)]
@@ -137,7 +131,7 @@ pub struct ScriptManagementMessage {
     pub action: ScriptAction,
     pub script_id: ScriptId,
     pub script_content: Option<String>,
-    pub parameters: HashMap<String, serde_json::Value>,
+    //pub parameters: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
@@ -154,7 +148,7 @@ pub enum ScriptAction {
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct StateSyncMessage {
     pub state_type: StateType,
-    pub data: HashMap<String, serde_json::Value>,
+    //pub data: HashMap<String, String>,
     pub version: u64,
 }
 
@@ -182,13 +176,6 @@ pub struct HeartbeatMessage {
     pub memory_usage: u64,
 }
 
-/// 性能监控消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub struct PerformanceMessage {
-    pub metrics_type: MetricsType,
-    pub data: HashMap<String, f64>,
-    pub timestamp: SystemTime,
-}
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub enum MetricsType {

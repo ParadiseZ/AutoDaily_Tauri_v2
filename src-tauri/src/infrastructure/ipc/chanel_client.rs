@@ -9,6 +9,7 @@ use crate::infrastructure::ipc::message::{
     HeartbeatMessage, IpcMessage, MessagePayload, MessageType,
 };
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::logging::LogLevel;
 use interprocess::local_socket::tokio::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::tokio::Stream;
 use interprocess::local_socket::ToNsName;
@@ -24,6 +25,12 @@ pub struct IpcClient {
     pub(crate) log_level: AtomicU8,
     log_sender: Arc<Mutex<Option<mpsc::Sender<IpcMessage>>>>,
     ensure_sender: Arc<Mutex<Option<mpsc::Sender<IpcMessage>>>>,
+}
+
+impl std::fmt::Display for IpcClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "IpcClient id:{}, log_level:{}",self.device_id.as_uuid(), LogLevel::from(self.log_level.load(Ordering::Release)))
+    }
 }
 
 impl IpcClient {

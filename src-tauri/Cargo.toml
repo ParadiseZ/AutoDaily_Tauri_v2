@@ -25,6 +25,7 @@ tokio = { version = "1", features = ["full"] }
 crossbeam-channel = "0.5.15"
 image = { version = "0.25", features = ["png", "jpeg"] }
 tracing = "0.1"
+adb_client = {version = "2.1.18"}
 
 
 [build-dependencies]
@@ -60,7 +61,7 @@ thiserror = { workspace = true}
 tracing = { workspace = true }
 tracing-subscriber  = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
-once_cell = "1.21"
+#once_cell = "1.21"
 # time format
 chrono  = "0.4"
 # encode/decode
@@ -82,7 +83,7 @@ num_cpus = "1.17"
 # cpu亲和性
 #core_affinity = "0"
 # 高性能哈希,hashmap
-ahash = "0.8.12"
+ahash = {version = "0.8.12", features = ["serde"]}
 # 高性能哈希,hash值计算/文件一致性
 twox-hash = { version = "2.1.1", features = ["xxhash3_64"] }
 # 哈希加密用

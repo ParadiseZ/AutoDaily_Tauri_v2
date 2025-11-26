@@ -4,6 +4,7 @@ use xcap::Window;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WindowInfo {
+    #[serde(skip)]
     pub window: Option<Window>,
     pub title: Option<String>,
 }

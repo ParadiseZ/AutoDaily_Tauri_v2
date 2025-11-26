@@ -50,9 +50,9 @@ impl ChildProcessInitData {
         set_process_affinity(&self.cpu_cores)
             .map_err(|e| InitError::InitChildCoreAffinity { e: e.to_string() })?;
         //初始化ipc客户端
-        init_ipc_client(Arc::new(self.device_id), self.log_level).map_err(|_| {
+        init_ipc_client(Arc::new(self.device_id), self.log_level.clone()).map_err(|_| {
             InitError::InitChildIpcClientFailed {
-                e: "初始化ipc客户端失败".into_string(),
+                e: "初始化ipc客户端失败".to_string(),
             }
         })?;
 

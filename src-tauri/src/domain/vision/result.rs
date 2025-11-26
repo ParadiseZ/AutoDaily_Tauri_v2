@@ -1,3 +1,4 @@
+use core::fmt;
 use crate::infrastructure::core::{Deserialize, Serialize};
 use bincode::{Decode, Encode};
 
@@ -12,6 +13,22 @@ pub struct DetResult {
     pub score: f32,
 }
 
+impl fmt::Display for DetResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "id: {}, pre_id: {}, next_id: {}, bounding_box: {:?}, index: {}, label: {}, score: {}",
+            self.id,
+            self.pre_id,
+            self.next_id,
+            self.bounding_box,
+            self.index,
+            self.label,
+            self.score
+        )
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq)]
 pub struct OcrResult {
     pub id: i32,
@@ -22,6 +39,23 @@ pub struct OcrResult {
     pub score: Vec<f32>,
     pub index: Vec<usize>,
     pub txt_char: Vec<String>,
+}
+
+impl fmt::Display for OcrResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "id: {}, pre_id: {}, next_id: {}, bounding_box: {:?}, txt: {}, score: {:?}, index: {:?}, txt_char: {:?}",
+            self.id,
+            self.pre_id,
+            self.next_id,
+            self.bounding_box,
+            self.txt,
+            self.score,
+            self.index,
+            self.txt_char
+    )
+}
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Encode, Decode, PartialEq)]

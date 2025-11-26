@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs;
 
 /// 成功返回文件路径，失败返回错误信息
-pub fn save_screenshot(
+pub async fn save_screenshot(
     image_data: &str,
     device_name: &str,
     image_type: &str,
@@ -16,11 +16,11 @@ pub fn save_screenshot(
     let result = match image_type {
         "window" => {
             // 处理窗口截图（base64格式）
-            save_base64_image(image_data, device_name)
+            save_base64_image(image_data, device_name).await
         }
         "adb" => {
             // 未来用于处理ADB截图
-            save_base64_image(image_data, device_name)
+            save_base64_image(image_data, device_name).await
         }
         _ => {
             let error_msg = format!("未知的截图方式: {}", image_type);
@@ -40,7 +40,7 @@ pub fn save_screenshot(
 /// 保存base64编码的图像到文件
 ///
 /// 返回保存的文件路径或错误信息
-pub fn save_base64_image(base64_image: &str, title: &str) -> Result<String, String> {
+pub async fn save_base64_image(base64_image: &str, title: &str) -> Result<String, String> {
     // 确保目录存在
     match PathUtil::sure_parent_exists(&PathBuf::from(SCREENSHOT_DIR)) {
         Ok(_) => Log::info(&format!("目录 {} 已确认可用", SCREENSHOT_DIR)),
@@ -71,14 +71,14 @@ pub fn save_base64_image(base64_image: &str, title: &str) -> Result<String, Stri
     let path_str = file_path.to_string_lossy().to_string();
 
     // 保存图像
-    match fs::write(&file_path, image_data) {
+    match fs::write(&file_path, image_data).await {
         Ok(_) => {
             Log::info(&format!("图像已保存到: {}", path_str));
             Ok(path_str)
         }
         Err(e) => {
             Log::error(&format!("保存图像失败: {:?}", e));
-            Err(e)
+            Err(e.to_string())
         }
     }
 }
