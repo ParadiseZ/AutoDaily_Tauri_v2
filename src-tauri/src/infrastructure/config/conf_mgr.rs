@@ -7,9 +7,11 @@ use crate::infrastructure::core::HashMap;
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use std::any::Any;
 use std::fs;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
+use serde::Deserialize;
 use tauri::path::BaseDirectory;
 use tauri::Manager;
+use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct ConfigManager {
@@ -24,7 +26,7 @@ impl ConfigManager {
             caches: Arc::new(RwLock::new(HashMap::new())),
         }
     }
-    pub async fn init_category<C: ConfigCategory + 'static>(
+    pub async fn init_category<C: ConfigCategory + 'static + Deserialize + Send>(
         &self,
         category: &str,
         base_dir: BaseDirectory,
@@ -32,10 +34,11 @@ impl ConfigManager {
         // 使用新 API 获取配置文件路径
         let path = get_app_handle()
             .path()
-            .resolve(format!("{}", category), base_dir)?;
+            .resolve(format!("{}", category), base_dir)
+            .map_err(|e| LoadErr { path: category.to_string(), e: e.to_string() })?;
 
         // 确保目录存在
-        PathUtil::sure_parent_exists(&path)?;
+        PathUtil::sure_parent_exists(&path).map_err(|e| LoadErr { path: category.to_string(), e: e.to_string() })?;
 
         // 尝试从文件加载
         let config = if path.exists() {
@@ -68,10 +71,13 @@ impl ConfigManager {
         category: &str,
     ) -> ConfigResult<C> {
         let caches = self.caches.read().await;
-        let (data, _) = caches.get(category).ok_or_else(|e| NotInitErr {
-            conf_category: category.into(),
-            e,
-        })?;
+        let (data, _) = match caches.get(category) {
+            Some(v) => v,
+            None => return Err(NotInitErr {
+                conf_category: category.into(),
+                e: "NotInit".into(),
+            }),
+        };
 
         // 尝试转换为具体类型
         let config = data.downcast_ref::<C>().ok_or_else(|e| CastErr { e })?;
@@ -84,13 +90,13 @@ impl ConfigManager {
         category: &str,
     ) -> ConfigResult<ConfigWriteGuard<'_, C>> {
         let caches = self.caches.write().await;
-        let (data, path) = caches
-            .get(category)
-            .ok_or_else(|e| NotInitErr {
+        let (data, path) = match caches.get(category) {
+            Some(v) => v,
+            None => return Err(NotInitErr {
                 conf_category: category.into(),
-                e,
-            })?
-            .clone();
+                e: "NotInit".into(),
+            }),
+        };
 
         // 先获取当前配置的拷贝作为初始值
         let current_config = {
@@ -110,10 +116,13 @@ impl ConfigManager {
     /// 保存配置到文件
     async fn save_category<C: ConfigCategory + 'static>(&self, category: &str) -> ConfigResult<()> {
         let caches = self.caches.read().await;
-        let (data, path) = caches.get(category).ok_or_else(|e| NotInitErr {
-            conf_category: category.into(),
-            e,
-        })?;
+        let (data, path) = match caches.get(category) {
+            Some(v) => v,
+            None => return Err(NotInitErr {
+                conf_category: category.into(),
+                e: "NotInit".into(),
+            }),
+        };
         // 从内存中的配置生成JSON
         let config_ref = data.downcast_ref::<C>().ok_or_else(|e| CastErr { e })?;
         let json = serde_json::to_string_pretty(config_ref).map_err(|e| SerializeErr {

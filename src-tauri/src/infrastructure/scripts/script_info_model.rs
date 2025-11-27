@@ -272,7 +272,7 @@ pub struct ScriptMeta {
         &self,
         info_path: &PathBuf,
     ) -> Result<u64, Box<dyn std::error::Error>> {
-        // 轻量方案：仅 info.json；后续可扩展 decision/*.json 的最大mtime
+        // 轻量方案：仅 info.json；后续可扩展 decision的最后修改日期
         let file_meta = tokio::fs::metadata(info_path).await?;
         let last_modified = file_meta
             .modified()?

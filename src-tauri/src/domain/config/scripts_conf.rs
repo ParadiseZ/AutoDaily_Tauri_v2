@@ -42,7 +42,7 @@ impl ScriptsConfig {
             .state::<ConfigManager>()
             .get_conf_mut::<ScriptsConfig>(SCRIPTS_CONFIG_PATH)
             .await{
-            Ok(conf) => conf.dir =  dir,
+            Ok(mut conf) => conf.dir =  dir,
             Err(e) => {
                 Log::error( format!(    "设置脚本根目录{}失败:{}", dir.to_string_lossy().to_string(), e.to_string()).as_str())
             },

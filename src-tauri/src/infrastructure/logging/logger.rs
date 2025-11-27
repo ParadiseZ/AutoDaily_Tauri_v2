@@ -65,7 +65,6 @@ lazy_static!{
 // Convert string log level to LevelFilter
 pub fn parse_log_level(level: &LogLevel) -> LevelFilter {
     match level {
-        //Logl => LevelFilter::TRACE,
         LogLevel::Debug => LevelFilter::DEBUG,
         LogLevel::Info => LevelFilter::INFO,
         LogLevel::Warn => LevelFilter::WARN,
@@ -79,18 +78,10 @@ impl LogMain {
         let level_filter = parse_log_level(level);
 
         // Safely handle the mutex and update the log level
-        let handle_opt = match LOG_LEVEL_HANDLE.lock().await {
-            Ok(guard) => guard,
-            Err(poison_err) => {
-                // 尝试从有毒的互斥锁中恢复数据
-                return Err(LogError::LockLevelFilterErr { e: poison_err });
-            }
-        };
-
-        if let Some(handle) = handle_opt.as_ref() {
+        if let Some(handle) = LOG_LEVEL_HANDLE.lock().await.as_ref() {
             handle
                 .reload(level_filter)
-                .map_err(|e| LogError::ReloadFilterErr { e })?;
+                .map_err(|e| LogError::ReloadFilterErr { e: e.to_string() })?;
             Log::info(format!("主线程日志级别变更为: {:?}", level).as_ref());
         } else {
             return Err(LogError::ReloadDataNotInit);
@@ -141,10 +132,8 @@ impl LogMain {
         let (filter, reload_handle) = reload::Layer::new(log_level_filter);
 
         // Store the reload handle for later use - safely handle the mutex
-        match LOG_LEVEL_HANDLE.lock() {
-            Ok(mut handle) => *handle = Some(reload_handle),
-            Err(e) => return Err(LogError::LockLevelFilterErr { e }),
-        }
+        let guard =  LOG_LEVEL_HANDLE.lock().await;
+        *guard = Some(reload_handle);
 
         // Set up a single layer for file logging
         let file_layer = fmt::Layer::new()

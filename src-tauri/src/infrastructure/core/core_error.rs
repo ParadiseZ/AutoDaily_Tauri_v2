@@ -7,22 +7,8 @@ pub enum CoreError {
     LockPoisoned { e: String },
 }
 
-// 统一处理读锁错误
-pub async fn read_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockReadGuard<T> {
-    lock.read().await
-        .unwrap_or_else(|e: PoisonError<_>| e.into_inner())
-}
-
-// 统一处理写锁错误
-pub async fn write_lock<T>(lock: &Arc<RwLock<T>>) -> RwLockWriteGuard<T> {
-    lock.write().await
-        .unwrap_or_else(|e: PoisonError<_>| e.into_inner())
-}
-
 pub type CoreResult<T> = Result<T, CoreError>;
 
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 use bincode::{Decode, Encode};
-use std::sync::{Arc, PoisonError};
-use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 pub use CoreError::*;

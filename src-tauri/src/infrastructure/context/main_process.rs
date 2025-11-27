@@ -1,5 +1,4 @@
-use crate::domain::config::scripts_conf::ScriptsConfig;
-use crate::infrastructure::context::init_error::{InitError, InitResult};
+use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{DeviceId, HashMap};
 use crate::infrastructure::devices::device_conf::DeviceConfMap;
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
@@ -7,7 +6,6 @@ use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
 use memmap2::Mmap;
 use std::sync::{Arc, RwLock};
-use tauri::Manager;
 
 pub type MemoryMap = Arc<RwLock<Vec<(String, Mmap)>>>;
 
@@ -27,16 +25,13 @@ pub struct MainProcessCtx {
 }
 
 impl MainProcessCtx {
-    pub async fn init_scripts_mgr(script_cache_size: usize) -> InitResult<()> {
+    pub async fn init_scripts_mgr() -> InitResult<()> {
         Log::info("初始化脚本管理器...");
         // 创建脚本管理器并加载索引
-        let mut script_manager = ScriptManager::new(script_cache_size);
+        //let mut script_manager = ScriptManager::new(script_cache_size);
 
         // 加载所有脚本数据
-        script_manager
-            .load_from_directory(&ScriptsConfig::get_dir().await)
-            .await
-            .map_err(|e| InitError::InitMainScriptMgrErr { e: e.to_string() })?;
+        //script_manager .load_from_directory(&ScriptsConfig::get_dir().await).await.map_err(|e| InitError::InitMainScriptMgrErr { e: e.to_string() })?;
         Ok(())
     }
 
