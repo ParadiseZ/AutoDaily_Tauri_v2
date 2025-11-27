@@ -34,7 +34,7 @@ impl MainProcessCtx {
 
         // 加载所有脚本数据
         script_manager
-            .load_from_directory(ScriptsConfig::get_dir().await.as_ref())
+            .load_from_directory(&ScriptsConfig::get_dir().await)
             .await
             .map_err(|e| InitError::InitMainScriptMgrErr { e: e.to_string() })?;
         Ok(())

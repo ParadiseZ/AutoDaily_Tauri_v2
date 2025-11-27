@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
 use memmap2::Mmap;
-use ndarray::{s, Array, Array4, Axis};
+use ndarray::{s, Array, ArrayD, ArrayViewD, Axis};
 
 #[derive(Debug)]
 pub struct YoloDet<'a> {
@@ -66,7 +66,7 @@ impl ModelHandler for YoloDet {
         (self.base_model.input_width, self.base_model.input_height)
     }
 
-    fn preprocess(&self, image: &DynamicImage) -> VisionResult<(Array4<f32>, [f32; 2], [u32; 2])> {
+    fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
         // 实现YOLO特有的预处理逻辑
         // 1. 图像解码
         // 2. 尺寸调整为模型输入尺寸
@@ -93,10 +93,10 @@ impl ModelHandler for YoloDet {
         // Normalize and add batch dimension
         let input = img_array.mapv(|x| x as f32 / 255.0).insert_axis(Axis(0));
 
-        Ok((input, [scale, scale], [origin_h, origin_w]))
+        Ok((input.into_dyn(), [scale, scale], [origin_h, origin_w]))
     }
 
-    async fn inference(&mut self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
+    async fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }
@@ -122,7 +122,7 @@ impl ModelHandler for YoloDet {
 impl TextDetector for YoloDet {
     fn postprocess(
         &self,
-        output_data: &Array4<f32>,
+        output: ArrayViewD<f32>,
         scale_factor: [f32; 2],
         _origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
@@ -132,7 +132,7 @@ impl TextDetector for YoloDet {
         // 3. 坐标转换
 
         let mut boxes: Vec<DetResult> = Vec::new();
-        let output = output_data.slice(s![0, .., .., 0]);
+        let output = output.slice(s![0, .., .., 0]);
         // let scale = origin_w.max(origin_h) as f32 / target_width as f32;
         let scale = scale_factor[0];
         for row in output.axis_iter(Axis(0)) {

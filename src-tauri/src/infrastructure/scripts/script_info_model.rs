@@ -1,12 +1,10 @@
 use crate::infrastructure::core::time_format::LocalTimer;
 use crate::infrastructure::core::{Deserialize, HashMap, ScriptId, Serialize};
-use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::scripts::script_error::{LoadFromCacheErr, ScriptError, ScriptResult};
 use crate::infrastructure::scripts::script_info::{RuntimeType, ScriptInfo, ScriptType};
-use std::cmp::Ordering;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU8;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 /// 分页查询参数
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,7 +82,7 @@ pub struct ScriptMeta {
     pub execution_count: u64,
 }
 
-impl ScriptManager {
+/*impl ScriptManager {
     pub fn new(cache_size: usize) -> Self {
         Self {
             script_index: Arc::new(RwLock::new(HashMap::new())),
@@ -105,7 +103,7 @@ impl ScriptManager {
                 .read()
                 .await
                 .values()
-                .filter(async |meta| self.matches_filter(meta.read().await, &request.filter))
+                .filter(async |meta| self.matches_filter(&*meta.read().await, &request.filter))
                 .cloned()
                 .collect()
         };
@@ -127,7 +125,7 @@ impl ScriptManager {
         // 4. 按需加载完整的ScriptInfo（只加载当前页需要的）
         let scripts = page_metadata
             .iter()
-            .map(|meta| self.load_script_info(meta.script_id))
+            .map(async |meta| self.load_script_info(meta.read().await.script_id.clone()))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| ScriptError::LoadFromFileErr {
                 path: scripts_dir.to_string_lossy().to_string(),
@@ -151,11 +149,11 @@ impl ScriptManager {
         }*/
 
         // 从文件加载
-        if let Some(entry) = self.script_index.read().await.get(&script_id).read().await {
-            let script = self.load_from_file(&entry.file_path)?;
+        if let Some(entry) = self.script_index.read().await.clone().get(&script_id) {
+            let script = self.load_from_file(&entry.clone().read().await.file_path)?;
 
             // 更新缓存（LRU逻辑）
-            if self.script_cache.len() >= self.cache_size {
+            if self.script_cache.len() >= self.cache_size.load(std::sync::atomic::Ordering::Acquire) as usize {
                 // 移除最老的项
                 if let Some((oldest_id, _)) = self.script_cache.iter().next() {
                     let oldest_id = *oldest_id;
@@ -242,7 +240,7 @@ impl ScriptManager {
             }
             match self.load_script_metadata_from_file(&info_path).await {
                 Ok(meta) => {
-                    self.script_index.write().await.insert(meta.script_id, meta);
+                    self.script_index.write().await.insert(meta.script_id, Arc::new(RwLock::new(meta)));
                 }
                 Err(e) => {
                     Log::error(&format!("加载索引数据失败，路径 {:?}: {}", info_path, e));
@@ -252,7 +250,7 @@ impl ScriptManager {
         Log::error(&format!(
             "从{}文件夹加载{}个脚本",
             scripts_dir.to_string_lossy().to_string(),
-            self.script_index.read().await.len
+            self.script_index.read().await.len()
         ));
         Ok(())
     }
@@ -302,7 +300,7 @@ impl ScriptManager {
             self.script_index
                 .write()
                 .await
-                .insert(metadata.script_id, metadata.clone());
+                .insert(metadata.script_id, Arc::new(RwLock::new(metadata.clone())));
         }
 
         // 更新缓存
@@ -343,9 +341,9 @@ impl ScriptManager {
         //self.sort_metadata(all_metadata)
 
         // 复合排序
-        all_metadata.sort_by(|a, b| {
+        all_metadata.sort_by(async |a, b| {
             for (field, order) in &sort_rules {
-                let cmp = Self::get_ordering(a,b,field);
+                let cmp = Self::get_ordering(&a.read().await, &b.read().await, field);
 
                 let final_cmp = match order {
                     SortOrder::Asc => cmp,
@@ -367,7 +365,7 @@ impl ScriptManager {
         let page_metadata = &all_metadata[start_idx..end_idx];
         let scripts = page_metadata
             .iter()
-            .map(|meta| self.load_script_info(meta.script_id))
+            .map(async |meta| self.load_script_info(meta.clone().read().await.script_id.clone()   ))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(ScriptPageResp {
@@ -378,4 +376,4 @@ impl ScriptManager {
             total_pages: (total_count + page_size - 1) / page_size,
         })
     }
-}
+}*/

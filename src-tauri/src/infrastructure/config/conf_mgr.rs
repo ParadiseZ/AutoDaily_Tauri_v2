@@ -4,7 +4,6 @@ use crate::infrastructure::config::conf_error::{
 };
 use crate::infrastructure::config::conf_write_guard::{ConfigCategory, ConfigWriteGuard};
 use crate::infrastructure::core::HashMap;
-use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use std::any::Any;
 use std::fs;
@@ -130,41 +129,5 @@ impl ConfigManager {
         //.context("Failed to write config file")?;
 
         Ok(())
-    }
-
-    pub async fn get<C: ConfigCategory + 'static>(category: &str) -> C {
-        match get_app_handle()
-            .state::<ConfigManager>()
-            .get_conf::<C>(category)
-            .await
-        {
-            Ok(category) => category,
-            Err(e) => {
-                Log::info(&format!(
-                    "获取配置{:?}失败：{},将采用生成的默认配置",
-                    category,
-                    e.to_string()
-                ));
-                C::default()
-            }
-        }
-    }
-
-    pub async fn get_mut<C: ConfigCategory + 'static>(category: &str) -> ConfigWriteGuard<'_, C> {
-        match get_app_handle()
-            .state::<ConfigManager>()
-            .get_conf_mut::<C>(category)
-            .await
-        {
-            Ok(category) => category,
-            Err(e) => {
-                Log::info(&format!(
-                    "获取配置{:?}失败：{},将采用生成的默认配置",
-                    category,
-                    e.to_string()
-                ));
-                C::default()
-            }
-        }
     }
 }

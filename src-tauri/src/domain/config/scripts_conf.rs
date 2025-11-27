@@ -4,6 +4,7 @@ use crate::infrastructure::config::conf_error::ConfigResult;
 use crate::infrastructure::config::conf_mgr::ConfigManager;
 use crate::infrastructure::config::conf_write_guard::ConfigCategory;
 use crate::infrastructure::core::{Deserialize, Serialize};
+use crate::infrastructure::logging::log_trait::Log;
 use std::path::PathBuf;
 use tauri::Manager;
 
@@ -27,15 +28,25 @@ impl ConfigCategory for ScriptsConfig {
 
 impl ScriptsConfig {
     pub async fn get_dir() -> PathBuf {
-        ConfigManager::get::<ScriptsConfig>(SCRIPTS_CONFIG_PATH)
-            .await
-            .dir
+        match get_app_handle()
+            .state::<ConfigManager>()
+            .get_conf::<ScriptsConfig>(SCRIPTS_CONFIG_PATH)
+            .await{
+            Ok(conf) => conf.dir,
+            Err(_) => ScriptsConfig::default().dir,
+        }
     }
 
     pub async fn set_dir(dir: PathBuf) -> ConfigResult<()> {
-        ConfigManager::get_mut::<ScriptsConfig>(SCRIPTS_CONFIG_PATH)
-            .await
-            .dir = dir;
+        match get_app_handle()
+            .state::<ConfigManager>()
+            .get_conf_mut::<ScriptsConfig>(SCRIPTS_CONFIG_PATH)
+            .await{
+            Ok(conf) => conf.dir =  dir,
+            Err(e) => {
+                Log::error( format!(    "设置脚本根目录{}失败:{}", dir.to_string_lossy().to_string(), e.to_string()).as_str())
+            },
+        }
         Ok(())
     }
 }

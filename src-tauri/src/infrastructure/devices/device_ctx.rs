@@ -23,7 +23,7 @@ pub struct DeviceCtx {
     pub cap_rx: crossbeam_channel::Receiver<RgbaImage>,
 
     // 窗口信息
-    pub window_info: Arc<RwLock<Option<WindowInfo>>>,
+    pub window_info: Arc<WindowInfo>,
 }
 
 impl DeviceCtx {
@@ -39,7 +39,7 @@ impl DeviceCtx {
             //adb_ctx,
             cap_tx: tx,
             cap_rx: rx,
-            window_info: Arc::new(RwLock::new(None)),
+            window_info: Arc::new(WindowInfo::init("default_null")),
         }
     }
 
@@ -47,12 +47,12 @@ impl DeviceCtx {
         match self.capture_method.load(Ordering::Acquire) {
             1 => {
                 Log::debug("验证窗口截图设置...");
-                if let Ok(win) = self.window_info.clone().read().as_ref() {
-                    win.is_some()
-                } else {
+                let win = self.window_info.window.read().await;
+                if !win.is_some(){
                     Log::error("验证截图设置失败：未初始化窗口信息！");
-                    false
+                    return false;
                 }
+                true
             }
             2 => {
                 Log::debug("验证adb截图设置...");
@@ -69,21 +69,17 @@ impl DeviceCtx {
         match self.capture_method.load(Ordering::Acquire) {
             1 => {
                 Log::debug("窗口方式截图...");
-                if let Ok(guard) = self.window_info.read() {
-                    if let Some(win) = guard.as_ref(){
-                        match win.window.capture_image() {
-                            Ok(img) => {
-                                return Some(img);
-                            },
-                            Err(e) => {
-                                Log::error(&format!("截图失败：{}", e.to_string()));
-                            }
+                if let Some(win) = self.window_info.window.read().await.as_ref(){
+                    match win.capture_image() {
+                        Ok(img) => {
+                            return Some(img);
+                        },
+                        Err(e) => {
+                            Log::error(&format!("截图失败：{}", e.to_string()));
                         }
-                    } else {
-                        Log::error("截图失败：未初始化目标窗口信息！");
                     }
                 } else {
-                    Log::error("截图失败：获取窗口数据锁失败！");
+                    Log::error("截图失败：未初始化目标窗口信息！");
                 }
                 None
             }

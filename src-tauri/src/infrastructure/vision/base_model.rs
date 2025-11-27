@@ -1,3 +1,4 @@
+use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::execution_provider_mgr::{
     configure_or_switch_provider, InferenceBackend,
@@ -5,7 +6,7 @@ use crate::infrastructure::ort::execution_provider_mgr::{
 use crate::infrastructure::vision::base_traits::ModelHandler;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use memmap2::Mmap;
-use ndarray::Array4;
+use ndarray::{ArrayD, ArrayViewD};
 use ort::inputs;
 use ort::logging::LogLevel;
 use ort::session::builder::GraphOptimizationLevel;
@@ -54,6 +55,12 @@ pub enum ModelType {
     PaddleCrnn5,
 }
 
+#[derive(Debug)]
+pub enum PostprocessRes{
+    Detection(Vec<DetResult>),
+    Recognition(Vec<OcrResult>),
+}
+
 impl BaseModel {
     pub fn new(
         input_width: u32,
@@ -87,7 +94,6 @@ impl BaseModel {
         model_type_name: &str,
     ) -> VisionResult<()> {
         // 1. 解析模型路径
-
 
         Log::info(&format!("加载{}模型", model_type_name));
 
@@ -153,13 +159,10 @@ impl BaseModel {
     /// 正确使用ORT线程设置和Rayon线程池配合
     pub async fn inference_base<T: ModelHandler>(
         &mut self,
-        input: Array4<f32>,
+        input: ArrayViewD<f32>,
         handler: &T,
-    ) -> VisionResult<Array4<f32>> {
+    ) -> VisionResult<ArrayD<f32>> {
         if let Some(session) = self.session.as_mut() {
-            // 尝试获取推理线程池，如果没有则回退到普通推理
-            //let mut session_guard = session.lock().await;
-
             // 创建输入张量
             let input_tensor =
                 TensorRef::from_array_view(&input).map_err(|e| VisionError::DataProcessingErr {
@@ -167,7 +170,7 @@ impl BaseModel {
                     e: e.to_string(),
                 })?;
 
-            // 执行推理 - ORT内部使用单线程(由with_intra_threads(1)控制)
+            // 执行推理
             let outputs = session
                 .run(inputs![handler.get_input_node_name() => input_tensor])
                 .map_err(|e| VisionError::InferenceErr {
@@ -182,27 +185,17 @@ impl BaseModel {
                     method: "inference_base".to_string(),
                     e: e.to_string(),
                 })?;
-
+            Log::debug(&format!("模型输出维度: {}", view.ndim()));
             // 处理不同的输出格式
             let output = match self.model_type {
                 // YOLO需要转置
-                ModelType::Yolo11 => view.t().into_owned(),
-                ModelType::PaddleCrnn5 => view.into_owned(),
-                ModelType::PaddleDet5 => view.into_owned(),
+                ModelType::Yolo11 => view.t().to_owned(),
+                ModelType::PaddleCrnn5 => view.to_owned(),
+                ModelType::PaddleDet5 => view.to_owned(),
             };
 
-            // 重塑输出形状
-            let shape: [usize; 4] = {
-                let s = output.shape();
-                [s[0], s[1], s[2], s[3]]
-            };
-
-            output
-                .into_shape_with_order(ndarray::Ix4(shape[0], shape[1], shape[2], shape[3]))
-                .map_err(|e| VisionError::DataProcessingErr {
-                    method: "inference_base".to_string(),
-                    e: e.to_string(),
-                })?
+            // 直接返回 ArrayDyn，由调用者处理具体的维度逻辑
+            Ok(output)
         } else {
             Err(VisionError::IoError {
                 path: "[推理阶段]".to_string(),

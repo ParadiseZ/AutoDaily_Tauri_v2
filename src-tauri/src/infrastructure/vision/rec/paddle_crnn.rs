@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use image::DynamicImage;
 use imageproc::drawing::Canvas;
 use memmap2::Mmap;
-use ndarray::{Array3, Array4, ArrayViewMut3, Axis};
+use ndarray::{Array3, Array4, ArrayD, ArrayViewD, ArrayViewMut3, Axis};
 use rayon::prelude::*;
 
 #[derive(Debug)]
@@ -60,7 +60,7 @@ impl ModelHandler for PaddleRecCrnn {
         (self.base_model.input_width, self.base_model.input_height)
     }
 
-    fn preprocess(&self, img: &DynamicImage) -> VisionResult<(Array4<f32>, [f32; 2], [u32; 2])> {
+    fn preprocess(&self, img: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
         // 获取原始图像尺寸
         let (origin_w, origin_h) = img.dimensions();
         let target_height = self.get_target_height();
@@ -131,10 +131,10 @@ impl ModelHandler for PaddleRecCrnn {
         // 扩展到批次维度 (1, C, H, W)
         let input = input.insert_axis(Axis(0));
 
-        Ok((input, [ratio, ratio], [origin_h, origin_w]))
+        Ok((input.into_dyn(), [ratio, ratio], [origin_h, origin_w]))
     }
 
-    async fn inference(&mut self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
+    async fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }
@@ -160,7 +160,7 @@ impl ModelHandler for PaddleRecCrnn {
 impl TextRecognizer for PaddleRecCrnn {
     fn postprocess(
         &self,
-        output: &Array4<f32>,
+        output: ArrayViewD<f32>,
         det_result: &DetResult,
         batch_size: usize,
     ) -> VisionResult<OcrResult> {
@@ -313,7 +313,7 @@ impl TextRecognizer for PaddleRecCrnn {
 
     fn postprocess_batch(
         &self,
-        output: &Array4<f32>,
+        output: &ArrayD<f32>,
         det_result: &[DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
         let batch_size = output.shape()[0];
@@ -328,7 +328,7 @@ impl TextRecognizer for PaddleRecCrnn {
         let ocr_res: Vec<OcrResult> = det_result
             .into_par_iter()
             .enumerate()
-            .filter_map(|(i, det_res)| self.postprocess(output, det_res, i).ok())
+            .filter_map(|(i, det_res)| self.postprocess(output.view(), det_res, i).ok())
             .collect();
         if ocr_res.len() != batch_size {
             Log::error("识别部分行的文字错误！");

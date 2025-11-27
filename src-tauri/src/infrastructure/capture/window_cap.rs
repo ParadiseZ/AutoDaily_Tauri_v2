@@ -1,21 +1,24 @@
-use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::logging::log_trait::Log;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use xcap::Window;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct WindowInfo {
-    #[serde(skip)]
-    pub window: Window,
-    pub title: String,
+    pub window: Arc<RwLock<Option<Window>>>,
+    pub title: Arc<RwLock<Option<String>>>,
 }
 
 impl WindowInfo {
-    pub(crate) fn init(window_name: &str) -> Option<Self> {
+    pub(crate) fn init(window_name: &str) -> Self {
         // 获取所有窗口
         let windows = Window::all();
         if let Err(e) = windows {
             Log::error(&format!("获取窗口列表失败: {:?}", e));
-            return None;
+            return Self {
+                window: Arc::new(RwLock::new(None)),
+                title: Arc::new(RwLock::new(None)),
+            };
         }
         for window in windows.unwrap() {
             // 最小化的窗口不能截屏
@@ -30,12 +33,15 @@ impl WindowInfo {
             if title.contains(window_name) {
                 //Log::info(&format!("找到目标窗口: {}", title));
                 // 找到并截图后退出循环
-                return Some(Self {
-                    window,
-                    title,
-                });
+                return Self {
+                    window: Arc::new(RwLock::new(Some(window))),
+                    title: Arc::new(RwLock::new(Some(title))),
+                };
             }
         }
-        None
+        Self {
+            window: Arc::new(RwLock::new(None)),
+            title: Arc::new(RwLock::new(None)),
+        }
     }
 }

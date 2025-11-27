@@ -48,10 +48,7 @@ impl IpcClient {
         let stream = LocalSocketStream::connect(
             SOCKET_NAME
                 .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
-                .map_err(async |e| ChannelError::ConnectErr {
-                    device_id: self.device_id.clone().to_string(),
-                    e: e.to_string(),
-                })?,
+                .map_err(|e| ChannelError::ConnectErr { device_id: self.device_id.clone().to_string(), e: e.to_string(), })?
         )
         .await
         .map_err(|e| ChannelError::ConnectErr {

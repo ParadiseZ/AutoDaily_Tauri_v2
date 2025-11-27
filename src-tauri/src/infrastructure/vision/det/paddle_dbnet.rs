@@ -9,7 +9,7 @@ use image::{DynamicImage, GenericImageView, ImageBuffer};
 use imageproc::contours::find_contours;
 use imageproc::point::Point;
 use memmap2::Mmap;
-use ndarray::{s, Array3, Array4, Axis};
+use ndarray::{s, Array3, ArrayD, ArrayViewD, Axis};
 
 /// dbNet通常值
 const MIN_AREA: f32 = 3.0;
@@ -74,7 +74,7 @@ impl ModelHandler for PaddleDetDbNet {
         (self.base_model.input_width, self.base_model.input_height)
     }
 
-    fn preprocess(&self, image: &DynamicImage) -> VisionResult<(Array4<f32>, [f32; 2], [u32; 2])> {
+    fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
         // 实现DBNet特有的预处理逻辑
         // 1. 图像解码
         // 2. 尺寸调整 (保持长宽比, padding)
@@ -129,10 +129,10 @@ impl ModelHandler for PaddleDetDbNet {
         let input = input.insert_axis(Axis(0));
         let scale_factor = [scale, scale]; // [h_scale, w_scale]
 
-        Ok((input, scale_factor, origin_shape))
+        Ok((input.into_dyn(), scale_factor, origin_shape))
     }
 
-    async fn inference(&mut self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
+    async fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }
@@ -158,7 +158,7 @@ impl ModelHandler for PaddleDetDbNet {
 impl TextDetector for PaddleDetDbNet {
     fn postprocess(
         &self,
-        output: &Array4<f32>,
+        output: ArrayViewD<f32>,
         scale_factor: [f32; 2],
         origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
@@ -333,7 +333,7 @@ fn get_bounding_rect(points: &[Point<i32>]) -> (Vec<Point<i32>>, f32) {
 
 // 快速计算轮廓内概率图的平均分
 fn box_score_fast(
-    prob_map: &ndarray::ArrayD<f32>,
+    prob_map: &ArrayD<f32>,
     points: &[Point<i32>],
     rect: &[Point<i32>],
 ) -> f32 {

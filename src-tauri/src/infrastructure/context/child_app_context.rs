@@ -1,7 +1,7 @@
-use crate::infrastructure::context::init_error::{InitError, InitResult};
+use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
-use std::sync::Arc;
 use lazy_static::lazy_static;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 // 应用上下文
 
@@ -11,13 +11,9 @@ lazy_static!{
 
 
 pub async fn init_child_app_ctx(app_ctx: AppCtx) -> InitResult<()> {
-    match CHILD_APP_CONTEXT.write().await {
-        Ok(mut ctx) => {
-            *ctx = Some(app_ctx);
-            Ok(())
-        }
-        Err(e) => Err(InitError::InitChildAppCtxFailed { e: e.to_string() }),
-    }
+    let mut guard = CHILD_APP_CONTEXT.write().await;
+    *guard = Some(app_ctx);
+    Ok(())
 }
 pub struct AppCtx {
     //脚本上下文

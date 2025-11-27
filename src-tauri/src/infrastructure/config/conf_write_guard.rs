@@ -31,7 +31,7 @@ impl<'a, C: ConfigCategory> std::ops::DerefMut for ConfigWriteGuard<'a, C> {
         &mut self.config
     }
 }
-impl<'a, C: ConfigCategory + 'static+ Clone + Serialize + Send + Sync> Drop for ConfigWriteGuard<'a, C> {
+impl<'a, C: ConfigCategory + 'static + Clone + Serialize + Send + Sync> Drop for ConfigWriteGuard<'a, C> {
     fn drop(&mut self) {
         // 在后台异步保存（不阻塞主线程）
         let config = self.config.clone();
