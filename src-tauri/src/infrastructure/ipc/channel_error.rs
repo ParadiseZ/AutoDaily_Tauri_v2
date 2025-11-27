@@ -31,7 +31,7 @@ pub enum ChannelError {
     #[error("解码消息失败:{e}")]
     DecodeErr { e: String },
 
-    #[error("发送非日志消息失败:{e}")]
+    #[error("发送消息失败:{e}")]
     SendErr { e: String },
 
     #[error("向设备[{device_id}]发送消息失败: {e}")]

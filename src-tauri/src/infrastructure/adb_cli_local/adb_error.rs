@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use crate::infrastructure::core::{Deserialize, Serialize};
 
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum AdbError {

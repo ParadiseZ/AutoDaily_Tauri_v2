@@ -1,5 +1,8 @@
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum VisionError {
+    #[error("读取模型文件{path}失败: {e}")]
+    OpenModelFailed{path: String, e:String},
+
     #[error(transparent)]
     LoadModelErr(#[from] OrtError::LoadModelErr),
 

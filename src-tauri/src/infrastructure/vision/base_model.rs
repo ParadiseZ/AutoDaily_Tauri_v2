@@ -9,13 +9,13 @@ use ndarray::Array4;
 use ort::inputs;
 use ort::logging::LogLevel;
 use ort::session::builder::GraphOptimizationLevel;
-use ort::session::Session;
+use ort::session::{InMemorySession, Session};
 use ort::value::TensorRef;
 
 /// 基础模型结构 - 包含所有模型的通用字段
-#[derive(Debug)]
-pub struct BaseModel {
-    pub session: Option<Session>,
+
+pub struct BaseModel<'s> {
+    pub session: Option<InMemorySession<'s>>,
     pub intra_thread_num: usize,
     pub intra_spinning: bool,
     pub inter_thread_num: usize,
@@ -28,6 +28,25 @@ pub struct BaseModel {
     pub is_loaded: bool,
     pub model_type: ModelType,
 }
+
+impl std::fmt::Debug for BaseModel{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "BaseModel[session:hidden, intra_thread_num: {}, intra_spinning: {}, inter_thread_num: {}, inter_spinning: {}, execution_provider: {:?}, input_width: {}, input_height: {}, model_bytes_map: hidden, is_loaded: {}, model_type: {:?}]",
+            self.intra_thread_num,
+            self.intra_spinning,
+            self.inter_thread_num,
+            self.inter_spinning,
+            self.execution_provider,
+            self.input_width,
+            self.input_height,
+            self.is_loaded,
+            self.model_type
+        )
+    }
+}
+
 #[derive(Debug)]
 pub enum ModelType {
     Yolo11,
@@ -123,7 +142,7 @@ impl BaseModel {
 
 
         // 5. 更新状态
-        self.session = Some(*session);
+        self.session = Some(session);
         self.is_loaded = true;
 
         Log::debug(&format!("{}模型加载成功", model_type_name));
@@ -133,13 +152,13 @@ impl BaseModel {
     /// 通用的推理方法 - 消除推理代码重复 🆕
     /// 正确使用ORT线程设置和Rayon线程池配合
     pub async fn inference_base<T: ModelHandler>(
-        &self,
+        &mut self,
         input: Array4<f32>,
         handler: &T,
     ) -> VisionResult<Array4<f32>> {
-        if let Some(session) = &self.session {
+        if let Some(session) = self.session.as_mut() {
             // 尝试获取推理线程池，如果没有则回退到普通推理
-            let mut session_guard = session.lock().await;
+            //let mut session_guard = session.lock().await;
 
             // 创建输入张量
             let input_tensor =
@@ -149,7 +168,7 @@ impl BaseModel {
                 })?;
 
             // 执行推理 - ORT内部使用单线程(由with_intra_threads(1)控制)
-            let outputs = session_guard
+            let outputs = session
                 .run(inputs![handler.get_input_node_name() => input_tensor])
                 .map_err(|e| VisionError::InferenceErr {
                     method: "inference_base".to_string(),
@@ -187,7 +206,7 @@ impl BaseModel {
         } else {
             Err(VisionError::IoError {
                 path: "[推理阶段]".to_string(),
-                e: "模型未加载",
+                e: "模型未加载".to_string(),
             })
         }
     }

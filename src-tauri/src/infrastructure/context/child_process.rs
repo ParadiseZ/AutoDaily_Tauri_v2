@@ -93,7 +93,7 @@ impl ChildProcessCtx {
             self.process_device_tasks().await?;
 
             // 心跳和健康检查
-            self.send_heartbeat().await?;
+            //self.send_heartbeat().await?;
 
             // 短暂休眠，避免CPU占用过高
             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;

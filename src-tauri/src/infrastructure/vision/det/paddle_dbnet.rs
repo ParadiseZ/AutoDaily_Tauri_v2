@@ -17,8 +17,8 @@ const MIN_AREA: f32 = 3.0;
 const MIN_AREA_AFTER: f32 = 5.0; //MIN_AREA+2.0
 
 #[derive(Debug)]
-pub struct PaddleDetDbNet {
-    pub base_model: BaseModel,
+pub struct PaddleDetDbNet<'a> {
+    pub base_model: BaseModel<'a>,
     pub db_thresh: f32,
     pub db_box_thresh: f32,
     pub unclip_ratio: f32,

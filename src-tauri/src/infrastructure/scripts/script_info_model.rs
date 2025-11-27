@@ -345,7 +345,7 @@ impl ScriptManager {
         // 复合排序
         all_metadata.sort_by(|a, b| {
             for (field, order) in &sort_rules {
-                let cmp = self.get_ordering(field);
+                let cmp = Self::get_ordering(a,b,field);
 
                 let final_cmp = match order {
                     SortOrder::Asc => cmp,

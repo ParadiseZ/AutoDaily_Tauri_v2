@@ -30,7 +30,7 @@ impl IpcClient {
         level as u8 >= self.log_level.load(Ordering::Acquire)
     }
     pub fn create_logger_and_send(&self, log_level: LogLevel, msg: &str) {
-        self.send(IpcMessage::new(
+        self.send_uncertain(IpcMessage::new(
             *self.device_id,
             MessageType::Logger,
             MessagePayload::Logger(LogMessage {

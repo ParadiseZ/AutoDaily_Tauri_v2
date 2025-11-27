@@ -1,9 +1,8 @@
-use crate::command::{
+use crate::infrastructure::adb_cli_local::adb_command::{
     click_cmd, input_text_cmd, sleep_cmd, stop_app_cmd, swipe_cmd, swipe_with_duration_cmd,
     ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME,
 };
-use crate::config::ADBConnectConfig;
-use crate::error::{AdbError, AdbResult};
+
 use adb_client::{ADBDeviceExt, ADBServer, ADBTcpDevice, RebootType};
 use crossbeam_channel::bounded;
 use std::collections::HashSet;
@@ -14,10 +13,13 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
+use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
+use crate::infrastructure::logging::log_trait::Log;
 
 pub struct ADBExecutor {
     device: Option<Box<dyn ADBDeviceExt>>,
-    adb_config: Arc<Mutex<ADBConnectConfig>>, //from RuntimeContext
+    pub adb_config: Arc<Mutex<ADBConnectConfig>>, //from RuntimeContext
 
     cmd_rx: crossbeam_channel::Receiver<ADBCommand>,
     cmd_loop_rx: crossbeam_channel::Receiver<ADBCommand>,
@@ -26,7 +28,7 @@ pub struct ADBExecutor {
     //core : CoreId,
     executor_is_looping: Arc<AtomicBool>,
     //paused: Arc<AtomicBool>,
-    cmds_after_conversion: Arc<Mutex<VecDeque<ADBCmdConv>>>,
+    pub cmds_after_conversion: Arc<Mutex<VecDeque<ADBCmdConv>>>,
     duration: Duration,
     need_duration: Arc<AtomicBool>,
 }
@@ -61,14 +63,10 @@ impl ADBExecutor {
             cmd_loop_tx,
         )
     }
-    pub async fn validate_config(&mut self) -> bool {
-        self.try_to_connect().await
+    pub async fn validate_config(&self) -> bool {
+        self.adb_config.clone().lock().await.valid()
     }
 
-    pub async fn update_config(&mut self, adb_config: ADBConnectConfig) {
-        let mut guard = self.adb_config.lock().await;
-        *guard = adb_config;
-    }
 
     pub async fn run(mut self) {
         let (tx, rx) = bounded(1);
@@ -181,7 +179,6 @@ impl ADBExecutor {
         }
     }
 
-    /// execute_adb_command需要获取锁，所以在之前先判断一次
     async fn low_speed_cmd(&mut self, cmd_low: &ADBCommand) {
         match cmd_low {
             ADBCommand::Loop { .. } => {}
@@ -195,12 +192,11 @@ impl ADBExecutor {
             ADBCommand::Resume => {}
             _ => {
                 if let Err(e) = self.execute_adb_command(cmd_low).await {
-                    self.error_tx
+                    let _ = self.error_tx
                         .send(ADBCommandResult::Failed(format!(
                             "执行操作{:?}失败：{}",
                             cmd_low, e
-                        )))
-                        .unwrap();
+                        )));
                 }
             }
         }
@@ -243,8 +239,7 @@ impl ADBExecutor {
             ADBCommand::Back => cmds_str.push_back(ADBCmdConv::ADBShellCommand(BACK.to_string())),
             ADBCommand::Home => cmds_str.push_back(ADBCmdConv::ADBShellCommand(HOME.to_string())),
             ADBCommand::Sequence(cmds) => {
-                let mut cmd_string = String::new();
-                Self::translate_sequence_cmd(cmds, &mut cmd_string);
+                let cmd_string = Self::translate_sequence_cmd(cmds);
                 cmds_str.push_back(ADBCmdConv::ADBShellCommand(cmd_string))
             }
             // 忽略其他命令
@@ -255,7 +250,8 @@ impl ADBExecutor {
 
     /// 转换命令序列为单条命令
     /// 注意： 有忽略其他命令的行为，新增时记得是否更新代码
-    fn translate_sequence_cmd(cmds: &[ADBCommand], cmd_string: &mut String) {
+    fn translate_sequence_cmd(cmds: &[ADBCommand])-> String {
+        let mut cmd_string = String::new();
         for sub_cmd in cmds.iter() {
             match sub_cmd {
                 ADBCommand::Click(point) => {
@@ -296,6 +292,8 @@ impl ADBExecutor {
         if cmd_string.ends_with("&&") {
             cmd_string.truncate(cmd_string.len() - 2)
         }
+        Log::debug(format!("命令队列：{}", cmd_string.as_str()).as_str());
+        cmd_string
     }
 
     /// 循环中执行转换后的命令
@@ -318,22 +316,6 @@ impl ADBExecutor {
                     // 重试一次
                     let _ = self.execute_shell(cmd).await;
                 };
-                /*let mut guard = {
-                    self.device.lock().await
-                };
-                if guard.is_some() {
-                    let _ = guard.unwrap().as_ref().execute_shell(cmd);
-                }else {
-                    tokio::time::sleep(Duration::from_secs(3)).await;
-                    self.reconnect().await;
-                    let mut guard = {
-                        self.device.lock().await
-                    };
-                    // 重试一次
-                    if guard.is_some() {
-                        let _ = guard.unwrap().as_ref().execute_shell(cmd);
-                    }
-                };*/
             }
             ADBCmdConv::ADBSleepCommand(ADBCommand::Duration(interval)) => {
                 tokio::time::sleep(Duration::from_secs(*interval)).await;
@@ -415,8 +397,7 @@ impl ADBExecutor {
             ADBCommand::Home => self.execute_shell(HOME).await,
 
             ADBCommand::Sequence(cmds) => {
-                let mut cmd_string = String::new();
-                Self::translate_sequence_cmd(cmds, &mut cmd_string);
+                let cmd_string = Self::translate_sequence_cmd(cmds);
                 self.execute_shell(&cmd_string).await
             }
             //此类命令在此不执行
@@ -428,6 +409,16 @@ impl ADBExecutor {
             }
             //此类命令在此不执行
             ADBCommand::Pause | ADBCommand::Resume => Ok(ADBCommandResult::Success),
+
+            ADBCommand::ChangeConnectConfig( config)=>{
+                {
+                    self.device = None;
+                    let mut old_conf = self.adb_config.lock().await;
+                    *old_conf = config.clone();
+                }
+                self.reconnect().await;
+                Ok(ADBCommandResult::Success)
+            }
         }
     }
 
@@ -467,7 +458,7 @@ impl ADBExecutor {
                         dev.adb_config.server_connect.unwrap(),
                         dev.adb_config.adb_path.clone(),
                     )
-                    .get_device_by_name(dev.device_name.as_ref().unwrap().as_str());
+                        .get_device_by_name(dev.device_name.as_ref().unwrap().as_str());
                     if let Ok(device) = device {
                         Some(Box::new(device))
                     } else {

@@ -12,8 +12,8 @@ use ndarray::{Array3, Array4, ArrayViewMut3, Axis};
 use rayon::prelude::*;
 
 #[derive(Debug)]
-pub struct PaddleRecCrnn {
-    pub base_model: BaseModel,
+pub struct PaddleRecCrnn<'a> {
+    pub base_model: BaseModel<'a>,
     pub dict: Vec<String>,
 }
 
@@ -134,7 +134,7 @@ impl ModelHandler for PaddleRecCrnn {
         Ok((input, [ratio, ratio], [origin_h, origin_w]))
     }
 
-    async fn inference(&self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
+    async fn inference(&mut self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }

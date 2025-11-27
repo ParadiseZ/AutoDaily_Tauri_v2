@@ -46,13 +46,13 @@ impl From<u8> for LogLevel {
 }
 
 impl std::fmt::Display for LogLevel {
-    fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            LogLevel::Debug => "debug",
-            LogLevel::Info => "info",
-            LogLevel::Warn => "warn",
-            LogLevel::Error => "error",
-            LogLevel::Off => "off",
+            LogLevel::Debug => "Debug",
+            LogLevel::Info => "Info",
+            LogLevel::Warn => "Warn",
+            LogLevel::Error => "Error",
+            LogLevel::Off => "Off",
         };
         write!(f, "{}", s)
     }

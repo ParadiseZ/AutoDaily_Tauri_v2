@@ -42,13 +42,13 @@ pub mod child_process {
         // 从环境变量获取序列化的上下文数据
         let context_data = std::env::var("CHILD_CONTEXT_DATA").map_err(|_| {
             ChildProcessError::FailedToInitialize {
-                e: "缺少子进程上下文数据环境变量".into_string(),
+                e: "缺少子进程上下文数据环境变量".to_string(),
             }
         })?;
 
-        let init_data: ChildProcessInitData = serde_json::from_str(&context_data).map_err(|e| {
+        let init_data: ChildProcessInitData = serde_json::from_str(&context_data).map_err(|_| {
             ChildProcessError::FailedToInitialize {
-                e: "解析上下文数据失败".into_string(),
+                e: "反序列化上下文数据失败".to_string(),
             }
         })?;
 
@@ -67,15 +67,15 @@ pub mod child_process {
         // 设置运行状态
         set_running_status(RunningStatus::Idle);
         // 设置信号处理器，优雅关闭
-        let mut context_for_signal = init_data.clone();
+        //let mut context_for_signal = init_data.clone();
         tokio::spawn(async move {
             tokio::signal::ctrl_c()
                 .await
                 .expect("Failed to listen for ctrl+c");
             println!("Received shutdown signal, shutting down child process...");
-            if let Err(e) = context_for_signal.shutdown().await {
+            /*if let Err(e) = context_for_signal.shutdown().await {
                 eprintln!("Error during shutdown: {}", e);
-            }
+            }*/
         });
         Ok(())
     }

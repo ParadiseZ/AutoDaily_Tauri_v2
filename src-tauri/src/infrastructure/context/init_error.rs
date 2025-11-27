@@ -3,6 +3,9 @@ pub enum InitError {
     #[error("child-初始化上下文失败: {e}")]
     InitChildAppCtxFailed { e: String },
 
+    #[error("child-初始化adb上下文失败: {e}")]
+    InitChildAdbCtxFailed { e: String },
+
     #[error("child初始化IPC客户端失败: {e}")]
     InitChildIpcClientFailed { e: String },
 

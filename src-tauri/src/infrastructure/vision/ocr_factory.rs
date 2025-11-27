@@ -158,11 +158,20 @@ pub struct RecognizerConfig {
 pub struct OcrModelFactory;
 
 impl OcrModelFactory {
+
+    async fn open_model_file(path: &PathBuf) -> VisionResult<File> {
+        File::open(path)
+            .await
+            .map_err(|e| VisionError::OpenModelFailed {
+                path: path.to_string_lossy().to_string(),
+                e: e.to_string(),
+            })
+    }
     /// 内部方法：创建检测器实现（不通过管理器）
     pub(crate) async fn create_detector(
         config: DetectorConfig,
     ) -> VisionResult<Arc<dyn TextDetector>> {
-        let file = File::open(&config.model_path)?;
+        let file = Self::open_model_file(&config.model_path).await?;
 
         let mmap = unsafe {
             Mmap::map(&file).map_err(|e| VisionError::MappingErr {
@@ -215,7 +224,7 @@ impl OcrModelFactory {
         config: RecognizerConfig,
     ) -> VisionResult<Arc<dyn TextRecognizer>> {
         //let model_bytes = Self::resolve_model_path(&config.model_path).await?;
-        let file = File::open(&config.model_path)?;
+        let file = Self::open_model_file(&config.model_path).await?;
 
         let mmap = unsafe {
             Mmap::map(&file).map_err(|e| VisionError::MappingErr {
@@ -263,7 +272,7 @@ impl OcrModelFactory {
     /// 加载字典文件
     async fn load_dict(dict_path: &PathBuf) -> VisionResult<Vec<String>> {
         let content = read_to_string(dict_path).await.map_err(|e| VisionError::IoError {
-            path: dict_path.to_string(),
+            path: dict_path.to_string_lossy().to_string(),
             e: e.to_string(),
         })?;
 
@@ -275,7 +284,7 @@ impl OcrModelFactory {
 
         if dict.is_empty() {
             return Err(VisionError::IoError {
-                path: dict_path.to_string(),
+                path: dict_path.to_string_lossy().to_string(),
                 e: "字典文件为空".to_string(),
             });
         }

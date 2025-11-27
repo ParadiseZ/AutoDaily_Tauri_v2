@@ -25,11 +25,11 @@ pub async fn dev_capture_test(
     device_conf: DeviceConfig,
     adb_conf: ADBConnectConfig,
 ) -> Result<String, String> {
-    let adb_ctx = ADBCtx::new(adb_conf);
+    ADBCtx::new(adb_conf).await;
     let device_ctx = DeviceCtx::new(
         Arc::new(RwLock::new(device_conf)),
         CaptureMethod::from(method),
-        Arc::new(RwLock::new(adb_ctx)),
+        //Arc::new(RwLock::new(adb_ctx)),
     );
 
     if !device_ctx.valid_capture().await {
@@ -60,12 +60,12 @@ pub async fn dev_capture_test(
 
 /// 保存截图到文件
 #[command]
-pub fn save_captured_image(
+pub async fn save_captured_image(
     image_data: &str,
     device_name: &str,
     image_type: &str,
 ) -> Result<String, String> {
-    save_screenshot(image_data, device_name, image_type)
+    save_screenshot(image_data, device_name, image_type).await
 }
 
 #[command]

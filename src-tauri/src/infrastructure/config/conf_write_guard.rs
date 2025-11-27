@@ -4,6 +4,7 @@ use std::any::Any;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLockWriteGuard;
+use crate::infrastructure::core::Serialize;
 
 // 配置存储
 pub trait ConfigCategory {
@@ -30,7 +31,7 @@ impl<'a, C: ConfigCategory> std::ops::DerefMut for ConfigWriteGuard<'a, C> {
         &mut self.config
     }
 }
-impl<'a, C: ConfigCategory + 'static> Drop for ConfigWriteGuard<'a, C> {
+impl<'a, C: ConfigCategory + 'static+ Clone + Serialize + Send + Sync> Drop for ConfigWriteGuard<'a, C> {
     fn drop(&mut self) {
         // 在后台异步保存（不阻塞主线程）
         let config = self.config.clone();

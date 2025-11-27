@@ -18,3 +18,12 @@ impl From<u8> for CaptureMethod {
         }
     }
 }
+
+impl std::fmt::Display for CaptureMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CaptureMethod::Window => write!(f, "窗口截图"),
+            CaptureMethod::ADB => write!(f, "ADB截图"),
+        }
+    }
+}

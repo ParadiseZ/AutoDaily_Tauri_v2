@@ -1,8 +1,8 @@
-use serde::Deserialize;
 use std::net::SocketAddrV4;
 use std::path::PathBuf;
+use crate::infrastructure::core::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AdbServerConfig {
     pub(crate) adb_path: Option<String>,
     pub(crate) server_connect: Option<SocketAddrV4>,
@@ -52,4 +52,16 @@ pub enum ADBConnectConfig {
     ServerConnectByIp(AdbServerConnectIp),
     DirectTcp(Option<SocketAddrV4>),
     DirectUsb(DirectUsbConnect),
+}
+
+
+impl ADBConnectConfig {
+    pub fn valid(&self) -> bool {
+        match self {
+            ADBConnectConfig::ServerConnectByName(config) => config.valid(),
+            ADBConnectConfig::ServerConnectByIp(config) => config.valid(),
+            ADBConnectConfig::DirectTcp(config) => config.is_some(),
+            ADBConnectConfig::DirectUsb(_) => false,
+        }
+    }
 }

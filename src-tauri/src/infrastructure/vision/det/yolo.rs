@@ -12,8 +12,8 @@ use memmap2::Mmap;
 use ndarray::{s, Array, Array4, Axis};
 
 #[derive(Debug)]
-pub struct YoloDet {
-    pub base_model: BaseModel,
+pub struct YoloDet<'a> {
+    pub base_model: BaseModel<'a>,
     pub class_count: usize,
     pub class_labels: Vec<String>,
     pub confidence_thresh: f32,
@@ -96,7 +96,7 @@ impl ModelHandler for YoloDet {
         Ok((input, [scale, scale], [origin_h, origin_w]))
     }
 
-    async fn inference(&self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
+    async fn inference(&mut self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }

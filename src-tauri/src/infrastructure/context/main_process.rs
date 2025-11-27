@@ -34,7 +34,7 @@ impl MainProcessCtx {
 
         // 加载所有脚本数据
         script_manager
-            .load_from_directory(ScriptsConfig::get_dir())
+            .load_from_directory(ScriptsConfig::get_dir().await.as_ref())
             .await
             .map_err(|e| InitError::InitMainScriptMgrErr { e: e.to_string() })?;
         Ok(())
@@ -42,14 +42,16 @@ impl MainProcessCtx {
 
     /// 搜索脚本数据
     pub async fn init_(
-        &mut self,
-        request: crate::infrastructure::scripts::script_info_model::ScriptPageReq,
+        &mut self
+        //request: crate::infrastructure::scripts::script_info_model::ScriptPageReq,
     ) -> Result<
-        crate::infrastructure::scripts::script_info_model::ScriptPageResp,
+        //crate::infrastructure::scripts::script_info_model::ScriptPageResp,
+        (),
         Box<dyn std::error::Error>,
     > {
         Log::info("初始化脚本管理器...");
-        self.script_manager.read().await.get_scripts_page(request)
+        Ok(())
+        //self.script_manager.read().unwrap().get_scripts_page(request)
     }
 
     /*    /// 添加设备配置（小量数据，直接存储在内存）

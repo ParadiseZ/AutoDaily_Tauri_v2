@@ -13,6 +13,12 @@ pub enum InferenceBackend {
     CPU,
 }
 
+impl std::fmt::Display for InferenceBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 impl InferenceBackend {
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {

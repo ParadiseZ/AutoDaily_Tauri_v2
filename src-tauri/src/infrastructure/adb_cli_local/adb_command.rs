@@ -1,23 +1,6 @@
 use image::RgbaImage;
-use serde::{Deserialize, Serialize};
-use std::fmt;
-
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, Hash, PartialEq)]
-pub struct Point {
-    pub x: u32,
-    pub y: u32,
-}
-
-impl Point {
-    pub fn new(x: u32, y: u32) -> Self {
-        Point { x, y }
-    }
-}
-impl fmt::Display for Point {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, " {} {}", self.x, self.y)
-    }
-}
+use crate::domain::scripts::script_decision::Point;
+use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
 // Constants
 pub const BACK: &str = "input keyevent 4";
@@ -86,6 +69,7 @@ pub enum ADBCommand {
     //以下命令不参与执行器的操作执行
     Loop(Vec<ADBCommand>),
     StopLoop(bool),
+    ChangeConnectConfig(ADBConnectConfig),
 
     Pause,
     Resume,

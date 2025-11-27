@@ -49,13 +49,13 @@ impl IpcClient {
             SOCKET_NAME
                 .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
                 .map_err(async |e| ChannelError::ConnectErr {
-                    device_id: self.device_id.to_string(),
+                    device_id: self.device_id.clone().to_string(),
                     e: e.to_string(),
                 })?,
         )
         .await
-        .map_err(async |e| ChannelError::ConnectErr {
-            device_id: self.device_id.to_string(),
+        .map_err(|e| ChannelError::ConnectErr {
+            device_id: self.device_id.clone().to_string(),
             e: e.to_string(),
         })?;
 
@@ -87,7 +87,7 @@ impl IpcClient {
         *self.ensure_sender.lock().await = None;
 
         Err(ChannelError::ChannelClosed {
-            device_id: self.device_id.to_string(),
+            device_id: self.device_id.clone().to_string(),
         })
     }
 
@@ -180,7 +180,7 @@ impl IpcClient {
         let encoded = encode_to_vec(msg, serialize_config())
             .map_err(|e| ChannelError::EncodeErr { e: e.to_string() })?;
         let len = u32::try_from(encoded.len()).map_err(|e| ChannelError::MessageTooLong {
-            detail: "发送失败！".to_string(),
+            detail: e.to_string(),
         })?;
         writer
             .write_all(&len.to_le_bytes())
@@ -203,7 +203,7 @@ impl IpcClient {
         Ok(())
     }
 
-    fn send_uncertain(&self, log: IpcMessage) {
+    pub fn send_uncertain(&self, log: IpcMessage) {
         if let Ok(tx) = self.log_sender.try_lock() {
             if let Some(sender) = tx.as_ref() {
                 let _ = sender.send(log); // 失败就丢弃
@@ -211,13 +211,13 @@ impl IpcClient {
         }
     }
 
-    async fn send_ensure(&self, msg: IpcMessage) -> ChannelResult<()> {
+    pub async fn send_ensure(&self, msg: IpcMessage) -> ChannelResult<()> {
         let tx = self.ensure_sender.lock().await;
         if let Some(sender) = tx.as_ref() {
-            sender.send(msg).await.map_err(|_| ChannelError::SendErr)
+            sender.send(msg).await.map_err(|e| ChannelError::SendErr{e: e.to_string()})
         } else {
             Err(ChannelError::ChannelClosed {
-                device_id: self.device_id.to_string(),
+                device_id: self.device_id.clone().to_string(),
             })
         }
     }
@@ -230,7 +230,7 @@ impl IpcClient {
                     if let Ok((msg, _)) =
                         decode_from_slice::<IpcMessage, _>(&buffer, serialize_config())
                     {
-                        Self::handle_msg(msg).await;
+                        Self::handle_msg(msg);
                     }
                 }
                 Err(_) => break, // 连接断开
