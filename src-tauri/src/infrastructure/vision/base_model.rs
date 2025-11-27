@@ -9,7 +9,7 @@ use ndarray::Array4;
 use ort::inputs;
 use ort::logging::LogLevel;
 use ort::session::builder::GraphOptimizationLevel;
-use ort::session::{InMemorySession, Session};
+use ort::session::InMemorySession;
 use ort::value::TensorRef;
 
 /// 基础模型结构 - 包含所有模型的通用字段

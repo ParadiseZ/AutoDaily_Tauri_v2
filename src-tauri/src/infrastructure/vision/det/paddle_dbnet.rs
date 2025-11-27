@@ -132,7 +132,7 @@ impl ModelHandler for PaddleDetDbNet {
         Ok((input, scale_factor, origin_shape))
     }
 
-    async fn inference(&self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
+    async fn inference(&mut self, input: Array4<f32>) -> VisionResult<Array4<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self).await
     }
