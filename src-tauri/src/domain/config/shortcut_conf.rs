@@ -1,4 +1,3 @@
-use crate::infrastructure::config::conf_write_guard::ConfigCategory;
 use crate::infrastructure::core::{Deserialize, Serialize};
 
 /// 热键/快捷键配置

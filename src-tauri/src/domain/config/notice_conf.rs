@@ -1,4 +1,3 @@
-use crate::infrastructure::config::conf_write_guard::ConfigCategory;
 use crate::infrastructure::core::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

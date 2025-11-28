@@ -1,4 +1,3 @@
-use crate::infrastructure::config::conf_write_guard::ConfigCategory;
 use crate::infrastructure::core::{Deserialize, Serialize};
 use std::fmt;
 // 日志配置 - 临时实现
