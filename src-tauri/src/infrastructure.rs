@@ -21,6 +21,7 @@ pub mod devices;
 mod hash_calculated;
 pub mod image;
 pub mod ipc;
-mod ort;
+pub mod ort;
 pub mod path_resolve;
 pub mod vision;
+pub mod store_local;

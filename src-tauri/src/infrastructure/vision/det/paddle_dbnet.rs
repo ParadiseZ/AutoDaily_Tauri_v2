@@ -25,7 +25,7 @@ pub struct PaddleDetDbNet<'a> {
     pub use_dilation: bool,
 }
 
-impl PaddleDetDbNet {
+impl PaddleDetDbNet<'_> {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -61,7 +61,7 @@ impl PaddleDetDbNet {
 }
 
 #[async_trait]
-impl ModelHandler for PaddleDetDbNet {
+impl ModelHandler for PaddleDetDbNet<'_> {
     fn load_model(&mut self) -> VisionResult<()> {
         tokio::runtime::Handle::current()
             .block_on(async {
@@ -155,7 +155,7 @@ impl ModelHandler for PaddleDetDbNet {
 }
 
 #[async_trait]
-impl TextDetector for PaddleDetDbNet {
+impl TextDetector for PaddleDetDbNet<'_> {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,

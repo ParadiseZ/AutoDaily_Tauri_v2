@@ -77,8 +77,8 @@ pub struct ScriptMeta {
     pub script_type: ScriptType,
     // 运行时类型：内置/自定义
     pub runtime_type: RuntimeType,
-    pub create_time: LocalTimer::Time,
-    pub last_modified: LocalTimer::Time,
+    pub create_time: LocalTimer,
+    pub last_modified: LocalTimer,
     pub execution_count: u64,
 }
 

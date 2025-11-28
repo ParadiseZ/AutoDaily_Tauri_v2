@@ -14,7 +14,7 @@ pub struct ScriptsConfig {
     pub dir: PathBuf,
 }
 
-impl ConfigCategory for ScriptsConfig {
+impl Default for ScriptsConfig {
     fn default() -> Self {
         Self {
             dir: get_app_handle()

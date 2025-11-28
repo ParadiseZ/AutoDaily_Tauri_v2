@@ -27,7 +27,7 @@ pub enum InitError {
     #[error("main-初始化脚本管理器失败: {e}")]
     InitMainScriptMgrErr { e: String },
 
-    #[error("main-初始化设备{name}信息失败: {e}")]
+    #[error("main-初始化设备{device_name}信息失败: {e}")]
     InitMainDevicesErr { device_name: String, e: String },
 
     #[error("main-初始化设备{device_name}日志级别失败: {e}")]
@@ -43,4 +43,3 @@ pub enum InitError {
 pub type InitResult<T> = Result<T, InitError>;
 
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
-pub use InitError::*;

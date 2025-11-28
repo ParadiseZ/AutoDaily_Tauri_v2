@@ -1,4 +1,3 @@
-use crate::infrastructure::config::conf_error::ConfigError;
 use crate::infrastructure::context::init_error::InitError;
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 use crate::infrastructure::image::img_error::ImageError;
@@ -13,9 +12,6 @@ use crate::infrastructure::vision::vision_error::VisionError;
 pub enum AppError {
     #[error("序列化配置{detail}失败{e}")]
     SerializeConfErr { detail: String, e: String },
-
-    #[error(transparent)]
-    ConfigErr(#[from] ConfigError),
 
     /*#[error(transparent)]
     CapErr(#[from] CapError),*/

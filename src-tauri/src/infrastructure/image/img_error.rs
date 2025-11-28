@@ -10,4 +10,3 @@ pub enum ImageError {
 pub type ImageResult<T> = Result<T, ImageError>;
 
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
-pub use ImageError::*;

@@ -30,7 +30,7 @@ pub struct BaseModel<'s> {
     pub model_type: ModelType,
 }
 
-impl std::fmt::Debug for BaseModel{
+impl std::fmt::Debug for BaseModel<'_>{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -61,7 +61,7 @@ pub enum PostprocessRes{
     Recognition(Vec<OcrResult>),
 }
 
-impl BaseModel {
+impl BaseModel<'_> {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -159,13 +159,13 @@ impl BaseModel {
     /// 正确使用ORT线程设置和Rayon线程池配合
     pub async fn inference_base<T: ModelHandler>(
         &mut self,
-        input: ArrayViewD<f32>,
+        input: ArrayViewD<'_,f32>,
         handler: &T,
     ) -> VisionResult<ArrayD<f32>> {
         if let Some(session) = self.session.as_mut() {
             // 创建输入张量
             let input_tensor =
-                TensorRef::from_array_view(&input).map_err(|e| VisionError::DataProcessingErr {
+                TensorRef::from_array_view(input).map_err(|e| VisionError::DataProcessingErr {
                     method: "inference_base".to_string(),
                     e: e.to_string(),
                 })?;

@@ -1,5 +1,5 @@
 use crate::infrastructure::core::{
-    Deserialize, GuardId, HashMap, PolicyId, ScriptId, Serialize, SubFlowId, TaskId,
+    Deserialize, GuardId, PolicyId, ScriptId, Serialize, SubFlowId, TaskId,
 };
 use std::fmt;
 
@@ -8,7 +8,7 @@ pub enum DecisionError {
     #[error("Repository error: {0}")]
     Repository(String),
     #[error("脚本{script_id}不存在！")]
-    DecisionNotFound(String),
+    DecisionNotFound{script_id: String},
 }
 
 pub type DecisionResult<T> = Result<T, DecisionError>;
@@ -219,5 +219,5 @@ pub trait PolicyRepository: Send + Sync {
 
 pub trait SubFlowRepository: Send + Sync {
     fn load_common_subflows(&self) -> DecisionResult<Vec<SubFlowDef>>;
-    fn load_script_subflows(&self, _script_id: ScriptId) -> DecisionResult<Vec<SubFlowDef>>;
+    fn load_script_subflows(&self, script_id: ScriptId) -> DecisionResult<Vec<SubFlowDef>>;
 }

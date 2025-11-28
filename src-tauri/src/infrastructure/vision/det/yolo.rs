@@ -20,7 +20,7 @@ pub struct YoloDet<'a> {
     pub iou_thresh: f32,
 }
 
-impl YoloDet {
+impl YoloDet<'_> {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -56,7 +56,7 @@ impl YoloDet {
 }
 
 #[async_trait]
-impl ModelHandler for YoloDet {
+impl ModelHandler for YoloDet<'_> {
     fn load_model(&mut self) -> VisionResult<()> {
         tokio::runtime::Handle::current()
             .block_on(async { self.base_model.load_model_base::<Self>("det_yolo").await })
@@ -119,7 +119,7 @@ impl ModelHandler for YoloDet {
 }
 
 #[async_trait]
-impl TextDetector for YoloDet {
+impl TextDetector for YoloDet<'_> {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,

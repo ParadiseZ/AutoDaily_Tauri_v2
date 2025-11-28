@@ -14,15 +14,12 @@ pub mod project {
 }
 
 pub mod sys_conf_path {
-    pub const PERFORMANCE_CONFIG_PATH: &str = "performance.json";
-    pub const SYSTEM_SETTINGS_PATH: &str = "system_settings.json";
-    pub const LOG_CONFIG_PATH: &str = "logs.json";
-
-    pub const SCRIPTS_CONFIG_PATH: &str = "scripts.json";
-
-    pub const DEVICES_CONFIG_PATH: &str = "devices.json";
-
-    pub const EMAIL_CONFIG_PATH: &str = "email.json";
+    pub const APP_STORE: &str = "autodaily.config.json";
+    pub const SYSTEM_SETTINGS_KEY: &str = "system_settings";
+    pub const LOG_CONFIG_KEY: &str = "log_config";
+    pub const SCRIPTS_CONFIG_KEY: &str = "scripts_config";
+    pub const DEVICES_CONFIG_KEY: &str = "devices_config";
+    pub const EMAIL_CONFIG_KEY: &str = "email_config";
 }
 
 pub mod scripts_files {

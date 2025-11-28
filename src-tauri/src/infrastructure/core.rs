@@ -5,7 +5,7 @@ pub mod time_format;
 
 // 重新导出主要类型供外部使用
 pub use ahash::AHashMap as HashMap;
-pub use ahash::AHashSet as HashSet;
+//pub use ahash::AHashSet as HashSet;
 pub use serde::{Deserialize, Serialize};
 //解决版本不一致的问题
 pub use bincode::config::standard as serialize_config;
@@ -41,9 +41,10 @@ impl UuidV7 {
         UuidV7(u128::from_be_bytes(Uuid::now_v7().into_bytes()))
     }
 
+    /// 转成标准字符串（如 "67e5504410b1426f9247bb680e5fe0c8."）
     #[inline(always)]
     pub fn to_string(&self) -> String {
-        /// 转成标准字符串（如 "67e5504410b1426f9247bb680e5fe0c8."）
+
         Uuid::from_bytes(self.0.to_be_bytes()).simple().to_string()
     }
 

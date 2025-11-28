@@ -2,7 +2,6 @@ use lazy_static::lazy_static;
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use tokio::sync::OnceCell;
 
-/// 全局日志
 lazy_static!(
     pub static ref LOGGER: OnceCell<Box<dyn LogTrait>> = OnceCell::new();
 );

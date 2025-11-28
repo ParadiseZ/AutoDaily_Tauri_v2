@@ -1,52 +1,49 @@
+use std::sync::Arc;
 use crate::app::config::short_cut::register_short_cut_by_config;
 use crate::constant::project::MAIN_WINDOW;
-use crate::constant::sys_conf_path::SYSTEM_SETTINGS_PATH;
+use crate::constant::sys_conf_path::{APP_STORE, DEVICES_CONFIG_KEY, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY};
 use crate::domain::config::sys_conf::{StartMode, SystemConfig};
-use crate::infrastructure::app_handle::init_app_handle;
-use crate::infrastructure::config::conf_init::{init_conf_async, init_conf_sync};
-use crate::infrastructure::config::conf_mgr::ConfigManager;
+use crate::infrastructure::app_handle::{init_app_handle};
 use crate::infrastructure::logging::log_trait::Log;
-use sysinfo::Signal::Sys;
 use tauri::path::BaseDirectory;
-use tauri::{App, AppHandle, Manager, State};
-use tracing::trace;
+use tauri::{AppHandle, Manager, Wry};
+use tauri_plugin_store::{Store, StoreExt};
+use crate::domain::config::notice_conf::EmailConfig;
+use crate::domain::config::scripts_conf::ScriptsConfig;
+use crate::infrastructure::devices::device_conf::DeviceConfMap;
+use crate::infrastructure::logging::config::LogMain;
+use crate::infrastructure::store_local::config_store::get_or_init_config;
 
 pub async fn init_at_start(app_handle: &AppHandle) {
     //初始化app_handle
     init_app_handle(app_handle);
-    // 初始化配置管理器
-    init_config_manager(app_handle);
-    // 获取配置管理器
-    let state = app_handle.state::<ConfigManager>();
-    // 同步初始化配置，系统设置、日志设置
-    if let Err(e) = init_conf_sync(&state).await {
-        tracing::error!("同步配置初始化失败：{}", e);
+    //初始化store
+    let store = match app_handle.store(APP_STORE){
+        Ok(store) => store,
+        Err(e) => {
+            panic!("初始化store失败: {}", e);
+        }
     };
-    // 获取系统配置
-    let sys_conf = &state
-        .get_conf::<SystemConfig>(SYSTEM_SETTINGS_PATH)
-        .await
-        .unwrap();
+    // 初始化日志设置
+    let log_conf: LogMain = get_or_init_config(store.clone(), LOG_CONFIG_KEY);
+    let _ = LogMain::init( log_conf,"AutoDaily").await;
+    // 初始化系统设置
+    let sys_conf : SystemConfig = get_or_init_config(store.clone(), SYSTEM_SETTINGS_KEY);
     // 处理开机自启动
     init_autostart(app_handle, &sys_conf);
     // 初始化快捷键设置
     init_short_cut_by_config(app_handle, &sys_conf);
     // 窗口位置初始化
-    init_window_position(app_handle, &sys_conf);
-    // 初始化窗口关闭事件
-    init_close_window_event(app_handle.clone());
+    //init_window_position(app_handle, &sys_conf);
+    // 窗口关闭事件(可参考windows-state插件里的事件拦截)
+    //init_close_window_event(app_handle.clone());
     // 初始化资源路径
     init_resources_path(app_handle);
     // 初始化启动方式
     init_start_model(app_handle, &sys_conf);
 
     // 异步初始化配置，设备设置、脚本设置
-    init_conf_async()
-}
-
-pub fn init_config_manager(app_handle: &AppHandle) {
-    let config_manager = ConfigManager::new();
-    app_handle.manage(config_manager);
+    init_conf_async(store)
 }
 
 pub fn init_autostart(app_handle: &AppHandle, sys_conf: &SystemConfig) {
@@ -105,30 +102,6 @@ pub fn init_short_cut_by_config(app_handle: &AppHandle, sys_conf: &SystemConfig)
     };
 }
 
-pub fn init_close_window_event(app_handle: AppHandle) {
-    // 设置窗口关闭事件处理，在窗口关闭时保存状态
-    if let Some(window) = app_handle.get_webview_window(MAIN_WINDOW) {
-        window.on_window_event(move |event| {
-            // 在窗口关闭时
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                let app_handle = app_handle.clone();
-                tauri::async_runtime::spawn(async move {
-                    // 临时注释掉窗口状态保存，等待重构完成
-                    use crate::app::config::sys_conf::save_window_state_if_enabled;
-                    match save_window_state_if_enabled(&app_handle).await {
-                        Ok(_) => {
-                            Log::info("窗口状态保存成功");
-                        }
-                        Err(e) => {
-                            Log::error(&format!("窗口状态保存失败: {}", e));
-                        }
-                    };
-                });
-            }
-        });
-    }
-}
-
 pub fn init_resources_path(app: &AppHandle) {
     // 静态资源路径
     #[cfg(debug_assertions)]
@@ -148,21 +121,6 @@ pub fn init_resources_path(app: &AppHandle) {
         } else {
             tracing::warn!("无法解析生产模式资源路径");
         }
-    }
-}
-
-pub fn init_window_position(app_handle: &AppHandle, sys_conf: &SystemConfig) {
-    // 根据 rem_size_position 设置决定是否恢复窗口状态
-    if sys_conf.rem_size_position {
-        use tauri_plugin_window_state::StateFlags;
-        // 恢复窗口状态
-        if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
-            use tauri_plugin_window_state::WindowExt;
-            let _ = main_window.restore_state(StateFlags::all());
-            Log::info("窗口状态已恢复");
-        }
-    } else {
-        Log::info("窗口状态记忆功能已禁用");
     }
 }
 
@@ -193,4 +151,22 @@ pub fn init_start_model(app_handel: &AppHandle, sys_conf: &SystemConfig) {
             Log::info("窗口置顶已启用");
         }
     }
+}
+
+
+pub fn init_conf_async(store: Arc<Store<Wry>>) {
+    tokio::spawn(async move {
+        // 设备设置
+        if !store.has(DEVICES_CONFIG_KEY){
+            store.set(DEVICES_CONFIG_KEY, serde_json::to_value(&DeviceConfMap::default()).unwrap_or_default());
+        };
+        // 脚本设置
+        if !store.has(SCRIPTS_CONFIG_KEY){
+            store.set(SCRIPTS_CONFIG_KEY, serde_json::to_value(&ScriptsConfig::default()).unwrap_or_default());
+        };
+        // 通知设置
+        if !store.has(EMAIL_CONFIG_KEY){
+            store.set(EMAIL_CONFIG_KEY, serde_json::to_value(&EmailConfig::default()).unwrap_or_default());
+        };
+    });
 }

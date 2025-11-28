@@ -10,4 +10,3 @@ pub enum ScriptError {
 pub type ScriptResult<T> = Result<T, ScriptError>;
 
 use crate::infrastructure::core::{Deserialize, Error, ScriptId, Serialize};
-pub use ScriptError::*;

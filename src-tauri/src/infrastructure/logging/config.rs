@@ -13,7 +13,7 @@ pub struct LogMain {
     pub retention_days: u32,
 }
 
-impl ConfigCategory for LogMain {
+impl Default for LogMain {
     fn default() -> Self {
         Self {
             log_level: LogLevel::Info,

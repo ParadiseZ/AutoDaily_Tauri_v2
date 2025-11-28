@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::Manager;
 use tokio::fs::{read_to_string, File};
 
 /// 检测器类型枚举
@@ -31,7 +30,7 @@ pub enum RecognizerType {
 pub struct DetectorConfig {
     pub detector_type: DetectorType,
     pub model_path: PathBuf,
-    pub execution_provider: InferenceBackend::Cuda, // "cuda", "dml", "cpu"
+    pub execution_provider: InferenceBackend, // "cuda", "dml", "cpu"
     pub input_width: u32,
     pub input_height: u32,
 
@@ -58,7 +57,7 @@ impl DetectorConfig {
     pub fn new_yolo(
         detector_type: DetectorType,
         model_path: PathBuf,
-        execution_provider: InferenceBackend::Cuda, // "cuda", "dml", "cpu"
+        execution_provider: InferenceBackend, // "cuda", "dml", "cpu"
         input_width: u32,
         input_height: u32,
 
@@ -100,7 +99,7 @@ impl DetectorConfig {
     pub fn new_paddle_det(
         detector_type: DetectorType,
         model_path: PathBuf,
-        execution_provider: InferenceBackend::Cuda, // "cuda", "dml", "cpu"
+        execution_provider: InferenceBackend, // "cuda", "dml", "cpu"
         input_width: u32,
         input_height: u32,
 

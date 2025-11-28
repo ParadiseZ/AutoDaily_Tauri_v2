@@ -3,7 +3,7 @@ use chrono::Local;
 use tracing_subscriber::fmt;
 use tracing_subscriber::fmt::time::FormatTime;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum LocalTimer {
     Time,
     TimeStamp,

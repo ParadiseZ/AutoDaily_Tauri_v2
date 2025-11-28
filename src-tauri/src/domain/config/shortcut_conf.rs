@@ -10,7 +10,7 @@ pub struct ShortCut {
     pub capture: String,
 }
 
-impl ConfigCategory for ShortCut {
+impl Default for ShortCut {
     fn default() -> Self {
         Self {
             toggle_window: "CommandOrControl+H".into(),

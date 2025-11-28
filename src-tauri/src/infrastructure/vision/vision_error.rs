@@ -4,7 +4,7 @@ pub enum VisionError {
     OpenModelFailed{path: String, e:String},
 
     #[error(transparent)]
-    LoadModelErr(#[from] OrtError::LoadModelErr),
+    LoadModelErr(#[from] OrtError),
 
     #[error("{method} 推理引擎配置失败: {e}")]
     SessionConfigFailed { method: String, e: String },
@@ -51,4 +51,3 @@ pub type VisionResult<T> = Result<T, VisionError>;
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 use crate::infrastructure::image::img_error::ImageError;
 use crate::infrastructure::ort::ort_error::OrtError;
-pub use VisionError::*;

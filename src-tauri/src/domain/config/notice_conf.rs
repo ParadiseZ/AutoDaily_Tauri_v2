@@ -13,7 +13,7 @@ pub struct EmailConfig {
     pub recipient: String,
 }
 
-impl ConfigCategory for EmailConfig {
+impl Default for EmailConfig {
     fn default() -> Self {
         Self {
             desktop_notice: true,

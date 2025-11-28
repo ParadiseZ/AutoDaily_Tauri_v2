@@ -14,11 +14,11 @@ impl<T> ApiResponse<T>
 where
     T: Serialize,
 {
-    pub fn ok(data: Option<T>) -> Self<T> {
+    pub fn ok(data: Option<T>) -> Self {
         Self::success(data, None)
     }
 
-    pub fn error(msg: Option<String>) -> Self<T> {
+    pub fn error(msg: Option<String>) -> Self {
         Self {
             success: false,
             data: None,
@@ -26,7 +26,7 @@ where
         }
     }
 
-    pub fn success(data: Option<T>, message: Option<String>) -> Self<T> {
+    pub fn success(data: Option<T>, message: Option<String>) -> Self {
         Self {
             success: true,
             data,
@@ -34,7 +34,7 @@ where
         }
     }
 
-    pub fn failed(data: Option<T>, message: Option<String>) -> Self<T> {
+    pub fn failed(data: Option<T>, message: Option<String>) -> Self {
         Self {
             success: false,
             data,
@@ -47,7 +47,7 @@ impl<T> From<AppResult<T>> for ApiResponse<T>
 where
     T: Serialize,
 {
-    fn from(result: AppResult<T>) -> Self<T> {
+    fn from(result: AppResult<T>) -> Self {
         match result {
             Ok(data) => ApiResponse::ok(Some(data)),
             Err(error) => ApiResponse::error(Some(error.to_string())),

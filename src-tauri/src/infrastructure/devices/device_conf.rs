@@ -1,4 +1,3 @@
-use crate::infrastructure::config::conf_write_guard::ConfigCategory;
 use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, Serialize};
 use crate::infrastructure::devices::adb_info::{AdbConnectSatus, AdbInfo};
 use crate::infrastructure::image::compression::ImageCompression;
@@ -40,7 +39,7 @@ pub enum CapMethod {
     Adb(String),
 }
 
-impl ConfigCategory for DeviceConfig {
+impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
             device_name: "MuMu模拟器12".into(),
@@ -57,11 +56,5 @@ impl ConfigCategory for DeviceConfig {
             image_compression: ImageCompression::WindowOriginal,
             enable: false,
         }
-    }
-}
-
-impl ConfigCategory for DeviceConfMap {
-    fn default() -> Self {
-        HashMap::new()
     }
 }

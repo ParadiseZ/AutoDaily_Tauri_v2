@@ -1,6 +1,5 @@
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
-use tauri::Manager;
 
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum RunningError {

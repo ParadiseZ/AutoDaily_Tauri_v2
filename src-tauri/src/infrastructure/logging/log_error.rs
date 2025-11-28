@@ -15,11 +15,10 @@ pub enum LogError {
     #[error("日志级别数据LOG_LEVEL_HANDLE未初始化")]
     ReloadDataNotInit,
 
-    #[error("设置日志订阅者失败{path}失败: {e}")]
-    SetRegistryErr,
+    #[error("设置日志订阅者失败: {e}")]
+    SetRegistryErr{e:String},
 }
 
 pub type LogResult<T> = Result<T, LogError>;
 
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
-pub use LogError::*;

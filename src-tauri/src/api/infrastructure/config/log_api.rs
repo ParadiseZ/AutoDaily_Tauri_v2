@@ -1,34 +1,15 @@
-use crate::app::config::log_conf::{get_log_config, set_log_config};
-use crate::infrastructure::config::conf_mgr::ConfigManager;
-use crate::infrastructure::logging::config::LogMain;
-use tauri::command;
-
-/// 获取日志配置
-#[command]
-pub async fn get_log_cmd(
-    config_manager: tauri::State<'_, ConfigManager>,
-) -> Result<LogMain, String> {
-    match get_log_config(config_manager).await {
-        Ok(config) => Ok(config),
-        Err(err) => Err(format!("获取日志设置失败：{}", err.to_string())),
-    }
-}
+use crate::app::config::log_conf::{update_log_level_app};
+use crate::infrastructure::logging::LogLevel;
+use tauri::{command};
 
 /// 设置日志配置
 #[command]
-pub async fn set_log_cmd(
-    config_manager: tauri::State<'_, ConfigManager>,
-    log_config: LogMain,
+pub async fn update_log_level_cmd(
+    log_level: LogLevel,
 ) -> Result<String, String> {
-    match set_log_config(
-        config_manager,
-        &log_config.log_level,
-        &*log_config.log_dir,
-        log_config.max_file_size,
-        log_config.retention_days,
-    )
-    .await
-    {
+    match update_log_level_app(
+        &log_level
+    ).await {
         Ok(_) => Ok("设置成功！".to_string()),
         Err(err) => Err(format!("设置失败：{}", err.to_string())),
     }

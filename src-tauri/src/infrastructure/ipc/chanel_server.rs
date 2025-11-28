@@ -17,7 +17,7 @@ use interprocess::local_socket::traits::tokio::Listener;
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, ToNsName};
 use std::sync::Arc;
 use tauri::{Emitter, Manager};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufWriter, WriteHalf};
+use tokio::io::{AsyncWriteExt, BufWriter, WriteHalf};
 use tokio::sync::RwLock as TokioRwLock;
 
 #[derive(Debug, Serialize, Deserialize)]

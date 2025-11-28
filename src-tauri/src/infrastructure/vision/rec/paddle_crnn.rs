@@ -47,7 +47,7 @@ impl PaddleRecCrnn {
 }
 
 #[async_trait]
-impl ModelHandler for PaddleRecCrnn {
+impl ModelHandler for PaddleRecCrnn<'_> {
     fn load_model(&mut self) -> VisionResult<()> {
         tokio::runtime::Handle::current()
             .block_on(async {
@@ -157,7 +157,7 @@ impl ModelHandler for PaddleRecCrnn {
 }
 
 #[async_trait]
-impl TextRecognizer for PaddleRecCrnn {
+impl TextRecognizer for PaddleRecCrnn<'_> {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,
@@ -178,7 +178,7 @@ impl TextRecognizer for PaddleRecCrnn {
         let mut result_text = String::new();
         let mut chars = Vec::new();
         let mut scores = Vec::new();
-        let mut indexs = Vec::new();
+        let mut indexes = Vec::new();
         let mut prev_idx: Option<usize> = None;
         for t in 0..seq_len {
             let mut max_idx = 0;
@@ -198,7 +198,7 @@ impl TextRecognizer for PaddleRecCrnn {
                     if max_idx != prev && max_idx < self.dict.len() {
                         let char = &self.dict[max_idx - 1];
                         scores.push(max_prob);
-                        indexs.push(max_idx - 1);
+                        indexes.push(max_idx - 1);
                         result_text.push_str(char);
                         chars.push(char.into())
                     }
@@ -206,7 +206,7 @@ impl TextRecognizer for PaddleRecCrnn {
                     if max_idx < self.dict.len() {
                         let char = &self.dict[max_idx - 1];
                         scores.push(max_prob);
-                        indexs.push(max_idx - 1);
+                        indexes.push(max_idx - 1);
                         result_text.push_str(char);
                         chars.push(char.into())
                     }
@@ -223,7 +223,7 @@ impl TextRecognizer for PaddleRecCrnn {
             bounding_box: det_result.bounding_box.clone(),
             txt: result_text,
             score: scores,
-            index: indexs,
+            index: indexes,
             txt_char: chars,
         };
         Ok(ocr_result)

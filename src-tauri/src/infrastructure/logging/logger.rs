@@ -1,7 +1,3 @@
-use crate::app::app_error::{AppError, AppResult};
-use crate::constant::sys_conf_path::LOG_CONFIG_PATH;
-use crate::infrastructure::app_handle::get_app_handle;
-use crate::infrastructure::config::conf_mgr::ConfigManager;
 use crate::infrastructure::core::time_format::LocalTimer;
 use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::logging::config::LogMain;
@@ -9,18 +5,14 @@ use crate::infrastructure::logging::log_error::{LogError, LogResult};
 use crate::infrastructure::logging::log_trait::{Log, LogTrait};
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use chrono::Local;
-use ort::execution_providers::set_gpu_device;
-use std::fs;
 use std::path::PathBuf;
 use bincode::{Decode, Encode};
 use lazy_static::lazy_static;
 use tauri::path::BaseDirectory;
-use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use tracing::subscriber::set_global_default;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::filter::LevelFilter;
-use tracing_subscriber::fmt::time::FormatTime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, reload, Registry};
 
@@ -92,19 +84,8 @@ impl LogMain {
 }
 
 impl LogMain {
-    pub async fn init(mgr: &State<ConfigManager>, app_name: &str) -> LogResult<Self> {
-        // 只初始化日志配置，其他配置可以异步加载
-        if let Err(e) = mgr
-            .init_category::<LogMain>(LOG_CONFIG_PATH, BaseDirectory::AppConfig)
-            .await
-        {
-            tracing::error!("Failed to init logging config: {}", e);
-        }
+    pub async fn init(conf: LogMain, app_name: &str) -> LogResult<Self> {
         // 获取日志配置并立即初始化日志系统
-        let conf = mgr
-            .get_conf::<LogMain>(LOG_CONFIG_PATH)
-            .await
-            .map_err(|e| LogError::GetLogConfErr { e: e.to_string() })?;
 
         let log_level_filter = parse_log_level(&conf.log_level);
 
@@ -132,7 +113,7 @@ impl LogMain {
         let (filter, reload_handle) = reload::Layer::new(log_level_filter);
 
         // Store the reload handle for later use - safely handle the mutex
-        let guard =  LOG_LEVEL_HANDLE.lock().await;
+        let mut guard =  LOG_LEVEL_HANDLE.lock().await;
         *guard = Some(reload_handle);
 
         // Set up a single layer for file logging
@@ -155,7 +136,7 @@ impl LogMain {
             .with(stdout_layer)
             .with(file_layer);
 
-        set_global_default(subscriber).map_err(|e| LogError::SetRegistryErr)?;
+        set_global_default(subscriber).map_err(|e| LogError::SetRegistryErr{e: e.to_string()})?;
 
         // Record startup log
         tracing::info!("===== {} 启动 =====", app_name);

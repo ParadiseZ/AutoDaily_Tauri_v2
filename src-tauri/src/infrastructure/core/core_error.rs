@@ -11,4 +11,3 @@ pub type CoreResult<T> = Result<T, CoreError>;
 
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 use bincode::{Decode, Encode};
-pub use CoreError::*;

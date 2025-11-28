@@ -18,6 +18,7 @@ use image::DynamicImage;
 use std::io::Cursor;
 use std::sync::{Arc, RwLock};
 use tauri::{command, AppHandle};
+use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 
 #[command]
 pub async fn dev_capture_test(
@@ -138,9 +139,12 @@ pub async fn paddle_ocr_inference_test(
         2 => DetectorType::Yolo11,
         _ => DetectorType::Yolo11,
     };
-    let det_model_path = PathUtil::resolve_path(&app_handle, model_path_type, det_model_path)?;
-    let rec_path_type = PathUtil::resolve_path(&app_handle, model_path_type, rec_model_path)?;
-    let dict_path_type = PathUtil::resolve_path(&app_handle, model_path_type, dict_path)?;
+    let det_model_path = PathUtil::resolve_path(&app_handle, model_path_type, det_model_path)
+        .map_err(|e| format!("获取模型路径{}失败：{}",det_model_path, e.to_string()))?;
+    let rec_path_type = PathUtil::resolve_path(&app_handle, model_path_type, rec_model_path)
+        .map_err(|e| format!("获取模型路径{}失败：{}",rec_model_path, e.to_string()))?;
+    let dict_path_type = PathUtil::resolve_path(&app_handle, model_path_type, dict_path)
+        .map_err(|e| format!("获取字典路径{}失败：{}",dict_path, e.to_string()))?;
     let detector_conf = match det_type {
         DetectorType::Yolo11 => DetectorConfig::new_yolo(
             det_type,
@@ -178,7 +182,7 @@ pub async fn paddle_ocr_inference_test(
     let rec_conf = RecognizerConfig {
         recognizer_type: RecognizerType::PaddleCrnn,
         model_path: rec_path_type,
-        execution_provider: rec_execution_provider.into(),
+        execution_provider: InferenceBackend::from_str(rec_execution_provider),
         input_width: rec_input_size,
         input_height: rec_input_size,
         dict_path: Some(dict_path_type),

@@ -4,7 +4,6 @@ use crate::infrastructure::image::load_image::load_img_from_path;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_factory::{DetectorConfig, RecognizerConfig};
 use crate::infrastructure::vision::ocr_service::OcrService;
-use rayon::prelude::IntoParallelRefIterator;
 
 pub async fn yolo_infer_test(
     image_path: &str,
@@ -31,10 +30,11 @@ pub async fn paddle_ocr_infer(
     // rec
     ocr_service.init_recognizer(recognizer_config).await?;
     //let image = load_img_from_path(image_path)?;
-    let ocr_results = ocr_service.recognize(&image, &mut *det_results).await?;
+    let ocr_results = ocr_service.recognize(&image, &mut det_results).await?;
     // 4. 记录检测结果
-    for (i, ocr) in ocr_results.par_iter().enumerate() {
-        Log::info(&format!(
+    for (i, ocr) in ocr_results.iter().enumerate(){
+        Log::info(
+            format!(
             "#{}: 文本='{}' (分数={:?}, 位置=[{:.1}, {:.1}, {:.1}, {:.1}]",
             i + 1,
             ocr.txt,
@@ -43,7 +43,7 @@ pub async fn paddle_ocr_infer(
             ocr.bounding_box.y1,
             ocr.bounding_box.x2,
             ocr.bounding_box.y2,
-        ));
+        ).as_str());
     }
     Ok(ocr_results)
 }

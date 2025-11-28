@@ -20,12 +20,12 @@ impl std::fmt::Display for InferenceBackend {
 }
 
 impl InferenceBackend {
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
-            "cuda" => Some(InferenceBackend::Cuda),
-            "dml" | "directml" => Some(InferenceBackend::DirectML),
-            "cpu" => Some(InferenceBackend::CPU),
-            _ => None,
+            "cuda" => InferenceBackend::Cuda,
+            "dml" | "directml" => InferenceBackend::DirectML,
+            "cpu" => InferenceBackend::CPU,
+            _ => InferenceBackend::CPU,
         }
     }
 
@@ -63,7 +63,7 @@ pub fn configure_or_switch_provider(
     current_builder: Option<SessionBuilder>,
     target: &str,
 ) -> Result<ProviderConfigResult, OrtError> {
-    let target_backend = InferenceBackend::from_str(target).unwrap_or(InferenceBackend::CPU); // 未知默认 CPU
+    let target_backend = InferenceBackend::from_str(target); // 未知默认 CPU
 
     // 获取基础 builder（首次运行 or 复用）
     let base_builder = match current_builder {
