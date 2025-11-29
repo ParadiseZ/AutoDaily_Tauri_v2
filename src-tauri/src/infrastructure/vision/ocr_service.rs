@@ -6,7 +6,6 @@ use crate::infrastructure::vision::ocr_factory::{
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::DynamicImage;
 use std::sync::Arc;
-use ort::util::Mutex;
 
 /// 检测器配置
 #[derive(Debug, Clone)]
@@ -27,8 +26,8 @@ pub struct DetectionConfig {
 pub struct OcrService {
     pub det_result: Option<Vec<DetResult>>,
     pub ocr_result: Option<Vec<OcrResult>>,
-    detector: Option<Arc<Mutex<Arc<dyn TextDetector>>>>,
-    recognizer: Option<Arc<Mutex<Arc<dyn TextRecognizer>>>>,
+    detector: Option<Arc<dyn TextDetector>>,
+    recognizer: Option<Arc<dyn TextRecognizer>>,
 }
 
 impl OcrService {
@@ -45,46 +44,56 @@ impl OcrService {
     /// 使用配置初始化检测器
     pub async fn init_detector(&mut self, config: DetectorConfig) -> VisionResult<()> {
         let detector = OcrModelFactory::create_detector(config).await?;
-        self.detector = Some(Arc::new(Mutex::new(detector)));
+        self.detector = Some(detector);
         Ok(())
     }
 
     /// 使用配置初始化识别器
     pub async fn init_recognizer(&mut self, config: RecognizerConfig) -> VisionResult<()> {
         let recognizer = OcrModelFactory::create_recognizer(config).await?;
-        self.recognizer = Some(Arc::new(Mutex::new(recognizer)));
+        self.recognizer = Some(recognizer);
         Ok(())
+    }
+
+    /// 设置已有的检测器实例
+    pub fn set_detector_instance(&mut self, detector: Arc<dyn TextDetector>) {
+        self.detector = Some(detector);
+    }
+
+    /// 设置已有的识别器实例
+    pub fn set_recognizer_instance(&mut self, recognizer: Arc<dyn TextRecognizer>) {
+        self.recognizer = Some(recognizer);
     }
 
     /// 执行文本检测
     pub fn detect(&mut self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
-        if let Some(detector) = &self.detector {
-            Ok(detector.clone().lock().detect(image)?)
+        if let Some(ref mut detector) = self.detector {
+            Ok(detector.detect(image)?)
         } else {
             Err(VisionError::DetectorNotInit)
         }
     }
 
     /// 执行文本识别
-    pub async fn recognize(
+    pub fn recognize(
         &mut self,
         image: &DynamicImage,
         det_result: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
-        if let Some(recognizer) = &self.recognizer {
-            Ok(recognizer.clone().lock().recognize(image, det_result)?)
+        if let Some(ref mut recognizer) = self.recognizer {
+            Ok(recognizer.recognize(image, det_result)?)
         } else {
             Err(VisionError::RecognizeNotInit)
         }
     }
 
     /// 执行批量文本识别
-    pub async fn recognize_batch(
+    pub fn recognize_batch(
         &mut self,
         image: &DynamicImage,
         det_result: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
-        if let Some(recognizer) = &self.recognizer {
+        if let Some(ref mut recognizer) = self.recognizer {
             Ok(recognizer.recognize_batch(image, det_result)?)
         } else {
             Err(VisionError::RecognizeNotInit)
@@ -92,7 +101,7 @@ impl OcrService {
     }
 
     /// 执行完整的OCR流程 (检测 + 识别)
-    pub async fn ocr(&mut self, image: &DynamicImage) -> VisionResult<Vec<OcrResult>> {
+    pub fn ocr(&mut self, image: &DynamicImage) -> VisionResult<Vec<OcrResult>> {
         // 1. 首先进行文本检测
         let mut det_result = self.detect(image)?;
         // 2. 对每个检测到的文本区域进行识别
@@ -107,16 +116,16 @@ impl OcrService {
         // }
 
         // 暂时返回整体结果
-        let ocr_results = self.recognize(image, &mut *det_result).await?;
+        let ocr_results = self.recognize(image, &mut *det_result)?;
         //results.push((det_result, text));
 
         Ok(ocr_results)
     }
-    pub async fn ocr_batch(&mut self, image: &DynamicImage) -> VisionResult<Vec<OcrResult>> {
+    pub fn ocr_batch(&mut self, image: &DynamicImage) -> VisionResult<Vec<OcrResult>> {
         // 1. 首先进行文本检测
         let mut det_result = self.detect(image)?;
         // 暂时返回整体结果
-        let ocr_results = self.recognize_batch(image, &mut *det_result).await?;
+        let ocr_results = self.recognize_batch(image, &mut *det_result)?;
 
         Ok(ocr_results)
     }
@@ -126,7 +135,6 @@ impl OcrService {
         self.detector.is_some() && self.recognizer.is_some()
     }
 
-    /// 获取检测器信息
     /*pub fn detector_info(&self) -> Option<String> {
         if let Some(detector) = &self.detector {
             let config = detector.get_detection_config();
@@ -139,7 +147,7 @@ impl OcrService {
         }
     }*/
 
-    /// 获取识别器信息
+
     /*pub fn recognizer_info(&self) -> Option<String> {
         if let Some(recognizer) = &self.recognizer {
             let config = recognizer.get_recognition_config();

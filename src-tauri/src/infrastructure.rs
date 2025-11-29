@@ -1,11 +1,8 @@
 //核心
 pub mod core;
+
 // 进程管理器
 // pub mod process;
-// IPC通信框架
-// pub mod ipc;
-// 程序配置
-pub mod config;
 // 日志服务
 pub mod logging;
 // 脚本管理

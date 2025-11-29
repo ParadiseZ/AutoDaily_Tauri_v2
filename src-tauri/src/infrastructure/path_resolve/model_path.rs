@@ -57,7 +57,7 @@ impl PathUtil {
             "custom" => {
                 tokio::runtime::Handle::current()
                     .block_on(async {
-                        let absolute_path = get_or_init_config::<ScriptsConfig>(app_handle.store(APP_STORE).unwrap(), SCRIPTS_CONFIG_KEY).join("/").join(path) ;
+                        let absolute_path = get_or_init_config::<ScriptsConfig>(app_handle.store(APP_STORE).unwrap(), SCRIPTS_CONFIG_KEY).dir.join("/").join(path) ;
                         Log::debug(&format!("自定义模型路径转换[{:?}]", absolute_path));
                         Ok(PathBuf::from(absolute_path))
                     })

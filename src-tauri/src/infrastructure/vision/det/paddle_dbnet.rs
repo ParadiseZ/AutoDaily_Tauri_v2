@@ -128,7 +128,7 @@ impl ModelHandler for PaddleDetDbNet<'_> {
 
     fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
-        self.base_model.inference_base(input, self)
+        self.base_model.inference_base(input, self.get_input_node_name(), self.get_output_node_name())
     }
 
     fn get_input_node_name(&self) -> &'static str {

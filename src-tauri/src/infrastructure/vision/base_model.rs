@@ -90,7 +90,7 @@ impl BaseModel<'_> {
 
     /// 通用的模型加载方法 - 消除重复代码
     pub fn load_model_base<T: ModelHandler>(
-        &mut self,
+        mut self,
         model_type_name: &str,
     ) -> VisionResult<()> {
         // 1. 解析模型路径
@@ -157,10 +157,11 @@ impl BaseModel<'_> {
 
     /// 通用的推理方法 - 消除推理代码重复 🆕
     /// 正确使用ORT线程设置和Rayon线程池配合
-    pub fn inference_base<T: ModelHandler>(
+    pub fn inference_base(
         &mut self,
-        input: ArrayViewD<'_,f32>,
-        handler: &T,
+        input: ArrayViewD<'_, f32>,
+        input_node_name: &str,
+        output_node_name: &str,
     ) -> VisionResult<ArrayD<f32>> {
         if let Some(session) = self.session.as_mut() {
             // 创建输入张量
@@ -172,14 +173,14 @@ impl BaseModel<'_> {
 
             // 执行推理
             let outputs = session
-                .run(inputs![handler.get_input_node_name() => input_tensor])
+                .run(inputs![input_node_name => input_tensor])
                 .map_err(|e| VisionError::InferenceErr {
                     method: "inference_base".to_string(),
                     e: e.to_string(),
                 })?;
 
             // 提取输出
-            let view = outputs[handler.get_output_node_name()]
+            let view = outputs[output_node_name]
                 .try_extract_array::<f32>()
                 .map_err(|e| VisionError::DataProcessingErr {
                     method: "inference_base".to_string(),

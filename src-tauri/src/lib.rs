@@ -41,10 +41,10 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
 
         .setup(|app: &mut App| {
-            let app_handle = app.app_handle();
+            let app_handle = app.app_handle().clone();
             tauri::async_runtime::spawn(async move {
                 // 启动时初始化
-                init_at_start(app_handle).await;
+                init_at_start(&app_handle).await;
             });
             Ok(())
         })
@@ -59,9 +59,8 @@ pub fn run() {
             //性能设置
             //get_performance_cmd,set_performance_cmd,get_cpu_cores_cmd,
             // 常规/系统设置
-            get_system_settings_cmd,
             set_system_settings_cmd,
-            save_window_state_cmd, // 空闲监控
+            // 空闲监控
                                   //start_idle_monitoring_cmd,stop_idle_monitoring_cmd,update_activity_cmd,cancel_shutdown_cmd,
                                   // 进程管理
             //退出前函数

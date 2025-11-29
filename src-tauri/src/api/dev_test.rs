@@ -33,7 +33,7 @@ pub async fn dev_capture_test(
         //Arc::new(RwLock::new(adb_ctx)),
     );
 
-    if !device_ctx.valid_capture() {
+    if !device_ctx.valid_capture().await {
         return Err("验证截图功能失败！".to_string());
     }
     match device_ctx.get_screenshot().await {
@@ -86,7 +86,7 @@ pub async fn yolo_inference_test(
     let detector_conf = DetectorConfig {
         detector_type: DetectorType::Yolo11,
         model_path: model_path.into(),
-        execution_provider: execution_provider.into(),
+        execution_provider: InferenceBackend::from_str(execution_provider),
         input_width: target_size,
         input_height: target_size,
         intra_thread_num,
@@ -149,7 +149,7 @@ pub async fn paddle_ocr_inference_test(
         DetectorType::Yolo11 => DetectorConfig::new_yolo(
             det_type,
             det_model_path,
-            det_execution_provider.into(),
+            InferenceBackend::from_str(det_execution_provider),
             det_input_size,
             det_input_size,
             intra_thread_num,
@@ -165,7 +165,7 @@ pub async fn paddle_ocr_inference_test(
         DetectorType::PaddleDbNet => DetectorConfig::new_paddle_det(
             det_type,
             det_model_path,
-            det_execution_provider.into(),
+            InferenceBackend::from_str(rec_execution_provider),
             det_input_size,
             det_input_size,
             intra_thread_num,

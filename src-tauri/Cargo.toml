@@ -70,7 +70,7 @@ base64 = "0.22"
 #图像处理
 image = { workspace = true }
 ort = {version = "2.0.0-rc.10", features = ["directml", "cuda"] }
-ndarray = "0.17.1"
+ndarray = "0.16.1"
 imageproc = "0.25.0"
 rayon = "1.11.0"
 

@@ -170,7 +170,7 @@ impl OcrModelFactory {
     pub(crate) async fn create_detector(
         config: DetectorConfig,
     ) -> VisionResult<Arc<dyn TextDetector>> {
-        let mmap = Self::mapping_model_file(&config.model_path)?;
+        let mmap = Self::mapping_model_file(&config.model_path).await?;
 
         match config.detector_type {
             DetectorType::Yolo11 => {
@@ -216,7 +216,7 @@ impl OcrModelFactory {
     pub(crate) async fn create_recognizer(
         config: RecognizerConfig,
     ) -> VisionResult<Arc<dyn TextRecognizer>> {
-        let mmap = Self::mapping_model_file(&config.model_path)?;
+        let mmap = Self::mapping_model_file(&config.model_path).await?;
 
         match config.recognizer_type {
             RecognizerType::PaddleCrnn => {

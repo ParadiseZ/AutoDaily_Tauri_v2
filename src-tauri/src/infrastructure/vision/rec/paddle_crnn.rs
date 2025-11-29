@@ -16,7 +16,7 @@ pub struct PaddleRecCrnn<'a> {
     pub dict: Vec<String>,
 }
 
-impl PaddleRecCrnn {
+impl PaddleRecCrnn<'_> {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -129,7 +129,7 @@ impl ModelHandler for PaddleRecCrnn<'_> {
 
     fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
-        self.base_model.inference_base(input, self)
+        self.base_model.inference_base(input, self.get_input_node_name(), self.get_output_node_name())
     }
 
     fn get_input_node_name(&self) -> &'static str {
@@ -221,7 +221,7 @@ impl TextRecognizer for PaddleRecCrnn<'_> {
         Ok(ocr_result)
     }
 
-    fn preprocess_batch(&self, images: &[DynamicImage]) -> VisionResult<Array4<f32>> {
+    fn preprocess_batch(&self, images: &[DynamicImage]) -> VisionResult<ArrayD<f32>> {
         if images.is_empty() {
             return Err(VisionError::InputImageCollectionEmpty);
         }
@@ -300,12 +300,12 @@ impl TextRecognizer for PaddleRecCrnn<'_> {
             Log::error("文字识别失败：批预处理失败: Batch data 切片失败！");
         }
 
-        Ok(batch_data)
+        Ok(batch_data.into_dyn())
     }
 
     fn postprocess_batch(
         &self,
-        output: &ArrayD<f32>,
+        output: ArrayViewD<f32>,
         det_result: &[DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
         let batch_size = output.shape()[0];

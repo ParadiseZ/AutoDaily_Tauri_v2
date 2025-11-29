@@ -13,7 +13,7 @@ pub async fn yolo_infer_test(
     let mut ocr_service = OcrService::new();
     ocr_service.init_detector(detector_config).await?;
     let image = load_img_from_path(image_path)?;
-    Ok(ocr_service.detect(&image).await?)
+    Ok(ocr_service.detect(&image)?)
 }
 
 pub async fn paddle_ocr_infer(
@@ -26,11 +26,11 @@ pub async fn paddle_ocr_infer(
     // det
     ocr_service.init_detector(detector_config).await?;
     let image = load_img_from_path(image_path)?;
-    let mut det_results = ocr_service.detect(&image).await?;
+    let mut det_results = ocr_service.detect(&image)?;
     // rec
     ocr_service.init_recognizer(recognizer_config).await?;
     //let image = load_img_from_path(image_path)?;
-    let ocr_results = ocr_service.recognize(&image, &mut det_results).await?;
+    let ocr_results = ocr_service.recognize(&image, &mut det_results)?;
     // 4. 记录检测结果
     for (i, ocr) in ocr_results.iter().enumerate(){
         Log::info(
