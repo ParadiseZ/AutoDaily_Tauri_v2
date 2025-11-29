@@ -88,8 +88,8 @@ impl IpcClient {
         })
     }
 
-    pub(crate) fn spawn_reconnect_task(&'static self) {
-        let self_arc = Arc::new(self.clone());
+    pub(crate) fn spawn_reconnect_task(self: Arc<Self>) {
+        let self_arc = self.clone();
         let mut connect_num = 0u8;
         tokio::spawn(async move {
             loop {
@@ -103,6 +103,8 @@ impl IpcClient {
                         set_running_status(RunningStatus::Error);
                         break;
                     }
+                }else {
+                    connect_num = 0;
                 }
             }
         });

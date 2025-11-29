@@ -56,7 +56,7 @@ impl DeviceCtx {
             }
             2 => {
                 Log::debug("验证adb截图设置...");
-                get_adb_ctx().adb_executor.validate_config().await
+                get_adb_ctx().adb_executor.validate_config()
             }
             _ => {
                 Log::error("不支持的截图设置！");

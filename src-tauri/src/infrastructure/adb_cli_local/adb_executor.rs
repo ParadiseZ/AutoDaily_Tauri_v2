@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc};
 use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
@@ -63,8 +63,10 @@ impl ADBExecutor {
             cmd_loop_tx,
         )
     }
-    pub async fn validate_config(&self) -> bool {
-        self.adb_config.clone().lock().await.valid()
+    pub fn validate_config(&self) -> bool {
+        tokio::runtime::Handle::current().block_on(async {
+            self.adb_config.clone().lock().await.valid()
+        })
     }
 
 

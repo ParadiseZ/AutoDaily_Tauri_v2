@@ -89,7 +89,7 @@ impl BaseModel<'_> {
     }
 
     /// 通用的模型加载方法 - 消除重复代码
-    pub async fn load_model_base<T: ModelHandler>(
+    pub fn load_model_base<T: ModelHandler>(
         &mut self,
         model_type_name: &str,
     ) -> VisionResult<()> {
@@ -157,7 +157,7 @@ impl BaseModel<'_> {
 
     /// 通用的推理方法 - 消除推理代码重复 🆕
     /// 正确使用ORT线程设置和Rayon线程池配合
-    pub async fn inference_base<T: ModelHandler>(
+    pub fn inference_base<T: ModelHandler>(
         &mut self,
         input: ArrayViewD<'_,f32>,
         handler: &T,

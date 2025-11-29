@@ -51,7 +51,7 @@ static IPC_CLIENT: OnceLock<Arc<IpcClient>> = OnceLock::new();
 
 pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitResult<()> {
     let manager = Arc::new(IpcClient::new(device_id, AtomicU8::from(log_level as u8)));
-    manager.spawn_reconnect_task();
+    manager.clone().spawn_reconnect_task();
     IPC_CLIENT
         .set(manager)
         .map_err(|e| InitError::InitChildIpcClientFailed { e: e.clone().to_string() })

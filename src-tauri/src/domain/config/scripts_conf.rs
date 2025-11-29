@@ -1,6 +1,5 @@
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::core::{Deserialize, Serialize};
-use crate::infrastructure::logging::log_trait::Log;
 use std::path::PathBuf;
 use tauri::Manager;
 

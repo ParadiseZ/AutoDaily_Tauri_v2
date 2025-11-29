@@ -3,13 +3,11 @@ use crate::infrastructure::image::crop_image::{get_crop_image, get_crop_images};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::VisionResult;
-use async_trait::async_trait;
 use image::DynamicImage;
 use ndarray::{ArrayD, ArrayViewD};
 use rayon::prelude::*;
 
 /// 模型处理器的核心trait - 定义了所有模型的通用操作
-#[async_trait]
 pub trait ModelHandler: Send + Sync {
     fn load_model(&mut self) -> VisionResult<()>;
 
@@ -18,7 +16,7 @@ pub trait ModelHandler: Send + Sync {
 
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])>;
     /// 执行模型推理
-    async fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>>;
+    fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>>;
 
     /// 获取模型输入节点名称
     fn get_input_node_name(&self) -> &'static str;
@@ -31,13 +29,12 @@ pub trait ModelHandler: Send + Sync {
 }
 
 /// 文本检测器trait - 继承ModelHandler并添加检测特有的方法
-#[async_trait]
 pub trait TextDetector: ModelHandler {
     /// 检测文本区域
-    async fn detect(&self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
+    fn detect(&mut self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
         // 通用的检测流程
         let (preprocessed, scale_factor, origin_shape) = self.preprocess(image)?;
-        let raw_output = self.inference(preprocessed.view()).await?;
+        let raw_output = self.inference(preprocessed.view())?;
         let det_res = self.postprocess(raw_output.view(), scale_factor, origin_shape)?;
         //self.parse_detection_result(processed_output)
         Ok(det_res)
@@ -55,11 +52,10 @@ pub trait TextDetector: ModelHandler {
 }
 
 /// 文本识别器trait - 继承ModelHandler并添加识别特有的方法  
-#[async_trait]
 pub trait TextRecognizer: ModelHandler {
     /// 识别文本内容
-    async fn recognize(
-        &self,
+    fn recognize(
+        &mut self,
         image: &DynamicImage,
         det_results: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
@@ -96,7 +92,7 @@ pub trait TextRecognizer: ModelHandler {
 
 
         for (idx, input) in preprocessed_inputs {
-            match self.inference(input.view()).await {
+            match self.inference(input.view()) {
                 Ok(output) => inference_outputs.push((idx, output)),
                 Err(e) => {
                     Log::warn(format!("文字识别-推理：第 {} 项推理失败: {:?}", idx, e).as_str());
@@ -139,14 +135,14 @@ pub trait TextRecognizer: ModelHandler {
 
         Ok(ocr_res)
     }
-    async fn recognize_batch(
-        &self,
+    fn recognize_batch(
+        &mut self,
         image: &DynamicImage,
         det_results: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
         let imgs = get_crop_images(image, det_results)?;
         let input = self.preprocess_batch(&imgs)?;
-        let raw_output = self.inference(input.view()).await?;
+        let raw_output = self.inference(input.view())?;
         let ocr_res = self.postprocess_batch(raw_output.view(), det_results)?;
         Ok(ocr_res)
         //self.parse_recognition_result(processed_output)

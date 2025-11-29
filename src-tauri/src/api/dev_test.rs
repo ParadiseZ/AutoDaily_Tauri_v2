@@ -33,7 +33,7 @@ pub async fn dev_capture_test(
         //Arc::new(RwLock::new(adb_ctx)),
     );
 
-    if !device_ctx.valid_capture().await {
+    if !device_ctx.valid_capture() {
         return Err("验证截图功能失败！".to_string());
     }
     match device_ctx.get_screenshot().await {

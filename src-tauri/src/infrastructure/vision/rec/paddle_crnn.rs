@@ -4,7 +4,6 @@ use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
-use async_trait::async_trait;
 use image::DynamicImage;
 use imageproc::drawing::Canvas;
 use memmap2::Mmap;
@@ -46,15 +45,9 @@ impl PaddleRecCrnn {
     }
 }
 
-#[async_trait]
 impl ModelHandler for PaddleRecCrnn<'_> {
     fn load_model(&mut self) -> VisionResult<()> {
-        tokio::runtime::Handle::current()
-            .block_on(async {
-                self.base_model
-                    .load_model_base::<Self>("paddle_rec_crnn")
-                    .await
-            })
+        self.base_model.load_model_base::<Self>("paddle_rec_crnn")
     }
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
@@ -134,9 +127,9 @@ impl ModelHandler for PaddleRecCrnn<'_> {
         Ok((input.into_dyn(), [ratio, ratio], [origin_h, origin_w]))
     }
 
-    async fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
+    fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
-        self.base_model.inference_base(input, self).await
+        self.base_model.inference_base(input, self)
     }
 
     fn get_input_node_name(&self) -> &'static str {
@@ -156,7 +149,6 @@ impl ModelHandler for PaddleRecCrnn<'_> {
     }
 }
 
-#[async_trait]
 impl TextRecognizer for PaddleRecCrnn<'_> {
     fn postprocess(
         &self,
