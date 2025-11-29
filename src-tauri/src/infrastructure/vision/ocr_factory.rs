@@ -170,13 +170,7 @@ impl OcrModelFactory {
     pub(crate) async fn create_detector(
         config: DetectorConfig,
     ) -> VisionResult<Arc<dyn TextDetector>> {
-        let file = Self::open_model_file(&config.model_path).await?;
-
-        let mmap = unsafe {
-            Mmap::map(&file).map_err(|e| VisionError::MappingErr {
-                path: config.model_path.to_string_lossy().to_string(),
-            })?
-        };
+        let mmap = Self::mapping_model_file(&config.model_path)?;
 
         match config.detector_type {
             DetectorType::Yolo11 => {
@@ -222,14 +216,7 @@ impl OcrModelFactory {
     pub(crate) async fn create_recognizer(
         config: RecognizerConfig,
     ) -> VisionResult<Arc<dyn TextRecognizer>> {
-        //let model_bytes = Self::resolve_model_path(&config.model_path).await?;
-        let file = Self::open_model_file(&config.model_path).await?;
-
-        let mmap = unsafe {
-            Mmap::map(&file).map_err(|e| VisionError::MappingErr {
-                path: config.model_path.to_string_lossy().to_string(),
-            })?
-        };
+        let mmap = Self::mapping_model_file(&config.model_path)?;
 
         match config.recognizer_type {
             RecognizerType::PaddleCrnn => {
@@ -289,5 +276,16 @@ impl OcrModelFactory {
         }
 
         Ok(dict)
+    }
+
+    async fn mapping_model_file(path : &PathBuf) -> VisionResult<Mmap> {
+        let file = Self::open_model_file(path).await?;
+        let map = unsafe {
+            Mmap::map(&file).map_err(|e| VisionError::MappingErr {
+                path: path.to_string_lossy().to_string(),
+                e: e.to_string(),
+            })?
+        };
+        Ok(map)
     }
 }

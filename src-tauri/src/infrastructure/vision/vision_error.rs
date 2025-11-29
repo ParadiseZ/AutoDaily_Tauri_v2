@@ -42,8 +42,8 @@ pub enum VisionError {
     #[error("识别器未初始化")]
     RecognizeNotInit,
 
-    #[error("映射文件{path}失败！请确认文件是否存在！")]
-    MappingErr { path: String },
+    #[error("映射文件{path}失败:{e}")]
+    MappingErr { path: String,e: String },
 }
 
 pub type VisionResult<T> = Result<T, VisionError>;
