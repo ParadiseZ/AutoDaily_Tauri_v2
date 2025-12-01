@@ -16,7 +16,7 @@ pub trait ModelHandler: Send + Sync {
 
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])>;
     /// 执行模型推理
-    fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>>;
+    fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>>;
 
     /// 获取模型输入节点名称
     fn get_input_node_name(&self) -> &'static str;
@@ -31,7 +31,7 @@ pub trait ModelHandler: Send + Sync {
 /// 文本检测器trait - 继承ModelHandler并添加检测特有的方法
 pub trait TextDetector: ModelHandler {
     /// 检测文本区域
-    fn detect(&mut self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
+    fn detect(&self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
         // 通用的检测流程
         let (preprocessed, scale_factor, origin_shape) = self.preprocess(image)?;
         let raw_output = self.inference(preprocessed.view())?;
@@ -55,7 +55,7 @@ pub trait TextDetector: ModelHandler {
 pub trait TextRecognizer: ModelHandler {
     /// 识别文本内容
     fn recognize(
-        &mut self,
+        &self,
         image: &DynamicImage,
         det_results: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
@@ -136,7 +136,7 @@ pub trait TextRecognizer: ModelHandler {
         Ok(ocr_res)
     }
     fn recognize_batch(
-        &mut self,
+        &self,
         image: &DynamicImage,
         det_results: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {

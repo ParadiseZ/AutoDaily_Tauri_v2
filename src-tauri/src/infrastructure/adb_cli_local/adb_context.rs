@@ -2,12 +2,12 @@ use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_executor::ADBExecutor;
 use crate::infrastructure::logging::log_trait::Log;
-use std::cell::OnceCell;
+use std::sync::OnceLock;
 //use core_affinity::CoreId;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-static ADB_CONTEXT: OnceCell<ADBCtx> = OnceCell::new();
+static ADB_CONTEXT: OnceLock<ADBCtx> = OnceLock::new();
 
 pub fn get_adb_ctx() -> &'static ADBCtx {
     ADB_CONTEXT.get().unwrap()

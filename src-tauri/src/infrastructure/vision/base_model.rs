@@ -10,13 +10,14 @@ use ndarray::{ArrayD, ArrayViewD};
 use ort::inputs;
 use ort::logging::LogLevel;
 use ort::session::builder::GraphOptimizationLevel;
-use ort::session::InMemorySession;
+use ort::session::Session;
 use ort::value::TensorRef;
+use std::sync::Mutex;
 
 /// 基础模型结构 - 包含所有模型的通用字段
 
-pub struct BaseModel<'s> {
-    pub session: Option<InMemorySession<'s>>,
+pub struct BaseModel {
+    pub session: Option<Mutex<Session>>,
     pub intra_thread_num: usize,
     pub intra_spinning: bool,
     pub inter_thread_num: usize,
@@ -30,7 +31,7 @@ pub struct BaseModel<'s> {
     pub model_type: ModelType,
 }
 
-impl std::fmt::Debug for BaseModel<'_>{
+impl std::fmt::Debug for BaseModel{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -61,7 +62,7 @@ pub enum PostprocessRes{
     Recognition(Vec<OcrResult>),
 }
 
-impl BaseModel<'_> {
+impl BaseModel {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -90,7 +91,7 @@ impl BaseModel<'_> {
 
     /// 通用的模型加载方法 - 消除重复代码
     pub fn load_model_base<T: ModelHandler>(
-        mut self,
+        &mut self,
         model_type_name: &str,
     ) -> VisionResult<()> {
         // 1. 解析模型路径
@@ -140,7 +141,7 @@ impl BaseModel<'_> {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
             })?
-            .commit_from_memory_directly(&self.model_bytes_map.as_ref())
+            .commit_from_memory(&self.model_bytes_map)
             .map_err(|e| VisionError::SessionConfigFailed {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
@@ -148,8 +149,8 @@ impl BaseModel<'_> {
 
 
         // 5. 更新状态
-        self.session = Some(session);
-        self.is_loaded = true;
+    self.session = Some(Mutex::new(session));
+    self.is_loaded = true;
 
         Log::debug(&format!("{}模型加载成功", model_type_name));
         Ok(())
@@ -158,18 +159,24 @@ impl BaseModel<'_> {
     /// 通用的推理方法 - 消除推理代码重复 🆕
     /// 正确使用ORT线程设置和Rayon线程池配合
     pub fn inference_base(
-        &mut self,
+        &self,
         input: ArrayViewD<'_, f32>,
         input_node_name: &str,
         output_node_name: &str,
     ) -> VisionResult<ArrayD<f32>> {
-        if let Some(session) = self.session.as_mut() {
+        if let Some(session_mutex) = self.session.as_ref() {
             // 创建输入张量
             let input_tensor =
                 TensorRef::from_array_view(input).map_err(|e| VisionError::DataProcessingErr {
                     method: "inference_base".to_string(),
                     e: e.to_string(),
                 })?;
+
+            // 获取锁
+            let mut session = session_mutex.lock().map_err(|_| VisionError::InferenceErr {
+                method: "inference_base".to_string(),
+                e: "获取Session锁失败".to_string(),
+            })?;
 
             // 执行推理
             let outputs = session

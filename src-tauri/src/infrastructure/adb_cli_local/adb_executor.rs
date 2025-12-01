@@ -18,7 +18,7 @@ use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
 use crate::infrastructure::logging::log_trait::Log;
 
 pub struct ADBExecutor {
-    device: Option<Box<dyn ADBDeviceExt>>,
+    device: Option<Box<dyn ADBDeviceExt + Send + Sync>>,
     pub adb_config: Arc<Mutex<ADBConnectConfig>>, //from RuntimeContext
 
     cmd_rx: crossbeam_channel::Receiver<ADBCommand>,
@@ -26,7 +26,7 @@ pub struct ADBExecutor {
     error_tx: crossbeam_channel::Sender<ADBCommandResult>,
 
     //core : CoreId,
-    executor_is_looping: Arc<AtomicBool>,
+    executor_is_looping: bool,
     //paused: Arc<AtomicBool>,
     pub cmds_after_conversion: Arc<Mutex<VecDeque<ADBCmdConv>>>,
     duration: Duration,
@@ -53,7 +53,7 @@ impl ADBExecutor {
                 cmd_loop_rx,
                 error_tx,
                 //core,
-                executor_is_looping: Arc::new(AtomicBool::new(false)),
+                executor_is_looping: false,
                 //paused : Arc::new(AtomicBool::new(true)),
                 cmds_after_conversion: Arc::new(Mutex::new(VecDeque::new())),
                 duration: Duration::from_millis(300),
@@ -77,45 +77,53 @@ impl ADBExecutor {
             crossbeam_channel::select! {
                 recv(self.cmd_rx) ->msg => {
                     if let Ok(cmd) = msg.as_ref() {
-                        if !self.executor_is_looping.load(Ordering::Acquire){
-                            self.low_speed_cmd(cmd).await;
-                        }
+                        // 非循环状态下直接执行
+                        self.low_speed_cmd(cmd).await;
                     }
                 },
                 recv(self.cmd_loop_rx) ->msg => {
                     if let Ok(cmd_high) = msg.as_ref() {
-                        if !self.executor_is_looping.load(Ordering::Acquire){
-                            self.cmds_after_conversion.lock().await.clear()
-                        }
+                        // 收到循环命令，先清空之前的转换队列
+                        self.cmds_after_conversion.lock().await.clear();
+                        
                         // 命令中睡眠命令和其他命令数量不一致，则启动默认睡眠
                         if !self.high_speed_cmd(cmd_high).await{
                             self.need_duration.store(true, Ordering::Release);
                         }
-                        if !self.executor_is_looping.load(Ordering::Acquire) && self.cmds_after_conversion.lock().await.is_empty() {
-                            if let Err(_) = tx.send(true){
-                                self.error_tx.send(ADBCommandResult::Failed("发送启动循环信号失败！".to_string())).unwrap();
-                            }
+                        
+                        // 如果当前没有在循环，且转换后队列为空（可能是空Loop命令？），发送启动信号可能没意义，但原逻辑似乎是想触发循环
+                        // 原逻辑：if !self.executor_is_looping.load(Ordering::Acquire) && self.cmds_after_conversion.lock().await.is_empty()
+                        // 这里简化逻辑：只要收到Loop命令，就尝试启动循环逻辑（通过发送到rx）
+                        
+                        if let Err(_) = tx.send(true){
+                            self.error_tx.send(ADBCommandResult::Failed("发送启动循环信号失败！".to_string())).unwrap();
                         }
                     }
                 },
                 recv(rx) ->msg => {
                     if let Ok(_) = msg.as_ref() {
-                        self.executor_is_looping.store(true, Ordering::Release);
+                        self.executor_is_looping = true;
 
-                        while self.executor_is_looping.load(Ordering::Acquire){
+                        while self.executor_is_looping {
                             let cmds : VecDeque<ADBCmdConv>= {
                                 self.cmds_after_conversion.lock().await.clone()
                             };
                             for cmd in cmds.iter() {
+                                // 检查是否停止循环
+                                if !self.executor_is_looping {
+                                    break;
+                                }
 
                                 if let Err(e) = self.execute_single(cmd).await{
                                     self.error_tx.send(ADBCommandResult::Failed(format!("执行操作{:?}失败：{}", cmd,e))).unwrap();
                                 }
 
+                                // 检查低速命令插队
                                 if let Ok( cmd_low) = self.cmd_rx.try_recv().as_ref(){
                                     self.low_speed_cmd(cmd_low).await
                                 }
 
+                                // 检查新的循环命令（更新循环内容）
                                 if let Ok( cmd_high) = self.cmd_loop_rx.try_recv().as_ref(){
                                     // 命令中睡眠命令和其他命令梳理不一致，则启动默认睡眠
                                     if !self.high_speed_cmd(cmd_high).await{
@@ -124,7 +132,7 @@ impl ADBExecutor {
                                 }
                             }
                             // 默认睡眠
-                            if self.need_duration.load(Ordering::Acquire){
+                            if self.executor_is_looping && self.need_duration.load(Ordering::Acquire){
                                 sleep(self.duration).await;
                             }
                         }
@@ -187,7 +195,7 @@ impl ADBExecutor {
             ADBCommand::Duration(_) => {}
             ADBCommand::StopLoop(is_stop) => {
                 if *is_stop {
-                    self.executor_is_looping.store(false, Ordering::Release);
+                    self.executor_is_looping = false;
                 }
             }
             ADBCommand::Pause => {}
@@ -450,7 +458,7 @@ impl ADBExecutor {
     async fn try_to_connect(&mut self) -> bool {
         //self.device = None;
         let cfg = self.adb_config.lock().await;
-        let device: Option<Box<dyn ADBDeviceExt>> = match &*cfg {
+        let device: Option<Box<dyn ADBDeviceExt + Send + Sync>> = match &*cfg {
             ADBConnectConfig::ServerConnectByName(dev) => {
                 // 检查服务器连接地址是否配置
                 if !dev.valid() {

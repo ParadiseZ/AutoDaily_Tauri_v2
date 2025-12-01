@@ -11,12 +11,12 @@ use ndarray::{Array3, Array4, ArrayD, ArrayViewD, ArrayViewMut3, Axis};
 use rayon::prelude::*;
 
 #[derive(Debug)]
-pub struct PaddleRecCrnn<'a> {
-    pub base_model: BaseModel<'a>,
+pub struct PaddleRecCrnn {
+    pub base_model: BaseModel,
     pub dict: Vec<String>,
 }
 
-impl PaddleRecCrnn<'_> {
+impl PaddleRecCrnn {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -45,7 +45,7 @@ impl PaddleRecCrnn<'_> {
     }
 }
 
-impl ModelHandler for PaddleRecCrnn<'_> {
+impl ModelHandler for PaddleRecCrnn {
     fn load_model(&mut self) -> VisionResult<()> {
         self.base_model.load_model_base::<Self>("paddle_rec_crnn")
     }
@@ -127,7 +127,7 @@ impl ModelHandler for PaddleRecCrnn<'_> {
         Ok((input.into_dyn(), [ratio, ratio], [origin_h, origin_w]))
     }
 
-    fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
+    fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self.get_input_node_name(), self.get_output_node_name())
     }
@@ -149,7 +149,7 @@ impl ModelHandler for PaddleRecCrnn<'_> {
     }
 }
 
-impl TextRecognizer for PaddleRecCrnn<'_> {
+impl TextRecognizer for PaddleRecCrnn {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,

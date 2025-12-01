@@ -11,15 +11,15 @@ use memmap2::Mmap;
 use ndarray::{s, Array, ArrayD, ArrayViewD, Axis};
 
 #[derive(Debug)]
-pub struct YoloDet<'a> {
-    pub base_model: BaseModel<'a>,
+pub struct YoloDet {
+    pub base_model: BaseModel,
     pub class_count: usize,
     pub class_labels: Vec<String>,
     pub confidence_thresh: f32,
     pub iou_thresh: f32,
 }
 
-impl YoloDet<'_> {
+impl YoloDet {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -54,7 +54,7 @@ impl YoloDet<'_> {
     }
 }
 
-impl ModelHandler for YoloDet<'_> {
+impl ModelHandler for YoloDet {
     fn load_model(&mut self) -> VisionResult<()> {
         self.base_model.load_model_base::<Self>("det_yolo")
     }
@@ -93,7 +93,7 @@ impl ModelHandler for YoloDet<'_> {
         Ok((input.into_dyn(), [scale, scale], [origin_h, origin_w]))
     }
 
-    fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
+    fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self.get_input_node_name(), self.get_output_node_name())
     }
@@ -115,7 +115,7 @@ impl ModelHandler for YoloDet<'_> {
     }
 }
 
-impl TextDetector for YoloDet<'_> {
+impl TextDetector for YoloDet {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,

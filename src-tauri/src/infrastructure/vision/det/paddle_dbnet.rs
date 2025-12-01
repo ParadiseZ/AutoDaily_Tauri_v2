@@ -16,15 +16,15 @@ const MIN_AREA: f32 = 3.0;
 const MIN_AREA_AFTER: f32 = 5.0; //MIN_AREA+2.0
 
 #[derive(Debug)]
-pub struct PaddleDetDbNet<'a> {
-    pub base_model: BaseModel<'a>,
+pub struct PaddleDetDbNet {
+    pub base_model: BaseModel,
     pub db_thresh: f32,
     pub db_box_thresh: f32,
     pub unclip_ratio: f32,
     pub use_dilation: bool,
 }
 
-impl PaddleDetDbNet<'_> {
+impl PaddleDetDbNet {
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -59,7 +59,7 @@ impl PaddleDetDbNet<'_> {
     }
 }
 
-impl ModelHandler for PaddleDetDbNet<'_> {
+impl ModelHandler for PaddleDetDbNet {
     fn load_model(&mut self) -> VisionResult<()> {
         self.base_model
             .load_model_base::<Self>("paddle_det_dbnet")
@@ -126,7 +126,7 @@ impl ModelHandler for PaddleDetDbNet<'_> {
         Ok((input.into_dyn(), scale_factor, origin_shape))
     }
 
-    fn inference(&mut self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
+    fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
         self.base_model.inference_base(input, self.get_input_node_name(), self.get_output_node_name())
     }
@@ -148,7 +148,7 @@ impl ModelHandler for PaddleDetDbNet<'_> {
     }
 }
 
-impl TextDetector for PaddleDetDbNet<'_> {
+impl TextDetector for PaddleDetDbNet {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,

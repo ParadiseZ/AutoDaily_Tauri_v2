@@ -24,8 +24,6 @@ pub struct DetectionConfig {
 /// 新的OCR模型管理器 - 使用trait对象来处理不同的模型
 #[derive(Clone)]
 pub struct OcrService {
-    pub det_result: Option<Vec<DetResult>>,
-    pub ocr_result: Option<Vec<OcrResult>>,
     detector: Option<Arc<dyn TextDetector>>,
     recognizer: Option<Arc<dyn TextRecognizer>>,
 }
@@ -34,8 +32,6 @@ impl OcrService {
     /// 创建新的OCR服务实例
     pub fn new() -> Self {
         Self {
-            det_result: None,
-            ocr_result: None,
             detector: None,
             recognizer: None,
         }

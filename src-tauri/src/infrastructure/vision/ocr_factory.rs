@@ -11,6 +11,7 @@ use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::fs::{read_to_string, File};
+use tokio::io::AsyncReadExt;
 
 /// 检测器类型枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -157,15 +158,6 @@ pub struct RecognizerConfig {
 pub struct OcrModelFactory;
 
 impl OcrModelFactory {
-
-    async fn open_model_file(path: &PathBuf) -> VisionResult<File> {
-        File::open(path)
-            .await
-            .map_err(|e| VisionError::OpenModelFailed {
-                path: path.to_string_lossy().to_string(),
-                e: e.to_string(),
-            })
-    }
     /// 内部方法：创建检测器实现（不通过管理器）
     pub(crate) async fn create_detector(
         config: DetectorConfig,
@@ -279,7 +271,16 @@ impl OcrModelFactory {
     }
 
     async fn mapping_model_file(path : &PathBuf) -> VisionResult<Mmap> {
-        let file = Self::open_model_file(path).await?;
+        let mut file = File::open(path)
+            .await
+            .map_err(|e| VisionError::OpenModelFailed {
+                path: path.to_string_lossy().to_string(),
+                e: e.to_string(),
+            })?;
+        file.read_to_end(&mut Vec::new()).await.map_err(|e| VisionError::OpenModelFailed {
+            path: path.to_string_lossy().to_string(),
+            e: e.to_string(),
+        })?;
         let map = unsafe {
             Mmap::map(&file).map_err(|e| VisionError::MappingErr {
                 path: path.to_string_lossy().to_string(),

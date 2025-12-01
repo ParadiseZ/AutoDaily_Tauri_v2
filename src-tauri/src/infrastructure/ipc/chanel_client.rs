@@ -29,7 +29,7 @@ pub struct IpcClient {
 
 impl std::fmt::Display for IpcClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "IpcClient id:{}, log_level:{}",self.device_id.as_uuid(), LogLevel::from(self.log_level.load(Ordering::Release)))
+        write!(f, "IpcClient id:{}, log_level:{}",self.device_id.as_uuid(), LogLevel::from(self.log_level.load(Ordering::Acquire)))
     }
 }
 
