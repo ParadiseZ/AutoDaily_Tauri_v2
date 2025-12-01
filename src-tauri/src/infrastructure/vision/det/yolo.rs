@@ -7,7 +7,7 @@ use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
-use memmap2::Mmap;
+
 use ndarray::{s, Array, ArrayD, ArrayViewD, Axis};
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl YoloDet {
         intra_spinning: bool,
         inter_thread_num: usize,
         inter_spinning: bool,
-        model_bytes_map: Mmap,
+        model_path: std::path::PathBuf,
         execution_provider: InferenceBackend,
         class_count: usize,
         class_labels: Vec<String>,
@@ -38,7 +38,7 @@ impl YoloDet {
             base_model: BaseModel::new(
                 input_width,
                 input_height,
-                model_bytes_map,
+                model_path,
                 execution_provider,
                 intra_thread_num,
                 intra_spinning,

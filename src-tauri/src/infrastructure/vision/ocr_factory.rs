@@ -5,13 +5,11 @@ use crate::infrastructure::vision::det::paddle_dbnet::PaddleDetDbNet;
 use crate::infrastructure::vision::det::yolo::YoloDet;
 use crate::infrastructure::vision::rec::paddle_crnn::PaddleRecCrnn;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
-use memmap2::Mmap;
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::fs::{read_to_string, File};
-use tokio::io::AsyncReadExt;
+use tokio::fs::read_to_string;
 
 /// 检测器类型枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -162,8 +160,6 @@ impl OcrModelFactory {
     pub(crate) async fn create_detector(
         config: DetectorConfig,
     ) -> VisionResult<Arc<dyn TextDetector>> {
-        let mmap = Self::mapping_model_file(&config.model_path).await?;
-
         match config.detector_type {
             DetectorType::Yolo11 => {
                 let detector = YoloDet::new(
@@ -173,7 +169,7 @@ impl OcrModelFactory {
                     config.intra_spinning,
                     config.inter_thread_num,
                     config.inter_spinning,
-                    mmap,
+                    config.model_path,
                     config.execution_provider,
                     config.class_count.unwrap_or(1),
                     config
@@ -192,7 +188,7 @@ impl OcrModelFactory {
                     config.intra_spinning,
                     config.inter_thread_num,
                     config.inter_spinning,
-                    mmap,
+                    config.model_path,
                     config.execution_provider,
                     config.db_thresh.unwrap_or(0.3),
                     config.db_box_thresh.unwrap_or(0.6),
@@ -208,8 +204,6 @@ impl OcrModelFactory {
     pub(crate) async fn create_recognizer(
         config: RecognizerConfig,
     ) -> VisionResult<Arc<dyn TextRecognizer>> {
-        let mmap = Self::mapping_model_file(&config.model_path).await?;
-
         match config.recognizer_type {
             RecognizerType::PaddleCrnn => {
                 // 加载字典
@@ -238,7 +232,7 @@ impl OcrModelFactory {
                     config.intra_spinning,
                     config.inter_thread_num,
                     config.inter_spinning,
-                    mmap,
+                    config.model_path,
                     config.execution_provider,
                     dict,
                 );
@@ -268,25 +262,5 @@ impl OcrModelFactory {
         }
 
         Ok(dict)
-    }
-
-    async fn mapping_model_file(path : &PathBuf) -> VisionResult<Mmap> {
-        let mut file = File::open(path)
-            .await
-            .map_err(|e| VisionError::OpenModelFailed {
-                path: path.to_string_lossy().to_string(),
-                e: e.to_string(),
-            })?;
-        file.read_to_end(&mut Vec::new()).await.map_err(|e| VisionError::OpenModelFailed {
-            path: path.to_string_lossy().to_string(),
-            e: e.to_string(),
-        })?;
-        let map = unsafe {
-            Mmap::map(&file).map_err(|e| VisionError::MappingErr {
-                path: path.to_string_lossy().to_string(),
-                e: e.to_string(),
-            })?
-        };
-        Ok(map)
     }
 }

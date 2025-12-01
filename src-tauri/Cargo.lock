@@ -393,7 +393,6 @@ dependencies = [
  "imageproc",
  "interprocess",
  "lazy_static",
- "memmap2",
  "ndarray",
  "nix 0.30.1",
  "num_cpus",

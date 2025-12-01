@@ -5,7 +5,7 @@ use crate::infrastructure::ort::execution_provider_mgr::{
 };
 use crate::infrastructure::vision::base_traits::ModelHandler;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
-use memmap2::Mmap;
+
 use ndarray::{ArrayD, ArrayViewD};
 use ort::inputs;
 use ort::logging::LogLevel;
@@ -26,7 +26,7 @@ pub struct BaseModel {
     pub input_width: u32,
     pub input_height: u32,
     //pub model_path : Option<String>,
-    pub model_bytes_map: Mmap,
+    pub model_path: std::path::PathBuf,
     pub is_loaded: bool,
     pub model_type: ModelType,
 }
@@ -35,7 +35,7 @@ impl std::fmt::Debug for BaseModel{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "BaseModel[session:hidden, intra_thread_num: {}, intra_spinning: {}, inter_thread_num: {}, inter_spinning: {}, execution_provider: {:?}, input_width: {}, input_height: {}, model_bytes_map: hidden, is_loaded: {}, model_type: {:?}]",
+            "BaseModel[session:hidden, intra_thread_num: {}, intra_spinning: {}, inter_thread_num: {}, inter_spinning: {}, execution_provider: {:?}, input_width: {}, input_height: {}, model_path: {:?}, is_loaded: {}, model_type: {:?}]",
             self.intra_thread_num,
             self.intra_spinning,
             self.inter_thread_num,
@@ -43,6 +43,7 @@ impl std::fmt::Debug for BaseModel{
             self.execution_provider,
             self.input_width,
             self.input_height,
+            self.model_path,
             self.is_loaded,
             self.model_type
         )
@@ -66,7 +67,7 @@ impl BaseModel {
     pub fn new(
         input_width: u32,
         input_height: u32,
-        model_bytes_map: Mmap,
+        model_path: std::path::PathBuf,
         execution_provider: InferenceBackend,
         intra_thread_num: usize,
         intra_spinning: bool,
@@ -83,7 +84,7 @@ impl BaseModel {
             execution_provider,
             input_width,
             input_height,
-            model_bytes_map,
+            model_path,
             is_loaded: false,
             model_type,
         }
@@ -141,7 +142,7 @@ impl BaseModel {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
             })?
-            .commit_from_memory(&self.model_bytes_map)
+            .commit_from_file(&self.model_path)
             .map_err(|e| VisionError::SessionConfigFailed {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),

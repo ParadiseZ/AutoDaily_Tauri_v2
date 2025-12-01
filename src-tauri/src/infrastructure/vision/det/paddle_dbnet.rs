@@ -7,7 +7,7 @@ use crate::infrastructure::vision::vision_error::VisionResult;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 use imageproc::contours::find_contours;
 use imageproc::point::Point;
-use memmap2::Mmap;
+
 use ndarray::{s, Array3, ArrayD, ArrayViewD, Axis};
 
 /// dbNet通常值
@@ -32,7 +32,7 @@ impl PaddleDetDbNet {
         intra_spinning: bool,
         inter_thread_num: usize,
         inter_spinning: bool,
-        model_bytes_map: Mmap,
+        model_path: std::path::PathBuf,
         execution_provider: InferenceBackend,
         db_thresh: f32,
         db_box_thresh: f32,
@@ -43,7 +43,7 @@ impl PaddleDetDbNet {
             base_model: BaseModel::new(
                 input_width,
                 input_height,
-                model_bytes_map,
+                model_path,
                 execution_provider,
                 intra_thread_num,
                 intra_spinning,

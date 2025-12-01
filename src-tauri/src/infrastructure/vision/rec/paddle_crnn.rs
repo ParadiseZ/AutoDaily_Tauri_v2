@@ -6,7 +6,7 @@ use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::DynamicImage;
 use imageproc::drawing::Canvas;
-use memmap2::Mmap;
+
 use ndarray::{Array3, Array4, ArrayD, ArrayViewD, ArrayViewMut3, Axis};
 use rayon::prelude::*;
 
@@ -24,7 +24,7 @@ impl PaddleRecCrnn {
         intra_spinning: bool,
         inter_thread_num: usize,
         inter_spinning: bool,
-        model_bytes_map: Mmap,
+        model_path: std::path::PathBuf,
         execution_provider: InferenceBackend,
         dict: Vec<String>,
     ) -> Self {
@@ -32,7 +32,7 @@ impl PaddleRecCrnn {
             base_model: BaseModel::new(
                 input_width,
                 input_height,
-                model_bytes_map,
+                model_path,
                 execution_provider,
                 intra_thread_num,
                 intra_spinning,
