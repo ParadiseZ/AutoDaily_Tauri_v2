@@ -1,111 +1,96 @@
 <template>
-  <div class="settings-container">
-    <div class="settings-sidebar">
-      <el-menu
-        :default-active="activeTab"
-        class="settings-menu"
-        @select="handleTabChange"
-      >
-        <el-menu-item index="window">
-          <el-icon><monitor /></el-icon>
-          <span>窗口设置</span>
-        </el-menu-item>
-        <el-menu-item index="scriptGlobalConfig">
-          <el-icon><setting /></el-icon>
-          <span>脚本全局设置</span>
-        </el-menu-item>
-        <el-menu-item index="devices">
-          <el-icon><Cellphone /></el-icon>
-          <span>设备管理</span>
-        </el-menu-item>
-        <el-menu-item index="resources">
-          <el-icon><files /></el-icon>
-          <span>资源管理</span>
-        </el-menu-item>
-        <el-menu-item index="theme">
-          <el-icon><brush /></el-icon>
-          <span>主题设置</span>
-        </el-menu-item>
-      </el-menu>
-    </div>
+  <div class="p-6">
+    <h1 class="text-2xl font-bold mb-6">System Settings</h1>
     
-    <div class="settings-content">
-      <router-view />
+    <div class="card bg-base-100 shadow-xl border border-base-300 max-w-2xl">
+      <div class="card-body">
+        <h2 class="card-title mb-4">Appearance</h2>
+        
+        <div class="form-control">
+          <label class="label">
+            <span class="label-text font-bold">Theme</span>
+          </label>
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <button 
+              v-for="theme in themes" 
+              :key="theme"
+              class="btn btn-outline btn-block justify-start capitalize"
+              :class="{ 'btn-active': currentTheme === theme }"
+              @click="setTheme(theme)"
+            >
+              <div class="flex gap-2 items-center w-full">
+                <div class="w-4 h-4 rounded-full bg-primary" :data-theme="theme"></div>
+                <div class="w-4 h-4 rounded-full bg-secondary" :data-theme="theme"></div>
+                <span class="flex-1 text-left">{{ theme }}</span>
+                <Check v-if="currentTheme === theme" class="w-4 h-4" />
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <h2 class="card-title mb-4">General</h2>
+        <div class="form-control w-full">
+          <label class="label cursor-pointer justify-start gap-4">
+            <span class="label-text">Start on Boot</span> 
+            <input type="checkbox" class="toggle toggle-primary" checked />
+          </label>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { 
-  Monitor, 
-  Setting, 
-  Cellphone, 
-  Files, 
-  Brush 
-} from '@element-plus/icons-vue';
+import { ref, onMounted } from 'vue';
+import { Check } from 'lucide-vue-next';
 
-const router = useRouter();
-const route = useRoute();
+const themes = [
+  'light',
+  'dark',
+  'cupcake',
+  'bumblebee',
+  'emerald',
+  'corporate',
+  'synthwave',
+  'retro',
+  'cyberpunk',
+  'valentine',
+  'halloween',
+  'garden',
+  'forest',
+  'aqua',
+  'lofi',
+  'pastel',
+  'fantasy',
+  'wireframe',
+  'black',
+  'luxury',
+  'dracula',
+  'cmyk',
+  'autumn',
+  'business',
+  'acid',
+  'lemonade',
+  'night',
+  'coffee',
+  'winter',
+  'dim',
+  'nord',
+  'sunset',
+];
 
-const activeTab = computed(() => {
-  const name = route.name;
-  return name ? name.split('-')[1] : 'window';
-});
+const currentTheme = ref('dark');
 
-function handleTabChange(tab) {
-  if (tab !== activeTab.value) {
-    router.push({ name: `settings-${tab}` });
-  }
-}
+const setTheme = (theme) => {
+  currentTheme.value = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+};
 
 onMounted(() => {
-  // 如果当前路径是settings根路径，自动跳转到窗口设置页面
-  if (route.name === 'settings') {
-    router.replace({ name: 'settings-window' });
-  }
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  setTheme(savedTheme);
 });
 </script>
-
-<style lang="scss" scoped>
-.settings-container {
-  height: 100%;
-  display: flex;
-}
-
-.settings-sidebar {
-  width: 220px;
-  border-right: 1px solid var(--border-color-light);
-  background-color: var(--bg-color-soft);
-  
-  .settings-menu {
-    border-right: none;
-  }
-}
-
-.settings-content {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-:deep(.el-menu-item) {
-  height: 50px;
-  line-height: 50px;
-  display: flex;
-  align-items: center;
-}
-
-:deep(.el-menu-item.is-active) {
-  border-right: 3px solid var(--el-color-primary);
-}
-
-:deep(.el-icon) {
-  margin-right: 10px;
-  width: 24px;
-  text-align: center;
-  font-size: 18px;
-  vertical-align: middle;
-}
-</style> 

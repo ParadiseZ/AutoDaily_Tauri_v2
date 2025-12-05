@@ -1,22 +1,24 @@
 import { createApp } from "vue";
 import App from "./App.vue";
-import ElementPlus from 'element-plus';
-import { createPinia } from 'pinia';
-import router from './router';
-import './assets/styles/main.scss';
-import zhCn from 'element-plus/dist/locale/zh-cn.mjs';
+import router from "./router";
+//import { createPinia } from 'pinia';
+//import ElementPlus from 'element-plus';
+//import zhCn from 'element-plus/es/locale/lang/zh-cn';
+//import 'element-plus/dist/index.css'
+import "./style.css";
+// import './assets/styles/main.scss'; // Commenting out if it conflicts or ensuring it exists
 
 const app = createApp(App);
 
-// 使用Element Plus组件库，配置中文
-app.use(ElementPlus, {
-  locale: zhCn,
-});
+// Use Element Plus (Legacy support)
+//app.use(ElementPlus, {
+//locale: zhCn,
+//});
 
-// 使用Pinia状态管理
-app.use(createPinia());
+// Use Pinia
+//app.use(createPinia());
 
-// 使用Vue Router
+// Use Router
 app.use(router);
 
 app.mount("#app");

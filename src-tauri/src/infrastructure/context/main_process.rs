@@ -4,10 +4,7 @@ use crate::infrastructure::devices::device_conf::DeviceConfMap;
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
-use memmap2::Mmap;
 use std::sync::{Arc, RwLock};
-
-pub type MemoryMap = Arc<RwLock<Vec<(String, Mmap)>>>;
 
 /// 主进程上下文 - 优化的数据存储策略
 pub struct MainProcessCtx {
@@ -20,8 +17,6 @@ pub struct MainProcessCtx {
     /// IPC通道映射（运行时数据，必须在内存中）
     pub ipc_servers: Arc<RwLock<HashMap<Arc<DeviceId>, Arc<IpcClientState>>>>,
 
-    /// 模型存储: hash-内存映射
-    pub model_data: Arc<RwLock<HashMap<Arc<DeviceId>, MemoryMap>>>,
 }
 
 impl MainProcessCtx {

@@ -83,7 +83,7 @@ num_cpus = "1.17"
 # cpu亲和性
 #core_affinity = "0"
 # 高性能哈希,hashmap
-ahash = {version = "0.8.12", features = ["serde"]}
+ahash = {version = "0.8.12", features = ["serde"] }
 # 高性能哈希,hash值计算/文件一致性
 twox-hash = { version = "2.1.1", features = ["xxhash3_64"] }
 # 哈希加密用
@@ -104,7 +104,7 @@ crossbeam-channel = { workspace = true}
 
 # 异步trait
 async-trait = "0.1.89"
-uuid = { version = "1.18.0", features = ["v7","serde"] }
+uuid = { version = "1.18.0", features = ["v7", "serde"] }
 
 # 日期口而笑哦
 cron = "0.15.0"

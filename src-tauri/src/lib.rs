@@ -32,14 +32,13 @@ pub fn run() {
                 let _ = app.emit("single-instance", ());
             })
         )
-        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_notification::init())
-
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app: &mut App| {
             let app_handle = app.app_handle().clone();
             tauri::async_runtime::spawn(async move {

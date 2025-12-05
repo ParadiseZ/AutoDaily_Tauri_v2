@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDaily - 控制台</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="logo">
+            <span>⚡ AutoDaily</span>
+        </div>
+        <ul class="nav-menu">
+            <li class="nav-item active" id="nav-dashboard" onclick="switchView('dashboard')">
+                <span>📊</span> 监控中心
+            </li>
+            <li class="nav-item" id="nav-devices" onclick="switchView('devices')">
+                <span>📱</span> 设备管理
+            </li>
+            <div class="nav-divider"></div>
+            <li class="nav-item" id="nav-scripts" onclick="switchView('scripts')">
+                <span>📜</span> 本地脚本
+            </li>
+            <li class="nav-item" id="nav-community" onclick="switchView('community')">
+                <span>🛒</span> 脚本市场
+            </li>
+            <div class="nav-divider"></div>
+            <li class="nav-item" id="nav-settings" onclick="switchView('settings')">
+                <span>⚙️</span> 系统设置
+            </li>
+            <li class="nav-item" id="nav-about" onclick="switchView('about')">
+                <span>ℹ️</span> 关于
+            </li>
+        </ul>
+        <div style="font-size: 0.75rem; color: var(--text-secondary); text-align: center; margin-top: 1rem;">
+            v2.0.0 Alpha
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="top-bar">
+            <h1 id="page-title" class="page-title">监控中心</h1>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <button class="btn btn-sm btn-secondary">开发者模式</button>
+                <div
+                    style="width: 32px; height: 32px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                    AD</div>
+            </div>
+        </header>
+
+        <div id="content-area" class="content-area">
+            <!-- Content will be injected by JS -->
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
