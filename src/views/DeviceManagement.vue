@@ -2,15 +2,19 @@
   <div class="p-6 relative min-h-full">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">Device Management</h1>
+      <h1 class="text-2xl font-bold">设备管理</h1>
       <div class="flex gap-2">
-        <!-- Filter/Sort controls could go here -->
+        <button class="btn btn-sm btn-primary">全部开始</button>
+        <button class="btn btn-sm btn-warning">全部暂停</button>
+        <button class="btn btn-sm btn-error text-white">全部取消</button>
       </div>
     </div>
 
     <!-- Device Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
-      <div v-for="device in devices" :key="device.id" class="card bg-base-100 shadow-xl border border-base-300">
+      <div v-for="device in devices" :key="device.id" 
+           class="card bg-base-100 shadow-xl border border-base-300 transition-all duration-300"
+           :class="{ 'opacity-60 grayscale': !device.enabled }">
         <div class="card-body p-4">
           <!-- Card Header: Title & Toggle -->
           <div class="flex justify-between items-center mb-2">
@@ -23,43 +27,59 @@
 
           <!-- Control Buttons (Top of Body) -->
           <div class="flex gap-2 mb-4">
-            <button class="btn btn-sm btn-error flex-1" v-if="device.running">
-              <Square class="w-4 h-4" /> Stop
+            <button class="btn btn-sm btn-primary flex-1">
+              <Play class="w-4 h-4" />
             </button>
-            <button class="btn btn-sm btn-primary flex-1" v-else>
-              <Play class="w-4 h-4" /> Start
+            <button class="btn btn-sm btn-warning flex-1">
+              <Pause class="w-4 h-4" />
             </button>
-            <button class="btn btn-sm btn-ghost border border-base-300 flex-1">
-              Details
+            <button class="btn btn-sm btn-outline flex-1">
+              <Settings class="w-4 h-4" />
             </button>
           </div>
 
           <!-- Device Info -->
-          <div class="text-xs opacity-70 mb-4 space-y-1">
-            <p>IP: {{ device.ip }}</p>
-            <p>Status: {{ device.status }}</p>
+          <div class="flex justify-between items-end mb-4">
+            <div class="text-xs opacity-70 space-y-1">
+              <p>IP: {{ device.ip }}</p>
+              <p>状态: {{ device.status }}</p>
+            </div>
+            <button class="btn btn-xs btn-outline btn-primary">
+              <Plus class="w-3 h-3" />
+            </button>
           </div>
 
           <!-- Task Queue -->
           <div class="bg-base-200 rounded-lg p-2">
             <div class="flex justify-between items-center mb-2">
-              <span class="text-xs font-bold opacity-70">Task Queue</span>
+              <span class="text-xs font-bold opacity-70">任务队列</span>
               <span class="badge badge-sm badge-neutral">{{ device.queue.length }}</span>
             </div>
-            <div class="space-y-2">
+            <div class="space-y-2 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
+              <!-- 当前任务 -->
               <div v-if="device.currentTask" class="alert alert-success py-2 px-3 text-xs flex justify-start gap-2 rounded-md">
                 <Play class="w-3 h-3" />
-                <div>
+                <div class="flex-1">
                   <div class="font-bold">{{ device.currentTask.name }}</div>
-                  <div class="opacity-70">Running: {{ device.currentTask.action }}</div>
+                  <div class="opacity-70">运行中: {{ device.currentTask.action }}</div>
+                </div>
+                <div class="flex gap-1">
+                   <button class="btn btn-xs btn-circle btn-ghost" title="暂停"><Pause class="w-3 h-3" /></button>
+                   <button class="btn btn-xs btn-circle btn-ghost" title="取消"><X class="w-3 h-3" /></button>
                 </div>
               </div>
-              <div v-for="task in device.queue" :key="task.id" class="bg-base-100 p-2 rounded text-xs flex items-center gap-2 opacity-80">
+              <!-- 任务队列 -->
+              <div v-for="task in device.queue" :key="task.id" class="bg-base-100 p-2 rounded text-xs flex items-center gap-2 opacity-80 group">
                 <Hourglass class="w-3 h-3" />
-                {{ task.name }}
+                <span class="flex-1">{{ task.name }}</span>
+                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                   <button class="btn btn-xs btn-circle btn-ghost" title="暂停"><Pause class="w-3 h-3" /></button>
+                   <button class="btn btn-xs btn-circle btn-ghost" title="取消"><X class="w-3 h-3" /></button>
+                </div>
               </div>
+              <!-- 空闲显示 -->
               <div v-if="!device.currentTask && device.queue.length === 0" class="text-center text-xs opacity-50 py-2">
-                Idle
+                空闲
               </div>
             </div>
           </div>
@@ -78,7 +98,7 @@
 
 <script setup>
 import { ref } from 'vue';
-import { Play, Square, Hourglass } from 'lucide-vue-next';
+import { Play, Square, Hourglass, Pause, Plus, X, Settings } from 'lucide-vue-next';
 
 const devices = ref([
   {
@@ -92,7 +112,31 @@ const devices = ref([
     currentTask: { name: 'Game A - Daily', action: 'Sign-in' },
     queue: [
       { id: 1, name: 'Dungeon Run' },
-      { id: 2, name: 'Mail Collect' }
+      { id: 2, name: 'Mail Collect' },
+      { id: 3, name: 'Reward Claim' },
+      { id: 4, name: 'Reward Claim' },
+      { id: 5, name: 'Reward Claim' },
+      { id: 6, name: 'Reward Claim' },
+      { id: 7, name: 'Reward Claim' },
+      { id: 8, name: 'Reward Claim' },
+      { id: 9, name: 'Reward Claim' },
+      { id: 10, name: 'Reward Claim' },
+      { id: 11, name: 'Reward Claim' },
+
+
+
+      { id: 12, name: 'Reward Claim' },
+      { id: 13, name: 'Reward Claim' },
+      { id: 14, name: 'Reward Claim' },
+      { id: 15, name: 'Reward Claim' },
+      { id: 16, name: 'Reward Claim' },
+      { id: 17, name: 'Reward Claim' },
+      { id: 18, name: 'Reward Claim' },
+      { id: 19, name: 'Reward Claim' },
+      { id: 20, name: 'Reward Claim' },
+      { id: 21, name: 'Reward Claim' },
+      { id: 22, name: 'Reward Claim' },
+      { id: 23, name: 'Reward Claim' }
     ]
   },
   {
