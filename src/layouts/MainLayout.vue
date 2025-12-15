@@ -35,15 +35,21 @@
         <!-- Menu -->
         <ul class="menu p-4 w-full flex-1 gap-2">
           <li>
-            <router-link to="/monitoring" active-class="active">
-              <Monitor class="w-5 h-5" />
-              Monitoring Center
+            <router-link to="/logs" active-class="active">
+              <FileText class="w-5 h-5" />
+              Logs
+            </router-link>
+          </li>
+          <li>
+            <router-link to="/tasks" active-class="active">
+              <ListTodo class="w-5 h-5" />
+              Tasks
             </router-link>
           </li>
           <li>
             <router-link to="/devices" active-class="active">
               <Smartphone class="w-5 h-5" />
-              Device Management
+              Devices
             </router-link>
           </li>
           <li>
@@ -92,5 +98,5 @@
 </template>
 
 <script setup>
-import { Monitor, Smartphone, FileCode, ShoppingBag, Settings as SettingsIcon, Info } from 'lucide-vue-next';
+import { Monitor, Smartphone, FileCode, ShoppingBag, Settings as SettingsIcon, Info, FileText, ListTodo } from 'lucide-vue-next';
 </script>

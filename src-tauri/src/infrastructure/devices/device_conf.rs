@@ -1,4 +1,4 @@
-use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, Serialize};
+use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, Serialize, DeviceId};
 use crate::infrastructure::devices::adb_info::{AdbConnectSatus, AdbInfo};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
@@ -10,6 +10,8 @@ pub type DeviceConfMap = HashMap<Arc<DeviceId>, Arc<RwLock<DeviceConfig>>>;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceConfig {
+    // 设备ID
+    pub device_id: DeviceId,
     // 设备名称
     pub device_name: String,
 

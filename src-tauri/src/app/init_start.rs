@@ -10,7 +10,8 @@ use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 use crate::domain::config::notice_conf::EmailConfig;
 use crate::domain::config::scripts_conf::ScriptsConfig;
-use crate::infrastructure::devices::device_conf::DeviceConfMap;
+use crate::infrastructure::devices::device_conf::{DeviceConfMap, DeviceConfig};
+use crate::infrastructure::core::{DeviceId, HashMap};
 use crate::infrastructure::logging::config::LogMain;
 use crate::infrastructure::store_local::config_store::get_or_init_config;
 
@@ -158,7 +159,7 @@ pub fn init_conf_async(store: Arc<Store<Wry>>) {
     tokio::spawn(async move {
         // 设备设置
         if !store.has(DEVICES_CONFIG_KEY){
-            store.set(DEVICES_CONFIG_KEY, serde_json::to_value(&DeviceConfMap::default()).unwrap_or_default());
+            store.set(DEVICES_CONFIG_KEY, serde_json::to_value(&HashMap::<DeviceId, DeviceConfig>::default()).unwrap_or_default());
         };
         // 脚本设置
         if !store.has(SCRIPTS_CONFIG_KEY){

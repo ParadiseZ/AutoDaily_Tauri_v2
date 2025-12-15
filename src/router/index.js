@@ -1,16 +1,26 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import DeviceManagement from '../views/DeviceManagement.vue';
+
 import Settings from '../views/Settings.vue';
 
 const routes = [
     {
         path: '/',
-        redirect: '/devices'
+        redirect: '/tasks'
+    },
+    {
+        path: '/tasks',
+        name: 'TaskManagement',
+        component: () => import('../views/TaskManagement.vue')
     },
     {
         path: '/devices',
-        name: 'DeviceManagement',
-        component: DeviceManagement
+        name: 'DeviceList',
+        component: () => import('../views/DeviceList.vue')
+    },
+    {
+        path: '/logs',
+        name: 'Logs',
+        component: () => import('../views/Logs.vue')
     },
     {
         path: '/settings',

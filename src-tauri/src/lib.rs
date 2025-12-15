@@ -18,6 +18,7 @@ use crate::api::dev_test::{
 use crate::api::infrastructure::config::log_api::{update_log_level_cmd};
 use crate::api::infrastructure::config::sys_conf::{set_system_settings_cmd,
 };
+use crate::api::infrastructure::config::device_api::{get_all_devices_cmd, save_device_cmd, delete_device_cmd};
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use tauri::{App, Emitter, Manager};
@@ -59,6 +60,10 @@ pub fn run() {
             //get_performance_cmd,set_performance_cmd,get_cpu_cores_cmd,
             // 常规/系统设置
             set_system_settings_cmd,
+            // 设备配置
+            get_all_devices_cmd,
+            save_device_cmd,
+            delete_device_cmd,
             // 空闲监控
                                   //start_idle_monitoring_cmd,stop_idle_monitoring_cmd,update_activity_cmd,cancel_shutdown_cmd,
                                   // 进程管理

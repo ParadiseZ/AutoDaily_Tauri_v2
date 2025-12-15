@@ -28,10 +28,29 @@ pub type MessageId = UuidV7;
 #[derive(
     Encode, Decode,
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
-    serde::Serialize, serde::Deserialize
 )]
 //#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct UuidV7(pub u128);
+
+impl serde::Serialize for UuidV7 {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for UuidV7 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let uuid = Uuid::parse_str(&s).map_err(serde::de::Error::custom)?;
+        Ok(UuidV7::from(uuid))
+    }
+}
 
 impl UuidV7 {
     /// 生成一个新的 UUIDv7（时间有序）

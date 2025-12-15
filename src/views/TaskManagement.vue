@@ -11,11 +11,11 @@
     </div>
 
     <!-- Device Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20 h-[calc(100vh-9rem)]">
       <div v-for="device in devices" :key="device.id" 
-           class="card bg-base-100 shadow-xl border border-base-300 transition-all duration-300"
+           class="card bg-base-100 shadow-xl border border-base-300 transition-all duration-300 h-full"
            :class="{ 'opacity-60 grayscale': !device.enabled }">
-        <div class="card-body p-4">
+        <div class="card-body p-4 h-full flex flex-col">
           <!-- Card Header: Title & Toggle -->
           <div class="flex justify-between items-center mb-2">
             <div class="flex items-center gap-2">
@@ -85,13 +85,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- FAB: Run All -->
-    <div class="fixed bottom-8 right-8">
-      <button class="btn btn-circle btn-primary btn-lg shadow-lg" @click="runAll">
-        <Play class="w-8 h-8" />
-      </button>
     </div>
   </div>
 </template>
