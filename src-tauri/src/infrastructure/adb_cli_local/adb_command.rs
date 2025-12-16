@@ -1,5 +1,6 @@
+use std::ops::Add;
 use image::RgbaImage;
-use crate::domain::scripts::script_decision::Point;
+use imageproc::point::Point;
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
 // Constants
@@ -16,22 +17,24 @@ pub fn sleep_cmd(interval: u64) -> String {
     format!("sleep {}", interval)
 }
 
-pub fn click_cmd(p: &Point) -> String {
-    format!("{} {}", CLICK, p.to_string())
+pub fn click_cmd(p: &Point<u16>) -> String {
+    format!("{} {},{}", CLICK, p.x,p.y)
 }
-pub fn long_click_cmd(p: &Point, duration: &u32) -> String {
-    swipe_with_duration_cmd(p, &Point::new(p.x + 1, p.y + 1), duration)
+pub fn long_click_cmd(p: &Point<u16>, duration: &u32) -> String {
+    swipe_with_duration_cmd(p, &p.add(Point::new(1, 1)), duration)
 }
-pub fn swipe_cmd(p1: &Point, p2: &Point) -> String {
-    format!("{} {} {}", SWIPE, p1.to_string(), p2.to_string())
+pub fn swipe_cmd(p1: &Point<u16>, p2: &Point<u16>) -> String {
+    format!("{} {},{} {},{}", SWIPE, p1.x,p1.y, p2.x,p2.y)
 }
 
-pub fn swipe_with_duration_cmd(p1: &Point, p2: &Point, duration: &u32) -> String {
+pub fn swipe_with_duration_cmd(p1: &Point<u16>, p2: &Point<u16>, duration: &u32) -> String {
     format!(
-        "{} {} {} {}",
+        "{} {},{} {},{} {}",
         SWIPE,
-        p1.to_string(),
-        p2.to_string(),
+        p1.x,
+        p1.y,
+        p2.x,
+        p2.y,
         duration
     )
 }
@@ -50,9 +53,9 @@ pub fn stop_app_cmd(package_name: &str) -> String {
 
 #[derive(Debug, Clone)]
 pub enum ADBCommand {
-    Click(Point),
-    Swipe(Point, Point),
-    SwipeWithDuration(Point, Point, u32),
+    Click(Point<u16>),
+    Swipe(Point<u16>, Point<u16>),
+    SwipeWithDuration(Point<u16>, Point<u16>, u32),
     Reboot,
     StartActivity(String, String),
     Capture(crossbeam_channel::Sender<RgbaImage>),

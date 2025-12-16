@@ -1,4 +1,4 @@
-use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, Serialize, DeviceId};
+use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, Serialize};
 use crate::infrastructure::devices::adb_info::{AdbConnectSatus, AdbInfo};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
@@ -44,6 +44,7 @@ pub enum CapMethod {
 impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
+            device_id: DeviceId::new_v7(),
             device_name: "MuMu模拟器12".into(),
             exe_path: None,
             exe_args: None,

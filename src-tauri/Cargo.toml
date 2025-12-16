@@ -36,7 +36,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["uuid", "unstable"] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
-tauri-plugin-fs = "2"
+#tauri-plugin-fs = "2"
 # 系统通知
 tauri-plugin-notification = "2"
 tauri-plugin-store = "2"
@@ -109,10 +109,14 @@ uuid = { version = "1.18.0", features = ["v7", "serde"] }
 # 日期口而笑哦
 cron = "0.15.0"
 # 表达式
-rhai = "1.23.4"
-lazy_static = "1.5.0"
+rhai = { version = "1.23.4", features = ["serde"] }
+lazy_static = "1.5.0"  #std::sync::OnceLock (自 Rust 1.70 起)，或者 tokio::sync::OnceCell
 #更小的锁等
 #parking_lot = "0.12.4"
+
+#数据库
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+num = "0.4.3"
 
 # Windows 原生API（命名共享内存、亲和性）
 [target.'cfg(windows)'.dependencies]

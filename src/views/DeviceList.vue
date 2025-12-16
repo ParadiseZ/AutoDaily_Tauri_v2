@@ -1,9 +1,9 @@
 <template>
   <div class="p-6">
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">Device List</h1>
+      <h1 class="text-2xl font-bold">设备列表</h1>
       <button class="btn btn-primary btn-sm" @click="openModal()">
-        <Plus class="w-4 h-4 mr-1" /> Add Device
+        <Plus class="w-4 h-4 mr-1" /> 添加设备
       </button>
     </div>
 
@@ -11,12 +11,12 @@
       <table class="table w-full">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Type</th>
-            <th>Cores</th>
-            <th>Log Level</th>
-            <th>Status</th>
-            <th>Actions</th>
+            <th>名称</th>
+            <th>类型</th>
+            <th>核心数</th>
+            <th>日志级别</th>
+            <th>状态</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -35,12 +35,12 @@
               <input type="checkbox" class="toggle toggle-sm toggle-success" :checked="device.enable" @click="toggleEnable(device)" />
             </td>
             <td>
-              <button class="btn btn-ghost btn-xs" @click="openModal(device)">Edit</button>
-              <button class="btn btn-ghost btn-xs text-error" @click="deleteDevice(device.deviceId)">Delete</button>
+              <button class="btn btn-ghost btn-xs" @click="openModal(device)">编辑</button>
+              <button class="btn btn-ghost btn-xs text-error" @click="deleteDevice(device.deviceId)">删除</button>
             </td>
           </tr>
           <tr v-if="devices.length === 0">
-            <td colspan="6" class="text-center py-4 opacity-50">No devices found.</td>
+            <td colspan="6" class="text-center py-4 opacity-50">嗯...你可以添加一个设备</td>
           </tr>
         </tbody>
       </table>
@@ -49,21 +49,21 @@
     <!-- Modal -->
     <dialog id="device_modal" class="modal">
       <div class="modal-box w-11/12 max-w-2xl">
-        <h3 class="font-bold text-lg mb-4">{{ isEditing ? 'Edit Device' : 'Add Device' }}</h3>
+        <h3 class="font-bold text-lg mb-4">{{ isEditing ? '编辑' : '添加' }}</h3>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="form-control">
-            <label class="label"><span class="label-text">Device Name</span></label>
-            <input type="text" v-model="form.deviceName" class="input input-bordered w-full" />
+            <label class="label"><span class="label-text">设备名称</span></label>
+            <input type="text" v-model="form.deviceName" class="input input-bordered w-full" placeholder="MuMu12"/>
           </div>
           
           <div class="form-control">
-            <label class="label"><span class="label-text">Cores</span></label>
-            <input type="number" v-model.number="form.cores" class="input input-bordered w-full" />
+            <label class="label"><span class="label-text">CPU核心</span></label>
+            <input type="number" v-model.number="form.cores" class="input input-bordered w-full" placeholder="4"/>
           </div>
 
           <div class="form-control">
-            <label class="label"><span class="label-text">Log Level</span></label>
+            <label class="label"><span class="label-text">日志级别</span></label>
             <select v-model="form.logLevel" class="select select-bordered w-full">
               <option value="Off">Off</option>
               <option value="Error">Error</option>
@@ -75,7 +75,7 @@
           </div>
 
           <div class="form-control">
-            <label class="label"><span class="label-text">Capture Method</span></label>
+            <label class="label"><span class="label-text">截图方式</span></label>
             <select v-model="capMethodType" class="select select-bordered w-full">
               <option value="Window">Window</option>
               <option value="Adb">Adb</option>
@@ -83,37 +83,37 @@
           </div>
           
            <div class="form-control" v-if="capMethodType === 'Window'">
-            <label class="label"><span class="label-text">Window Name</span></label>
-            <input type="text" v-model="capMethodValue" class="input input-bordered w-full" />
+            <label class="label"><span class="label-text">窗口名称</span></label>
+            <input type="text" v-model="capMethodValue" class="input input-bordered w-full" placeholder="MuMu安卓设备"/>
           </div>
           <div class="form-control" v-if="capMethodType === 'Adb'">
-            <label class="label"><span class="label-text">ADB Serial</span></label>
-            <input type="text" v-model="capMethodValue" class="input input-bordered w-full" placeholder="e.g. emulator-5554" />
+            <label class="label"><span class="label-text">ADB设备名称</span></label>
+            <input type="text" v-model="capMethodValue" class="input input-bordered w-full" placeholder="emulator-5554" />
           </div>
 
-          <div class="divider md:col-span-2 font-bold text-sm">Advanced</div>
+          <div class="divider md:col-span-2 font-bold text-sm">高级</div>
 
-          <div class="form-control">
-            <label class="label"><span class="label-text">Image Compression</span></label>
+          <!-- <div class="form-control">
+            <label class="label"><span class="label-text">图片压缩</span></label>
              <select v-model="form.imageCompression" class="select select-bordered w-full">
               <option value="WindowOriginal">Window Original</option>
               <option value="Jpg">JPG</option>
               <option value="Png">PNG</option>
             </select>
-          </div>
+          </div> -->
 
           <div class="form-control">
-             <label class="label"><span class="label-text">ADB IP (Optional)</span></label>
+             <label class="label"><span class="label-text">IP (Optional)</span></label>
              <input type="text" v-model="adbIp" class="input input-bordered w-full" placeholder="127.0.0.1" />
           </div>
            <div class="form-control">
-             <label class="label"><span class="label-text">ADB Port (Optional)</span></label>
+             <label class="label"><span class="label-text">ADB端口 (Optional)</span></label>
              <input type="number" v-model.number="adbPort" class="input input-bordered w-full" placeholder="5555" />
           </div>
 
           <div class="form-control md:col-span-2">
             <label class="label cursor-pointer justify-start gap-4">
-              <span class="label-text">Enable</span>
+              <span class="label-text">启用</span>
               <input type="checkbox" v-model="form.enable" class="checkbox" />
             </label>
           </div>
@@ -121,8 +121,8 @@
 
         <div class="modal-action">
           <form method="dialog">
-            <button class="btn">Cancel</button>
-            <button class="btn btn-primary ml-2" @click.prevent="saveDevice">Save</button>
+            <button class="btn">取消</button>
+            <button class="btn btn-primary ml-2" @click.prevent="saveDevice">保存</button>
           </form>
         </div>
       </div>
@@ -147,7 +147,7 @@ const form = reactive({
   deviceId: '',
   deviceName: '',
   cores: 4,
-  logLevel: 'Info',
+  logLevel: 'Off',
   capMethod: null,
   imageCompression: 'WindowOriginal',
   enable: true,
@@ -203,9 +203,9 @@ const openModal = (device = null) => {
     // Let's use a placeholder or ask backend to generate. 
     // For now, random UUID.
     form.deviceId = crypto.randomUUID(); 
-    form.deviceName = 'New Device';
-    form.cores = 4;
-    form.logLevel = 'Info';
+    form.deviceName = null;
+    form.cores = null;
+    form.logLevel = 'Off';
     form.enable = true;
     form.imageCompression = 'WindowOriginal';
     capMethodType.value = 'Window';

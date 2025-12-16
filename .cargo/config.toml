@@ -1,11 +1,18 @@
 [buid]
-rustc-wrapper = "D:/Database/Rust/cargo/bin"
+# /path/to/sccache"  # 如 ~/.cargo/bin/sccache
+rustc-wrapper = "D:\\Database\\Rust\\cargo\\bin"
 
 [profile.dev]
-# 以较小的步骤编译您的二进制文件。
-incremental = true
-opt-level = 'z'
-lto = true
-strip = "symbols"
-panic="abort"
-codegen-units=1
+incremental = true        # 默认已启用，保留以加速增量编译
+opt-level = 1             # 默认值，避免 'z' 带来的额外优化时间
+lto = false               # 默认 false，避免链接时优化（LTO）延长编译
+codegen-units = 16       # 增量模式默认值，高度并行化以加速编译（您的 codegen-units=1 会串行化，显著变慢）
+strip = "none"            # 默认值，无需剥离符号
+panic = "unwind"          # 默认值，避免 'abort' 的潜在副作用
+codegen-backend = "cranelift"       #Cranelift 代码生成后端
+
+[unstable]
+codegen-backend = true
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3
