@@ -2,10 +2,10 @@
 
 use num::{Num, NumCast};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
-use crate::infrastructure::core::Deserialize;
+use crate::infrastructure::core::{Deserialize, Serialize};
 
 /// A 2d point.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Point<T> {
     /// x-coordinate.
     pub x: T,

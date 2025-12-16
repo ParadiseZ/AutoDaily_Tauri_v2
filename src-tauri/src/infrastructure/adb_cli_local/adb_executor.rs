@@ -115,7 +115,7 @@ impl ADBExecutor {
                                 }
 
                                 if let Err(e) = self.execute_single(cmd).await{
-                                    self.error_tx.send(ADBCommandResult::Failed(format!("执行操作{:?}失败：{}", cmd,e))).unwrap();
+                                    self.error_tx.send(ADBCommandResult::Failed(format!("执行操作{}失败：{}", cmd,e))).unwrap();
                                 }
 
                                 // 检查低速命令插队
@@ -204,7 +204,7 @@ impl ADBExecutor {
                 if let Err(e) = self.execute_adb_command(cmd_low).await {
                     let _ = self.error_tx
                         .send(ADBCommandResult::Failed(format!(
-                            "执行操作{:?}失败：{}",
+                            "执行操作{}失败：{}",
                             cmd_low, e
                         )));
                 }

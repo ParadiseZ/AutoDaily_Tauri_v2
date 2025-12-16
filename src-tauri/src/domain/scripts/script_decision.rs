@@ -1,4 +1,4 @@
-use crate::domain::scripts::Point::Point;
+use crate::domain::scripts::point::Point;
 use crate::infrastructure::core::{
     Deserialize, GuardId, PolicyId, ScriptId, Serialize, SubFlowId, TaskId,
 };

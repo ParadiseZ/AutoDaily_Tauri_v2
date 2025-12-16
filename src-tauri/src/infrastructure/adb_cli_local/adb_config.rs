@@ -54,6 +54,32 @@ pub enum ADBConnectConfig {
     DirectUsb(DirectUsbConnect),
 }
 
+impl std::fmt::Display for ADBConnectConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ADBConnectConfig::ServerConnectByName(config) =>
+                write!(f,
+                       "ServerConnectByName-→ name:{},ip:{},adb_path:{}",
+                       config.device_name.as_deref().unwrap_or(""),
+                       config.adb_config.server_connect.map(|addr| addr.to_string())
+                           .as_deref()
+                           .unwrap_or(""),
+                       config.adb_config.adb_path.as_deref().unwrap_or("")),
+            ADBConnectConfig::ServerConnectByIp(config) =>
+                write!(f, "ServerConnectByIp-→ device_ip:{},server_ip:{},adb_path:{}",
+                    config.client_connect.map(|addr| addr.to_string())
+                        .as_deref()
+                        .unwrap_or(""),
+                    config.adb_config.server_connect.map(|addr| addr.to_string())
+                        .as_deref()
+                        .unwrap_or(""),
+                    config.adb_config.adb_path.as_deref().unwrap_or("")),
+            ADBConnectConfig::DirectTcp(config) => write!(f, "DirectTcp--> {}", config.map(|addr| addr.to_string()).as_deref().unwrap_or("")),
+            ADBConnectConfig::DirectUsb(config) => write!(f, "DirectUsb: {}:{}", config.vendor_id, config.product_id),
+        }
+    }
+}
+
 
 impl ADBConnectConfig {
     pub fn valid(&self) -> bool {

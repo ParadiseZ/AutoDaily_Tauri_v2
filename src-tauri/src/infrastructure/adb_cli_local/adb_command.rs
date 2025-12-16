@@ -1,6 +1,6 @@
 use std::ops::Add;
 use image::RgbaImage;
-use imageproc::point::Point;
+use crate::domain::scripts::point::Point;
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
 // Constants
@@ -51,7 +51,7 @@ pub fn stop_app_cmd(package_name: &str) -> String {
     format!("{} {}", STOP_APP, package_name)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum ADBCommand {
     Click(Point<u16>),
     Swipe(Point<u16>, Point<u16>),
@@ -78,11 +78,55 @@ pub enum ADBCommand {
     Resume,
 }
 
-#[derive(Debug, Clone)]
+impl std::fmt::Display for ADBCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ADBCommand::Click(p) => write!(f, "{} {} {}", CLICK, p.x, p.y),
+            ADBCommand::Swipe(p1, p2) => write!(f, "{} {},{} {},{}", SWIPE, p1.x, p1.y, p2.x, p2.y),
+            ADBCommand::SwipeWithDuration(p1, p2, duration) => write!(f, "{} {},{} {},{} {}", SWIPE, p1.x, p1.y, p2.x, p2.y, duration),
+            ADBCommand::Reboot => write!(f, "reboot:{}", POWER),
+            ADBCommand::StartActivity(package_name, activity_name) => write!(f, "am start -n {}/{}", package_name, activity_name),
+            ADBCommand::Capture(_) => write!(f, "capture"),
+            ADBCommand::StopApp(package_name) => write!(f, "{} {}", STOP_APP, package_name),
+            ADBCommand::InputText(text) => write!(f, "input:{}", text),
+            ADBCommand::Back => write!(f, "back:{}", BACK),
+            ADBCommand::Home => write!(f, "home:{}", HOME),
+            ADBCommand::Sequence(commands) => write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str()),
+            ADBCommand::Duration(duration) => write!(f, "{}", duration),
+            ADBCommand::Loop(commands) => write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str()),
+            ADBCommand::StopLoop(is_stop) => write!(f, "stop_loop:{}", is_stop),
+            ADBCommand::ChangeConnectConfig(config) => write!(f, "change_connect_config:{}", config),
+            ADBCommand::Pause => write!(f, "pause"),
+            ADBCommand::Resume => write!(f, "resume"),
+        }
+    }
+}
+
+fn adb_cmd_vec_to_string(commands: &Vec<ADBCommand>) -> String {
+    let mut cmds = String::new();
+    for command in commands {
+        cmds.push_str(&command.to_string());
+        cmds.push_str(",");
+    }
+    cmds.pop();
+    cmds
+}
+
+#[derive(Clone)]
 pub enum ADBCmdConv {
     ADBShellCommand(String),
     ADBClientCommand(ADBCommand),
     ADBSleepCommand(ADBCommand),
+}
+
+impl std::fmt::Display for ADBCmdConv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ADBCmdConv::ADBShellCommand(cmd) => write!(f, "{}", cmd),
+            ADBCmdConv::ADBClientCommand(cmd) => write!(f, "{}", cmd),
+            ADBCmdConv::ADBSleepCommand(cmd) => write!(f, "{}", cmd),
+        }
+    }
 }
 
 #[derive(Debug)]

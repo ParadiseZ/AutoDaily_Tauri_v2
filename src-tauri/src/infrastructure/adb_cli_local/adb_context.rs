@@ -2,9 +2,9 @@ use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_executor::ADBExecutor;
 use crate::infrastructure::logging::log_trait::Log;
-use std::sync::OnceLock;
 //use core_affinity::CoreId;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use tokio::sync::Mutex;
 
 static ADB_CONTEXT: OnceLock<ADBCtx> = OnceLock::new();
@@ -17,11 +17,11 @@ impl std::fmt::Display for ADBCtx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         tokio::runtime::Handle::current().block_on(async move {
             write!(f,
-                   "ADB_CONTEXT config:{:?},cmd_channel:{},cmd_loop_channel:{},cmd_cur_queue:{:?}",
+                   "ADB_CONTEXT config:{:?},cmd_channel:{},cmd_loop_channel:{},cmd_cur_queue:{}",
                    self.adb_executor.adb_config.clone().lock().await,
                    self.cmd_sender.len(),
                    self.cmd_loop_sender.len(),
-                   self.adb_executor.cmds_after_conversion.clone().lock().await
+                   self.adb_executor.cmds_after_conversion.clone().lock().await.iter().len()
             )
         })
     }
@@ -61,13 +61,13 @@ impl ADBCtx {
 
     pub fn send_adb_cmd(&self, adb_command: &ADBCommand) {
         if let Err(e) = self.cmd_sender.send(adb_command.clone()) {
-            Log::error(format!("发送ADB命令[{:?}]失败:{:?}", adb_command, e).as_str());
+            Log::error(format!("发送ADB命令[{}]失败:{:?}", adb_command, e).as_str());
         };
     }
 
     pub fn send_adb_loop_cmd(&self, adb_command: &ADBCommand) {
         if let Err(e) = self.cmd_loop_sender.send(adb_command.clone()) {
-            Log::error(format!("发送ADB循环命令[{:?}]失败:{:?}", adb_command, e).as_str());
+            Log::error(format!("发送ADB循环命令[{}]失败:{:?}", adb_command, e).as_str());
         };
     }
 }
