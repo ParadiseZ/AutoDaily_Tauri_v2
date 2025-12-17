@@ -178,7 +178,7 @@ const runAll = () => {
 
 const openEditor = async () => {
   const webview = new WebviewWindow('script-editor', {
-    url: '/#/editor',
+    url: '/editor',
     title: 'Script Editor - AutoDaily',
     width: 1400,
     height: 900,

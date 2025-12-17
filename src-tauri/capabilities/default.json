@@ -3,7 +3,7 @@
   "identifier": "main-capability",
   "description": "Capability for the main window",
   "windows": [
-    "main",
+    "AutoDaily",
     "script-editor"
   ],
   "permissions": [
@@ -14,6 +14,11 @@
     "core:menu:default",
     "core:tray:default",
     "core:window:allow-set-title",
+    "core:window:create",
+    "core:window:show",
+    "core:window:hide",
+    "core:window:close",
+    "core:webview:allow-create-webview-window",
     "opener:default",
     "dialog:default",
     "global-shortcut:allow-is-registered",

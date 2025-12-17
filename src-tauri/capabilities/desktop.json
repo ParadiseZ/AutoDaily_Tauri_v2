@@ -6,11 +6,12 @@
     "linux"
   ],
   "windows": [
-    "main",
+    "AutoDaily",
     "script-editor"
   ],
   "permissions": [
     "global-shortcut:default",
-    "autostart:default"
+    "autostart:default",
+    "core:webview:allow-create-webview-window"
   ]
 }
