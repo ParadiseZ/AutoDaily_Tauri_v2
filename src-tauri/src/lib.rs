@@ -9,8 +9,8 @@ mod api;
 mod app;
 mod constant;
 mod domain;
-mod infrastructure;
-pub mod main_child;
+pub mod infrastructure;
+
 
 use crate::api::dev_test::{
     dev_capture_test, paddle_ocr_inference_test, save_captured_image, yolo_inference_test,

@@ -27,6 +27,7 @@
     "lucide-vue-next": "^0.555.0",
     "monaco-editor": "^0.55.1",
     "prismjs": "^1.30.0",
+    "tslib": "^2.8.1",
     "vue": "^3.5.18",
     "vue-codemirror": "^6.1.1",
     "vue-router": "^4.5.1"

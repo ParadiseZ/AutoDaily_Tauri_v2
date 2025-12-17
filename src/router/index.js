@@ -26,6 +26,11 @@ const routes = [
         path: '/settings',
         name: 'Settings',
         component: Settings
+    },
+    {
+        path: '/editor',
+        name: 'ScriptEditor',
+        component: () => import('../views/ScriptEditor.vue')
     }
 ];
 

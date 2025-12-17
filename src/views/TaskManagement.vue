@@ -4,6 +4,7 @@
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">设备管理</h1>
       <div class="flex gap-2">
+        <button class="btn btn-sm btn-info text-white" @click="openEditor">Dev: Script Editor</button>
         <button class="btn btn-sm btn-primary">全部开始</button>
         <button class="btn btn-sm btn-warning">全部暂停</button>
         <button class="btn btn-sm btn-error text-white">全部取消</button>
@@ -169,7 +170,28 @@ const devices = ref([
   }
 ]);
 
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+
 const runAll = () => {
   console.log('Running all enabled devices...');
+};
+
+const openEditor = async () => {
+  const webview = new WebviewWindow('script-editor', {
+    url: '/#/editor',
+    title: 'Script Editor - AutoDaily',
+    width: 1400,
+    height: 900,
+    center: true,
+    focus: true
+  });
+  
+  await webview.once('tauri://created', function () {
+    console.log('Script Editor window created');
+  });
+  
+  await webview.once('tauri://error', function (e) {
+    console.error('Error creating window', e);
+  });
 };
 </script>

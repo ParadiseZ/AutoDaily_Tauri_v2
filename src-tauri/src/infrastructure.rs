@@ -13,7 +13,7 @@ pub mod scripts;
 pub mod adb_cli_local;
 pub mod app_handle;
 pub mod capture;
-pub(crate) mod context;
+pub mod context;
 pub mod devices;
 mod hash_calculated;
 pub mod image;

@@ -1,18 +1,22 @@
-[buid]
-# /path/to/sccache"  # 如 ~/.cargo/bin/sccache
-rustc-wrapper = "D:\\Database\\Rust\\cargo\\bin"
+[build]
+# sccache 编译缓存加速 - 首次编译后，相同代码重编译速度提升 5-10 倍
+# 如果没有安装 sccache，运行: cargo install sccache
+rustc-wrapper = "D:\\Database\\Rust\\cargo\\bin\\sccache.exe"
 
+# 开发模式优化配置
 [profile.dev]
-incremental = true        # 默认已启用，保留以加速增量编译
-opt-level = 1             # 默认值，避免 'z' 带来的额外优化时间
-lto = false               # 默认 false，避免链接时优化（LTO）延长编译
-codegen-units = 16       # 增量模式默认值，高度并行化以加速编译（您的 codegen-units=1 会串行化，显著变慢）
-strip = "none"            # 默认值，无需剥离符号
-panic = "unwind"          # 默认值，避免 'abort' 的潜在副作用
-codegen-backend = "cranelift"       #Cranelift 代码生成后端
+incremental = true        # 增量编译（默认启用）
+opt-level = 1             # 轻量优化，显著减少编译时间
+lto = false               # 禁用链接时优化
+codegen-units = 16       # 最大化并行编译
+strip = "none"            # 保留调试符号
+panic = "unwind"          # 标准 panic 处理
+#codegen-backend = "cranelift"       # 已禁用：与 FFI 包（如 aws-lc-rs）不兼容
 
-[unstable]
-codegen-backend = true
-
+# sqlx-macros 编译优化（宏展开优化）
 [profile.dev.package.sqlx-macros]
+opt-level = 3
+
+# 依赖包编译优化 - 对依赖进行更高级别的优化，加快运行速度，同时不影响自己代码的编译速度
+[profile.dev.package."*"]
 opt-level = 3

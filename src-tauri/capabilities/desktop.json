@@ -6,7 +6,8 @@
     "linux"
   ],
   "windows": [
-    "main"
+    "main",
+    "script-editor"
   ],
   "permissions": [
     "global-shortcut:default",

@@ -59,6 +59,9 @@ importers:
       prismjs:
         specifier: ^1.30.0
         version: 1.30.0
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
       vue:
         specifier: ^3.5.18
         version: 3.5.18
@@ -1083,6 +1086,9 @@ packages:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
 
+  tslib@2.8.1:
+    resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
+
   update-browserslist-db@1.2.1:
     resolution: {integrity: sha512-R9NcHbbZ45RoWfTdhn1J9SS7zxNvlddv4YRrHTUaFdtjbmfncfedB45EC9IaqJQ97iAR1GZgOfyRQO+ExIF6EQ==}
     hasBin: true
@@ -2008,6 +2014,8 @@ snapshots:
     dependencies:
       is-number: 7.0.0
     optional: true
+
+  tslib@2.8.1: {}
 
   update-browserslist-db@1.2.1(browserslist@4.28.1):
     dependencies:

@@ -1,6 +1,6 @@
-use crate::infrastructure::context::child_process_sec::{set_running_status, RunningStatus};
-use crate::infrastructure::context::init_error::InitError;
-use crate::infrastructure::core::{Deserialize, Error, Serialize};
+use auto_daily_lib::infrastructure::context::child_process_sec::{set_running_status, RunningStatus};
+use auto_daily_lib::infrastructure::context::init_error::InitError;
+use auto_daily_lib::infrastructure::core::{Deserialize, Error, Serialize};
 
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum ChildProcessError {
@@ -30,11 +30,11 @@ pub enum ChildProcessError {
 }
 pub type ChildProcessResult<T> = Result<T, ChildProcessError>;
 pub mod child_process {
-    use crate::infrastructure::context::child_process::ChildProcessInitData;
-    use crate::infrastructure::context::child_process_sec::{
+    use auto_daily_lib::infrastructure::context::child_process::ChildProcessInitData;
+    use auto_daily_lib::infrastructure::context::child_process_sec::{
         set_running_status, RunningStatus,
     };
-    use crate::main_child::{ChildProcessError, ChildProcessResult};
+    use crate::{ChildProcessError, ChildProcessResult};
 
     /// 子进程运行函数
     pub async fn run() -> ChildProcessResult<()> {
