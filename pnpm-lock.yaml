@@ -50,6 +50,9 @@ importers:
       '@vue-flow/core':
         specifier: ^1.48.0
         version: 1.48.0(vue@3.5.18)
+      '@vue-flow/minimap':
+        specifier: ^1.5.4
+        version: 1.5.4(@vue-flow/core@1.48.0(vue@3.5.18))(vue@3.5.18)
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
@@ -776,6 +779,12 @@ packages:
   '@vue-flow/core@1.48.0':
     resolution: {integrity: sha512-keW9HGaEZEe4SKYtrzp5E+qSGJ5/z+9i2yRDtCr3o72IUnS0Ns1qQNsIbGGz0ygpKzg6LdtbVLWeYAvl3dzLQA==}
     peerDependencies:
+      vue: ^3.3.0
+
+  '@vue-flow/minimap@1.5.4':
+    resolution: {integrity: sha512-l4C+XTAXnRxsRpUdN7cAVFBennC1sVRzq4bDSpVK+ag7tdMczAnhFYGgbLkUw3v3sY6gokyWwMl8CDonp8eB2g==}
+    peerDependencies:
+      '@vue-flow/core': ^1.23.0
       vue: ^3.3.0
 
   '@vue/compiler-core@3.5.18':
@@ -1735,6 +1744,13 @@ snapshots:
       vue: 3.5.18
     transitivePeerDependencies:
       - '@vue/composition-api'
+
+  '@vue-flow/minimap@1.5.4(@vue-flow/core@1.48.0(vue@3.5.18))(vue@3.5.18)':
+    dependencies:
+      '@vue-flow/core': 1.48.0(vue@3.5.18)
+      d3-selection: 3.0.0
+      d3-zoom: 3.0.0
+      vue: 3.5.18
 
   '@vue/compiler-core@3.5.18':
     dependencies:

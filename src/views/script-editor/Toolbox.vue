@@ -1,71 +1,105 @@
 <template>
   <div class="flex-1 overflow-y-auto p-2 space-y-2">
+    <!-- Basic Nodes -->
     <div class="text-xs font-bold opacity-50 mb-2 uppercase tracking-wide">Basic</div>
     
-    <div 
-      class="card bg-base-200 shadow-sm p-3 cursor-move hover:bg-base-300 border border-transparent hover:border-primary transition-all mb-2" 
-      draggable="true" 
-      @dragstart="onDragStart($event, 'click')"
-    >
-      <div class="font-medium flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-blue-500"></span> Click
-      </div>
-    </div>
-
-    <div 
-      class="card bg-base-200 shadow-sm p-3 cursor-move hover:bg-base-300 border border-transparent hover:border-primary transition-all mb-2"
-      draggable="true" 
-      @dragstart="onDragStart($event, 'wait')"
-    >
-      <div class="font-medium flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-gray-500"></span> Wait
-      </div>
-    </div>
-
-    <div 
-      class="card bg-base-200 shadow-sm p-3 cursor-move hover:bg-base-300 border border-transparent hover:border-primary transition-all mb-2"
-      draggable="true" 
-      @dragstart="onWaitDragStart($event, 'if')"
-    >
-      <div class="font-medium flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-yellow-500"></span> IF Condition
-      </div>
-    </div>
-
-    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">Vision</div>
-    <div 
-      class="card bg-base-200 shadow-sm p-3 cursor-move hover:bg-base-300 border border-transparent hover:border-primary transition-all mb-2"
-      draggable="true" 
-      @dragstart="onDragStart($event, 'ocr')"
-    >
-      <div class="font-medium flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-purple-500"></span> OCR
-      </div>
-    </div>
+    <ToolboxItem 
+      type="click" 
+      label="Click" 
+      color="bg-blue-500" 
+      description="Click on a target"
+      @add-node="emitAddNode"
+    />
     
-    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">Advanced</div>
-    <div 
-      class="card bg-base-200 shadow-sm p-3 cursor-move hover:bg-base-300 border border-transparent hover:border-primary transition-all mb-2"
-      draggable="true" 
-      @dragstart="onDragStart($event, 'subflow')"
-    >
-      <div class="font-medium flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full bg-red-500"></span> Sub-Flow
-      </div>
-    </div>
+    <ToolboxItem 
+      type="wait" 
+      label="Wait" 
+      color="bg-gray-500" 
+      description="Wait for duration"
+      @add-node="emitAddNode"
+    />
+    
+    <ToolboxItem 
+      type="swipe" 
+      label="Swipe" 
+      color="bg-cyan-500" 
+      description="Swipe gesture"
+      @add-node="emitAddNode"
+    />
+
+    <!-- Condition Nodes -->
+    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">Conditions</div>
+    
+    <ToolboxItem 
+      type="if_found" 
+      label="IF Found" 
+      color="bg-yellow-500" 
+      description="If image/text found, then..."
+      @add-node="emitAddNode"
+    />
+    
+    <ToolboxItem 
+      type="if_not_found" 
+      label="IF Not Found" 
+      color="bg-orange-500" 
+      description="If image/text NOT found, then..."
+      @add-node="emitAddNode"
+    />
+
+    <!-- Vision Nodes -->
+    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">Vision</div>
+    
+    <ToolboxItem 
+      type="find_image" 
+      label="Find Image" 
+      color="bg-purple-500" 
+      description="Locate image on screen"
+      @add-node="emitAddNode"
+    />
+    
+    <ToolboxItem 
+      type="ocr" 
+      label="OCR Text" 
+      color="bg-violet-500" 
+      description="Recognize text"
+      @add-node="emitAddNode"
+    />
+
+    <!-- Control Flow -->
+    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">Control Flow</div>
+    
+    <ToolboxItem 
+      type="loop" 
+      label="Loop" 
+      color="bg-green-500" 
+      description="Repeat N times"
+      @add-node="emitAddNode"
+    />
+    
+    <ToolboxItem 
+      type="fallback" 
+      label="Fallback" 
+      color="bg-red-500" 
+      description="Retry actions when all conditions fail"
+      @add-node="emitAddNode"
+    />
+    
+    <ToolboxItem 
+      type="subflow" 
+      label="Sub-Flow" 
+      color="bg-pink-500" 
+      description="Call another task's flow"
+      @add-node="emitAddNode"
+    />
   </div>
 </template>
 
 <script setup>
-const onDragStart = (event, type) => {
-  if (event.dataTransfer) {
-    event.dataTransfer.setData('application/vueflow', type);
-    event.dataTransfer.effectAllowed = 'copy';
-  }
-};
+import ToolboxItem from './ToolboxItem.vue';
 
-// Fixed the typo in the IF condition div if present, but I'll mapped it to onDragStart as well
-const onWaitDragStart = (event, type) => {
-    onDragStart(event, type);
-}
+const emit = defineEmits(['add-node']);
+
+const emitAddNode = (type) => {
+  emit('add-node', type);
+};
 </script>
