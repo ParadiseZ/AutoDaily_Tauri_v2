@@ -194,6 +194,9 @@ import Toolbox from './script-editor/Toolbox.vue';
 import PropertiesPanel from './script-editor/PropertiesPanel.vue';
 import FlowNode from './script-editor/FlowNode.vue';
 
+//store
+import { getFromStore,setToStore,defaultEditorThemeKey } from '../store/store.js';
+
 // --- State ---
 const nodes = ref([]);
 const edges = ref([]);
@@ -210,7 +213,7 @@ const activeTab = ref('tasks'); // Start on tasks tab
 const currentTheme = ref('light');
 
 // --- Script Data (Simulated - in reality, passed as props or loaded from backend) ---
-const scriptName = ref('Daily Automation');
+const scriptName = ref('崩坏三');
 const scriptId = ref(1);
 
 // --- Task Management ---
@@ -289,7 +292,7 @@ const clearConsole = () => {
 
 // --- Lifecycle ---
 onMounted(() => {
-  initTheme();
+  document.documentElement.setAttribute('data-theme', currentTheme.value);
   if (taskList.value.length > 0) {
     selectTask(taskList.value[0]);
   }
@@ -440,14 +443,8 @@ const updateNodeData = (nodeId, updates) => {
 // --- Theme ---
 const toggleTheme = () => {
   currentTheme.value = currentTheme.value === 'light' ? 'dark' : 'light';
-  localStorage.setItem('theme', currentTheme.value);
   document.documentElement.setAttribute('data-theme', currentTheme.value);
-};
-
-const initTheme = () => {
-  const saved = localStorage.getItem('theme') || 'light';
-  currentTheme.value = saved;
-  document.documentElement.setAttribute('data-theme', saved);
+  setToStore(defaultEditorThemeKey, currentTheme.value)
 };
 
 // --- Save ---
@@ -555,6 +552,14 @@ const createNode = (type, position) => {
   addLog(`Added node: ${type}`, 'success');
   return newNode;
 };
+
+// 异步加载后赋值
+getFromStore(defaultEditorThemeKey).then(val => {
+  if (val !== 'light'){
+    currentTheme.value = val;
+    document.documentElement.setAttribute('data-theme', currentTheme.value);
+  }
+})
 </script>
 
 <style>
@@ -564,7 +569,7 @@ const createNode = (type, position) => {
     border-radius: 0.5rem;
     border-width: 2px;
     border-color: transparent;
-    transition: all 30ms cubic-bezier(0.4, 0, 0.2, 1);
+    /*transition: all 50ms cubic-bezier(0.4, 0, 0.2, 1);*/
     background-color: white;
 }
 

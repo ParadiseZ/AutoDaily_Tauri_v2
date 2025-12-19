@@ -1,9 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import {Store} from '@tauri-apps/plugin-store';
+import { getFromStore,defaultRouterKey } from '../store/store.js';
 import Settings from '../views/Settings.vue';
 
-const store = await Store.load('autodaily.config.json');
-const defaultPath = await store.get('defaultPath') === '/'? '/tasks' : '/editor';
+const defaultPath = await getFromStore(defaultRouterKey) === '/'? '/tasks' : '/editor';
 const routes = [
     {
         path: '/',
