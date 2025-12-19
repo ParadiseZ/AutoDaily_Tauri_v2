@@ -564,12 +564,12 @@ const createNode = (type, position) => {
     border-radius: 0.5rem;
     border-width: 2px;
     border-color: transparent;
-    transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 30ms cubic-bezier(0.4, 0, 0.2, 1);
     background-color: white;
 }
 
 .vue-flow__node:hover {
-    border-color: oklch(var(--p) / 0.5);
+    border-color: oklch(var(--p));
 }
 
 .vue-flow__node.selected {

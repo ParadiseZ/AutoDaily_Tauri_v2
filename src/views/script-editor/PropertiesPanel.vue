@@ -1,9 +1,9 @@
 <template>
   <div class="w-80 border-l border-base-300 flex flex-col bg-base-100 shadow-md z-1 h-full">
     <div class="p-3 font-bold text-sm bg-base-200 flex justify-between items-center">
-      PROPERTIES
+      属性
       <div class="badge badge-sm" v-if="selectedNode">{{ nodeTypeDisplay }}</div>
-      <div class="badge badge-sm badge-ghost" v-else>No Selection</div>
+      <div class="badge badge-sm badge-ghost" v-else>未选择</div>
     </div>
     
     <!-- Node Selected -->

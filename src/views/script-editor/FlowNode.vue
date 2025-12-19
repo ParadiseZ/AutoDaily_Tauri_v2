@@ -214,6 +214,6 @@ const nodeIcon = computed(() => {
 <style scoped>
 /* Ensure handles are visible and properly styled */
 .vue-flow__handle {
-  border: 2px solid white;
+  border: 1px solid white;
 }
 </style>
