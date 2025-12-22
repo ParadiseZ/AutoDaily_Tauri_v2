@@ -1,9 +1,9 @@
 <template>
   <div 
-    class="shadow-md rounded-lg bg-base-100 border-2 border-transparent transition-all min-w-[160px] overflow-hidden"
+    class="shadow-md rounded-lg bg-base-100 border-2 border-transparent transition-all min-w-[120px] overflow-hidden"
     :class="{ 
-      'border-primary! shadow-xl scale-105': selected,
-      'border-base-300 hover:border-base-content/30': !selected
+      'border-primary! shadow-sm scale-105': selected,
+      'border-base-300': !selected
     }"
   >
     <!-- Input Handle (Top) -->
@@ -11,12 +11,12 @@
       v-if="!isStartNode" 
       type="target" 
       position="top" 
-      class="w-3! h-3! bg-primary! ring-2 ring-white" 
+      class="w-3! h-3! bg-primary! ring-2 ring-white"
     />
     
     <!-- Header: Type Indicator -->
     <div 
-      class="px-3 py-1.5 text-xs font-bold uppercase text-white flex items-center gap-2"
+      class="px-2 py-1 text-xs font-bold text-white flex items-center gap-1"
       :class="headerColorClass"
     >
       <!-- Icon based on type -->
@@ -30,7 +30,7 @@
       <div class="text-xs opacity-50 text-center" v-else>{{ placeholderText }}</div>
       
       <!-- Special content for certain node types -->
-      <div v-if="data.type === 'fallback'" class="mt-2 text-xs opacity-70">
+      <div v-if="data.type === 'fallback'" class="mt-2 text-xs opacity-60">
         <div class="flex items-center gap-1" v-for="(strategy, idx) in (data.strategies || defaultStrategies)" :key="idx">
           <span class="badge badge-xs badge-ghost">{{ idx + 1 }}</span>
           {{ strategy.label || strategy.target }}

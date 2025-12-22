@@ -197,6 +197,12 @@ import FlowNode from './script-editor/FlowNode.vue';
 //store
 import { getFromStore,setToStore,defaultEditorThemeKey } from '../store/store.js';
 
+//log
+const INFO = "info";
+const WARN = "warn";
+const ERROR = "error";
+const SUCCESS = "success";
+
 // --- State ---
 const nodes = ref([]);
 const edges = ref([]);
@@ -208,7 +214,7 @@ const nodeTypes = {
   custom: markRaw(FlowNode),
 };
 
-const { project, onNodeClick, onConnect, addEdges, removeNodes, getSelectedNodes, fitView: flowFitView } = useVueFlow();
+const {onNodeClick, onConnect, addEdges, removeNodes, getSelectedNodes, fitView: flowFitView } = useVueFlow();
 const activeTab = ref('tasks'); // Start on tasks tab
 const currentTheme = ref('light');
 
@@ -268,7 +274,7 @@ const filteredTasks = computed(() => {
 
 // --- Console Logs ---
 const consoleLogs = ref([
-  { time: '10:00:01', level: 'info', message: 'Script Editor initialized.' },
+  { time: '10:00:01', level: INFO, message: 'Script Editor initialized.' },
 ]);
 
 const logClass = (level) => {
@@ -280,7 +286,7 @@ const logClass = (level) => {
   }
 };
 
-const addLog = (message, level = 'info') => {
+const addLog = (message, level = INFO) => {
   const now = new Date();
   const time = now.toTimeString().slice(0, 8);
   consoleLogs.value.push({ time, level, message });
@@ -327,11 +333,12 @@ const onPaneClick = () => {
 
 // --- Connection Logic ---
 onConnect((params) => {
+  addLog(`params: ${params.sourceHandle} → ${params.targetHandle}`,INFO);
   addEdges(params);
-  addLog(`Connected: ${params.source} → ${params.target}`, 'info');
+  addLog(`Connected: ${params.source} → ${params.target}`, INFO);
 });
 
-// --- Delete Confirmation Logic ---
+// ---------------------------------------------- Delete Confirmation Logic --------------------------------------------
 const showDeleteConfirm = ref(false);
 const nodesToDelete = ref([]);
 
@@ -347,7 +354,7 @@ const requestDeleteSelected = () => {
 
 const confirmDelete = () => {
   removeNodes(nodesToDelete.value);
-  addLog(`Deleted ${nodesToDelete.value.length} node(s)`, 'warn');
+  addLog(`Deleted ${nodesToDelete.value.length} node(s)`, WARN);
   selectedNode.value = null;
   showDeleteConfirm.value = false;
   nodesToDelete.value = [];
@@ -358,7 +365,7 @@ const cancelDelete = () => {
   nodesToDelete.value = [];
 };
 
-// --- Task Actions ---
+// ------------------------------------------------- 任务相关 -----------------------------------------------------------
 const selectTask = (task) => {
   // Save current task's state
   if (currentTask.value) {
@@ -370,7 +377,7 @@ const selectTask = (task) => {
   nodes.value = task.nodes.map(n => ({ ...n, type: 'custom' }));
   edges.value = [...task.edges];
   selectedNode.value = null;
-  addLog(`Switched to task: ${task.name}`, 'info');
+  addLog(`切换任务： ${task.name}`, INFO);
 };
 
 const createNewTask = () => {
@@ -383,12 +390,12 @@ const createNewTask = () => {
   };
   taskList.value.push(newTask);
   selectTask(newTask);
-  addLog(`Created new task: ${newTask.name}`, 'success');
+  addLog(`Created new task: ${newTask.name}`, SUCCESS);
 };
 
 const deleteTask = (id) => {
   if (taskList.value.length <= 1) {
-    addLog('Cannot delete the last task', 'error');
+    addLog('Cannot delete the last task', ERROR);
     return;
   }
   
@@ -400,11 +407,11 @@ const deleteTask = (id) => {
     if (currentTask.value?.id === id) {
       selectTask(taskList.value[0]);
     }
-    addLog(`Deleted task: ${taskName}`, 'warn');
+    addLog(`删除任务: ${taskName}`, 'warn');
   }
 };
 
-// --- Rename Task ---
+// ----------------重命名任务-------------
 const showRenameModal = ref(false);
 const renameValue = ref('');
 const renameTarget = ref(null);
@@ -418,7 +425,7 @@ const editTaskName = (task) => {
 const confirmRename = () => {
   if (renameTarget.value && renameValue.value.trim()) {
     renameTarget.value.name = renameValue.value.trim();
-    addLog(`Renamed task to: ${renameValue.value}`, 'info');
+    addLog(`重命名任务: ${renameValue.value}`, 'info');
   }
   cancelRename();
 };
@@ -440,14 +447,14 @@ const updateNodeData = (nodeId, updates) => {
   }
 };
 
-// --- Theme ---
+// -------------------------------------------------- Theme ----------------------------------------------------------
 const toggleTheme = () => {
   currentTheme.value = currentTheme.value === 'light' ? 'dark' : 'light';
   document.documentElement.setAttribute('data-theme', currentTheme.value);
   setToStore(defaultEditorThemeKey, currentTheme.value)
 };
 
-// --- Save ---
+// --------------------------------------------------- Save ----------------------------------------------------------
 const saveScript = () => {
   // Save current task first
   if (currentTask.value) {
@@ -469,23 +476,6 @@ const saveScript = () => {
 // --- Fit View ---
 const fitView = () => {
   flowFitView({ padding: 0.2 });
-};
-
-// --- Drag & Drop ---
-const onDrop = (event) => {
-  const type = event.dataTransfer?.getData('application/vueflow');
-  if (type) {
-    const rendererEl = document.querySelector('.vue-flow__renderer');
-    if (!rendererEl) return;
-    
-    const { left, top } = rendererEl.getBoundingClientRect();
-    const position = project({ 
-      x: event.clientX - left, 
-      y: event.clientY - top 
-    });
-
-    createNode(type, position);
-  }
 };
 
 // --- Add Node (Click or Drop) ---
