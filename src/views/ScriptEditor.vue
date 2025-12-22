@@ -228,13 +228,13 @@ const taskList = ref([
     id: 1, 
     name: 'Login',
     nodes: [
-      { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: 'node-1', type: 'custom', label: 'Find Login Button', position: { x: 200, y: 150 }, data: { type: 'find_image', target: 'login_btn.png' } },
-      { id: 'node-2', type: 'custom', label: 'Click Login', position: { x: 200, y: 250 }, data: { type: 'click' } },
+      { id: '1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
+      { id: '2', type: 'custom', label: 'Find Login', position: { x: 200, y: 150 }, data: { type: 'find_image', target: 'login_btn.png' } },
+      { id: '3', type: 'custom', label: 'Click Login', position: { x: 200, y: 250 }, data: { type: 'click' } },
     ], 
     edges: [
-      { id: 'e1-2', source: 'start-1', target: 'node-1' },
-      { id: 'e2-3', source: 'node-1', target: 'node-2' },
+      { id: 'e1-2', source: '1', target: '2' },
+      { id: 'e2-3', source: '2', target: '3' },
     ] 
   },
   { 
@@ -333,9 +333,12 @@ const onPaneClick = () => {
 
 // --- Connection Logic ---
 onConnect((params) => {
-  addLog(`params: ${params.sourceHandle} → ${params.targetHandle}`,INFO);
-  addEdges(params);
-  addLog(`Connected: ${params.source} → ${params.target}`, INFO);
+  addEdges([{ ...params, id: `${params.source}-${params.target}` }]);
+  edges.value.forEach(edge => {
+    addLog(`${edge.id}, ${edge.name}, ${edge.source} → ${edge.target}`, INFO);
+  });
+  //addLog(`edges: ${edges.value.keys()} → ${edges.value.length}`, INFO);
+  addLog(`连接: ${params.source} → ${params.target}`, INFO);
 });
 
 // ---------------------------------------------- Delete Confirmation Logic --------------------------------------------
@@ -354,7 +357,7 @@ const requestDeleteSelected = () => {
 
 const confirmDelete = () => {
   removeNodes(nodesToDelete.value);
-  addLog(`Deleted ${nodesToDelete.value.length} node(s)`, WARN);
+  addLog(`删除 ${nodesToDelete.value.length} 个节点`, WARN);
   selectedNode.value = null;
   showDeleteConfirm.value = false;
   nodesToDelete.value = [];

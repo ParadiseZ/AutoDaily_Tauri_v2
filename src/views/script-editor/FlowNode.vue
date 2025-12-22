@@ -9,7 +9,7 @@
     <!-- Input Handle (Top) -->
     <Handle 
       v-if="!isStartNode" 
-      type="target" 
+      type="target"
       position="top" 
       class="w-3! h-3! bg-primary! ring-2 ring-white"
     />
@@ -44,15 +44,15 @@
 
     <!-- Output Handle (Bottom) -->
     <Handle 
-      type="source" 
+      type="source"
       position="bottom" 
-      class="w-3! h-3! bg-primary! ring-2 ring-white" 
+      class="w-3! h-3! bg-primary! ring-2 ring-white"
     />
     
     <!-- Conditional Output Handle (Right) for condition nodes -->
     <Handle 
       v-if="isConditionNode"
-      type="source" 
+      type="source"
       position="right" 
       id="condition-true"
       class="w-3! h-3! bg-success! ring-2 ring-white" 
@@ -90,7 +90,7 @@ const nodeTypeConfig = {
   
   // Conditions
   if_found: { color: 'bg-yellow-500', icon: 'search', display: 'IF Found' },
-  if_not_found: { color: 'bg-orange-500', icon: 'search-x', display: 'IF Not Found' },
+  //if_not_found: { color: 'bg-orange-500', icon: 'search-x', display: 'IF Not Found' },
   
   // Vision
   find_image: { color: 'bg-purple-500', icon: 'image', display: 'Find Image' },
