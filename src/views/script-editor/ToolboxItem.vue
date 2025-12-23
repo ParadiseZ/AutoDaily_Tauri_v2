@@ -1,8 +1,7 @@
 <template>
   <div 
-    class="card bg-base-200 shadow-sm p-3 cursor-pointer hover:bg-base-300 border border-transparent hover:border-primary transition-all mb-2 group" 
-    draggable="true" 
-    @dragstart="onDragStart"
+    class="card bg-base-200 shadow-sm p-3 cursor-pointer hover:bg-base-300 border border-transparent hover:border-primary transition-all mb-2 group"
+    draggable="true"
     @click="onClick"
   >
     <div class="font-medium flex items-center gap-2 text-sm">
@@ -12,7 +11,7 @@
       <button 
         class="btn btn-xs btn-circle btn-ghost opacity-0 group-hover:opacity-100 transition-opacity"
         @click.stop="onClick"
-        title="Click to add"
+        title="添加"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -47,12 +46,12 @@ const props = defineProps({
 const emit = defineEmits(['add-node']);
 
 // Drag start handler for drag-and-drop
-const onDragStart = (event) => {
+/*const onDragStart = (event) => {
   if (event.dataTransfer) {
     event.dataTransfer.setData('application/vueflow', props.type);
     event.dataTransfer.effectAllowed = 'copy';
   }
-};
+};*/
 
 // Click handler for quick add
 const onClick = () => {

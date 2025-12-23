@@ -112,7 +112,7 @@
       </div>
       
       <!-- Type: Find Image -->
-      <div v-if="selectedNode.data?.type === 'find_image'" class="space-y-3">
+      <div v-if="selectedNode.data?.type === 'detect'" class="space-y-3">
         <div class="form-control w-full">
           <label class="label"><span class="label-text">Template Image</span></label>
           <div class="join w-full">

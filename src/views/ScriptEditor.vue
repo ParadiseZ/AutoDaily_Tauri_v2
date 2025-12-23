@@ -111,6 +111,8 @@
             fit-view-on-init
             class="flex-1 h-full"
             @pane-click="onPaneClick"
+            @edges-change="onEdgesChange"
+            @connect="onConnect"
         >
             <Background pattern-color="#aaa" :gap="16" />
             <Controls />
@@ -214,7 +216,7 @@ const nodeTypes = {
   custom: markRaw(FlowNode),
 };
 
-const {onNodeClick, onConnect, addEdges, removeNodes, getSelectedNodes, fitView: flowFitView } = useVueFlow();
+const { onNodeClick, removeNodes, getSelectedNodes, fitView: flowFitView } = useVueFlow();
 const activeTab = ref('tasks'); // Start on tasks tab
 const currentTheme = ref('light');
 
@@ -231,10 +233,11 @@ const taskList = ref([
       { id: '1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
       { id: '2', type: 'custom', label: 'Find Login', position: { x: 200, y: 150 }, data: { type: 'find_image', target: 'login_btn.png' } },
       { id: '3', type: 'custom', label: 'Click Login', position: { x: 200, y: 250 }, data: { type: 'click' } },
+      { id: '4', type: 'custom', label: 'End', position: { x: 200, y: 350 }, data: { type: 'end' } },
     ], 
     edges: [
-      { id: 'e1-2', source: '1', target: '2' },
-      { id: 'e2-3', source: '2', target: '3' },
+      { id: 'e1-2', source: '1', target: '2', sourceHandle: 'output', targetHandle: 'input' },
+      { id: 'e2-3', source: '2', target: '3', sourceHandle: 'output', targetHandle: 'input' },
     ] 
   },
   { 
@@ -242,6 +245,7 @@ const taskList = ref([
     name: 'Sign In',
     nodes: [
       { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
+      { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
     ], 
     edges: [] 
   },
@@ -250,6 +254,7 @@ const taskList = ref([
     name: 'Claim Rewards',
     nodes: [
       { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
+      { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
     ], 
     edges: [] 
   },
@@ -258,6 +263,7 @@ const taskList = ref([
     name: 'Daily Sweep',
     nodes: [
       { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
+      { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
     ], 
     edges: [] 
   },
@@ -332,14 +338,23 @@ const onPaneClick = () => {
 };
 
 // --- Connection Logic ---
-onConnect((params) => {
-  addEdges([{ ...params, id: `${params.source}-${params.target}` }]);
-  edges.value.forEach(edge => {
-    addLog(`${edge.id}, ${edge.name}, ${edge.source} → ${edge.target}`, INFO);
-  });
-  //addLog(`edges: ${edges.value.keys()} → ${edges.value.length}`, INFO);
-  addLog(`连接: ${params.source} → ${params.target}`, INFO);
-});
+const onConnect = (params) => {
+  if (params.sourceHandle === params.targetHandle) return;
+  const newEdge = {
+    id: `e-${params.source}-${params.target}`,
+    source: params.source,
+    target: params.target,
+    sourceHandle: params.sourceHandle,
+    targetHandle: params.targetHandle,
+  };
+  edges.value.push(params);
+  addLog(`连接: ${params.source} → ${params.target}, Handle:${params.sourceHandle}|${params.targetHandle}`, INFO);
+};
+
+// 监听边的变化（用于处理边的删除等操作）
+const onEdgesChange = (changes) => {
+  // 可以在这里处理边的变化，例如记录删除操作等
+};
 
 // ---------------------------------------------- Delete Confirmation Logic --------------------------------------------
 const showDeleteConfirm = ref(false);
@@ -348,7 +363,7 @@ const nodesToDelete = ref([]);
 const requestDeleteSelected = () => {
   const selected = getSelectedNodes.value;
   // Filter out start nodes - they cannot be deleted
-  const deletable = selected.filter(n => n.data?.type !== 'start' && n.data?.type !== 'input');
+  const deletable = selected.filter(n => n.data?.type !== 'start' && n.data?.type !== 'end');
   if (deletable.length > 0) {
     nodesToDelete.value = deletable;
     showDeleteConfirm.value = true;
@@ -388,7 +403,8 @@ const createNewTask = () => {
   const newTask = {
     id: newId,
     name: `New Task ${newId}`,
-    nodes: [{ id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } }],
+    nodes: [{ id: 'start-1', type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
+      { id: 'end-1', type: 'custom', label: '结束', position: { x: 200, y: 50 }, data: { type: 'end' } }],
     edges: []
   };
   taskList.value.push(newTask);
@@ -580,15 +596,21 @@ getFromStore(defaultEditorThemeKey).then(val => {
     color: oklch(var(--bc));
 }
 
-/* Edge styling */
+/* Edge styling - using !important to ensure styles are applied */
 .vue-flow__edge-path {
-    stroke: oklch(var(--p));
-    stroke-width: 2;
+    stroke: #6366f1 !important;
+    stroke-width: 2px !important;
 }
 
 .vue-flow__edge.selected .vue-flow__edge-path {
-    stroke: oklch(var(--s));
-    stroke-width: 3;
+    stroke: #8b5cf6 !important;
+    stroke-width: 3px !important;
+}
+
+/* Connection line styling (while dragging) */
+.vue-flow__connection-path {
+    stroke: #6366f1 !important;
+    stroke-width: 2px !important;
 }
 
 /* MiniMap styling */

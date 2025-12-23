@@ -10,7 +10,8 @@
     <Handle 
       v-if="!isStartNode" 
       type="target"
-      position="top" 
+      :position="Position.Top" 
+      id="input"
       class="w-3! h-3! bg-primary! ring-2 ring-white"
     />
     
@@ -43,26 +44,54 @@
     </div>
 
     <!-- Output Handle (Bottom) -->
-    <Handle 
+    <Handle
+      v-if="!isConditionNode && !isEndNode"
       type="source"
-      position="bottom" 
+      :position="Position.Bottom" 
+      id="output"
       class="w-3! h-3! bg-primary! ring-2 ring-white"
+    />
+
+    <Handle
+        v-if="isConditionNode"
+        type="source"
+        :position="Position.Bottom"
+        id="output"
+        class="w-3! h-3! bg-error! ring-2 ring-white"
     />
     
     <!-- Conditional Output Handle (Right) for condition nodes -->
     <Handle 
       v-if="isConditionNode"
       type="source"
-      position="right" 
-      id="condition-true"
+      :position="Position.Right"
+      id="ifTrue"
       class="w-3! h-3! bg-success! ring-2 ring-white" 
+    />
+
+    <Handle
+        v-if="isLoopNode"
+        type="source"
+        :position="Position.Right"
+        id="loopStart"
+        class="w-3! h-3! bg-success! ring-2 ring-white"
+        style="top: 34%;"
+    />
+
+    <Handle
+        v-if="isLoopNode"
+        type="target"
+        :position="Position.Right"
+        id="loopEnd"
+        class="w-3! h-3! bg-error! ring-2 ring-white"
+        style="top: 68%;"
     />
   </div>
 </template>
 
 <script setup>
 import { computed, h } from 'vue';
-import { Handle } from '@vue-flow/core';
+import { Handle, Position } from '@vue-flow/core';
 
 const props = defineProps({
   id: String,
@@ -89,11 +118,11 @@ const nodeTypeConfig = {
   swipe: { color: 'bg-cyan-500', icon: 'move', display: 'Swipe' },
   
   // Conditions
-  if_found: { color: 'bg-yellow-500', icon: 'search', display: 'IF Found' },
+  if: { color: 'bg-yellow-500', icon: 'search', display: 'IF Found' },
   //if_not_found: { color: 'bg-orange-500', icon: 'search-x', display: 'IF Not Found' },
   
   // Vision
-  find_image: { color: 'bg-purple-500', icon: 'image', display: 'Find Image' },
+  detect: { color: 'bg-purple-500', icon: 'image', display: 'Find Image' },
   ocr: { color: 'bg-violet-500', icon: 'type', display: 'OCR' },
   
   // Control
@@ -109,6 +138,8 @@ const nodeTypeConfig = {
 
 const isStartNode = computed(() => ['start', 'input'].includes(props.data?.type));
 const isConditionNode = computed(() => ['if_found', 'if_not_found'].includes(props.data?.type));
+const isLoopNode = computed(() => ['loop'].includes(props.data?.type));
+const isEndNode = computed(() => ['end'].includes(props.data?.type));
 
 const headerColorClass = computed(() => {
   const config = nodeTypeConfig[props.data?.type];
@@ -124,14 +155,14 @@ const placeholderText = computed(() => {
   switch (props.data?.type) {
     case 'click': return 'Set click target...';
     case 'wait': return 'Set wait duration...';
-    case 'if_found': return 'Set search target...';
-    case 'if_not_found': return 'Set search target...';
-    case 'find_image': return 'Select image...';
+    case 'if': return 'Set search target...';
+    case 'detect': return 'Select image...';
     case 'ocr': return 'Set OCR region...';
     case 'loop': return 'Configure loop...';
     case 'fallback': return 'Fallback actions';
     case 'subflow': return 'Select sub-flow...';
-    default: return 'No description';
+    case 'end': return '结束';
+    default: return '无描述';
   }
 });
 
