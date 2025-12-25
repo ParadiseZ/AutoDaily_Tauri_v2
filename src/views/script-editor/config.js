@@ -60,7 +60,7 @@ export const NODE_TYPES = {
     },
 
     // Vision Nodes
-    screenshot: {
+    capture: {
         color: 'bg-slate-500',
         icon: 'camera',
         display: 'Screenshot',
@@ -99,17 +99,6 @@ export const NODE_TYPES = {
         description: 'Process data / set variable',
     },
 
-    // Composite Nodes
-    macro_action: {
-        color: 'bg-amber-600',
-        icon: 'zap',
-        display: 'Smart Click',
-        displayCn: '宏点击',
-        category: 'composite',
-        placeholder: 'Unified action configuration',
-        description: 'Unified: Capture -> Detect -> Click',
-    },
-
     // Control Flow Nodes
     loop: {
         // ... (remaining definitions will be updated in chunks or via replacement)
@@ -141,11 +130,20 @@ export const NODE_TYPES = {
     },
 
     // Templates (For Toolbox display)
-    template_vision_loop: {
+    macro_1: {
+        color: 'bg-amber-600',
+        icon: 'zap',
+        display: 'Smart Click',
+        displayCn: '宏点击（截图|检测|点击）',
+        category: 'composite',
+        placeholder: 'Unified action configuration',
+        description: 'Unified: Capture -> Detect -> Click',
+    },
+    template_1: {
         color: 'bg-indigo-600',
         icon: 'layers',
         display: 'Vision Loop',
-        displayCn: '全流程模板',
+        displayCn: '宏模板（循环|截图|检测|点击）',
         category: 'composite',
         description: '自动生成: 循环 -> 截图 -> 检测 -> 点击',
     },
@@ -192,7 +190,7 @@ export const NODE_CATEGORIES = [
         key: 'vision',
         label: '视觉',
         labelEn: 'Vision',
-        types: ['screenshot', 'detect', 'ocr'],
+        types: ['capture', 'detect', 'ocr'],
     },
     {
         key: 'data',
@@ -210,7 +208,7 @@ export const NODE_CATEGORIES = [
         key: 'composite',
         label: '复合模板',
         labelEn: 'Composite',
-        types: ['macro_action', 'template_vision_loop'],
+        types: ['macro_1', 'template_1'],
     },
 ];
 
@@ -219,7 +217,7 @@ export const NODE_CATEGORIES = [
 // ============================================
 
 export const NODE_TEMPLATES = {
-    template_vision_loop: {
+    template_1: {
         display: 'Vision Loop Template',
         displayCn: '视觉循环模板',
         description: 'Loop -> Screenshot -> Detect -> Click',
@@ -364,10 +362,10 @@ export function getNodeDefaults(type) {
                 targetTaskId: base.targetTaskId,
                 waitForComplete: base.waitForComplete,
             };
-        case 'screenshot':
+        case 'capture':
             return {
                 type,
-                outputVar: 'last_screenshot',
+                outputVar: 'last_capture',
             };
         case 'variable':
             return {
@@ -376,7 +374,7 @@ export function getNodeDefaults(type) {
                 opType: 'set', // set, math, string, regex
                 expression: '',
             };
-        case 'macro_action':
+        case 'macro_1':
             return {
                 type,
                 screenshot: true,
@@ -490,7 +488,7 @@ export function getNodeDescription(type) {
  * @returns {boolean}
  */
 export function isStartNode(type) {
-    return ['start', 'input'].includes(type);
+    return ['start'].includes(type);
 }
 
 /**
@@ -499,7 +497,7 @@ export function isStartNode(type) {
  * @returns {boolean}
  */
 export function isConditionNode(type) {
-    return ['if', 'if_found', 'if_not_found'].includes(type);
+    return ['if'].includes(type);
 }
 
 /**

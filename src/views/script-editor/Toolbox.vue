@@ -1,22 +1,30 @@
 <template>
-  <div class="flex-1 overflow-y-auto p-2 space-y-2">
+  <div class="flex-1 overflow-y-auto p-2">
     <!-- 动态生成分类和节点 -->
-    <template v-for="category in nodeCategories" :key="category.key">
-      <div class="text-xs font-bold opacity-50 mb-2 uppercase tracking-wide" :class="{ 'mt-4': category.key !== 'basic' }">
+    <div v-for="category in nodeCategories" :key="category.key" class="mb-4 last:mb-0">
+      <div 
+        class="text-xs font-bold opacity-50 mb-3 uppercase tracking-wide" 
+        :class="{ 'mt-2': category.key !== 'basic' }"
+      >
         {{ category.label }}
       </div>
       
-      <ToolboxItem 
-        v-for="nodeType in category.types" 
-        :key="nodeType"
-        :type="nodeType"
-        :label="getToolboxLabel(nodeType)"
-        :color="getNodeColor(nodeType)"
-        :icon="getNodeIcon(nodeType)"
-        :description="getToolboxDescription(nodeType)"
-        @add-node="emitAddNode"
-      />
-    </template>
+      <div 
+        class="grid gap-2"
+        :class="category.key === 'composite' ? 'grid-cols-1' : 'grid-cols-2'"
+      >
+        <ToolboxItem 
+          v-for="nodeType in category.types" 
+          :key="nodeType"
+          :type="nodeType"
+          :label="getToolboxLabel(nodeType)"
+          :color="getNodeColor(nodeType)"
+          :icon="getNodeIcon(nodeType)"
+          :description="getToolboxDescription(nodeType)"
+          @add-node="emitAddNode"
+        />
+      </div>
+    </div>
   </div>
 </template>
 

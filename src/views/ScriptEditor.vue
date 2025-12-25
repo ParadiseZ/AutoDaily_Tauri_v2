@@ -56,8 +56,8 @@
             <!-- TAB: TASKS (Current Script's Task List) -->
             <div v-show="activeTab === 'tasks'">
                 <div class="flex justify-between items-center mb-2 px-1">
-                    <span class="text-xs font-bold opacity-50 uppercase">Task List</span>
-                    <button class="btn btn-xs btn-circle btn-primary" @click="createNewTask" title="New Task">
+                    <span class="text-xs font-bold opacity-50 uppercase">任务列表</span>
+                    <button class="btn btn-xs btn-circle btn-primary" @click="createNewTask" title="创建任务">
                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19" fill="none"></line><line x1="5" y1="12" x2="19" y2="12" fill="none"></line></svg>
                     </button>
                 </div>
@@ -155,25 +155,25 @@
     <!-- Delete Confirmation Modal -->
     <dialog class="modal" :class="{ 'modal-open': showDeleteConfirm }">
       <div class="modal-box">
-        <h3 class="font-bold text-lg">Confirm Delete</h3>
-        <p class="py-4">Are you sure you want to delete {{ nodesToDelete.length }} selected node(s)?</p>
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="red" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill="none"/><line x1="12" y1="9" x2="12" y2="13" fill="none"/><line x1="12" y1="17" x2="12.01" y2="17" fill="none"/></svg>
+        <p class="py-4">确认删除选择的 {{ nodesToDelete.length }} 个节点?</p>
         <div class="modal-action">
-          <button class="btn" @click="cancelDelete">Cancel</button>
-          <button class="btn btn-error" @click="confirmDelete">Delete</button>
+          <button class="btn" @click="cancelDelete">取消</button>
+          <button class="btn btn-error" @click="confirmDelete">删除</button>
         </div>
       </div>
     </dialog>
     
     <!-- Task Rename Modal -->
-    <dialog class="modal" :class="{ 'modal-open': showRenameModal }">
+    <dialog class="modal" :class="{ 'modal-open': editTaskModal }">
       <div class="modal-box">
-        <h3 class="font-bold text-lg">Rename Task</h3>
+        <h3 class="font-bold text-lg">编辑</h3>
         <div class="form-control w-full py-4">
           <input type="text" v-model="renameValue" class="input input-bordered w-full" placeholder="Enter task name..." @keyup.enter="confirmRename" />
         </div>
         <div class="modal-action">
-          <button class="btn" @click="cancelRename">Cancel</button>
-          <button class="btn btn-primary" @click="confirmRename">Save</button>
+          <button class="btn" @click="cancelRename">取消</button>
+          <button class="btn btn-primary" @click="confirmRename">保存</button>
         </div>
       </div>
     </dialog>
@@ -411,7 +411,7 @@ const createNewTask = () => {
     id: newId,
     name: `New Task ${newId}`,
     nodes: [{ id: 'start-1', type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: 'end-1', type: 'custom', label: '结束', position: { x: 200, y: 50 }, data: { type: 'end' } }],
+      { id: 'end-1', type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }],
     edges: []
   };
   taskList.value.push(newTask);
@@ -437,15 +437,15 @@ const deleteTask = (id) => {
   }
 };
 
-// ----------------重命名任务-------------
-const showRenameModal = ref(false);
+// ---------------------------------------------------编辑任务---------------------------------------------------------
+const editTaskModal = ref(false);
 const renameValue = ref('');
 const renameTarget = ref(null);
 
 const editTaskName = (task) => {
   renameTarget.value = task;
   renameValue.value = task.name;
-  showRenameModal.value = true;
+  editTaskModal.value = true;
 };
 
 const confirmRename = () => {
@@ -457,7 +457,7 @@ const confirmRename = () => {
 };
 
 const cancelRename = () => {
-  showRenameModal.value = false;
+  editTaskModal.value = false;
   renameValue.value = '';
   renameTarget.value = null;
 };
@@ -494,8 +494,8 @@ const saveScript = () => {
     tasks: taskList.value
   };
   
-  console.log('Saving script:', scriptData);
-  addLog('Script saved successfully!', 'success');
+  console.log('保存脚本:', scriptData);
+  addLog('脚本保存成功!', 'success');
   // TODO: Call backend API to save
 };
 
