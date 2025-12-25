@@ -96,19 +96,20 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import { Check } from 'lucide-vue-next';
+import {
+  THEMES,
+  DEFAULT_VISIBLE_THEMES_COUNT,
+  DEFAULT_THEME,
+} from './script-editor/config.js';
 
-const themes = [
-  'light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 
-  'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 
-  'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 
-  'winter', 'dim', 'nord', 'sunset',
-];
+// 使用统一配置
+const themes = THEMES;
 
-const currentTheme = ref('dark');
+const currentTheme = ref(DEFAULT_THEME);
 const showAllThemes = ref(false);
 
 const visibleThemes = computed(() => {
-    return showAllThemes.value ? themes : themes.slice(0, 8);
+    return showAllThemes.value ? themes : themes.slice(0, DEFAULT_VISIBLE_THEMES_COUNT);
 });
 
 const setTheme = (theme) => {
@@ -118,7 +119,7 @@ const setTheme = (theme) => {
 };
 
 onMounted(() => {
-  const savedTheme = localStorage.getItem('theme') || 'dark';
+  const savedTheme = localStorage.getItem('theme') || DEFAULT_THEME;
   setTheme(savedTheme);
 });
 </script>

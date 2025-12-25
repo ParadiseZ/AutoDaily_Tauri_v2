@@ -92,6 +92,18 @@
 <script setup>
 import { computed, h } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
+import {
+  DEFAULT_FALLBACK_STRATEGIES,
+  getNodeTypeConfig,
+  getNodeColor,
+  getNodeDisplay,
+  getNodeIcon,
+  getNodePlaceholder,
+  isStartNode as checkIsStartNode,
+  isConditionNode as checkIsConditionNode,
+  isLoopNode as checkIsLoopNode,
+  isEndNode as checkIsEndNode,
+} from './config.js';
 
 const props = defineProps({
   id: String,
@@ -103,72 +115,22 @@ const props = defineProps({
   selected: Boolean,
 });
 
-// Default fallback strategies
-const defaultStrategies = [
-  { target: 'Return/Back button', label: '尝试点击返回' },
-  { target: 'Close button', label: '尝试点击关闭' },
-  { target: 'Confirm button', label: '尝试点击确认' },
-];
+// 使用统一配置
+const defaultStrategies = DEFAULT_FALLBACK_STRATEGIES;
 
-// Color mapping for node types
-const nodeTypeConfig = {
-  // Basic
-  click: { color: 'bg-blue-500', icon: 'cursor', display: 'Click' },
-  wait: { color: 'bg-gray-500', icon: 'clock', display: 'Wait' },
-  swipe: { color: 'bg-cyan-500', icon: 'move', display: 'Swipe' },
-  
-  // Conditions
-  if: { color: 'bg-yellow-500', icon: 'search', display: 'IF Found' },
-  //if_not_found: { color: 'bg-orange-500', icon: 'search-x', display: 'IF Not Found' },
-  
-  // Vision
-  detect: { color: 'bg-purple-500', icon: 'image', display: 'Find Image' },
-  ocr: { color: 'bg-violet-500', icon: 'type', display: 'OCR' },
-  
-  // Control
-  loop: { color: 'bg-green-500', icon: 'repeat', display: 'Loop' },
-  fallback: { color: 'bg-red-500', icon: 'alert-triangle', display: 'Fallback' },
-  subflow: { color: 'bg-pink-500', icon: 'git-branch', display: 'Sub-Flow' },
-  
-  // Special
-  start: { color: 'bg-emerald-600', icon: 'play', display: 'Start' },
-  end: { color: 'bg-rose-600', icon: 'square', display: 'End' },
-  input: { color: 'bg-emerald-600', icon: 'play', display: 'Start' },
-};
+// 计算属性使用配置辅助函数
+const isStartNode = computed(() => checkIsStartNode(props.data?.type));
+const isConditionNode = computed(() => checkIsConditionNode(props.data?.type));
+const isLoopNode = computed(() => checkIsLoopNode(props.data?.type));
+const isEndNode = computed(() => checkIsEndNode(props.data?.type));
 
-const isStartNode = computed(() => ['start', 'input'].includes(props.data?.type));
-const isConditionNode = computed(() => ['if_found', 'if_not_found'].includes(props.data?.type));
-const isLoopNode = computed(() => ['loop'].includes(props.data?.type));
-const isEndNode = computed(() => ['end'].includes(props.data?.type));
-
-const headerColorClass = computed(() => {
-  const config = nodeTypeConfig[props.data?.type];
-  return config?.color || 'bg-neutral';
-});
-
-const displayType = computed(() => {
-  const config = nodeTypeConfig[props.data?.type];
-  return config?.display || props.data?.type || 'Node';
-});
-
-const placeholderText = computed(() => {
-  switch (props.data?.type) {
-    case 'click': return 'Set click target...';
-    case 'wait': return 'Set wait duration...';
-    case 'if': return 'Set search target...';
-    case 'detect': return 'Select image...';
-    case 'ocr': return 'Set OCR region...';
-    case 'loop': return 'Configure loop...';
-    case 'fallback': return 'Fallback actions';
-    case 'subflow': return 'Select sub-flow...';
-    case 'end': return '结束';
-    default: return '无描述';
-  }
-});
+const headerColorClass = computed(() => getNodeColor(props.data?.type));
+const displayType = computed(() => getNodeDisplay(props.data?.type));
+const placeholderText = computed(() => getNodePlaceholder(props.data?.type));
 
 // Simple SVG icon component
 const nodeIcon = computed(() => {
-  const iconType = nodeTypeConfig[props.data?.type]?.icon || 'box';
+  const iconType = getNodeIcon(props.data?.type);
   
   // Return a functional component that renders the appropriate icon
   return {

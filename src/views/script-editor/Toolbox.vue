@@ -1,97 +1,45 @@
 <template>
   <div class="flex-1 overflow-y-auto p-2 space-y-2">
-    <!-- Basic Nodes -->
-    <div class="text-xs font-bold opacity-50 mb-2 uppercase tracking-wide">基本</div>
-    
-    <ToolboxItem 
-      type="click" 
-      label="点击|Click"
-      color="bg-blue-500" 
-      description="Click on a target"
-      @add-node="emitAddNode"
-    />
-    
-    <ToolboxItem 
-      type="wait" 
-      label="等待|Wait"
-      color="bg-gray-500" 
-      description="Wait for duration"
-      @add-node="emitAddNode"
-    />
-    
-    <ToolboxItem 
-      type="swipe" 
-      label="滑动|Swipe"
-      color="bg-cyan-500" 
-      description="Swipe gesture"
-      @add-node="emitAddNode"
-    />
-
-    <!-- Condition Nodes -->
-    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">条件逻辑</div>
-    
-    <ToolboxItem 
-      type="if"
-      label="如果|If"
-      color="bg-yellow-500" 
-      description="If image/text found, then..."
-      @add-node="emitAddNode"
-    />
-
-    <!-- Vision Nodes -->
-    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">视觉</div>
-    
-    <ToolboxItem 
-      type="detect"
-      label="目标检测"
-      color="bg-purple-500" 
-      description="Locate image on screen"
-      @add-node="emitAddNode"
-    />
-    
-    <ToolboxItem 
-      type="ocr" 
-      label="文字识别"
-      color="bg-violet-500" 
-      description="Recognize text"
-      @add-node="emitAddNode"
-    />
-
-    <!-- Control Flow -->
-    <div class="text-xs font-bold opacity-50 mb-2 mt-4 uppercase tracking-wide">控制流</div>
-    
-    <ToolboxItem 
-      type="loop" 
-      label="循环|Loop"
-      color="bg-green-500" 
-      description="Repeat N times"
-      @add-node="emitAddNode"
-    />
-    
-    <ToolboxItem 
-      type="fallback" 
-      label="回调"
-      color="bg-red-500" 
-      description="Retry actions when all conditions fail"
-      @add-node="emitAddNode"
-    />
-    
-    <ToolboxItem 
-      type="subflow" 
-      label="子流程"
-      color="bg-pink-500" 
-      description="Call another task's flow"
-      @add-node="emitAddNode"
-    />
+    <!-- 动态生成分类和节点 -->
+    <template v-for="category in nodeCategories" :key="category.key">
+      <div class="text-xs font-bold opacity-50 mb-2 uppercase tracking-wide" :class="{ 'mt-4': category.key !== 'basic' }">
+        {{ category.label }}
+      </div>
+      
+      <ToolboxItem 
+        v-for="nodeType in category.types" 
+        :key="nodeType"
+        :type="nodeType"
+        :label="getToolboxLabel(nodeType)"
+        :color="getNodeColor(nodeType)"
+        :description="getToolboxDescription(nodeType)"
+        @add-node="emitAddNode"
+      />
+    </template>
   </div>
 </template>
 
 <script setup>
 import ToolboxItem from './ToolboxItem.vue';
+import { NODE_CATEGORIES, NODE_TYPES, getNodeColor, getNodeDescription } from './config.js';
 
 const emit = defineEmits(['add-node']);
+
+// 使用统一配置的分类
+const nodeCategories = NODE_CATEGORIES;
+
+// 获取工具箱显示标签
+const getToolboxLabel = (type) => {
+  const config = NODE_TYPES[type];
+  if (!config) return type;
+  return config.displayCn ? `${config.displayCn}|${config.display}` : config.display;
+};
+
+// 获取工具箱描述 - 使用配置函数
+const getToolboxDescription = (type) => getNodeDescription(type);
 
 const emitAddNode = (type) => {
   emit('add-node', type);
 };
 </script>
+

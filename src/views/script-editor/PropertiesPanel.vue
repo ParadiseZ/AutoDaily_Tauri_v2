@@ -264,6 +264,12 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import {
+  DEFAULT_FALLBACK_STRATEGIES,
+  NODE_TYPES,
+  getNodeDisplay,
+  NODE_DATA_DEFAULTS,
+} from './config.js';
 
 const props = defineProps({
   selectedNode: {
@@ -278,32 +284,13 @@ const emit = defineEmits(['delete-node', 'update-node']);
 const nodeLabel = ref('');
 const localData = ref({});
 
-// Default fallback strategies
-const defaultStrategies = [
-  { target: 'back_button', action: 'click' },
-  { target: 'close_button', action: 'click' },
-  { target: 'confirm_button', action: 'click' },
-];
+// 使用统一配置
+const defaultStrategies = DEFAULT_FALLBACK_STRATEGIES;
 
-// Node type display names
-const nodeTypeConfig = {
-  click: 'Click',
-  wait: 'Wait',
-  swipe: 'Swipe',
-  if_found: 'IF Found',
-  if_not_found: 'IF Not Found',
-  find_image: 'Find Image',
-  ocr: 'OCR',
-  loop: 'Loop',
-  fallback: 'Fallback',
-  subflow: 'Sub-Flow',
-  start: 'Start',
-  input: 'Start',
-};
-
+// Node type display - 使用配置函数
 const nodeTypeDisplay = computed(() => {
   const type = props.selectedNode?.data?.type;
-  return nodeTypeConfig[type] || type || 'Unknown';
+  return getNodeDisplay(type) || type || 'Unknown';
 });
 
 // Watch for selected node changes
@@ -312,17 +299,17 @@ watch(() => props.selectedNode, (newNode) => {
     nodeLabel.value = newNode.label || '';
     localData.value = { ...newNode.data };
     
-    // Initialize defaults
-    if (!localData.value.targetType) localData.value.targetType = 'coordinates';
-    if (!localData.value.searchType) localData.value.searchType = 'image';
-    if (!localData.value.confidence) localData.value.confidence = 80;
-    if (!localData.value.duration) localData.value.duration = 1000;
-    if (!localData.value.timeout) localData.value.timeout = 5000;
-    if (!localData.value.count) localData.value.count = 3;
-    if (!localData.value.loopType) localData.value.loopType = 'count';
-    if (!localData.value.maxRetries) localData.value.maxRetries = 3;
-    if (!localData.value.strategies) localData.value.strategies = [...defaultStrategies];
-    if (localData.value.waitForComplete === undefined) localData.value.waitForComplete = true;
+    // Initialize defaults from config
+    if (!localData.value.targetType) localData.value.targetType = NODE_DATA_DEFAULTS.targetType;
+    if (!localData.value.searchType) localData.value.searchType = NODE_DATA_DEFAULTS.searchType;
+    if (!localData.value.confidence) localData.value.confidence = NODE_DATA_DEFAULTS.confidence;
+    if (!localData.value.duration) localData.value.duration = NODE_DATA_DEFAULTS.duration;
+    if (!localData.value.timeout) localData.value.timeout = NODE_DATA_DEFAULTS.timeout;
+    if (!localData.value.count) localData.value.count = NODE_DATA_DEFAULTS.count;
+    if (!localData.value.loopType) localData.value.loopType = NODE_DATA_DEFAULTS.loopType;
+    if (!localData.value.maxRetries) localData.value.maxRetries = NODE_DATA_DEFAULTS.maxRetries;
+    if (!localData.value.strategies) localData.value.strategies = defaultStrategies.map(s => ({ ...s }));
+    if (localData.value.waitForComplete === undefined) localData.value.waitForComplete = NODE_DATA_DEFAULTS.waitForComplete;
   }
 }, { immediate: true, deep: true });
 
