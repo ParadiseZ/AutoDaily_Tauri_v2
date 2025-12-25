@@ -325,9 +325,11 @@ export function getNodeDefaults(type) {
 
 /**
  * 可用主题列表
+ * Core themes are 'dark' and 'light', designed specifically for AutoDaily.
+ * Others are default DaisyUI themes.
  */
 export const THEMES = [
-    'light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate',
+    'dark', 'light', 'cupcake', 'bumblebee', 'emerald', 'corporate',
     'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden',
     'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe',
     'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business',
@@ -335,12 +337,12 @@ export const THEMES = [
 ];
 
 /**
- * 默认显示的主题数量
+ * 默认显示的主题数量 (在设置页面初始化展示的数量)
  */
 export const DEFAULT_VISIBLE_THEMES_COUNT = 8;
 
 /**
- * 默认主题
+ * 默认起始主题 - AutoDaily 推荐使用 dark 模式
  */
 export const DEFAULT_THEME = 'dark';
 

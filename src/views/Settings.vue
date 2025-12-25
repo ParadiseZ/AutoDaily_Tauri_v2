@@ -46,8 +46,21 @@
             <label class="label">
               <span class="label-text font-bold">Theme</span>
             </label>
-            <div class="grid grid-cols-2 gap-2">
-               <button v-for="theme in visibleThemes" :key="theme" 
+            
+            <div class="mb-2 text-xs opacity-60">Core Themes</div>
+            <div class="grid grid-cols-2 gap-2 mb-4">
+               <button v-for="theme in themes.slice(0, 2)" :key="theme" 
+                 class="btn btn-sm btn-outline justify-center gap-2 capitalize h-12" 
+                 :class="{ 'btn-active btn-primary': currentTheme === theme }" 
+                 @click="setTheme(theme)">
+                 <div class="w-4 h-4 rounded-full border border-base-300 shadow-sm" :style="{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff' }"></div>
+                 {{ theme === 'dark' ? 'Dark Mode' : 'Light Mode' }}
+               </button>
+            </div>
+
+            <div class="mb-2 text-xs opacity-60">DaisyUI Styles</div>
+            <div class="grid grid-cols-3 gap-2">
+               <button v-for="theme in visibleThemes.slice(2)" :key="theme" 
                  class="btn btn-xs btn-outline justify-start capitalize" 
                  :class="{ 'btn-active': currentTheme === theme }" 
                  @click="setTheme(theme)">
