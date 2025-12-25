@@ -231,7 +231,7 @@ const taskList = ref([
     name: 'Login',
     nodes: [
       { id: '1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: '2', type: 'custom', label: 'Find Login', position: { x: 200, y: 150 }, data: { type: 'find_image', target: 'login_btn.png' } },
+      { id: '2', type: 'custom', label: 'Find Login', position: { x: 200, y: 150 }, data: { type: 'if', target: 'login_btn.png' } },
       { id: '3', type: 'custom', label: 'Click Login', position: { x: 200, y: 250 }, data: { type: 'click' } },
       { id: '4', type: 'custom', label: 'End', position: { x: 200, y: 350 }, data: { type: 'end' } },
     ], 

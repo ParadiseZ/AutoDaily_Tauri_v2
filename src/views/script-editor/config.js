@@ -58,24 +58,6 @@ export const NODE_TYPES = {
         placeholder: 'Set search target...',
         description: 'If image/text found, then...',
     },
-    if_found: {
-        color: 'bg-yellow-500',
-        icon: 'search',
-        display: 'IF Found',
-        displayCn: '如果找到',
-        category: 'condition',
-        placeholder: 'Set search target...',
-        description: 'If image/text found, then...',
-    },
-    if_not_found: {
-        color: 'bg-orange-500',
-        icon: 'search-x',
-        display: 'IF Not Found',
-        displayCn: '如果未找到',
-        category: 'condition',
-        placeholder: 'Set search target...',
-        description: 'If image/text not found, then...',
-    },
 
     // Vision Nodes
     detect: {
@@ -128,15 +110,6 @@ export const NODE_TYPES = {
 
     // Special Nodes
     start: {
-        color: 'bg-emerald-600',
-        icon: 'play',
-        display: 'Start',
-        displayCn: '开始',
-        category: 'special',
-        placeholder: '开始',
-        description: 'Start node',
-    },
-    input: {
         color: 'bg-emerald-600',
         icon: 'play',
         display: 'Start',
@@ -270,8 +243,6 @@ export function getNodeDefaults(type) {
                 duration: base.duration,
             };
         case 'if':
-        case 'if_found':
-        case 'if_not_found':
             return {
                 type,
                 searchType: base.searchType,
@@ -344,7 +315,7 @@ export const DEFAULT_VISIBLE_THEMES_COUNT = 8;
 /**
  * 默认起始主题 - AutoDaily 推荐使用 dark 模式
  */
-export const DEFAULT_THEME = 'dark';
+export const DEFAULT_THEME = 'light';
 
 // ============================================
 // Helper Functions
