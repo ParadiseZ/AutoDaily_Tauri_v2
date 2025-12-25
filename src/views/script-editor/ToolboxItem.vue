@@ -4,9 +4,14 @@
     draggable="true"
     @click="onClick"
   >
-    <div class="font-medium flex items-center gap-2 text-sm">
-      <span class="w-3 h-3 rounded-full shrink-0" :class="color"></span>
-      <span class="flex-1">{{ label }}</span>
+    <div class="font-medium flex items-center gap-2 text-sm relative">
+      <div 
+        class="w-8 h-8 rounded-lg shrink-0 flex items-center justify-center text-white shadow-sm" 
+        :class="color"
+      >
+        <IconRenderer :icon="icon" class="w-4 h-4" />
+      </div>
+      <span class="flex-1 truncate">{{ label }}</span>
       <!-- Quick add button (visible on hover) -->
       <button 
         class="btn btn-xs btn-circle btn-ghost opacity-0 group-hover:opacity-100 transition-opacity"
@@ -19,11 +24,13 @@
         </svg>
       </button>
     </div>
-    <div class="text-xs opacity-50 mt-1 pl-5">{{ description }}</div>
-  </div>
+    <div class="text-[10px] opacity-40 mt-1 pl-10 leading-tight">{{ description }}</div>
+</div>
 </template>
 
 <script setup>
+import IconRenderer from './IconRenderer.vue';
+
 const props = defineProps({
   type: {
     type: String,
@@ -32,6 +39,10 @@ const props = defineProps({
   label: {
     type: String,
     required: true
+  },
+  icon: {
+    type: String,
+    default: 'box'
   },
   color: {
     type: String,

@@ -21,7 +21,7 @@
       :class="headerColorClass"
     >
       <!-- Icon based on type -->
-      <component :is="nodeIcon" class="w-3 h-3" />
+      <IconRenderer :icon="currentIcon" class="w-3 h-3" />
       {{ displayType }}
     </div>
 
@@ -94,7 +94,6 @@ import { computed, h } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
 import {
   DEFAULT_FALLBACK_STRATEGIES,
-  getNodeTypeConfig,
   getNodeColor,
   getNodeDisplay,
   getNodeIcon,
@@ -105,6 +104,10 @@ import {
   isEndNode as checkIsEndNode,
 } from './config.js';
 
+// Components
+import IconRenderer from './IconRenderer.vue';
+
+// ---------------------------
 const props = defineProps({
   id: String,
   label: String,
@@ -127,81 +130,7 @@ const isEndNode = computed(() => checkIsEndNode(props.data?.type));
 const headerColorClass = computed(() => getNodeColor(props.data?.type));
 const displayType = computed(() => getNodeDisplay(props.data?.type));
 const placeholderText = computed(() => getNodePlaceholder(props.data?.type));
-
-// Simple SVG icon component
-const nodeIcon = computed(() => {
-  const iconType = getNodeIcon(props.data?.type);
-  
-  // Return a functional component that renders the appropriate icon
-  return {
-    render() {
-      const icons = {
-        cursor: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('path', { d: 'M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z' }),
-        ]),
-        clock: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('circle', { cx: '12', cy: '12', r: '10' }),
-          h('polyline', { points: '12 6 12 12 16 14' }),
-        ]),
-        move: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('polyline', { points: '5 9 2 12 5 15' }),
-          h('polyline', { points: '9 5 12 2 15 5' }),
-          h('polyline', { points: '15 19 12 22 9 19' }),
-          h('polyline', { points: '19 9 22 12 19 15' }),
-          h('line', { x1: '2', y1: '12', x2: '22', y2: '12' }),
-          h('line', { x1: '12', y1: '2', x2: '12', y2: '22' }),
-        ]),
-        search: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('circle', { cx: '11', cy: '11', r: '8' }),
-          h('line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' }),
-        ]),
-        'search-x': h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('circle', { cx: '11', cy: '11', r: '8' }),
-          h('line', { x1: '21', y1: '21', x2: '16.65', y2: '16.65' }),
-          h('line', { x1: '8', y1: '8', x2: '14', y2: '14' }),
-          h('line', { x1: '14', y1: '8', x2: '8', y2: '14' }),
-        ]),
-        image: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('rect', { x: '3', y: '3', width: '18', height: '18', rx: '2', ry: '2' }),
-          h('circle', { cx: '8.5', cy: '8.5', r: '1.5' }),
-          h('polyline', { points: '21 15 16 10 5 21' }),
-        ]),
-        type: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('polyline', { points: '4 7 4 4 20 4 20 7' }),
-          h('line', { x1: '9', y1: '20', x2: '15', y2: '20' }),
-          h('line', { x1: '12', y1: '4', x2: '12', y2: '20' }),
-        ]),
-        repeat: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('polyline', { points: '17 1 21 5 17 9' }),
-          h('path', { d: 'M3 11V9a4 4 0 0 1 4-4h14' }),
-          h('polyline', { points: '7 23 3 19 7 15' }),
-          h('path', { d: 'M21 13v2a4 4 0 0 1-4 4H3' }),
-        ]),
-        'alert-triangle': h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('path', { d: 'M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z' }),
-          h('line', { x1: '12', y1: '9', x2: '12', y2: '13' }),
-          h('line', { x1: '12', y1: '17', x2: '12.01', y2: '17' }),
-        ]),
-        'git-branch': h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('line', { x1: '6', y1: '3', x2: '6', y2: '15' }),
-          h('circle', { cx: '18', cy: '6', r: '3' }),
-          h('circle', { cx: '6', cy: '18', r: '3' }),
-          h('path', { d: 'M18 9a9 9 0 0 1-9 9' }),
-        ]),
-        play: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('polygon', { points: '5 3 19 12 5 21 5 3' }),
-        ]),
-        square: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('rect', { x: '3', y: '3', width: '18', height: '18', rx: '2', ry: '2' }),
-        ]),
-        box: h('svg', { xmlns: 'http://www.w3.org/2000/svg', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': '2' }, [
-          h('path', { d: 'M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z' }),
-        ]),
-      };
-      return icons[iconType] || icons.box;
-    }
-  };
-});
+const currentIcon = computed(() => getNodeIcon(props.data?.type));
 </script>
 
 <style scoped>

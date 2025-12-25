@@ -12,6 +12,7 @@
         :type="nodeType"
         :label="getToolboxLabel(nodeType)"
         :color="getNodeColor(nodeType)"
+        :icon="getNodeIcon(nodeType)"
         :description="getToolboxDescription(nodeType)"
         @add-node="emitAddNode"
       />
@@ -21,7 +22,7 @@
 
 <script setup>
 import ToolboxItem from './ToolboxItem.vue';
-import { NODE_CATEGORIES, NODE_TYPES, getNodeColor, getNodeDescription } from './config.js';
+import { NODE_CATEGORIES, NODE_TYPES, getNodeColor, getNodeDescription,getNodeIcon } from './config.js';
 
 const emit = defineEmits(['add-node']);
 

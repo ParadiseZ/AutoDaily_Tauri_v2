@@ -140,6 +140,16 @@ export const NODE_TYPES = {
         description: "Call another task's flow",
     },
 
+    // Templates (For Toolbox display)
+    template_vision_loop: {
+        color: 'bg-indigo-600',
+        icon: 'layers',
+        display: 'Vision Loop',
+        displayCn: '全流程模板',
+        category: 'composite',
+        description: '自动生成: 循环 -> 截图 -> 检测 -> 点击',
+    },
+
     // Special Nodes
     start: {
         color: 'bg-emerald-600',
