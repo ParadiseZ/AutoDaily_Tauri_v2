@@ -32,7 +32,8 @@ const nodeCategories = NODE_CATEGORIES;
 const getToolboxLabel = (type) => {
   const config = NODE_TYPES[type];
   if (!config) return type;
-  return config.displayCn ? `${config.displayCn}|${config.display}` : config.display;
+  //return config.displayCn ? `${config.displayCn}|${config.display}` : config.display;
+  return config.displayCn;
 };
 
 // 获取工具箱描述 - 使用配置函数

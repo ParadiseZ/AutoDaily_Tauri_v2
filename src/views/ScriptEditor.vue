@@ -199,6 +199,13 @@ import FlowNode from './script-editor/FlowNode.vue';
 //store
 import { getFromStore,setToStore,defaultEditorThemeKey } from '../store/store.js';
 
+// config
+import { 
+  NODE_TYPES, 
+  getNodeDefaults, 
+  NODE_TEMPLATES 
+} from './script-editor/config.js';
+
 //log
 const INFO = "info";
 const WARN = "warn";
@@ -499,6 +506,12 @@ const fitView = () => {
 
 // --- Add Node (Click or Drop) ---
 const addNodeToCanvas = (type) => {
+  // Check if it's a template
+  if (NODE_TEMPLATES[type]) {
+    expandTemplate(type);
+    return;
+  }
+
   // Calculate position: center of viewport, or below the last selected node
   let position = { x: 200, y: 200 };
   
@@ -534,32 +547,59 @@ const addNodeToCanvas = (type) => {
   selectedNode.value = newNode;
 };
 
-const createNode = (type, position) => {
-  const nodeId = `node-${Date.now()}`;
+const createNode = (type, position, customData = null) => {
+  const nodeId = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   const newNode = {
     id: nodeId,
     type: 'custom',
-    label: '',
+    label: customData?.label || '',
     position,
-    data: { 
-      type: type,
-      // Default data based on type
-      ...(type === 'wait' && { duration: 1000 }),
-      ...(type === 'loop' && { count: 3 }),
-      ...(type === 'fallback' && { 
-        strategies: [
-          { target: 'back_button', action: 'click' },
-          { target: 'close_button', action: 'click' },
-          { target: 'confirm_button', action: 'click' },
-        ],
-        maxRetries: 3
-      }),
-    },
+    data: customData || getNodeDefaults(type),
   };
 
   nodes.value.push(newNode);
   addLog(`Added node: ${type}`, 'success');
   return newNode;
+};
+
+// --- Template Expansion ---
+const expandTemplate = (templateKey) => {
+  const template = NODE_TEMPLATES[templateKey];
+  if (!template) return;
+
+  const basePosition = { x: 200, y: 200 };
+  const createdNodes = [];
+
+  // 1. Create Nodes
+  template.nodes.forEach((nodeSpec) => {
+    const pos = {
+      x: basePosition.x + nodeSpec.position.x,
+      y: basePosition.y + nodeSpec.position.y,
+    };
+    const node = createNode(nodeSpec.type, pos, { 
+        ...getNodeDefaults(nodeSpec.type),
+        label: nodeSpec.label 
+    });
+    createdNodes.push(node);
+  });
+
+  // 2. Create Edges
+  template.edges.forEach((edgeSpec) => {
+    const sourceNode = createdNodes[edgeSpec.sourceIdx];
+    const targetNode = createdNodes[edgeSpec.targetIdx];
+    
+    if (sourceNode && targetNode) {
+       edges.value.push({
+         id: `e-${sourceNode.id}-${targetNode.id}`,
+         source: sourceNode.id,
+         target: targetNode.id,
+         sourceHandle: edgeSpec.handle || 'output',
+         targetHandle: 'input'
+       });
+    }
+  });
+
+  addLog(`Expanded template: ${templateKey}`, 'success');
 };
 
 // 异步加载后赋值

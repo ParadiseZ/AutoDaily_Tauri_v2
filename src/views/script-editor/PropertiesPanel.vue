@@ -204,6 +204,63 @@
         </div>
       </div>
       
+      <!-- Type: Screenshot -->
+      <div v-if="selectedNode.data?.type === 'screenshot'" class="space-y-3">
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Output Variable</span></label>
+          <input type="text" v-model="localData.outputVar" placeholder="Variable name..." class="input input-bordered input-sm w-full font-mono" />
+        </div>
+      </div>
+
+      <!-- Type: Variable -->
+      <div v-if="selectedNode.data?.type === 'variable'" class="space-y-3">
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Variable Name</span></label>
+          <input type="text" v-model="localData.varName" placeholder="e.g. price_str" class="input input-bordered input-sm w-full font-mono" />
+        </div>
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Operation</span></label>
+          <select class="select select-bordered select-sm w-full" v-model="localData.opType">
+            <option value="set">Set Literal</option>
+            <option value="math">Math Expression</option>
+            <option value="string">String Slice/Split</option>
+            <option value="regex">Regex Extract</option>
+          </select>
+        </div>
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Expression / Value</span></label>
+          <textarea v-model="localData.expression" class="textarea textarea-bordered text-xs font-mono h-20" placeholder="e.g. input.split('/')[0]"></textarea>
+        </div>
+      </div>
+
+      <!-- Type: Macro Action (Unified) -->
+      <div v-if="selectedNode.data?.type === 'macro_action'" class="space-y-3">
+        <div class="alert alert-warning text-[10px] leading-tight p-2">
+            Multi-step unified node: Screenshot -> Detect -> Click.
+        </div>
+        <div class="form-control w-full">
+          <label class="label cursor-pointer justify-start gap-2">
+            <input type="checkbox" v-model="localData.screenshot" class="checkbox checkbox-xs" />
+            <span class="label-text text-xs">Auto-Screenshot</span>
+          </label>
+        </div>
+        <div class="form-control w-full">
+          <label class="label pb-1"><span class="label-text text-xs">Detection Target</span></label>
+          <input type="text" v-model="localData.detectTarget" placeholder="Image or text..." class="input input-bordered input-xs w-full" />
+        </div>
+        <div class="form-control w-full">
+          <label class="label pb-0"><span class="label-text text-xs">Confidence: {{ localData.confidence }}%</span></label>
+          <input type="range" v-model="localData.confidence" min="50" max="100" class="range range-xs range-primary" />
+        </div>
+        <div class="form-control w-full pt-1">
+          <label class="label pb-1"><span class="label-text text-xs">Click Type</span></label>
+          <select class="select select-bordered select-xs w-full" v-model="localData.clickType">
+            <option value="coordinates">Relative Offset</option>
+            <option value="center">Center of Match</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Type: SubFlow -->
       <div v-if="selectedNode.data?.type === 'subflow'" class="space-y-3">
         <div class="form-control w-full">

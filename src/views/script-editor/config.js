@@ -60,6 +60,15 @@ export const NODE_TYPES = {
     },
 
     // Vision Nodes
+    screenshot: {
+        color: 'bg-slate-500',
+        icon: 'camera',
+        display: 'Screenshot',
+        displayCn: '截图',
+        category: 'vision',
+        placeholder: 'Save to variable...',
+        description: 'Capture screen to variable',
+    },
     detect: {
         color: 'bg-purple-500',
         icon: 'image',
@@ -79,8 +88,31 @@ export const NODE_TYPES = {
         description: 'Recognize text',
     },
 
+    // Data Nodes
+    variable: {
+        color: 'bg-orange-500',
+        icon: 'variable',
+        display: 'Variable',
+        displayCn: '变量处理',
+        category: 'data',
+        placeholder: 'Expression...',
+        description: 'Process data / set variable',
+    },
+
+    // Composite Nodes
+    macro_action: {
+        color: 'bg-amber-600',
+        icon: 'zap',
+        display: 'Smart Click',
+        displayCn: '宏点击',
+        category: 'composite',
+        placeholder: 'Unified action configuration',
+        description: 'Unified: Capture -> Detect -> Click',
+    },
+
     // Control Flow Nodes
     loop: {
+        // ... (remaining definitions will be updated in chunks or via replacement)
         color: 'bg-green-500',
         icon: 'repeat',
         display: 'Loop',
@@ -150,7 +182,13 @@ export const NODE_CATEGORIES = [
         key: 'vision',
         label: '视觉',
         labelEn: 'Vision',
-        types: ['detect', 'ocr'],
+        types: ['screenshot', 'detect', 'ocr'],
+    },
+    {
+        key: 'data',
+        label: '数据处理',
+        labelEn: 'Data',
+        types: ['variable'],
     },
     {
         key: 'control',
@@ -158,7 +196,38 @@ export const NODE_CATEGORIES = [
         labelEn: 'Control Flow',
         types: ['loop', 'fallback', 'subflow'],
     },
+    {
+        key: 'composite',
+        label: '复合模板',
+        labelEn: 'Composite',
+        types: ['macro_action', 'template_vision_loop'],
+    },
 ];
+
+// ============================================
+// Node Templates (Fragmented)
+// ============================================
+
+export const NODE_TEMPLATES = {
+    template_vision_loop: {
+        display: 'Vision Loop Template',
+        displayCn: '视觉循环模板',
+        description: 'Loop -> Screenshot -> Detect -> Click',
+        nodes: [
+            { type: 'loop', label: '循环', position: { x: 0, y: 0 } },
+            { type: 'screenshot', label: '截图', position: { x: 0, y: 100 } },
+            { type: 'detect', label: '检测', position: { x: 0, y: 200 } },
+            { type: 'if', label: '是否成功', position: { x: 0, y: 300 } },
+            { type: 'click', label: '点击', position: { x: 0, y: 400 } },
+        ],
+        edges: [
+            { sourceIdx: 0, targetIdx: 1 },
+            { sourceIdx: 1, targetIdx: 2 },
+            { sourceIdx: 2, targetIdx: 3 },
+            { sourceIdx: 3, targetIdx: 4, handle: 'true' },
+        ]
+    }
+};
 
 // ============================================
 // Default Values
@@ -284,6 +353,27 @@ export function getNodeDefaults(type) {
                 type,
                 targetTaskId: base.targetTaskId,
                 waitForComplete: base.waitForComplete,
+            };
+        case 'screenshot':
+            return {
+                type,
+                outputVar: 'last_screenshot',
+            };
+        case 'variable':
+            return {
+                type,
+                varName: '',
+                opType: 'set', // set, math, string, regex
+                expression: '',
+            };
+        case 'macro_action':
+            return {
+                type,
+                screenshot: true,
+                detectTarget: '',
+                confidence: 80,
+                clickType: 'coordinates',
+                postProcess: '', // Optional logic
             };
         default:
             return { type };
