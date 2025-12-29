@@ -68,21 +68,48 @@
                 
                 <!-- Task List -->
                 <div v-for="task in filteredTasks" :key="task.id" 
-                     class="p-2 rounded hover:bg-base-200 cursor-pointer flex items-center justify-between group text-sm mb-1"
-                     :class="{'bg-primary/10 text-primary font-bold': currentTask?.id === task.id}"
+                     class="group p-2 rounded-lg cursor-pointer flex items-center justify-between text-sm mb-1.5 transition-all duration-200 relative overflow-hidden active:scale-[0.98]"
+                     :class="[
+                       currentTask?.id === task.id 
+                         ? 'bg-primary text-white shadow-md' 
+                         : 'hover:bg-primary/10 hover:text-primary bg-base-200/50 text-base-content/70'
+                     ]"
                      @click="selectTask(task)">
-                    <div class="flex items-center gap-2 truncate">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4" fill="none"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-                        {{ task.name }}
+                    <!-- Selected indicator bar -->
+                    <div v-if="currentTask?.id === task.id" class="absolute left-0 top-0 bottom-0 w-1 bg-white/40"></div>
+                    
+                    <div class="flex items-center gap-2.5 truncate flex-1 z-10">
+                        <!-- Task Visibility Icon with background -->
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm transition-all duration-200"
+                             :class="[
+                               currentTask?.id === task.id 
+                                 ? 'bg-white/20 group-hover:bg-white/30 text-white' 
+                                 : 'bg-base-300 group-hover:bg-primary/20 text-base-content/60 group-hover:text-primary',
+                               task.hidden ? 'opacity-40' : 'opacity-100'
+                             ]"
+                             @click.stop="toggleTaskVisibility(task)"
+                             :title="task.hidden ? 'Show Task' : 'Hide Task'">
+                             <IconRenderer :icon="task.hidden ? 'eye-off' : 'eye'" class="w-4.5 h-4.5" />
+                        </div>
+                        <span class="truncate font-semibold tracking-tight transition-colors" 
+                              :class="[
+                                task.hidden ? 'opacity-40 italic font-normal' : '',
+                                currentTask?.id === task.id ? 'text-white' : ''
+                              ]">
+                          {{ task.name }}
+                        </span>
                     </div>
-                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                        <button class="btn btn-xs btn-ghost btn-circle" 
+                    
+                    <div class="flex items-center gap-1 ml-2 translate-x-1 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-10">
+                        <button class="btn btn-xs btn-circle btn-ghost transition-colors" 
+                                :class="currentTask?.id === task.id ? 'hover:bg-white/20 text-white' : 'hover:bg-primary/20 text-primary'"
                                 @click.stop="editTaskName(task)" title="Rename">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" fill="none"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" fill="none"></path></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
-                        <button class="btn btn-xs btn-ghost btn-circle text-error" 
+                        <button class="btn btn-xs btn-circle btn-ghost transition-colors" 
+                                :class="currentTask?.id === task.id ? 'hover:bg-white/20 text-white' : 'hover:bg-error/20 text-error'"
                                 @click.stop="deleteTask(task.id)" title="Delete">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none"></path></svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>
                 </div>
@@ -195,6 +222,7 @@ import '@vue-flow/minimap/dist/style.css';
 import Toolbox from './script-editor/Toolbox.vue';
 import PropertiesPanel from './script-editor/PropertiesPanel.vue';
 import FlowNode from './script-editor/FlowNode.vue';
+import IconRenderer from './script-editor/IconRenderer.vue';
 
 //store
 import { getFromStore,setToStore,defaultEditorThemeKey } from '../store/store.js';
@@ -236,6 +264,7 @@ const taskList = ref([
   { 
     id: 1, 
     name: 'Login',
+    hidden: false,
     nodes: [
       { id: '1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
       { id: '2', type: 'custom', label: 'Find Login', position: { x: 200, y: 150 }, data: { type: 'if', target: 'login_btn.png' } },
@@ -250,6 +279,7 @@ const taskList = ref([
   { 
     id: 2, 
     name: 'Sign In',
+    hidden: false,
     nodes: [
       { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
       { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
@@ -259,6 +289,7 @@ const taskList = ref([
   { 
     id: 3, 
     name: 'Claim Rewards',
+    hidden: true,
     nodes: [
       { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
       { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
@@ -268,6 +299,7 @@ const taskList = ref([
   { 
     id: 4, 
     name: 'Daily Sweep',
+    hidden: false,
     nodes: [
       { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
       { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
@@ -403,6 +435,11 @@ const selectTask = (task) => {
   edges.value = [...task.edges];
   selectedNode.value = null;
   addLog(`切换任务： ${task.name}`, INFO);
+};
+
+const toggleTaskVisibility = (task) => {
+  task.hidden = !task.hidden;
+  addLog(`任务 "${task.name}" 已${task.hidden ? '隐藏' : '显示'}`, INFO);
 };
 
 const createNewTask = () => {
