@@ -1,7 +1,8 @@
 <template>
   <div 
     class="card bg-base-200 shadow-sm p-3 cursor-pointer hover:bg-base-300 border border-transparent hover:border-primary transition-all group"
-    draggable="true"
+    :draggable="true"
+    @dragstart="onDragStart($event, label)"
     @click="onClick"
   >
     <div class="font-medium flex items-center gap-2 text-sm relative">
@@ -30,7 +31,9 @@
 
 <script setup>
 import IconRenderer from './IconRenderer.vue';
+import { useDragAndDrop } from './composables/useDragAndDrop.js';
 
+const { onDragStart } = useDragAndDrop();
 const props = defineProps({
   type: {
     type: String,

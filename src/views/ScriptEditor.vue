@@ -123,9 +123,9 @@
 
       <!-- 3. Center (Canvas - Vue Flow) -->
       <div class="flex-1 relative bg-base-100 flex flex-col h-full" 
-           @dragover.prevent 
+           @dragover.prevent
            @drop="onDrop">
-        
+      <!-- @edges-change="onEdgesChange" -->
         <VueFlow 
             ref="vueFlowRef"
             v-model:nodes="nodes" 
@@ -138,10 +138,11 @@
             fit-view-on-init
             class="flex-1 h-full"
             @pane-click="onPaneClick"
-            @edges-change="onEdgesChange"
             @connect="onConnect"
+            @dragover="onDragOver"
+            @dragleave="onDragLeave"
         >
-            <Background pattern-color="#aaa" :gap="16" />
+            <Background pattern-color="#aaa" :gap="16" :style="{backgroundColor: isDragOver ? '#e7f3ff' : 'transparent',transition: 'background-color 0.2s ease', opacity: isDragOver ? 0.5 : 1}" />
             <Controls />
             <MiniMap v-if="showMiniMap" />
         </VueFlow>
@@ -228,12 +229,15 @@ import IconRenderer from './script-editor/IconRenderer.vue';
 import { getFromStore,setToStore,defaultEditorThemeKey } from '../store/store.js';
 
 // config
-import { 
-  NODE_TYPES, 
+import {
+  NODE_TYPES,
   getNodeDefaults, 
   NODE_TEMPLATES,
   SOURCE_HANDLE, TARGET_HANDLE
 } from './script-editor/config.js';
+
+// composables
+import { useDragAndDrop } from './script-editor/composables/useDragAndDrop.js';
 
 //log
 const INFO = "info";
@@ -426,9 +430,9 @@ const onConnect = (params) => {
 };
 
 // 监听边的变化（用于处理边的删除等操作）
-const onEdgesChange = (changes) => {
+/*const onEdgesChange = (changes) => {
   // 可以在这里处理边的变化，例如记录删除操作等
-};
+};*/
 
 // ---------------------------------------------- Delete Confirmation Logic --------------------------------------------
 const showDeleteConfirm = ref(false);
@@ -565,9 +569,8 @@ const saveScript = () => {
     name: scriptName.value,
     tasks: taskList.value
   };
-  
-  console.log('保存脚本:', scriptData);
-  addLog('脚本保存成功!', 'success');
+
+  addLog('保存脚本成功', SUCCESS);
   // TODO: Call backend API to save
 };
 
@@ -577,35 +580,40 @@ const fitView = () => {
 };
 
 // --- Add Node (Click or Drop) ---
-const addNodeToCanvas = (type) => {
+// @param type - 节点类型
+// @param dropPosition - 可选，拖放时的位置
+const addNodeToCanvas = (type, dropPosition = null) => {
   // Check if it's a template
   if (NODE_TEMPLATES[type]) {
-    expandTemplate(type);
+    expandTemplate(type, dropPosition);
     return;
   }
 
-  // Calculate position: center of viewport, or below the last selected node
-  let position = { x: 200, y: 200 };
+  // Calculate position: use dropPosition if provided, otherwise calculate
+  let position = dropPosition || { x: 200, y: 200 };
   
-  if (selectedNode.value) {
-    // Add below selected node
-    position = {
-      x: selectedNode.value.position.x,
-      y: selectedNode.value.position.y + 120
-    };
-  } else if (nodes.value.length > 0) {
-    // Add below the last node
-    const lastNode = nodes.value[nodes.value.length - 1];
-    position = {
-      x: lastNode.position.x,
-      y: lastNode.position.y + 120
-    };
+  // 如果没有提供 dropPosition，根据选中节点或最后一个节点计算位置
+  if (!dropPosition) {
+    if (selectedNode.value) {
+      // Add below selected node
+      position = {
+        x: selectedNode.value.position.x,
+        y: selectedNode.value.position.y + 120
+      };
+    } else if (nodes.value.length > 0) {
+      // Add below the last node
+      const lastNode = nodes.value[nodes.value.length - 1];
+      position = {
+        x: lastNode.position.x,
+        y: lastNode.position.y + 120
+      };
+    }
   }
   
   const newNode = createNode(type, position);
   
-  // Auto-connect to selected node if exists
-  if (selectedNode.value) {
+  // Auto-connect to selected node if exists (only for click-add, not drag-drop)
+  if (selectedNode.value && !dropPosition) {
     const newEdge = {
       id: `e-${selectedNode.value.id}-${newNode.id}`,
       source: selectedNode.value.id,
@@ -635,20 +643,20 @@ const createNode = (type, position, customData = null) => {
 };
 
 // --- Template Expansion ---
-const expandTemplate = (templateKey) => {
+const expandTemplate = (templateKey, basePosition = null) => {
   const template = NODE_TEMPLATES[templateKey];
   if (!template) return;
 
-  const basePosition = { x: 200, y: 200 };
+  const basePos = basePosition || { x: 200, y: 200 };
   const createdNodes = [];
 
   // 1. Create Nodes
   template.nodes.forEach((nodeSpec) => {
-    const pos = {
-      x: basePosition.x + nodeSpec.position.x,
-      y: basePosition.y + nodeSpec.position.y,
+    const nodePosition = {
+      x: basePos.x + nodeSpec.position.x,
+      y: basePos.y + nodeSpec.position.y,
     };
-    const node = createNode(nodeSpec.type, pos, { 
+    const node = createNode(nodeSpec.type, nodePosition, { 
         ...getNodeDefaults(nodeSpec.type),
         label: nodeSpec.label 
     });
@@ -677,6 +685,13 @@ const expandTemplate = (templateKey) => {
 
   addLog(`Expanded template: ${templateKey}`, 'success');
 };
+
+// --- Drag and Drop ---
+// 初始化拖放功能，传入 addNodeToCanvas 作为回调
+// 这样拖放添加的节点会使用我们自定义的添加逻辑，与 v-model 保持同步
+const { onDragOver, onDrop, onDragLeave, isDragOver } = useDragAndDrop({
+  onAddNode: addNodeToCanvas
+});
 
 // 异步加载后赋值
 getFromStore(defaultEditorThemeKey).then(val => {
