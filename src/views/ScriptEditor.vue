@@ -162,7 +162,7 @@
                 <span>Console Output</span>
                 <button class="btn btn-xs btn-ghost text-xs" @click="clearConsole">Clear</button>
             </div>
-            <div class="flex-1 p-2 font-mono text-xs overflow-y-auto">
+            <div ref="consoleRef" class="flex-1 p-2 font-mono text-xs overflow-y-auto">
                 <div v-for="(log, idx) in consoleLogs" :key="idx" :class="logClass(log.level)">
                   [{{ log.time }}] {{ log.message }}
                 </div>
@@ -208,7 +208,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, markRaw, onUnmounted } from 'vue';
+import { ref, computed, onMounted, markRaw, onUnmounted, nextTick } from 'vue';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -245,7 +245,9 @@ const SUCCESS = "success";
 const nodes = ref([]);
 const edges = ref([]);
 const vueFlowRef = ref(null);
+const consoleRef = ref(null);
 const showMiniMap = ref(false);
+const MAX_LOGS = 500;
 
 // Register Custom Node Type
 const nodeTypes = {
@@ -335,7 +337,30 @@ const logClass = (level) => {
 const addLog = (message, level = INFO) => {
   const now = new Date();
   const time = now.toTimeString().slice(0, 8);
+  
+  // 1. 判断是否在最底部 (允许 5px 误差)
+  let isAtBottom = true;
+  if (consoleRef.value) {
+    const { scrollTop, scrollHeight, clientHeight } = consoleRef.value;
+    isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 5;
+  }
+
+  // 2. 添加日志
   consoleLogs.value.push({ time, level, message });
+
+  // 3. 限制日志数量，保留最新的 MAX_LOGS 条
+  if (consoleLogs.value.length > MAX_LOGS) {
+    consoleLogs.value = consoleLogs.value.slice(-MAX_LOGS);
+  }
+
+  // 4. 如果之前在最底部，则更新 DOM 后自动滚动到底部
+  if (isAtBottom) {
+    nextTick(() => {
+      if (consoleRef.value) {
+        consoleRef.value.scrollTop = consoleRef.value.scrollHeight;
+      }
+    });
+  }
 };
 
 const clearConsole = () => {
