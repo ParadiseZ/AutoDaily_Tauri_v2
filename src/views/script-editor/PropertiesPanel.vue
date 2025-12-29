@@ -233,6 +233,29 @@
         </div>
       </div>
 
+      <!-- Type: Filter -->
+      <div v-if="selectedNode.data?.type === 'filter'" class="space-y-3">
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Source Array</span></label>
+          <input type="text" v-model="localData.sourceVar" placeholder="Variable name..." class="input input-bordered input-sm w-full font-mono" />
+        </div>
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Target Variable</span></label>
+          <input type="text" v-model="localData.targetVar" placeholder="Default same as source" class="input input-bordered input-sm w-full font-mono" />
+        </div>
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">Mode</span></label>
+          <div class="join w-full">
+            <button class="btn btn-xs join-item flex-1" :class="localData.mode === 'filter' ? 'btn-primary' : 'btn-ghost'" @click="localData.mode = 'filter'">Filter</button>
+            <button class="btn btn-xs join-item flex-1" :class="localData.mode === 'map' ? 'btn-primary' : 'btn-ghost'" @click="localData.mode = 'map'">Map</button>
+          </div>
+        </div>
+        <div class="form-control w-full">
+          <label class="label"><span class="label-text">{{ localData.mode === 'filter' ? 'Condition (item)' : 'Logic (item)' }}</span></label>
+          <textarea v-model="localData.logic" class="textarea textarea-bordered text-xs font-mono h-20" :placeholder="localData.mode === 'filter' ? 'item.score > 80' : 'item.name'"></textarea>
+        </div>
+      </div>
+
       <!-- Type: Macro Action (Unified) -->
       <div v-if="selectedNode.data?.type === 'macro_action'" class="space-y-3">
         <div class="alert alert-warning text-[10px] leading-tight p-2">

@@ -51,12 +51,12 @@ export const NODE_TYPES = {
     // Condition Nodes
     if: {
         color: 'bg-yellow-500',
-        icon: 'search',
+        icon: 'branch',
         display: 'IF Found',
-        displayCn: '如果',
+        displayCn: '判断',
         category: 'condition',
         placeholder: 'Set search target...',
-        description: 'If image/text found, then...',
+        description: 'If condition met, then...',
     },
 
     // Vision Nodes
@@ -71,7 +71,7 @@ export const NODE_TYPES = {
     },
     detect: {
         color: 'bg-purple-500',
-        icon: 'image',
+        icon: 'target',
         display: 'Find Image',
         displayCn: '目标检测',
         category: 'vision',
@@ -93,10 +93,19 @@ export const NODE_TYPES = {
         color: 'bg-orange-500',
         icon: 'variable',
         display: 'Variable',
-        displayCn: '变量处理',
+        displayCn: '变量',
         category: 'data',
         placeholder: 'Expression...',
         description: 'Process data / set variable',
+    },
+    filter: {
+        color: 'bg-orange-400',
+        icon: 'filter',
+        display: 'Filter/Map',
+        displayCn: '数据过滤',
+        category: 'data',
+        placeholder: 'Filter or transform...',
+        description: 'Filter or Map array data',
     },
 
     // Control Flow Nodes
@@ -196,7 +205,7 @@ export const NODE_CATEGORIES = [
         key: 'data',
         label: '数据处理',
         labelEn: 'Data',
-        types: ['variable'],
+        types: ['variable', 'filter'],
     },
     {
         key: 'control',
@@ -373,6 +382,14 @@ export function getNodeDefaults(type) {
                 varName: '',
                 opType: 'set', // set, math, string, regex
                 expression: '',
+            };
+        case 'filter':
+            return {
+                type,
+                sourceVar: '',
+                targetVar: '',
+                mode: 'filter', // filter, map
+                logic: '',
             };
         case 'macro_1':
             return {

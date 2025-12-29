@@ -23,6 +23,23 @@
       <line x1="2" y1="12" x2="22" y2="12" />
       <line x1="12" y1="2" x2="12" y2="22" />
     </template>
+    <template v-else-if="icon === 'branch'">
+      <line x1="6" y1="3" x2="6" y2="15" />
+      <circle cx="18" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M18 9a9 9 0 0 1-9 9" />
+    </template>
+    <template v-else-if="icon === 'target'">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="3" />
+      <line x1="12" y1="2" x2="12" y2="5" />
+      <line x1="12" y1="19" x2="12" y2="22" />
+      <line x1="2" y1="12" x2="5" y2="12" />
+      <line x1="19" y1="12" x2="22" y2="12" />
+    </template>
+    <template v-else-if="icon === 'filter'">
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </template>
     <template v-else-if="icon === 'search'">
       <circle cx="11" cy="11" r="8" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
