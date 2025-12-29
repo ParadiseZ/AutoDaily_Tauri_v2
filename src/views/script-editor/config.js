@@ -254,13 +254,18 @@ export const SOURCE_HANDLE = {
     'ifTrue': { label: '是', animated: true },
     'ifFalse': { label: '否', animated: true },
     'loopStart': { label: '循环开始', animated: true },
-    'output': { label: null,animated : false }
+    'output': { label: null, animated: false }
 }
 
 export const TARGET_HANDLE = {
     'loopEnd': { label: '循环结束', animated: true },
-    'input': { label: null,animated : false }
+    'input': { label: null, animated: false }
 }
+
+// ============================================
+// 拖动添加节点 - 已迁移到 composables/useDragAndDrop.js
+// ============================================
+// 请使用: import { useDragAndDrop } from './composables';
 
 // ============================================
 // Default Values
