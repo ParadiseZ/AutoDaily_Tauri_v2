@@ -56,7 +56,7 @@
         v-if="isConditionNode"
         type="source"
         :position="Position.Bottom"
-        id="output"
+        id="ifFalse"
         class="w-3! h-3! bg-error! ring-2 ring-white"
     />
     
@@ -90,7 +90,7 @@
 </template>
 
 <script setup>
-import { computed, h } from 'vue';
+import { computed } from 'vue';
 import { Handle, Position } from '@vue-flow/core';
 import {
   DEFAULT_FALLBACK_STRATEGIES,

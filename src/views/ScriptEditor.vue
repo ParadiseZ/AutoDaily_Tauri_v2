@@ -43,8 +43,8 @@
       <div class="w-72 border-r border-base-300 flex flex-col bg-base-100 shadow-md z-1">
         <!-- Sidebar Tabs -->
         <div class="tabs tabs-boxed p-2 bg-base-100">
-            <a class="tab flex-1" :class="{'tab-active': activeTab === 'toolbox'}" @click="activeTab = 'toolbox'">Toolbox</a>
-            <a class="tab flex-1" :class="{'tab-active': activeTab === 'tasks'}" @click="activeTab = 'tasks'">Tasks</a>
+            <a class="tab flex-1" :class="{'tab-active': activeTab === 'toolbox'}" @click="activeTab = 'toolbox'">工具</a>
+            <a class="tab flex-1" :class="{'tab-active': activeTab === 'tasks'}" @click="activeTab = 'tasks'">任务</a>
         </div>
 
         <div class="flex-1 overflow-y-auto p-2 h-full">
@@ -231,7 +231,8 @@ import { getFromStore,setToStore,defaultEditorThemeKey } from '../store/store.js
 import { 
   NODE_TYPES, 
   getNodeDefaults, 
-  NODE_TEMPLATES 
+  NODE_TEMPLATES,
+  SOURCE_HANDLE, TARGET_HANDLE
 } from './script-editor/config.js';
 
 //log
@@ -378,16 +379,25 @@ const onPaneClick = () => {
 
 // --- Connection Logic ---
 const onConnect = (params) => {
-  if (params.sourceHandle === params.targetHandle) return;
+  const canConnect = SOURCE_HANDLE[params.sourceHandle] && TARGET_HANDLE[params.targetHandle];
+  if (!canConnect || (params.source===params.target)) {
+    addLog(`不支持的连接：${params.sourceHandle} -> ${params.targetHandle}`, ERROR);
+    return
+  }
+  let info = SOURCE_HANDLE[params.sourceHandle];
+  if(!info.animated) info = TARGET_HANDLE[params.targetHandle];
+  // 3. 构建新边
   const newEdge = {
-    id: `e-${params.source}-${params.target}`,
+    id: `e-${params.source}-${params.sourceHandle || 'out'}-${params.target}-${params.targetHandle || 'in'}`,
     source: params.source,
     target: params.target,
     sourceHandle: params.sourceHandle,
     targetHandle: params.targetHandle,
+    label: info.label,
+    animated: info.animated,
   };
-  edges.value.push(params);
-  addLog(`连接: ${params.source} → ${params.target}, Handle:${params.sourceHandle}|${params.targetHandle}`, INFO);
+  edges.value.push(newEdge);
+  addLog(`连接: ${newEdge.source} [${newEdge.sourceHandle}] → ${newEdge.target} [${newEdge.targetHandle}]`, SUCCESS);
 };
 
 // 监听边的变化（用于处理边的删除等操作）
@@ -626,13 +636,17 @@ const expandTemplate = (templateKey) => {
     const targetNode = createdNodes[edgeSpec.targetIdx];
     
     if (sourceNode && targetNode) {
-       edges.value.push({
-         id: `e-${sourceNode.id}-${targetNode.id}`,
+       const sourceHandle = edgeSpec.handle || 'output';
+       const targetHandle = edgeSpec.targetHandle || 'input';
+       
+       // Use the same connection logic for labels/animation
+       const params = {
          source: sourceNode.id,
          target: targetNode.id,
-         sourceHandle: edgeSpec.handle || 'output',
-         targetHandle: 'input'
-       });
+         sourceHandle,
+         targetHandle
+       };
+       onConnect(params);
     }
   });
 

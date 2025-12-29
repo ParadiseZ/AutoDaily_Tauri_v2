@@ -238,13 +238,29 @@ export const NODE_TEMPLATES = {
             { type: 'click', label: '点击', position: { x: 0, y: 400 } },
         ],
         edges: [
-            { sourceIdx: 0, targetIdx: 1 },
-            { sourceIdx: 1, targetIdx: 2 },
-            { sourceIdx: 2, targetIdx: 3 },
-            { sourceIdx: 3, targetIdx: 4, handle: 'true' },
+            { sourceIdx: 0, targetIdx: 1, handle: 'loopStart' }, // 循环开始 -> 截图
+            { sourceIdx: 1, targetIdx: 2 },                       // 截图 -> 检测
+            { sourceIdx: 2, targetIdx: 3 },                       // 检测 -> 识别
+            { sourceIdx: 3, targetIdx: 4, handle: 'ifTrue' },   // 识别成功 -> 点击
+            { sourceIdx: 4, targetIdx: 0, targetHandle: 'loopEnd' } // 点击后 -> 回到循环结束点
         ]
     }
 };
+
+// ============================================
+// 边handleID类型
+// ============================================
+export const SOURCE_HANDLE = {
+    'ifTrue': { label: '是', animated: true },
+    'ifFalse': { label: '否', animated: true },
+    'loopStart': { label: '循环开始', animated: true },
+    'output': { label: null,animated : false }
+}
+
+export const TARGET_HANDLE = {
+    'loopEnd': { label: '循环结束', animated: true },
+    'input': { label: null,animated : false }
+}
 
 // ============================================
 // Default Values
