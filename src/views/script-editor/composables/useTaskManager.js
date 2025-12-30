@@ -88,7 +88,8 @@ export function useTaskManager(options = {}) {
 
         // 加载任务的节点和边
         if (nodes && edges) {
-            nodes.value = task.nodes.map(n => ({ ...n, type: 'custom' }));
+            //nodes.value = task.nodes.map(n => ({ ...n, type: 'custom' }));
+            nodes.value = [...task.nodes];
             edges.value = [...task.edges];
         }
 

@@ -444,14 +444,10 @@ export const THEMES = [
 ];
 
 /**
- * 默认显示的主题数量 (在设置页面初始化展示的数量)
- */
-export const DEFAULT_VISIBLE_THEMES_COUNT = 8;
-
-/**
  * 默认起始主题 - AutoDaily 推荐使用 dark 模式
  */
-export const DEFAULT_THEME = 'light';
+export const DEFAULT_EDITOR_THEME = 'light';
+export const DEFAULT_APP_THEME = 'light';
 
 // ============================================
 // Helper Functions

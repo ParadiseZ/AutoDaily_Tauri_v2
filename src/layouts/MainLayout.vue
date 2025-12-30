@@ -33,47 +33,12 @@
         </div>
 
         <!-- Menu -->
+
         <ul class="menu p-4 w-full flex-1 gap-2">
-          <li>
-            <router-link to="/logs" active-class="active">
-              <FileText class="w-5 h-5" />
-              Logs
-            </router-link>
-          </li>
-          <li>
-            <router-link to="/tasks" active-class="active">
-              <ListTodo class="w-5 h-5" />
-              Tasks
-            </router-link>
-          </li>
-          <li>
-            <router-link to="/devices" active-class="active">
-              <Smartphone class="w-5 h-5" />
-              Devices
-            </router-link>
-          </li>
-          <li>
-            <router-link to="/scripts" active-class="active">
-              <FileCode class="w-5 h-5" />
-              Local Scripts
-            </router-link>
-          </li>
-          <li>
-            <router-link to="/market" active-class="active">
-              <ShoppingBag class="w-5 h-5" />
-              Script Market
-            </router-link>
-          </li>
-          <li>
-            <router-link to="/settings" active-class="active">
-              <SettingsIcon class="w-5 h-5" />
-              System Settings
-            </router-link>
-          </li>
-          <li>
-            <router-link to="/about" active-class="active">
-              <Info class="w-5 h-5" />
-              About
+          <li v-for="route in routesMenu">
+            <router-link :to="route.path" active-class="active">
+              <component :is="route.icon" class="w-5 h-5" />
+              {{ route.label }}
             </router-link>
           </li>
         </ul>
@@ -98,5 +63,5 @@
 </template>
 
 <script setup>
-import { Monitor, Smartphone, FileCode, ShoppingBag, Settings as SettingsIcon, Info, FileText, ListTodo } from 'lucide-vue-next';
+import { routesMenu } from '../router/index.js'
 </script>

@@ -2,7 +2,7 @@
   <div class="p-6 relative min-h-full">
     <!-- Header -->
     <div class="flex justify-between items-center mb-6">
-      <h1 class="text-2xl font-bold">设备管理</h1>
+      <h1 class="text-2xl font-bold">任务管理</h1>
       <div class="flex gap-2">
         <button class="btn btn-sm btn-info text-white" @click="openEditor">Dev: Script Editor</button>
         <button class="btn btn-sm btn-primary">全部开始</button>
