@@ -209,7 +209,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, markRaw, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted, markRaw, onUnmounted } from 'vue';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -225,340 +225,92 @@ import PropertiesPanel from './script-editor/PropertiesPanel.vue';
 import FlowNode from './script-editor/FlowNode.vue';
 import IconRenderer from './script-editor/IconRenderer.vue';
 
-//store
-import { getFromStore,setToStore,defaultEditorThemeKey } from '../store/store.js';
-
-// config
-import {
-  NODE_TYPES,
-  getNodeDefaults, 
-  NODE_TEMPLATES,
-  SOURCE_HANDLE, TARGET_HANDLE
-} from './script-editor/config.js';
-
-// composables
+// Composables
 import { useDragAndDrop } from './script-editor/composables/useDragAndDrop.js';
+import { useConsoleLog, LOG_LEVELS } from './script-editor/composables/useConsoleLog.js';
+import { useTaskManager } from './script-editor/composables/useTaskManager.js';
+import { useThemeManager } from './script-editor/composables/useThemeManager.js';
+import { useFlowEditor } from './script-editor/composables';
 
-//log
-const INFO = "info";
-const WARN = "warn";
-const ERROR = "error";
-const SUCCESS = "success";
-
-// --- State ---
-const nodes = ref([]);
-const edges = ref([]);
+// ============================================
+// 核心状态
+// ============================================
 const vueFlowRef = ref(null);
-const consoleRef = ref(null);
 const showMiniMap = ref(false);
-const MAX_LOGS = 500;
+const activeTab = ref('tasks');
 
-// Register Custom Node Type
-const nodeTypes = {
-  custom: markRaw(FlowNode),
-};
-
-const { onNodeClick, removeNodes, getSelectedNodes, fitView: flowFitView, screenToFlowCoordinate } = useVueFlow();
-const activeTab = ref('tasks'); // Start on tasks tab
-const currentTheme = ref('light');
-
-// --- Script Data (Simulated - in reality, passed as props or loaded from backend) ---
+// 脚本信息 (实际应用中应从 props 或后端加载)
 const scriptName = ref('崩坏三');
 const scriptId = ref(1);
 
-// --- Task Management ---
-const taskList = ref([
-  { 
-    id: 1, 
-    name: 'Login',
-    hidden: false,
-    nodes: [
-      { id: '1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: '2', type: 'custom', label: 'Find Login', position: { x: 200, y: 150 }, data: { type: 'if', target: 'login_btn.png' } },
-      { id: '3', type: 'custom', label: 'Click Login', position: { x: 200, y: 250 }, data: { type: 'click' } },
-      { id: '4', type: 'custom', label: 'End', position: { x: 200, y: 350 }, data: { type: 'end' } },
-    ], 
-    edges: [
-      { id: 'e1-2', source: '1', target: '2', sourceHandle: 'output', targetHandle: 'input' },
-      { id: 'e2-3', source: '2', target: '3', sourceHandle: 'output', targetHandle: 'input' },
-    ] 
-  },
-  { 
-    id: 2, 
-    name: 'Sign In',
-    hidden: false,
-    nodes: [
-      { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
-    ], 
-    edges: [] 
-  },
-  { 
-    id: 3, 
-    name: 'Claim Rewards',
-    hidden: true,
-    nodes: [
-      { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
-    ], 
-    edges: [] 
-  },
-  { 
-    id: 4, 
-    name: 'Daily Sweep',
-    hidden: false,
-    nodes: [
-      { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
-    ], 
-    edges: [] 
-  },
-]);
+// ============================================
+// Composables 初始化
+// ============================================
 
-const currentTask = ref(null);
-const taskSearch = ref('');
+// 1. Console Log
+const { 
+  consoleLogs, 
+  consoleRef, 
+  logClass, 
+  addLog, 
+  clearConsole 
+} = useConsoleLog();
 
-const filteredTasks = computed(() => {
-  if (!taskSearch.value) return taskList.value;
-  const search = taskSearch.value.toLowerCase();
-  return taskList.value.filter(t => t.name.toLowerCase().includes(search));
-});
+// 2. Theme Manager
+const { currentTheme, toggleTheme, initTheme } = useThemeManager();
 
-// --- Console Logs ---
-const consoleLogs = ref([
-  { time: '10:00:01', level: INFO, message: 'Script Editor initialized.' },
-]);
+// 3.VueFlow 设置
+const nodeTypes = { custom: markRaw(FlowNode) };
 
-const logClass = (level) => {
-  switch (level) {
-    case 'success': return 'text-success';
-    case 'error': return 'text-error';
-    case 'warn': return 'text-warning';
-    default: return 'text-info';
-  }
-};
+const {
+  screenToFlowCoordinate 
+} = useVueFlow();
 
-const addLog = (message, level = INFO) => {
-  const now = new Date();
-  const time = now.toTimeString().slice(0, 8);
-  
-  // 1. 判断是否在最底部 (允许 5px 误差)
-  let isAtBottom = true;
-  if (consoleRef.value) {
-    const { scrollTop, scrollHeight, clientHeight } = consoleRef.value;
-    isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 5;
-  }
+const {
+    nodes,
+    edges,
+    selectedNode,
+    showDeleteConfirm,
+    nodesToDelete,
 
-  // 2. 添加日志
-  consoleLogs.value.push({ time, level, message });
+    // 节点操作
+    addNodeToCanvas,
+    updateNodeData,
 
-  // 3. 限制日志数量，保留最新的 MAX_LOGS 条
-  if (consoleLogs.value.length > MAX_LOGS) {
-    consoleLogs.value = consoleLogs.value.slice(-MAX_LOGS);
-  }
+    //vue-flow 内容
+    onPaneClick,
+    fitView,
 
-  // 4. 如果之前在最底部，则更新 DOM 后自动滚动到底部
-  if (isAtBottom) {
-    nextTick(() => {
-      if (consoleRef.value) {
-        consoleRef.value.scrollTop = consoleRef.value.scrollHeight;
-      }
-    });
-  }
-};
+    // 连接
+    onConnect,
 
-const clearConsole = () => {
-  consoleLogs.value = [];
-};
+    // 删除
+    requestDeleteSelected,
+    confirmDelete,
+    cancelDelete,
+} = useFlowEditor({addLog, LOG_LEVELS})
 
-// --- Lifecycle ---
-onMounted(() => {
-  document.documentElement.setAttribute('data-theme', currentTheme.value);
-  if (taskList.value.length > 0) {
-    selectTask(taskList.value[0]);
-  }
-  window.addEventListener('keydown', handleKeyDown);
-});
+// 4. Task Manager
+const {
+  taskList,
+  currentTask,
+  taskSearch,
+  filteredTasks,
+  editTaskModal,
+  renameValue,
+  selectTask,
+  createNewTask,
+  deleteTask,
+  toggleTaskVisibility,
+  editTaskName,
+  confirmRename,
+  cancelRename,
+} = useTaskManager({ nodes, edges, addLog });
 
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeyDown);
-});
-
-const handleKeyDown = (event) => {
-  if (event.key === 'Delete' || event.key === 'Backspace') {
-    const activeElement = document.activeElement;
-    if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
-      return;
-    }
-    event.preventDefault();
-    requestDeleteSelected();
-  }
-};
-
-// --- Selection Logic ---
-const selectedNode = ref(null);
-
-onNodeClick((event) => {
-  selectedNode.value = event.node;
-});
-
-const onPaneClick = () => {
-  selectedNode.value = null;
-};
-
-// --- Connection Logic ---
-const onConnect = (params) => {
-  const canConnect = SOURCE_HANDLE[params.sourceHandle] && TARGET_HANDLE[params.targetHandle];
-  if (!canConnect || (params.source===params.target)) {
-    addLog(`不支持的连接：${params.sourceHandle} -> ${params.targetHandle}`, ERROR);
-    return
-  }
-  let info = SOURCE_HANDLE[params.sourceHandle];
-  if(!info.animated) info = TARGET_HANDLE[params.targetHandle];
-  // 3. 构建新边
-  const newEdge = {
-    id: `e-${params.source}-${params.sourceHandle || 'out'}-${params.target}-${params.targetHandle || 'in'}`,
-    source: params.source,
-    target: params.target,
-    sourceHandle: params.sourceHandle,
-    targetHandle: params.targetHandle,
-    label: info.label,
-    animated: info.animated,
-  };
-  edges.value.push(newEdge);
-  addLog(`连接: ${newEdge.source} [${newEdge.sourceHandle}] → ${newEdge.target} [${newEdge.targetHandle}]`, SUCCESS);
-};
-
-// 监听边的变化（用于处理边的删除等操作）
-/*const onEdgesChange = (changes) => {
-  // 可以在这里处理边的变化，例如记录删除操作等
-};*/
-
-// ---------------------------------------------- Delete Confirmation Logic --------------------------------------------
-const showDeleteConfirm = ref(false);
-const nodesToDelete = ref([]);
-
-const requestDeleteSelected = () => {
-  const selected = getSelectedNodes.value;
-  // Filter out start nodes - they cannot be deleted
-  const deletable = selected.filter(n => n.data?.type !== 'start' && n.data?.type !== 'end');
-  if (deletable.length > 0) {
-    nodesToDelete.value = deletable;
-    showDeleteConfirm.value = true;
-  }
-};
-
-const confirmDelete = () => {
-  removeNodes(nodesToDelete.value);
-  addLog(`删除 ${nodesToDelete.value.length} 个节点`, WARN);
-  selectedNode.value = null;
-  showDeleteConfirm.value = false;
-  nodesToDelete.value = [];
-};
-
-const cancelDelete = () => {
-  showDeleteConfirm.value = false;
-  nodesToDelete.value = [];
-};
-
-// ------------------------------------------------- 任务相关 -----------------------------------------------------------
-const selectTask = (task) => {
-  // Save current task's state
-  if (currentTask.value) {
-    currentTask.value.nodes = [...nodes.value];
-    currentTask.value.edges = [...edges.value];
-  }
-  
-  currentTask.value = task;
-  nodes.value = task.nodes.map(n => ({ ...n, type: 'custom' }));
-  edges.value = [...task.edges];
-  selectedNode.value = null;
-  addLog(`切换任务： ${task.name}`, INFO);
-};
-
-const toggleTaskVisibility = (task) => {
-  task.hidden = !task.hidden;
-  addLog(`任务 "${task.name}" 已${task.hidden ? '隐藏' : '显示'}`, INFO);
-};
-
-const createNewTask = () => {
-  const newId = Math.max(...taskList.value.map(t => t.id), 0) + 1;
-  const newTask = {
-    id: newId,
-    name: `New Task ${newId}`,
-    nodes: [{ id: 'start-1', type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
-      { id: 'end-1', type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }],
-    edges: []
-  };
-  taskList.value.push(newTask);
-  selectTask(newTask);
-  addLog(`Created new task: ${newTask.name}`, SUCCESS);
-};
-
-const deleteTask = (id) => {
-  if (taskList.value.length <= 1) {
-    addLog('Cannot delete the last task', ERROR);
-    return;
-  }
-  
-  const idx = taskList.value.findIndex(t => t.id === id);
-  if (idx !== -1) {
-    const taskName = taskList.value[idx].name;
-    taskList.value.splice(idx, 1);
-    
-    if (currentTask.value?.id === id) {
-      selectTask(taskList.value[0]);
-    }
-    addLog(`删除任务: ${taskName}`, 'warn');
-  }
-};
-
-// ---------------------------------------------------编辑任务---------------------------------------------------------
-const editTaskModal = ref(false);
-const renameValue = ref('');
-const renameTarget = ref(null);
-
-const editTaskName = (task) => {
-  renameTarget.value = task;
-  renameValue.value = task.name;
-  editTaskModal.value = true;
-};
-
-const confirmRename = () => {
-  if (renameTarget.value && renameValue.value.trim()) {
-    renameTarget.value.name = renameValue.value.trim();
-    addLog(`重命名任务: ${renameValue.value}`, 'info');
-  }
-  cancelRename();
-};
-
-const cancelRename = () => {
-  editTaskModal.value = false;
-  renameValue.value = '';
-  renameTarget.value = null;
-};
-
-// --- Node Data Update ---
-const updateNodeData = (nodeId, updates) => {
-  const node = nodes.value.find(n => n.id === nodeId);
-  if (node) {
-    Object.assign(node.data, updates);
-    if (updates.label !== undefined) {
-      node.label = updates.label;
-    }
-  }
-};
-
-// -------------------------------------------------- Theme ----------------------------------------------------------
-const toggleTheme = () => {
-  currentTheme.value = currentTheme.value === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', currentTheme.value);
-  setToStore(defaultEditorThemeKey, currentTheme.value)
-};
-
-// --------------------------------------------------- Save ----------------------------------------------------------
+// ============================================
+// 保存
+// ============================================
 const saveScript = () => {
-  // Save current task first
   if (currentTask.value) {
     currentTask.value.nodes = [...nodes.value];
     currentTask.value.edges = [...edges.value];
@@ -570,182 +322,48 @@ const saveScript = () => {
     tasks: taskList.value
   };
 
-  addLog('保存脚本成功', SUCCESS);
+  addLog('保存脚本成功', LOG_LEVELS.SUCCESS);
   // TODO: Call backend API to save
 };
 
-// --- Fit View ---
-const fitView = () => {
-  flowFitView({ padding: 0.2 });
-};
-
-// --- Add Node (Click or Drop) ---
-// @param type - 节点类型
-// @param dropPosition - 可选，拖放时的位置
-const addNodeToCanvas = (type, dropPosition = null) => {
-  // Check if it's a template
-  if (NODE_TEMPLATES[type]) {
-    expandTemplate(type, dropPosition);
-    return;
-  }
-
-  // Calculate position: use dropPosition if provided, otherwise calculate
-  let position = dropPosition || { x: 200, y: 200 };
-  
-  // 如果没有提供 dropPosition，根据选中节点或最后一个节点计算位置
-  if (!dropPosition) {
-    if (selectedNode.value) {
-      // Add below selected node
-      position = {
-        x: selectedNode.value.position.x,
-        y: selectedNode.value.position.y + 120
-      };
-    } else if (nodes.value.length > 0) {
-      // Add below the last node
-      const lastNode = nodes.value[nodes.value.length - 1];
-      position = {
-        x: lastNode.position.x,
-        y: lastNode.position.y + 120
-      };
-    }
-  }
-  
-  const newNode = createNode(type, position);
-  
-  // Auto-connect to selected node if exists (only for click-add, not drag-drop)
-  if (selectedNode.value && !dropPosition) {
-    const newEdge = {
-      id: `e-${selectedNode.value.id}-${newNode.id}`,
-      source: selectedNode.value.id,
-      target: newNode.id
-    };
-    edges.value.push(newEdge);
-    addLog(`Auto-connected: ${selectedNode.value.id} → ${newNode.id}`, 'info');
-  }
-  
-  // Select the new node
-  selectedNode.value = newNode;
-};
-
-const createNode = (type, position, customData = null) => {
-  const nodeId = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  const newNode = {
-    id: nodeId,
-    type: 'custom',
-    label: customData?.label || '',
-    position,
-    data: customData || getNodeDefaults(type),
-  };
-
-  nodes.value.push(newNode);
-  addLog(`Added node: ${type}`, 'success');
-  return newNode;
-};
-
-// --- Template Expansion ---
-const expandTemplate = (templateKey, basePosition = null) => {
-  const template = NODE_TEMPLATES[templateKey];
-  if (!template) return;
-
-  const basePos = basePosition || { x: 200, y: 200 };
-  const createdNodes = [];
-
-  // 1. Create Nodes
-  template.nodes.forEach((nodeSpec) => {
-    const nodePosition = {
-      x: basePos.x + nodeSpec.position.x,
-      y: basePos.y + nodeSpec.position.y,
-    };
-    const node = createNode(nodeSpec.type, nodePosition, { 
-        ...getNodeDefaults(nodeSpec.type),
-        label: nodeSpec.label 
-    });
-    createdNodes.push(node);
-  });
-
-  // 2. Create Edges
-  template.edges.forEach((edgeSpec) => {
-    const sourceNode = createdNodes[edgeSpec.sourceIdx];
-    const targetNode = createdNodes[edgeSpec.targetIdx];
-    
-    if (sourceNode && targetNode) {
-       const sourceHandle = edgeSpec.handle || 'output';
-       const targetHandle = edgeSpec.targetHandle || 'input';
-       
-       // Use the same connection logic for labels/animation
-       const params = {
-         source: sourceNode.id,
-         target: targetNode.id,
-         sourceHandle,
-         targetHandle
-       };
-       onConnect(params);
-    }
-  });
-
-  addLog(`Expanded template: ${templateKey}`, 'success');
-};
-
-// --- Drag and Drop ---
-// 初始化拖放功能，传入 addNodeToCanvas 作为回调和 screenToFlowCoordinate 用于坐标转换
-// 这样拖放添加的节点会使用我们自定义的添加逻辑，与 v-model 保持同步
+// ============================================
+// 拖放功能
+// ============================================
 const { onDragOver, onDrop, onDragLeave, isDragOver } = useDragAndDrop({
   onAddNode: addNodeToCanvas,
-  screenToFlowCoordinate: screenToFlowCoordinate
+  screenToFlowCoordinate
 });
 
-// 异步加载后赋值
-getFromStore(defaultEditorThemeKey).then(val => {
-  if (val !== 'light'){
-    currentTheme.value = val;
-    document.documentElement.setAttribute('data-theme', currentTheme.value);
+// ============================================
+// 键盘事件
+// ============================================
+const handleKeyDown = (event) => {
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    const activeElement = document.activeElement;
+    if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+      return;
+    }
+    event.preventDefault();
+    requestDeleteSelected();
   }
-})
+};
+
+// ============================================
+// 生命周期
+// ============================================
+onMounted(() => {
+  initTheme();
+  if (taskList.value.length > 0) {
+    selectTask(taskList.value[0]);
+  }
+  window.addEventListener('keydown', handleKeyDown);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown);
+});
 </script>
-
-<style>
-/* Vue Flow overrides */
-.vue-flow__node {
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    border-radius: 0.5rem;
-    border-width: 2px;
-    border-color: transparent;
-    /*transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);*/
-    background-color: oklch(var(--b1));
-    color: oklch(var(--bc));
-}
-
-.vue-flow__node:hover {
-    border-color: oklch(var(--p) / 0.5);
-    transform: translateY(-2px);
-}
-
-.vue-flow__node.selected {
-    border-color: oklch(var(--p));
-    box-shadow: 0 0 0 2px oklch(var(--p) / 0.2), 0 20px 25px -5px rgb(0 0 0 / 0.1);
-}
-
-/* Edge styling */
-.vue-flow__edge-path {
-    stroke: oklch(var(--p));
-    stroke-width: 2px;
-}
-
-.vue-flow__edge.selected .vue-flow__edge-path {
-    stroke: oklch(var(--p));
-    stroke-width: 4px;
-}
-
-/* Connection line styling (while dragging) */
-.vue-flow__connection-path {
-    stroke: oklch(var(--p));
-    stroke-width: 2.5px;
-}
-
-/* MiniMap styling */
-.vue-flow__minimap {
-    background-color: oklch(var(--b2));
-    border-radius: 0.75rem;
-    border: 1px solid oklch(var(--b3));
-}
+<!-- MyComponent.vue -->
+<style scoped>
+@import '../assets/styles/script-editor.css';
 </style>

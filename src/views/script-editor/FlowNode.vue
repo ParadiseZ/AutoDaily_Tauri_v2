@@ -11,7 +11,7 @@
       v-if="!isStartNode" 
       type="target"
       :position="Position.Top" 
-      id="input"
+      id="in"
       class="w-3! h-3! bg-primary! ring-2 ring-white"
     />
     
@@ -48,7 +48,7 @@
       v-if="!isConditionNode && !isEndNode"
       type="source"
       :position="Position.Bottom" 
-      id="output"
+      id="out"
       class="w-3! h-3! bg-primary! ring-2 ring-white"
     />
 

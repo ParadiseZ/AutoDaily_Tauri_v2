@@ -26,7 +26,7 @@ export const LOG_LEVELS = {
  * @returns {Object} 日志相关的状态和方法
  */
 export function useConsoleLog(options = {}) {
-    const { maxLogs = 500 } = options;
+    const { maxLogs = 300 } = options;
 
     // 日志列表
     const consoleLogs = ref([
@@ -43,9 +43,9 @@ export function useConsoleLog(options = {}) {
      */
     function logClass(level) {
         switch (level) {
-            case 'success': return 'text-success';
-            case 'error': return 'text-error';
-            case 'warn': return 'text-warning';
+            case LOG_LEVELS.INFO: return 'text-success';
+            case LOG_LEVELS.ERROR: return 'text-error';
+            case LOG_LEVELS.WARN: return 'text-warning';
             default: return 'text-info';
         }
     }
@@ -80,7 +80,7 @@ export function useConsoleLog(options = {}) {
                 if (consoleRef.value) {
                     consoleRef.value.scrollTop = consoleRef.value.scrollHeight;
                 }
-            });
+            }).then();
         }
     }
 

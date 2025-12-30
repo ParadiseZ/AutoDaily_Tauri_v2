@@ -1,0 +1,44 @@
+/* Vue Flow overrides */
+.vue-flow__node {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    border-radius: 0.5rem;
+    border-width: 2px;
+    border-color: transparent;
+    /*transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);*/
+    background-color: oklch(var(--b1));
+    color: oklch(var(--bc));
+}
+
+.vue-flow__node:hover {
+    border-color: oklch(var(--p) / 0.5);
+    transform: translateY(-2px);
+}
+
+.vue-flow__node.selected {
+    border-color: oklch(var(--p));
+    box-shadow: 0 0 0 2px oklch(var(--p) / 0.2), 0 20px 25px -5px rgb(0 0 0 / 0.1);
+}
+
+/* Edge styling */
+.vue-flow__edge-path {
+    stroke: oklch(var(--p));
+    stroke-width: 2px;
+}
+
+.vue-flow__edge.selected .vue-flow__edge-path {
+    stroke: oklch(var(--p));
+    stroke-width: 4px;
+}
+
+/* Connection line styling (while dragging) */
+.vue-flow__connection-path {
+    stroke: oklch(var(--p));
+    stroke-width: 2.5px;
+}
+
+/* MiniMap styling */
+.vue-flow__minimap {
+    background-color: oklch(var(--b2));
+    border-radius: 0.75rem;
+    border: 1px solid oklch(var(--b3));
+}

@@ -9,7 +9,7 @@
  * - 模板展开
  */
 
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { useVueFlow } from '@vue-flow/core';
 import {
     getNodeDefaults,
@@ -26,7 +26,7 @@ import {
  * @returns {Object} 节点编辑相关的状态和方法
  */
 export function useFlowEditor(options = {}) {
-    const { addLog = () => { } } = options;
+    const { addLog = () => { },logLevel = {} } = options;
 
     // 节点和边的响应式数据
     const nodes = ref([]);
@@ -72,9 +72,8 @@ export function useFlowEditor(options = {}) {
      * @returns {Object} 创建的节点
      */
     function createNode(type, position, customData = null) {
-        const nodeId = generateNodeId();
         const newNode = {
-            id: nodeId,
+            id: generateNodeId(),
             type: 'custom', // 使用自定义渲染器
             label: customData?.label || '',
             position,
@@ -82,7 +81,7 @@ export function useFlowEditor(options = {}) {
         };
 
         nodes.value.push(newNode);
-        addLog(`添加节点: ${type}`, 'success');
+        addLog(`添加节点: ${type}`, logLevel.INFO);
         return newNode;
     }
 
@@ -123,16 +122,16 @@ export function useFlowEditor(options = {}) {
         const newNode = createNode(type, finalPosition);
 
         // 如果有选中节点，自动连接
-        if (selectedNode.value && !position) {
+        if (selectedNode.value && !position && selectedNode.value.sourceHandle==='out') {
+
             const newEdge = {
-                id: `e-${selectedNode.value.id}-${newNode.id}`,
                 source: selectedNode.value.id,
                 target: newNode.id,
-                sourceHandle: 'output',
-                targetHandle: 'input',
+                sourceHandle: selectedNode.value.sourceHandle,
+                targetHandle: TARGET_HANDLE['in']
             };
-            edges.value.push(newEdge);
-            addLog(`自动连接: ${selectedNode.value.id} → ${newNode.id}`, 'info');
+            onConnect(newEdge)
+            addLog(`自动连接: ${selectedNode.value.id} → ${newNode.id}`, logLevel.INFO);
         }
 
         // 选中新节点
@@ -152,7 +151,7 @@ export function useFlowEditor(options = {}) {
     function onConnect(params) {
         const canConnect = SOURCE_HANDLE[params.sourceHandle] && TARGET_HANDLE[params.targetHandle];
         if (!canConnect || (params.source === params.target)) {
-            addLog(`不支持的连接：${params.sourceHandle} -> ${params.targetHandle}`, 'error');
+            addLog(`不支持的连接：${params.sourceHandle} -> ${params.targetHandle}`, logLevel.ERROR);
             return;
         }
 
@@ -170,7 +169,8 @@ export function useFlowEditor(options = {}) {
         };
 
         edges.value.push(newEdge);
-        addLog(`连接: ${newEdge.source} [${newEdge.sourceHandle}] → ${newEdge.target} [${newEdge.targetHandle}]`, 'success');
+        if(params.showLog === false) return;
+        addLog(`连接: ${newEdge.source} [${newEdge.sourceHandle}] → ${newEdge.target} [${newEdge.targetHandle}]`, logLevel.SUCCESS);
     }
 
     // ============================================
@@ -195,7 +195,7 @@ export function useFlowEditor(options = {}) {
      */
     function confirmDelete() {
         removeNodes(nodesToDelete.value);
-        addLog(`删除 ${nodesToDelete.value.length} 个节点`, 'warn');
+        addLog(`删除 ${nodesToDelete.value.length} 个节点`, logLevel.WARN);
         selectedNode.value = null;
         showDeleteConfirm.value = false;
         nodesToDelete.value = [];
@@ -244,19 +244,20 @@ export function useFlowEditor(options = {}) {
             const targetNode = createdNodes[edgeSpec.targetIdx];
 
             if (sourceNode && targetNode) {
-                const sourceHandle = edgeSpec.handle || 'output';
-                const targetHandle = edgeSpec.targetHandle || 'input';
+                const sourceHandle = edgeSpec.handle || 'out';
+                const targetHandle = edgeSpec.targetHandle || 'in';
 
                 onConnect({
                     source: sourceNode.id,
                     target: targetNode.id,
                     sourceHandle,
-                    targetHandle
+                    targetHandle,
+                    showLog: false
                 });
             }
         });
 
-        addLog(`展开模板: ${templateKey}`, 'success');
+        addLog(`展开模板: ${templateKey}`, logLevel.SUCCESS);
     }
 
     // ============================================
@@ -289,7 +290,7 @@ export function useFlowEditor(options = {}) {
      * 适应视图
      */
     function fitView() {
-        flowFitView({ padding: 0.2 });
+        flowFitView({padding: 0.2}).then();
     }
 
     return {
@@ -301,9 +302,15 @@ export function useFlowEditor(options = {}) {
         nodesToDelete,
 
         // 节点操作
-        createNode,
         addNodeToCanvas,
         updateNodeData,
+
+        //vue-flow 内容
+        onNodeClick,
+        removeNodes,
+        getSelectedNodes,
+        onPaneClick,
+        fitView,
 
         // 连接
         onConnect,
@@ -312,14 +319,5 @@ export function useFlowEditor(options = {}) {
         requestDeleteSelected,
         confirmDelete,
         cancelDelete,
-
-        // 模板
-        expandTemplate,
-
-        // 其他
-        onPaneClick,
-        fitView,
     };
 }
-
-export default useFlowEditor;
