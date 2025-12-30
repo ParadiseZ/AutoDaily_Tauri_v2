@@ -2,7 +2,7 @@
   <div 
     class="card bg-base-200 shadow-sm p-3 cursor-pointer hover:bg-base-300 border border-transparent hover:border-primary transition-all group"
     :draggable="true"
-    @dragstart="onDragStart($event, label)"
+    @dragstart="handleDragStart"
     @click="onClick"
   >
     <div class="font-medium flex items-center gap-2 text-sm relative">
@@ -31,9 +31,9 @@
 
 <script setup>
 import IconRenderer from './IconRenderer.vue';
-import { useDragAndDrop } from './composables/useDragAndDrop.js';
+import { useDragAndDrop } from './composables';
 
-const { onDragStart } = useDragAndDrop();
+// Props 定义
 const props = defineProps({
   type: {
     type: String,
@@ -59,13 +59,13 @@ const props = defineProps({
 
 const emit = defineEmits(['add-node']);
 
-// Drag start handler for drag-and-drop
-/*const onDragStart = (event) => {
-  if (event.dataTransfer) {
-    event.dataTransfer.setData('application/vueflow', props.type);
-    event.dataTransfer.effectAllowed = 'copy';
-  }
-};*/
+// 拖放功能
+const { onDragStart } = useDragAndDrop();
+
+// Handle drag start - 传递节点类型
+const handleDragStart = (event) => {
+  onDragStart(event, props.type);
+};
 
 // Click handler for quick add
 const onClick = () => {

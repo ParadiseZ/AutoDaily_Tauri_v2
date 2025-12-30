@@ -258,7 +258,7 @@ const nodeTypes = {
   custom: markRaw(FlowNode),
 };
 
-const { onNodeClick, removeNodes, getSelectedNodes, fitView: flowFitView } = useVueFlow();
+const { onNodeClick, removeNodes, getSelectedNodes, fitView: flowFitView, screenToFlowCoordinate } = useVueFlow();
 const activeTab = ref('tasks'); // Start on tasks tab
 const currentTheme = ref('light');
 
@@ -687,10 +687,11 @@ const expandTemplate = (templateKey, basePosition = null) => {
 };
 
 // --- Drag and Drop ---
-// 初始化拖放功能，传入 addNodeToCanvas 作为回调
+// 初始化拖放功能，传入 addNodeToCanvas 作为回调和 screenToFlowCoordinate 用于坐标转换
 // 这样拖放添加的节点会使用我们自定义的添加逻辑，与 v-model 保持同步
 const { onDragOver, onDrop, onDragLeave, isDragOver } = useDragAndDrop({
-  onAddNode: addNodeToCanvas
+  onAddNode: addNodeToCanvas,
+  screenToFlowCoordinate: screenToFlowCoordinate
 });
 
 // 异步加载后赋值
