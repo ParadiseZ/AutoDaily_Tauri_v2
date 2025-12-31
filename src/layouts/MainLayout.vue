@@ -35,10 +35,14 @@
         <!-- Menu -->
 
         <ul class="menu p-4 w-full flex-1 gap-2">
-          <li v-for="route in routesMenu">
-            <router-link :to="route.path" active-class="active">
+          <li v-for="route in routesMenu" :key="route.path">
+            <router-link 
+              :to="route.path" 
+              :class="{ 'active bg-primary text-primary-content': $route.path === route.path }"
+              class="flex items-center gap-3 transition-all"
+            >
               <component :is="route.icon" class="w-5 h-5" />
-              {{ route.label }}
+              <span>{{ route.label }}</span>
             </router-link>
           </li>
         </ul>

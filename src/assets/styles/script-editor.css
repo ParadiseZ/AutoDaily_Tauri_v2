@@ -21,19 +21,19 @@
 
 /* Edge styling */
 .vue-flow__edge-path {
-    stroke: oklch(var(--p));
-    stroke-width: 2px;
+    stroke: oklch(var(--p)) !important;
+    stroke-width: 2.5px !important;
 }
 
 .vue-flow__edge.selected .vue-flow__edge-path {
-    stroke: oklch(var(--p));
-    stroke-width: 4px;
+    stroke: oklch(var(--p)) !important;
+    stroke-width: 4px !important;
 }
 
 /* Connection line styling (while dragging) */
 .vue-flow__connection-path {
-    stroke: oklch(var(--p));
-    stroke-width: 2.5px;
+    stroke: oklch(var(--p)) !important;
+    stroke-width: 2.5px !important;
 }
 
 /* MiniMap styling */

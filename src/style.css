@@ -3,6 +3,20 @@
 
 @theme {
   --font-sans: "Inter", system-ui, sans-serif;
+
+  /* Map DaisyUI variables to Tailwind 4 colors */
+  --color-primary: oklch(var(--p));
+  --color-primary-content: oklch(var(--pc));
+  --color-secondary: oklch(var(--s));
+  --color-secondary-content: oklch(var(--sc));
+  --color-accent: oklch(var(--a));
+  --color-accent-content: oklch(var(--ac));
+  --color-neutral: oklch(var(--n));
+  --color-neutral-content: oklch(var(--nc));
+  --color-base-100: oklch(var(--b1));
+  --color-base-200: oklch(var(--b2));
+  --color-base-300: oklch(var(--b3));
+  --color-base-content: oklch(var(--bc));
 }
 
 /* Custom Premium Themes for DaisyUI 5 (using OKLCH components)
@@ -13,15 +27,15 @@ HSL 360 100% 100%
 [data-theme='light'] {
   --p: 0.49 0.19 255.48;
   /* Indigo-600 */
-  --p-nc: 1 0 0;
+  --pc: 1 0 0;
   --s: 0.61 0.21 329.16;
   /* Pink-600 */
-  --s-nc: 1 0 0;
+  --sc: 1 0 0;
   --a: 0.6 0.14 184.22;
   /* Teal-600 */
-  --a-nc: 1 0 0;
+  --ac: 1 0 0;
   --n: 0.95 0.01 247;
-  --n-nc: 0.2 0.02 247;
+  --nc: 0.2 0.02 247;
   --b1: 1 0 0;
   --b2: 0.98 0.01 247;
   --b3: 0.95 0.01 247;
@@ -30,13 +44,13 @@ HSL 360 100% 100%
 
 [data-theme='dark'] {
   --p: 0.58 0.19 255.48;
-  --p-nc: 1 0 0;
+  --pc: 1 0 0;
   --s: 0.7 0.21 329.16;
-  --s-nc: 0 0 0;
+  --sc: 0 0 0;
   --a: 0.7 0.14 184.22;
-  --a-nc: 0 0 0;
+  --ac: 0 0 0;
   --n: 0.2 0.05 247;
-  --n-nc: 0.9 0.02 247;
+  --nc: 0.9 0.02 247;
   --b1: 0.15 0.05 247;
   --b2: 0.12 0.05 247;
   --b3: 0.1 0.05 247;

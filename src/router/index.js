@@ -73,8 +73,8 @@ const router = createRouter({
     routes
 });
 
-export const routesMenu = routes.map(r => ({ path: r.path, label: r.label, icon: r.icon }))
-export const routesDisplay = routes.map(r => ({ path: r.path, label: r.label })).filter(r => r.label)
+export const routesMenu = routes.filter(r => r.label).map(r => ({ path: r.path, label: r.label, icon: r.icon }))
+export const routesDisplay = routes.filter(r => r.label).map(r => ({ path: r.path, label: r.label }))
 
 export const currentRouter = ref(routesDisplay.find(r => r.path === defaultPath) || routesDisplay[0]);
 
