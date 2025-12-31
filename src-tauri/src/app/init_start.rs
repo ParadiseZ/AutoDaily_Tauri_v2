@@ -18,6 +18,10 @@ use crate::infrastructure::store_local::config_store::get_or_init_config;
 pub async fn init_at_start(app_handle: &AppHandle) {
     //初始化app_handle
     init_app_handle(app_handle);
+    //初始化数据库
+    if let Err(e) = crate::infrastructure::db::init_db(app_handle).await {
+        panic!("初始化数据库失败: {}", e);
+    }
     //初始化store
     let store = match app_handle.store(APP_STORE){
         Ok(store) => store,

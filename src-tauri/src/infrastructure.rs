@@ -1,5 +1,6 @@
 //核心
 pub mod core;
+pub mod db;
 
 // 进程管理器
 // pub mod process;

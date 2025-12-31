@@ -123,7 +123,7 @@ lazy_static = "1.5.0"  #std::sync::OnceLock (自 Rust 1.70 起)，或者 tokio::
 #parking_lot = "0.12.4"
 
 #数据库
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite", "json"] }
 num = "0.4.3"
 
 # Windows 原生API（命名共享内存、亲和性）

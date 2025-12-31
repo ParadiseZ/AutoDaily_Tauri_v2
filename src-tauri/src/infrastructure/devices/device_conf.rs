@@ -19,8 +19,8 @@ pub struct DeviceConfig {
     pub exe_path: Option<String>,
     // 执行参数
     pub exe_args: Option<String>,
-    // 核心数量
-    pub cores: u8,
+    // 核心
+    pub cores: Vec<u8>,
     // 日志级别
     pub log_level: LogLevel,
 
@@ -48,7 +48,7 @@ impl Default for DeviceConfig {
             device_name: "MuMu模拟器12".into(),
             exe_path: None,
             exe_args: None,
-            cores: 4,
+            cores: vec![0,1],
             log_level: LogLevel::Off,
             adb_info: Some(AdbInfo {
                 ip_addr: Ipv4Addr::new(127, 0, 0, 1),
