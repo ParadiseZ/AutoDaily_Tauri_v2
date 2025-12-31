@@ -37,8 +37,8 @@
 
             <div class="flex justify-between items-center">
               <span class="font-medium">主题设置</span>
-              <select class="select select-bordered select-sm w-40" v-model="currentAppTheme">
-                <option v-for="theme in themes.slice(0, 2)" @click="setTheme(theme,appThemeKey)" :value="theme">
+              <select class="select select-bordered select-sm w-40" v-model="currentAppTheme" @change="setTheme(currentAppTheme, appThemeKey)">
+                <option v-for="theme in themes.slice(0, 2)" :key="theme" :value="theme">
                   {{ theme === 'dark' ? '深色' : '浅色' }}
                 </option>
               </select>
@@ -46,8 +46,8 @@
 
             <div class="flex justify-between items-center">
               <span class="font-medium">启动页面</span>
-              <select class="select select-bordered select-sm w-40" v-model="currentRouter">
-                <option v-for="route in routesDisplay" @click="setToStore(defaultRouterKey,route)" :value="route">
+              <select class="select select-bordered select-sm w-40" v-model="currentRouter" @change="handleRouterChange">
+                <option v-for="route in routesDisplay" :key="route.path" :value="route">
                   {{ route.label}}
                 </option>
               </select>
@@ -88,7 +88,6 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue';
 import { useThemeManager } from './script-editor/composables/index.js';
 import {appThemeKey, defaultRouterKey,setToStore} from '../store/store.js'
 import {THEMES} from "./script-editor/config.js";
@@ -98,11 +97,10 @@ const themes = THEMES;
 // 基础设置
 const {
   currentAppTheme,
-  setTheme,
-  initTheme } = useThemeManager()
+  setTheme} = useThemeManager()
 
-// 生命周期
-onMounted(() => {
-  initTheme(appThemeKey)
-});
+// 启动页面设置
+const handleRouterChange = async () => {
+  await setToStore(defaultRouterKey, currentRouter.value);
+};
 </script>

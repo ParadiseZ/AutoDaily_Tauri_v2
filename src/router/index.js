@@ -1,9 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import {ref} from "vue";
+import { ref } from "vue";
 import { Monitor, Smartphone, FileCode, ShoppingBag, SettingsIcon, Info, FileText, ListTodo } from 'lucide-vue-next';
-import { getFromStore,defaultRouterKey } from '../store/store.js';
+import { getFromStore, defaultRouterKey } from '../store/store.js';
 
-const defaultPath = await getFromStore(defaultRouterKey).then(r=> r.path).catch(() => '/tasks') ;
+const defaultPath = await getFromStore(defaultRouterKey).then(r => r.path).catch(() => '/tasks');
 const routes = [
     {
         path: '/',
@@ -14,28 +14,28 @@ const routes = [
         path: '/tasks',
         name: 'TaskManagement',
         label: "任务管理",
-        icon : ListTodo,
+        icon: ListTodo,
         component: () => import('../views/TaskManagement.vue')
     },
     {
         path: '/logs',
         name: 'Logs',
         label: "运行日志",
-        icon : FileText,
+        icon: FileText,
         component: () => import('../views/Logs.vue')
     },
     {
         path: '/scripts',
         name: 'LocalScriptList',
         label: "本地列表",
-        icon : FileCode,
+        icon: FileCode,
         component: () => import('../views/ScriptList.vue')
     },
     {
         path: '/market',
         name: 'ScriptMarket',
         label: "脚本市场",
-        icon : ShoppingBag,
+        icon: ShoppingBag,
         component: () => import('../views/ScriptMarket.vue')
     },
     {
@@ -73,9 +73,9 @@ const router = createRouter({
     routes
 });
 
-export const currentRouter = ref(defaultPath);
-
-export const routesMenu = routes.map(r => ({ path: r.path, label: r.label,icon: r.icon }))
+export const routesMenu = routes.map(r => ({ path: r.path, label: r.label, icon: r.icon }))
 export const routesDisplay = routes.map(r => ({ path: r.path, label: r.label })).filter(r => r.label)
+
+export const currentRouter = ref(routesDisplay.find(r => r.path === defaultPath) || routesDisplay[0]);
 
 export default router;
