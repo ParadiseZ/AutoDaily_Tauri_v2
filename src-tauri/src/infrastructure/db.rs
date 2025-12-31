@@ -3,6 +3,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{sqlite::SqliteConnectOptions, Pool, Row, Sqlite, SqlitePool};
 use std::path::PathBuf;
 use std::str::FromStr;
+use serde_json::json;
 use tauri::AppHandle;
 use tauri::Manager;
 use tokio::sync::OnceCell;
@@ -41,23 +42,15 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String>{
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS device_configs (
             id TEXT PRIMARY KEY,
-            data JSON NOT NULL
+            content JSON NOT NULL
         )",
     )
         .execute(&pool)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?
 
     // 创建通用配置表，用于存储其他类型的结构体
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS app_configs (
-            key TEXT PRIMARY KEY,
-            data JSON NOT NULL
-        )",
-    )
-        .execute(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
+
 }
 
 /// 获取数据库连接池
@@ -70,11 +63,11 @@ pub struct DbRepo;
 
 impl DbRepo {
     /// 获取表中所有数据
-    pub async fn get_all<T>(table: &str) -> Result<Vec<T>, String> 
+    pub async fn get_content<T>(table: &str) -> Result<Vec<T>, String>
     where T: DeserializeOwned 
     {
         let pool = get_pool();
-        let query = format!("SELECT data FROM {}", table);
+        let query = format!("SELECT content FROM {}", table);
         let rows = sqlx::query(&query)
             .fetch_all(pool)
             .await
@@ -82,7 +75,7 @@ impl DbRepo {
 
         let mut results = Vec::new();
         for row in rows {
-            let data: String = row.get("data");
+            let data: String = row.get("content");
             let item: T = serde_json::from_str(&data).map_err(|e| e.to_string())?;
             results.push(item);
         }
@@ -94,7 +87,7 @@ impl DbRepo {
     where T: DeserializeOwned
     {
         let pool = get_pool();
-        let query = format!("SELECT data FROM {} WHERE id = ?", table);
+        let query = format!("SELECT content FROM {} WHERE id = ?", table);
         let row = sqlx::query(&query)
             .bind(id)
             .fetch_optional(pool)
@@ -102,7 +95,7 @@ impl DbRepo {
             .map_err(|e| e.to_string())?;
 
         if let Some(row) = row {
-            let data: String = row.get("data");
+            let data: String = row.get("content");
             let item: T = serde_json::from_str(&data).map_err(|e| e.to_string())?;
             Ok(Some(item))
         } else {
@@ -117,7 +110,7 @@ impl DbRepo {
         let pool = get_pool();
         let data = serde_json::to_string(item).map_err(|e| e.to_string())?;
         let query = format!(
-            "INSERT INTO {} (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data",
+            "INSERT INTO {} (id, content) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET content = excluded.content",
             table
         );
         sqlx::query(&query)
@@ -138,43 +131,6 @@ impl DbRepo {
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
-        Ok(())
-    }
-
-    /// 通用配置表的获取 (KV 存储模式)
-    pub async fn get_config<T>(key: &str) -> Result<Option<T>, String>
-    where T: DeserializeOwned
-    {
-        let pool = get_pool();
-        let row = sqlx::query("SELECT data FROM app_configs WHERE key = ?")
-            .bind(key)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        if let Some(row) = row {
-            let data: String = row.get("data");
-            let item: T = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-            Ok(Some(item))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// 通用配置表的保存 (KV 存储模式)
-    pub async fn save_config<T>(key: &str, item: &T) -> Result<(), String>
-    where T: Serialize
-    {
-        let pool = get_pool();
-        let data = serde_json::to_string(item).map_err(|e| e.to_string())?;
-        sqlx::query(
-            "INSERT INTO app_configs (key, data) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data"
-        )
-        .bind(key)
-        .bind(data)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
         Ok(())
     }
 }

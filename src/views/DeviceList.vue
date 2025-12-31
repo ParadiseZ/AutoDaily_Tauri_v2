@@ -159,6 +159,7 @@ const form = reactive({
 const loadDevices = async () => {
   try {
     const res = await invoke('get_all_devices_cmd');
+    console.log('Loaded devices:', res);
     devices.value = Object.values(res);
   } catch (e) {
     console.error('Failed to load devices:', e);
@@ -234,7 +235,7 @@ const saveDevice = async () => {
 
     await invoke('save_device_cmd', { device: form });
     document.getElementById('device_modal').close();
-    loadDevices();
+    await loadDevices();
   } catch (e) {
     console.error('Failed to save device:', e);
     alert('Failed to save: ' + e);
@@ -245,7 +246,7 @@ const deleteDevice = async (id) => {
   if (!confirm('Are you sure?')) return;
   try {
     await invoke('delete_device_cmd', { deviceId: id });
-    loadDevices();
+    await loadDevices();
   } catch (e) {
     console.error('Failed to delete device:', e);
   }
