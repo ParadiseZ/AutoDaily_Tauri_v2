@@ -9,15 +9,15 @@ mod api;
 mod app;
 mod constant;
 mod domain;
-pub mod infrastructure;
+mod infrastructure;
 
 
 use crate::api::dev_test::{
     dev_capture_test, paddle_ocr_inference_test, save_captured_image, yolo_inference_test,
 };
 use crate::api::infrastructure::config::log_api::{update_log_level_cmd};
-use crate::api::infrastructure::config::sys_conf::{set_system_settings_cmd,
-};
+use crate::api::infrastructure::config::sys_conf::{set_system_settings_cmd};
+use crate::api::infrastructure::get_uuid_v7;
 use crate::api::infrastructure::config::device_api::{get_all_devices_cmd, get_device_by_id_cmd, save_device_cmd, delete_device_cmd};
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
@@ -58,6 +58,8 @@ pub fn run() {
             update_log_level_cmd,
             //性能设置
             //get_performance_cmd,set_performance_cmd,get_cpu_cores_cmd,
+            //uuid
+            get_uuid_v7,
             // 常规/系统设置
             set_system_settings_cmd,
             // 设备配置

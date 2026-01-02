@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use crate::app::config::short_cut::register_short_cut_by_config;
 use crate::constant::project::MAIN_WINDOW;
-use crate::constant::sys_conf_path::{APP_STORE, DEVICES_CONFIG_KEY, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY};
+use crate::constant::sys_conf_path::{APP_STORE, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY};
 use crate::domain::config::sys_conf::{StartMode, SystemConfig};
 use crate::infrastructure::app_handle::{init_app_handle};
 use crate::infrastructure::logging::log_trait::Log;
@@ -10,8 +10,6 @@ use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
 use crate::domain::config::notice_conf::EmailConfig;
 use crate::domain::config::scripts_conf::ScriptsConfig;
-use crate::infrastructure::devices::device_conf::{DeviceConfMap, DeviceConfig};
-use crate::infrastructure::core::{DeviceId, HashMap};
 use crate::infrastructure::logging::config::LogMain;
 use crate::infrastructure::store_local::config_store::get_or_init_config;
 
@@ -162,9 +160,9 @@ pub fn init_start_model(app_handel: &AppHandle, sys_conf: &SystemConfig) {
 pub fn init_conf_async(store: Arc<Store<Wry>>) {
     tokio::spawn(async move {
         // 设备设置
-        if !store.has(DEVICES_CONFIG_KEY){
+        /*if !store.has(DEVICES_CONFIG_KEY){
             store.set(DEVICES_CONFIG_KEY, serde_json::to_value(&HashMap::<DeviceId, DeviceConfig>::default()).unwrap_or_default());
-        };
+        };*/
         // 脚本设置
         if !store.has(SCRIPTS_CONFIG_KEY){
             store.set(SCRIPTS_CONFIG_KEY, serde_json::to_value(&ScriptsConfig::default()).unwrap_or_default());

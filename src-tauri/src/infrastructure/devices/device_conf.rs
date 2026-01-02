@@ -3,21 +3,23 @@ use crate::infrastructure::devices::adb_info::{AdbConnectSatus, AdbInfo};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use std::net::Ipv4Addr;
+use sqlx::FromRow;
+use sqlx::types::Json;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceTable {
     // 设备ID
     pub id: DeviceId,
-    // 设备名称
-    pub data: DeviceConfig,
+    // 设备配置（以 JSON 格式存储在数据库中）
+    pub data: Json<DeviceConfig>,
 }
 
 impl Default for DeviceTable {
     fn default() -> Self {
         Self {
             id: DeviceId::new_v7(),
-            data: DeviceConfig::default(),
+            data: Json(DeviceConfig::default()),
         }
     }
 }

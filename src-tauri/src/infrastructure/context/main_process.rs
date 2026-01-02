@@ -1,6 +1,5 @@
 use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{DeviceId, HashMap};
-use crate::infrastructure::devices::device_conf::DeviceConfMap;
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
@@ -10,9 +9,6 @@ use std::sync::{Arc, RwLock};
 pub struct MainProcessCtx {
     /// 脚本管理器（使用分页+缓存，不全量加载）
     pub script_manager: Arc<RwLock<ScriptManager>>,
-
-    /// 设备配置（通常数量有限，可以全量加载到内存）
-    pub devices_config: Arc<RwLock<DeviceConfMap>>,
 
     /// IPC通道映射（运行时数据，必须在内存中）
     pub ipc_servers: Arc<RwLock<HashMap<Arc<DeviceId>, Arc<IpcClientState>>>>,

@@ -5,13 +5,15 @@ pub mod time_format;
 
 // 重新导出主要类型供外部使用
 pub use ahash::AHashMap as HashMap;
-//pub use ahash::AHashSet as HashSet;
-pub use serde::{Deserialize, Serialize};
 //解决版本不一致的问题
 pub use bincode::config::standard as serialize_config;
 pub use bincode::decode_from_slice;
-use bincode::{Decode, Encode};
 pub use bincode::encode_to_vec;
+use bincode::{Decode, Encode};
+//pub use ahash::AHashSet as HashSet;
+pub use serde::{Deserialize, Serialize};
+use sqlx::error::BoxDynError;
+use sqlx::{Database, Sqlite};
 pub use thiserror::Error;
 
 use uuid::Uuid;
@@ -27,7 +29,7 @@ pub type MessageId = UuidV7;
 /// 统一的新类型：所有 ID 都用这个
 #[derive(
     Encode, Decode,
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash,
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash
 )]
 //#[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 pub struct UuidV7(pub u128);
@@ -49,6 +51,26 @@ impl<'de> serde::Deserialize<'de> for UuidV7 {
         let s = String::deserialize(deserializer)?;
         let uuid = Uuid::parse_str(&s).map_err(serde::de::Error::custom)?;
         Ok(UuidV7::from(uuid))
+    }
+}
+
+impl sqlx::Decode<'_, Sqlite> for UuidV7 {
+    fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
+        // 先从 SQLite 提取字符串
+        let s: &str = <&str as sqlx::Decode<Sqlite>>::decode(value)?;
+        // 解析 UUID 字符串
+        let uuid = Uuid::parse_str(s)?;
+        Ok(UuidV7::from(uuid))
+    }
+}
+
+impl sqlx::Type<Sqlite> for UuidV7 {
+    fn type_info() ->  <Sqlite as Database>::TypeInfo {
+        <String as sqlx::Type<Sqlite>>::type_info()
+    }
+
+    fn compatible(ty: &<Sqlite as Database>::TypeInfo) -> bool {
+        <String as sqlx::Type<Sqlite>>::compatible(ty)
     }
 }
 

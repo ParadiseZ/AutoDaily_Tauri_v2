@@ -18,7 +18,6 @@ pub mod sys_conf_path {
     pub const SYSTEM_SETTINGS_KEY: &str = "system_settings";
     pub const LOG_CONFIG_KEY: &str = "log_config";
     pub const SCRIPTS_CONFIG_KEY: &str = "scripts_config";
-    pub const DEVICES_CONFIG_KEY: &str = "devices_config";
     pub const EMAIL_CONFIG_KEY: &str = "email_config";
 }
 
@@ -36,4 +35,8 @@ pub mod scripts_files {
     pub const COMMON_SUBFLOW_FILE: &str = "subflows.common.json";
 
     pub const SUBFLOW_FILE: &str = "subflows.json";
+}
+
+pub mod table_name{
+    pub const DEVICE_TABLE: &str = "devices";
 }

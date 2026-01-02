@@ -54,17 +54,17 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="form-control">
             <label class="label"><span class="label-text">设备名称</span></label>
-            <input type="text" v-model="form.deviceName" class="input input-bordered w-full" placeholder="MuMu12"/>
+            <input type="text" v-model="form.data.deviceName" class="input input-bordered w-full" placeholder="MuMu12"/>
           </div>
           
           <div class="form-control">
             <label class="label"><span class="label-text">CPU核心</span></label>
-            <input type="number" v-model.number="form.cores" class="input input-bordered w-full" placeholder="4"/>
+            <input type="number" v-model.number="form.data.cores" class="input input-bordered w-full" placeholder="4"/>
           </div>
 
           <div class="form-control">
             <label class="label"><span class="label-text">日志级别</span></label>
-            <select v-model="form.logLevel" class="select select-bordered w-full">
+            <select v-model="form.data.logLevel" class="select select-bordered w-full">
               <option value="Off">Off</option>
               <option value="Error">Error</option>
               <option value="Warn">Warn</option>
@@ -114,7 +114,7 @@
           <div class="form-control md:col-span-2">
             <label class="label cursor-pointer justify-start gap-4">
               <span class="label-text">启用</span>
-              <input type="checkbox" v-model="form.enable" class="checkbox" />
+              <input type="checkbox" v-model="form.data.enable" class="checkbox" />
             </label>
           </div>
         </div>
@@ -144,16 +144,18 @@ const adbIp = ref('');
 const adbPort = ref(null);
 
 const form = reactive({
-  deviceId: '',
-  deviceName: '',
-  cores: 4,
-  logLevel: 'Off',
-  capMethod: null,
-  imageCompression: 'WindowOriginal',
-  enable: true,
-  exePath: null,
-  exeArgs: null,
-  adbInfo: null
+  id:'',
+  data:{
+    deviceName: '',
+    cores: 4,
+    logLevel: 'Off',
+    capMethod: null,
+    imageCompression: 'WindowOriginal',
+    enable: true,
+    exePath: null,
+    exeArgs: null,
+    adbInfo: null
+  }
 });
 
 const loadDevices = async () => {
@@ -190,7 +192,7 @@ const openModal = (device = null) => {
     
     // Parse adbInfo
     if (device.adbInfo) {
-        adbIp.value = device.adbInfo.ipAddr || device.adbInfo.ip_addr || ''; 
+        adbIp.value =  device.adbInfo.ip_addr || '';
         adbPort.value = device.adbInfo.port;
     } else {
         adbIp.value = '';
@@ -203,12 +205,18 @@ const openModal = (device = null) => {
     // But since we are sending the whole config, we need an ID.
     // Let's use a placeholder or ask backend to generate. 
     // For now, random UUID.
-    form.deviceId = crypto.randomUUID(); 
-    form.deviceName = null;
-    form.cores = null;
-    form.logLevel = 'Off';
-    form.enable = true;
-    form.imageCompression = 'WindowOriginal';
+    form.id = null;
+    form.data = {
+      deviceName: '',
+      cores: 4,
+      logLevel: 'Off',
+      capMethod: null,
+      imageCompression: 'WindowOriginal',
+      enable: true,
+      exePath: null,
+      exeArgs: null,
+      adbInfo: null
+    };
     capMethodType.value = 'Window';
     capMethodValue.value = '';
     adbIp.value = '';
@@ -221,16 +229,19 @@ const saveDevice = async () => {
   try {
     const method = {};
     method[capMethodType.value] = capMethodValue.value;
-    form.capMethod = method;
+    form.data.capMethod = method;
 
     if (adbIp.value && adbPort.value) {
-        form.adbInfo = {
+        form.data.adbInfo = {
             ip_addr: adbIp.value,
             port: adbPort.value,
             states: 'Disconnect'
         };
     } else {
-        form.adbInfo = null;
+        form.data.adbInfo = null;
+    }
+    if(!form.id){
+      form.id = await invoke('get_uuid_v7');
     }
 
     await invoke('save_device_cmd', { device: form });

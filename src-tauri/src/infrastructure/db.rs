@@ -1,10 +1,9 @@
 use crate::infrastructure::path_resolve::model_path::PathUtil;
-use serde::{de::DeserializeOwned, Serialize};
-use sqlx::{sqlite::SqliteConnectOptions, Database, Pool, Row, Sqlite, SqlitePool};
+use serde::Serialize;
+use sqlx::types::Json;
+use sqlx::{sqlite::SqliteConnectOptions, FromRow, Pool, Row, Sqlite, SqlitePool};
 use std::path::PathBuf;
 use std::str::FromStr;
-use serde_json::json;
-use sqlx::sqlite::SqliteRow;
 use tauri::AppHandle;
 use tauri::Manager;
 use tokio::sync::OnceCell;
@@ -22,14 +21,16 @@ pub async fn init_db_with_path(db_dir: &PathBuf) -> Result<(), String> {
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal) // 开启 WAL
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal);
+
     let pool = SqlitePool::connect_with(connect_options)
         .await
         .map_err(|e| e.to_string())?;
+
     POOL.set(pool).map_err(|_| "Failed to set DB pool".to_string())?;
     Ok(())
 }
 
-/// 主进程使用的初始化数据库
+/// 主进程初始化数据库 (通过 AppHandle)
 pub async fn init_db(app_handle: &AppHandle) -> Result<(), String> {
     let db_path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
     init_db_with_path(&db_path).await?;
@@ -37,108 +38,80 @@ pub async fn init_db(app_handle: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// 初始化表
-pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String>{
-    // 创建设备配置表
+/// 初始化所有表结构
+pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
+    // 1. 设备配置表 (ID + JSON 内容)
     sqlx::query(
-        "CREATE TABLE IF NOT EXISTS device_configs (
+        "CREATE TABLE IF NOT EXISTS devices (
             id TEXT PRIMARY KEY,
             `data` JSON NOT NULL
         )",
     )
-        .execute(&pool)
-        .await
-        .map_err(|e| e.to_string())?
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
 
     // 创建通用配置表，用于存储其他类型的结构体
 
+    Ok(())
 }
 
-/// 获取数据库连接池
+/// 获取全局连接池
 pub fn get_pool() -> &'static SqlitePool {
     POOL.get().expect("Database pool not initialized")
 }
 
-/// 通用的数据库操作封装
+/// 数据库操作仓库
 pub struct DbRepo;
 
 impl DbRepo {
-    async fn exec_sql_vec<T>(sql: &str) -> Result<Vec<T>, String> {
-        let res : Vec<T> = sqlx::query_as(sql)
-            .fetch_all(get_pool())
-            .await
-            .map_err(|e| e.to_string())?;
-        Ok(res)
-    }
-
-    async fn exec_sql_one<T>(sql: &str,bind: &str) -> Result<Option<T>, String> {
-        let res : Option<T> = sqlx::query_as(sql)
-            .bind(bind)
-            .fetch_optional(get_pool())
-            .await
-            .map_err(|e| e.to_string())?;
-        Ok(res)
-    }
-
-    fn db_res_to_vec<T>(rows: Vec<T>,column : &str) -> Result<Vec<T>, String>{
-        let mut results = Vec::new();
-        for row in rows {
-            let data: String = row.get(column);
-            let item: T = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-            results.push(item);
-        }
-        Ok( results)
-    }
-
-    fn db_res_to_one<T>(row: Option<T>,column : &str) -> Result<Option<T>, String>{
-        if let Some(row) = row {
-            let data: String = row.get(column);
-            let item: T = serde_json::from_str(&data).map_err(|e| e.to_string())?;
-            Ok(Some(item))
-        }else { 
-            Ok(None)
-        }
-    }
-    /// 获取表中所有数据
-    pub async fn get_id_data_all<T>(table: &str) -> Result<Vec<T>, String>
-    where T: DeserializeOwned
-    {
-        let query = format!("SELECT id,data FROM {}", table);
-        Self::exec_sql_vec::<T>(&query).await
-    }
-
-    /// 根据 ID 获取单条数据
-    pub async fn get_id_data_by_id<T>(table: &str, id: &str) -> Result<Option<T>, String>
-    where T: DeserializeOwned
-    {
-        let query = format!("SELECT id,data FROM {} WHERE id = ?", table);
-        Ok(
-            Self::exec_sql_one::<T>(&query, id).await?
-        )
-
-    }
-
-    /// 根据属性值获取
-    pub async fn get_by_prop_val<T>(table: &str, prop: &str, value: &str) -> Result<Vec<T>, String>
-    where T: DeserializeOwned
-    {
-        let query = format!("SELECT id,data FROM {} WHERE data->>'$.{}' = '{}';", table, prop,value);
-        Self::exec_sql_vec::<T>(&query).await
-    }
-
-    /// 插入或更新数据
-    pub async fn upsert_id_data<T>(table: &str, id: &str, item: &T) -> Result<(), String>
-    where T: Serialize
+    /// 这里的泛型 T 是你的 Data 部分 (例如 DeviceConfig)
+    /// 返回 (ID, Data) 的元组列表
+    pub async fn get_all<T>(table: &str) -> Result<Vec<T>, String>
+    where
+        T: for<'r> FromRow<'r, sqlx::sqlite::SqliteRow> + Unpin + Send + Sync,
     {
         let pool = get_pool();
-        let data = serde_json::to_string(item).map_err(|e| e.to_string())?;
+        let query = format!("SELECT id, `data` FROM {}", table);
+        let rows: Vec<T> = sqlx::query_as(&query)
+            .fetch_all(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(rows)
+    }
+
+    /// 根据 ID 获取单个记录
+    pub async fn get_by_id<T>(table: &str, id: &str) -> Result<Option<T>, String>
+    where
+        T: for<'r> FromRow<'r, sqlx::sqlite::SqliteRow> + Unpin  + Send + Sync,
+    {
+        let pool = get_pool();
+        let query = format!("SELECT id,`data` FROM {} WHERE id = ?", table);
+        let row:Option<T> = sqlx::query_as(&query)
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        Ok(row)
+    }
+
+    /// 插入或更新 ID + Data 模式的数据
+    /// 你不需要手动转换 JSON，sqlx 会处理
+    pub async fn upsert_id_data<T>(table: &str, id: &str, data: &Json<T>) -> Result<(), String>
+    where
+        T: Serialize + Send + Sync,
+    {
+        let pool = get_pool();
         let query = format!(
-            "INSERT INTO {} (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data",
+            "INSERT INTO {} (id, `data`) VALUES (?, ?)
+             ON CONFLICT(id) DO UPDATE SET `data` = excluded.`data`",
             table
         );
+        
         sqlx::query(&query)
             .bind(id)
-            .bind(data)
+            .bind(data) // 这里就是自动转换！
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -147,10 +120,11 @@ impl DbRepo {
 
     /// 删除数据
     pub async fn delete(table: &str, id: &str) -> Result<(), String> {
+        let pool = get_pool();
         let query = format!("DELETE FROM {} WHERE id = ?", table);
         sqlx::query(&query)
             .bind(id)
-            .execute(get_pool())
+            .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
         Ok(())

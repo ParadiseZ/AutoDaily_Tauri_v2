@@ -1,40 +1,29 @@
-use crate::infrastructure::core::{DeviceId, HashMap};
-use crate::infrastructure::devices::device_conf::{DeviceConfig, DeviceTable};
+use crate::constant::table_name::DEVICE_TABLE;
+use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::DbRepo;
+use crate::infrastructure::devices::device_conf::DeviceTable;
 use tauri::command;
-
-/// 设备配置表名
-const DEVICE_TABLE: &str = "device_configs";
 
 /// 获取所有设备配置
 #[command]
-pub async fn get_all_devices_cmd() -> Result<Vec<DeviceConfig>, String> {
-    DbRepo::get_id_data_all::<DeviceConfig>(DEVICE_TABLE).await?
+pub async fn get_all_devices_cmd() -> Result<Vec<DeviceTable>, String> {
+    DbRepo::get_all::<DeviceTable>(DEVICE_TABLE).await
 }
 
 /// 根据 ID 获取设备配置
 #[command]
-pub async fn get_device_by_id_cmd(device_id: DeviceId) -> Result<Option<DeviceConfig>, String> {
-    match DbRepo::get_id_data_by_id(DEVICE_TABLE, &device_id.to_string()).await{
-        Ok(dev) => Ok(dev),
-        Err(err) => Err(err),
-    }
+pub async fn get_device_by_id_cmd(device_id: DeviceId) -> Result<Option<DeviceTable>, String> {
+    DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string()).await
 }
 
 /// 保存（新增或更新）设备配置
 #[command]
 pub async fn save_device_cmd(device: DeviceTable) -> Result<(), String> {
-    match DbRepo::upsert_id_data(DEVICE_TABLE, &device.id.to_string(), &device.data).await{
-        Ok(_) => Ok(()),
-        Err(err) => Err(err),
-    }
+    DbRepo::upsert_id_data(DEVICE_TABLE, &device.id.to_string(), &device.data).await
 }
 
 /// 删除设备配置
 #[command]
 pub async fn delete_device_cmd(device_id: DeviceId) -> Result<(), String> {
-    match DbRepo::delete(DEVICE_TABLE, &device_id.to_string()).await{
-        Ok(_) => Ok(()),
-        Err(err) => Err(err),
-    }
+    DbRepo::delete(DEVICE_TABLE, &device_id.to_string()).await
 }
