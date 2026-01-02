@@ -1,9 +1,10 @@
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use serde::{de::DeserializeOwned, Serialize};
-use sqlx::{sqlite::SqliteConnectOptions, Pool, Row, Sqlite, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, Database, Pool, Row, Sqlite, SqlitePool};
 use std::path::PathBuf;
 use std::str::FromStr;
 use serde_json::json;
+use sqlx::sqlite::SqliteRow;
 use tauri::AppHandle;
 use tauri::Manager;
 use tokio::sync::OnceCell;
@@ -42,7 +43,7 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String>{
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS device_configs (
             id TEXT PRIMARY KEY,
-            content JSON NOT NULL
+            `data` JSON NOT NULL
         )",
     )
         .execute(&pool)
@@ -62,55 +63,77 @@ pub fn get_pool() -> &'static SqlitePool {
 pub struct DbRepo;
 
 impl DbRepo {
-    /// 获取表中所有数据
-    pub async fn get_content<T>(table: &str) -> Result<Vec<T>, String>
-    where T: DeserializeOwned 
-    {
-        let pool = get_pool();
-        let query = format!("SELECT content FROM {}", table);
-        let rows = sqlx::query(&query)
-            .fetch_all(pool)
+    async fn exec_sql_vec<T>(sql: &str) -> Result<Vec<T>, String> {
+        let res : Vec<T> = sqlx::query_as(sql)
+            .fetch_all(get_pool())
             .await
             .map_err(|e| e.to_string())?;
+        Ok(res)
+    }
 
+    async fn exec_sql_one<T>(sql: &str,bind: &str) -> Result<Option<T>, String> {
+        let res : Option<T> = sqlx::query_as(sql)
+            .bind(bind)
+            .fetch_optional(get_pool())
+            .await
+            .map_err(|e| e.to_string())?;
+        Ok(res)
+    }
+
+    fn db_res_to_vec<T>(rows: Vec<T>,column : &str) -> Result<Vec<T>, String>{
         let mut results = Vec::new();
         for row in rows {
-            let data: String = row.get("content");
+            let data: String = row.get(column);
             let item: T = serde_json::from_str(&data).map_err(|e| e.to_string())?;
             results.push(item);
         }
-        Ok(results)
+        Ok( results)
     }
 
-    /// 根据 ID 获取单条数据
-    pub async fn get_by_id<T>(table: &str, id: &str) -> Result<Option<T>, String>
-    where T: DeserializeOwned
-    {
-        let pool = get_pool();
-        let query = format!("SELECT content FROM {} WHERE id = ?", table);
-        let row = sqlx::query(&query)
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .map_err(|e| e.to_string())?;
-
+    fn db_res_to_one<T>(row: Option<T>,column : &str) -> Result<Option<T>, String>{
         if let Some(row) = row {
-            let data: String = row.get("content");
+            let data: String = row.get(column);
             let item: T = serde_json::from_str(&data).map_err(|e| e.to_string())?;
             Ok(Some(item))
-        } else {
+        }else { 
             Ok(None)
         }
     }
+    /// 获取表中所有数据
+    pub async fn get_id_data_all<T>(table: &str) -> Result<Vec<T>, String>
+    where T: DeserializeOwned
+    {
+        let query = format!("SELECT id,data FROM {}", table);
+        Self::exec_sql_vec::<T>(&query).await
+    }
+
+    /// 根据 ID 获取单条数据
+    pub async fn get_id_data_by_id<T>(table: &str, id: &str) -> Result<Option<T>, String>
+    where T: DeserializeOwned
+    {
+        let query = format!("SELECT id,data FROM {} WHERE id = ?", table);
+        Ok(
+            Self::exec_sql_one::<T>(&query, id).await?
+        )
+
+    }
+
+    /// 根据属性值获取
+    pub async fn get_by_prop_val<T>(table: &str, prop: &str, value: &str) -> Result<Vec<T>, String>
+    where T: DeserializeOwned
+    {
+        let query = format!("SELECT id,data FROM {} WHERE data->>'$.{}' = '{}';", table, prop,value);
+        Self::exec_sql_vec::<T>(&query).await
+    }
 
     /// 插入或更新数据
-    pub async fn upsert<T>(table: &str, id: &str, item: &T) -> Result<(), String>
+    pub async fn upsert_id_data<T>(table: &str, id: &str, item: &T) -> Result<(), String>
     where T: Serialize
     {
         let pool = get_pool();
         let data = serde_json::to_string(item).map_err(|e| e.to_string())?;
         let query = format!(
-            "INSERT INTO {} (id, content) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET content = excluded.content",
+            "INSERT INTO {} (id, data) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data",
             table
         );
         sqlx::query(&query)
@@ -124,11 +147,10 @@ impl DbRepo {
 
     /// 删除数据
     pub async fn delete(table: &str, id: &str) -> Result<(), String> {
-        let pool = get_pool();
         let query = format!("DELETE FROM {} WHERE id = ?", table);
         sqlx::query(&query)
             .bind(id)
-            .execute(pool)
+            .execute(get_pool())
             .await
             .map_err(|e| e.to_string())?;
         Ok(())

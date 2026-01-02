@@ -1,17 +1,30 @@
-use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, Serialize};
+use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
 use crate::infrastructure::devices::adb_info::{AdbConnectSatus, AdbInfo};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use std::net::Ipv4Addr;
-use std::sync::{Arc, RwLock};
 
-pub type DeviceConfMap = HashMap<Arc<DeviceId>, Arc<RwLock<DeviceConfig>>>;
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceTable {
+    // 设备ID
+    pub id: DeviceId,
+    // 设备名称
+    pub data: DeviceConfig,
+}
+
+impl Default for DeviceTable {
+    fn default() -> Self {
+        Self {
+            id: DeviceId::new_v7(),
+            data: DeviceConfig::default(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceConfig {
-    // 设备ID
-    pub device_id: DeviceId,
     // 设备名称
     pub device_name: String,
 
@@ -44,7 +57,6 @@ pub enum CapMethod {
 impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
-            device_id: DeviceId::new_v7(),
             device_name: "MuMu模拟器12".into(),
             exe_path: None,
             exe_args: None,
