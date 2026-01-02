@@ -27,3 +27,9 @@ pub async fn save_device_cmd(device: DeviceTable) -> Result<(), String> {
 pub async fn delete_device_cmd(device_id: DeviceId) -> Result<(), String> {
     DbRepo::delete(DEVICE_TABLE, &device_id.to_string()).await
 }
+
+/// 获取当前 CPU 核心数
+#[command]
+pub fn get_cpu_count_cmd() -> usize {
+    num_cpus::get()
+}

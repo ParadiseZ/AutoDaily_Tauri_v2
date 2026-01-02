@@ -3,7 +3,7 @@ use std::net::Ipv4Addr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum AdbConnectSatus {
+pub enum AdbConnectStatus {
     Connecting,
     Connected,
     Disconnect,
@@ -15,5 +15,5 @@ pub enum AdbConnectSatus {
 pub struct AdbInfo {
     pub ip_addr: Ipv4Addr,
     pub port: usize,
-    pub states: AdbConnectSatus,
+    pub states: AdbConnectStatus,
 }

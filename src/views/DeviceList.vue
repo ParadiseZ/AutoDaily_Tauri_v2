@@ -13,30 +13,30 @@
           <tr>
             <th>名称</th>
             <th>类型</th>
-            <th>核心数</th>
+            <th>CPU核心</th>
             <th>日志级别</th>
             <th>状态</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="device in devices" :key="device.deviceId">
+          <tr v-for="device in devices" :key="device.id">
             <td>
-              <div class="font-bold">{{ device.deviceName }}</div>
-              <div class="text-xs opacity-50">{{ device.deviceId }}</div>
+              <div class="font-bold">{{ device.data.deviceName }}</div>
+              <div class="text-xs opacity-50">{{ device.id }}</div>
             </td>
             <td>
-              <span v-if="device.adbInfo" class="badge badge-ghost badge-sm">Emulator</span>
+              <span v-if="device.data.adbInfo" class="badge badge-ghost badge-sm">Emulator</span>
               <span v-else class="badge badge-ghost badge-sm">Windows</span>
             </td>
-            <td>{{ device.cores }}</td>
-            <td>{{ device.logLevel }}</td>
+            <td>{{ device.data.cores?.join(', ') || 'None' }}</td>
+            <td>{{ device.data.logLevel }}</td>
             <td>
-              <input type="checkbox" class="toggle toggle-sm toggle-success" :checked="device.enable" @click="toggleEnable(device)" />
+              <input type="checkbox" class="toggle toggle-sm toggle-success" :checked="device.data.enable" @click="toggleEnable(device)" />
             </td>
             <td>
               <button class="btn btn-ghost btn-xs" @click="openModal(device)">编辑</button>
-              <button class="btn btn-ghost btn-xs text-error" @click="deleteDevice(device.deviceId)">删除</button>
+              <button class="btn btn-ghost btn-xs text-error" @click="deleteDevice(device.id)">删除</button>
             </td>
           </tr>
           <tr v-if="devices.length === 0">
@@ -57,9 +57,14 @@
             <input type="text" v-model="form.data.deviceName" class="input input-bordered w-full" placeholder="MuMu12"/>
           </div>
           
-          <div class="form-control">
-            <label class="label"><span class="label-text">CPU核心</span></label>
-            <input type="number" v-model.number="form.data.cores" class="input input-bordered w-full" placeholder="4"/>
+          <div class="form-control md:col-span-2">
+            <label class="label"><span class="label-text">CPU核心 (多选)</span></label>
+            <div class="flex flex-wrap gap-2 p-2 bg-base-200 rounded-lg">
+              <label v-for="i in cpuCount" :key="i-1" class="label cursor-pointer flex gap-1 bg-base-100 px-2 py-1 rounded border border-base-300 hover:bg-base-300 transition-colors">
+                <input type="checkbox" :value="i-1" v-model="form.data.cores" class="checkbox checkbox-xs" />
+                <span class="label-text text-xs">Core {{ i-1 }}</span>
+              </label>
+            </div>
           </div>
 
           <div class="form-control">
@@ -77,16 +82,16 @@
           <div class="form-control">
             <label class="label"><span class="label-text">截图方式</span></label>
             <select v-model="capMethodType" class="select select-bordered w-full">
-              <option value="Window">Window</option>
-              <option value="Adb">Adb</option>
+              <option value="window">Window</option>
+              <option value="adb">Adb</option>
             </select>
           </div>
           
-           <div class="form-control" v-if="capMethodType === 'Window'">
+           <div class="form-control" v-if="capMethodType === 'window'">
             <label class="label"><span class="label-text">窗口名称</span></label>
             <input type="text" v-model="capMethodValue" class="input input-bordered w-full" placeholder="MuMu安卓设备"/>
           </div>
-          <div class="form-control" v-if="capMethodType === 'Adb'">
+          <div class="form-control" v-if="capMethodType === 'adb'">
             <label class="label"><span class="label-text">ADB设备名称</span></label>
             <input type="text" v-model="capMethodValue" class="input input-bordered w-full" placeholder="emulator-5554" />
           </div>
@@ -133,12 +138,14 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { message } from '@tauri-apps/plugin-dialog';
 import { Plus } from 'lucide-vue-next';
 
 const devices = ref([]);
 const isEditing = ref(false);
-const capMethodType = ref('Window');
+const capMethodType = ref('window');
 const capMethodValue = ref('');
+const cpuCount = ref(0);
 
 const adbIp = ref('');
 const adbPort = ref(null);
@@ -147,7 +154,7 @@ const form = reactive({
   id:'',
   data:{
     deviceName: '',
-    cores: 4,
+    cores: [],
     logLevel: 'Off',
     capMethod: null,
     imageCompression: 'WindowOriginal',
@@ -171,29 +178,26 @@ const loadDevices = async () => {
 const openModal = (device = null) => {
   if (device) {
     isEditing.value = true;
-    Object.assign(form, JSON.parse(JSON.stringify(device)));
+    // Deep clone the device object
+    const cloned = JSON.parse(JSON.stringify(device));
+    form.id = cloned.id;
+    form.data = cloned.data;
     
     // Parse capMethod
-    if (device.capMethod) {
-        if (device.capMethod.window) {
-            capMethodType.value = 'Window';
-            capMethodValue.value = device.capMethod.window;
-        } else if (device.capMethod.adb) {
-            capMethodType.value = 'Adb';
-            capMethodValue.value = device.capMethod.adb;
-        } else if (typeof device.capMethod === 'string') {
-             // Handle if it comes as string
-        } else {
-             const key = Object.keys(device.capMethod)[0];
-             capMethodType.value = key; 
-             capMethodValue.value = device.capMethod[key];
+    if (form.data.capMethod) {
+        if (form.data.capMethod.window) {
+            capMethodType.value = 'window';
+            capMethodValue.value = form.data.capMethod.window;
+        } else if (form.data.capMethod.adb) {
+            capMethodType.value = 'adb';
+            capMethodValue.value = form.data.capMethod.adb;
         }
     }
     
     // Parse adbInfo
-    if (device.adbInfo) {
-        adbIp.value =  device.adbInfo.ip_addr || '';
-        adbPort.value = device.adbInfo.port;
+    if (form.data.adbInfo) {
+        adbIp.value = form.data.adbInfo.ipAddr || '';
+        adbPort.value = form.data.adbInfo.port;
     } else {
         adbIp.value = '';
         adbPort.value = null;
@@ -208,7 +212,7 @@ const openModal = (device = null) => {
     form.id = null;
     form.data = {
       deviceName: '',
-      cores: 4,
+      cores: [],
       logLevel: 'Off',
       capMethod: null,
       imageCompression: 'WindowOriginal',
@@ -217,7 +221,7 @@ const openModal = (device = null) => {
       exeArgs: null,
       adbInfo: null
     };
-    capMethodType.value = 'Window';
+    capMethodType.value = 'window';
     capMethodValue.value = '';
     adbIp.value = '';
     adbPort.value = null;
@@ -233,9 +237,9 @@ const saveDevice = async () => {
 
     if (adbIp.value && adbPort.value) {
         form.data.adbInfo = {
-            ip_addr: adbIp.value,
+            ipAddr: adbIp.value,
             port: adbPort.value,
-            states: 'Disconnect'
+            states: 'disconnect'
         };
     } else {
         form.data.adbInfo = null;
@@ -249,7 +253,7 @@ const saveDevice = async () => {
     await loadDevices();
   } catch (e) {
     console.error('Failed to save device:', e);
-    alert('Failed to save: ' + e);
+    await message('Failed to save: ' + e, { title: 'Error', type: 'error' });
   }
 };
 
@@ -264,16 +268,21 @@ const deleteDevice = async (id) => {
 };
 
 const toggleEnable = async (device) => {
-    device.enable = !device.enable;
+    device.data.enable = !device.data.enable;
     try {
         await invoke('save_device_cmd', { device });
     } catch(e) {
         console.error(e);
-        device.enable = !device.enable; // revert
+        device.data.enable = !device.data.enable; // revert
     }
 }
 
-onMounted(() => {
-  loadDevices();
+onMounted(async () => {
+  await loadDevices();
+  try {
+    cpuCount.value = await invoke('get_cpu_count_cmd');
+  } catch (e) {
+    console.error('Failed to get cpu count:', e);
+  }
 });
 </script>

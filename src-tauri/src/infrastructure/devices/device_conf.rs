@@ -1,5 +1,5 @@
 use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
-use crate::infrastructure::devices::adb_info::{AdbConnectSatus, AdbInfo};
+use crate::infrastructure::devices::adb_info::{AdbConnectStatus, AdbInfo};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use std::net::Ipv4Addr;
@@ -67,7 +67,7 @@ impl Default for DeviceConfig {
             adb_info: Some(AdbInfo {
                 ip_addr: Ipv4Addr::new(127, 0, 0, 1),
                 port: 16416,
-                states: AdbConnectSatus::Disconnect,
+                states: AdbConnectStatus::Disconnect,
             }),
             cap_method: CapMethod::Window("AutoDaily".into()),
             image_compression: ImageCompression::WindowOriginal,

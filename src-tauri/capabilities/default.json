@@ -20,7 +20,6 @@
     "core:window:close",
     "core:webview:allow-create-webview-window",
     "opener:default",
-    "dialog:default",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
