@@ -12,10 +12,10 @@
         <thead>
           <tr>
             <th>名称</th>
-            <th>类型</th>
+            <th>ip/名称</th>
             <th>CPU核心</th>
             <th>日志级别</th>
-            <th>状态</th>
+            <th>启用</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -26,17 +26,16 @@
               <div class="text-xs opacity-50">{{ device.id }}</div>
             </td>
             <td>
-              <span v-if="device.data.adbInfo" class="badge badge-ghost badge-sm">Emulator</span>
-              <span v-else class="badge badge-ghost badge-sm">Windows</span>
+              <span v-if="device.data.adbInfo" class="badge badge-ghost badge-sm">{{device.data.adbInfo.ipAddr}}:{{device.data.adbInfo.port}}</span>
             </td>
-            <td>{{ device.data.cores?.join(', ') || 'None' }}</td>
+            <td>{{ device.data.cores?.join(',') || 'None' }}</td>
             <td>{{ device.data.logLevel }}</td>
             <td>
               <input type="checkbox" class="toggle toggle-sm toggle-success" :checked="device.data.enable" @click="toggleEnable(device)" />
             </td>
             <td>
               <button class="btn btn-ghost btn-xs" @click="openModal(device)">编辑</button>
-              <button class="btn btn-ghost btn-xs text-error" @click="deleteDevice(device.id)">删除</button>
+              <button class="btn btn-ghost btn-xs text-error" @click="deleteDevice(device.id, device.data.deviceName)">删除</button>
             </td>
           </tr>
           <tr v-if="devices.length === 0">
@@ -53,8 +52,19 @@
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="form-control">
-            <label class="label"><span class="label-text">设备名称</span></label>
+            <label class="label"><span class="label-text">名称</span></label>
             <input type="text" v-model="form.data.deviceName" class="input input-bordered w-full" placeholder="MuMu12"/>
+          </div>
+
+          <div class="form-control">
+            <label class="label"><span class="label-text">日志级别</span></label>
+            <select v-model="form.data.logLevel" class="select select-bordered w-full">
+              <option value="Off">Off</option>
+              <option value="Error">Error</option>
+              <option value="Warn">Warn</option>
+              <option value="Info">Info</option>
+              <option value="Debug">Debug</option>
+            </select>
           </div>
           
           <div class="form-control md:col-span-2">
@@ -67,23 +77,13 @@
             </div>
           </div>
 
-          <div class="form-control">
-            <label class="label"><span class="label-text">日志级别</span></label>
-            <select v-model="form.data.logLevel" class="select select-bordered w-full">
-              <option value="Off">Off</option>
-              <option value="Error">Error</option>
-              <option value="Warn">Warn</option>
-              <option value="Info">Info</option>
-              <option value="Debug">Debug</option>
-              <option value="Trace">Trace</option>
-            </select>
-          </div>
+
 
           <div class="form-control">
             <label class="label"><span class="label-text">截图方式</span></label>
             <select v-model="capMethodType" class="select select-bordered w-full">
-              <option value="window">Window</option>
-              <option value="adb">Adb</option>
+              <option value="window">窗口</option>
+              <option value="adb">ADB</option>
             </select>
           </div>
           
@@ -108,11 +108,11 @@
           </div> -->
 
           <div class="form-control">
-             <label class="label"><span class="label-text">IP (Optional)</span></label>
+             <label class="label"><span class="label-text">IP</span></label>
              <input type="text" v-model="adbIp" class="input input-bordered w-full" placeholder="127.0.0.1" />
           </div>
            <div class="form-control">
-             <label class="label"><span class="label-text">ADB端口 (Optional)</span></label>
+             <label class="label"><span class="label-text">端口</span></label>
              <input type="number" v-model.number="adbPort" class="input input-bordered w-full" placeholder="5555" />
           </div>
 
@@ -138,8 +138,12 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
-import { message } from '@tauri-apps/plugin-dialog';
+import { confirm, message } from '@tauri-apps/plugin-dialog';
 import { Plus } from 'lucide-vue-next';
+
+import { useDevices } from '../assets/js/useDevices.js'
+
+const { getAllDevices } = useDevices();
 
 const devices = ref([]);
 const isEditing = ref(false);
@@ -167,11 +171,11 @@ const form = reactive({
 
 const loadDevices = async () => {
   try {
-    const res = await invoke('get_all_devices_cmd');
+    const res = await getAllDevices();
     console.log('Loaded devices:', res);
     devices.value = Object.values(res);
   } catch (e) {
-    console.error('Failed to load devices:', e);
+    await message('加载设备失败: ' + e, { title: '错误', type: 'error' });
   }
 };
 
@@ -247,23 +251,21 @@ const saveDevice = async () => {
     if(!form.id){
       form.id = await invoke('get_uuid_v7');
     }
-
     await invoke('save_device_cmd', { device: form });
     document.getElementById('device_modal').close();
     await loadDevices();
   } catch (e) {
-    console.error('Failed to save device:', e);
-    await message('Failed to save: ' + e, { title: 'Error', type: 'error' });
+    await message('保存失败: ' + e, { title: '错误', type: 'error' });
   }
 };
 
-const deleteDevice = async (id) => {
-  if (!confirm('Are you sure?')) return;
+const deleteDevice = async (id, name) => {
+  if (!await confirm('确定要删除【'+name+'】吗？', {title: '删除设备', kind: 'warning'})) return;
   try {
     await invoke('delete_device_cmd', { deviceId: id });
     await loadDevices();
   } catch (e) {
-    console.error('Failed to delete device:', e);
+    await message('删除失败: ' + e, { title: '错误', type: 'error' });
   }
 };
 
@@ -272,8 +274,8 @@ const toggleEnable = async (device) => {
     try {
         await invoke('save_device_cmd', { device });
     } catch(e) {
-        console.error(e);
-        device.data.enable = !device.data.enable; // revert
+      await message('保存失败: ' + e, { title: '错误', type: 'error' });
+      device.data.enable = !device.data.enable; // revert
     }
 }
 
@@ -282,7 +284,7 @@ onMounted(async () => {
   try {
     cpuCount.value = await invoke('get_cpu_count_cmd');
   } catch (e) {
-    console.error('Failed to get cpu count:', e);
+    await message('获取CPU核心数失败: ' + e, { title: '错误', type: 'error' });
   }
 });
 </script>
