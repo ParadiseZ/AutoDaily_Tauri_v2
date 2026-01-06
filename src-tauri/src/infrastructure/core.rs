@@ -20,6 +20,7 @@ use uuid::Uuid;
 
 pub type DeviceId = UuidV7; // UUID v7
 pub type ScriptId = UuidV7; // UUID v7
+pub type UserId = UuidV7; // UUID v7
 pub type TaskId = UuidV7;
 pub type GuardId = UuidV7;
 pub type PolicyId = UuidV7;
