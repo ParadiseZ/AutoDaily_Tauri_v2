@@ -3,6 +3,7 @@ use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::execution_provider_mgr::{
     configure_or_switch_provider, InferenceBackend,
 };
+use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::vision::base_traits::ModelHandler;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 
@@ -16,7 +17,9 @@ use std::sync::Mutex;
 
 /// 基础模型结构 - 包含所有模型的通用字段
 
+#[derive(Serialize, Deserialize)]
 pub struct BaseModel {
+    #[serde(skip)]
     pub session: Option<Mutex<Session>>,
     pub intra_thread_num: usize,
     pub intra_spinning: bool,
@@ -27,6 +30,7 @@ pub struct BaseModel {
     pub input_height: u32,
     //pub model_path : Option<String>,
     pub model_path: std::path::PathBuf,
+    #[serde(skip)]
     pub is_loaded: bool,
     pub model_type: ModelType,
 }
@@ -50,7 +54,7 @@ impl std::fmt::Debug for BaseModel{
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ModelType {
     Yolo11,
     PaddleDet5,

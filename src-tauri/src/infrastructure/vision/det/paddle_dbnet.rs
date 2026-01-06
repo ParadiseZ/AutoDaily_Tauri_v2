@@ -1,3 +1,4 @@
+use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::domain::vision::result::{BoundingBox, DetResult};
 use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
 use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
@@ -15,7 +16,7 @@ const MIN_AREA: f32 = 3.0;
 /// 经验值
 const MIN_AREA_AFTER: f32 = 5.0; //MIN_AREA+2.0
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PaddleDetDbNet {
     pub base_model: BaseModel,
     pub db_thresh: f32,

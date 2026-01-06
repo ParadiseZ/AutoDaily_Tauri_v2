@@ -1,3 +1,4 @@
+use crate::infrastructure::core::{Deserialize, Serialize};
 use std::path::PathBuf;
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::logging::log_trait::Log;
@@ -11,7 +12,7 @@ use imageproc::drawing::Canvas;
 use ndarray::{Array3, Array4, ArrayD, ArrayViewD, ArrayViewMut3, Axis};
 use rayon::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PaddleRecCrnn {
     pub base_model: BaseModel,
     pub dict_path: Option<PathBuf>,

@@ -2,12 +2,12 @@ use crate::app::app_error::AppResult;
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::image::load_image::load_img_from_path;
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::ocr_factory::{DetectorConfig, RecognizerConfig};
+use crate::infrastructure::vision::ocr_factory::{DetectorType, RecognizerType};
 use crate::infrastructure::vision::ocr_service::OcrService;
 
 pub async fn yolo_infer_test(
     image_path: &str,
-    detector_config: DetectorConfig,
+    detector_config: DetectorType,
 ) -> AppResult<Vec<DetResult>> {
     // 1. 创建OCR服务实例
     let mut ocr_service = OcrService::new();
@@ -17,8 +17,8 @@ pub async fn yolo_infer_test(
 }
 
 pub async fn paddle_ocr_infer(
-    detector_config: DetectorConfig,
-    recognizer_config: RecognizerConfig,
+    detector_config: DetectorType,
+    recognizer_config: RecognizerType,
     image_path: &str,
 ) -> AppResult<Vec<OcrResult>> {
     // 1. 创建OCR服务实例
