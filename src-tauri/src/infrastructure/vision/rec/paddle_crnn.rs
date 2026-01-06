@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
@@ -13,6 +14,7 @@ use rayon::prelude::*;
 #[derive(Debug)]
 pub struct PaddleRecCrnn {
     pub base_model: BaseModel,
+    pub dict_path: Option<PathBuf>,
     pub dict: Vec<String>,
 }
 
@@ -24,8 +26,9 @@ impl PaddleRecCrnn {
         intra_spinning: bool,
         inter_thread_num: usize,
         inter_spinning: bool,
-        model_path: std::path::PathBuf,
+        model_path: PathBuf,
         execution_provider: InferenceBackend,
+        dict_path: Option<PathBuf>,
         dict: Vec<String>,
     ) -> Self {
         Self {
@@ -40,7 +43,8 @@ impl PaddleRecCrnn {
                 inter_spinning,
                 ModelType::PaddleCrnn5,
             ),
-            dict,
+            dict_path,
+            dict
         }
     }
 }

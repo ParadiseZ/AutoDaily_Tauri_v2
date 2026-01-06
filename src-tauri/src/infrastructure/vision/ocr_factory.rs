@@ -12,20 +12,20 @@ use std::sync::Arc;
 use tokio::fs::read_to_string;
 
 /// 检测器类型枚举
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum DetectorType {
-    Yolo11,
-    PaddleDbNet,
+    Yolo11(YoloDet),
+    PaddleDbNet(PaddleDetDbNet),
 }
 
 /// 识别器类型枚举
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum RecognizerType {
-    PaddleCrnn,
+    PaddleCrnn(PaddleRecCrnn),
 }
 
 /// 检测器配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DetectorConfig {
     pub detector_type: DetectorType,
     pub model_path: PathBuf,
@@ -137,7 +137,7 @@ impl DetectorConfig {
 }
 
 /// 识别器配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RecognizerConfig {
     pub recognizer_type: RecognizerType,
     pub model_path: PathBuf,
@@ -158,56 +158,24 @@ pub struct OcrModelFactory;
 impl OcrModelFactory {
     /// 内部方法：创建检测器实现（不通过管理器）
     pub(crate) async fn create_detector(
-        config: DetectorConfig,
+        det : DetectorType,
     ) -> VisionResult<Arc<dyn TextDetector>> {
-        match config.detector_type {
-            DetectorType::Yolo11 => {
-                let detector = YoloDet::new(
-                    config.input_width,
-                    config.input_height,
-                    config.intra_thread_num,
-                    config.intra_spinning,
-                    config.inter_thread_num,
-                    config.inter_spinning,
-                    config.model_path,
-                    config.execution_provider,
-                    config.class_count.unwrap_or(1),
-                    config
-                        .class_labels
-                        .unwrap_or_else(|| vec!["text".to_string()]),
-                    config.confidence_thresh.unwrap_or(0.5),
-                    config.iou_thresh.unwrap_or(0.4),
-                );
-                Ok(Arc::new(detector))
+        match det {
+            DetectorType::Yolo11(net) => {
+                Ok(Arc::new(net))
             }
-            DetectorType::PaddleDbNet => {
-                let detector = PaddleDetDbNet::new(
-                    config.input_width,
-                    config.input_height,
-                    config.intra_thread_num,
-                    config.intra_spinning,
-                    config.inter_thread_num,
-                    config.inter_spinning,
-                    config.model_path,
-                    config.execution_provider,
-                    config.db_thresh.unwrap_or(0.3),
-                    config.db_box_thresh.unwrap_or(0.6),
-                    config.unclip_ratio.unwrap_or(1.5),
-                    config.use_dilation.unwrap_or(false),
-                );
-                Ok(Arc::new(detector))
+            DetectorType::PaddleDbNet(det) => {
+                Ok(Arc::new(det))
             }
         }
     }
 
     /// 内部方法：创建识别器实现（不通过管理器）
-    pub(crate) async fn create_recognizer(
-        config: RecognizerConfig,
-    ) -> VisionResult<Arc<dyn TextRecognizer>> {
-        match config.recognizer_type {
-            RecognizerType::PaddleCrnn => {
+    pub(crate) async fn create_recognizer(rec : RecognizerType) -> VisionResult<Arc<dyn TextRecognizer>> {
+        match rec {
+            RecognizerType::PaddleCrnn(mut crnn) => {
                 // 加载字典
-                let dict = if let Some(dict_path) = config.dict_path {
+                let dict = if let Some(dict_path) = crnn.dict_path.clone() {
                     Log::debug(&format!(
                         "加载字典{}",
                         dict_path.to_string_lossy().to_string()
@@ -219,24 +187,9 @@ impl OcrModelFactory {
                         path: "".to_string(),
                         e: "字典路径不存在！".to_string(),
                     });
-                    /*(0..=9).map(|i| i.to_string())
-                    .chain(('a'..='z').map(|c| c.to_string()))
-                    .chain(('A'..='Z').map(|c| c.to_string()))
-                    .collect()*/
                 };
-
-                let recognizer = PaddleRecCrnn::new(
-                    config.input_width,
-                    config.input_height,
-                    config.intra_thread_num,
-                    config.intra_spinning,
-                    config.inter_thread_num,
-                    config.inter_spinning,
-                    config.model_path,
-                    config.execution_provider,
-                    dict,
-                );
-                Ok(Arc::new(recognizer))
+                crnn.dict = dict;
+                Ok(Arc::new(crnn))
             }
         }
     }

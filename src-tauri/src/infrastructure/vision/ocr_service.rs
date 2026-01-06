@@ -1,8 +1,6 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::vision::base_traits::{TextDetector, TextRecognizer};
-use crate::infrastructure::vision::ocr_factory::{
-    DetectorConfig, OcrModelFactory, RecognizerConfig,
-};
+use crate::infrastructure::vision::ocr_factory::{DetectorType, OcrModelFactory, RecognizerType};
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::DynamicImage;
 use std::sync::Arc;
@@ -38,14 +36,14 @@ impl OcrService {
     }
 
     /// 使用配置初始化检测器
-    pub async fn init_detector(&mut self, config: DetectorConfig) -> VisionResult<()> {
+    pub async fn init_detector(&mut self, config: DetectorType) -> VisionResult<()> {
         let detector = OcrModelFactory::create_detector(config).await?;
         self.detector = Some(detector);
         Ok(())
     }
 
     /// 使用配置初始化识别器
-    pub async fn init_recognizer(&mut self, config: RecognizerConfig) -> VisionResult<()> {
+    pub async fn init_recognizer(&mut self, config: RecognizerType) -> VisionResult<()> {
         let recognizer = OcrModelFactory::create_recognizer(config).await?;
         self.recognizer = Some(recognizer);
         Ok(())

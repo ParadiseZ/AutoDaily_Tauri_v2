@@ -7,10 +7,10 @@ use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
-
 use ndarray::{s, Array, ArrayD, ArrayViewD, Axis};
+use crate::infrastructure::core::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct YoloDet {
     pub base_model: BaseModel,
     pub class_count: usize,

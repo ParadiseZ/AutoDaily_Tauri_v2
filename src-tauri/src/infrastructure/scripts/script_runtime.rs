@@ -1,7 +1,6 @@
 use crate::domain::scripts::script_decision::Step;
+use crate::infrastructure::core::HashMap;
 use crate::infrastructure::scripts::script_info_model::ScriptMeta;
-use crate::infrastructure::vision::ocr_factory::{DetectorConfig, RecognizerConfig};
-use ahash::HashMap;
 
 pub struct ScriptRuntime {
     pub script_meta: ScriptMeta,
@@ -17,8 +16,5 @@ pub struct ScriptRuntime {
     pub script_duration: String,
 
     //模型
-    pub det_model: Option<DetectorConfig>,
-    pub ocr_det_model: Option<DetectorConfig>,
-    pub rec_model: Option<RecognizerConfig>,
     //运行策略
 }
