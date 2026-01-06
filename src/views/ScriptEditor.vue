@@ -5,7 +5,7 @@
       <div class="flex items-center gap-4">
         <h1 class="text-lg font-bold flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path  fill="none" d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-            Script Editor
+            脚本编辑器
         </h1>
         <!-- Script Name Badge -->
         <div class="badge badge-primary badge-lg gap-1">
@@ -25,9 +25,12 @@
             <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5" fill="none"/><line x1="12" y1="1" x2="12" y2="3" fill="none"/><line x1="12" y1="21" x2="12" y2="23" fill="none"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" fill="none"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" fill="none"/><line x1="1" y1="12" x2="3" y2="12" fill="none"/><line x1="21" y1="12" x2="23" y2="12" fill="none"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" fill="none"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" fill="none"/></svg>
         </button>
 
-        <select class="select select-sm select-bordered max-w-xs">
-          <option disabled selected>Select Device</option>
-          <option>MuMu12 (127.0.0.1:7555)</option>
+        <!-- 设备选择器 -->
+        <select class="select select-sm select-bordered max-w-xs" v-model="currentDevice" @change="selectDevice(currentDevice)">
+          <option :value="null" disabled>Select Device</option>
+          <option v-for="device in devices" :key="device.id" :value="device.id">
+            {{ device.data.deviceName }}
+          </option>
         </select>
         <button class="btn btn-sm btn-success gap-2 text-white">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3" fill="none"></polygon></svg>
@@ -229,11 +232,14 @@ import IconRenderer from './script-editor/IconRenderer.vue';
 import { useDragAndDrop } from './script-editor/composables/useDragAndDrop.js';
 import { useConsoleLog, LOG_LEVELS } from './script-editor/composables/useConsoleLog.js';
 import { useTaskManager } from './script-editor/composables/useTaskManager.js';
-import { useThemeManager } from './script-editor/composables/index.js';
-import { useFlowEditor } from './script-editor/composables';
+import { useThemeManager, useFlowEditor, useEditorDevice } from './script-editor/composables';
 
 //store
-import { editorThemeKey } from '../store/store.js';
+import { editorThemeKey,deviceKey,setToStore,getFromStore } from '../store/store.js';
+
+//data
+import { useDevices } from '../assets/js/useDevices.js'
+
 
 // ============================================
 // 核心状态
@@ -310,6 +316,21 @@ const {
   cancelRename,
 } = useTaskManager({ nodes, edges, addLog });
 
+// 5. 设备管理
+const { getAllDevices } = useDevices();
+const { 
+  devices, 
+  currentDevice, 
+  loadDevices, 
+  selectDevice 
+} = useEditorDevice({ 
+  getAllDevices, 
+  getFromStore, 
+  setToStore, 
+  deviceKey 
+});
+
+
 // ============================================
 // 保存
 // ============================================
@@ -354,8 +375,9 @@ const handleKeyDown = (event) => {
 // ============================================
 // 生命周期
 // ============================================
-onMounted(() => {
+onMounted(async () => {
   initTheme(editorThemeKey);
+  await loadDevices();
   if (taskList.value.length > 0) {
     selectTask(taskList.value[0]);
   }

@@ -9,3 +9,4 @@ export { useFlowEditor } from './useFlowEditor.js';
 export { useTaskManager } from './useTaskManager.js';
 export { useConsoleLog, LOG_LEVELS } from './useConsoleLog.js';
 export { useThemeManager } from './useThemeManager.js';
+export { useEditorDevice } from './useEditorDevice.js';

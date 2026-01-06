@@ -143,7 +143,13 @@ import { Plus } from 'lucide-vue-next';
 
 import { useDevices } from '../assets/js/useDevices.js'
 
-const { getAllDevices } = useDevices();
+const { 
+  getAllDevices, 
+  saveDevice: apiSaveDevice, 
+  deleteDevice: apiDeleteDevice, 
+  getUuidV7, 
+  getCpuCount 
+} = useDevices();
 
 const devices = ref([]);
 const isEditing = ref(false);
@@ -171,9 +177,8 @@ const form = reactive({
 
 const loadDevices = async () => {
   try {
-    const res = await getAllDevices();
     console.log('Loaded devices:', res);
-    devices.value = Object.values(res);
+    devices.value = await getAllDevices();
   } catch (e) {
     await message('加载设备失败: ' + e, { title: '错误', type: 'error' });
   }
@@ -249,9 +254,9 @@ const saveDevice = async () => {
         form.data.adbInfo = null;
     }
     if(!form.id){
-      form.id = await invoke('get_uuid_v7');
+      form.id = await getUuidV7();
     }
-    await invoke('save_device_cmd', { device: form });
+    await apiSaveDevice(form);
     document.getElementById('device_modal').close();
     await loadDevices();
   } catch (e) {
@@ -262,7 +267,7 @@ const saveDevice = async () => {
 const deleteDevice = async (id, name) => {
   if (!await confirm('确定要删除【'+name+'】吗？', {title: '删除设备', kind: 'warning'})) return;
   try {
-    await invoke('delete_device_cmd', { deviceId: id });
+    await apiDeleteDevice(id);
     await loadDevices();
   } catch (e) {
     await message('删除失败: ' + e, { title: '错误', type: 'error' });
@@ -272,7 +277,7 @@ const deleteDevice = async (id, name) => {
 const toggleEnable = async (device) => {
     device.data.enable = !device.data.enable;
     try {
-        await invoke('save_device_cmd', { device });
+        await apiSaveDevice(device);
     } catch(e) {
       await message('保存失败: ' + e, { title: '错误', type: 'error' });
       device.data.enable = !device.data.enable; // revert
@@ -282,7 +287,7 @@ const toggleEnable = async (device) => {
 onMounted(async () => {
   await loadDevices();
   try {
-    cpuCount.value = await invoke('get_cpu_count_cmd');
+    cpuCount.value = await getCpuCount();
   } catch (e) {
     await message('获取CPU核心数失败: ' + e, { title: '错误', type: 'error' });
   }

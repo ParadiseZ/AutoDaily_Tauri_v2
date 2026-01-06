@@ -1,8 +1,6 @@
 <template>
-<!--
   <component :is="layout">
--->
-  <component :is="MainLayout">
+<!--  <component :is="MainLayout">-->
     <router-view />
   </component>
 </template>

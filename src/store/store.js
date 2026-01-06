@@ -4,6 +4,8 @@ const store = await Store.load('autodaily.config.json');
 export const defaultRouterKey = 'routerStart';
 export const editorThemeKey = 'editorTheme';
 export const appThemeKey = 'appTheme';
+
+export const deviceKey = 'editorDevice';
 export async function getFromStore(key) {
     return await store.get(key);
 }
