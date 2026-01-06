@@ -1,3 +1,5 @@
+pub mod devices;
+
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use std::process::{Command, Stdio};
 use tauri::command;

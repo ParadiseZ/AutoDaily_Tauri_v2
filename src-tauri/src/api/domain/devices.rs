@@ -1,8 +1,8 @@
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::DbRepo;
-use crate::infrastructure::devices::device_conf::DeviceTable;
 use tauri::command;
+use crate::domain::devices::device_conf::DeviceTable;
 
 /// 获取所有设备配置
 #[command]

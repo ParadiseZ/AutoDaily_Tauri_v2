@@ -2,7 +2,7 @@ use crate::infrastructure::context::child_process_sec::init_ipc_client;
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::cores_affinity::set_process_affinity;
 use crate::infrastructure::core::DeviceId;
-use crate::infrastructure::devices::device_conf::DeviceConfig;
+use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::logging::child_log::LogChild;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;

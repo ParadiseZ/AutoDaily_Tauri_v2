@@ -1,7 +1,7 @@
 use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::capture::window_cap::WindowInfo;
-use crate::infrastructure::devices::device_conf::DeviceConfig;
+use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::logging::log_trait::Log;
 use image::RgbaImage;
 use std::sync::atomic::{AtomicU8, Ordering};

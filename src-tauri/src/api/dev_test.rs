@@ -4,7 +4,7 @@ use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
 use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
-use crate::infrastructure::devices::device_conf::DeviceConfig;
+use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
 use crate::infrastructure::image::save_image::save_screenshot;
 use crate::infrastructure::logging::log_trait::Log;

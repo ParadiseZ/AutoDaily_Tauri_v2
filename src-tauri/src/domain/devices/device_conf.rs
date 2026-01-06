@@ -1,10 +1,10 @@
+use std::net::Ipv4Addr;
 use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
 use crate::infrastructure::devices::adb_info::{AdbConnectStatus, AdbInfo};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
-use std::net::Ipv4Addr;
-use sqlx::FromRow;
 use sqlx::types::Json;
+use sqlx::FromRow;
 
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]

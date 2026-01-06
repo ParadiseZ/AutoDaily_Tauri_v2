@@ -177,7 +177,6 @@ const form = reactive({
 
 const loadDevices = async () => {
   try {
-    console.log('Loaded devices:', res);
     devices.value = await getAllDevices();
   } catch (e) {
     await message('加载设备失败: ' + e, { title: '错误', type: 'error' });
