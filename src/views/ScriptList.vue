@@ -72,11 +72,11 @@ const randomRange = ref(5)
       <div class="p-4 border-b border-base-content/5">
         <h2 class="text-xl font-bold flex items-center gap-2 mb-4">
           <Package class="w-5 h-5 text-primary" />
-          脚本库
+          本地列表
         </h2>
         <label class="input input-bordered flex items-center gap-2 h-10 bg-base-200 border-none shadow-inner">
           <Search class="w-4 h-4 opacity-70" />
-          <input type="text" v-model="searchQuery" class="grow text-sm" placeholder="搜索脚本..." />
+          <input type="text" v-model="searchQuery" class="grow text-sm" placeholder="搜索..." />
         </label>
       </div>
 
@@ -164,7 +164,7 @@ const randomRange = ref(5)
         <div class="p-4 border-b border-base-content/5 bg-base-100">
           <h2 class="text-xl font-bold flex items-center gap-2 mb-1">
             <Info class="w-5 h-5 text-secondary" />
-            脚本详情
+            详情
           </h2>
           <div class="badge badge-sm" :class="selectedScript.scriptType === 'Official' ? 'badge-primary' : 'badge-secondary'">
             {{ selectedScript.scriptType === 'Official' ? '官方认证' : '本地脚本' }}
@@ -177,7 +177,7 @@ const randomRange = ref(5)
             <!-- <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3">基本信息</h3> -->
             <div class="space-y-3">
               <div class="flex flex-col">
-                <span class="text-[10px] opacity-50">脚本名称</span>
+                <span class="text-[10px] opacity-50">名称</span>
                 <span class="text-sm font-medium">{{ selectedScript.name }}</span>
               </div>
               <div class="flex flex-col">
@@ -246,8 +246,8 @@ const randomRange = ref(5)
       
       <!-- 未选择状态 -->
       <div v-else class="flex flex-col items-center justify-center h-full opacity-20 p-8 text-center">
-        <Eye class="w-16 h-16 mb-4" />
-        <p class="text-lg font-medium">请从左侧列表选择脚本</p>
+        <Info class="w-16 h-16 mb-4" />
+        <p class="text-lg font-medium">详细信息</p>
         <p class="text-sm">查看详情、管理任务及模版设置</p>
       </div>
     </div>
@@ -340,7 +340,7 @@ const randomRange = ref(5)
        <!-- 未选择状态 -->
        <div v-else class="flex flex-col items-center justify-center h-full opacity-20 p-8 text-center">
          <Settings class="w-16 h-16 mb-4" />
-         <p class="text-lg font-medium">任务详细设定</p>
+         <p class="text-lg font-medium">任务设置</p>
          <p class="text-sm">选中脚本后可在此配置自动化流程</p>
        </div>
     </div>
