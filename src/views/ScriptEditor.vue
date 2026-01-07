@@ -390,5 +390,5 @@ onUnmounted(() => {
 </script>
 <!-- MyComponent.vue -->
 <style>
-@import '../assets/styles/script-editor.css';
+@import '../assets/css/script-editor.css';
 </style>

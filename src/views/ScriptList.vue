@@ -1,11 +1,353 @@
 <script setup>
+import { ref, computed } from 'vue';
+import { useScripts } from '../assets/js/useScripts';
+import {
+  Play,
+  Search, 
+  Trash2, 
+  Edit, 
+  ChevronRight, 
+  Info, 
+  Settings, 
+  Cpu, 
+  Download, 
+  User, 
+  Calendar,
+  MoreHorizontal,
+  Package,
+  Eye,
+  Activity,
+  Box,
+  CheckCircle2,
+  Clock,
+  Plus
+} from 'lucide-vue-next';
+
+const { 
+  scripts, 
+  selectedScript, 
+  selectedTemplate, 
+  selectScript, 
+  deleteScript, 
+  editScript 
+} = useScripts();
+
+const searchQuery = ref('');
+const expandedActionsId = ref(null);
+
+const filteredScripts = computed(() => {
+  if (!searchQuery.value) return scripts.value;
+  return scripts.value.filter(s => 
+    s.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    s.description?.toLowerCase().includes(searchQuery.value.toLowerCase())
+  );
+});
+
+const toggleActions = (e, scriptName) => {
+  e.stopPropagation();
+  expandedActionsId.value = expandedActionsId.value === scriptName ? null : scriptName;
+};
+
+const handleSelect = (script) => {
+  selectScript(script);
+  expandedActionsId.value = null; // Close actions on select
+};
+
+const formatTime = (time) => {
+  if (!time) return '无';
+  return time.split(' ')[0]; // Simple date part
+};
+
+// Global task settings
+const globalDelay = ref(500);
 
 </script>
 
 <template>
+  <div class="h-full flex bg-base-300 overflow-hidden font-sans">
+    
+    <!-- 第一栏：脚本列表 -->
+    <div class="w-80 flex-none border-r border-base-content/10 bg-base-100 flex flex-col">
+      <div class="p-4 border-b border-base-content/5">
+        <h2 class="text-xl font-bold flex items-center gap-2 mb-4">
+          <Package class="w-5 h-5 text-primary" />
+          脚本库
+        </h2>
+        <label class="input input-bordered flex items-center gap-2 h-10 bg-base-200 border-none shadow-inner">
+          <Search class="w-4 h-4 opacity-70" />
+          <input type="text" v-model="searchQuery" class="grow text-sm" placeholder="搜索脚本..." />
+        </label>
+      </div>
 
+      <div class="grow overflow-y-auto custom-scrollbar p-2 space-y-2">
+        <div 
+          v-for="script in filteredScripts" 
+          :key="script.name"
+          @click="handleSelect(script)"
+          class="group relative overflow-hidden rounded-xl border transition-all cursor-pointer"
+          :class="[
+            selectedScript?.name === script.name 
+              ? 'bg-primary/10 border-primary shadow-sm' 
+              : 'bg-base-200 border-transparent hover:bg-base-300 hover:border-base-content/10'
+          ]"
+        >
+          <div class="p-3 flex items-start gap-3">
+            <div class="w-10 h-10 rounded-lg bg-base-100 flex items-center justify-center shadow-sm">
+              <Activity v-if="script.scriptType === 'Official'" class="w-5 h-5 text-primary" />
+              <Box v-else class="w-5 h-5 text-secondary" />
+            </div>
+            
+            <div class="grow min-w-0">
+              <div class="flex items-center justify-between gap-1">
+                <p class="font-semibold truncate text-sm" :class="selectedScript?.name === script.name ? 'text-primary' : ''">
+                  {{ script.name }}
+                </p>
+                <span class="text-[10px] opacity-50">{{ script.verName }}</span>
+              </div>
+              <p class="text-xs opacity-60 line-clamp-1 mt-0.5">{{ script.description }}</p>
+            </div>
+
+            <!-- 扩展功能键 -->
+            <div class="flex-none flex items-center self-center ml-1">
+              <button 
+                @click="toggleActions($event, script.name)"
+                class="btn btn-ghost btn-xs btn-circle hover:bg-base-content/10"
+              >
+                <MoreHorizontal class="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <!-- 展开的操作面板 -->
+          <div 
+            v-if="expandedActionsId === script.name"
+            class="absolute inset-y-0 right-0 bg-base-100 border-l border-base-content/10 flex items-center px-2 gap-1 z-10 animate-in slide-in-from-right duration-200"
+          >
+            <button 
+              v-if="script.scriptType === 'Custom'"
+              @click.stop="editScript(script)"
+              class="btn btn-square btn-ghost btn-sm text-info tooltip tooltip-left" 
+              data-tip="编辑"
+            >
+              <Edit class="w-4 h-4" />
+            </button>
+            <button 
+              @click.stop="deleteScript(script)"
+              class="btn btn-square btn-ghost btn-sm text-error tooltip tooltip-left" 
+              data-tip="删除"
+            >
+              <Trash2 class="w-4 h-4" />
+            </button>
+            <button @click.stop="expandedActionsId = null" class="btn btn-square btn-ghost btn-sm">
+              <ChevronRight class="w-4 h-4 rotate-180" />
+            </button>
+          </div>
+        </div>
+        
+        <div v-if="filteredScripts.length === 0" class="text-center py-10 opacity-30 flex flex-col items-center">
+            <Search class="w-8 h-8 mb-2" />
+            <p class="text-sm">未找到相关脚本</p>
+        </div>
+      </div>
+
+      <div class="p-4 border-t border-base-content/5">
+        <button class="btn btn-primary btn-block gap-2 shadow-lg shadow-primary/20">
+          <Plus class="w-4 h-4" /> 新建脚本
+        </button>
+      </div>
+    </div>
+
+    <!-- 第二栏：脚本详情 -->
+    <div class="w-80 flex-none border-r border-base-content/10 bg-base-200/50 flex flex-col">
+      <div v-if="selectedScript" class="flex flex-col h-full animate-in fade-in slide-in-from-left-4 duration-300">
+        <div class="p-4 border-b border-base-content/5 bg-base-100">
+          <h2 class="text-xl font-bold flex items-center gap-2 mb-1">
+            <Info class="w-5 h-5 text-secondary" />
+            脚本详情
+          </h2>
+          <div class="badge badge-sm" :class="selectedScript.scriptType === 'Official' ? 'badge-primary' : 'badge-secondary'">
+            {{ selectedScript.scriptType === 'Official' ? '官方认证' : '个人脚本' }}
+          </div>
+        </div>
+
+        <div class="grow overflow-y-auto custom-scrollbar p-4 space-y-6">
+          <!-- 核心信息 -->
+          <section>
+            <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3">基本信息</h3>
+            <div class="space-y-3">
+              <div class="flex flex-col">
+                <span class="text-[10px] opacity-50">脚本名称</span>
+                <span class="text-sm font-medium">{{ selectedScript.name }}</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-[10px] opacity-50">版本号</span>
+                <span class="text-sm font-medium">{{ selectedScript.verName }} ({{ selectedScript.verNum }})</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-[10px] opacity-50">脚本描述</span>
+                <p class="text-sm opacity-80 leading-relaxed">{{ selectedScript.description || '暂无描述' }}</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- 技术参数 -->
+          <section class="bg-base-100/50 p-3 rounded-xl border border-base-content/5">
+            <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3 flex items-center gap-1">
+                <Cpu class="w-3 h-3" /> 模型配置
+            </h3>
+            <div class="grid grid-cols-1 gap-3">
+               <div class="flex items-center justify-between">
+                  <span class="text-xs opacity-60">应用包名</span>
+                  <span class="text-xs font-mono bg-base-300 px-1.5 py-0.5 rounded">{{ selectedScript.pkgName || '未指定' }}</span>
+               </div>
+               <div class="divider m-0 opacity-10"></div>
+               <div class="flex items-center justify-between">
+                  <span class="text-xs opacity-60">图像识别</span>
+                  <span class="text-xs font-medium">{{ selectedScript.imgDetModel || '默认' }}</span>
+               </div>
+               <div class="flex items-center justify-between">
+                  <span class="text-xs opacity-60">文本检测</span>
+                  <span class="text-xs font-medium">{{ selectedScript.txtDetModel || '默认' }}</span>
+               </div>
+            </div>
+          </section>
+
+          <!-- 统计与元数据 -->
+          <section class="space-y-4 pt-2">
+            <div class="flex items-center gap-4 text-xs">
+                 <div class="flex items-center gap-1.5 opacity-70">
+                    <User class="w-3.5 h-3.5" />
+                    <span>{{ selectedScript.userName }}</span>
+                 </div>
+                 <div class="flex items-center gap-1.5 opacity-70">
+                    <Download class="w-3.5 h-3.5" />
+                    <span>{{ selectedScript.downloadCount }} 次下载</span>
+                 </div>
+            </div>
+            
+            <div class="p-3 bg-base-100 rounded-lg space-y-2 border border-base-content/5">
+                <div class="flex justify-between text-[11px]">
+                    <span class="opacity-50 flex items-center gap-1"><Calendar class="w-3 h-3" /> 创建时间</span>
+                    <span class="opacity-80">{{ formatTime(selectedScript.createTime) }}</span>
+                </div>
+                <div class="flex justify-between text-[11px]">
+                    <span class="opacity-50 flex items-center gap-1"><Clock class="w-3 h-3" /> 最后更新</span>
+                    <span class="opacity-80">{{ formatTime(selectedScript.updateTime) }}</span>
+                </div>
+            </div>
+          </section>
+        </div>
+      </div>
+      
+      <!-- 未选择状态 -->
+      <div v-else class="flex flex-col items-center justify-center h-full opacity-20 p-8 text-center">
+        <Eye class="w-16 h-16 mb-4" />
+        <p class="text-lg font-medium">请从左侧列表选择脚本</p>
+        <p class="text-sm">查看详情、管理任务及模版设置</p>
+      </div>
+    </div>
+
+    <!-- 第三栏：任务与模版 -->
+    <div class="grow bg-base-100 flex flex-col">
+       <div v-if="selectedScript" class="flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-400">
+          <div class="p-4 border-b border-base-content/5 flex items-center justify-between">
+            <h2 class="text-xl font-bold flex items-center gap-2">
+              <Settings class="w-5 h-5 text-accent" />
+              运行配置
+            </h2>
+            
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 bg-base-200 px-3 py-1.5 rounded-lg border border-base-content/5">
+                    <span class="text-xs font-medium opacity-60">全局延迟:</span>
+                    <input type="number" v-model="globalDelay" class="w-16 bg-transparent text-xs font-bold outline-none" />
+                    <span class="text-[10px] opacity-40">ms</span>
+                </div>
+
+                <button class="btn btn-sm btn-primary px-6 shadow-lg shadow-primary/20">
+                  <Play class="w-3.5 h-3.5 fill-current" /> 运行
+                </button>
+            </div>
+          </div>
+
+          <div class="grow flex overflow-hidden">
+             <!-- 模版选择 -->
+             <div class="w-64 flex-none border-r border-base-content/5 p-4 flex flex-col bg-base-200/20">
+                <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-4 flex items-center gap-1.5">
+                    <Layers class="w-3.5 h-3.5" /> 配置模版
+                </h3>
+                
+                <div class="space-y-2">
+                    <div 
+                        v-for="tpl in selectedScript.templates" 
+                        :key="tpl.id"
+                        @click="selectedTemplate = tpl.id"
+                        class="p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between"
+                        :class="[
+                            selectedTemplate === tpl.id 
+                            ? 'bg-accent/10 border-accent text-accent' 
+                            : 'bg-base-100 border-transparent hover:border-base-content/10'
+                        ]"
+                    >
+                        <span class="text-sm font-medium">{{ tpl.name }}</span>
+                        <CheckCircle2 v-if="selectedTemplate === tpl.id" class="w-4 h-4" />
+                    </div>
+                    
+                    <button class="btn btn-ghost btn-sm btn-block border-dashed border-base-content/20 font-normal">
+                        <Plus class="w-3 h-3" /> 新增模版
+                    </button>
+                    
+                    <div v-if="!selectedScript.templates?.length" class="p-8 text-center opacity-30">
+                        <p class="text-xs">该脚本没有可用模版</p>
+                    </div>
+                </div>
+             </div>
+
+             <!-- 任务列表 -->
+             <div class="grow p-4 flex flex-col bg-base-100">
+                <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-4">任务流水线</h3>
+                
+                <div class="grow overflow-y-auto custom-scrollbar space-y-1">
+                    <div 
+                        v-for="task in selectedScript.tasks" 
+                        :key="task.id"
+                        class="group flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 transition-colors"
+                        :style="{ marginLeft: `${task.indent * 24}px` }"
+                    >
+                        <div class="flex-none flex items-center">
+                            <input type="checkbox" v-model="task.enabled" class="checkbox checkbox-sm checkbox-primary" />
+                        </div>
+                        
+                        <div class="grow flex items-center gap-3">
+                            <span class="text-sm" :class="task.enabled ? 'font-medium opacity-90' : 'opacity-40 italic'">
+                                {{ task.name }}
+                            </span>
+                            <div v-if="task.indent > 0" class="h-px w-4 bg-base-content/10"></div>
+                        </div>
+
+                        <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                            <div class="flex items-center gap-1 text-[10px] bg-base-300 px-2 py-0.5 rounded text-base-content/60">
+                                <Clock class="w-3 h-3" /> {{ task.delay }}ms
+                            </div>
+                            <button class="btn btn-ghost btn-xs btn-circle">
+                                <Settings class="w-3.5 h-3.5" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+             </div>
+          </div>
+       </div>
+
+       <!-- 未选择状态 -->
+       <div v-else class="flex flex-col items-center justify-center h-full opacity-20 p-8 text-center">
+         <Settings class="w-16 h-16 mb-4" />
+         <p class="text-lg font-medium">配置面板</p>
+       </div>
+    </div>
+
+  </div>
 </template>
 
-<style scoped lang="scss">
-
+<style scoped>
+@import "../assets/css/script-list.css";
 </style>
