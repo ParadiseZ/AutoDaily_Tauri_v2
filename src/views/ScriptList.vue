@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue';
 import { useScripts } from '../assets/js/useScripts';
 import {
-  Play,
+  Layers,
   Search, 
   Trash2, 
   Edit, 
@@ -60,6 +60,7 @@ const formatTime = (time) => {
 
 // Global task settings
 const globalDelay = ref(500);
+const randomRange = ref(5)
 
 </script>
 
@@ -146,13 +147,13 @@ const globalDelay = ref(500);
         
         <div v-if="filteredScripts.length === 0" class="text-center py-10 opacity-30 flex flex-col items-center">
             <Search class="w-8 h-8 mb-2" />
-            <p class="text-sm">未找到相关脚本</p>
+            <p class="text-sm">未找到相关内容</p>
         </div>
       </div>
 
       <div class="p-4 border-t border-base-content/5">
         <button class="btn btn-primary btn-block gap-2 shadow-lg shadow-primary/20">
-          <Plus class="w-4 h-4" /> 新建脚本
+          <Plus class="w-4 h-4" /> 新建
         </button>
       </div>
     </div>
@@ -166,14 +167,14 @@ const globalDelay = ref(500);
             脚本详情
           </h2>
           <div class="badge badge-sm" :class="selectedScript.scriptType === 'Official' ? 'badge-primary' : 'badge-secondary'">
-            {{ selectedScript.scriptType === 'Official' ? '官方认证' : '个人脚本' }}
+            {{ selectedScript.scriptType === 'Official' ? '官方认证' : '本地脚本' }}
           </div>
         </div>
 
         <div class="grow overflow-y-auto custom-scrollbar p-4 space-y-6">
           <!-- 核心信息 -->
           <section>
-            <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3">基本信息</h3>
+            <!-- <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3">基本信息</h3> -->
             <div class="space-y-3">
               <div class="flex flex-col">
                 <span class="text-[10px] opacity-50">脚本名称</span>
@@ -203,11 +204,15 @@ const globalDelay = ref(500);
                <div class="divider m-0 opacity-10"></div>
                <div class="flex items-center justify-between">
                   <span class="text-xs opacity-60">图像识别</span>
-                  <span class="text-xs font-medium">{{ selectedScript.imgDetModel || '默认' }}</span>
+                  <span class="text-xs font-medium">{{ selectedScript.imgDetModel || '无' }}</span>
                </div>
                <div class="flex items-center justify-between">
                   <span class="text-xs opacity-60">文本检测</span>
-                  <span class="text-xs font-medium">{{ selectedScript.txtDetModel || '默认' }}</span>
+                  <span class="text-xs font-medium">{{ selectedScript.txtDetModel || 'PaddleOCR_v5 (官中)' }}</span>
+               </div> 
+               <div class="flex items-center justify-between">
+                  <span class="text-xs opacity-60">文本识别</span>
+                  <span class="text-xs font-medium">{{ selectedScript.txtRecModel || 'PaddleOCR_v5 (官中)' }}</span>
                </div>
             </div>
           </section>
@@ -247,64 +252,58 @@ const globalDelay = ref(500);
       </div>
     </div>
 
-    <!-- 第三栏：任务与模版 -->
+    <!-- 第三栏：任务设置 -->
     <div class="grow bg-base-100 flex flex-col">
        <div v-if="selectedScript" class="flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-400">
-          <div class="p-4 border-b border-base-content/5 flex items-center justify-between">
-            <h2 class="text-xl font-bold flex items-center gap-2">
-              <Settings class="w-5 h-5 text-accent" />
-              运行配置
-            </h2>
-            
-            <div class="flex items-center gap-3">
-                <div class="flex items-center gap-2 bg-base-200 px-3 py-1.5 rounded-lg border border-base-content/5">
-                    <span class="text-xs font-medium opacity-60">全局延迟:</span>
-                    <input type="number" v-model="globalDelay" class="w-16 bg-transparent text-xs font-bold outline-none" />
-                    <span class="text-[10px] opacity-40">ms</span>
-                </div>
-
-                <button class="btn btn-sm btn-primary px-6 shadow-lg shadow-primary/20">
-                  <Play class="w-3.5 h-3.5 fill-current" /> 运行
-                </button>
+          <!-- 任务设置页头：包含模版选择 -->
+          <div class="p-4 border-b border-base-content/5 flex items-center justify-between bg-base-100">
+            <div class="flex items-center gap-4 grow">
+               <div class="flex items-center gap-2">
+                  <Layers class="w-4 h-4 text-accent" />
+                  <span class="text-xs font-bold uppercase tracking-wider opacity-60 text-nowrap">配置模板</span>
+               </div>
+               <select 
+                  v-model="selectedTemplate" 
+                  class="select select-bordered select-sm bg-base-200 border-none focus-visible:outline-none w-fit max-w-xs"
+               >
+                  <option v-for="tpl in selectedScript.templates" :key="tpl.id" :value="tpl.id">
+                     {{ tpl.name }}
+                  </option>
+                  <option disabled v-if="selectedScript.templates?.length">──────</option>
+                  <option value="add_new">+ 新增模板</option>
+               </select>
             </div>
           </div>
 
-          <div class="grow flex overflow-hidden">
-             <!-- 模版选择 -->
-             <div class="w-64 flex-none border-r border-base-content/5 p-4 flex flex-col bg-base-200/20">
-                <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-4 flex items-center gap-1.5">
-                    <Layers class="w-3.5 h-3.5" /> 配置模版
-                </h3>
-                
-                <div class="space-y-2">
-                    <div 
-                        v-for="tpl in selectedScript.templates" 
-                        :key="tpl.id"
-                        @click="selectedTemplate = tpl.id"
-                        class="p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between"
-                        :class="[
-                            selectedTemplate === tpl.id 
-                            ? 'bg-accent/10 border-accent text-accent' 
-                            : 'bg-base-100 border-transparent hover:border-base-content/10'
-                        ]"
-                    >
-                        <span class="text-sm font-medium">{{ tpl.name }}</span>
-                        <CheckCircle2 v-if="selectedTemplate === tpl.id" class="w-4 h-4" />
-                    </div>
-                    
-                    <button class="btn btn-ghost btn-sm btn-block border-dashed border-base-content/20 font-normal">
-                        <Plus class="w-3 h-3" /> 新增模版
-                    </button>
-                    
-                    <div v-if="!selectedScript.templates?.length" class="p-8 text-center opacity-30">
-                        <p class="text-xs">该脚本没有可用模版</p>
-                    </div>
-                </div>
+          <div class="grow overflow-hidden flex flex-col bg-base-100">
+             <!-- 基础设置 -->
+             <div class="flex-none p-4 pb-2 space-y-3 border-b border-base-content/5">
+               <div class="flex items-center gap-2">
+                 <h2 class="text-[11px] font-bold uppercase tracking-widest opacity-50">基础设置</h2>
+               </div>
+               
+               <div class="grid grid-cols-2 gap-4">
+                 <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50 border border-base-content/5">
+                   <span class="text-xs font-medium opacity-80 text-nowrap">操作后延迟</span>
+                   <div class="flex items-center gap-1">
+                     <input type="number" v-model="globalDelay" class="w-12 bg-transparent text-xs font-bold text-right outline-none text-primary" />
+                     <span class="text-[10px] opacity-40">ms</span>
+                   </div>
+                 </div>
+                 
+                 <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50 border border-base-content/5">
+                   <span class="text-xs font-medium opacity-80 text-nowrap">随机坐标范围</span>
+                   <div class="flex items-center gap-1">
+                     <input type="number" v-model="randomRange" class="w-12 bg-transparent text-xs font-bold text-right outline-none text-primary" />
+                     <span class="text-[10px] opacity-40">px</span>
+                   </div>
+                 </div>
+               </div>
              </div>
-
-             <!-- 任务列表 -->
-             <div class="grow p-4 flex flex-col bg-base-100">
-                <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-4">任务流水线</h3>
+             <div class="grow p-4 flex flex-col min-h-0">
+                <div class="flex items-center gap-2 mb-4">
+                   <h2 class="text-[11px] font-bold uppercase tracking-widest opacity-50">任务设置</h2>
+                </div>
                 
                 <div class="grow overflow-y-auto custom-scrollbar space-y-1">
                     <div 
@@ -324,14 +323,14 @@ const globalDelay = ref(500);
                             <div v-if="task.indent > 0" class="h-px w-4 bg-base-content/10"></div>
                         </div>
 
-                        <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                        <!-- <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
                             <div class="flex items-center gap-1 text-[10px] bg-base-300 px-2 py-0.5 rounded text-base-content/60">
                                 <Clock class="w-3 h-3" /> {{ task.delay }}ms
                             </div>
-                            <button class="btn btn-ghost btn-xs btn-circle">
+                            <button class="btn btn-square btn-ghost btn-xs">
                                 <Settings class="w-3.5 h-3.5" />
                             </button>
-                        </div>
+                        </div> -->
                     </div>
                 </div>
              </div>
@@ -341,7 +340,8 @@ const globalDelay = ref(500);
        <!-- 未选择状态 -->
        <div v-else class="flex flex-col items-center justify-center h-full opacity-20 p-8 text-center">
          <Settings class="w-16 h-16 mb-4" />
-         <p class="text-lg font-medium">配置面板</p>
+         <p class="text-lg font-medium">任务详细设定</p>
+         <p class="text-sm">选中脚本后可在此配置自动化流程</p>
        </div>
     </div>
 
