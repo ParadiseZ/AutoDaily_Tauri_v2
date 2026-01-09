@@ -1,4 +1,5 @@
 pub mod devices;
+pub mod scripts;
 
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use std::process::{Command, Stdio};

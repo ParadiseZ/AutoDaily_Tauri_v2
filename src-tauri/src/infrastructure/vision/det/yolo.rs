@@ -17,6 +17,8 @@ pub struct YoloDet {
     pub class_labels: Vec<String>,
     pub confidence_thresh: f32,
     pub iou_thresh: f32,
+    pub label_path : String,
+    pub txt_idx: Option<u16>
 }
 
 impl YoloDet {
@@ -33,6 +35,7 @@ impl YoloDet {
         class_labels: Vec<String>,
         confidence_thresh: f32,
         iou_thresh: f32,
+        label_path: String
     ) -> Self {
         Self {
             base_model: BaseModel::new(
@@ -50,6 +53,8 @@ impl YoloDet {
             class_labels,
             confidence_thresh,
             iou_thresh,
+            label_path,
+            txt_idx: None
         }
     }
 }
@@ -115,7 +120,7 @@ impl ModelHandler for YoloDet {
     }
 }
 
-impl TextDetector for YoloDet {
+    impl TextDetector for YoloDet {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,

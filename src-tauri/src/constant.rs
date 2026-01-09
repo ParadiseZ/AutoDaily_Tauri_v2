@@ -39,4 +39,5 @@ pub mod scripts_files {
 
 pub mod table_name{
     pub const DEVICE_TABLE: &str = "devices";
+    pub const SCRIPT_TABLE: &str = "scripts";
 }
