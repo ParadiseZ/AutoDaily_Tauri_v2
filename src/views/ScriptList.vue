@@ -468,7 +468,7 @@ const randomRange = ref(5);
         <div class="p-4 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
           <h3 class="font-bold flex items-center gap-2">
             <Plus class="w-5 h-5 text-primary" />
-            新建自动化脚本
+            新建
           </h3>
           <button @click="isNewModalOpen = false" class="btn btn-ghost btn-sm btn-square">
             <X class="w-4 h-4" />
@@ -478,17 +478,17 @@ const randomRange = ref(5);
         <div class="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar space-y-6">
           <!-- 基础设置 -->
           <div class="grid grid-cols-2 gap-4">
-            <div class="form-control col-span-2">
-              <label class="label"><span class="label-text font-bold">脚本名称</span></label>
-              <input type="text" v-model="newScript.name" placeholder="例如：某游戏日常流程" class="input input-bordered w-full" />
+            <div class="form-control col-span-1">
+              <label class="label"><span class="label-text font-bold">名称</span></label>
+              <input type="text" v-model="newScript.name" class="input input-bordered w-full" />
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text font-bold">应用包名</span></label>
-              <input type="text" v-model="newScript.pkgName" placeholder="com.example.app" class="input input-bordered w-full" />
+              <label class="label"><span class="label-text font-bold">包名/主Activity</span></label>
+              <input type="text" v-model="newScript.pkgName" placeholder="example.app/com.UnityPlayerActivity" class="input input-bordered w-full" />
             </div>
             <div class="form-control">
-              <label class="label"><span class="label-text font-bold">脚本描述</span></label>
-              <input type="text" v-model="newScript.description" placeholder="简要说明其功能" class="input input-bordered w-full" />
+              <label class="label"><span class="label-text font-bold">描述</span></label>
+              <input type="text" v-model="newScript.description" class="input input-bordered w-full" />
             </div>
           </div>
 
@@ -505,9 +505,9 @@ const randomRange = ref(5);
                     </span>
                   </label>
                   <select v-model="newScript.imgDetModelType" class="select select-bordered w-full">
-                    <option value="None">不设置 (禁用图像功能)</option>
-                    <option value="Yolo11">YOLO11 (目标检测专家)</option>
-                    <option value="PaddleDbNet">DBNet (文字定位专家)</option>
+                    <option value="None">不设置 (禁用)</option>
+                    <option value="Yolo11">YOLO11</option>
+<!--                    <option value="PaddleDbNet">DBNet (文字定位专家)</option>-->
                   </select>
                 </div>
 
@@ -524,10 +524,15 @@ const randomRange = ref(5);
                       </div>
                    </div>
                    <div class="form-control">
-                     <label class="label text-[10px] opacity-60"><span>置信度阈值</span></label>
+                     <label class="label text-[10px] opacity-60"><span>置信度：{{newScript.yoloParams.confidenceThresh}}</span></label>
                      <input type="range" min="0" max="1" step="0.05" v-model="newScript.yoloParams.confidenceThresh" class="range range-xs range-primary" />
                      <div class="flex justify-between text-[10px] mt-1 opacity-40"><span>0</span><span>{{newScript.yoloParams.confidenceThresh}}</span><span>1</span></div>
                    </div>
+                  <div class="form-control">
+                    <label class="label text-[10px] opacity-60"><span>iou阈值：{{newScript.yoloParams.iouThresh}}</span></label>
+                    <input type="range" min="0" max="1" step="0.05" v-model="newScript.yoloParams.iouThresh" class="range range-xs range-primary" />
+                    <div class="flex justify-between text-[10px] mt-1 opacity-40"><span>0</span><span>{{newScript.yoloParams.iouThresh}}</span><span>1</span></div>
+                  </div>
                 </div>
              </div>
 
@@ -540,9 +545,9 @@ const randomRange = ref(5);
                     </span>
                   </label>
                   <select v-model="newScript.txtDetModelType" class="select select-bordered w-full">
-                    <option value="None">不设置 (禁用 OCR 功能)</option>
+                    <option value="None">不设置 (禁用OCR)</option>
                     <option value="PaddleDbNet">Paddle DBNet (推荐)</option>
-                    <option value="Yolo11">YOLO11 (实验性)</option>
+                    <option value="Yolo11">YOLO11</option>
                   </select>
                 </div>
 
@@ -577,7 +582,7 @@ const randomRange = ref(5);
 
         <div class="p-4 border-t border-base-content/5 bg-base-200/30 flex justify-end gap-3">
           <button @click="isNewModalOpen = false" class="btn btn-ghost">取消</button>
-          <button @click="handleCreateScript" class="btn btn-primary px-8" :disabled="!newScript.name">立即创建</button>
+          <button @click="handleCreateScript" class="btn btn-primary px-8" :disabled="!newScript.name">创建</button>
         </div>
       </div>
       <form method="dialog" class="modal-backdrop" @click="isNewModalOpen = false">
