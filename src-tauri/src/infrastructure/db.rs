@@ -51,6 +51,17 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
+    // 2. 脚本列表 (ID + JSON 内容)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS scripts (
+            id TEXT PRIMARY KEY,
+            `data` JSON NOT NULL
+        )",
+    )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     // 创建通用配置表，用于存储其他类型的结构体
 
     Ok(())

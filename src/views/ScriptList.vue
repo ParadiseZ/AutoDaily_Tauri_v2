@@ -25,6 +25,7 @@ import {
   FileJson,
   X
 } from 'lucide-vue-next';
+import ScriptConfigModal from './script-list/components/ScriptConfigModal.vue';
 
 const { 
   scripts, 
@@ -42,108 +43,19 @@ onMounted(() => {
 });
 
 const isNewModalOpen = ref(false);
-const newScript = reactive({
-  name: '',
-  description: '',
-  pkgName: '',
-  imgDetModelType: 'None', 
-  txtDetModelType: 'None',
-  txtRecModelType: 'None',
-  yoloParams: {
-    inputWidth: 640,
-    inputHeight: 640,
-    classCount: 80,
-    confidenceThresh: 0.25,
-    iouThresh: 0.45,
-    labelPath: ''
-  },
-  dbNetParams: {
-    inputWidth: 640,
-    inputHeight: 640,
-    dbThresh: 0.3,
-    dbBoxThresh: 0.6,
-    unclipRatio: 1.5,
-    useDilation: false
-  }
-});
 
 const openNewModal = () => {
   isNewModalOpen.value = true;
 };
 
-const handleCreateScript = async () => {
-  if (!newScript.name) return;
-
-  const scriptData = {
-    name: newScript.name,
-    description: newScript.description || null,
-    pkgName: newScript.pkgName || null,
-    scriptType: 'Custom',
-    verName: 'v1.0.0',
-    verNum: 1,
-    latestVer: 1,
-    downloadCount: 0,
-    isValid: true,
-    createTime: new Date().toISOString(),
-    updateTime: new Date().toISOString(),
-    userName: 'Local User',
-    tasks: [],
-    templates: []
-  };
-
-  if (newScript.imgDetModelType === 'Yolo11') {
-    scriptData.imgDetModel = {
-      Yolo11: {
-        baseModel: {
-          inputWidth: parseInt(newScript.yoloParams.inputWidth),
-          inputHeight: parseInt(newScript.yoloParams.inputHeight),
-          modelPath: '',
-          executionProvider: 'Cpu',
-          intraThreadNum: 4,
-          intraSpinning: true,
-          interThreadNum: 4,
-          interSpinning: true,
-          modelType: 'Yolo11'
-        },
-        classCount: parseInt(newScript.yoloParams.classCount),
-        classLabels: [],
-        confidenceThresh: parseFloat(newScript.yoloParams.confidenceThresh),
-        iouThresh: parseFloat(newScript.yoloParams.iouThresh),
-        labelPath: newScript.yoloParams.labelPath,
-        txtIdx: null
-      }
-    };
-  }
-
-  if (newScript.txtDetModelType === 'PaddleDbNet') {
-    scriptData.txtDetModel = {
-      PaddleDbNet: {
-        baseModel: {
-          inputWidth: parseInt(newScript.dbNetParams.inputWidth),
-          inputHeight: parseInt(newScript.dbNetParams.inputHeight),
-          modelPath: '',
-          executionProvider: 'Cpu',
-          intraThreadNum: 4,
-          intraSpinning: true,
-          interThreadNum: 4,
-          interSpinning: true,
-          modelType: 'PaddleDet5'
-        },
-        dbThresh: parseFloat(newScript.dbNetParams.dbThresh),
-        dbBoxThresh: parseFloat(newScript.dbNetParams.dbBoxThresh),
-        unclipRatio: parseFloat(newScript.dbNetParams.unclipRatio),
-        useDilation: newScript.dbNetParams.useDilation
-      }
-    };
-  }
-
+const handleCreateScript = async (scriptData) => {
   try {
     await saveScript(scriptData);
     isNewModalOpen.value = false;
-    newScript.name = '';
-    newScript.description = '';
   } catch (e) {
+    // The component handles validation, but backend errors bubble up
     alert('创建失败: ' + e);
+    console.error(e);
   }
 };
 
@@ -242,7 +154,7 @@ const randomRange = ref(5);
             class="absolute inset-y-0 right-0 bg-base-100 border-l border-base-content/10 flex items-center px-2 gap-1 z-10 animate-in slide-in-from-right duration-200"
           >
             <button 
-              v-if="script.scriptType === 'Custom'"
+              v-if="script.scriptType === 'custom'"
               @click.stop="editScript(script)"
               class="btn btn-square btn-ghost btn-sm text-info tooltip tooltip-left" 
               data-tip="编辑"
@@ -462,133 +374,12 @@ const randomRange = ref(5);
        </div>
     </div>
 
-    <!-- 新建脚本 Modal -->
-    <dialog class="modal" :class="{ 'modal-open': isNewModalOpen }">
-      <div class="modal-box w-11/12 max-w-2xl bg-base-100 p-0 overflow-hidden border border-base-content/10">
-        <div class="p-4 border-b border-base-content/5 flex items-center justify-between bg-base-200/50">
-          <h3 class="font-bold flex items-center gap-2">
-            <Plus class="w-5 h-5 text-primary" />
-            新建
-          </h3>
-          <button @click="isNewModalOpen = false" class="btn btn-ghost btn-sm btn-square">
-            <X class="w-4 h-4" />
-          </button>
-        </div>
-        
-        <div class="p-6 max-h-[70vh] overflow-y-auto custom-scrollbar space-y-6">
-          <!-- 基础设置 -->
-          <div class="grid grid-cols-2 gap-4">
-            <div class="form-control col-span-1">
-              <label class="label"><span class="label-text font-bold">名称</span></label>
-              <input type="text" v-model="newScript.name" class="input input-bordered w-full" />
-            </div>
-            <div class="form-control">
-              <label class="label"><span class="label-text font-bold">包名/主Activity</span></label>
-              <input type="text" v-model="newScript.pkgName" placeholder="example.app/com.UnityPlayerActivity" class="input input-bordered w-full" />
-            </div>
-            <div class="form-control">
-              <label class="label"><span class="label-text font-bold">描述</span></label>
-              <input type="text" v-model="newScript.description" class="input input-bordered w-full" />
-            </div>
-          </div>
-
-          <div class="divider opacity-50">模型配置</div>
-
-          <!-- 模型选择 -->
-          <div class="grid grid-cols-2 gap-6">
-             <!-- 图像检测 -->
-             <div class="space-y-4">
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-bold flex items-center gap-2">
-                      <Eye class="w-4 h-4 text-primary" /> 图像检测模型
-                    </span>
-                  </label>
-                  <select v-model="newScript.imgDetModelType" class="select select-bordered w-full">
-                    <option value="None">不设置 (禁用)</option>
-                    <option value="Yolo11">YOLO11</option>
-<!--                    <option value="PaddleDbNet">DBNet (文字定位专家)</option>-->
-                  </select>
-                </div>
-
-                <!-- YOLO 参数 -->
-                <div v-if="newScript.imgDetModelType === 'Yolo11'" class="p-4 bg-base-200 rounded-xl space-y-3 animate-in fade-in duration-300">
-                   <div class="grid grid-cols-2 gap-2">
-                      <div class="form-control">
-                        <label class="label text-[10px] opacity-60"><span>输入宽度</span></label>
-                        <input type="number" v-model="newScript.yoloParams.inputWidth" class="input input-sm input-bordered" />
-                      </div>
-                      <div class="form-control">
-                        <label class="label text-[10px] opacity-60"><span>输入高度</span></label>
-                        <input type="number" v-model="newScript.yoloParams.inputHeight" class="input input-sm input-bordered" />
-                      </div>
-                   </div>
-                   <div class="form-control">
-                     <label class="label text-[10px] opacity-60"><span>置信度：{{newScript.yoloParams.confidenceThresh}}</span></label>
-                     <input type="range" min="0" max="1" step="0.05" v-model="newScript.yoloParams.confidenceThresh" class="range range-xs range-primary" />
-                     <div class="flex justify-between text-[10px] mt-1 opacity-40"><span>0</span><span>{{newScript.yoloParams.confidenceThresh}}</span><span>1</span></div>
-                   </div>
-                  <div class="form-control">
-                    <label class="label text-[10px] opacity-60"><span>iou阈值：{{newScript.yoloParams.iouThresh}}</span></label>
-                    <input type="range" min="0" max="1" step="0.05" v-model="newScript.yoloParams.iouThresh" class="range range-xs range-primary" />
-                    <div class="flex justify-between text-[10px] mt-1 opacity-40"><span>0</span><span>{{newScript.yoloParams.iouThresh}}</span><span>1</span></div>
-                  </div>
-                </div>
-             </div>
-
-             <!-- 文本检测 -->
-             <div class="space-y-4">
-                <div class="form-control">
-                  <label class="label">
-                    <span class="label-text font-bold flex items-center gap-2">
-                      <FileJson class="w-4 h-4 text-secondary" /> 文本检测模型
-                    </span>
-                  </label>
-                  <select v-model="newScript.txtDetModelType" class="select select-bordered w-full">
-                    <option value="None">不设置 (禁用OCR)</option>
-                    <option value="PaddleDbNet">Paddle DBNet (推荐)</option>
-                    <option value="Yolo11">YOLO11</option>
-                  </select>
-                </div>
-
-                <!-- DBNet 参数 -->
-                <div v-if="newScript.txtDetModelType === 'PaddleDbNet'" class="p-4 bg-base-200 rounded-xl space-y-3 animate-in fade-in duration-300">
-                   <div class="form-control">
-                     <label class="label text-[10px] opacity-60"><span>二值化阈值 (dbThresh)</span></label>
-                     <input type="number" step="0.1" v-model="newScript.dbNetParams.dbThresh" class="input input-sm input-bordered" />
-                   </div>
-                   <div class="form-control">
-                     <label class="label text-[10px] opacity-60"><span>框扩充比例 (unclip)</span></label>
-                     <input type="number" step="0.1" v-model="newScript.dbNetParams.unclipRatio" class="input input-sm input-bordered" />
-                   </div>
-                   <div class="flex items-center gap-2">
-                      <input type="checkbox" v-model="newScript.dbNetParams.useDilation" class="checkbox checkbox-xs" />
-                      <span class="text-xs opacity-60">使用膨胀操作</span>
-                   </div>
-                </div>
-             </div>
-          </div>
-
-          <!-- 警告提示 -->
-          <div v-if="newScript.imgDetModelType === 'None' || newScript.txtDetModelType === 'None'" 
-               class="alert alert-warning shadow-sm border-none bg-warning/10 text-warning-content py-3 rounded-xl">
-            <AlertTriangle class="w-5 h-5" />
-            <div class="text-xs">
-              <h3 class="font-bold">注意事项</h3>
-              <p>未配置检测模型将导致脚本编辑中的 OCR 和 图像识别 功能不可用。</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="p-4 border-t border-base-content/5 bg-base-200/30 flex justify-end gap-3">
-          <button @click="isNewModalOpen = false" class="btn btn-ghost">取消</button>
-          <button @click="handleCreateScript" class="btn btn-primary px-8" :disabled="!newScript.name">创建</button>
-        </div>
-      </div>
-      <form method="dialog" class="modal-backdrop" @click="isNewModalOpen = false">
-        <button>close</button>
-      </form>
-    </dialog>
+    <!-- 新建脚本 Modal (Extracted) -->
+    <ScriptConfigModal 
+      :is-open="isNewModalOpen" 
+      @close="isNewModalOpen = false" 
+      @save="handleCreateScript" 
+    />
 
   </div>
 </template>
