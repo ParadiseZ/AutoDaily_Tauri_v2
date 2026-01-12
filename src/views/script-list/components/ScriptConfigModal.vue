@@ -14,14 +14,14 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save']);
 
 const executionProviders = ['CPU', 'DirectML', 'Cuda'];
-const modelTypes = ['None','Yolo11','PaddleDet5','PaddleCrnn5'];
+const modelTypes = ['None', 'Yolo11', 'PaddleDet5', 'PaddleCrnn5'];
 const yoloDefaultParams = {
   inputWidth: 640,
   inputHeight: 640,
   classCount: 80,
   confidenceThresh: 0.25,
   iouThresh: 0.45,
-}
+};
 const dbNetDefaultParams = {
   inputWidth: 640,
   inputHeight: 640,
@@ -29,12 +29,12 @@ const dbNetDefaultParams = {
   dbBoxThresh: 0.5,
   unclipRatio: 1.5,
   useDilation: false,
-}
+};
 
 const crnnDefaultParams = {
   inputWidth: 320,
   inputHeight: 48,
-}
+};
 
 // Computed to check if we're in edit mode
 const isEditMode = computed(() => !!props.editingScript);
@@ -107,7 +107,6 @@ const formState = reactive({
     dictPath: '',
   },
 });
-
 
 const handleSave = () => {
   if (!formState.name) return;
@@ -504,7 +503,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile ('model');
+                            const p = await handleSelectFile('model');
                             if (p) formState.yoloParams.modelPath = p;
                           }
                         "
@@ -526,7 +525,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile( 'config');
+                            const p = await handleSelectFile('config');
                             if (p) formState.yoloParams.labelPath = p;
                           }
                         "
@@ -612,14 +611,14 @@ watch(
                 <select v-model="formState.txtDetModelType" class="select select-bordered select-sm w-48">
                   <option value="None">不设置</option>
                   <option value="DbNet">内置Paddle DBNet V5</option>
-                  <option value="PaddleDbNet">自定义Paddle DBNet(v3-v5)</option>
+                  <option value="PaddleDet5">自定义Paddle DBNet(v3-v5)</option>
                   <option value="Yolo11">YOLO11</option>
                 </select>
               </div>
 
               <!-- DBNet Params -->
               <div
-                v-if="formState.txtDetModelType === 'PaddleDbNet'"
+                v-if="formState.txtDetModelType === 'PaddleDet5'"
                 class="bg-base-200/50 p-4 rounded-xl space-y-4 border border-base-content/5"
               >
                 <div class="grid grid-cols-2 gap-4">
@@ -723,7 +722,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile( 'model');
+                            const p = await handleSelectFile('model');
                             if (p) formState.txtDetYoloParams.modelPath = p;
                           }
                         "
@@ -745,7 +744,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile( 'config');
+                            const p = await handleSelectFile('config');
                             if (p) formState.txtDetYoloParams.labelPath = p;
                           }
                         "
@@ -863,7 +862,7 @@ watch(
                     <button
                       @click="
                         async () => {
-                          const p = await handleSelectFile( 'model');
+                          const p = await handleSelectFile('model');
                           if (p) formState.crnnParams.modelPath = p;
                         }
                       "
@@ -885,7 +884,7 @@ watch(
                     <button
                       @click="
                         async () => {
-                          const p = await handleSelectFile( 'config');
+                          const p = await handleSelectFile('config');
                           if (p) formState.crnnParams.dictPath = p;
                         }
                       "

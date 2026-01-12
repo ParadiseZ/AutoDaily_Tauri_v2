@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue';
 import { useScripts } from '../assets/js/useScripts';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import {
   Layers,
   Search,
@@ -24,6 +25,7 @@ import {
   AlertTriangle,
   FileJson,
   X,
+  ChevronDown,
 } from 'lucide-vue-next';
 import ScriptConfigModal from './script-list/components/ScriptConfigModal.vue';
 
@@ -99,10 +101,77 @@ const handleSelect = (script) => {
 // Track which dropdown is open (only one at a time)
 const openDropdownId = ref(null);
 
-const toggleDropdown = (e, scriptName) => {
+const toggleDropdown = (e, scriptId) => {
   e.preventDefault();
   e.stopPropagation();
-  openDropdownId.value = openDropdownId.value === scriptName ? null : scriptName;
+  openDropdownId.value = openDropdownId.value === scriptId ? null : scriptId;
+};
+
+// Delete with confirmation
+const confirmDelete = async (script) => {
+  openDropdownId.value = null;
+  const confirmed = await confirm(`确定要删除 "${script.name}" 吗？\n此操作不可撤销。`, {
+    title: '删除确认',
+    kind: 'warning',
+  });
+  if (confirmed) {
+    await deleteScript(script);
+  }
+};
+
+// Model info expand state
+const expandedModelInfo = ref(null); // 'imgDet' | 'txtDet' | 'txtRec' | null
+
+const toggleModelInfo = (modelType) => {
+  expandedModelInfo.value = expandedModelInfo.value === modelType ? null : modelType;
+};
+
+// Get model type name for display
+const getModelTypeName = (model) => {
+  console.log(model);
+  if (!model) return null;
+  if (model.Yolo11) return 'YOLO11';
+  if (model.PaddleDbNet) return 'PaddleDbNet';
+  if (model.PaddleCrnn) return 'PaddleCrnn';
+  return '自定义';
+};
+
+// Get model params for display (excluding path-related)
+const getModelDisplayParams = (model) => {
+  if (!model) return [];
+
+  if (model.Yolo11) {
+    const m = model.Yolo11;
+    return [
+      { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
+      { label: '输入尺寸', value: `${m.base_model?.input_width || 640} × ${m.base_model?.input_height || 640}` },
+      { label: '类别数', value: m.class_count || 80 },
+      { label: '置信度阈值', value: m.confidence_thresh || 0.25 },
+      { label: 'IOU阈值', value: m.iou_thresh || 0.45 },
+    ];
+  }
+
+  if (model.PaddleDbNet) {
+    const m = model.PaddleDbNet;
+    return [
+      { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
+      { label: '输入尺寸', value: `${m.base_model?.input_width || 640} × ${m.base_model?.input_height || 640}` },
+      { label: '二值化阈值', value: m.db_thresh || 0.3 },
+      { label: '框阈值', value: m.db_box_thresh || 0.5 },
+      { label: '扩充比例', value: m.unclip_ratio || 1.5 },
+      { label: '膨胀', value: m.use_dilation ? '是' : '否' },
+    ];
+  }
+
+  if (model.PaddleCrnn) {
+    const m = model.PaddleCrnn;
+    return [
+      { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
+      { label: '输入尺寸', value: `${m.base_model?.input_width || 320} × ${m.base_model?.input_height || 48}` },
+    ];
+  }
+
+  return [];
 };
 
 const formatTime = (time) => {
@@ -163,9 +232,9 @@ const randomRange = ref(5);
             </div>
 
             <!-- 下拉操作菜单 -->
-            <details class="dropdown dropdown-left flex-none self-center ml-1" :open="openDropdownId === script.name">
+            <details class="dropdown dropdown-left flex-none self-center ml-1" :open="openDropdownId === script.id">
               <summary
-                @click="toggleDropdown($event, script.name)"
+                @click="toggleDropdown($event, script.id)"
                 class="btn btn-ghost btn-xs btn-circle hover:bg-base-content/10 cursor-pointer list-none"
               >
                 <MoreHorizontal class="w-4 h-4" />
@@ -234,10 +303,7 @@ const randomRange = ref(5);
                 <!-- 删除 -->
                 <li>
                   <a
-                    @click="
-                      deleteScript(script);
-                      openDropdownId = null;
-                    "
+                    @click="confirmDelete(script)"
                     class="flex items-center gap-3 text-sm text-error hover:bg-error/10 cursor-pointer"
                   >
                     <Trash2 class="w-4 h-4" />
@@ -303,25 +369,124 @@ const randomRange = ref(5);
             <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3 flex items-center gap-1">
               <Cpu class="w-3 h-3" /> 模型配置
             </h3>
-            <div class="grid grid-cols-1 gap-3">
+            <div class="grid grid-cols-1 gap-2">
+              <!-- 应用包名 -->
               <div class="flex items-center justify-between">
                 <span class="text-xs opacity-60">应用包名</span>
-                <span class="text-xs font-mono bg-base-300 px-1.5 py-0.5 rounded">{{
+                <span class="text-xs font-mono bg-base-300 px-1.5 py-0.5 rounded max-w-[140px] truncate">{{
                   selectedScript.pkgName || '未指定'
                 }}</span>
               </div>
+
               <div class="divider m-0 opacity-10"></div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs opacity-60">图像识别</span>
-                <span class="text-xs font-medium">{{ selectedScript.imgDetModel || '无' }}</span>
+
+              <!-- 图像识别 -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs opacity-60">图像识别</span>
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs font-medium">{{ getModelTypeName(selectedScript.imgDetModel) || '无' }}</span>
+                    <button
+                      v-if="selectedScript.imgDetModel"
+                      @click="toggleModelInfo('imgDet')"
+                      class="btn btn-ghost btn-xs btn-circle cursor-pointer"
+                      :class="expandedModelInfo === 'imgDet' ? 'bg-primary/20 text-primary' : ''"
+                    >
+                      <ChevronDown
+                        class="w-3 h-3 transition-transform"
+                        :class="expandedModelInfo === 'imgDet' ? 'rotate-180' : ''"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <!-- 展开的参数信息 -->
+                <div
+                  v-if="expandedModelInfo === 'imgDet' && selectedScript.imgDetModel"
+                  class="bg-base-200/50 rounded-lg p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div
+                    v-for="param in getModelDisplayParams(selectedScript.imgDetModel)"
+                    :key="param.label"
+                    class="flex justify-between text-[10px]"
+                  >
+                    <span class="opacity-50">{{ param.label }}</span>
+                    <span class="font-medium">{{ param.value }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs opacity-60">文本检测</span>
-                <span class="text-xs font-medium">{{ selectedScript.txtDetModel || 'PaddleOCR_v5 (官中)' }}</span>
+
+              <!-- 文本检测 -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs opacity-60">文本检测</span>
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs font-medium">{{
+                      getModelTypeName(selectedScript.txtDetModel) || '内置'
+                    }}</span>
+                    <button
+                      v-if="selectedScript.txtDetModel"
+                      @click="toggleModelInfo('txtDet')"
+                      class="btn btn-ghost btn-xs btn-circle cursor-pointer"
+                      :class="expandedModelInfo === 'txtDet' ? 'bg-secondary/20 text-secondary' : ''"
+                    >
+                      <ChevronDown
+                        class="w-3 h-3 transition-transform"
+                        :class="expandedModelInfo === 'txtDet' ? 'rotate-180' : ''"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <!-- 展开的参数信息 -->
+                <div
+                  v-if="expandedModelInfo === 'txtDet' && selectedScript.txtDetModel"
+                  class="bg-base-200/50 rounded-lg p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div
+                    v-for="param in getModelDisplayParams(selectedScript.txtDetModel)"
+                    :key="param.label"
+                    class="flex justify-between text-[10px]"
+                  >
+                    <span class="opacity-50">{{ param.label }}</span>
+                    <span class="font-medium">{{ param.value }}</span>
+                  </div>
+                </div>
               </div>
-              <div class="flex items-center justify-between">
-                <span class="text-xs opacity-60">文本识别</span>
-                <span class="text-xs font-medium">{{ selectedScript.txtRecModel || 'PaddleOCR_v5 (官中)' }}</span>
+
+              <!-- 文本识别 -->
+              <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs opacity-60">文本识别</span>
+                  <div class="flex items-center gap-1">
+                    <span class="text-xs font-medium">{{
+                      getModelTypeName(selectedScript.txtRecModel) || '内置'
+                    }}</span>
+                    <button
+                      v-if="selectedScript.txtRecModel"
+                      @click="toggleModelInfo('txtRec')"
+                      class="btn btn-ghost btn-xs btn-circle cursor-pointer"
+                      :class="expandedModelInfo === 'txtRec' ? 'bg-accent/20 text-accent' : ''"
+                    >
+                      <ChevronDown
+                        class="w-3 h-3 transition-transform"
+                        :class="expandedModelInfo === 'txtRec' ? 'rotate-180' : ''"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <!-- 展开的参数信息 -->
+                <div
+                  v-if="expandedModelInfo === 'txtRec' && selectedScript.txtRecModel"
+                  class="bg-base-200/50 rounded-lg p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200"
+                >
+                  <div
+                    v-for="param in getModelDisplayParams(selectedScript.txtRecModel)"
+                    :key="param.label"
+                    class="flex justify-between text-[10px]"
+                  >
+                    <span class="opacity-50">{{ param.label }}</span>
+                    <span class="font-medium">{{ param.value }}</span>
+                  </div>
+                </div>
               </div>
             </div>
           </section>
