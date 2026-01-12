@@ -22,9 +22,22 @@ impl Default for ScriptTable {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 #[serde(rename_all = "camelCase")]
 pub enum ScriptType {
-    Local,
-    Cloud,
-    Custom,
+    /// 本地开发模式
+    /// - 模型路径: 用户指定的绝对路径 (model_path 字段直接使用)
+    /// - 适用于: 开发者在本地调试脚本
+    /// - cloud_id: 可能关联一个已上传的云端版本
+    Dev,
+
+    /// 已发布/云端模式
+    /// - 模型路径: scripts/{script_id}/models/ (相对路径)
+    /// - 适用于: 从云端下载的脚本、开发者上传后的副本
+    /// - 内置模型使用 resources/models/
+    Published,
+    
+    /// 内置/官方脚本
+    /// - 模型路径: resources/models/ (程序资源目录)
+    /// - 适用于: 程序自带的官方脚本
+    BuiltIn,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,7 +64,12 @@ pub struct ScriptInfo {
     pub latest_ver : u64,
     pub download_count: u64,
     pub script_type: ScriptType,
-    pub is_valid: bool
+    pub is_valid: bool,
+    
+    /// 云端脚本 ID (仅 Dev 类型有此字段)
+    /// - None: 从未上传过
+    /// - Some(id): 已上传，关联的云端版本 ID
+    pub cloud_id: Option<ScriptId>,
 }
 
 impl Default for ScriptInfo {
@@ -74,8 +92,9 @@ impl Default for ScriptInfo {
             ver_num: 0,
             latest_ver: 0,
             download_count: 0,
-            script_type: ScriptType::Local,
+            script_type: ScriptType::Dev,
             is_valid: false,
+            cloud_id: None,
         }
     }
  }

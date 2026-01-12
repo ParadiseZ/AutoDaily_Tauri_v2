@@ -124,7 +124,7 @@ const handleSave = () => {
     name: formState.name,
     description: formState.description || null,
     pkgName: formState.pkgName || null,
-    scriptType: existingScript?.scriptType || 'custom',
+    scriptType: existingScript?.scriptType || 'dev',
     verName: existingScript?.verName || 'v1.0.0',
     verNum: existingScript?.verNum || 1,
     latestVer: existingScript?.latestVer || 1,
@@ -133,6 +133,7 @@ const handleSave = () => {
     createTime: existingScript?.createTime || new Date().toISOString(),
     updateTime: new Date().toISOString(), // Always update this
     userName: existingScript?.userName || 'Local User',
+    cloudId: existingScript?.cloudId || null, // 云端关联 ID
     // Preserve tasks and templates when editing
     tasks: existingScript?.tasks || [],
     templates: existingScript?.templates || [],

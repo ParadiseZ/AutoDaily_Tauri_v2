@@ -214,7 +214,7 @@ const randomRange = ref(5);
         >
           <div class="p-3 flex items-start gap-3">
             <div class="w-10 h-10 rounded-lg bg-base-100 flex items-center justify-center shadow-sm">
-              <Activity v-if="script.scriptType === 'Official'" class="w-5 h-5 text-primary" />
+              <Activity v-if="script.scriptType === 'builtIn'" class="w-5 h-5 text-primary" />
               <Box v-else class="w-5 h-5 text-secondary" />
             </div>
 
@@ -243,7 +243,7 @@ const randomRange = ref(5);
                 class="dropdown-content menu bg-base-100 rounded-xl w-44 p-1.5 shadow-xl border border-base-content/10 z-50"
               >
                 <!-- 编辑信息 -->
-                <li v-if="script.scriptType === 'custom'">
+                <li v-if="script.scriptType === 'dev'">
                   <a
                     @click="
                       openEditModal(script);
@@ -256,7 +256,7 @@ const randomRange = ref(5);
                   </a>
                 </li>
                 <!-- 编辑逻辑 -->
-                <li v-if="script.scriptType === 'custom'">
+                <li v-if="script.scriptType === 'dev'">
                   <a
                     @click="
                       console.log('编辑逻辑', script.name);
@@ -272,7 +272,7 @@ const randomRange = ref(5);
                 <li class="my-1"><hr class="border-base-content/10" /></li>
 
                 <!-- 上传到云端 -->
-                <li v-if="script.scriptType === 'custom'">
+                <li v-if="script.scriptType === 'dev'">
                   <a
                     @click="
                       console.log('上传', script.name);
@@ -338,9 +338,19 @@ const randomRange = ref(5);
           </h2>
           <div
             class="badge badge-sm"
-            :class="selectedScript.scriptType === 'Official' ? 'badge-primary' : 'badge-secondary'"
+            :class="{
+              'badge-primary': selectedScript.scriptType === 'builtIn',
+              'badge-secondary': selectedScript.scriptType === 'dev',
+              'badge-accent': selectedScript.scriptType === 'published',
+            }"
           >
-            {{ selectedScript.scriptType === 'Official' ? '官方认证' : '本地脚本' }}
+            {{
+              selectedScript.scriptType === 'builtIn'
+                ? '官方内置'
+                : selectedScript.scriptType === 'dev'
+                ? '本地开发'
+                : '云端下载'
+            }}
           </div>
         </div>
 
