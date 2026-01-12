@@ -59,7 +59,6 @@ const editingScriptData = ref(null);
 const openEditModal = (script) => {
   editingScriptData.value = script;
   isEditModalOpen.value = true;
-  expandedActionsId.value = null; // Close the action panel
 };
 
 const handleUpdateScript = async (scriptData) => {
@@ -94,6 +93,16 @@ const filteredScripts = computed(() => {
 
 const handleSelect = (script) => {
   selectScript(script);
+  openDropdownId.value = null; // Close dropdown when selecting
+};
+
+// Track which dropdown is open (only one at a time)
+const openDropdownId = ref(null);
+
+const toggleDropdown = (e, scriptName) => {
+  e.preventDefault();
+  e.stopPropagation();
+  openDropdownId.value = openDropdownId.value === scriptName ? null : scriptName;
 };
 
 const formatTime = (time) => {
@@ -122,12 +131,12 @@ const randomRange = ref(5);
         </label>
       </div>
 
-      <div class="grow overflow-y-auto custom-scrollbar p-2 space-y-2">
+      <div class="grow overflow-y-auto overflow-x-visible custom-scrollbar p-2 space-y-2">
         <div
           v-for="script in filteredScripts"
           :key="script.name"
           @click="handleSelect(script)"
-          class="group relative overflow-hidden rounded-xl border transition-all cursor-pointer"
+          class="group relative rounded-xl border transition-all cursor-pointer"
           :class="[
             selectedScript?.name === script.name
               ? 'bg-primary/10 border-primary shadow-sm'
@@ -153,10 +162,10 @@ const randomRange = ref(5);
               <p class="text-xs opacity-60 line-clamp-1 mt-0.5">{{ script.description }}</p>
             </div>
 
-            <!-- 下拉操作菜单 (使用 details 原生处理点击外部关闭) -->
-            <details class="dropdown dropdown-left flex-none self-center ml-1">
+            <!-- 下拉操作菜单 -->
+            <details class="dropdown dropdown-left flex-none self-center ml-1" :open="openDropdownId === script.name">
               <summary
-                @click.stop
+                @click="toggleDropdown($event, script.name)"
                 class="btn btn-ghost btn-xs btn-circle hover:bg-base-content/10 cursor-pointer list-none"
               >
                 <MoreHorizontal class="w-4 h-4" />
@@ -167,7 +176,10 @@ const randomRange = ref(5);
                 <!-- 编辑信息 -->
                 <li v-if="script.scriptType === 'custom'">
                   <a
-                    @click="openEditModal(script)"
+                    @click="
+                      openEditModal(script);
+                      openDropdownId = null;
+                    "
                     class="flex items-center gap-3 text-sm hover:bg-info/10 hover:text-info cursor-pointer"
                   >
                     <Edit class="w-4 h-4" />
@@ -177,7 +189,10 @@ const randomRange = ref(5);
                 <!-- 编辑逻辑 -->
                 <li v-if="script.scriptType === 'custom'">
                   <a
-                    @click="console.log('编辑逻辑', script.name)"
+                    @click="
+                      console.log('编辑逻辑', script.name);
+                      openDropdownId = null;
+                    "
                     class="flex items-center gap-3 text-sm hover:bg-secondary/10 hover:text-secondary cursor-pointer"
                   >
                     <Settings class="w-4 h-4" />
@@ -190,7 +205,10 @@ const randomRange = ref(5);
                 <!-- 上传到云端 -->
                 <li v-if="script.scriptType === 'custom'">
                   <a
-                    @click="console.log('上传', script.name)"
+                    @click="
+                      console.log('上传', script.name);
+                      openDropdownId = null;
+                    "
                     class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
                   >
                     <Download class="w-4 h-4 rotate-180" />
@@ -200,7 +218,10 @@ const randomRange = ref(5);
                 <!-- 检查更新 -->
                 <li>
                   <a
-                    @click="console.log('检查更新', script.name)"
+                    @click="
+                      console.log('检查更新', script.name);
+                      openDropdownId = null;
+                    "
                     class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
                   >
                     <Clock class="w-4 h-4" />
@@ -213,7 +234,10 @@ const randomRange = ref(5);
                 <!-- 删除 -->
                 <li>
                   <a
-                    @click="deleteScript(script)"
+                    @click="
+                      deleteScript(script);
+                      openDropdownId = null;
+                    "
                     class="flex items-center gap-3 text-sm text-error hover:bg-error/10 cursor-pointer"
                   >
                     <Trash2 class="w-4 h-4" />
