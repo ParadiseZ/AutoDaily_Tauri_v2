@@ -82,7 +82,6 @@ const handleUpdateScript = async (scriptData) => {
 };
 
 const searchQuery = ref('');
-const expandedActionsId = ref(null);
 
 const filteredScripts = computed(() => {
   if (!searchQuery.value) return scripts.value;
@@ -93,14 +92,8 @@ const filteredScripts = computed(() => {
   );
 });
 
-const toggleActions = (e, scriptName) => {
-  e.stopPropagation();
-  expandedActionsId.value = expandedActionsId.value === scriptName ? null : scriptName;
-};
-
 const handleSelect = (script) => {
   selectScript(script);
-  expandedActionsId.value = null;
 };
 
 const formatTime = (time) => {
@@ -160,40 +153,75 @@ const randomRange = ref(5);
               <p class="text-xs opacity-60 line-clamp-1 mt-0.5">{{ script.description }}</p>
             </div>
 
-            <!-- 扩展功能键 -->
-            <div class="flex-none flex items-center self-center ml-1">
-              <button
-                @click="toggleActions($event, script.name)"
-                class="btn btn-ghost btn-xs btn-circle hover:bg-base-content/10"
+            <!-- 下拉操作菜单 (使用 details 原生处理点击外部关闭) -->
+            <details class="dropdown dropdown-left flex-none self-center ml-1">
+              <summary
+                @click.stop
+                class="btn btn-ghost btn-xs btn-circle hover:bg-base-content/10 cursor-pointer list-none"
               >
                 <MoreHorizontal class="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+              </summary>
+              <ul
+                class="dropdown-content menu bg-base-100 rounded-xl w-44 p-1.5 shadow-xl border border-base-content/10 z-50"
+              >
+                <!-- 编辑信息 -->
+                <li v-if="script.scriptType === 'custom'">
+                  <a
+                    @click="openEditModal(script)"
+                    class="flex items-center gap-3 text-sm hover:bg-info/10 hover:text-info cursor-pointer"
+                  >
+                    <Edit class="w-4 h-4" />
+                    <span>编辑信息</span>
+                  </a>
+                </li>
+                <!-- 编辑逻辑 -->
+                <li v-if="script.scriptType === 'custom'">
+                  <a
+                    @click="console.log('编辑逻辑', script.name)"
+                    class="flex items-center gap-3 text-sm hover:bg-secondary/10 hover:text-secondary cursor-pointer"
+                  >
+                    <Settings class="w-4 h-4" />
+                    <span>编辑逻辑</span>
+                  </a>
+                </li>
 
-          <!-- 展开的操作面板 -->
-          <div
-            v-if="expandedActionsId === script.name"
-            class="absolute inset-y-0 right-0 bg-base-100 border-l border-base-content/10 flex items-center px-2 gap-1 z-10 animate-in slide-in-from-right duration-200"
-          >
-            <button
-              v-if="script.scriptType === 'custom'"
-              @click.stop="openEditModal(script)"
-              class="btn btn-square btn-ghost btn-sm text-info tooltip tooltip-left"
-              data-tip="编辑信息"
-            >
-              <Edit class="w-4 h-4" />
-            </button>
-            <button
-              @click.stop="deleteScript(script)"
-              class="btn btn-square btn-ghost btn-sm text-error tooltip tooltip-left"
-              data-tip="删除"
-            >
-              <Trash2 class="w-4 h-4" />
-            </button>
-            <button @click.stop="expandedActionsId = null" class="btn btn-square btn-ghost btn-sm">
-              <ChevronRight class="w-4 h-4 rotate-180" />
-            </button>
+                <li class="my-1"><hr class="border-base-content/10" /></li>
+
+                <!-- 上传到云端 -->
+                <li v-if="script.scriptType === 'custom'">
+                  <a
+                    @click="console.log('上传', script.name)"
+                    class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
+                  >
+                    <Download class="w-4 h-4 rotate-180" />
+                    <span>上传到云端</span>
+                  </a>
+                </li>
+                <!-- 检查更新 -->
+                <li>
+                  <a
+                    @click="console.log('检查更新', script.name)"
+                    class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
+                  >
+                    <Clock class="w-4 h-4" />
+                    <span>检查更新</span>
+                  </a>
+                </li>
+
+                <li class="my-1"><hr class="border-base-content/10" /></li>
+
+                <!-- 删除 -->
+                <li>
+                  <a
+                    @click="deleteScript(script)"
+                    class="flex items-center gap-3 text-sm text-error hover:bg-error/10 cursor-pointer"
+                  >
+                    <Trash2 class="w-4 h-4" />
+                    <span>删除</span>
+                  </a>
+                </li>
+              </ul>
+            </details>
           </div>
         </div>
 
