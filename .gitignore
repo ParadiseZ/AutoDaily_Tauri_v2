@@ -33,3 +33,5 @@ doc/*
 src_bak/*
 .trae/*
 .agent/*
+
+.shared/*

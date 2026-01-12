@@ -1,13 +1,43 @@
 <script setup>
-import { reactive, watch, ref } from 'vue';
-import { X, Plus, Eye, FileJson, Type, AlertTriangle, Cpu as CpuIcon } from 'lucide-vue-next';
+import { reactive, watch, ref, computed } from 'vue';
+import { X, Plus, Edit, Eye, FileJson, Type, AlertTriangle } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
 
 const props = defineProps({
   isOpen: Boolean,
+  editingScript: {
+    type: Object,
+    default: null,
+  },
 });
 
 const emit = defineEmits(['close', 'save']);
+
+const executionProviders = ['CPU', 'DirectML', 'Cuda'];
+const modelTypes = ['None','Yolo11','PaddleDet5','PaddleCrnn5'];
+const yoloDefaultParams = {
+  inputWidth: 640,
+  inputHeight: 640,
+  classCount: 80,
+  confidenceThresh: 0.25,
+  iouThresh: 0.45,
+}
+const dbNetDefaultParams = {
+  inputWidth: 640,
+  inputHeight: 640,
+  dbThresh: 0.3,
+  dbBoxThresh: 0.5,
+  unclipRatio: 1.5,
+  useDilation: false,
+}
+
+const crnnDefaultParams = {
+  inputWidth: 320,
+  inputHeight: 48,
+}
+
+// Computed to check if we're in edit mode
+const isEditMode = computed(() => !!props.editingScript);
 
 const activeTab = ref('basic'); // basic, det, rec
 
@@ -21,14 +51,14 @@ const formState = reactive({
   yoloParams: {
     // Base Model Params
     modelPath: '',
-    executionProvider: 'cpu', // Cpu, DirectMl, Cuda, TensorRt
-    inputWidth: 640,
-    inputHeight: 640,
+    executionProvider: executionProviders[0], // Cpu, DirectMl, Cuda, TensorRt
+    inputWidth: yoloDefaultParams.inputWidth,
+    inputHeight: yoloDefaultParams.inputHeight,
 
     // Yolo Specific
-    classCount: 80,
-    confidenceThresh: 0.25,
-    iouThresh: 0.45,
+    classCount: yoloDefaultParams.classCount,
+    confidenceThresh: yoloDefaultParams.confidenceThresh,
+    iouThresh: yoloDefaultParams.iouThresh,
     labelPath: '',
   },
 
@@ -36,49 +66,48 @@ const formState = reactive({
   txtDetYoloParams: {
     // Base Model Params
     modelPath: '',
-    executionProvider: 'cpu',
-    inputWidth: 640,
-    inputHeight: 640,
+    executionProvider: executionProviders[0],
+    inputWidth: yoloDefaultParams.inputWidth,
+    inputHeight: yoloDefaultParams.inputHeight,
 
     // Yolo Specific
-    classCount: 80,
-    confidenceThresh: 0.25,
-    iouThresh: 0.45,
+    classCount: yoloDefaultParams.classCount,
+    confidenceThresh: yoloDefaultParams.confidenceThresh,
+    iouThresh: yoloDefaultParams.iouThresh,
     labelPath: '',
     txtIdx: 0, // Index of the class representing 'text'
   },
 
   // Text Detection
-  txtDetModelType: 'None', // 'None' | 'PaddleDbNet' | 'Yolo11'
+  txtDetModelType: modelTypes[0], // 'None'
   dbNetParams: {
     // Base Model Params
     modelPath: '',
-    executionProvider: 'cpu',
-    inputWidth: 640, // Usually 640 or 960
-    inputHeight: 640,
+    executionProvider: executionProviders[0],
+    inputWidth: dbNetDefaultParams.inputWidth, // Usually 640 or 960
+    inputHeight: dbNetDefaultParams.inputHeight,
 
     // DBNet Specific
-    dbThresh: 0.3,
-    dbBoxThresh: 0.6,
-    unclipRatio: 1.5,
+    dbThresh: dbNetDefaultParams.dbThresh,
+    dbBoxThresh: dbNetDefaultParams.dbBoxThresh,
+    unclipRatio: dbNetDefaultParams.unclipRatio,
     useDilation: false,
   },
 
   // Text Recognition
-  txtRecModelType: 'None', // 'None' | 'PaddleCrnn'
+  txtRecModelType: modelTypes[3], // 'None'
   crnnParams: {
     // Base Model Params
     modelPath: '',
-    executionProvider: 'cpu',
-    inputWidth: 320, // Standard CRNN width, usually resized keeping ratio
-    inputHeight: 48, // Standard CRNN height
+    executionProvider: executionProviders[0],
+    inputWidth: crnnDefaultParams.inputWidth, // Standard CRNN width, usually resized keeping ratio
+    inputHeight: crnnDefaultParams.inputHeight, // Standard CRNN height
 
     // CRNN Specific
     dictPath: '',
   },
 });
 
-const executionProviders = ['cpu', 'directml', 'cuda'];
 
 const handleSave = () => {
   if (!formState.name) return;
@@ -86,26 +115,32 @@ const handleSave = () => {
   // Construct the data structure matching Rust structs
   // Note: ScriptInfo is camelCase, but internal structs are snake_case (standard Rust serde default)
 
+  // When editing, preserve existing script data; when creating, use defaults
+  const existingScript = props.editingScript;
+
   const scriptData = {
-    userId: '019b82ca280377a09eeb95dbdca056cc',
+    // Preserve id if editing (needed for update)
+    id: existingScript?.id || undefined,
+    userId: existingScript?.userId || '019b82ca280377a09eeb95dbdca056cc',
     name: formState.name,
     description: formState.description || null,
     pkgName: formState.pkgName || null,
-    scriptType: 'custom',
-    verName: 'v1.0.0',
-    verNum: 1,
-    latestVer: 1,
-    downloadCount: 0,
-    isValid: true,
-    createTime: new Date().toISOString(),
-    updateTime: new Date().toISOString(),
-    userName: 'Local User',
-    tasks: [],
-    templates: [],
+    scriptType: existingScript?.scriptType || 'custom',
+    verName: existingScript?.verName || 'v1.0.0',
+    verNum: existingScript?.verNum || 1,
+    latestVer: existingScript?.latestVer || 1,
+    downloadCount: existingScript?.downloadCount || 0,
+    isValid: existingScript?.isValid ?? true,
+    createTime: existingScript?.createTime || new Date().toISOString(),
+    updateTime: new Date().toISOString(), // Always update this
+    userName: existingScript?.userName || 'Local User',
+    // Preserve tasks and templates when editing
+    tasks: existingScript?.tasks || [],
+    templates: existingScript?.templates || [],
   };
 
-  // Image Detection Model Construction
-  if (formState.imgDetModelType === 'Yolo11') {
+  // Image Detection Model Construction yolo11
+  if (formState.imgDetModelType === modelTypes[1]) {
     scriptData.imgDetModel = {
       Yolo11: {
         base_model: {
@@ -117,20 +152,20 @@ const handleSave = () => {
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: 'Yolo11',
+          model_type: modelTypes[1],
         },
         class_count: parseInt(formState.yoloParams.classCount),
         class_labels: [],
         confidence_thresh: parseFloat(formState.yoloParams.confidenceThresh),
         iou_thresh: parseFloat(formState.yoloParams.iouThresh),
         label_path: formState.yoloParams.labelPath,
-        txt_idx: null,
+        txt_idx: 0,
       },
     };
   }
 
   // Text Detection Model Construction
-  if (formState.txtDetModelType === 'Yolo11') {
+  if (formState.txtDetModelType === modelTypes[1]) {
     scriptData.txtDetModel = {
       Yolo11: {
         base_model: {
@@ -142,7 +177,7 @@ const handleSave = () => {
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: 'Yolo11',
+          model_type: modelTypes[1],
         },
         class_count: parseInt(formState.txtDetYoloParams.classCount),
         class_labels: [],
@@ -154,7 +189,7 @@ const handleSave = () => {
     };
   }
 
-  if (formState.txtDetModelType === 'PaddleDbNet') {
+  if (formState.txtDetModelType === modelTypes[2]) {
     scriptData.txtDetModel = {
       PaddleDbNet: {
         base_model: {
@@ -166,7 +201,7 @@ const handleSave = () => {
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: 'PaddleDet5',
+          model_type: modelTypes[2],
         },
         db_thresh: parseFloat(formState.dbNetParams.dbThresh),
         db_box_thresh: parseFloat(formState.dbNetParams.dbBoxThresh),
@@ -177,7 +212,7 @@ const handleSave = () => {
   }
 
   // Text Recognition Model Construction
-  if (formState.txtRecModelType === 'PaddleCrnn') {
+  if (formState.txtRecModelType === modelTypes[3]) {
     scriptData.txtRecModel = {
       PaddleCrnn: {
         base_model: {
@@ -189,7 +224,7 @@ const handleSave = () => {
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: 'PaddleCrnn5',
+          model_type: modelTypes[3],
         },
         dict_path: formState.crnnParams.dictPath || null,
         dict: [], // Backend should load this if path is provided, or we pass empty
@@ -200,12 +235,12 @@ const handleSave = () => {
   emit('save', scriptData);
 };
 
-const handleSelectFile = async (target, type = 'model') => {
+const handleSelectFile = async (type = 'model') => {
   try {
     const filters =
       type === 'model'
         ? [{ name: 'ONNX Model', extensions: ['onnx'] }]
-        : [{ name: 'Config File', extensions: ['yaml'] }];
+        : [{ name: '配置/字典文件', extensions: ['yaml'] }];
 
     const selected = await open({
       multiple: false,
@@ -225,18 +260,138 @@ const resetForm = () => {
   formState.name = '';
   formState.description = '';
   formState.pkgName = '';
-  formState.imgDetModelType = 'None';
-  formState.txtDetModelType = 'None';
-  formState.txtRecModelType = 'None';
+  formState.imgDetModelType = modelTypes[0];
+  formState.txtDetModelType = modelTypes[0];
+  formState.txtRecModelType = modelTypes[0];
+  activeTab.value = 'basic';
+
+  // Reset YOLO params
+  formState.yoloParams.modelPath = '';
+  formState.yoloParams.labelPath = '';
+  formState.yoloParams.executionProvider = executionProviders[0];
+  formState.yoloParams.inputWidth = yoloDefaultParams.inputWidth;
+  formState.yoloParams.inputHeight = yoloDefaultParams.inputHeight;
+  formState.yoloParams.classCount = yoloDefaultParams.classCount;
+  formState.yoloParams.confidenceThresh = yoloDefaultParams.confidenceThresh;
+  formState.yoloParams.iouThresh = yoloDefaultParams.iouThresh;
+
+  // Reset text detection YOLO params
+  formState.txtDetYoloParams.modelPath = '';
+  formState.txtDetYoloParams.labelPath = '';
+  formState.txtDetYoloParams.executionProvider = executionProviders[0];
+  formState.txtDetYoloParams.inputWidth = yoloDefaultParams.inputWidth;
+  formState.txtDetYoloParams.inputHeight = yoloDefaultParams.inputHeight;
+  formState.txtDetYoloParams.classCount = yoloDefaultParams.classCount;
+  formState.txtDetYoloParams.confidenceThresh = yoloDefaultParams.confidenceThresh;
+  formState.txtDetYoloParams.iouThresh = yoloDefaultParams.iouThresh;
+  formState.txtDetYoloParams.txtIdx = 0;
+
+  // Reset DBNet params
+  formState.dbNetParams.modelPath = '';
+  formState.dbNetParams.executionProvider = executionProviders[0];
+  formState.dbNetParams.inputWidth = dbNetDefaultParams.inputWidth;
+  formState.dbNetParams.inputHeight = dbNetDefaultParams.inputHeight;
+  formState.dbNetParams.dbThresh = dbNetDefaultParams.dbThresh;
+  formState.dbNetParams.dbBoxThresh = dbNetDefaultParams.dbBoxThresh;
+  formState.dbNetParams.unclipRatio = dbNetDefaultParams.unclipRatio;
+  formState.dbNetParams.useDilation = dbNetDefaultParams.useDilation;
+
+  // Reset CRNN params
+  formState.crnnParams.modelPath = '';
+  formState.crnnParams.executionProvider = executionProviders[0];
+  formState.crnnParams.inputWidth = crnnDefaultParams.inputWidth;
+  formState.crnnParams.inputHeight = crnnDefaultParams.inputHeight;
+  formState.crnnParams.dictPath = '';
+};
+
+// Populate form from editing script
+const populateFormFromScript = (script) => {
+  if (!script) return;
+
+  formState.name = script.name || '';
+  formState.description = script.description || '';
+  formState.pkgName = script.pkgName || '';
+
+  // Image Detection Model
+  if (script.imgDetModel?.Yolo11) {
+    formState.imgDetModelType = modelTypes[1];
+    const yolo = script.imgDetModel.Yolo11;
+    formState.yoloParams.modelPath = yolo.base_model?.model_path || '';
+    formState.yoloParams.labelPath = yolo.label_path || '';
+    formState.yoloParams.executionProvider = yolo.base_model?.execution_provider || executionProviders[0];
+    formState.yoloParams.inputWidth = yolo.base_model?.input_width || yoloDefaultParams.inputWidth;
+    formState.yoloParams.inputHeight = yolo.base_model?.input_height || yoloDefaultParams.inputHeight;
+    formState.yoloParams.classCount = yolo.class_count || 80;
+    formState.yoloParams.confidenceThresh = yolo.confidence_thresh || yoloDefaultParams.confidenceThresh;
+    formState.yoloParams.iouThresh = yolo.iou_thresh || yoloDefaultParams.iouThresh;
+  } else {
+    formState.imgDetModelType = modelTypes[0];
+  }
+
+  // Text Detection Model
+  if (script.txtDetModel?.Yolo11) {
+    formState.txtDetModelType = modelTypes[1];
+    const yolo = script.txtDetModel.Yolo11;
+    formState.txtDetYoloParams.modelPath = yolo.base_model?.model_path || '';
+    formState.txtDetYoloParams.labelPath = yolo.label_path || '';
+    formState.txtDetYoloParams.executionProvider = yolo.base_model?.execution_provider || executionProviders[0];
+    formState.txtDetYoloParams.inputWidth = yolo.base_model?.input_width || yoloDefaultParams.inputWidth;
+    formState.txtDetYoloParams.inputHeight = yolo.base_model?.input_height || yoloDefaultParams.inputHeight;
+    formState.txtDetYoloParams.classCount = yolo.class_count || 80;
+    formState.txtDetYoloParams.confidenceThresh = yolo.confidence_thresh || yoloDefaultParams.confidenceThresh;
+    formState.txtDetYoloParams.iouThresh = yolo.iou_thresh || yoloDefaultParams.iouThresh;
+    formState.txtDetYoloParams.txtIdx = yolo.txt_idx || 0;
+  } else if (script.txtDetModel?.PaddleDbNet) {
+    formState.txtDetModelType = modelTypes[2];
+    const dbnet = script.txtDetModel.PaddleDbNet;
+    formState.dbNetParams.modelPath = dbnet.base_model?.model_path || '';
+    formState.dbNetParams.executionProvider = dbnet.base_model?.execution_provider || executionProviders[0];
+    formState.dbNetParams.inputWidth = dbnet.base_model?.input_width || dbNetDefaultParams.inputWidth;
+    formState.dbNetParams.inputHeight = dbnet.base_model?.input_height || dbNetDefaultParams.inputHeight;
+    formState.dbNetParams.dbThresh = dbnet.db_thresh || dbNetDefaultParams.dbThresh;
+    formState.dbNetParams.dbBoxThresh = dbnet.db_box_thresh || dbNetDefaultParams.dbBoxThresh;
+    formState.dbNetParams.unclipRatio = dbnet.unclip_ratio || dbNetDefaultParams.unclipRatio;
+    formState.dbNetParams.useDilation = dbnet.use_dilation || dbNetDefaultParams.useDilation;
+  } else {
+    formState.txtDetModelType = modelTypes[0];
+  }
+
+  // Text Recognition Model
+  if (script.txtRecModel?.PaddleCrnn) {
+    formState.txtRecModelType = modelTypes[3];
+    const crnn = script.txtRecModel.PaddleCrnn;
+    formState.crnnParams.modelPath = crnn.base_model?.model_path || '';
+    formState.crnnParams.executionProvider = crnn.base_model?.execution_provider || executionProviders[0];
+    formState.crnnParams.inputWidth = crnn.base_model?.input_width || crnnDefaultParams.inputWidth;
+    formState.crnnParams.inputHeight = crnn.base_model?.input_height || crnnDefaultParams.inputHeight;
+    formState.crnnParams.dictPath = crnn.dict_path || '';
+  } else {
+    formState.txtRecModelType = modelTypes[0];
+  }
+
   activeTab.value = 'basic';
 };
 
 watch(
   () => props.isOpen,
   (newVal) => {
-    if (!newVal) {
-      // Optional: setup a slight delay or just keep state if user cancels?
-      // Usually better to clear on re-open or explicit success, but here specific reset might be needed
+    if (newVal) {
+      // When opening, check if we're editing
+      if (props.editingScript) {
+        populateFormFromScript(props.editingScript);
+      } else {
+        resetForm();
+      }
+    }
+  }
+);
+
+// Also watch for editingScript changes while modal is open
+watch(
+  () => props.editingScript,
+  (newScript) => {
+    if (props.isOpen && newScript) {
+      populateFormFromScript(newScript);
     }
   }
 );
@@ -250,8 +405,9 @@ watch(
       <!-- Header -->
       <div class="p-4 border-b border-base-content/5 flex items-center justify-between bg-base-200/50 flex-none">
         <h3 class="font-bold flex items-center gap-2 text-lg">
-          <Plus class="w-5 h-5 text-primary" />
-          新建
+          <Edit v-if="isEditMode" class="w-5 h-5 text-info" />
+          <Plus v-else class="w-5 h-5 text-primary" />
+          {{ isEditMode ? '编辑脚本信息' : '新建' }}
         </h3>
         <button @click="$emit('close')" class="btn btn-ghost btn-sm btn-square">
           <X class="w-4 h-4" />
@@ -261,14 +417,14 @@ watch(
       <div class="flex grow min-h-0">
         <!-- Sidebar Tabs -->
         <div class="w-48 flex-none bg-base-200/30 border-r border-base-content/5 p-2 space-y-1">
-          <button
+          <div
             class="btn btn-sm w-full justify-start gap-2"
             :class="activeTab === 'basic' ? 'btn-primary' : 'btn-ghost'"
             @click="activeTab = 'basic'"
           >
             <div class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</div>
             基础信息
-          </button>
+          </div>
           <div class="divider my-1 opacity-50 text-[10px]">模型配置</div>
           <button
             class="btn btn-sm w-full justify-start gap-2"
@@ -348,7 +504,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile(null, 'model');
+                            const p = await handleSelectFile ('model');
                             if (p) formState.yoloParams.modelPath = p;
                           }
                         "
@@ -370,7 +526,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile(null, 'config');
+                            const p = await handleSelectFile( 'config');
                             if (p) formState.yoloParams.labelPath = p;
                           }
                         "
@@ -479,7 +635,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile(null, 'model');
+                            const p = await handleSelectFile('model');
                             if (p) formState.dbNetParams.modelPath = p;
                           }
                         "
@@ -567,7 +723,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile(null, 'model');
+                            const p = await handleSelectFile( 'model');
                             if (p) formState.txtDetYoloParams.modelPath = p;
                           }
                         "
@@ -589,7 +745,7 @@ watch(
                       <button
                         @click="
                           async () => {
-                            const p = await handleSelectFile(null, 'config');
+                            const p = await handleSelectFile( 'config');
                             if (p) formState.txtDetYoloParams.labelPath = p;
                           }
                         "
@@ -707,7 +863,7 @@ watch(
                     <button
                       @click="
                         async () => {
-                          const p = await handleSelectFile(null, 'model');
+                          const p = await handleSelectFile( 'model');
                           if (p) formState.crnnParams.modelPath = p;
                         }
                       "
@@ -729,7 +885,7 @@ watch(
                     <button
                       @click="
                         async () => {
-                          const p = await handleSelectFile(null, 'config');
+                          const p = await handleSelectFile( 'config');
                           if (p) formState.crnnParams.dictPath = p;
                         }
                       "
@@ -791,7 +947,7 @@ watch(
       <div class="p-4 border-t border-base-content/5 bg-base-200/30 flex justify-end gap-3 flex-none">
         <button @click="$emit('close')" class="btn btn-ghost">取消</button>
         <button @click="handleSave" class="btn btn-primary px-8" :disabled="!formState.name || !formState.pkgName">
-          创建
+          {{ isEditMode ? '保存' : '创建' }}
         </button>
       </div>
     </div>
