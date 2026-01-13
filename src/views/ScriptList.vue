@@ -128,7 +128,6 @@ const toggleModelInfo = (modelType) => {
 
 // Get model type name for display
 const getModelTypeName = (model) => {
-  console.log(model);
   if (!model) return null;
   if (model.Yolo11) return 'YOLO11';
   if (model.PaddleDbNet) return 'PaddleDbNet';
@@ -214,7 +213,7 @@ const randomRange = ref(5);
         >
           <div class="p-3 flex items-start gap-3">
             <div class="w-10 h-10 rounded-lg bg-base-100 flex items-center justify-center shadow-sm">
-              <Activity v-if="script.scriptType === 'builtIn'" class="w-5 h-5 text-primary" />
+              <Download v-if="script.scriptType === 'published'" class="w-5 h-5 text-accent" />
               <Box v-else class="w-5 h-5 text-secondary" />
             </div>
 
@@ -242,61 +241,106 @@ const randomRange = ref(5);
               <ul
                 class="dropdown-content menu bg-base-100 rounded-xl w-44 p-1.5 shadow-xl border border-base-content/10 z-50"
               >
-                <!-- 编辑信息 -->
-                <li v-if="script.scriptType === 'dev'">
-                  <a
-                    @click="
-                      openEditModal(script);
-                      openDropdownId = null;
-                    "
-                    class="flex items-center gap-3 text-sm hover:bg-info/10 hover:text-info cursor-pointer"
-                  >
-                    <Edit class="w-4 h-4" />
-                    <span>编辑信息</span>
-                  </a>
-                </li>
-                <!-- 编辑逻辑 -->
-                <li v-if="script.scriptType === 'dev'">
-                  <a
-                    @click="
-                      console.log('编辑逻辑', script.name);
-                      openDropdownId = null;
-                    "
-                    class="flex items-center gap-3 text-sm hover:bg-secondary/10 hover:text-secondary cursor-pointer"
-                  >
-                    <Settings class="w-4 h-4" />
-                    <span>编辑逻辑</span>
-                  </a>
-                </li>
+                <!-- === Dev 类型脚本菜单 === -->
+                <template v-if="script.scriptType === 'dev'">
+                  <!-- 编辑信息 -->
+                  <li>
+                    <a
+                      @click="
+                        openEditModal(script);
+                        openDropdownId = null;
+                      "
+                      class="flex items-center gap-3 text-sm hover:bg-info/10 hover:text-info cursor-pointer"
+                    >
+                      <Edit class="w-4 h-4" />
+                      <span>编辑信息</span>
+                    </a>
+                  </li>
+                  <!-- 编辑逻辑 -->
+                  <li>
+                    <a
+                      @click="
+                        console.log('编辑逻辑', script.name);
+                        openDropdownId = null;
+                      "
+                      class="flex items-center gap-3 text-sm hover:bg-secondary/10 hover:text-secondary cursor-pointer"
+                    >
+                      <Settings class="w-4 h-4" />
+                      <span>编辑逻辑</span>
+                    </a>
+                  </li>
 
-                <li class="my-1"><hr class="border-base-content/10" /></li>
+                  <li class="my-1"><hr class="border-base-content/10" /></li>
 
-                <!-- 上传到云端 -->
-                <li v-if="script.scriptType === 'dev'">
-                  <a
-                    @click="
-                      console.log('上传', script.name);
-                      openDropdownId = null;
-                    "
-                    class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
-                  >
-                    <Download class="w-4 h-4 rotate-180" />
-                    <span>上传到云端</span>
-                  </a>
-                </li>
-                <!-- 检查更新 -->
-                <li>
-                  <a
-                    @click="
-                      console.log('检查更新', script.name);
-                      openDropdownId = null;
-                    "
-                    class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
-                  >
-                    <Clock class="w-4 h-4" />
-                    <span>检查更新</span>
-                  </a>
-                </li>
+                  <!-- 上传/更新到云端 -->
+                  <li v-if="!script.cloudId">
+                    <a
+                      @click="
+                        console.log('首次上传', script.name);
+                        openDropdownId = null;
+                      "
+                      class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
+                    >
+                      <Download class="w-4 h-4 rotate-180" />
+                      <span>上传到云端</span>
+                    </a>
+                  </li>
+                  <li v-else>
+                    <a
+                      @click="
+                        console.log('更新云端版本', script.name, script.cloudId);
+                        openDropdownId = null;
+                      "
+                      class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
+                    >
+                      <Download class="w-4 h-4 rotate-180" />
+                      <span>更新云端版本</span>
+                    </a>
+                  </li>
+                  <!-- 查看云端版本 (仅已上传过的) -->
+                  <li v-if="script.cloudId">
+                    <a
+                      @click="
+                        console.log('查看云端版本', script.cloudId);
+                        openDropdownId = null;
+                      "
+                      class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
+                    >
+                      <Eye class="w-4 h-4" />
+                      <span>查看云端版本</span>
+                    </a>
+                  </li>
+                </template>
+
+                <!-- === Published 类型脚本菜单 === -->
+                <template v-else-if="script.scriptType === 'published'">
+                  <!-- 检查更新 -->
+                  <li>
+                    <a
+                      @click="
+                        console.log('检查更新', script.name);
+                        openDropdownId = null;
+                      "
+                      class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
+                    >
+                      <Clock class="w-4 h-4" />
+                      <span>检查更新</span>
+                    </a>
+                  </li>
+                  <!-- 查看详情 -->
+                  <li>
+                    <a
+                      @click="
+                        console.log('查看详情', script.name);
+                        openDropdownId = null;
+                      "
+                      class="flex items-center gap-3 text-sm hover:bg-info/10 hover:text-info cursor-pointer"
+                    >
+                      <Info class="w-4 h-4" />
+                      <span>查看详情</span>
+                    </a>
+                  </li>
+                </template>
 
                 <li class="my-1"><hr class="border-base-content/10" /></li>
 
@@ -336,21 +380,8 @@ const randomRange = ref(5);
             <Info class="w-5 h-5 text-secondary" />
             详情
           </h2>
-          <div
-            class="badge badge-sm"
-            :class="{
-              'badge-primary': selectedScript.scriptType === 'builtIn',
-              'badge-secondary': selectedScript.scriptType === 'dev',
-              'badge-accent': selectedScript.scriptType === 'published',
-            }"
-          >
-            {{
-              selectedScript.scriptType === 'builtIn'
-                ? '官方内置'
-                : selectedScript.scriptType === 'dev'
-                ? '本地开发'
-                : '云端下载'
-            }}
+          <div class="badge badge-sm" :class="selectedScript.scriptType === 'dev' ? 'badge-secondary' : 'badge-accent'">
+            {{ selectedScript.scriptType === 'dev' ? '本地开发' : '云端下载' }}
           </div>
         </div>
 
