@@ -1,7 +1,7 @@
 use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::domain::vision::result::{BoundingBox, DetResult};
 use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
-use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
+use crate::infrastructure::vision::base_model::{BaseModel, ModelType, ModelSource};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::VisionResult;
@@ -33,6 +33,7 @@ impl PaddleDetDbNet {
         intra_spinning: bool,
         inter_thread_num: usize,
         inter_spinning: bool,
+        model_source: ModelSource,
         model_path: std::path::PathBuf,
         execution_provider: InferenceBackend,
         db_thresh: f32,
@@ -44,6 +45,7 @@ impl PaddleDetDbNet {
             base_model: BaseModel::new(
                 input_width,
                 input_height,
+                model_source,
                 model_path,
                 execution_provider,
                 intra_thread_num,

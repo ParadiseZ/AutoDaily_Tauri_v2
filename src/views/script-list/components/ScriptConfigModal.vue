@@ -14,7 +14,19 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save']);
 
 const executionProviders = ['CPU', 'DirectML', 'Cuda'];
-const modelTypes = ['None', 'Yolo11', 'PaddleDet5', 'PaddleCrnn5'];
+
+const ModelSource = {
+  BuiltIn: 'BuiltIn',
+  Custom: 'Custom',
+};
+
+const ModelAlgorithm = {
+  None: 'None',
+  Yolo11: 'Yolo11',
+  PaddleDbNet: 'PaddleDet5',
+  PaddleCrnn: 'PaddleCrnn5',
+};
+
 const yoloDefaultParams = {
   inputWidth: 640,
   inputHeight: 640,
@@ -47,11 +59,12 @@ const formState = reactive({
   description: '',
 
   // Image Detection
-  imgDetModelType: 'None', // 'None' | 'Yolo11' | 'PaddleDbNet'
+  imgDetType: 'None',
+  imgDetSource: 'Custom',
   yoloParams: {
     // Base Model Params
     modelPath: '',
-    executionProvider: executionProviders[0], // Cpu, DirectMl, Cuda, TensorRt
+    executionProvider: executionProviders[0],
     inputWidth: yoloDefaultParams.inputWidth,
     inputHeight: yoloDefaultParams.inputHeight,
 
@@ -62,7 +75,9 @@ const formState = reactive({
     labelPath: '',
   },
 
-  // Text Detection - YOLO params
+  // Text Detection
+  txtDetType: 'None',
+  txtDetSource: 'Custom',
   txtDetYoloParams: {
     // Base Model Params
     modelPath: '',
@@ -75,16 +90,14 @@ const formState = reactive({
     confidenceThresh: yoloDefaultParams.confidenceThresh,
     iouThresh: yoloDefaultParams.iouThresh,
     labelPath: '',
-    txtIdx: 0, // Index of the class representing 'text'
+    txtIdx: 0,
   },
 
-  // Text Detection
-  txtDetModelType: modelTypes[0], // 'None'
   dbNetParams: {
     // Base Model Params
     modelPath: '',
     executionProvider: executionProviders[0],
-    inputWidth: dbNetDefaultParams.inputWidth, // Usually 640 or 960
+    inputWidth: dbNetDefaultParams.inputWidth,
     inputHeight: dbNetDefaultParams.inputHeight,
 
     // DBNet Specific
@@ -95,13 +108,14 @@ const formState = reactive({
   },
 
   // Text Recognition
-  txtRecModelType: modelTypes[3], // 'None'
+  txtRecType: 'PaddleCrnn5',
+  txtRecSource: 'BuiltIn', // Default to BuiltIn for CRNN as it's common
   crnnParams: {
     // Base Model Params
     modelPath: '',
     executionProvider: executionProviders[0],
-    inputWidth: crnnDefaultParams.inputWidth, // Standard CRNN width, usually resized keeping ratio
-    inputHeight: crnnDefaultParams.inputHeight, // Standard CRNN height
+    inputWidth: crnnDefaultParams.inputWidth,
+    inputHeight: crnnDefaultParams.inputHeight,
 
     // CRNN Specific
     dictPath: '',
@@ -140,19 +154,20 @@ const handleSave = () => {
   };
 
   // Image Detection Model Construction yolo11
-  if (formState.imgDetModelType === modelTypes[1]) {
+  if (formState.imgDetType === ModelAlgorithm.Yolo11) {
     scriptData.imgDetModel = {
       Yolo11: {
         base_model: {
           input_width: parseInt(formState.yoloParams.inputWidth),
           input_height: parseInt(formState.yoloParams.inputHeight),
-          model_path: formState.yoloParams.modelPath,
+          model_source: formState.imgDetSource,
+          model_path: formState.imgDetSource === ModelSource.BuiltIn ? '' : formState.yoloParams.modelPath,
           execution_provider: formState.yoloParams.executionProvider,
           intra_thread_num: 4,
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: modelTypes[1],
+          model_type: ModelAlgorithm.Yolo11, // Ensure enum match
         },
         class_count: parseInt(formState.yoloParams.classCount),
         class_labels: [],
@@ -165,19 +180,20 @@ const handleSave = () => {
   }
 
   // Text Detection Model Construction
-  if (formState.txtDetModelType === modelTypes[1]) {
+  if (formState.txtDetType === ModelAlgorithm.Yolo11) {
     scriptData.txtDetModel = {
       Yolo11: {
         base_model: {
           input_width: parseInt(formState.txtDetYoloParams.inputWidth),
           input_height: parseInt(formState.txtDetYoloParams.inputHeight),
-          model_path: formState.txtDetYoloParams.modelPath,
+          model_source: formState.txtDetSource,
+          model_path: formState.txtDetSource === ModelSource.BuiltIn ? '' : formState.txtDetYoloParams.modelPath,
           execution_provider: formState.txtDetYoloParams.executionProvider,
           intra_thread_num: 4,
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: modelTypes[1],
+          model_type: ModelAlgorithm.Yolo11,
         },
         class_count: parseInt(formState.txtDetYoloParams.classCount),
         class_labels: [],
@@ -189,19 +205,20 @@ const handleSave = () => {
     };
   }
 
-  if (formState.txtDetModelType === modelTypes[2]) {
+  if (formState.txtDetType === ModelAlgorithm.PaddleDbNet) {
     scriptData.txtDetModel = {
       PaddleDbNet: {
         base_model: {
           input_width: parseInt(formState.dbNetParams.inputWidth),
           input_height: parseInt(formState.dbNetParams.inputHeight),
-          model_path: formState.dbNetParams.modelPath,
+          model_source: formState.txtDetSource,
+          model_path: formState.txtDetSource === ModelSource.BuiltIn ? '' : formState.dbNetParams.modelPath,
           execution_provider: formState.dbNetParams.executionProvider,
           intra_thread_num: 4,
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: modelTypes[2],
+          model_type: ModelAlgorithm.PaddleDbNet,
         },
         db_thresh: parseFloat(formState.dbNetParams.dbThresh),
         db_box_thresh: parseFloat(formState.dbNetParams.dbBoxThresh),
@@ -212,22 +229,23 @@ const handleSave = () => {
   }
 
   // Text Recognition Model Construction
-  if (formState.txtRecModelType === modelTypes[3]) {
+  if (formState.txtRecType === ModelAlgorithm.PaddleCrnn) {
     scriptData.txtRecModel = {
       PaddleCrnn: {
         base_model: {
           input_width: parseInt(formState.crnnParams.inputWidth),
           input_height: parseInt(formState.crnnParams.inputHeight),
-          model_path: formState.crnnParams.modelPath,
+          model_source: formState.txtRecSource,
+          model_path: formState.txtRecSource === ModelSource.BuiltIn ? '' : formState.crnnParams.modelPath,
           execution_provider: formState.crnnParams.executionProvider,
           intra_thread_num: 4,
           intra_spinning: true,
           inter_thread_num: 1,
           inter_spinning: true,
-          model_type: modelTypes[3],
+          model_type: ModelAlgorithm.PaddleCrnn,
         },
         dict_path: formState.crnnParams.dictPath || null,
-        dict: [], // Backend should load this if path is provided, or we pass empty
+        dict: [],
       },
     };
   }
@@ -260,12 +278,15 @@ const resetForm = () => {
   formState.name = '';
   formState.description = '';
   formState.pkgName = '';
-  formState.imgDetModelType = modelTypes[0];
-  formState.txtDetModelType = modelTypes[0];
-  formState.txtRecModelType = modelTypes[0];
+  formState.imgDetType = ModelAlgorithm.None;
+  formState.imgDetSource = ModelSource.Custom;
+  formState.txtDetType = ModelAlgorithm.None;
+  formState.txtDetSource = ModelSource.Custom;
+  formState.txtRecType = ModelAlgorithm.PaddleCrnn;
+  formState.txtRecSource = ModelSource.BuiltIn;
   activeTab.value = 'basic';
 
-  // Reset YOLO params
+  // Reset Yolo Params
   formState.yoloParams.modelPath = '';
   formState.yoloParams.labelPath = '';
   formState.yoloParams.executionProvider = executionProviders[0];
@@ -275,7 +296,7 @@ const resetForm = () => {
   formState.yoloParams.confidenceThresh = yoloDefaultParams.confidenceThresh;
   formState.yoloParams.iouThresh = yoloDefaultParams.iouThresh;
 
-  // Reset text detection YOLO params
+  // Reset TxtDet Yolo Params
   formState.txtDetYoloParams.modelPath = '';
   formState.txtDetYoloParams.labelPath = '';
   formState.txtDetYoloParams.executionProvider = executionProviders[0];
@@ -314,8 +335,9 @@ const populateFormFromScript = (script) => {
 
   // Image Detection Model
   if (script.imgDetModel?.Yolo11) {
-    formState.imgDetModelType = modelTypes[1];
+    formState.imgDetType = ModelAlgorithm.Yolo11;
     const yolo = script.imgDetModel.Yolo11;
+    formState.imgDetSource = yolo.base_model?.model_source || ModelSource.Custom;
     formState.yoloParams.modelPath = yolo.base_model?.model_path || '';
     formState.yoloParams.labelPath = yolo.label_path || '';
     formState.yoloParams.executionProvider = yolo.base_model?.execution_provider || executionProviders[0];
@@ -325,13 +347,15 @@ const populateFormFromScript = (script) => {
     formState.yoloParams.confidenceThresh = yolo.confidence_thresh || yoloDefaultParams.confidenceThresh;
     formState.yoloParams.iouThresh = yolo.iou_thresh || yoloDefaultParams.iouThresh;
   } else {
-    formState.imgDetModelType = modelTypes[0];
+    formState.imgDetType = ModelAlgorithm.None;
+    formState.imgDetSource = ModelSource.Custom;
   }
 
   // Text Detection Model
   if (script.txtDetModel?.Yolo11) {
-    formState.txtDetModelType = modelTypes[1];
+    formState.txtDetType = ModelAlgorithm.Yolo11;
     const yolo = script.txtDetModel.Yolo11;
+    formState.txtDetSource = yolo.base_model?.model_source || ModelSource.Custom;
     formState.txtDetYoloParams.modelPath = yolo.base_model?.model_path || '';
     formState.txtDetYoloParams.labelPath = yolo.label_path || '';
     formState.txtDetYoloParams.executionProvider = yolo.base_model?.execution_provider || executionProviders[0];
@@ -342,8 +366,9 @@ const populateFormFromScript = (script) => {
     formState.txtDetYoloParams.iouThresh = yolo.iou_thresh || yoloDefaultParams.iouThresh;
     formState.txtDetYoloParams.txtIdx = yolo.txt_idx || 0;
   } else if (script.txtDetModel?.PaddleDbNet) {
-    formState.txtDetModelType = modelTypes[2];
+    formState.txtDetType = ModelAlgorithm.PaddleDbNet;
     const dbnet = script.txtDetModel.PaddleDbNet;
+    formState.txtDetSource = dbnet.base_model?.model_source || ModelSource.Custom;
     formState.dbNetParams.modelPath = dbnet.base_model?.model_path || '';
     formState.dbNetParams.executionProvider = dbnet.base_model?.execution_provider || executionProviders[0];
     formState.dbNetParams.inputWidth = dbnet.base_model?.input_width || dbNetDefaultParams.inputWidth;
@@ -353,20 +378,23 @@ const populateFormFromScript = (script) => {
     formState.dbNetParams.unclipRatio = dbnet.unclip_ratio || dbNetDefaultParams.unclipRatio;
     formState.dbNetParams.useDilation = dbnet.use_dilation || dbNetDefaultParams.useDilation;
   } else {
-    formState.txtDetModelType = modelTypes[0];
+    formState.txtDetType = ModelAlgorithm.None;
+    formState.txtDetSource = ModelSource.Custom;
   }
 
   // Text Recognition Model
   if (script.txtRecModel?.PaddleCrnn) {
-    formState.txtRecModelType = modelTypes[3];
+    formState.txtRecType = ModelAlgorithm.PaddleCrnn;
     const crnn = script.txtRecModel.PaddleCrnn;
+    formState.txtRecSource = crnn.base_model?.model_source || ModelSource.BuiltIn;
     formState.crnnParams.modelPath = crnn.base_model?.model_path || '';
     formState.crnnParams.executionProvider = crnn.base_model?.execution_provider || executionProviders[0];
     formState.crnnParams.inputWidth = crnn.base_model?.input_width || crnnDefaultParams.inputWidth;
     formState.crnnParams.inputHeight = crnn.base_model?.input_height || crnnDefaultParams.inputHeight;
     formState.crnnParams.dictPath = crnn.dict_path || '';
   } else {
-    formState.txtRecModelType = modelTypes[0];
+    formState.txtRecType = ModelAlgorithm.None;
+    formState.txtRecSource = ModelSource.BuiltIn;
   }
 
   activeTab.value = 'basic';
@@ -480,21 +508,31 @@ watch(
                 <h4 class="font-bold flex items-center gap-2">
                   <Eye class="w-4 h-4 text-primary" /> 目标/文本检测模型
                 </h4>
-                <select v-model="formState.imgDetModelType" class="select select-bordered select-sm w-48">
-                  <option value="None">不设置</option>
-                  <option value="Yolo11">YOLO11</option>
-                </select>
+                <div class="flex gap-2">
+                  <select v-model="formState.imgDetType" class="select select-bordered select-sm w-32">
+                    <option :value="ModelAlgorithm.None">不设置</option>
+                    <option :value="ModelAlgorithm.Yolo11">YOLO11</option>
+                  </select>
+                  <select
+                    v-if="formState.imgDetType !== ModelAlgorithm.None"
+                    v-model="formState.imgDetSource"
+                    class="select select-bordered select-sm w-24"
+                  >
+                    <option :value="ModelSource.BuiltIn">内置</option>
+                    <option :value="ModelSource.Custom">自定义</option>
+                  </select>
+                </div>
               </div>
 
               <div
-                v-if="formState.imgDetModelType === 'Yolo11'"
+                v-if="formState.imgDetType === ModelAlgorithm.Yolo11"
                 class="bg-base-200/50 p-4 rounded-xl space-y-4 border border-base-content/5"
               >
                 <div class="grid grid-cols-2 gap-4">
                   <!-- Base Model Param Common -->
                   <div class="form-control col-span-1">
                     <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                    <div class="flex gap-2">
+                    <div v-if="formState.imgDetSource === ModelSource.Custom" class="flex gap-2">
                       <input
                         type="text"
                         v-model="formState.yoloParams.modelPath"
@@ -512,6 +550,9 @@ watch(
                       >
                         ...
                       </button>
+                    </div>
+                    <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
+                      使用内置默认模型路径
                     </div>
                   </div>
                   <div class="form-control col-span-1">
@@ -609,23 +650,32 @@ watch(
                 <h4 class="font-bold flex items-center gap-2">
                   <FileJson class="w-4 h-4 text-secondary" /> 文本检测模型
                 </h4>
-                <select v-model="formState.txtDetModelType" class="select select-bordered select-sm w-48">
-                  <option value="None">不设置</option>
-                  <option value="DbNet">内置Paddle DBNet V5</option>
-                  <option value="PaddleDet5">自定义Paddle DBNet(v3-v5)</option>
-                  <option value="Yolo11">YOLO11</option>
-                </select>
+                <div class="flex gap-2">
+                  <select v-model="formState.txtDetType" class="select select-bordered select-sm w-32">
+                    <option :value="ModelAlgorithm.None">不设置</option>
+                    <option :value="ModelAlgorithm.PaddleDbNet">Paddle DBNet</option>
+                    <option :value="ModelAlgorithm.Yolo11">YOLO11</option>
+                  </select>
+                  <select
+                    v-if="formState.txtDetType !== ModelAlgorithm.None"
+                    v-model="formState.txtDetSource"
+                    class="select select-bordered select-sm w-24"
+                  >
+                    <option :value="ModelSource.BuiltIn">内置</option>
+                    <option :value="ModelSource.Custom">自定义</option>
+                  </select>
+                </div>
               </div>
 
               <!-- DBNet Params -->
               <div
-                v-if="formState.txtDetModelType === 'PaddleDet5'"
+                v-if="formState.txtDetType === ModelAlgorithm.PaddleDbNet"
                 class="bg-base-200/50 p-4 rounded-xl space-y-4 border border-base-content/5"
               >
                 <div class="grid grid-cols-2 gap-4">
                   <div class="form-control col-span-2">
                     <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                    <div class="flex gap-2">
+                    <div v-if="formState.txtDetSource === ModelSource.Custom" class="flex gap-2">
                       <input
                         type="text"
                         v-model="formState.dbNetParams.modelPath"
@@ -643,6 +693,9 @@ watch(
                       >
                         ...
                       </button>
+                    </div>
+                    <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
+                      使用内置默认模型路径
                     </div>
                   </div>
                   <div class="form-control">
@@ -707,13 +760,13 @@ watch(
 
               <!-- YOLO Params for Text Detection -->
               <div
-                v-if="formState.txtDetModelType === 'Yolo11'"
+                v-if="formState.txtDetType === ModelAlgorithm.Yolo11"
                 class="bg-base-200/50 p-4 rounded-xl space-y-4 border border-base-content/5"
               >
                 <div class="grid grid-cols-2 gap-4">
                   <div class="form-control col-span-1">
                     <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                    <div class="flex gap-2">
+                    <div v-if="formState.txtDetSource === ModelSource.Custom" class="flex gap-2">
                       <input
                         type="text"
                         v-model="formState.txtDetYoloParams.modelPath"
@@ -731,6 +784,9 @@ watch(
                       >
                         ...
                       </button>
+                    </div>
+                    <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
+                      使用内置默认模型路径
                     </div>
                   </div>
                   <div class="form-control col-span-1">
@@ -839,21 +895,30 @@ watch(
           <div v-show="activeTab === 'rec'" class="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
             <div class="flex items-center justify-between border-b border-base-content/10 pb-2">
               <h4 class="font-bold flex items-center gap-2"><Type class="w-4 h-4 text-accent" /> 文本识别模型</h4>
-              <select v-model="formState.txtRecModelType" class="select select-bordered select-sm w-48">
-                <option value="None">不设置</option>
-                <option value="ResourceCrnn">内置Paddle CRNN v5</option>
-                <option value="PaddleCrnn">自定义Paddle CRNN (v3-v5)</option>
-              </select>
+              <div class="flex gap-2">
+                <select v-model="formState.txtRecType" class="select select-bordered select-sm w-32">
+                  <option :value="ModelAlgorithm.None">不设置</option>
+                  <option :value="ModelAlgorithm.PaddleCrnn">Paddle CRNN</option>
+                </select>
+                <select
+                  v-if="formState.txtRecType !== ModelAlgorithm.None"
+                  v-model="formState.txtRecSource"
+                  class="select select-bordered select-sm w-24"
+                >
+                  <option :value="ModelSource.BuiltIn">内置</option>
+                  <option :value="ModelSource.Custom">自定义</option>
+                </select>
+              </div>
             </div>
 
             <div
-              v-if="formState.txtRecModelType === 'PaddleCrnn'"
+              v-if="formState.txtRecType === ModelAlgorithm.PaddleCrnn"
               class="bg-base-200/50 p-4 rounded-xl space-y-4 border border-base-content/5"
             >
               <div class="grid grid-cols-2 gap-4">
                 <div class="form-control col-span-2">
                   <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                  <div class="flex gap-2">
+                  <div v-if="formState.txtRecSource === ModelSource.Custom" class="flex gap-2">
                     <input
                       type="text"
                       v-model="formState.crnnParams.modelPath"
@@ -871,6 +936,9 @@ watch(
                     >
                       ...
                     </button>
+                  </div>
+                  <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
+                    使用内置默认模型路径
                   </div>
                 </div>
                 <div class="form-control col-span-2">

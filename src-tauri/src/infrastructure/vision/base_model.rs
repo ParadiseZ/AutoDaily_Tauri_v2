@@ -17,6 +17,20 @@ use std::sync::Mutex;
 
 /// 基础模型结构 - 包含所有模型的通用字段
 
+/// 模型来源
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, Default)]
+pub enum ModelSource {
+    /// 内置模型 - 从 resources/models/ 加载
+    /// 路径由程序自动解析，无需用户指定
+    BuiltIn,
+    
+    /// 自定义模型
+    /// - Dev 脚本: 使用 model_path 中的绝对路径
+    /// - Published 脚本: 从 scripts/{id}/models/ 加载
+    #[default]
+    Custom,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct BaseModel {
     #[serde(skip)]
@@ -28,7 +42,13 @@ pub struct BaseModel {
     pub execution_provider: InferenceBackend,
     pub input_width: u32,
     pub input_height: u32,
-    //pub model_path : Option<String>,
+    /// 模型来源 - BuiltIn 或 Custom
+    #[serde(default)]
+    pub model_source: ModelSource,
+    /// 模型路径
+    /// - BuiltIn: 此字段被忽略，由程序自动解析
+    /// - Custom + Dev: 开发者指定的绝对路径
+    /// - Custom + Published: 此字段被忽略，由程序解析为 scripts/{id}/models/
     pub model_path: std::path::PathBuf,
     #[serde(skip)]
     pub is_loaded: bool,
@@ -39,7 +59,7 @@ impl std::fmt::Debug for BaseModel{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "BaseModel[session:hidden, intra_thread_num: {}, intra_spinning: {}, inter_thread_num: {}, inter_spinning: {}, execution_provider: {:?}, input_width: {}, input_height: {}, model_path: {:?}, is_loaded: {}, model_type: {:?}]",
+            "BaseModel[session:hidden, intra_thread_num: {}, intra_spinning: {}, inter_thread_num: {}, inter_spinning: {}, execution_provider: {:?}, input_width: {}, input_height: {}, model_source: {:?}, model_path: {:?}, is_loaded: {}, model_type: {:?}]",
             self.intra_thread_num,
             self.intra_spinning,
             self.inter_thread_num,
@@ -47,6 +67,7 @@ impl std::fmt::Debug for BaseModel{
             self.execution_provider,
             self.input_width,
             self.input_height,
+            self.model_source,
             self.model_path,
             self.is_loaded,
             self.model_type
@@ -71,6 +92,7 @@ impl BaseModel {
     pub fn new(
         input_width: u32,
         input_height: u32,
+        model_source: ModelSource,
         model_path: std::path::PathBuf,
         execution_provider: InferenceBackend,
         intra_thread_num: usize,
@@ -88,6 +110,7 @@ impl BaseModel {
             execution_provider,
             input_width,
             input_height,
+            model_source,
             model_path,
             is_loaded: false,
             model_type,
@@ -100,8 +123,16 @@ impl BaseModel {
         model_type_name: &str,
     ) -> VisionResult<()> {
         // 1. 解析模型路径
+        let final_path = match self.model_source {
+            ModelSource::BuiltIn => {
+                // TODO: 在生产环境中可能需要使用 Tauri 的 PathResolver 获取资源路径
+                // 目前假设 resources/models 位于当前工作目录或包内
+                std::path::PathBuf::from("resources/models").join(format!("{}.onnx", model_type_name))
+            }
+            ModelSource::Custom => self.model_path.clone(),
+        };
 
-        Log::info(&format!("加载{}模型", model_type_name));
+        Log::info(&format!("加载{}模型, 路径: {:?}", model_type_name, final_path));
 
         // 2. 创建session builder
         let result = configure_or_switch_provider(None, "cuda").map_err(|e| {
@@ -146,7 +177,7 @@ impl BaseModel {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
             })?
-            .commit_from_file(&self.model_path)
+            .commit_from_file(&final_path)
             .map_err(|e| VisionError::SessionConfigFailed {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
