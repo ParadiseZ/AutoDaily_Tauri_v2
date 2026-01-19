@@ -258,7 +258,9 @@ const handleSelectFile = async (type = 'model') => {
     const filters =
       type === 'model'
         ? [{ name: 'ONNX Model', extensions: ['onnx'] }]
-        : [{ name: '配置/字典文件', extensions: ['yaml'] }];
+        : type === 'config'
+          ? [{ name: 'Label File', extensions: ['yaml'] }]
+          : [{ name: 'Dict File', extensions: ['txt'] }];
 
     const selected = await open({
       multiple: false,
@@ -475,7 +477,7 @@ watch(
         <!-- Content Area -->
         <div class="grow overflow-y-auto custom-scrollbar p-6">
           <!-- Basic Info Tab -->
-          <div v-show="activeTab === 'basic'" class="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+          <div v-show="activeTab === 'basic'" class="space-y-1 animate-in fade-in slide-in-from-right-4 duration-300">
             <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
               <label class="label"
                 ><span class="label-text font-bold">名称 <span class="text-error">*</span></span></label
@@ -483,9 +485,7 @@ watch(
               <input type="text" v-model="formState.name" class="input input-bordered w-full" />
             </div>
             <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
-              <label class="label"
-                ><span class="label-text font-bold">包名/主Activity<span class="text-error">*</span></span></label
-              >
+              <label class="label"><span class="label-text font-bold">包名/主Activity</span></label>
               <input
                 type="text"
                 v-model="formState.pkgName"
@@ -505,21 +505,11 @@ watch(
             <!-- Img Det Section -->
             <section class="space-y-4">
               <div class="flex items-center justify-between border-b border-base-content/10 pb-2">
-                <h4 class="font-bold flex items-center gap-2">
-                  <Eye class="w-4 h-4 text-primary" /> 目标/文本检测模型
-                </h4>
+                <h4 class="font-bold flex items-center gap-2"><Eye class="w-4 h-4 text-primary" /> 目标检测模型</h4>
                 <div class="flex gap-2">
                   <select v-model="formState.imgDetType" class="select select-bordered select-sm w-32">
                     <option :value="ModelAlgorithm.None">不设置</option>
                     <option :value="ModelAlgorithm.Yolo11">YOLO11</option>
-                  </select>
-                  <select
-                    v-if="formState.imgDetType !== ModelAlgorithm.None"
-                    v-model="formState.imgDetSource"
-                    class="select select-bordered select-sm w-24"
-                  >
-                    <option :value="ModelSource.BuiltIn">内置</option>
-                    <option :value="ModelSource.Custom">自定义</option>
                   </select>
                 </div>
               </div>
@@ -532,7 +522,7 @@ watch(
                   <!-- Base Model Param Common -->
                   <div class="form-control col-span-1">
                     <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                    <div v-if="formState.imgDetSource === ModelSource.Custom" class="flex gap-2">
+                    <div class="flex gap-2">
                       <input
                         type="text"
                         v-model="formState.yoloParams.modelPath"
@@ -550,9 +540,6 @@ watch(
                       >
                         ...
                       </button>
-                    </div>
-                    <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
-                      使用内置默认模型路径
                     </div>
                   </div>
                   <div class="form-control col-span-1">
@@ -657,7 +644,7 @@ watch(
                     <option :value="ModelAlgorithm.Yolo11">YOLO11</option>
                   </select>
                   <select
-                    v-if="formState.txtDetType !== ModelAlgorithm.None"
+                    v-if="formState.txtDetType === ModelAlgorithm.PaddleDbNet"
                     v-model="formState.txtDetSource"
                     class="select select-bordered select-sm w-24"
                   >
@@ -673,9 +660,9 @@ watch(
                 class="bg-base-200/50 p-4 rounded-xl space-y-4 border border-base-content/5"
               >
                 <div class="grid grid-cols-2 gap-4">
-                  <div class="form-control col-span-2">
+                  <div v-if="formState.txtDetSource === ModelSource.Custom" class="form-control col-span-2">
                     <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                    <div v-if="formState.txtDetSource === ModelSource.Custom" class="flex gap-2">
+                    <div class="flex gap-2">
                       <input
                         type="text"
                         v-model="formState.dbNetParams.modelPath"
@@ -693,9 +680,6 @@ watch(
                       >
                         ...
                       </button>
-                    </div>
-                    <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
-                      使用内置默认模型路径
                     </div>
                   </div>
                   <div class="form-control">
@@ -766,7 +750,7 @@ watch(
                 <div class="grid grid-cols-2 gap-4">
                   <div class="form-control col-span-1">
                     <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                    <div v-if="formState.txtDetSource === ModelSource.Custom" class="flex gap-2">
+                    <div class="flex gap-2">
                       <input
                         type="text"
                         v-model="formState.txtDetYoloParams.modelPath"
@@ -784,9 +768,6 @@ watch(
                       >
                         ...
                       </button>
-                    </div>
-                    <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
-                      使用内置默认模型路径
                     </div>
                   </div>
                   <div class="form-control col-span-1">
@@ -916,9 +897,9 @@ watch(
               class="bg-base-200/50 p-4 rounded-xl space-y-4 border border-base-content/5"
             >
               <div class="grid grid-cols-2 gap-4">
-                <div class="form-control col-span-2">
+                <div v-if="formState.txtRecSource === ModelSource.Custom" class="form-control col-span-2">
                   <label class="label text-xs font-bold opacity-70">模型路径 (ONNX)</label>
-                  <div v-if="formState.txtRecSource === ModelSource.Custom" class="flex gap-2">
+                  <div class="flex gap-2">
                     <input
                       type="text"
                       v-model="formState.crnnParams.modelPath"
@@ -937,11 +918,8 @@ watch(
                       ...
                     </button>
                   </div>
-                  <div v-else class="text-xs opacity-50 py-1.5 italic border border-transparent px-1">
-                    使用内置默认模型路径
-                  </div>
                 </div>
-                <div class="form-control col-span-2">
+                <div v-if="formState.txtRecSource === ModelSource.Custom" class="form-control col-span-2">
                   <label class="label text-xs font-bold opacity-70">字典文件 (Keys/Dict)</label>
                   <div class="flex gap-2">
                     <input
@@ -953,7 +931,7 @@ watch(
                     <button
                       @click="
                         async () => {
-                          const p = await handleSelectFile('config');
+                          const p = await handleSelectFile('dict');
                           if (p) formState.crnnParams.dictPath = p;
                         }
                       "
@@ -974,7 +952,7 @@ watch(
                     </option>
                   </select>
                 </div>
-                <div class="form-control">
+                <div v-if="formState.txtRecSource === ModelSource.Custom" class="form-control">
                   <label class="label text-xs font-bold opacity-70">输入图像宽高 (WxH)</label>
                   <div class="flex items-center gap-2">
                     <input
@@ -995,9 +973,7 @@ watch(
 
             <div
               v-if="
-                formState.imgDetModelType === 'None' &&
-                formState.txtDetModelType === 'None' &&
-                formState.txtRecModelType === 'None'
+                formState.imgDetType === 'None' && formState.txtDetType === 'None' && formState.txtRecType === 'None'
               "
               class="alert alert-warning shadow-sm border-none bg-warning/10 text-warning-content py-3 rounded-xl mt-4"
             >
@@ -1014,7 +990,7 @@ watch(
       <!-- Footer -->
       <div class="p-4 border-t border-base-content/5 bg-base-200/30 flex justify-end gap-3 flex-none">
         <button @click="$emit('close')" class="btn btn-ghost">取消</button>
-        <button @click="handleSave" class="btn btn-primary px-8" :disabled="!formState.name || !formState.pkgName">
+        <button @click="handleSave" class="btn btn-primary px-8" :disabled="!formState.name">
           {{ isEditMode ? '保存' : '创建' }}
         </button>
       </div>
