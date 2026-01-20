@@ -1,7 +1,6 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::image::crop_image::{get_crop_image, get_crop_images};
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::VisionResult;
 use image::DynamicImage;
 use ndarray::{ArrayD, ArrayViewD};
@@ -48,7 +47,6 @@ pub trait TextDetector: ModelHandler {
     ) -> VisionResult<Vec<DetResult>>;
 
     /// 获取检测特有的配置参数
-    fn get_detection_config(&self) -> DetectionConfig;
 }
 
 /// 文本识别器trait - 继承ModelHandler并添加识别特有的方法  

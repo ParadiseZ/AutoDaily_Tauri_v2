@@ -1,23 +1,11 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::vision::base_traits::{TextDetector, TextRecognizer};
-use crate::infrastructure::vision::ocr_factory::{DetectorType, OcrModelFactory, RecognizerType};
+use crate::infrastructure::vision::det::DetectorType;
+use crate::infrastructure::vision::rec::RecognizerType;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::DynamicImage;
 use std::sync::Arc;
-
-/// 检测器配置
-#[derive(Debug, Clone)]
-pub struct DetectionConfig {
-    // YOLO特有
-    pub confidence_thresh: Option<f32>,
-    pub iou_thresh: Option<f32>,
-
-    // DBNet特有
-    pub db_thresh: Option<f32>,
-    pub db_box_thresh: Option<f32>,
-    pub unclip_ratio: Option<f32>,
-    pub use_dilation: Option<bool>,
-}
+use crate::infrastructure::logging::log_trait::Log;
 
 /// 新的OCR模型管理器 - 使用trait对象来处理不同的模型
 #[derive(Clone)]
@@ -37,14 +25,33 @@ impl OcrService {
 
     /// 使用配置初始化检测器
     pub async fn init_detector(&mut self, config: DetectorType) -> VisionResult<()> {
-        let detector = OcrModelFactory::create_detector(config).await?;
+        Log::info("初始化检测模型...");
+        let detector : Arc<dyn TextDetector> = match config {
+            DetectorType::Yolo11(mut yolo) => {
+                //加载标签
+                Log::info("加载yolo标签文件...");
+                yolo.load_labels()?;
+                Arc::new(yolo)
+            }
+            DetectorType::PaddleDbNet(dbNet) => {
+                Arc::new(dbNet)
+            }
+        };
         self.detector = Some(detector);
         Ok(())
     }
 
     /// 使用配置初始化识别器
     pub async fn init_recognizer(&mut self, config: RecognizerType) -> VisionResult<()> {
-        let recognizer = OcrModelFactory::create_recognizer(config).await?;
+        Log::info("初始化文字识别模型...");
+        let recognizer : Arc<dyn TextRecognizer> = match config {
+            RecognizerType::PaddleCrnn(mut crnn) => {
+                // 加载字典
+                Log::info("加载字典文件...");
+                crnn.load_dict()?;
+                Arc::new(crnn)
+            }
+        };
         self.recognizer = Some(recognizer);
         Ok(())
     }

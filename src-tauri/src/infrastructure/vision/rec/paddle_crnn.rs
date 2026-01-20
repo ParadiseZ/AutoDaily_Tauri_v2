@@ -1,54 +1,54 @@
-use crate::infrastructure::core::{Deserialize, Serialize};
-use std::path::PathBuf;
 use crate::domain::vision::result::{DetResult, OcrResult};
+use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
-use crate::infrastructure::vision::base_model::{BaseModel, ModelType, ModelSource};
+use crate::infrastructure::vision::base_model::BaseModel;
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::DynamicImage;
 use imageproc::drawing::Canvas;
+use std::path::PathBuf;
 
 use ndarray::{Array3, Array4, ArrayD, ArrayViewD, ArrayViewMut3, Axis};
 use rayon::prelude::*;
+use tokio::fs::read_to_string;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PaddleRecCrnn {
     pub base_model: BaseModel,
     pub dict_path: Option<PathBuf>,
+    #[serde(skip)]
     pub dict: Vec<String>,
 }
 
-impl PaddleRecCrnn {
-    pub fn new(
-        input_width: u32,
-        input_height: u32,
-        intra_thread_num: usize,
-        intra_spinning: bool,
-        inter_thread_num: usize,
-        inter_spinning: bool,
-        model_source: ModelSource,
-        model_path: PathBuf,
-        execution_provider: InferenceBackend,
-        dict_path: Option<PathBuf>,
-        dict: Vec<String>,
-    ) -> Self {
-        Self {
-            base_model: BaseModel::new(
-                input_width,
-                input_height,
-                model_source,
-                model_path,
-                execution_provider,
-                intra_thread_num,
-                intra_spinning,
-                inter_thread_num,
-                inter_spinning,
-                ModelType::PaddleCrnn5,
-            ),
-            dict_path,
-            dict
+impl PaddleRecCrnn{
+    pub async fn load_dict(&mut self) -> VisionResult<()> {
+        if self.dict_path.is_none(){
+            return Err(VisionError::IoError {
+                path: "".to_string(),
+                e: "字典路径为空".to_string(),
+            })
         }
+
+        let content = read_to_string(self.dict_path.unwrap()).await.map_err(|e| VisionError::IoError {
+            path: self.dict_path.unwrap().to_string_lossy().to_string(),
+            e: e.to_string(),
+        })?;
+
+        let dict: Vec<String> = content
+            .lines()
+            .map(|line| line.trim().to_string())
+            .filter(|line| !line.is_empty())
+            .collect();
+
+        if dict.is_empty() {
+            return Err(VisionError::IoError {
+                path: self.dict_path.unwrap().to_string_lossy().to_string(),
+                e: "字典文件为空".to_string(),
+            });
+        }
+        self.dict = dict;
+
+        Ok(())
     }
 }
 

@@ -1,5 +1,6 @@
 use crate::infrastructure::core::{Deserialize, ScriptId, Serialize, UserId};
-use crate::infrastructure::vision::ocr_factory::{DetectorType, RecognizerType};
+use crate::infrastructure::vision::det::DetectorType;
+use crate::infrastructure::vision::rec::RecognizerType;
 use sqlx::types::Json;
 use sqlx::FromRow;
 

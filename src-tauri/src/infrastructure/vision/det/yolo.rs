@@ -1,63 +1,51 @@
 use crate::domain::vision::result::{BoundingBox, DetResult};
+use crate::infrastructure::core::{Deserialize, HashMap, Serialize};
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
-use crate::infrastructure::vision::base_model::{BaseModel, ModelType, ModelSource};
+use crate::infrastructure::vision::base_model::BaseModel;
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
-use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
 use ndarray::{s, Array, ArrayD, ArrayViewD, Axis};
-use crate::infrastructure::core::{Deserialize, Serialize};
+use std::path::PathBuf;
+use tokio::fs::read_to_string;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct YoloDet {
     pub base_model: BaseModel,
     pub class_count: usize,
-    pub class_labels: Vec<String>,
+    #[serde(skip)]
+    pub class_labels: HashMap<u16,String>,
     pub confidence_thresh: f32,
     pub iou_thresh: f32,
-    pub label_path : String,
+    pub label_path : Option<PathBuf>,
     pub txt_idx: Option<u16>
 }
 
-impl YoloDet {
-    pub fn new(
-        input_width: u32,
-        input_height: u32,
-        intra_thread_num: usize,
-        intra_spinning: bool,
-        inter_thread_num: usize,
-        inter_spinning: bool,
-        model_source: ModelSource,
-        model_path: std::path::PathBuf,
-        execution_provider: InferenceBackend,
-        class_count: usize,
-        class_labels: Vec<String>,
-        confidence_thresh: f32,
-        iou_thresh: f32,
-        label_path: String
-    ) -> Self {
-        Self {
-            base_model: BaseModel::new(
-                input_width,
-                input_height,
-                model_source,
-                model_path,
-                execution_provider,
-                intra_thread_num,
-                intra_spinning,
-                inter_thread_num,
-                inter_spinning,
-                ModelType::Yolo11,
-            ),
-            class_count,
-            class_labels,
-            confidence_thresh,
-            iou_thresh,
-            label_path,
-            txt_idx: None
+impl YoloDet{
+    pub async fn load_labels(&mut self) ->VisionResult<()>{
+        if self.label_path.is_none(){
+            return Err(VisionError::IoError {
+                path: "".to_string(),
+                e: "Yolo标签路径为空".to_string(),
+            })
         }
+        let content = read_to_string(self.label_path.unwrap()).await.map_err(|e| VisionError::IoError {
+            path: self.label_path.unwrap().to_string_lossy().to_string(),
+            e: e.to_string(),
+        })?;
+
+        let values: serde_yaml::Value = serde_yaml::from_str(&content)
+            .map_err(|e|VisionError::IoError {
+                path: self.label_path.unwrap().to_string_lossy().to_string(),
+                e: "反序列化Yolo标签文件失败".to_string(),
+            })?;
+        self.class_labels = values.get("names")
+            .map_err(|e|VisionError::IoError {
+                path: self.label_path.unwrap().to_string_lossy().to_string(),
+                e: "获取names节点属性失败".to_string(),
+            })?;
+        Ok(())
     }
 }
 
@@ -191,16 +179,6 @@ impl ModelHandler for YoloDet {
         Ok(result)
     }
 
-    fn get_detection_config(&self) -> DetectionConfig {
-        DetectionConfig {
-            confidence_thresh: Some(self.confidence_thresh),
-            iou_thresh: Some(self.iou_thresh),
-            db_thresh: None,
-            db_box_thresh: None,
-            unclip_ratio: None,
-            use_dilation: None,
-        }
-    }
 }
 
 // 计算IoU的辅助函数

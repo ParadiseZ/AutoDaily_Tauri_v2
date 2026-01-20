@@ -8,9 +8,8 @@ use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
 use crate::infrastructure::image::save_image::save_screenshot;
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::ocr_factory::{
-    DetectorType, RecognizerType,
-};
+use crate::infrastructure::vision::det::DetectorType;
+use crate::infrastructure::vision::rec::RecognizerType;
 use base64::engine::general_purpose;
 use base64::Engine;
 use image::DynamicImage;

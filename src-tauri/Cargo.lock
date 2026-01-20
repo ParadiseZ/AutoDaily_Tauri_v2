@@ -398,6 +398,7 @@ version = "0.1.0"
 dependencies = [
  "adb_client",
  "ahash",
+ "aho-corasick",
  "async-trait",
  "base64 0.22.1",
  "bincode",

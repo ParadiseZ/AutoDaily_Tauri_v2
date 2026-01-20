@@ -2,7 +2,8 @@ use crate::app::app_error::AppResult;
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::image::load_image::load_img_from_path;
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::ocr_factory::{DetectorType, RecognizerType};
+use crate::infrastructure::vision::det::DetectorType;
+use crate::infrastructure::vision::rec::RecognizerType;
 use crate::infrastructure::vision::ocr_service::OcrService;
 
 pub async fn yolo_infer_test(

@@ -1,9 +1,7 @@
-use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::domain::vision::result::{BoundingBox, DetResult};
-use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
-use crate::infrastructure::vision::base_model::{BaseModel, ModelType, ModelSource};
+use crate::infrastructure::core::{Deserialize, Serialize};
+use crate::infrastructure::vision::base_model::BaseModel;
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
-use crate::infrastructure::vision::ocr_service::DetectionConfig;
 use crate::infrastructure::vision::vision_error::VisionResult;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 use imageproc::contours::find_contours;
@@ -23,43 +21,6 @@ pub struct PaddleDetDbNet {
     pub db_box_thresh: f32,
     pub unclip_ratio: f32,
     pub use_dilation: bool,
-}
-
-impl PaddleDetDbNet {
-    pub fn new(
-        input_width: u32,
-        input_height: u32,
-        intra_thread_num: usize,
-        intra_spinning: bool,
-        inter_thread_num: usize,
-        inter_spinning: bool,
-        model_source: ModelSource,
-        model_path: std::path::PathBuf,
-        execution_provider: InferenceBackend,
-        db_thresh: f32,
-        db_box_thresh: f32,
-        unclip_ratio: f32,
-        use_dilation: bool,
-    ) -> Self {
-        Self {
-            base_model: BaseModel::new(
-                input_width,
-                input_height,
-                model_source,
-                model_path,
-                execution_provider,
-                intra_thread_num,
-                intra_spinning,
-                inter_thread_num,
-                inter_spinning,
-                ModelType::PaddleDet5,
-            ),
-            db_thresh,
-            db_box_thresh,
-            unclip_ratio,
-            use_dilation,
-        }
-    }
 }
 
 impl ModelHandler for PaddleDetDbNet {
@@ -280,17 +241,6 @@ impl TextDetector for PaddleDetDbNet {
         // 按分数排序（可选）
         //boxes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         Ok(boxes)
-    }
-
-    fn get_detection_config(&self) -> DetectionConfig {
-        DetectionConfig {
-            confidence_thresh: None,
-            iou_thresh: None,
-            db_thresh: Some(self.db_thresh),
-            db_box_thresh: Some(self.db_box_thresh),
-            unclip_ratio: Some(self.unclip_ratio),
-            use_dilation: Some(self.use_dilation),
-        }
     }
 }
 
