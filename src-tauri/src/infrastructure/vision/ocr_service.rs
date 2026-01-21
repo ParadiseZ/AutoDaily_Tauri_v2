@@ -30,7 +30,7 @@ impl OcrService {
             DetectorType::Yolo11(mut yolo) => {
                 //加载标签
                 Log::info("加载yolo标签文件...");
-                yolo.load_labels()?;
+                yolo.load_labels().await?;
                 Arc::new(yolo)
             }
             DetectorType::PaddleDbNet(dbNet) => {
@@ -48,7 +48,7 @@ impl OcrService {
             RecognizerType::PaddleCrnn(mut crnn) => {
                 // 加载字典
                 Log::info("加载字典文件...");
-                crnn.load_dict()?;
+                crnn.load_dict().await?;
                 Arc::new(crnn)
             }
         };

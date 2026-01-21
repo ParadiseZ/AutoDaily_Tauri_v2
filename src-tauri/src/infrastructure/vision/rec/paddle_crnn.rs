@@ -29,8 +29,8 @@ impl PaddleRecCrnn{
             })
         }
 
-        let content = read_to_string(self.dict_path.unwrap()).await.map_err(|e| VisionError::IoError {
-            path: self.dict_path.unwrap().to_string_lossy().to_string(),
+        let content = read_to_string(self.dict_path.clone().unwrap()).await.map_err(|e| VisionError::IoError {
+            path: self.dict_path.clone().unwrap().to_string_lossy().to_string(),
             e: e.to_string(),
         })?;
 
@@ -42,7 +42,7 @@ impl PaddleRecCrnn{
 
         if dict.is_empty() {
             return Err(VisionError::IoError {
-                path: self.dict_path.unwrap().to_string_lossy().to_string(),
+                path: self.dict_path.clone().unwrap().to_string_lossy().to_string(),
                 e: "字典文件为空".to_string(),
             });
         }

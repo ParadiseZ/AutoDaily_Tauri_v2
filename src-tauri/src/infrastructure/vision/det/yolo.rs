@@ -30,21 +30,30 @@ impl YoloDet{
                 e: "Yolo标签路径为空".to_string(),
             })
         }
-        let content = read_to_string(self.label_path.unwrap()).await.map_err(|e| VisionError::IoError {
-            path: self.label_path.unwrap().to_string_lossy().to_string(),
+        let content = read_to_string(self.label_path.clone().unwrap()).await.map_err(|e| VisionError::IoError {
+            path: self.label_path.clone().unwrap().to_string_lossy().to_string(),
             e: e.to_string(),
         })?;
 
         let values: serde_yaml::Value = serde_yaml::from_str(&content)
-            .map_err(|e|VisionError::IoError {
-                path: self.label_path.unwrap().to_string_lossy().to_string(),
+            .map_err(|_e|VisionError::IoError {
+                path: self.label_path.clone().unwrap().to_string_lossy().to_string(),
                 e: "反序列化Yolo标签文件失败".to_string(),
             })?;
-        self.class_labels = values.get("names")
-            .map_err(|e|VisionError::IoError {
-                path: self.label_path.unwrap().to_string_lossy().to_string(),
-                e: "获取names节点属性失败".to_string(),
-            })?;
+        match values.get("names") {
+            Some(val) => {
+                self.class_labels = serde_yaml::from_value(val.clone()).map_err(|e| VisionError::IoError {
+                    path: self.label_path.clone().as_ref().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
+                    e: format!("解析标签names失败: {}", e),
+                })?;
+            }
+            None =>{
+                return Err(VisionError::IoError {
+                    path: "".to_string(),
+                    e: "Yolo标签读取names属性值失败！".to_string(),
+                })
+            }
+        }
         Ok(())
     }
 }
@@ -146,7 +155,7 @@ impl ModelHandler for YoloDet {
                 continue;
             }
             //let (w,h) = self.get_input_size();
-            let label: &String = &self.class_labels[class_id];
+            let label: &String = &self.class_labels[&(class_id as u16)];
 
 
             let xc = row[0] * scale;

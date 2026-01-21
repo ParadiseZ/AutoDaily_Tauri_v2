@@ -16,11 +16,10 @@ pub enum ControlFlow {
 
 pub struct ScriptExecutor {
     engine: Engine,
-    // Scope is generic, but usually we can use a fresh scope or keep one.
-    // For a stateful script, we keep one scope.
-    // Note: Rhai Scope is not thread-safe and not Send/Sync by default usually?
-    // Actually Scope works fine in a single thread execution loop.
-    scope: Scope<'static>, 
+    scope: Scope<'static>,
+    ocr_service: crate::infrastructure::vision::ocr_service::OcrService,
+    current_image: Option<image::DynamicImage>,
+    last_snapshot: Option<crate::domain::vision::ocr_search::VisionSnapshot>,
 }
 
 impl ScriptExecutor {
@@ -29,6 +28,9 @@ impl ScriptExecutor {
         Self {
             engine,
             scope: Scope::new(),
+            ocr_service: crate::infrastructure::vision::ocr_service::OcrService::new(),
+            current_image: None,
+            last_snapshot: None,
         }
     }
 
@@ -163,20 +165,65 @@ impl ScriptExecutor {
                     // TODO: Call device.screencap()
                     // Store path or handle in scope
                     self.scope.set_value(output_var, "placeholder_image_path.png".to_string());
+                    self.last_snapshot = None; // 截图后旧快照失效
                 }
-                Step::Ocr { image_var, output_var } => {
+                Step::Ocr { image_var: _, output_var } => {
                      // TODO: Call OCR engine
                      self.scope.set_value(output_var, "detected text".to_string());
                 }
-                Step::FindObject { image_var, query, output_var } => {
+                Step::FindObject { image_var: _, query: _, output_var } => {
                      // TODO: Call vision 
                      self.scope.set_value(output_var,  "100,200".to_string());
                 }
                 Step::Click { target_var, .. } => {
                      // TODO: Click
-                     if let Some(var_name) = target_var {
+                     if let Some(_var_name) = target_var {
                          // get coords from var
                      }
+                }
+                Step::VisionSearch { rule, output_var } => {
+                    // 1. 获取当前快照 (如果过期则重建)
+                    if self.last_snapshot.is_none() {
+                        if let Some(img) = &self.current_image {
+                            // 这里需要获取 OCR 和 YOLO 结果
+                            // 暂时使用 ocr_service 的 ocr_batch
+                            // 注意：完整的 VisionFusion 需要 YOLO 和 OCR 同时跑
+                            let ocr_results = self.ocr_service.ocr(img).map_err(|e| ScriptError::ExecuteErr { 
+                                step_type: "VisionSearch".into(), 
+                                e: format!("OCR failed: {:?}", e) 
+                            })?;
+                            
+                            // 这里暂时没有 YOLO 结果，因为 ocr_service 还没整合 YOLO 进 ocr()
+                            // 我们可以在这里手动补全或未来升级 ocr_service
+                            let det_results = Vec::new(); 
+                            
+                            self.last_snapshot = Some(crate::domain::vision::ocr_search::VisionSnapshot::new(
+                                ocr_results,
+                                det_results,
+                                Some(img)
+                            ).map_err(|e| ScriptError::ExecuteErr { 
+                                step_type: "VisionSearch".into(), 
+                                e: format!("Snapshot build failed: {:?}", e) 
+                            })?);
+                        } else {
+                            return Err(ScriptError::ExecuteErr { 
+                                step_type: "VisionSearch".into(), 
+                                e: "No current image for snapshot".into() 
+                            });
+                        }
+                    }
+
+                    if let Some(snapshot) = &self.last_snapshot {
+                        let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(rule);
+                        let hits = searcher.search(snapshot);
+                        
+                        // 将命中结果存入变量
+                        // 为了让 Rhai 能用，我们可能需要将 hits 转换为 Dynamic
+                        // 但目前 SearchHit 含有引用，我们需要一个 OwnedSearchHit
+                        // 或者简单的布尔值/坐标集
+                        let success = rule.evaluate(&hits);
+                        self.scope.set_value(output_var, success);
+                    }
                 }
                  _ => {}
             }

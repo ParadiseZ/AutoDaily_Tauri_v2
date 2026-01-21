@@ -130,6 +130,11 @@ pub enum Step {
         image_var: String, // 输入图片变量
         output_var: String, // 输出结果变量 (DetectionResult)
     },
+    /// 增强视觉搜索：支持 OCR + YOLO + 颜色逻辑
+    VisionSearch {
+        rule: crate::domain::vision::ocr_search::SearchRule,
+        output_var: String, // 存储命中结果的变量名 (Vec<SearchHit>)
+    },
     FindObject {
         image_var: String, // 输入图片
         query: String, // 查找内容 (文本 regex 或 模板名称)

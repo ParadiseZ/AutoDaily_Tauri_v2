@@ -46,7 +46,7 @@ pub trait TextDetector: ModelHandler {
         origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>>;
 
-    /// 获取检测特有的配置参数
+    // 获取检测特有的配置参数
 }
 
 /// 文本识别器trait - 继承ModelHandler并添加识别特有的方法  

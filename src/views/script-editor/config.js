@@ -87,6 +87,15 @@ export const NODE_TYPES = {
         placeholder: 'Set OCR region...',
         description: 'Recognize text',
     },
+    vision_logic: {
+        color: 'bg-pink-600',
+        icon: 'zap',
+        display: 'Vision Logic',
+        displayCn: '视觉逻辑',
+        category: 'vision',
+        placeholder: 'Configure vision rules...',
+        description: 'Advanced search logic (Text + Object + Color)',
+    },
 
     // Data Nodes
     variable: {
@@ -199,7 +208,7 @@ export const NODE_CATEGORIES = [
         key: 'vision',
         label: '视觉',
         labelEn: 'Vision',
-        types: ['capture', 'detect', 'ocr'],
+        types: ['capture', 'detect', 'ocr', 'vision_logic'],
     },
     {
         key: 'data',
@@ -372,6 +381,17 @@ export function getNodeDefaults(type) {
                 regionW: null,
                 regionH: null,
                 resultVar: '',
+            };
+        case 'vision_logic':
+            return {
+                type,
+                rule: {
+                    type: 'Group',
+                    op: 'And',
+                    scope: 'Global',
+                    items: []
+                },
+                outputVar: 'search_results',
             };
         case 'loop':
             return {

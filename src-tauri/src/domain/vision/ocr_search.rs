@@ -1,107 +1,86 @@
-use crate::domain::vision::result::OcrResult;
-use aho_corasick::{AhoCorasick, MatchKind};
+use crate::domain::vision::result::{OcrResult, DetResult, BoundingBox};
+use crate::infrastructure::vision::color_analyzer::ColorAnalyzer;
+use crate::infrastructure::vision::vision_error::VisionResult;
+use aho_corasick::AhoCorasick;
 use serde::{Deserialize, Serialize};
+use image::DynamicImage;
 
-/// 搜索结果，包含命中的文本及其对应的 OCR 信息
-#[derive(Debug, Clone)]
-pub struct SearchHit<'a> {
-    pub pattern: String,
-    pub start: usize,
-    pub end: usize,
-    pub ocr_results: Vec<&'a OcrResult>,
+/// 视觉对象的统一包装，用于搜索命中后的回溯
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum VisionItem {
+    Ocr(OcrResult),
+    Det(DetResult),
 }
 
-/// OCR 搜索引擎
-pub struct OcrSearcher {
-    patterns: Vec<String>,
-    ac: AhoCorasick,
-}
-
-impl OcrSearcher {
-    /// 创建一个新的搜索引擎
-    /// patterns: 需要匹配的所有关键字集合
-    pub fn new(patterns: Vec<String>) -> Self {
-        let ac = AhoCorasick::builder()
-            .match_kind(MatchKind::LeftmostFirst)
-            .build(&patterns)
-            .expect("Failed to build AhoCorasick");
-        
-        Self { patterns, ac }
-    }
-
-    /// 在给定的 OCR 结果列表上执行搜索
-    pub fn search<'a>(&self, results: &'a [OcrResult]) -> Vec<SearchHit<'a>> {
-        if results.is_empty() {
-            return Vec::new();
+impl VisionItem {
+    pub fn bounding_box(&self) -> &BoundingBox {
+        match self {
+            VisionItem::Ocr(r) => &r.bounding_box,
+            VisionItem::Det(r) => &r.bounding_box,
         }
+    }
+}
 
-        // 1. 构建大的文本缓冲区和索引映射
-        // mapping 存储 (缓冲区起始偏移量, OcrResult 索引)
+/// 视觉快照：包含脱敏/标记后的搜索缓冲区及元数据映射
+/// 每一帧图像处理后只需构建一次
+pub struct VisionSnapshot {
+    /// 搜索缓冲区：`__BG:YEL__ __FG:BLK__ 确认 \n ...`
+    pub buffer: String,
+    /// 字符偏移量到 VisionItem 索引的映射 (sorted by offset)
+    pub offset_map: Vec<(usize, usize)>,
+    /// 原始视觉项集合
+    pub items: Vec<VisionItem>,
+}
+
+impl VisionSnapshot {
+    pub fn new(
+        ocr_results: Vec<OcrResult>,
+        det_results: Vec<DetResult>,
+        image: Option<&DynamicImage>,
+    ) -> VisionResult<Self> {
         let mut buffer = String::new();
-        let mut mapping: Vec<(usize, usize)> = Vec::with_capacity(results.len());
+        let mut offset_map = Vec::new();
+        let mut items = Vec::new();
 
-        for (idx, res) in results.iter().enumerate() {
-            mapping.push((buffer.len(), idx));
-            buffer.push_str(&res.txt);
-            buffer.push('\n'); // 增加换行符，防止不同行的文字首尾拼接成莫名其妙的词
-        }
+        // 1. 合并并包装所有原始结果
+        for r in ocr_results { items.push(VisionItem::Ocr(r)); }
+        for r in det_results { items.push(VisionItem::Det(r)); }
 
-        // 2. 执行多模式匹配
-        let mut hits = Vec::new();
-        for mat in self.ac.find_iter(&buffer) {
-            let pattern = self.patterns[mat.pattern()].clone();
-            let start = mat.start();
-            let end = mat.end();
+        // 2. 构建缓冲区
+        for (idx, item) in items.iter().enumerate() {
+            let start_offset = buffer.len();
             
-            // 3. 将缓冲区坐标映射回 OcrResult
-            // 使用二分查找找到命中起始位置所在的 OcrResult 索引
-            let ocr_indices = self.map_range_to_ocr_indices(start, end, &mapping, results.len(), &buffer);
-            
-            let mut matched_ocr = Vec::new();
-            for idx in ocr_indices {
-                matched_ocr.push(&results[idx]);
+            // 写入颜色标记 (如果有图像)
+            if let Some(img) = image {
+                if let Ok((bg, fg)) = ColorAnalyzer::analyze_box(img, item.bounding_box()) {
+                    buffer.push_str(&format!("__BG:{}__ __FG:{}__ ", bg.as_str(), fg.as_str()));
+                }
             }
 
-            hits.push(SearchHit {
-                pattern,
-                start,
-                end,
-                ocr_results: matched_ocr,
-            });
+            // 写入内容标记
+            match item {
+                VisionItem::Ocr(r) => {
+                    buffer.push_str(&r.txt);
+                }
+                VisionItem::Det(r) => {
+                    // YOLO 物体使用特定 ID 标记：__OBJ:index__
+                    buffer.push_str(&format!("__OBJ:{}__", r.index));
+                }
+            }
+            
+            buffer.push('\n'); // 换行作为分隔符
+            offset_map.push((start_offset, idx));
         }
 
-        hits
+        Ok(Self { buffer, offset_map, items })
     }
 
-    /// 将缓冲区中的起始/结束偏移量映射到 OcrResult 的索引列表（跨行处理）
-    fn map_range_to_ocr_indices(
-        &self,
-        start: usize,
-        end: usize,
-        mapping: &[(usize, usize)],
-        total_ocr: usize,
-        _buffer: &str
-    ) -> Vec<usize> {
-        let mut indices = Vec::new();
-
-        // 找到第一个包含或位于 start 之后的 OCR 结果
-        let first_idx = mapping.binary_search_by_key(&start, |&(off, _)| off).unwrap_or_else(|idx| idx.saturating_sub(1));
-
-        for i in first_idx..total_ocr {
-            let (off, _) = mapping[i];
-            if off >= end {
-                break;
-            }
-            // 检查该 OCR 结果是否与 [start, end) 有交集
-            // 这里简化处理：只要该 OCR 结果的起始位置在 end 之前，且其后的起始位置在 start 之后（或者它是最后一个）
-            let next_off = mapping.get(i + 1).map(|m| m.0).unwrap_or(usize::MAX);
-            
-            if off < end && next_off > start {
-                indices.push(i);
-            }
-        }
-
-        indices
+    /// 根据字符偏移量查找关联的 VisionItem
+    pub fn find_item_at(&self, offset: usize) -> Option<&VisionItem> {
+        let idx = self.offset_map.binary_search_by(|(off, _)| off.cmp(&offset))
+            .unwrap_or_else(|x| if x > 0 { x - 1 } else { 0 });
+        
+        self.offset_map.get(idx).map(|(_, item_idx)| &self.items[*item_idx])
     }
 }
 
@@ -113,37 +92,125 @@ pub enum LogicOp {
     Not,
 }
 
+/// 搜索作用域
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SearchScope {
+    /// 全局匹配：只要画面中存在这些模式即可（不要求在同一个框内）
+    Global,
+    /// 元素匹配：要求所有子条件必须在同一个视觉元素（框）内满足
+    Item,
+}
+
 /// 逻辑规则定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum SearchRule {
-    Keyword(String),
+    /// 关键字包含
+    Keyword { 
+        #[serde(rename = "text")]
+        pattern: String 
+    },
+    /// 逻辑组
     Group {
         op: LogicOp,
+        scope: SearchScope,
         items: Vec<SearchRule>,
     },
 }
 
+/// 搜索命中结果
+#[derive(Debug, Clone)]
+pub struct SearchHit<'a> {
+    pub pattern: String,
+    pub offset: usize,
+    pub item: &'a VisionItem,
+}
+
+pub struct OcrSearcher {
+    automaton: AhoCorasick,
+    patterns: Vec<String>,
+}
+
+impl OcrSearcher {
+    pub fn new(rule: &SearchRule) -> Self {
+        let patterns = rule.get_all_keywords();
+        // 预定义一些内部标记 pattern (如果需要的话，目前都在 rule 里)
+        let automaton = AhoCorasick::new(&patterns).unwrap();
+        Self { automaton, patterns }
+    }
+
+    pub fn search<'a>(&self, snapshot: &'a VisionSnapshot) -> Vec<SearchHit<'a>> {
+        let mut hits = Vec::new();
+        for mat in self.automaton.find_iter(&snapshot.buffer) {
+            let offset = mat.start();
+            if let Some(item) = snapshot.find_item_at(offset) {
+                hits.push(SearchHit {
+                    pattern: self.patterns[mat.pattern().as_usize()].clone(),
+                    offset,
+                    item,
+                });
+            }
+        }
+        hits
+    }
+}
+
 impl SearchRule {
-    /// 判定命中结果是否满足规则
+    /// 判定判定结果集是否满足规则
+    /// hits: 搜索到的所有命中所涉及的 pattern
     pub fn evaluate(&self, hits: &[SearchHit]) -> bool {
         match self {
-            SearchRule::Keyword(k) => hits.iter().any(|h| &h.pattern == k),
-            SearchRule::Group { op, items } => match op {
-                LogicOp::And => items.iter().all(|r| r.evaluate(hits)),
-                LogicOp::Or => items.iter().any(|r| r.evaluate(hits)),
-                LogicOp::Not => {
-                    if items.len() != 1 {
-                        // NOT 通常只作用于一个子项
-                        false
-                    } else {
-                        !items[0].evaluate(hits)
+            SearchRule::Keyword { pattern } => hits.iter().any(|h| &h.pattern == pattern),
+            SearchRule::Group { op, scope, items } => {
+                match scope {
+                    SearchScope::Global => {
+                        // 全局模式：所有子项的 eval 仅基于 hits 全集
+                        match op {
+                            LogicOp::And => items.iter().all(|r| r.evaluate(hits)),
+                            LogicOp::Or => items.iter().any(|r| r.evaluate(hits)),
+                            LogicOp::Not => {
+                                if items.is_empty() { true }
+                                else { !items[0].evaluate(hits) }
+                            }
+                        }
+                    }
+                    SearchScope::Item => {
+                        // 元素模式：需要存在【至少一个视觉项】，其内部命中的模式集合满足逻辑
+                        use std::collections::HashMap;
+                        let mut item_hits: HashMap<usize, Vec<SearchHit>> = HashMap::new();
+                        for hit in hits {
+                            // 使用 VisionItem 的内存地址作为 key 来分组
+                            let key = hit.item as *const VisionItem as usize;
+                            item_hits.entry(key).or_default().push(hit.clone());
+                        }
+
+                        match op {
+                            LogicOp::And => {
+                                item_hits.values().any(|sub_hits| {
+                                    items.iter().all(|r| r.evaluate(sub_hits))
+                                })
+                            }
+                            LogicOp::Or => {
+                                // 对于 OR，只要整体命中了其中一个即可（等同于 Global）
+                                hits.iter().any(|h| {
+                                    items.iter().any(|r| {
+                                        if let SearchRule::Keyword { pattern } = r { h.pattern == *pattern }
+                                        else { r.evaluate(hits) }
+                                    })
+                                })
+                            }
+                            LogicOp::Not => {
+                                !item_hits.values().any(|sub_hits| {
+                                    items.iter().any(|r| r.evaluate(sub_hits))
+                                })
+                            }
+                        }
                     }
                 }
             },
         }
     }
 
-    /// 获取规则中涉及的所有关键字，用于初始化 OcrSearcher
     pub fn get_all_keywords(&self) -> Vec<String> {
         let mut keywords = Vec::new();
         self.collect_keywords(&mut keywords);
@@ -154,7 +221,7 @@ impl SearchRule {
 
     fn collect_keywords(&self, keywords: &mut Vec<String>) {
         match self {
-            SearchRule::Keyword(k) => keywords.push(k.clone()),
+            SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
             SearchRule::Group { items, .. } => {
                 for item in items {
                     item.collect_keywords(keywords);
@@ -169,55 +236,41 @@ mod tests {
     use super::*;
     use crate::domain::vision::result::BoundingBox;
 
-    fn mock_ocr(text: &str) -> OcrResult {
-        OcrResult {
-            id: 0,
-            pre_id: 0,
-            next_id: 0,
-            bounding_box: BoundingBox { x1: 0, y1: 0, x2: 0, y2: 0 },
-            txt: text.to_string(),
-            score: vec![],
-            index: vec![],
-            txt_char: vec![],
-        }
-    }
-
     #[test]
-    fn test_ocr_search() {
-        let results = vec![
-            mock_ocr("请点击确认"),
-            mock_ocr("有新提示"),
-            mock_ocr("取消操作"),
+    fn test_fusion_search() {
+        let ocr = vec![
+            OcrResult {
+                id: 1, pre_id: 0, next_id: 0,
+                bounding_box: BoundingBox::new(10, 10, 50, 30),
+                txt: "Confirm".to_string(),
+                score: vec![0.9], index: vec![0], txt_char: vec!["C".into()]
+            }
+        ];
+        let det = vec![
+            DetResult {
+                id: 1, pre_id: 0, next_id: 0,
+                bounding_box: BoundingBox::new(100, 100, 150, 150),
+                index: 5, // e.g. "button" label
+                label: "button".into(), score: 0.8
+            }
         ];
 
+        // 构建快照 (不带图像则不分析颜色)
+        let snapshot = VisionSnapshot::new(ocr, det, None).unwrap();
+        
+        // 规则：包含 "Confirm" 且包含 5号物体 (button)
         let rule = SearchRule::Group {
             op: LogicOp::And,
+            scope: SearchScope::Global,
             items: vec![
-                SearchRule::Keyword("确认".to_string()),
-                SearchRule::Keyword("提示".to_string()),
-            ],
+                SearchRule::Keyword { pattern: "Confirm".into() },
+                SearchRule::Keyword { pattern: "__OBJ:5__".into() },
+            ]
         };
 
-        let searcher = OcrSearcher::new(rule.get_all_keywords());
-        let hits = searcher.search(&results);
+        let searcher = OcrSearcher::new(&rule);
+        let hits = searcher.search(&snapshot);
         
         assert!(rule.evaluate(&hits));
-        
-        // 测试 OR
-        let rule_or = SearchRule::Group {
-            op: LogicOp::Or,
-            items: vec![
-                SearchRule::Keyword("不存在".to_string()),
-                SearchRule::Keyword("取消".to_string()),
-            ],
-        };
-        assert!(rule_or.evaluate(&hits));
-
-        // 测试 NOT
-        let rule_not = SearchRule::Group {
-            op: LogicOp::Not,
-            items: vec![SearchRule::Keyword("不存在".to_string())],
-        };
-        assert!(rule_not.evaluate(&hits));
     }
 }
