@@ -26,6 +26,8 @@ pub type GuardId = UuidV7;
 pub type PolicyId = UuidV7;
 pub type SubFlowId = UuidV7;
 
+pub type StepId = UuidV7;
+
 pub type MessageId = UuidV7;
 /// 统一的新类型：所有 ID 都用这个
 #[derive(

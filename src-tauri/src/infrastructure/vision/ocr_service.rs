@@ -33,8 +33,8 @@ impl OcrService {
                 yolo.load_labels().await?;
                 Arc::new(yolo)
             }
-            DetectorType::PaddleDbNet(dbNet) => {
-                Arc::new(dbNet)
+            DetectorType::PaddleDbNet(db_net) => {
+                Arc::new(db_net)
             }
         };
         self.detector = Some(detector);

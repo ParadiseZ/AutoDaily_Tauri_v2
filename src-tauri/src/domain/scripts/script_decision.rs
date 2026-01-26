@@ -1,7 +1,7 @@
+use crate::domain::scripts::action::click::Click;
 use crate::domain::scripts::point::Point;
-use crate::infrastructure::core::{
-    Deserialize, GuardId, PolicyId, ScriptId, Serialize, SubFlowId, TaskId,
-};
+use crate::domain::vision::ocr_search::SearchRule;
+use crate::infrastructure::core::{Deserialize, GuardId, PolicyId, ScriptId, Serialize, StepId, SubFlowId, TaskId};
 use crate::infrastructure::scripts::script_error::ScriptResult;
 
 // 逻辑组合
@@ -74,8 +74,25 @@ pub struct SubFlowDef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Step {
+    pub id: Option<StepId>,
+    pub source_id : Option<StepId>,
+    pub target_id: Option<StepId>,
+    pub label: Option<String>,
+
+    #[serde(default = false)]
+    pub skip_flag: bool,
+    #[serde(default)]
+    pub exec_cur: u32,
+    pub exec_max: u32,
+
+    #[serde(flatten)]
+    pub kind: StepKind,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op")]
-pub enum Step {
+pub enum StepKind {
     //Router { to: Option<Uuid> },
     Sequence {
         steps: Vec<Step>,
@@ -92,6 +109,8 @@ pub enum Step {
         cond: String,
         then_steps: Vec<Step>,
         else_steps: Option<Box<Step>>,
+        #[serde(default = 0)]
+        cur_pos: u16,
     },
     While {
         cond: String,
@@ -140,38 +159,8 @@ pub enum Step {
         query: String, // 查找内容 (文本 regex 或 模板名称)
         output_var: String, // 输出坐标/区域变量
     },
-    //操作
-    Click {
-        pos_idx: Option<u8>, // Deprecated?
-        target_var: Option<String>, // 从变量获取坐标 (x, y) 或 (x, y, w, h)
-        verify: Option<Vec<Step>>,
-    },
-    ClickLabelIdx {
-        label_idx: u32,
-        pos_idx: Option<u8>,
-        verify: Option<Vec<Step>>,
-    },
-    ClickLabel {
-        name: String,
-        pos_idx: Option<u8>,
-        verify: Option<Vec<Step>>,
-    },
-    ClickText {
-        text: String,
-        pos_idx: Option<u8>,
-        verify: Option<Vec<Step>>,
-    },
-    ClickPoint {
-        x: u32,
-        y: u32,
-        verify: Option<Vec<Step>>,
-    },
-    ClickPercent {
-        x: f32,
-        y: f32,
-        verify: Option<Vec<Step>>,
-    },
-    //安卓
+    ClickAction(Click),
+    // 安卓
     SwipeDet {
         from: LabelType,
         to: LabelType,
@@ -191,6 +180,22 @@ pub enum Step {
         from: PointPercent,
         to: PointPercent,
         verify: Option<Vec<Step>>,
+    },
+    // 索引管理
+    IncIndex {
+        id: String,
+        amount: Option<usize>,
+    },
+    ResetIndex {
+        id: Option<String>, // None 表示重置所有
+    },
+    IfAndClick {
+        #[serde(default = 0)]
+        cur_pos: u16,
+        cond: SearchRule,
+        click : StepKind::ClickAction,
+        then_steps: Vec<Step>,
+        else_steps: Option<Vec<Step>>,
     },
 }
 
