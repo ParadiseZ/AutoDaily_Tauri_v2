@@ -7,6 +7,7 @@ use std::pin::Pin;
 use std::future::Future;
 use crate::domain::scripts::action::click::Click;
 use crate::infrastructure::adb_cli_local::adb_executor::ADBExecutor;
+use crate::infrastructure::core::StepId;
 
 #[derive(Debug)]
 pub enum ControlFlow {
@@ -22,8 +23,8 @@ pub struct ScriptExecutor {
     ocr_service: crate::infrastructure::vision::ocr_service::OcrService,
     current_image: Option<image::DynamicImage>,
     last_snapshot: Option<crate::domain::vision::ocr_search::VisionSnapshot>,
-    node_indices: crate::infrastructure::core::HashMap<String, usize>,
-    adb_executor: crate::infrastructure::adb_cli_local::adb_executor,
+    node_indices: crate::infrastructure::core::HashMap<StepId, usize>,
+    adb_executor: ADBExecutor,
 }
 
 impl ScriptExecutor {
@@ -51,15 +52,15 @@ impl ScriptExecutor {
         self.node_indices.clear();
     }
 
-    pub fn get_node_index(&self, id: &str) -> usize {
+    pub fn get_node_index(&self, id: &StepId) -> usize {
         self.node_indices.get(id).cloned().unwrap_or(0)
     }
 
-    pub fn set_node_index(&mut self, id: &str, val: usize) {
-        self.node_indices.insert(id.to_string(), val);
+    pub fn set_node_index(&mut self, id: &StepId, val: usize) {
+        self.node_indices.insert(id.clone(), val);
     }
 
-    pub fn inc_node_index(&mut self, id: &str, amount: usize) {
+    pub fn inc_node_index(&mut self, id: &StepId, amount: usize) {
         let current = self.get_node_index(id);
         self.set_node_index(id, current + amount);
     }
@@ -215,12 +216,12 @@ impl ScriptExecutor {
                 }
                 StepKind::ClickAction(click) => {
                      // TODO: Click
-                    match click {
+                    /*match click {
                         Click::Label{
                             label,
                             label_idx,
-                            off,
-                            off_add} => {
+                            ..
+                        } => {
                             // 获取坐标
                             if let Some(coords) = self.scope.get_value::<String>(target_var) {
                                 let coords: Vec<&str> = coords.split(',').collect();
@@ -231,7 +232,7 @@ impl ScriptExecutor {
                             }
                         },
                         _ => {}
-                    }
+                    }*/
                 }
                 StepKind::VisionSearch { rule, output_var } => {
                     // 1. 获取当前快照 (如果过期则重建)
@@ -294,11 +295,11 @@ impl ScriptExecutor {
             }
             
             // 自动迭代逻辑
-            if step.iterate {
+            /*if step.iterate {
                 if let Some(id) = &step.id {
                     self.inc_node_index(id, 1);
                 }
-            }
+            }*/
 
             Ok(ControlFlow::Next)
         })

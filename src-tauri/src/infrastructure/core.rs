@@ -24,6 +24,8 @@ pub type UserId = UuidV7; // UUID v7
 pub type TaskId = UuidV7;
 pub type GuardId = UuidV7;
 pub type PolicyId = UuidV7;
+pub type PolicyGroupId = UuidV7;
+pub type PolicySetId = UuidV7;
 pub type SubFlowId = UuidV7;
 
 pub type StepId = UuidV7;

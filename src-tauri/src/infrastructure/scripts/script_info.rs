@@ -1,4 +1,3 @@
-use crate::domain::scripts::script_decision::Step;
 use crate::infrastructure::core::{Deserialize, DeviceId, HashMap, ScriptId, Serialize};
 use crate::infrastructure::scripts::script_info_model::ScriptMeta;
 
@@ -12,13 +11,13 @@ pub struct ScriptInfo {
     pub script_args: HashMap<String, String>,
 
     // 设置的策略
-    pub decision: Vec<Step>,
+/*    pub decision: Vec<Step>,
     pub back_decision: Vec<Step>,
     pub global_decision: Vec<Step>, //设置的任务信息
 
                                     //设置的设置模板
 
-                                    //设置的账号信息
+                                    //设置的账号信息*/
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]

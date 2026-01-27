@@ -1,28 +1,16 @@
 use crate::domain::scripts::point::Point;
-use crate::infrastructure::core::StepId;
+use crate::infrastructure::core::{Deserialize, Serialize};
 
 /// 点击操作枚举
 ///
-#[derive(Clone, Debug)]
-pub enum Click {
+#[derive(Debug,Clone,Serialize, Deserialize)]
+pub enum Click{
     Percent {
         x:f32,
         y:f32
     },
     Point(Point<u16>),
-    Label{
-        label: String,
-        source_var:  String,
-        pos_source: StepId
-    },
-    Txt{
-        txt:String,
-        source:  String,
-        pos_source: StepId
-    },
+    Label(Vec<u16>),
+    Txt(Vec<String>),
     Var(String)
-}
-
-pub struct StepInfo{
-    pub id : StepId,
 }

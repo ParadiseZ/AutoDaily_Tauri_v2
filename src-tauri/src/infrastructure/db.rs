@@ -58,11 +58,74 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
             `data` JSON NOT NULL
         )",
     )
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
 
-    // 创建通用配置表，用于存储其他类型的结构体
+    // 3. 策略 (Policies)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS policies (
+            id TEXT PRIMARY KEY,
+            order_index INTEGER NOT NULL,
+            `data` JSON NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 4. 策略组 (Policy Groups)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS policy_groups (
+            id TEXT PRIMARY KEY,
+            order_index INTEGER NOT NULL,
+            `data` JSON NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 5. 策略集合 (Policy Sets)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS policy_sets (
+            id TEXT PRIMARY KEY,
+            `data` JSON NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 6. 关联表: 组与策略 (Many-to-Many)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS group_policies (
+            group_id TEXT NOT NULL,
+            policy_id TEXT NOT NULL,
+            order_index INTEGER NOT NULL,
+            PRIMARY KEY (group_id, policy_id),
+            FOREIGN KEY (group_id) REFERENCES policy_groups(id) ON DELETE CASCADE,
+            FOREIGN KEY (policy_id) REFERENCES policies(id) ON DELETE CASCADE
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 7. 关联表: 集合与组 (Many-to-Many)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS set_groups (
+            set_id TEXT NOT NULL,
+            group_id TEXT NOT NULL,
+            order_index INTEGER NOT NULL,
+            PRIMARY KEY (set_id, group_id),
+            FOREIGN KEY (set_id) REFERENCES policy_sets(id) ON DELETE CASCADE,
+            FOREIGN KEY (group_id) REFERENCES policy_groups(id) ON DELETE CASCADE
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }

@@ -66,21 +66,21 @@ pub struct PolicyDef {
 }
 
 // 可复用子流程（小型图/序列），供 ActionRef::SubFlow 复用
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SubFlowDef {
     pub id: SubFlowId,
     pub name: String,
     pub steps: Vec<Step>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Step {
     pub id: Option<StepId>,
     pub source_id : Option<StepId>,
     pub target_id: Option<StepId>,
     pub label: Option<String>,
 
-    #[serde(default = false)]
+    #[serde(default)]
     pub skip_flag: bool,
     #[serde(default)]
     pub exec_cur: u32,
@@ -90,7 +90,7 @@ pub struct Step {
     pub kind: StepKind,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "op")]
 pub enum StepKind {
     //Router { to: Option<Uuid> },
@@ -109,8 +109,6 @@ pub enum StepKind {
         cond: String,
         then_steps: Vec<Step>,
         else_steps: Option<Box<Step>>,
-        #[serde(default = 0)]
-        cur_pos: u16,
     },
     While {
         cond: String,
@@ -183,17 +181,17 @@ pub enum StepKind {
     },
     // 索引管理
     IncIndex {
-        id: String,
+        id: StepId,
         amount: Option<usize>,
     },
     ResetIndex {
-        id: Option<String>, // None 表示重置所有
+        id: Option<StepId>, // None 表示重置所有
     },
     IfAndClick {
-        #[serde(default = 0)]
+        #[serde(default)]
         cur_pos: u16,
         cond: SearchRule,
-        click : StepKind::ClickAction,
+        click : Click,
         then_steps: Vec<Step>,
         else_steps: Option<Vec<Step>>,
     },
