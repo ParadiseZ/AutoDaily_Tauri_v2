@@ -317,19 +317,7 @@
               </button>
             </div>
 
-            <!-- Bottom Panel (Console) -->
-            <div class="h-40 border-t border-base-300 flex flex-col bg-neutral text-neutral-content z-10 shrink-0">
-              <div class="p-1 px-4 text-xs font-bold bg-neutral-focus flex justify-between items-center h-8">
-                <span>Console Output</span>
-                <button class="btn btn-xs btn-ghost text-xs" @click="clearConsole">Clear</button>
-              </div>
-              <div ref="consoleRef" class="flex-1 p-2 font-mono text-xs overflow-y-auto">
-                <div v-for="(log, idx) in consoleLogs" :key="idx" :class="logClass(log.level)">
-                  [{{ log.time }}] {{ log.message }}
-                </div>
-                <div v-if="consoleLogs.length === 0" class="opacity-50">No logs yet...</div>
-              </div>
-            </div>
+            <!-- Console moved to parent level -->
           </div>
 
           <!-- 4. Right Panel (Properties) -->
@@ -341,8 +329,44 @@
         </div>
 
         <!-- TAB: POLICY MANAGEMENT (Shared for Set, Group, Policy) -->
-        <div v-if="activeNavTab !== 'task'" class="flex-1 flex flex-col bg-base-100">
-          <PolicyManager :active-tab="activeNavTab" />
+        <div v-if="activeNavTab !== 'task'" class="flex-1 flex flex-col bg-base-100 overflow-hidden">
+          <PolicyManager :active-tab="activeNavTab" :script-id="scriptId" />
+        </div>
+      </div>
+
+      <!-- 5. Global Resizable Console -->
+      <div
+        class="border-t border-base-300 flex flex-col bg-neutral text-neutral-content z-10 shrink-0 relative"
+        :style="{ height: `${consoleHeight}px` }"
+      >
+        <!-- Resize Handle -->
+        <div
+          class="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-primary/50 transition-colors z-20"
+          @mousedown="startResize"
+        ></div>
+
+        <div class="p-1 px-4 text-xs font-bold bg-neutral-focus flex justify-between items-center h-8 shrink-0">
+          <span class="flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M4 17l6-6-6-6M12 19h8" />
+            </svg>
+            Console Output
+          </span>
+          <button class="btn btn-xs btn-ghost text-xs" @click="clearConsole">Clear</button>
+        </div>
+        <div ref="consoleRef" class="flex-1 p-2 font-mono text-xs overflow-y-auto">
+          <div v-for="(log, idx) in consoleLogs" :key="idx" :class="logClass(log.level)">
+            [{{ log.time }}] {{ log.message }}
+          </div>
+          <div v-if="consoleLogs.length === 0" class="opacity-50 text-center py-4">No logs yet...</div>
         </div>
       </div>
 
@@ -437,7 +461,33 @@ const activeNavTab = ref('task');
 
 // 脚本信息 (实际应用中应从 props 或后端加载)
 const scriptName = ref('崩坏三');
-const scriptId = ref(1);
+const scriptId = ref('1'); // Use string ID consistent with backend
+
+// Console Resizing
+const consoleHeight = ref(160);
+const isResizing = ref(false);
+
+const startResize = (e) => {
+  isResizing.value = true;
+  document.addEventListener('mousemove', onResize);
+  document.addEventListener('mouseup', stopResize);
+  document.body.style.cursor = 'ns-resize';
+};
+
+const onResize = (e) => {
+  if (!isResizing.value) return;
+  const newHeight = window.innerHeight - e.clientY;
+  if (newHeight > 60 && newHeight < window.innerHeight * 0.7) {
+    consoleHeight.value = newHeight;
+  }
+};
+
+const stopResize = () => {
+  isResizing.value = false;
+  document.removeEventListener('mousemove', onResize);
+  document.removeEventListener('mouseup', stopResize);
+  document.body.style.cursor = 'default';
+};
 
 // ============================================
 // Composables 初始化

@@ -1,20 +1,43 @@
 use crate::constant::table_name::{POLICY_GROUP_TABLE, POLICY_SET_TABLE, POLICY_TABLE};
-use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId};
+use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, ScriptId};
 use crate::infrastructure::db::{DbRepo, get_pool};
 use tauri::command;
 use crate::domain::scripts::policy::{PolicyTable, PolicyGroupTable, PolicySetTable, GroupPolicyRelation, SetGroupRelation};
 use sqlx::types::Json;
-
+use sqlx::{FromRow, Row, SqlitePool};
+use sqlx::sqlite::SqliteQueryResult;
 // --- Policy Commands ---
 
 #[command]
-pub async fn get_all_policies_cmd() -> Result<Vec<PolicyTable>, String> {
-    DbRepo::get_all::<PolicyTable>(POLICY_TABLE).await
+pub async fn get_all_policies_cmd(script_id: ScriptId) -> Result<Vec<PolicyTable>, String> {
+    let pool = get_pool();
+    let query = format!("SELECT id, script_id, order_index, `data` FROM {} WHERE script_id = ? order by order_index", POLICY_TABLE);
+    let rows: Vec<PolicyTable> = sqlx::query_as(&query)
+        .bind(script_id.to_string())
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
 }
 
 #[command]
 pub async fn save_policy_cmd(policy: PolicyTable) -> Result<(), String> {
-    DbRepo::upsert_id_data(POLICY_TABLE, &policy.id.to_string(), &policy.data).await
+    let pool = get_pool();
+    let query = format!(
+        "INSERT INTO {} (id, script_id, order_index, `data`) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET script_id = excluded.script_id,order_index = excluded.order_index, `data` = excluded.`data`",
+        POLICY_TABLE
+    );
+    
+    sqlx::query(&query)
+        .bind(policy.id.to_string())
+        .bind(policy.script_id.to_string())
+        .bind(policy.order_index)
+        .bind(policy.data)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[command]
@@ -25,13 +48,35 @@ pub async fn delete_policy_cmd(id: PolicyId) -> Result<(), String> {
 // --- Policy Group Commands ---
 
 #[command]
-pub async fn get_all_policy_groups_cmd() -> Result<Vec<PolicyGroupTable>, String> {
-    DbRepo::get_all::<PolicyGroupTable>(POLICY_GROUP_TABLE).await
+pub async fn get_all_policy_groups_cmd(script_id: ScriptId) -> Result<Vec<PolicyGroupTable>, String> {
+    let pool = get_pool();
+    let query = format!("SELECT id, script_id, order_index, `data` FROM {} WHERE script_id = ? order by order_index", POLICY_GROUP_TABLE);
+    let rows: Vec<PolicyGroupTable> = sqlx::query_as(&query)
+        .bind(script_id.to_string())
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
 }
 
 #[command]
 pub async fn save_policy_group_cmd(group: PolicyGroupTable) -> Result<(), String> {
-    DbRepo::upsert_id_data(POLICY_GROUP_TABLE, &group.id.to_string(), &group.data).await
+    let pool = get_pool();
+    let query = format!(
+        "INSERT INTO {} (id, script_id,order_index, `data`) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET script_id = excluded.script_id, order_index = excluded.order_index,`data` = excluded.`data`",
+        POLICY_GROUP_TABLE
+    );
+    
+    sqlx::query(&query)
+        .bind(group.id.to_string())
+        .bind(group.script_id.to_string())
+        .bind(group.order_index)
+        .bind(group.data)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[command]
@@ -81,13 +126,35 @@ pub async fn update_group_policies_cmd(group_id: PolicyGroupId, policy_ids: Vec<
 // --- Policy Set Commands ---
 
 #[command]
-pub async fn get_all_policy_sets_cmd() -> Result<Vec<PolicySetTable>, String> {
-    DbRepo::get_all::<PolicySetTable>(POLICY_SET_TABLE).await
+pub async fn get_all_policy_sets_cmd(script_id: ScriptId) -> Result<Vec<PolicySetTable>, String> {
+    let pool = get_pool();
+    let query = format!("SELECT id, script_id, order_index, `data` FROM {} WHERE script_id = ? order by order_index", POLICY_SET_TABLE);
+    let rows: Vec<PolicySetTable> = sqlx::query_as(&query)
+        .bind(script_id.to_string())
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(rows)
 }
 
 #[command]
 pub async fn save_policy_set_cmd(set: PolicySetTable) -> Result<(), String> {
-    DbRepo::upsert_id_data(POLICY_SET_TABLE, &set.id.to_string(), &set.data).await
+    let pool = get_pool();
+    let query = format!(
+        "INSERT INTO {} (id, script_id, order_index, `data`) VALUES (?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET script_id = excluded.script_id,order_index = excluded.order_index, `data` = excluded.`data`",
+        POLICY_SET_TABLE
+    );
+    
+    sqlx::query(&query)
+        .bind(set.id.to_string())
+        .bind(set.script_id.to_string())
+        .bind(set.order_index)
+        .bind(set.data)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[command]

@@ -6,11 +6,11 @@ rustc-wrapper = "D:\\Database\\Rust\\cargo\\bin\\sccache.exe"
 # 开发模式优化配置
 [profile.dev]
 incremental = true        # 增量编译（默认启用）
-opt-level = 1             # 轻量优化，显著减少编译时间
-lto = false               # 禁用链接时优化
+opt-level = 3           # 轻量优化，显著减少编译时间
+lto = "thin"               # 禁用链接时优化
 codegen-units = 16       # 最大化并行编译
-strip = "none"            # 保留调试符号
-panic = "unwind"          # 标准 panic 处理
+strip = "none"            # 移除调试符号
+panic = "abort"          # panic 处理
 #codegen-backend = "cranelift"       # 已禁用：与 FFI 包（如 aws-lc-rs）不兼容
 
 # sqlx-macros 编译优化（宏展开优化）

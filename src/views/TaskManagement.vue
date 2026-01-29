@@ -179,7 +179,7 @@ const runAll = () => {
 const openEditor = async () => {
   const webview = new WebviewWindow('script-editor', {
     url: '/editor',
-    title: 'Script Editor - AutoDaily',
+    title: '逻辑编辑',
     width: 1400,
     height: 900,
     center: true,

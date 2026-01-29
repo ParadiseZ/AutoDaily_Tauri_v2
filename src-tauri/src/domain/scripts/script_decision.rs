@@ -73,7 +73,7 @@ pub struct SubFlowDef {
     pub steps: Vec<Step>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize,Clone)]
 pub struct Step {
     pub id: Option<StepId>,
     pub source_id : Option<StepId>,
@@ -90,7 +90,7 @@ pub struct Step {
     pub kind: StepKind,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize,Clone)]
 #[serde(tag = "op")]
 pub enum StepKind {
     //Router { to: Option<Uuid> },

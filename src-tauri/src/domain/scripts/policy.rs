@@ -1,11 +1,16 @@
-use crate::infrastructure::core::{Deserialize, PolicyId, PolicyGroupId, PolicySetId, Serialize};
+use crate::infrastructure::core::{Deserialize, PolicyId, PolicyGroupId, PolicySetId, ScriptId, Serialize};
 use sqlx::types::Json;
 use sqlx::FromRow;
+use crate::domain::scripts::action::click::Click;
+use crate::domain::scripts::script_decision::Step;
+use crate::domain::vision::ocr_search::SearchRule;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyTable {
     pub id: PolicyId,
+    pub script_id: ScriptId,
+    pub order_index: i32,
     pub data: Json<PolicyInfo>,
 }
 
@@ -13,14 +18,24 @@ pub struct PolicyTable {
 #[serde(rename_all = "camelCase")]
 pub struct PolicyInfo {
     pub name: String,
-    pub note: String,
-    pub conditions: Vec<String>, // Placeholder for actual condition structure
+    pub log_print: Option<String>,
+
+    pub cur_pos: u16,
+
+    pub skip_flag : bool,
+    pub exec_cur: u16,
+    pub exec_max: u16,
+
+    pub cond: SearchRule,
+    pub action: Vec<Step>,
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyGroupTable {
     pub id: PolicyGroupId,
+    pub script_id: ScriptId,
+    pub order_index: i32,
     pub data: Json<PolicyGroupInfo>,
 }
 
@@ -35,6 +50,8 @@ pub struct PolicyGroupInfo {
 #[serde(rename_all = "camelCase")]
 pub struct PolicySetTable {
     pub id: PolicySetId,
+    pub script_id: ScriptId,
+    pub order_index: i32,
     pub data: Json<PolicySetInfo>,
 }
 

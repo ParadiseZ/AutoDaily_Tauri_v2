@@ -20,7 +20,8 @@ pub async fn init_db_with_path(db_dir: &PathBuf) -> Result<(), String> {
         .map_err(|e| e.to_string())?
         .create_if_missing(true)
         .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal) // 开启 WAL
-        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal);
+        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
+        .pragma("foreign_keys", "ON"); // 开启外键支持
 
     let pool = SqlitePool::connect_with(connect_options)
         .await
@@ -66,8 +67,10 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS policies (
             id TEXT PRIMARY KEY,
+            script_id TEXT NOT NULL,
             order_index INTEGER NOT NULL,
-            `data` JSON NOT NULL
+            `data` JSON NOT NULL,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
         )",
     )
     .execute(pool)
@@ -78,8 +81,10 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS policy_groups (
             id TEXT PRIMARY KEY,
+            script_id TEXT NOT NULL,
             order_index INTEGER NOT NULL,
-            `data` JSON NOT NULL
+            `data` JSON NOT NULL,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
         )",
     )
     .execute(pool)
@@ -90,7 +95,10 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS policy_sets (
             id TEXT PRIMARY KEY,
-            `data` JSON NOT NULL
+            script_id TEXT NOT NULL,
+            order_index INTEGER NOT NULL,
+            `data` JSON NOT NULL,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
         )",
     )
     .execute(pool)
