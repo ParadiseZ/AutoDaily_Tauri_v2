@@ -454,20 +454,24 @@ import { useDevices } from '../assets/js/useDevices.js';
 // ============================================
 // 核心状态
 // ============================================
+import { invoke } from '@tauri-apps/api/core';
+
 const vueFlowRef = ref(null);
 const showMiniMap = ref(false);
 const activeTab = ref('tasks');
 const activeNavTab = ref('task');
 
-// 脚本信息 (实际应用中应从 props 或后端加载)
-const scriptName = ref('崩坏三');
-const scriptId = ref('1'); // Use string ID consistent with backend
+// 从 URL 解析脚本 ID
+const params = new URLSearchParams(window.location.search);
+const scriptId = ref(params.get('id') || '');
+const scriptName = ref('加载中...');
+const scriptInfo = ref(null);
 
 // Console Resizing
 const consoleHeight = ref(160);
 const isResizing = ref(false);
 
-const startResize = (e) => {
+const startResize = (_) => {
   isResizing.value = true;
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', stopResize);
@@ -555,22 +559,86 @@ const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
 });
 
 // ============================================
-// 保存
+// 保存与加载
 // ============================================
-const saveScript = () => {
+const loadScriptData = async () => {
+  if (!scriptId.value) return;
+
+  try {
+    const table = await invoke('get_script_by_id_cmd', { scriptId: scriptId.value });
+    if (table) {
+      scriptInfo.value = table.data;
+      scriptName.value = table.data.name;
+      addLog(`加载脚本成功: ${scriptName.value}`, LOG_LEVELS.INFO);
+
+      // 加载任务
+      const tasks = await invoke('get_script_tasks_cmd', { scriptId: scriptId.value });
+      if (tasks && tasks.length > 0) {
+        taskList.value = tasks.map((t) => ({
+          id: t.id,
+          name: t.name,
+          hidden: t.isHidden,
+          nodes: t.nodes,
+          edges: t.edges,
+          uiData: t.data?.uiData || {},
+          variables: t.data?.variables || {},
+        }));
+
+        if (taskList.value.length > 0) {
+          selectTask(taskList.value[0]);
+        }
+      } else {
+        // 如果没有任务，创建一个初始任务
+        taskList.value = [];
+        createNewTask();
+      }
+    }
+  } catch (e) {
+    addLog(`加载脚本失败: ${e}`, LOG_LEVELS.ERROR);
+  }
+};
+
+const saveScript = async () => {
   if (currentTask.value) {
     currentTask.value.nodes = [...nodes.value];
     currentTask.value.edges = [...edges.value];
   }
 
-  const scriptData = {
-    id: scriptId.value,
-    name: scriptName.value,
-    tasks: taskList.value,
-  };
+  try {
+    // 1. 保存元数据 (如果需要更新)
+    if (scriptInfo.value) {
+      scriptInfo.value.updateTime = new Date().toISOString();
+      await invoke('save_script_cmd', {
+        script: {
+          id: scriptId.value,
+          data: scriptInfo.value,
+        },
+      });
+    }
 
-  addLog('保存脚本成功', LOG_LEVELS.SUCCESS);
-  // TODO: Call backend API to save
+    // 2. 保存任务逻辑
+    const tasksToSave = taskList.value.map((t) => ({
+      id: t.id,
+      scriptId: scriptId.value,
+      name: t.name,
+      isHidden: t.hidden,
+      nodes: t.nodes,
+      edges: t.edges,
+      data: {
+        uiData: t.uiData || {},
+        variables: t.variables || {},
+      },
+    }));
+
+    await invoke('save_script_tasks_cmd', {
+      scriptId: scriptId.value,
+      tasks: tasksToSave,
+    });
+
+    addLog('保存成功!', LOG_LEVELS.SUCCESS);
+  } catch (e) {
+    addLog(`保存失败: ${e}`, LOG_LEVELS.ERROR);
+  }
 };
 
 // ============================================
@@ -599,11 +667,9 @@ const handleKeyDown = (event) => {
 // 生命周期
 // ============================================
 onMounted(async () => {
-  initTheme(editorThemeKey);
+  await initTheme(editorThemeKey);
   await loadDevices();
-  if (taskList.value.length > 0) {
-    selectTask(taskList.value[0]);
-  }
+  await loadScriptData();
   window.addEventListener('keydown', handleKeyDown);
 });
 

@@ -131,7 +131,7 @@ const loading = ref(false);
 const title = computed(() => {
   switch (props.activeTab) {
     case 'policy_set':
-      return '策略集合';
+      return '策略集';
     case 'policy_group':
       return '策略组';
     case 'policy':

@@ -46,4 +46,5 @@ pub mod table_name{
 
     pub const GROUP_POLICIES:&str =  "group_policies";
     pub const SET_GROUPS:&str =  "set_groups";
+    pub const SCRIPT_TASK_TABLE: &str = "script_tasks";
 }

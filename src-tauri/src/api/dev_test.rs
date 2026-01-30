@@ -2,18 +2,15 @@ use crate::app::dev_test::{paddle_ocr_infer, yolo_infer_test};
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
+use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
-use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
+use crate::infrastructure::image::load_image::dynamic_image_to_base64;
 use crate::infrastructure::image::save_image::save_screenshot;
-use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::rec::RecognizerType;
-use base64::engine::general_purpose;
-use base64::Engine;
 use image::DynamicImage;
-use std::io::Cursor;
 use std::sync::{Arc, RwLock};
 use tauri::command;
 
@@ -35,22 +32,7 @@ pub async fn dev_capture_test(
     }
     match device_ctx.get_screenshot().await {
         Some(image_data) => {
-            let mut cursor = Cursor::new(Vec::new());
-            match DynamicImage::ImageRgba8(image_data)
-                .write_to(&mut cursor, image::ImageFormat::Png)
-            {
-                Ok(_) => {
-                    let buffer = cursor.into_inner();
-                    let base64_string = general_purpose::STANDARD.encode(&buffer);
-                    let msg = format!("转换base64编码截图成功：{}KB", base64_string.len() / 1024);
-                    Log::info(&msg);
-                    Ok(base64_string)
-                }
-                Err(e) => {
-                    Log::error(&format!("图像转换为base64失败: {:?}", e));
-                    Err("base64编码失败！".to_string())
-                }
-            }
+            Ok(dynamic_image_to_base64(&DynamicImage::ImageRgba8(image_data))?)
         }
         _ => Err("截图失败！".to_string()),
     }

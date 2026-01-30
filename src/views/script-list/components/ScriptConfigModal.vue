@@ -109,17 +109,22 @@ const formState = reactive({
 
   // Text Recognition
   txtRecType: 'PaddleCrnn5',
-  txtRecSource: 'BuiltIn', // Default to BuiltIn for CRNN as it's common
+  txtRecSource: 'BuiltIn',
   crnnParams: {
-    // Base Model Params
     modelPath: '',
     executionProvider: executionProviders[0],
     inputWidth: crnnDefaultParams.inputWidth,
     inputHeight: crnnDefaultParams.inputHeight,
-
-    // CRNN Specific
     dictPath: '',
   },
+
+  // Metadata
+  verName: 'v1.0.0',
+  verNum: 1,
+  latestVer: 1,
+  sponsorshipQr: '',
+  sponsorshipUrl: '',
+  contactInfo: '',
 });
 
 const handleSave = () => {
@@ -139,16 +144,21 @@ const handleSave = () => {
     description: formState.description || null,
     pkgName: formState.pkgName || null,
     scriptType: existingScript?.scriptType || 'dev',
-    verName: existingScript?.verName || 'v1.0.0',
-    verNum: existingScript?.verNum || 1,
-    latestVer: existingScript?.latestVer || 1,
+    // Metadata
+    verName: formState.verName,
+    verNum: formState.verNum,
+    latestVer: formState.latestVer,
+    sponsorshipQr: formState.sponsorshipQr || null,
+    sponsorshipUrl: formState.sponsorshipUrl || null,
+    contactInfo: formState.contactInfo || null,
+
+    // Preserve other fields
     downloadCount: existingScript?.downloadCount || 0,
     isValid: existingScript?.isValid ?? true,
     createTime: existingScript?.createTime || new Date().toISOString(),
-    updateTime: new Date().toISOString(), // Always update this
+    updateTime: new Date().toISOString(),
     userName: existingScript?.userName || 'Local User',
-    cloudId: existingScript?.cloudId || null, // 云端关联 ID
-    // Preserve tasks and templates when editing
+    cloudId: existingScript?.cloudId || null,
     tasks: existingScript?.tasks || [],
     templates: existingScript?.templates || [],
   };
@@ -276,6 +286,21 @@ const handleSelectFile = async (type = 'model') => {
   return null;
 };
 
+const handleSelectImage = async () => {
+  try {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+    });
+    if (selected) {
+      return selected;
+    }
+  } catch (e) {
+    console.error('Image selection failed', e);
+  }
+  return null;
+};
+
 const resetForm = () => {
   formState.name = '';
   formState.description = '';
@@ -325,6 +350,14 @@ const resetForm = () => {
   formState.crnnParams.inputWidth = crnnDefaultParams.inputWidth;
   formState.crnnParams.inputHeight = crnnDefaultParams.inputHeight;
   formState.crnnParams.dictPath = '';
+
+  // Metadata Reset
+  formState.verName = 'v1.0.0';
+  formState.verNum = 1;
+  formState.latestVer = 1;
+  formState.sponsorshipQr = '';
+  formState.sponsorshipUrl = '';
+  formState.contactInfo = '';
 };
 
 // Populate form from editing script
@@ -395,9 +428,16 @@ const populateFormFromScript = (script) => {
     formState.crnnParams.inputHeight = crnn.base_model?.input_height || crnnDefaultParams.inputHeight;
     formState.crnnParams.dictPath = crnn.dict_path || '';
   } else {
-    formState.txtRecType = ModelAlgorithm.None;
     formState.txtRecSource = ModelSource.BuiltIn;
   }
+
+  // Metadata
+  formState.verName = script.verName || 'v1.0.0';
+  formState.verNum = script.verNum || 1;
+  formState.latestVer = script.latestVer || 1;
+  formState.sponsorshipQr = script.sponsorshipQr || '';
+  formState.sponsorshipUrl = script.sponsorshipUrl || '';
+  formState.contactInfo = script.contactInfo || '';
 
   activeTab.value = 'basic';
 };
@@ -494,9 +534,84 @@ watch(
               />
             </div>
             <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
-              <label class="label"><span class="label-text font-bold">描述</span></label
-              ><br />
-              <textarea v-model="formState.description" class="textarea textarea-bordered h-10"></textarea>
+              <label class="label"><span class="label-text font-bold">描述</span></label>
+              <textarea v-model="formState.description" class="textarea textarea-bordered h-20"></textarea>
+            </div>
+
+            <div class="divider my-4 opacity-50 text-[10px]">版本与联系方式</div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+                <label class="label"><span class="label-text font-bold">版本名称</span></label>
+                <input
+                  type="text"
+                  v-model="formState.verName"
+                  placeholder="v1.0.0"
+                  class="input input-bordered w-full"
+                />
+              </div>
+              <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+                <label class="label">
+                  <span class="label-text font-bold">本地版本号</span>
+                  <span class="label-text-alt text-info" v-if="formState.verNum < formState.latestVer">
+                    云端最新: {{ formState.latestVer }}
+                  </span>
+                </label>
+                <input type="number" v-model.number="formState.verNum" class="input input-bordered w-full" />
+              </div>
+            </div>
+
+            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+              <label class="label"><span class="label-text font-bold">联系方式</span></label>
+              <input
+                type="text"
+                v-model="formState.contactInfo"
+                placeholder="QQ/WeChat/Email"
+                class="input input-bordered w-full"
+              />
+            </div>
+
+            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+              <label class="label"><span class="label-text font-bold">赞助链接 (URL)</span></label>
+              <input
+                type="text"
+                v-model="formState.sponsorshipUrl"
+                placeholder="https://..."
+                class="input input-bordered w-full"
+              />
+            </div>
+
+            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+              <label class="label"><span class="label-text font-bold">赞助二维码 (图片路径/Base64)</span></label>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  v-model="formState.sponsorshipQr"
+                  class="input input-bordered grow"
+                  placeholder="选择或转换图片..."
+                />
+                <button
+                  @click="
+                    async () => {
+                      const p = await handleSelectImage();
+                      if (p) formState.sponsorshipQr = p;
+                    }
+                  "
+                  class="btn btn-square btn-ghost border border-base-content/20"
+                >
+                  ...
+                </button>
+              </div>
+              <div v-if="formState.sponsorshipQr" class="mt-2 flex justify-center bg-base-300 p-2 rounded-lg">
+                <img
+                  :src="
+                    formState.sponsorshipQr.startsWith('data:')
+                      ? formState.sponsorshipQr
+                      : `file://${formState.sponsorshipQr}`
+                  "
+                  class="max-h-32 object-contain"
+                />
+              </div>
             </div>
           </div>
 

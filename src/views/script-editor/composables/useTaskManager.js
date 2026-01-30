@@ -23,33 +23,7 @@ export function useTaskManager(options = {}) {
     const { nodes, edges, addLog = () => { } } = options;
 
     // 任务列表
-    const taskList = ref([
-        {
-            id: 1,
-            name: 'Login',
-            hidden: false,
-            nodes: [
-                { id: '1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-                { id: '2', type: 'custom', label: 'Find Login', position: { x: 200, y: 150 }, data: { type: 'if', target: 'login_btn.png' } },
-                { id: '3', type: 'custom', label: 'Click Login', position: { x: 200, y: 250 }, data: { type: 'click' } },
-                { id: '4', type: 'custom', label: 'End', position: { x: 200, y: 350 }, data: { type: 'end' } },
-            ],
-            edges: [
-                { id: 'e1-2', source: '1', target: '2', sourceHandle: 'output', targetHandle: 'input' },
-                { id: 'e2-3', source: '2', target: '3', sourceHandle: 'output', targetHandle: 'input' },
-            ]
-        },
-        {
-            id: 2,
-            name: 'Sign In',
-            hidden: false,
-            nodes: [
-                { id: 'start-1', type: 'custom', label: 'Start', position: { x: 200, y: 50 }, data: { type: 'start' } },
-                { id: 'end-1', type: 'custom', label: 'End', position: { x: 200, y: 150 }, data: { type: 'end' } },
-            ],
-            edges: []
-        },
-    ]);
+    const taskList = ref([]);
 
     // 当前任务
     const currentTask = ref(null);
@@ -104,16 +78,19 @@ export function useTaskManager(options = {}) {
      * 创建新任务
      */
     function createNewTask() {
-        const newId = Math.max(...taskList.value.map(t => t.id), 0) + 1;
+        const newId = crypto.randomUUID();
+        const newTaskCount = taskList.value.length + 1;
         const newTask = {
             id: newId,
-            name: `New Task ${newId}`,
+            name: `New Task ${newTaskCount}`,
             hidden: false,
             nodes: [
-                { id: 'start-1', type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
-                { id: 'end-1', type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
+                { id: crypto.randomUUID(), type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
+                { id: crypto.randomUUID(), type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
             ],
-            edges: []
+            edges: [],
+            uiData: {},
+            variables: {}
         };
         taskList.value.push(newTask);
         selectTask(newTask);

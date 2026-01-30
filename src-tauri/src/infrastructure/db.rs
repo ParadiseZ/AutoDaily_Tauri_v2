@@ -135,6 +135,23 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
+    // 8. 脚本任务逻辑表 (Nodes, Edges, Custom Data)
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS script_tasks (
+            id TEXT PRIMARY KEY,
+            script_id TEXT NOT NULL,
+            `name` TEXT NOT NULL,
+            is_hidden BOOLEAN NOT NULL DEFAULT 0,
+            nodes JSON NOT NULL,
+            edges JSON NOT NULL,
+            `data` JSON NOT NULL,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 

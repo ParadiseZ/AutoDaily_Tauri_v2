@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, reactive } from 'vue';
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useScripts } from '../assets/js/useScripts';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import {
@@ -182,6 +183,26 @@ const globalDelay = ref(500);
 const randomRange = ref(5);
 
 // 搜索与过滤逻辑已在上面定义，此处无需重复
+
+// 逻辑编辑
+const openEditor = async (scriptId) => {
+  const webview = new WebviewWindow('script-editor', {
+    url: '/editor?id=' + scriptId,
+    title: '逻辑编辑',
+    width: 1400,
+    height: 900,
+    center: true,
+    focus: true
+  });
+/*
+  await webview.once('tauri://created', function () {
+    console.log('Script Editor window created');
+  });*/
+
+  await webview.once('tauri://error', function (e) {
+    console.error('打开编辑器失败', e);
+  });
+};
 </script>
 
 <template>
@@ -260,7 +281,7 @@ const randomRange = ref(5);
                   <li>
                     <a
                       @click="
-                        console.log('编辑逻辑', script.name);
+                        openEditor(script.id)
                         openDropdownId = null;
                       "
                       class="flex items-center gap-3 text-sm hover:bg-secondary/10 hover:text-secondary cursor-pointer"
