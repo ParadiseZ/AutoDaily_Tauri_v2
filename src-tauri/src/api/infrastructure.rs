@@ -2,6 +2,7 @@ use crate::infrastructure::core::UuidV7;
 use tauri::command;
 
 pub mod config;
+pub mod img;
 
 /// 设备配置表名
 #[command]

@@ -2,6 +2,7 @@
 import { reactive, watch, ref, computed } from 'vue';
 import { X, Plus, Edit, Eye, FileJson, Type, AlertTriangle } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
+import {invoke} from "@tauri-apps/api/core";
 
 const props = defineProps({
   isOpen: Boolean,
@@ -10,6 +11,8 @@ const props = defineProps({
     default: null,
   },
 });
+
+const imgPath = ref(null);
 
 const emit = defineEmits(['close', 'save']);
 
@@ -51,7 +54,7 @@ const crnnDefaultParams = {
 // Computed to check if we're in edit mode
 const isEditMode = computed(() => !!props.editingScript);
 
-const activeTab = ref('basic'); // basic, det, rec
+const activeTab = ref('basic'); // basic, det, rec,second
 
 const formState = reactive({
   name: '',
@@ -490,18 +493,18 @@ watch(
       <div class="flex grow min-h-0">
         <!-- Sidebar Tabs -->
         <div class="w-48 flex-none bg-base-200/30 border-r border-base-content/5 p-2 space-y-1">
-          <div
+          <button
             class="btn btn-sm w-full justify-start gap-2"
             :class="activeTab === 'basic' ? 'btn-primary' : 'btn-ghost'"
             @click="activeTab = 'basic'"
           >
-            <div class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</div>
+            <span class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</span>
             基础信息
-          </div>
+          </button>
           <div class="divider my-1 opacity-50 text-[10px]">模型配置</div>
           <button
             class="btn btn-sm w-full justify-start gap-2"
-            :class="activeTab === 'det' ? 'btn-active' : 'btn-ghost'"
+            :class="activeTab === 'det' ? 'btn-primary' : 'btn-ghost'"
             @click="activeTab = 'det'"
           >
             <Eye class="w-4 h-4 opacity-70" />
@@ -509,11 +512,20 @@ watch(
           </button>
           <button
             class="btn btn-sm w-full justify-start gap-2"
-            :class="activeTab === 'rec' ? 'btn-active' : 'btn-ghost'"
+            :class="activeTab === 'rec' ? 'btn-primary' : 'btn-ghost'"
             @click="activeTab = 'rec'"
           >
             <Type class="w-4 h-4 opacity-70" />
             文本识别
+          </button>
+          <div class="divider my-1 opacity-50 text-[10px]">赞助信息</div>
+          <button
+              class="btn btn-sm w-full justify-start gap-2"
+              :class="activeTab === 'second' ? 'btn-primary' : 'btn-ghost'"
+              @click="activeTab = 'second'"
+          >
+            <span class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</span>
+            联系/赞助
           </button>
         </div>
 
@@ -541,7 +553,7 @@ watch(
               <textarea v-model="formState.description" class="textarea textarea-bordered h-20"></textarea>
             </div>
 
-            <div class="divider my-4 opacity-50 text-[10px]">版本与联系方式</div>
+            <div class="divider my-4 opacity-50 text-[10px]">版本信息</div>
 
             <div class="grid grid-cols-2 gap-4">
               <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
@@ -564,68 +576,10 @@ watch(
               </div>
             </div>
 
-            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
-              <label class="label"><span class="label-text font-bold">联系方式</span></label>
-              <input
-                type="text"
-                v-model="formState.contactInfo"
-                placeholder="QQ/WeChat/Email"
-                class="input input-bordered w-full"
-              />
-            </div>
 
-            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
-              <label class="label"><span class="label-text font-bold">赞助链接 (URL)</span></label>
-              <input
-                type="text"
-                v-model="formState.sponsorshipUrl"
-                placeholder="https://..."
-                class="input input-bordered w-full"
-              />
-            </div>
-
-            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
-              <label class="label"><span class="label-text font-bold">赞助二维码 (图片路径/Base64)</span></label>
-              <div class="flex gap-2">
-                <input
-                  type="text"
-                  v-model="formState.sponsorshipQr"
-                  class="input input-bordered grow"
-                  placeholder="选择或转换图片..."
-                />
-                <button
-                  @click="
-                    async () => {
-                      const p = await handleSelectImage();
-                      if (p) {
-                        try {
-                          const base64 = await invoke('convert_img_to_base64_cmd', { imgPath: p });
-                          formState.sponsorshipQr = `data:image/png;base64,${base64}`;
-                        } catch (e) {
-                          console.error('Conversion failed', e);
-                        }
-                      }
-                    }
-                  "
-                  class="btn btn-square btn-ghost border border-base-content/20"
-                >
-                  ...
-                </button>
-              </div>
-              <div class="form-control flex flex-row items-center gap-2 mt-4">
-                <input type="checkbox" v-model="formState.isValid" class="checkbox checkbox-primary checkbox-sm" />
-                <span class="label-text font-bold">是否启用脚本</span>
-              </div>
-              <div v-if="formState.sponsorshipQr" class="mt-2 flex justify-center bg-base-300 p-2 rounded-lg">
-                <img
-                  :src="
-                    formState.sponsorshipQr.startsWith('data:')
-                      ? formState.sponsorshipQr
-                      : `file://${formState.sponsorshipQr}`
-                  "
-                  class="max-h-32 object-contain"
-                />
-              </div>
+            <div class="form-control flex flex-row items-center gap-2 mt-4">
+              <input type="checkbox" v-model="formState.isValid" class="checkbox checkbox-primary checkbox-sm" />
+              <span class="label-text font-bold">是否启用脚本</span>
             </div>
           </div>
 
@@ -1110,6 +1064,69 @@ watch(
               <div class="text-xs">
                 <h3 class="font-bold">未配置任何模型</h3>
                 <p>将无法使用截图分析、OCR 文字提取等高级功能，仅可进行基础点击操作。</p>
+              </div>
+            </div>
+          </div>
+
+          <div v-show="activeTab === 'second'" class="space-y-1 animate-in fade-in slide-in-from-right-4 duration-300">
+            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+              <label class="label"><span class="label-text font-bold">联系方式</span></label>
+              <input
+                  type="text"
+                  v-model="formState.contactInfo"
+                  placeholder="QQ/WeChat/Email"
+                  class="input input-bordered w-full"
+              />
+            </div>
+
+            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+              <label class="label"><span class="label-text font-bold">赞助链接 (URL)</span></label>
+              <input
+                  type="text"
+                  v-model="formState.sponsorshipUrl"
+                  placeholder="https://..."
+                  class="input input-bordered w-full"
+              />
+            </div>
+
+            <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
+              <label class="label"><span class="label-text font-bold">赞助二维码 (图片路径/Base64)</span></label>
+              <div class="flex gap-2">
+                <input
+                    type="text"
+                    v-model="imgPath"
+                    class="input input-bordered grow"
+                    placeholder="选择或转换图片..."
+                />
+                <button
+                    @click="
+                    async () => {
+                      const p = await handleSelectImage();
+                      if (p) {
+                        try {
+                          const base64 = await invoke('convert_img_to_base64_cmd', { imgPath: p });
+                          formState.sponsorshipQr = `data:image/png;base64,${base64}`;
+                          imgPath.value = p;
+                        } catch (e) {
+                          console.log('图像转换失败=');
+                        }
+                      }
+                    }
+                  "
+                    class="btn btn-square btn-ghost border border-base-content/20"
+                >
+                  ...
+                </button>
+              </div>
+              <div v-if="formState.sponsorshipQr" class="mt-2 flex justify-center bg-base-300 p-2 rounded-lg">
+                <img
+                    :src="
+                    formState.sponsorshipQr.startsWith('data:')
+                      ? formState.sponsorshipQr
+                      : `file://${formState.sponsorshipQr}`
+                  "
+                    class="max-h-32 object-contain"
+                    alt="赞助二维码"/>
               </div>
             </div>
           </div>
