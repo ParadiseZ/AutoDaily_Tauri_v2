@@ -20,7 +20,7 @@ import { ref, computed } from 'vue';
  * @returns {Object} 任务管理相关的状态和方法
  */
 export function useTaskManager(options = {}) {
-    const { nodes, edges, addLog = () => { } } = options;
+    const { nodes, edges, addLog = () => { }, LOG_LEVELS={}, getUuidV7= async () => {}} = options;
 
     // 任务列表
     const taskList = ref([]);
@@ -67,7 +67,7 @@ export function useTaskManager(options = {}) {
             edges.value = [...task.edges];
         }
 
-        addLog(`切换任务： ${task.name}`, 'info');
+        addLog(`切换任务： ${task.name}`, LOG_LEVELS.INFO);
     }
 
     // ============================================
@@ -77,24 +77,26 @@ export function useTaskManager(options = {}) {
     /**
      * 创建新任务
      */
-    function createNewTask() {
-        const newId = crypto.randomUUID();
+    async function createNewTask() {
+        //const newId = crypto.randomUUID();
+        const newId = await getUuidV7();
         const newTaskCount = taskList.value.length + 1;
         const newTask = {
             id: newId,
             name: `New Task ${newTaskCount}`,
             hidden: false,
             nodes: [
-                { id: crypto.randomUUID(), type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
-                { id: crypto.randomUUID(), type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
+                { id: await getUuidV7(), type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
+                { id: await getUuidV7(), type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
             ],
             edges: [],
             uiData: {},
             variables: {}
         };
         taskList.value.push(newTask);
+        //addLog(`创建任务: ${newTask.name}`, LOG_LEVELS.SUCCESS);
         selectTask(newTask);
-        addLog(`Created new task: ${newTask.name}`, 'success');
+
     }
 
     /**
@@ -103,7 +105,7 @@ export function useTaskManager(options = {}) {
      */
     function deleteTask(id) {
         if (taskList.value.length <= 1) {
-            addLog('Cannot delete the last task', 'error');
+            addLog('无法删除最后一个任务', LOG_LEVELS.ERROR);
             return;
         }
 
@@ -115,7 +117,7 @@ export function useTaskManager(options = {}) {
             if (currentTask.value?.id === id) {
                 selectTask(taskList.value[0]);
             }
-            addLog(`删除任务: ${taskName}`, 'warn');
+            addLog(`删除任务: ${taskName}`, LOG_LEVELS.WARN);
         }
     }
 
@@ -129,7 +131,7 @@ export function useTaskManager(options = {}) {
      */
     function toggleTaskVisibility(task) {
         task.hidden = !task.hidden;
-        addLog(`任务 "${task.name}" 已${task.hidden ? '隐藏' : '显示'}`, 'info');
+        addLog(`任务 "${task.name}" 已${task.hidden ? '隐藏' : '显示'}`, LOG_LEVELS.INFO);
     }
 
     // ============================================
@@ -152,7 +154,7 @@ export function useTaskManager(options = {}) {
     function confirmRename() {
         if (renameTarget.value && renameValue.value.trim()) {
             renameTarget.value.name = renameValue.value.trim();
-            addLog(`重命名任务: ${renameValue.value}`, 'info');
+            addLog(`重命名任务: ${renameValue.value}`, LOG_LEVELS.INFO);
         }
         cancelRename();
     }

@@ -13,7 +13,7 @@
         <component :is="item.icon" class="w-6 h-6" />
 
         <!-- Active indicator -->
-        <div v-if="modelValue === item.id" class="absolute left-0 w-1 h-6 bg-primary-content rounded-r-full"></div>
+        <span v-if="modelValue === item.id" class="absolute left-0 w-1 h-6 bg-primary-content rounded-r-full"></span>
       </button>
     </div>
 
@@ -40,7 +40,7 @@ defineEmits(['update:modelValue']);
 
 const navItems = [
   { id: 'task', label: '任务', icon: SquareStack },
-  { id: 'policy_set', label: '策略集合', icon: Library },
+  { id: 'policy_set', label: '策略集', icon: Library },
   { id: 'policy_group', label: '策略组', icon: LayoutGrid },
   { id: 'policy', label: '策略', icon: ListTodo },
 ];

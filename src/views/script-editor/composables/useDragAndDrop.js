@@ -39,7 +39,7 @@ let registeredScreenToFlowCoordinate = null;
  */
 export function useDragAndDrop(options = {}) {
     const { draggedType, isDragOver, isDragging } = dragState;
-    const { onAddNode, screenToFlowCoordinate } = options;
+    const { onAddNode= async()=>{}, screenToFlowCoordinate } = options;
 
     // 如果提供了 onAddNode（画布端），注册它和坐标转换函数
     if (onAddNode) {
@@ -108,11 +108,11 @@ export function useDragAndDrop(options = {}) {
     /**
      * 放置到画布
      * 使用注册的回调和坐标转换函数
-     * @param {DragEvent} event 
+     * @param {DragEvent} event
      */
-    function onDrop(event) {
+    async function onDrop(event) {
         // 计算放置位置 (屏幕坐标转换为画布坐标)
-        let position = { x: 200, y: 200 };
+        let position = {x: 200, y: 200};
 
         if (registeredScreenToFlowCoordinate) {
             position = registeredScreenToFlowCoordinate({
@@ -128,7 +128,7 @@ export function useDragAndDrop(options = {}) {
 
         // 使用注册的回调函数添加节点
         if (registeredAddNode && type) {
-            registeredAddNode(type, position);
+            await registeredAddNode(type, position);
         } else if (!registeredAddNode) {
             console.warn('[useDragAndDrop] onAddNode callback is not registered. Make sure to call useDragAndDrop({ onAddNode }) in ScriptEditor.vue first.');
         }

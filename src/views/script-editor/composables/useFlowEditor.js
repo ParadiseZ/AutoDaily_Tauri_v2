@@ -26,7 +26,7 @@ import {
  * @returns {Object} 节点编辑相关的状态和方法
  */
 export function useFlowEditor(options = {}) {
-    const { addLog = () => { },logLevel = {} } = options;
+    const { addLog = () => { },logLevel = {} ,getUuidV7 = async () => {}} = options;
 
     // 节点和边的响应式数据
     const nodes = ref([]);
@@ -57,23 +57,15 @@ export function useFlowEditor(options = {}) {
     // ============================================
 
     /**
-     * 生成唯一节点ID
-     * @returns {string}
-     */
-    function generateNodeId() {
-        return `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    }
-
-    /**
      * 创建新节点并添加到画布
      * @param {string} type - 节点类型
      * @param {Object} position - 位置 {x, y}
      * @param {Object} customData - 自定义数据 (可选)
      * @returns {Object} 创建的节点
      */
-    function createNode(type, position, customData = null) {
+    async function createNode(type, position, customData = null) {
         const newNode = {
-            id: generateNodeId(),
+            id: await getUuidV7(),
             type: 'custom', // 使用自定义渲染器
             label: customData?.label || '',
             position,
@@ -88,19 +80,19 @@ export function useFlowEditor(options = {}) {
     /**
      * 添加节点到画布 (用于工具箱点击和拖放)
      * 如果有选中节点，新节点会添加到选中节点下方并自动连接
-     * 
+     *
      * @param {string} type - 节点类型
      * @param {Object} position - 可选的位置，如果不提供则自动计算
      */
-    function addNodeToCanvas(type, position = null) {
+    async function addNodeToCanvas(type, position = null) {
         // 检查是否为模板
         if (NODE_TEMPLATES[type]) {
-            expandTemplate(type, position);
+            await expandTemplate(type, position);
             return;
         }
 
         // 计算位置
-        let finalPosition = position || { x: 200, y: 200 };
+        let finalPosition = position || {x: 200, y: 200};
 
         if (!position) {
             if (selectedNode.value) {
@@ -119,10 +111,10 @@ export function useFlowEditor(options = {}) {
             }
         }
 
-        const newNode = createNode(type, finalPosition);
+        const newNode = await createNode(type, finalPosition);
 
         // 如果有选中节点，自动连接
-        if (selectedNode.value && !position && selectedNode.value.sourceHandle==='out') {
+        if (selectedNode.value && !position && selectedNode.value.sourceHandle === 'out') {
 
             const newEdge = {
                 source: selectedNode.value.id,
@@ -218,25 +210,25 @@ export function useFlowEditor(options = {}) {
      * @param {string} templateKey - 模板键
      * @param {Object} basePosition - 基础位置
      */
-    function expandTemplate(templateKey, basePosition = null) {
+    async function expandTemplate(templateKey, basePosition = null) {
         const template = NODE_TEMPLATES[templateKey];
         if (!template) return;
 
-        const pos = basePosition || { x: 200, y: 200 };
+        const pos = basePosition || {x: 200, y: 200};
         const createdNodes = [];
 
         // 1. 创建节点
-        template.nodes.forEach((nodeSpec) => {
+        for (const nodeSpec of template.nodes) {
             const nodePos = {
                 x: pos.x + nodeSpec.position.x,
                 y: pos.y + nodeSpec.position.y,
             };
-            const node = createNode(nodeSpec.type, nodePos, {
+            const node = await createNode(nodeSpec.type, nodePos, {
                 ...getNodeDefaults(nodeSpec.type),
                 label: nodeSpec.label
             });
             createdNodes.push(node);
-        });
+        }
 
         // 2. 创建边
         template.edges.forEach((edgeSpec) => {

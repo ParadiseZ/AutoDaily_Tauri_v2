@@ -1,11 +1,8 @@
 use crate::constant::table_name::{POLICY_GROUP_TABLE, POLICY_SET_TABLE, POLICY_TABLE};
+use crate::domain::scripts::policy::{GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation};
 use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, ScriptId};
-use crate::infrastructure::db::{DbRepo, get_pool};
+use crate::infrastructure::db::{get_pool, DbRepo};
 use tauri::command;
-use crate::domain::scripts::policy::{PolicyTable, PolicyGroupTable, PolicySetTable, GroupPolicyRelation, SetGroupRelation};
-use sqlx::types::Json;
-use sqlx::{FromRow, Row, SqlitePool};
-use sqlx::sqlite::SqliteQueryResult;
 // --- Policy Commands ---
 
 #[command]
@@ -24,7 +21,7 @@ pub async fn get_all_policies_cmd(script_id: ScriptId) -> Result<Vec<PolicyTable
 pub async fn save_policy_cmd(policy: PolicyTable) -> Result<(), String> {
     let pool = get_pool();
     let query = format!(
-        "INSERT INTO {} (id, script_id, order_index, `data`) VALUES (?, ?, ?)
+        "INSERT INTO {} (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET script_id = excluded.script_id,order_index = excluded.order_index, `data` = excluded.`data`",
         POLICY_TABLE
     );
@@ -63,7 +60,7 @@ pub async fn get_all_policy_groups_cmd(script_id: ScriptId) -> Result<Vec<Policy
 pub async fn save_policy_group_cmd(group: PolicyGroupTable) -> Result<(), String> {
     let pool = get_pool();
     let query = format!(
-        "INSERT INTO {} (id, script_id,order_index, `data`) VALUES (?, ?, ?)
+        "INSERT INTO {} (id, script_id,order_index, `data`) VALUES (?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET script_id = excluded.script_id, order_index = excluded.order_index,`data` = excluded.`data`",
         POLICY_GROUP_TABLE
     );
@@ -141,7 +138,7 @@ pub async fn get_all_policy_sets_cmd(script_id: ScriptId) -> Result<Vec<PolicySe
 pub async fn save_policy_set_cmd(set: PolicySetTable) -> Result<(), String> {
     let pool = get_pool();
     let query = format!(
-        "INSERT INTO {} (id, script_id, order_index, `data`) VALUES (?, ?, ?)
+        "INSERT INTO {} (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET script_id = excluded.script_id,order_index = excluded.order_index, `data` = excluded.`data`",
         POLICY_SET_TABLE
     );

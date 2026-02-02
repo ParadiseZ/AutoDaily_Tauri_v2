@@ -328,9 +328,8 @@
           />
         </div>
 
-        <!-- TAB: POLICY MANAGEMENT (Shared for Set, Group, Policy) -->
         <div v-if="activeNavTab !== 'task'" class="flex-1 flex flex-col bg-base-100 overflow-hidden">
-          <PolicyManager :active-tab="activeNavTab" :script-id="scriptId" />
+          <PolicyManager :active-tab="activeNavTab" :script-id="scriptId" :add-log="addLog" :log-levels="LOG_LEVELS" :get-uuid-v7="getUuidV7" />
         </div>
       </div>
 
@@ -498,10 +497,19 @@ const stopResize = () => {
 // ============================================
 
 // 1. Console Log
-const { consoleLogs, consoleRef, logClass, addLog, clearConsole } = useConsoleLog();
+const { consoleLogs, logClass, addLog, clearConsole } = useConsoleLog();
 
 // 2. Theme Manager
 const { currentEditorTheme, toggleTheme, initTheme } = useThemeManager();
+
+// 5. 设备管理
+const { getAllDevices,getUuidV7 } = useDevices();
+const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
+  getAllDevices,
+  getFromStore,
+  setToStore,
+  deviceKey,
+});
 
 // 3.VueFlow 设置
 const nodeTypes = { custom: markRaw(FlowNode) };
@@ -530,7 +538,9 @@ const {
   requestDeleteSelected,
   confirmDelete,
   cancelDelete,
-} = useFlowEditor({ addLog, LOG_LEVELS });
+} = useFlowEditor({ addLog, LOG_LEVELS, getUuidV7 });
+
+
 
 // 4. Task Manager
 const {
@@ -547,16 +557,7 @@ const {
   editTaskName,
   confirmRename,
   cancelRename,
-} = useTaskManager({ nodes, edges, addLog });
-
-// 5. 设备管理
-const { getAllDevices } = useDevices();
-const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
-  getAllDevices,
-  getFromStore,
-  setToStore,
-  deviceKey,
-});
+} = useTaskManager({ nodes, edges, addLog, LOG_LEVELS, getUuidV7 });
 
 // ============================================
 // 保存与加载
@@ -583,14 +584,13 @@ const loadScriptData = async () => {
           uiData: t.data?.uiData || {},
           variables: t.data?.variables || {},
         }));
-
-        if (taskList.value.length > 0) {
-          selectTask(taskList.value[0]);
-        }
       } else {
-        // 如果没有任务，创建一个初始任务
         taskList.value = [];
-        createNewTask();
+        await createNewTask();
+      }
+
+      if (taskList.value.length > 0) {
+        selectTask(taskList.value[0]);
       }
     }
   } catch (e) {
@@ -599,43 +599,38 @@ const loadScriptData = async () => {
 };
 
 const saveScript = async () => {
-  if (currentTask.value) {
-    currentTask.value.nodes = [...nodes.value];
-    currentTask.value.edges = [...edges.value];
-  }
-
   try {
-    // 1. 保存元数据 (如果需要更新)
+    // 1. 更新当前任务的数据
+    if (currentTask.value) {
+      currentTask.value.nodes = [...nodes.value];
+      currentTask.value.edges = [...edges.value];
+    }
+
+    // 2. 将所有任务打包到 scriptInfo 中
     if (scriptInfo.value) {
       scriptInfo.value.updateTime = new Date().toISOString();
+      scriptInfo.value.tasks = taskList.value.map((t) => ({
+        id: t.id,
+        name: t.name,
+        isHidden: t.hidden,
+        nodes: t.nodes,
+        edges: t.edges,
+        data: {
+          uiData: t.uiData || {},
+          variables: t.variables || {},
+        },
+      }));
+
+      // 3. 保存全量脚本信息
       await invoke('save_script_cmd', {
         script: {
           id: scriptId.value,
           data: scriptInfo.value,
         },
       });
+
+      addLog('保存脚本成功', LOG_LEVELS.SUCCESS);
     }
-
-    // 2. 保存任务逻辑
-    const tasksToSave = taskList.value.map((t) => ({
-      id: t.id,
-      scriptId: scriptId.value,
-      name: t.name,
-      isHidden: t.hidden,
-      nodes: t.nodes,
-      edges: t.edges,
-      data: {
-        uiData: t.uiData || {},
-        variables: t.variables || {},
-      },
-    }));
-
-    await invoke('save_script_tasks_cmd', {
-      scriptId: scriptId.value,
-      tasks: tasksToSave,
-    });
-
-    addLog('保存成功!', LOG_LEVELS.SUCCESS);
   } catch (e) {
     addLog(`保存失败: ${e}`, LOG_LEVELS.ERROR);
   }

@@ -125,6 +125,7 @@ const formState = reactive({
   sponsorshipQr: '',
   sponsorshipUrl: '',
   contactInfo: '',
+  isValid: true,
 });
 
 const handleSave = () => {
@@ -154,7 +155,7 @@ const handleSave = () => {
 
     // Preserve other fields
     downloadCount: existingScript?.downloadCount || 0,
-    isValid: existingScript?.isValid ?? true,
+    isValid: formState.isValid ?? true,
     createTime: existingScript?.createTime || new Date().toISOString(),
     updateTime: new Date().toISOString(),
     userName: existingScript?.userName || 'Local User',
@@ -358,6 +359,7 @@ const resetForm = () => {
   formState.sponsorshipQr = '';
   formState.sponsorshipUrl = '';
   formState.contactInfo = '';
+  formState.isValid = true;
 };
 
 // Populate form from editing script
@@ -438,6 +440,7 @@ const populateFormFromScript = (script) => {
   formState.sponsorshipQr = script.sponsorshipQr || '';
   formState.sponsorshipUrl = script.sponsorshipUrl || '';
   formState.contactInfo = script.contactInfo || '';
+  formState.isValid = script.isValid ?? true;
 
   activeTab.value = 'basic';
 };
@@ -594,13 +597,24 @@ watch(
                   @click="
                     async () => {
                       const p = await handleSelectImage();
-                      if (p) formState.sponsorshipQr = p;
+                      if (p) {
+                        try {
+                          const base64 = await invoke('convert_img_to_base64_cmd', { imgPath: p });
+                          formState.sponsorshipQr = `data:image/png;base64,${base64}`;
+                        } catch (e) {
+                          console.error('Conversion failed', e);
+                        }
+                      }
                     }
                   "
                   class="btn btn-square btn-ghost border border-base-content/20"
                 >
                   ...
                 </button>
+              </div>
+              <div class="form-control flex flex-row items-center gap-2 mt-4">
+                <input type="checkbox" v-model="formState.isValid" class="checkbox checkbox-primary checkbox-sm" />
+                <span class="label-text font-bold">是否启用脚本</span>
               </div>
               <div v-if="formState.sponsorshipQr" class="mt-2 flex justify-center bg-base-300 p-2 rounded-lg">
                 <img

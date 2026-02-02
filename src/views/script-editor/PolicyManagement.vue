@@ -121,6 +121,18 @@ const props = defineProps({
     type: String,
     required: true,
   },
+  addLog: {
+    type: Function,
+    default: () => {},
+  },
+  logLevels:{
+    type: Object,
+    required: true,
+  },
+  getUuidV7:{
+    type: Function,
+    default: () => {},
+  }
 });
 
 const searchQuery = ref('');
@@ -182,7 +194,7 @@ const loadData = async () => {
       items.value = await invoke(command, { scriptId: props.scriptId });
     }
   } catch (e) {
-    console.error('Failed to load policy data:', e);
+    props.addLog(`加载策略数据失败: ${e}`, props.logLevels.ERROR);
   } finally {
     loading.value = false;
   }
@@ -191,40 +203,45 @@ const loadData = async () => {
 const addNewItem = async () => {
   // Basic implementation for demonstration
   const newItemName = `新${title.value} ${items.value.length + 1}`;
-  const id = crypto.randomUUID(); // Placeholder UUID logic
+  const id = await props.getUuidV7(); // Placeholder UUID logic
 
   // In reality, this would open a modal
-  const item = {
+  let item = {
     id,
     scriptId: props.scriptId,
+    orderIndex: items.value.length + 1,
     data: {
       name: newItemName,
       note: '',
-      conditions: [],
     },
   };
 
+
   try {
     let command = '';
+    let arg = '';
     switch (props.activeTab) {
       case 'policy_set':
         command = 'save_policy_set_cmd';
+        arg = 'set';
         break;
       case 'policy_group':
         command = 'save_policy_group_cmd';
+        arg = 'group'
         break;
       case 'policy':
         command = 'save_policy_cmd';
+        arg = 'policy';
+        item.data.conditions= [];
         break;
     }
-
     await invoke(command, {
-      [props.activeTab.replace('policy_', 'set').replace('policy_group', 'group').replace('policy', 'policy')]: item,
+      [arg]: item,
     });
     await loadData();
     selectedItem.value = items.value.find((i) => i.id === id);
   } catch (e) {
-    console.error('Failed to save item:', e);
+    props.addLog(`保存项目失败: ${e}`, props.logLevels.ERROR);
   }
 };
 
@@ -249,7 +266,7 @@ const deleteItem = async () => {
     selectedItem.value = null;
     await loadData();
   } catch (e) {
-    console.error('Failed to delete item:', e);
+    props.addLog(`删除项目失败: ${e}`, props.logLevels.ERROR);
   }
 };
 

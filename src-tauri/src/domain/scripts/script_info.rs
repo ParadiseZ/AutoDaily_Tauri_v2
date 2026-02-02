@@ -3,6 +3,7 @@ use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::rec::RecognizerType;
 use sqlx::types::Json;
 use sqlx::FromRow;
+use crate::domain::scripts::script_task::ScriptTaskTable;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
