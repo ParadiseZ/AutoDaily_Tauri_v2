@@ -232,7 +232,18 @@ const addNewItem = async () => {
       case 'policy':
         command = 'save_policy_cmd';
         arg = 'policy';
-        item.data.conditions= [];
+        item.data= {
+          name: newItemName,
+          note: '',
+          logPrint: '',
+          curPos: 0,
+          skipFlag: false,
+          execCur: 0,
+          execMax: 0,
+          beforeAction: [],
+          cond: [],
+          afterAction: [],
+        };
         break;
     }
     await invoke(command, {

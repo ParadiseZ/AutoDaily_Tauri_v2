@@ -589,7 +589,8 @@ const loadScriptData = async () => {
         await createNewTask();
       }
 
-      if (taskList.value.length > 0) {
+      // 避免无任务时，createNewTask显示切换任务
+      if (taskList.value.length > 1) {
         selectTask(taskList.value[0]);
       }
     }

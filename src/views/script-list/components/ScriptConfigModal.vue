@@ -2,7 +2,7 @@
 import { reactive, watch, ref, computed } from 'vue';
 import { X, Plus, Edit, Eye, FileJson, Type, AlertTriangle } from 'lucide-vue-next';
 import { open } from '@tauri-apps/plugin-dialog';
-import {invoke} from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api/core';
 
 const props = defineProps({
   isOpen: Boolean,
@@ -363,6 +363,8 @@ const resetForm = () => {
   formState.sponsorshipUrl = '';
   formState.contactInfo = '';
   formState.isValid = true;
+
+  imgPath.value = '';
 };
 
 // Populate form from editing script
@@ -372,6 +374,7 @@ const populateFormFromScript = (script) => {
   formState.name = script.name || '';
   formState.description = script.description || '';
   formState.pkgName = script.pkgName || '';
+  imgPath.value = '';
 
   // Image Detection Model
   if (script.imgDetModel?.Yolo11) {
@@ -498,7 +501,9 @@ watch(
             :class="activeTab === 'basic' ? 'btn-primary' : 'btn-ghost'"
             @click="activeTab = 'basic'"
           >
-            <span class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">1</span>
+            <span class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]"
+              >1</span
+            >
             基础信息
           </button>
           <div class="divider my-1 opacity-50 text-[10px]">模型配置</div>
@@ -520,11 +525,13 @@ watch(
           </button>
           <div class="divider my-1 opacity-50 text-[10px]">赞助信息</div>
           <button
-              class="btn btn-sm w-full justify-start gap-2"
-              :class="activeTab === 'second' ? 'btn-primary' : 'btn-ghost'"
-              @click="activeTab = 'second'"
+            class="btn btn-sm w-full justify-start gap-2"
+            :class="activeTab === 'second' ? 'btn-primary' : 'btn-ghost'"
+            @click="activeTab = 'second'"
           >
-            <span class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]">2</span>
+            <span class="w-4 h-4 rounded-full border border-current flex items-center justify-center text-[10px]"
+              >2</span
+            >
             联系/赞助
           </button>
         </div>
@@ -575,7 +582,6 @@ watch(
                 <input type="number" v-model.number="formState.verNum" class="input input-bordered w-full" />
               </div>
             </div>
-
 
             <div class="form-control flex flex-row items-center gap-2 mt-4">
               <input type="checkbox" v-model="formState.isValid" class="checkbox checkbox-primary checkbox-sm" />
@@ -1072,20 +1078,20 @@ watch(
             <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
               <label class="label"><span class="label-text font-bold">联系方式</span></label>
               <input
-                  type="text"
-                  v-model="formState.contactInfo"
-                  placeholder="QQ/WeChat/Email"
-                  class="input input-bordered w-full"
+                type="text"
+                v-model="formState.contactInfo"
+                placeholder="QQ/WeChat/Email..."
+                class="input input-bordered w-full"
               />
             </div>
 
             <div class="form-control hover:bg-base-200/50 p-2 rounded-lg transition-colors">
               <label class="label"><span class="label-text font-bold">赞助链接 (URL)</span></label>
               <input
-                  type="text"
-                  v-model="formState.sponsorshipUrl"
-                  placeholder="https://..."
-                  class="input input-bordered w-full"
+                type="text"
+                v-model="formState.sponsorshipUrl"
+                placeholder="https://..."
+                class="input input-bordered w-full"
               />
             </div>
 
@@ -1093,40 +1099,42 @@ watch(
               <label class="label"><span class="label-text font-bold">赞助二维码 (图片路径/Base64)</span></label>
               <div class="flex gap-2">
                 <input
-                    type="text"
-                    v-model="imgPath"
-                    class="input input-bordered grow"
-                    placeholder="选择或转换图片..."
+                  type="text"
+                  v-model="imgPath"
+                  class="input input-bordered grow"
+                  placeholder="选择或转换图片..."
+                  disabled
                 />
                 <button
-                    @click="
+                  @click="
                     async () => {
                       const p = await handleSelectImage();
                       if (p) {
                         try {
                           const base64 = await invoke('convert_img_to_base64_cmd', { imgPath: p });
                           formState.sponsorshipQr = `data:image/png;base64,${base64}`;
-                          imgPath.value = p;
+                          imgPath = p;
                         } catch (e) {
                           console.log('图像转换失败=');
                         }
                       }
                     }
                   "
-                    class="btn btn-square btn-ghost border border-base-content/20"
+                  class="btn btn-square btn-ghost border border-base-content/20"
                 >
                   ...
                 </button>
               </div>
               <div v-if="formState.sponsorshipQr" class="mt-2 flex justify-center bg-base-300 p-2 rounded-lg">
                 <img
-                    :src="
+                  :src="
                     formState.sponsorshipQr.startsWith('data:')
                       ? formState.sponsorshipQr
                       : `file://${formState.sponsorshipQr}`
                   "
-                    class="max-h-32 object-contain"
-                    alt="赞助二维码"/>
+                  class="max-h-32 object-contain"
+                  alt="赞助二维码"
+                />
               </div>
             </div>
           </div>

@@ -18,6 +18,7 @@ pub struct PolicyTable {
 #[serde(rename_all = "camelCase")]
 pub struct PolicyInfo {
     pub name: String,
+    pub note: String,
     pub log_print: Option<String>,
 
     pub cur_pos: u16,
@@ -26,8 +27,11 @@ pub struct PolicyInfo {
     pub exec_cur: u16,
     pub exec_max: u16,
 
+    pub before_action: Vec<Step>,
+
     pub cond: SearchRule,
-    pub action: Vec<Step>,
+
+    pub after_action: Vec<Step>,
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]

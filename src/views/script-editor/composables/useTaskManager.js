@@ -96,7 +96,6 @@ export function useTaskManager(options = {}) {
         taskList.value.push(newTask);
         //addLog(`创建任务: ${newTask.name}`, LOG_LEVELS.SUCCESS);
         selectTask(newTask);
-
     }
 
     /**
@@ -114,10 +113,11 @@ export function useTaskManager(options = {}) {
             const taskName = taskList.value[idx].name;
             taskList.value.splice(idx, 1);
 
+            addLog(`删除任务: ${taskName}`, LOG_LEVELS.WARN);
             if (currentTask.value?.id === id) {
                 selectTask(taskList.value[0]);
             }
-            addLog(`删除任务: ${taskName}`, LOG_LEVELS.WARN);
+
         }
     }
 
