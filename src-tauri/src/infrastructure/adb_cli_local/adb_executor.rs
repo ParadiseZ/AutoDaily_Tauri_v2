@@ -17,6 +17,7 @@ use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
 use crate::infrastructure::logging::log_trait::Log;
 
+#[derive(Debug)]
 pub struct ADBExecutor {
     device: Option<Box<dyn ADBDeviceExt + Send + Sync>>,
     pub adb_config: Arc<Mutex<ADBConnectConfig>>, //from RuntimeContext

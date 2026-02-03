@@ -1,4 +1,5 @@
 use crate::infrastructure::context::init_error::InitResult;
+use crate::infrastructure::context::runtime_context::SharedRuntimeContext;
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
 use lazy_static::lazy_static;
 use std::sync::Arc;
@@ -16,22 +17,14 @@ pub async fn init_child_app_ctx(app_ctx: AppCtx) -> InitResult<()> {
     Ok(())
 }
 pub struct AppCtx {
-    //脚本上下文
-    //pub script_ctx : Arc<ScriptCtx>,
-
-    //规则上下文
-    //pub rule_ctx : Arc<RuleCtx>,
-
-    //调度引擎上下文
-    //pub scheduler_ctx : Arc<SchedulerCtx>,
-
     //设备上下文
     pub device_ctx: Arc<DeviceCtx>,
-    //视觉服务上下文
-    //pub vision_ctx: Arc<Option<VisIonCtx>>,
+    
+    //运行时上下文
+    pub runtime_ctx: SharedRuntimeContext,
 
-    //通信上下文
-    //pub communication: Arc<IpcClient>,
+    //通信上下文 (已在 IpcClient 中管理，通过 get_ipc_client 获取)
 
-    //日志上下文
+    //adb上下文(已在adb_context管理，通过get_adb_ctx获取).设备截图需要adb_ctx
+    //pub adb_ctx: Arc<AdbCtx>,
 }

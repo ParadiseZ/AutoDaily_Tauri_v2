@@ -1,6 +1,10 @@
+use crate::domain::scripts::script_info::ScriptInfo;
+use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
+use crate::infrastructure::adb_cli_local::adb_executor::ADBExecutor;
 use crate::infrastructure::core::{HashMap, PolicyId, ScriptId, TaskId};
 use crate::infrastructure::ipc::message::ExecuteTarget;
+use crate::infrastructure::vision::ocr_service::OcrService;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -20,6 +24,12 @@ pub struct TaskState {
 pub struct RuntimeContext {
     pub script_id: ScriptId,
     pub target: ExecuteTarget,
+    pub script_info: Option<ScriptInfo>,
+    pub current_task: Option<ScriptTaskTable>,
+    
+    /// 基础服务
+    pub ocr_service: Arc<OcrService>,
+    pub adb_executor: Arc<RwLock<ADBExecutor>>,
     
     /// Rhai 变量映射
     pub var_map: HashMap<String, rhai::Dynamic>,
@@ -41,10 +51,19 @@ pub struct RuntimeContext {
 }
 
 impl RuntimeContext {
-    pub fn new(script_id: ScriptId, target: ExecuteTarget) -> Self {
+    pub fn new(
+        script_id: ScriptId,
+        target: ExecuteTarget,
+        ocr_service: Arc<OcrService>,
+        adb_executor: Arc<RwLock<ADBExecutor>>,
+    ) -> Self {
         Self {
             script_id,
             target,
+            script_info: None,
+            current_task: None,
+            ocr_service,
+            adb_executor,
             var_map: HashMap::new(),
             policy_states: HashMap::new(),
             task_states: HashMap::new(),

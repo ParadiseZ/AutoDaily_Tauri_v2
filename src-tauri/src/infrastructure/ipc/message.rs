@@ -1,11 +1,14 @@
 // IPC消息定义模块
 // 定义进程间通信的消息类型和结构
 
+use std::path::PathBuf;
+use bincode::{Decode, Encode};
 use crate::domain::vision::result::{DetResult, OcrResult};
-use crate::infrastructure::core::{DeviceId, MessageId, PolicyGroupId, PolicySetId, ScriptId, TaskId};
+use crate::infrastructure::core::{Deserialize, DeviceId, MessageId, PolicyGroupId, PolicySetId, ScriptId, TaskId};
+use crate::infrastructure::logging::LogLevel;
 
 /// IPC消息枚举
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct IpcMessage {
     pub id: MessageId,
     pub source_or_target: DeviceId,
@@ -39,7 +42,7 @@ impl IpcMessage {
 }
 
 /// 消息类型枚举
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize, Hash)]
 pub enum MessageType {
     // 控制消息
     Request,  // 请求
@@ -65,7 +68,7 @@ pub enum MessageType {
 }
 
 /// 消息载荷枚举
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Encode, Decode, Deserialize)]
 pub enum MessagePayload {
     // socket注册
     SocketRegistration(u32),
@@ -103,14 +106,14 @@ pub enum MessagePayload {
     Empty,
 }
 /// 进程控制消息
-#[derive(Debug, Encode, Clone, Decode, PartialEq)]
+#[derive(Debug, Encode, Clone, Decode, Deserialize, PartialEq)]
 pub struct ProcessControlMessage {
     pub action: ProcessAction,
     pub process_id: DeviceId,
     //pub parameters: HashMap<String, String>,
 }
 
-#[derive(Debug, Encode, Clone, Decode, PartialEq)]
+#[derive(Debug, Encode, Clone, Decode, Deserialize, PartialEq)]
 pub enum ProcessAction {
     Start,
     Stop,
@@ -123,7 +126,7 @@ pub enum ProcessAction {
 }
 
 /// 脚本管理消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct ScriptManagementMessage {
     pub action: ScriptAction,
     pub script_id: ScriptId,
@@ -131,7 +134,7 @@ pub struct ScriptManagementMessage {
     //pub parameters: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ExecuteTarget {
     FullScript,
     Task(TaskId),
@@ -139,7 +142,7 @@ pub enum ExecuteTarget {
     PolicySet(PolicySetId),
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ScriptAction {
     Load(PathBuf),
     Unload,
@@ -152,14 +155,14 @@ pub enum ScriptAction {
 }
 
 /// 状态同步消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct StateSyncMessage {
     pub state_type: StateType,
     //pub data: HashMap<String, String>,
     pub version: u64,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum StateType {
     ProcessState,
     DeviceState,
@@ -169,7 +172,7 @@ pub enum StateType {
     SocketState,
 }
 /// 日志消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct LogMessage {
     pub level: LogLevel,
     pub message: String,
@@ -177,14 +180,14 @@ pub struct LogMessage {
 }
 
 /// 心跳消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct HeartbeatMessage {
     pub cpu_usage: f32,
     pub memory_usage: u64,
 }
 
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum MetricsType {
     CpuMetrics,
     MemoryMetrics,
@@ -193,14 +196,14 @@ pub enum MetricsType {
 }
 
 /// 资源管理消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct ResourceMessage {
     pub resource_type: ResourceType,
     pub action: ResourceAction,
     //pub details: HashMap<String, serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ResourceType {
     CpuCores,
     Memory,
@@ -209,7 +212,7 @@ pub enum ResourceType {
     File,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ResourceAction {
     Allocate,
     Deallocate,
@@ -220,14 +223,14 @@ pub enum ResourceAction {
 }
 
 /// 配置更新消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct ConfigMessage {
     pub config_type: String,
     pub action: ConfigAction,
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ConfigAction {
     Get,
     Set,
@@ -237,12 +240,12 @@ pub enum ConfigAction {
 }
 
 /// 视觉处理消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct VisionMessage {
     pub vision_type: VisionType,
     pub processing_time_ms: f64,
 }
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum VisionType {
     ObjectDetection(Vec<DetResult>),
     TextDetection(Vec<DetResult>),
@@ -253,7 +256,7 @@ pub enum VisionType {
 }
 
 /// 错误消息
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct ErrorMessage {
     pub error_type: ErrorType,
     pub code: u32,
@@ -262,7 +265,7 @@ pub struct ErrorMessage {
     pub stack_trace: Option<String>,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ErrorType {
     ProcessError,
     ConfigError,

@@ -24,6 +24,7 @@ impl VisionItem {
 
 /// 视觉快照：包含脱敏/标记后的搜索缓冲区及元数据映射
 /// 每一帧图像处理后只需构建一次
+#[derive(Debug)]
 pub struct VisionSnapshot {
     /// 搜索缓冲区：`__BG:YEL__ __FG:BLK__ 确认 \n ...`
     pub buffer: String,

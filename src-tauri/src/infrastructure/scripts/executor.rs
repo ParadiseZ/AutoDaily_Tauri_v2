@@ -1,13 +1,12 @@
 use rhai::{Engine, Scope, Dynamic};
 use crate::domain::scripts::script_decision::Step;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
-
+use crate::infrastructure::context::runtime_context::SharedRuntimeContext;
+use crate::infrastructure::core::StepId;
 use tokio::time::Duration;
 use std::pin::Pin;
 use std::future::Future;
 use crate::domain::scripts::action::click::Click;
-use crate::infrastructure::adb_cli_local::adb_executor::ADBExecutor;
-use crate::infrastructure::core::StepId;
 
 #[derive(Debug)]
 pub enum ControlFlow {
@@ -18,33 +17,21 @@ pub enum ControlFlow {
 }
 
 pub struct ScriptExecutor {
-    engine: Engine,
-    scope: Scope<'static>,
-    ocr_service: crate::infrastructure::vision::ocr_service::OcrService,
-    current_image: Option<image::DynamicImage>,
-    last_snapshot: Option<crate::domain::vision::ocr_search::VisionSnapshot>,
-    node_indices: crate::infrastructure::core::HashMap<StepId, usize>,
-    adb_executor: ADBExecutor,
+    pub engine: Engine,
+    pub scope: Scope<'static>,
+    pub runtime_ctx: SharedRuntimeContext,
+    pub node_indices: crate::infrastructure::core::HashMap<StepId, usize>,
 }
 
 impl ScriptExecutor {
-    pub fn new(adb_executor: ADBExecutor) -> Self {
-        let mut engine = Engine::new();
-        
-        // --- 注册索引管理函数 ---
-        // 我们需要一种方式在 Rhai 中访问执行器的索引
-        // 但由于 ScriptExecutor 会被 Pin/Box 且在 execute 中借用，
-        // 建议在外部处理或通过 Dynamic 注入。
-        // 这里暂时先定义结构，逻辑在 execute_step 中通过变量注入或特定 Step 处理
+    pub fn new(runtime_ctx: SharedRuntimeContext) -> Self {
+        let engine = Engine::new();
         
         Self {
             engine,
             scope: Scope::new(),
-            ocr_service: crate::infrastructure::vision::ocr_service::OcrService::new(),
-            current_image: None,
-            last_snapshot: None,
+            runtime_ctx,
             node_indices: crate::infrastructure::core::HashMap::new(),
-            adb_executor
         }
     }
 
@@ -235,40 +222,20 @@ impl ScriptExecutor {
                     }*/
                 }
                 StepKind::VisionSearch { rule, output_var } => {
+                    let mut ctx = self.runtime_ctx.write().await;
+                    
                     // 1. 获取当前快照 (如果过期则重建)
-                    if self.last_snapshot.is_none() {
-                        if let Some(img) = &self.current_image {
-                            // 这里需要获取 OCR 和 YOLO 结果
-                            // 暂时使用 ocr_service 的 ocr_batch
-                            // 注意：完整的 VisionFusion 需要 YOLO 和 OCR 同时跑
-                            let ocr_results = self.ocr_service.ocr(img).map_err(|e| ScriptError::ExecuteErr { 
-                                step_type: "VisionSearch".into(), 
-                                e: format!("OCR failed: {:?}", e) 
-                            })?;
-                            
-                            // 这里暂时没有 YOLO 结果，因为 ocr_service 还没整合 YOLO 进 ocr()
-                            // 我们可以在这里手动补全或未来升级 ocr_service
-                            let det_results = Vec::new(); 
-                            
-                            self.last_snapshot = Some(crate::domain::vision::ocr_search::VisionSnapshot::new(
-                                ocr_results,
-                                det_results,
-                                Some(img)
-                            ).map_err(|e| ScriptError::ExecuteErr { 
-                                step_type: "VisionSearch".into(), 
-                                e: format!("Snapshot build failed: {:?}", e) 
-                            })?);
-                        } else {
-                            return Err(ScriptError::ExecuteErr { 
-                                step_type: "VisionSearch".into(), 
-                                e: "No current image for snapshot".into() 
-                            });
-                        }
+                    if ctx.last_snapshot.is_none() {
+                        // TODO: 从 adb_executor 获取截图并跑 OCR/YOLO
+                        // 这里需要整合 adb_executor.capture()
                     }
 
-                    if let Some(snapshot) = &self.last_snapshot {
+                    if let Some(snapshot) = &ctx.last_snapshot {
                         let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(rule.get_all_keywords());
                         let hits = searcher.search(snapshot);
+                        
+                        // 更新缓存
+                        ctx.last_hits = hits.clone();
                         
                         // 将命中结果存入变量
                         let success = rule.evaluate(&hits);

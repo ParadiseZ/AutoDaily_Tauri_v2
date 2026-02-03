@@ -61,7 +61,7 @@ pub mod child_process {
         //let context = get_child_process_ctx().read().await;
 
         // 初始化上下文数据
-        init_data.init_data_from_main()?;
+        init_data.init_environment().await.map_err(|e| ChildProcessError::InitErr(e))?;
 
         // 设置运行状态
         set_running_status(RunningStatus::Idle);

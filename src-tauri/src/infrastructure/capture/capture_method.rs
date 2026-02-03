@@ -1,6 +1,6 @@
 use crate::infrastructure::logging::log_trait::Log;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CaptureMethod {
     Window = 1,
     ADB = 2,

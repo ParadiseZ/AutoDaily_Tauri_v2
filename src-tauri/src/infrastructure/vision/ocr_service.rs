@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::infrastructure::logging::log_trait::Log;
 
 /// 新的OCR模型管理器 - 使用trait对象来处理不同的模型
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OcrService {
     detector: Option<Arc<dyn TextDetector>>,
     recognizer: Option<Arc<dyn TextRecognizer>>,

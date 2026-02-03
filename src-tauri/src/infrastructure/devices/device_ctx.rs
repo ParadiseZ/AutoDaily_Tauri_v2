@@ -5,7 +5,8 @@ use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::logging::log_trait::Log;
 use image::RgbaImage;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
+use tokio::sync::RwLock;
 use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;
 
 pub struct DeviceCtx {
@@ -30,6 +31,7 @@ impl DeviceCtx {
     pub fn new(
         device_config: Arc<RwLock<DeviceConfig>>,
         capture_method: CaptureMethod,
+        window_title: String,
     ) -> DeviceCtx {
         Log::debug("初始化设备上下文数据...");
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -39,7 +41,7 @@ impl DeviceCtx {
             //adb_ctx,
             cap_tx: tx,
             cap_rx: rx,
-            window_info: Arc::new(WindowInfo::init("default_null")),
+            window_info: Arc::new(WindowInfo::init(window_title.as_ref())),
         }
     }
 

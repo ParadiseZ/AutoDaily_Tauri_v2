@@ -51,7 +51,7 @@ pub fn stop_app_cmd(package_name: &str) -> String {
     format!("{} {}", STOP_APP, package_name)
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum ADBCommand {
     Click(Point<u16>),
     Swipe(Point<u16>, Point<u16>),
@@ -112,7 +112,7 @@ fn adb_cmd_vec_to_string(commands: &Vec<ADBCommand>) -> String {
     cmds
 }
 
-#[derive(Clone)]
+#[derive(Debug,Clone)]
 pub enum ADBCmdConv {
     ADBShellCommand(String),
     ADBClientCommand(ADBCommand),

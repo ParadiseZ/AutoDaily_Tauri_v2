@@ -9,7 +9,7 @@ mod api;
 mod app;
 mod constant;
 mod domain;
-mod infrastructure;
+pub mod infrastructure;
 
 
 use crate::api::dev_test::{

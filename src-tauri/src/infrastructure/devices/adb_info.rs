@@ -14,6 +14,6 @@ pub enum AdbConnectStatus {
 #[serde(rename_all = "camelCase")]
 pub struct AdbInfo {
     pub ip_addr: Ipv4Addr,
-    pub port: usize,
+    pub port: u16,
     pub states: AdbConnectStatus,
 }
