@@ -68,6 +68,9 @@ pub struct ScriptInfo {
     /// - None: 从未上传过
     /// - Some(id): 已上传，关联的云端版本 ID
     pub cloud_id: Option<ScriptId>,
+
+    /// 模板排序时间 (秒)
+    pub template_time: Option<u64>,
 }
 
 impl Default for ScriptInfo {

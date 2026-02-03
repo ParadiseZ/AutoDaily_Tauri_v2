@@ -4,6 +4,7 @@ use crate::infrastructure::vision::vision_error::VisionResult;
 use aho_corasick::AhoCorasick;
 use serde::{Deserialize, Serialize};
 use image::DynamicImage;
+use regex::Regex;
 
 /// 视觉对象的统一包装，用于搜索命中后的回溯
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,6 +111,10 @@ pub enum SearchRule {
         #[serde(rename = "text")]
         pattern: String 
     },
+    /// 正则匹配
+    Regex {
+        pattern: String,
+    },
     /// 逻辑组
     Group {
         op: LogicOp,
@@ -132,11 +137,9 @@ pub struct OcrSearcher {
 }
 
 impl OcrSearcher {
-    pub fn new(rule: &SearchRule) -> Self {
-        let patterns = rule.get_all_keywords();
-        // 预定义一些内部标记 pattern (如果需要的话，目前都在 rule 里)
-        let automaton = AhoCorasick::new(&patterns).unwrap();
-        Self { automaton, patterns }
+    pub fn new(keywords: Vec<String>) -> Self {
+        let automaton = AhoCorasick::new(&keywords).unwrap();
+        Self { automaton, patterns: keywords }
     }
 
     pub fn search<'a>(&self, snapshot: &'a VisionSnapshot) -> Vec<SearchHit<'a>> {
@@ -161,6 +164,13 @@ impl SearchRule {
     pub fn evaluate(&self, hits: &[SearchHit]) -> bool {
         match self {
             SearchRule::Keyword { pattern } => hits.iter().any(|h| &h.pattern == pattern),
+            SearchRule::Regex { pattern } => {
+                if let Ok(re) = Regex::new(pattern) {
+                    hits.iter().any(|h| re.is_match(&h.pattern))
+                } else {
+                    false
+                }
+            }
             SearchRule::Group { op, scope, items } => {
                 match scope {
                     SearchScope::Global => {
@@ -222,6 +232,7 @@ impl SearchRule {
     fn collect_keywords(&self, keywords: &mut Vec<String>) {
         match self {
             SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
+            SearchRule::Regex { pattern } => keywords.push(pattern.clone()),
             SearchRule::Group { items, .. } => {
                 for item in items {
                     item.collect_keywords(keywords);
@@ -268,7 +279,7 @@ mod tests {
             ]
         };
 
-        let searcher = OcrSearcher::new(&rule);
+        let searcher = OcrSearcher::new(rule.get_all_keywords());
         let hits = searcher.search(&snapshot);
         
         assert!(rule.evaluate(&hits));

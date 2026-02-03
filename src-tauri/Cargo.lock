@@ -415,6 +415,7 @@ dependencies = [
  "num_cpus",
  "ort",
  "rayon",
+ "regex",
  "rhai",
  "serde",
  "serde_json",

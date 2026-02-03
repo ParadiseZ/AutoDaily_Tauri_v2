@@ -195,6 +195,41 @@ pub enum StepKind {
         then_steps: Vec<Step>,
         else_steps: Option<Vec<Step>>,
     },
+
+    // 状态与流程管理
+    SetState {
+        target: StateTarget,
+        status: StateStatus,
+    },
+    GetState {
+        target: StateTarget,
+        output_var: String,
+    },
+    StopPolicy,
+    FinishTask {
+        success: bool,
+        message: Option<String>,
+    },
+    /// 结果过滤与逻辑处理 (e.g. 筛选数字并比较)
+    FilterHits {
+        input_var: String,  // Vec<SearchHit>
+        output_var: String, // 根据逻辑输出 bool 或 filtered hits
+        logic_expr: String, // Rhai 表达式，用于进一步过滤或判定
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum StateTarget {
+    Policy { id: PolicyId },
+    Task { id: TaskId },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum StateStatus {
+    Skip { value: bool },
+    Done { value: bool },
 }
 
 

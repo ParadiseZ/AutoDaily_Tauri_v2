@@ -128,6 +128,7 @@ num = "0.4.3"
 
 # 字符串搜索
 aho-corasick = "1.1"
+regex = "1.12.2"
 
 # Windows 原生API（命名共享内存、亲和性）
 [target.'cfg(windows)'.dependencies]

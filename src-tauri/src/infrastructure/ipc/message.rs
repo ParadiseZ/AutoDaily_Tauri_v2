@@ -2,10 +2,7 @@
 // 定义进程间通信的消息类型和结构
 
 use crate::domain::vision::result::{DetResult, OcrResult};
-use crate::infrastructure::core::{DeviceId, MessageId, ScriptId};
-use crate::infrastructure::logging::LogLevel;
-use bincode::{Decode, Encode};
-use std::path::PathBuf;
+use crate::infrastructure::core::{DeviceId, MessageId, PolicyGroupId, PolicySetId, ScriptId, TaskId};
 
 /// IPC消息枚举
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
@@ -135,10 +132,20 @@ pub struct ScriptManagementMessage {
 }
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
+pub enum ExecuteTarget {
+    FullScript,
+    Task(TaskId),
+    PolicyGroup(PolicyGroupId),
+    PolicySet(PolicySetId),
+}
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub enum ScriptAction {
     Load(PathBuf),
     Unload,
-    Execute,
+    Execute {
+        target: ExecuteTarget,
+    },
     Stop,
     GetStatus,
     UpdateParameters,

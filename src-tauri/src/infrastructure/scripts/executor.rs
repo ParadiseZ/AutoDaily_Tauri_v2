@@ -267,7 +267,7 @@ impl ScriptExecutor {
                     }
 
                     if let Some(snapshot) = &self.last_snapshot {
-                        let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(rule);
+                        let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(rule.get_all_keywords());
                         let hits = searcher.search(snapshot);
                         
                         // 将命中结果存入变量
@@ -291,7 +291,22 @@ impl ScriptExecutor {
                     self.reset_node_indices();
                     // TODO: 实际滑动逻辑
                 }
-                 _ => {}
+                StepKind::SetState { .. } => {
+                     // TODO: Set state in global context
+                }
+                StepKind::GetState { .. } => {
+                     // TODO: Get state from global context
+                }
+                StepKind::StopPolicy => {
+                     return Ok(ControlFlow::Return);
+                }
+                StepKind::FinishTask { .. } => {
+                     return Ok(ControlFlow::Return);
+                }
+                StepKind::FilterHits { .. } => {
+                     // TODO: Implementation with Rhai
+                }
+                _ => {}
             }
             
             // 自动迭代逻辑
