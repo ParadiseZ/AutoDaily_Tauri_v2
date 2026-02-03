@@ -1,24 +1,25 @@
-use crate::infrastructure::context::child_app_context::{init_child_app_ctx, AppCtx};
+use crate::domain::devices::device_conf::{CapMethod, DeviceConfig};
+use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
+use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::context::child_process_sec::init_ipc_client;
 use crate::infrastructure::context::init_error::{InitError, InitResult};
-use crate::infrastructure::context::runtime_context::{RuntimeContext, SharedRuntimeContext};
+use crate::infrastructure::context::runtime_context::{init_runtime_ctx, RuntimeContext, SharedRuntimeContext};
 use crate::infrastructure::core::cores_affinity::set_process_affinity;
 use crate::infrastructure::core::DeviceId;
-use crate::domain::devices::device_conf::{CapMethod, DeviceConfig};
-use crate::infrastructure::adb_cli_local::adb_executor::ADBExecutor;
-use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use crate::infrastructure::db::init_db_with_path;
+use crate::infrastructure::devices::device_ctx::init_device_ctx;
+use crate::infrastructure::ipc::message::ExecuteTarget;
 use crate::infrastructure::logging::child_log::LogChild;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;
 use crate::infrastructure::vision::ocr_service::OcrService;
-use crate::infrastructure::ipc::message::ExecuteTarget;
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddrV4;
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
-use std::net::SocketAddrV4;
-use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
-use crate::infrastructure::capture::capture_method::CaptureMethod;
+use tokio::sync::RwLock;
 
 /// 子进程上下文（设备进程）
 /// 子进程上下文（设备进程）
@@ -34,14 +35,13 @@ pub struct ChildProcessInitData {
     pub device_id: DeviceId,
     pub device_config: DeviceConfig,
     pub shm_name: String,
-    pub buffer_size: usize,
     pub log_level: LogLevel,
-    /// cpu核心
     pub cpu_cores: Vec<usize>,
+    pub db_path: PathBuf,
 }
 
 impl ChildProcessInitData {
-    /// 初始化子进程环境并构建 AppCtx
+    /// 初始化子进程环境并构建全局上下文
     pub async fn init_environment(&self) -> InitResult<()> {
         // 1. 设置线程亲和性
         set_process_affinity(&self.cpu_cores)
@@ -50,72 +50,48 @@ impl ChildProcessInitData {
         // 2. 初始化日志
         Log::init_logger(Box::new(LogChild))?;
 
-        // 3. 初始化 IPC 客户端
+        // 3. 初始化数据库连接
+        init_db_with_path(&self.db_path)
+            .await
+            .map_err(|e| InitError::InitChildDatabaseEnvFailed { e })?;
+
+        // 4. 初始化 IPC 客户端
         init_ipc_client(Arc::new(self.device_id), self.log_level.clone()).map_err(|_| {
             InitError::InitChildIpcClientFailed {
                 e: "初始化ipc客户端失败".to_string(),
             }
         })?;
 
-        // 4. 初始化 OCR 服务 (单例 Arc)
-        let ocr_service = Arc::new(OcrService::new());
-
-        // 5. 初始化 ADB 执行器
+        // 5. 初始化 ADB 上下文 (在子进程中使用 OnceLock 模型)
         let adb_config = if let Some(adb_info) = &self.device_config.adb_info {
             ADBConnectConfig::DirectTcp(Some(SocketAddrV4::new(adb_info.ip_addr, adb_info.port)))
         } else {
-            // 默认回退到 DirectTcp 127.0.0.1:16416 (MuMu 默认)
             ADBConnectConfig::DirectTcp(Some(SocketAddrV4::new([127, 0, 0, 1].into(), 16416)))
         };
-        
-        // ADBExecutor::new 返回 (executor, cmd_tx, cmd_loop_tx)
-        // 我们需要把 executor 运行起来
-        let (error_tx, _) = crossbeam_channel::bounded(100); // TODO: 处理错误
-        let (adb_executor_inst, cmd_tx, cmd_loop_tx) = ADBExecutor::new(
-            Arc::new(Mutex::new(adb_config)),
-            error_tx
-        );
-        
-        let adb_executor = Arc::new(RwLock::new(adb_executor_inst));
-        
-        // 启动 ADB 执行器主循环
-        let adb_exec_clone = adb_executor.clone();
-        tokio::spawn(async move {
-            let executor = {
-                // 这里有个坑：ADBExecutor::run 需要所有权
-                // 但我们放在了 Arc<RwLock> 中。
-                // 建议修改 ADBExecutor 以支持在线程中运行，或者在这里直接 run 之后再 clone
-                // 暂时这里简化，后面再处理生命周期
-            };
-        });
+        ADBCtx::new(adb_config).await;
 
-        // 6. 初始化运行时上下文 (初始为 Idle/Empty 状态)
+        // 6. 初始化运行时上下文 (RUNTIME_CTX)
+        let ocr_service = Arc::new(OcrService::new());
+        //let adb_executor = Arc::new(RwLock::new(crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx().adb_executor.clone_for_child()));
+        
         let runtime_ctx = Arc::new(RwLock::new(RuntimeContext::new(
-            self.device_id, // 暂时用 device_id 作为占位 script_id
-            ExecuteTarget::FullScript, // 默认占位
+            self.device_id, // 占位
+            ExecuteTarget::FullScript, // 占位
             ocr_service.clone(),
-            adb_executor.clone(),
         )));
-
-        let (cap_method, title) = match self.device_config.cap_method {
-            CapMethod::Window(title) => {
-                (CaptureMethod::Window, title)
-            },
-            CapMethod::ADB => {
-                (CaptureMethod::ADB, "".to_string())
-            },
-        };
-        // 7. 构建并保存 AppCtx
-        let app_ctx = AppCtx {
-            device_ctx: Arc::new(crate::infrastructure::devices::device_ctx::DeviceCtx::new(
-                Arc::new(RwLock::new(self.device_config.clone())),
-                cap_method,
-                title
-            )),
-            runtime_ctx: runtime_ctx.clone(),
+        init_runtime_ctx(runtime_ctx)?;
+        // 7. 初始化设备上下文 (DEVICE_CTX)
+        let (cap_method, title) = match &self.device_config.cap_method {
+            CapMethod::Window(title) => (CaptureMethod::Window, Some(title.clone())),
+            CapMethod::ADB => (CaptureMethod::ADB, None),
         };
         
-        init_child_app_ctx(app_ctx).await?;
+        let device_ctx = Arc::new(crate::infrastructure::devices::device_ctx::DeviceCtx::new(
+            Arc::new(RwLock::new(self.device_config.clone())),
+            cap_method,
+            title,
+        ));
+        init_device_ctx(device_ctx)?;
 
         Ok(())
     }

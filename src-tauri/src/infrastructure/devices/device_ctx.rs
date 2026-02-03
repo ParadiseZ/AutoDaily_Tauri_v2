@@ -5,9 +5,20 @@ use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::logging::log_trait::Log;
 use image::RgbaImage;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::{Arc};
+use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;
+use crate::infrastructure::context::init_error::InitResult;
+
+static DEVICE_CTX: OnceLock<Arc<DeviceCtx>> = OnceLock::new();
+
+pub fn get_device_ctx() -> Arc<DeviceCtx> {
+    DEVICE_CTX.get().expect("DeviceCtx not initialized").clone()
+}
+
+pub fn init_device_ctx(ctx: Arc<DeviceCtx>)-> InitResult<()> {
+    DEVICE_CTX.set(ctx).map_err(|e| e.to_string())?
+}
 
 pub struct DeviceCtx {
     //设备配置
@@ -31,7 +42,7 @@ impl DeviceCtx {
     pub fn new(
         device_config: Arc<RwLock<DeviceConfig>>,
         capture_method: CaptureMethod,
-        window_title: String,
+        window_title: Option<String>,
     ) -> DeviceCtx {
         Log::debug("初始化设备上下文数据...");
         let (tx, rx) = crossbeam_channel::bounded(1);
@@ -41,7 +52,7 @@ impl DeviceCtx {
             //adb_ctx,
             cap_tx: tx,
             cap_rx: rx,
-            window_info: Arc::new(WindowInfo::init(window_title.as_ref())),
+            window_info: Arc::new(WindowInfo::init(window_title)),
         }
     }
 

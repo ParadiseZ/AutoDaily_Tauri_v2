@@ -21,6 +21,9 @@ pub enum InitError {
     #[error("child-初始化ort环境失败： {e}")]
     InitChildOrtEnvFailed { e: String },
 
+    #[error("child-初始化数据库连接失败： {e}")]
+    InitChildDatabaseEnvFailed { e: String },
+
     #[error("main-初始化{category}配置失败: {e}")]
     InitMainConfigErr { category: String, e: String },
 

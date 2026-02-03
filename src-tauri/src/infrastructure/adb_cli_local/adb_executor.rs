@@ -64,6 +64,19 @@ impl ADBExecutor {
             cmd_loop_tx,
         )
     }
+    pub fn clone_for_child(&self) -> Self {
+        Self {
+            device: None,
+            adb_config: self.adb_config.clone(),
+            cmd_rx: self.cmd_rx.clone(),
+            cmd_loop_rx: self.cmd_loop_rx.clone(),
+            error_tx: self.error_tx.clone(),
+            executor_is_looping: false,
+            cmds_after_conversion: self.cmds_after_conversion.clone(),
+            duration: self.duration,
+            need_duration: self.need_duration.clone(),
+        }
+    }
     pub fn validate_config(&self) -> bool {
         tokio::runtime::Handle::current().block_on(async {
             self.adb_config.clone().lock().await.valid()

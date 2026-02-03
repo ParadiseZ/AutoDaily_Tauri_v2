@@ -1,12 +1,22 @@
 use crate::domain::scripts::script_info::ScriptInfo;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
-use crate::infrastructure::adb_cli_local::adb_executor::ADBExecutor;
+use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{HashMap, PolicyId, ScriptId, TaskId};
 use crate::infrastructure::ipc::message::ExecuteTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
+
+static RUNTIME_CTX: OnceLock<SharedRuntimeContext> = OnceLock::new();
+
+pub fn get_runtime_ctx() -> SharedRuntimeContext {
+    RUNTIME_CTX.get().expect("RuntimeContext not initialized").clone()
+}
+
+pub fn init_runtime_ctx(ctx: SharedRuntimeContext)->InitResult<()>  {
+    RUNTIME_CTX.set(ctx).map_err(|e| e.to_string())?
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct PolicyState {
@@ -29,7 +39,7 @@ pub struct RuntimeContext {
     
     /// 基础服务
     pub ocr_service: Arc<OcrService>,
-    pub adb_executor: Arc<RwLock<ADBExecutor>>,
+    //pub adb_executor: Arc<RwLock<ADBExecutor>>,
     
     /// Rhai 变量映射
     pub var_map: HashMap<String, rhai::Dynamic>,
@@ -54,8 +64,8 @@ impl RuntimeContext {
     pub fn new(
         script_id: ScriptId,
         target: ExecuteTarget,
-        ocr_service: Arc<OcrService>,
-        adb_executor: Arc<RwLock<ADBExecutor>>,
+        ocr_service: Arc<OcrService>
+        //adb_executor: Arc<RwLock<ADBExecutor>>,
     ) -> Self {
         Self {
             script_id,
@@ -63,7 +73,7 @@ impl RuntimeContext {
             script_info: None,
             current_task: None,
             ocr_service,
-            adb_executor,
+            //adb_executor,
             var_map: HashMap::new(),
             policy_states: HashMap::new(),
             task_states: HashMap::new(),
