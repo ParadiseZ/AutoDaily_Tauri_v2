@@ -1,10 +1,9 @@
 use crate::constant::table_name::{SCRIPT_TABLE, SCRIPT_TASK_TABLE};
-use crate::infrastructure::core::ScriptId;
-use crate::infrastructure::db::{DbRepo, get_pool};
-use tauri::command;
 use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::ScriptTaskTable;
-use sqlx::types::Json;
+use crate::infrastructure::core::ScriptId;
+use crate::infrastructure::db::{get_pool, DbRepo};
+use tauri::command;
 
 /// 获取所有脚本配置
 #[command]

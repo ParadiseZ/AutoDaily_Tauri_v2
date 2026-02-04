@@ -3,7 +3,6 @@ use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::rec::RecognizerType;
 use sqlx::types::Json;
 use sqlx::FromRow;
-use crate::domain::scripts::script_task::ScriptTaskTable;
 
 #[derive(Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -69,8 +68,8 @@ pub struct ScriptInfo {
     /// - Some(id): 已上传，关联的云端版本 ID
     pub cloud_id: Option<ScriptId>,
 
-    /// 模板排序时间 (秒)
-    pub template_time: Option<u64>,
+    // 模板排序时间 (秒)
+    //pub template_time: Option<u64>,
 }
 
 impl Default for ScriptInfo {
@@ -96,6 +95,7 @@ impl Default for ScriptInfo {
             script_type: ScriptType::Dev,
             is_valid: false,
             cloud_id: None,
+            //template_time: None,
         }
     }
  }

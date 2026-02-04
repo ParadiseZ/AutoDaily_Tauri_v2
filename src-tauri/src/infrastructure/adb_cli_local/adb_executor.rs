@@ -1,9 +1,6 @@
-use crate::infrastructure::adb_cli_local::adb_command::{
-    click_cmd, input_text_cmd, sleep_cmd, stop_app_cmd, swipe_cmd, swipe_with_duration_cmd,
-    ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME,
-};
+use crate::infrastructure::adb_cli_local::adb_command::{click_cmd, input_text_cmd, long_click_and_swipe, long_click_cmd, sleep_cmd, stop_app_cmd, swipe_cmd, swipe_duration_cmd, ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME};
 
-use adb_client::{ADBDeviceExt, ADBServer, ADBTcpDevice, RebootType};
+use adb_client::{ADBDeviceExt, RebootType};
 use crossbeam_channel::bounded;
 use std::collections::HashSet;
 use std::collections::VecDeque;
@@ -11,13 +8,14 @@ use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc};
 use std::time::Duration;
+use adb_client::server::ADBServer;
+use adb_client::tcp::ADBTcpDevice;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
 use crate::infrastructure::logging::log_trait::Log;
 
-#[derive(Debug)]
 pub struct ADBExecutor {
     device: Option<Box<dyn ADBDeviceExt + Send + Sync>>,
     pub adb_config: Arc<Mutex<ADBConnectConfig>>, //from RuntimeContext
@@ -34,6 +32,11 @@ pub struct ADBExecutor {
     need_duration: Arc<AtomicBool>,
 }
 
+impl std::fmt::Debug for ADBExecutor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f,"device:{},executor_is_looping:{}",self.executor_is_looping,self.device.as_deref())
+    }
+}
 impl ADBExecutor {
     pub fn new(
         adb_config: Arc<Mutex<ADBConnectConfig>>,
@@ -46,6 +49,7 @@ impl ADBExecutor {
     ) {
         let (cmd_tx, cmd_rx) = bounded(10);
         let (cmd_loop_tx, cmd_loop_rx) = bounded(10);
+
         (
             ADBExecutor {
                 device: None,
@@ -246,14 +250,20 @@ impl ADBExecutor {
             ADBCommand::Click(point) => {
                 cmds_str.push_back(ADBCmdConv::ADBShellCommand(click_cmd(point).to_string()))
             }
+            ADBCommand::LongClick(point) => {
+                cmds_str.push_back(ADBCmdConv::ADBShellCommand(long_click_cmd(point).to_string()))
+            }
+            ADBCommand::LongClickAndSwipe(point1, point2, duration) => {
+                cmds_str.push_back(ADBCmdConv::ADBShellCommand(
+                    long_click_and_swipe(point1, point2, duration).to_string(),
+                ))
+            }
             ADBCommand::Swipe(point1, point2) => cmds_str.push_back(ADBCmdConv::ADBShellCommand(
                 swipe_cmd(point1, point2).to_string(),
             )),
-            ADBCommand::SwipeWithDuration(point1, point2, duration) => {
-                cmds_str.push_back(ADBCmdConv::ADBShellCommand(
-                    swipe_with_duration_cmd(point1, point2, duration).to_string(),
-                ))
-            }
+            ADBCommand::SwipeWithDuration(point1, point2, duration) => cmds_str.push_back(ADBCmdConv::ADBShellCommand(
+                swipe_duration_cmd(point1, point2, duration).to_string(),
+            )),
             ADBCommand::StopApp(pkg_name) => cmds_str.push_back(ADBCmdConv::ADBShellCommand(
                 stop_app_cmd(&pkg_name).to_string(),
             )),
@@ -282,12 +292,21 @@ impl ADBExecutor {
                     cmd_string.push_str(&click_cmd(point));
                     cmd_string.push_str(" &&");
                 }
+                ADBCommand::LongClick(point) => {
+                    cmd_string.push_str(&long_click_cmd(point));
+                    cmd_string.push_str(" &&");
+                }
+
+                ADBCommand::LongClickAndSwipe(point1, point2, duration) => {
+                    cmd_string.push_str(&long_click_and_swipe(point1, point2, duration));
+                    cmd_string.push_str(" &&");
+                }
                 ADBCommand::Swipe(point1, point2) => {
                     cmd_string.push_str(&swipe_cmd(point1, point2));
                     cmd_string.push_str(" &&");
                 }
-                ADBCommand::SwipeWithDuration(point1, point2, duration) => {
-                    cmd_string.push_str(&swipe_with_duration_cmd(point1, point2, duration));
+                ADBCommand::SwipeWithDuration(point1, point2,duration) => {
+                    cmd_string.push_str(&swipe_duration_cmd(point1, point2, duration));
                     cmd_string.push_str(" &&");
                 }
                 ADBCommand::StopApp(pkg_name) => {
@@ -368,13 +387,21 @@ impl ADBExecutor {
                 let _ = self.execute_shell(&click_cmd(point)).await;
                 Ok(ADBCommandResult::Success)
             }
+
+            ADBCommand::LongClick( point)=>{
+                self.execute_shell(&long_click_cmd(point)).await
+            }
+
+            ADBCommand::LongClickAndSwipe(point1, point2, duration) => {
+                self.execute_shell(&long_click_and_swipe(point1, point2, duration))
+                    .await
+            }
+
             ADBCommand::Swipe(point1, point2) => {
                 self.execute_shell(&swipe_cmd(point1, point2)).await
             }
-
             ADBCommand::SwipeWithDuration(point1, point2, duration) => {
-                self.execute_shell(&swipe_with_duration_cmd(point1, point2, duration))
-                    .await
+                self.execute_shell(&swipe_duration_cmd(point1, point2,duration)).await
             }
 
             ADBCommand::StartActivity(package_name, activity_name) => {
@@ -448,10 +475,10 @@ impl ADBExecutor {
 
     /// 封装的三方的shell命令
     async fn execute_shell(&mut self, cmd: &str) -> AdbResult<ADBCommandResult> {
-        let mut buffer = Vec::new();
+        //let mut buffer = Vec::new();
         if let Some(device) =  self.device.as_mut(){
             let res = device
-                .shell_command(&[cmd], &mut buffer)
+                .shell_command(&cmd,None,None)
                 .map(|_| ADBCommandResult::Success)
                 .unwrap_or_else(|e| ADBCommandResult::Failed(e.to_string()));
             //let _ = self.resp_tx.send(res);

@@ -37,7 +37,7 @@ impl WindowInfo {
             let title = window.title().unwrap_or_else(|_| "无标题".to_string());
             //Log::info(&format!("发现窗口: {}", title));
             // 检查是否是目标窗口
-            if title.contains(window_name.unwrap().as_str()) {
+            if title.contains(window_name.clone().unwrap().as_str()) {
                 //Log::info(&format!("找到目标窗口: {}", title));
                 // 找到并截图后退出循环
                 return Self {

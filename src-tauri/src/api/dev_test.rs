@@ -2,7 +2,7 @@ use crate::app::dev_test::{paddle_ocr_infer, yolo_infer_test};
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
-use crate::domain::devices::device_conf::DeviceConfig;
+use crate::domain::devices::device_conf::{CapMethod, DeviceConfig};
 use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::devices::device_ctx::DeviceCtx;
@@ -11,8 +11,9 @@ use crate::infrastructure::image::save_image::save_screenshot;
 use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::rec::RecognizerType;
 use image::DynamicImage;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
 use tauri::command;
+use tokio::sync::RwLock;
 
 #[command]
 pub async fn dev_capture_test(
@@ -21,9 +22,15 @@ pub async fn dev_capture_test(
     adb_conf: ADBConnectConfig,
 ) -> Result<String, String> {
     ADBCtx::new(adb_conf).await;
+    let capture_method = CaptureMethod::from(method);
+    let title = match device_conf.cap_method.clone() {
+        CapMethod::Window(title) => Some(title),
+        CapMethod::ADB => None,
+    };
     let device_ctx = DeviceCtx::new(
         Arc::new(RwLock::new(device_conf)),
         CaptureMethod::from(method),
+        title
         //Arc::new(RwLock::new(adb_ctx)),
     );
 

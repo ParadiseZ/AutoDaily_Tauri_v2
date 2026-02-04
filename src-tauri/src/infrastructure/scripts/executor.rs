@@ -6,7 +6,6 @@ use crate::infrastructure::core::StepId;
 use tokio::time::Duration;
 use std::pin::Pin;
 use std::future::Future;
-use crate::domain::scripts::action::click::Click;
 
 #[derive(Debug)]
 pub enum ControlFlow {
@@ -191,7 +190,8 @@ impl ScriptExecutor {
                     // TODO: Call device.screencap()
                     // Store path or handle in scope
                     self.scope.set_value(output_var, "placeholder_image_path.png".to_string());
-                    self.last_snapshot = None; // 截图后旧快照失效
+                    let mut ctx = self.runtime_ctx.write().await;
+                    ctx.last_snapshot = None; // 截图后旧快照失效
                 }
                 StepKind::Ocr { image_var: _, output_var } => {
                      // TODO: Call OCR engine

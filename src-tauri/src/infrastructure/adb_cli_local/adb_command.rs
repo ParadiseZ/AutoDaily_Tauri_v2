@@ -10,6 +10,7 @@ pub const POWER: &str = "input keyevent 26";
 pub const MUTE: &str = "input keyevent 164";
 pub const CLICK: &str = "input tap";
 pub const SWIPE: &str = "input swipe";
+pub const TOUCH_SCREEN: &str = "input touchscreen swipe";
 pub const STOP_APP: &str = "am force-stop";
 pub const COMMAND_WRITE_ERROR_MSG: &str = "ADB命令写入缓冲区数据失败！";
 
@@ -20,14 +21,34 @@ pub fn sleep_cmd(interval: u64) -> String {
 pub fn click_cmd(p: &Point<u16>) -> String {
     format!("{} {},{}", CLICK, p.x,p.y)
 }
-pub fn long_click_cmd(p: &Point<u16>, duration: &u32) -> String {
-    swipe_with_duration_cmd(p, &p.add(Point::new(1, 1)), duration)
+pub fn long_click_cmd(p1: &Point<u16>) -> String {
+    let p2 = p1.add(Point::new(1, 1));
+    format!(
+        "{} {},{} {},{} {}",
+        TOUCH_SCREEN,
+        p1.x,
+        p1.y,
+        p2.x,
+        p2.y,
+        1500
+    )
+}
+pub fn long_click_and_swipe(p1: &Point<u16>,p2: &Point<u16>, duration: &u64) -> String {
+    format!(
+        "{} {},{} {},{} {}",
+        TOUCH_SCREEN,
+        p1.x,
+        p1.y,
+        p2.x,
+        p2.y,
+        duration
+    )
 }
 pub fn swipe_cmd(p1: &Point<u16>, p2: &Point<u16>) -> String {
-    format!("{} {},{} {},{}", SWIPE, p1.x,p1.y, p2.x,p2.y)
+    format!("{} {},{} {},{},{}", SWIPE, p1.x,p1.y, p2.x,p2.y, 1000)
 }
 
-pub fn swipe_with_duration_cmd(p1: &Point<u16>, p2: &Point<u16>, duration: &u32) -> String {
+pub fn swipe_duration_cmd(p1: &Point<u16>, p2: &Point<u16>, duration: &u64) -> String {
     format!(
         "{} {},{} {},{} {}",
         SWIPE,
@@ -54,8 +75,10 @@ pub fn stop_app_cmd(package_name: &str) -> String {
 #[derive(Debug, Clone)]
 pub enum ADBCommand {
     Click(Point<u16>),
+    LongClick(Point<u16>),
+    LongClickAndSwipe(Point<u16>, Point<u16>, u64),
     Swipe(Point<u16>, Point<u16>),
-    SwipeWithDuration(Point<u16>, Point<u16>, u32),
+    SwipeWithDuration(Point<u16>, Point<u16>, u64),
     Reboot,
     StartActivity(String, String),
     Capture(crossbeam_channel::Sender<RgbaImage>),
@@ -82,8 +105,10 @@ impl std::fmt::Display for ADBCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ADBCommand::Click(p) => write!(f, "{} {} {}", CLICK, p.x, p.y),
-            ADBCommand::Swipe(p1, p2) => write!(f, "{} {},{} {},{}", SWIPE, p1.x, p1.y, p2.x, p2.y),
-            ADBCommand::SwipeWithDuration(p1, p2, duration) => write!(f, "{} {},{} {},{} {}", SWIPE, p1.x, p1.y, p2.x, p2.y, duration),
+            ADBCommand::LongClick(p) => write!(f, "{}",long_click_cmd(p)),
+            ADBCommand::LongClickAndSwipe(p1, p2, duration) => write!(f, "{}", long_click_and_swipe(p1, p2, duration)),
+            ADBCommand::Swipe(p1, p2) => write!(f, "{}", swipe_cmd(p1, p2)),
+            ADBCommand::SwipeWithDuration(p1, p2, duration) => write!(f, "{}", swipe_duration_cmd(p1, p2, duration)),
             ADBCommand::Reboot => write!(f, "reboot:{}", POWER),
             ADBCommand::StartActivity(package_name, activity_name) => write!(f, "am start -n {}/{}", package_name, activity_name),
             ADBCommand::Capture(_) => write!(f, "capture"),
