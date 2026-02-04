@@ -98,21 +98,8 @@ impl<'a> PolicySetEvaluator<'a> {
             return Vec::new();
         }
 
-        // 1. 聚合所有策略的关键字
-        let mut keywords = Vec::new();
-        for policy in &self.policies {
-            keywords.extend(policy.cond.get_all_keywords());
-        }
-        
-        // 2. 去重并构建搜索器
-        keywords.sort();
-        keywords.dedup();
-        
-        if keywords.is_empty() {
-            return Vec::new();
-        }
-
-        let searcher = OcrSearcher::new(keywords);
+        let rules: Vec<SearchRule> = self.policies.iter().map(|p| p.cond.clone()).collect();
+        let searcher = OcrSearcher::new(&rules);
         
         // 3. 执行单次视觉搜索
         let hits = searcher.search(snapshot);

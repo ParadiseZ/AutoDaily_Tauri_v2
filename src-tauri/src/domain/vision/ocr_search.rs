@@ -112,16 +112,17 @@ pub enum SearchScope {
 
 /// 逻辑规则定义
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type")]
 pub enum SearchRule {
     /// 关键字包含
-    Keyword { 
-        #[serde(rename = "text")]
+    Keyword {
         pattern: String 
     },
     /// 正则匹配
+    /// 正则匹配
     Regex {
         pattern: String,
+        #[serde(skip)]
+        compiled: Option<Regex>,
     },
     /// 逻辑组
     Group {
@@ -141,16 +142,45 @@ pub struct SearchHit {
 pub struct OcrSearcher {
     automaton: AhoCorasick,
     patterns: Vec<String>,
+    regexes: Vec<(String, Regex)>,
 }
 
 impl OcrSearcher {
-    pub fn new(keywords: Vec<String>) -> Self {
+    pub fn new(rules: &[SearchRule]) -> Self {
+        let mut keywords = Vec::new();
+        let mut regexes = Vec::new();
+
+        fn collect(rule: &SearchRule, keywords: &mut Vec<String>, regexes: &mut Vec<(String, Regex)>) {
+            match rule {
+                SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
+                SearchRule::Regex { pattern, .. } => {
+                    if let Ok(re) = Regex::new(pattern) {
+                        regexes.push((pattern.clone(), re));
+                    }
+                }
+                SearchRule::Group { items, .. } => {
+                    for item in items {
+                        collect(item, keywords, regexes);
+                    }
+                }
+            }
+        }
+
+        for rule in rules {
+            collect(rule, &mut keywords, &mut regexes);
+        }
+
+        keywords.sort();
+        keywords.dedup();
+
         let automaton = AhoCorasick::new(&keywords).unwrap();
-        Self { automaton, patterns: keywords }
+        Self { automaton, patterns: keywords, regexes }
     }
 
     pub fn search(&self, snapshot: &VisionSnapshot) -> Vec<SearchHit> {
         let mut hits = Vec::new();
+        
+        // 1. Aho-Corasick for literals
         for mat in self.automaton.find_iter(&snapshot.buffer) {
             if let Some(item) = snapshot.find_item_at(mat.start()) {
                 hits.push(SearchHit {
@@ -159,6 +189,19 @@ impl OcrSearcher {
                 });
             }
         }
+
+        // 2. Regex for patterns
+        for (pattern_str, re) in &self.regexes {
+            for mat in re.find_iter(&snapshot.buffer) {
+                if let Some(item) = snapshot.find_item_at(mat.start()) {
+                    hits.push(SearchHit {
+                        pattern: pattern_str.clone(),
+                        item: item.clone(),
+                    });
+                }
+            }
+        }
+
         hits
     }
 }
@@ -169,12 +212,8 @@ impl SearchRule {
     pub fn evaluate(&self, hits: &[SearchHit]) -> bool {
         match self {
             SearchRule::Keyword { pattern } => hits.iter().any(|h| &h.pattern == pattern),
-            SearchRule::Regex { pattern } => {
-                if let Ok(re) = Regex::new(pattern) {
-                    hits.iter().any(|h| re.is_match(&h.pattern))
-                } else {
-                    false
-                }
+            SearchRule::Regex { pattern, .. } => {
+                hits.iter().any(|h| &h.pattern == pattern)
             }
             SearchRule::Group { op, scope, items } => {
                 match scope {
@@ -235,9 +274,11 @@ impl SearchRule {
     }
 
     fn collect_keywords(&self, keywords: &mut Vec<String>) {
+        // This is now handled by OcrSearcher::new directly using rules
+        // But we keep it for compatibility if needed elsewhere
         match self {
             SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
-            SearchRule::Regex { pattern } => keywords.push(pattern.clone()),
+            SearchRule::Regex { pattern, .. } => keywords.push(pattern.clone()),
             SearchRule::Group { items, .. } => {
                 for item in items {
                     item.collect_keywords(keywords);

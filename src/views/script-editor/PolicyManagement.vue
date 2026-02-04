@@ -241,7 +241,7 @@ const addNewItem = async () => {
           execCur: 0,
           execMax: 0,
           beforeAction: [],
-          cond: [],
+          cond: { text: '' },
           afterAction: [],
         };
         break;
