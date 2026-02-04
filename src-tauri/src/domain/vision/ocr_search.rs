@@ -316,18 +316,23 @@ mod tests {
         let snapshot = VisionSnapshot::new(ocr, det, None).unwrap();
         
         // 规则：包含 "Confirm" 且包含 5号物体 (button)
-        let rule = SearchRule::Group {
-            op: LogicOp::And,
-            scope: SearchScope::Global,
-            items: vec![
-                SearchRule::Keyword { pattern: "Confirm".into() },
-                SearchRule::Keyword { pattern: "__OBJ:5__".into() },
-            ]
-        };
+        let mut rules= Vec::new();
+        rules.push(
+                SearchRule::Group {
+                    op: LogicOp::And,
+                    scope: SearchScope::Global,
+                    items: vec![
+                        SearchRule::Keyword { pattern: "Confirm".into() },
+                        SearchRule::Keyword { pattern: "__OBJ:5__".into() },
+                    ]
+                }
+        );
 
-        let searcher = OcrSearcher::new(rule.get_all_keywords());
+        let searcher = OcrSearcher::new(&rules);
         let hits = searcher.search(&snapshot);
-        
-        assert!(rule.evaluate(&hits));
+
+        for rule in rules{
+            assert!(rule.evaluate(&hits));
+        }
     }
 }

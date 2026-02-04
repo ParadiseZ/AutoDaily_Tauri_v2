@@ -231,7 +231,9 @@ impl ScriptExecutor {
                     }
 
                     let hits = if let Some(snapshot) = &ctx.last_snapshot {
-                        let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(rule.get_all_keywords());
+                        let mut rules = Vec::new();
+                        rules.push(rule.clone());
+                        let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(&rules);
                         Some(searcher.search(snapshot))
                     } else {
                         None
