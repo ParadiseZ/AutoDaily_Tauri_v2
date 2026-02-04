@@ -7,7 +7,7 @@ use ndarray::{ArrayD, ArrayViewD};
 use rayon::prelude::*;
 
 /// 模型处理器的核心trait - 定义了所有模型的通用操作
-pub trait ModelHandler: Send + Sync {
+pub trait ModelHandler: Send + Sync + std::fmt::Debug {
     fn load_model(&mut self) -> VisionResult<()>;
 
     /// 获取模型输入尺寸

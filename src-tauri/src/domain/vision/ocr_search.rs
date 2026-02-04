@@ -20,6 +20,13 @@ impl VisionItem {
             VisionItem::Det(r) => &r.bounding_box,
         }
     }
+
+    pub fn txt(&self) -> String {
+        match self {
+            VisionItem::Ocr(r) => r.txt.clone(),
+            VisionItem::Det(r) => r.label.clone(),
+        }
+    }
 }
 
 /// 视觉快照：包含脱敏/标记后的搜索缓冲区及元数据映射
@@ -125,11 +132,10 @@ pub enum SearchRule {
 }
 
 /// 搜索命中结果
-#[derive(Debug, Clone)]
-pub struct SearchHit<'a> {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchHit {
     pub pattern: String,
-    pub offset: usize,
-    pub item: &'a VisionItem,
+    pub item: VisionItem,
 }
 
 pub struct OcrSearcher {
@@ -143,15 +149,13 @@ impl OcrSearcher {
         Self { automaton, patterns: keywords }
     }
 
-    pub fn search<'a>(&self, snapshot: &'a VisionSnapshot) -> Vec<SearchHit<'a>> {
+    pub fn search(&self, snapshot: &VisionSnapshot) -> Vec<SearchHit> {
         let mut hits = Vec::new();
         for mat in self.automaton.find_iter(&snapshot.buffer) {
-            let offset = mat.start();
-            if let Some(item) = snapshot.find_item_at(offset) {
+            if let Some(item) = snapshot.find_item_at(mat.start()) {
                 hits.push(SearchHit {
                     pattern: self.patterns[mat.pattern().as_usize()].clone(),
-                    offset,
-                    item,
+                    item: item.clone(),
                 });
             }
         }
@@ -188,10 +192,10 @@ impl SearchRule {
                     SearchScope::Item => {
                         // 元素模式：需要存在【至少一个视觉项】，其内部命中的模式集合满足逻辑
                         use std::collections::HashMap;
-                        let mut item_hits: HashMap<usize, Vec<SearchHit>> = HashMap::new();
+                        let mut item_hits: HashMap<String, Vec<SearchHit>> = HashMap::new();
                         for hit in hits {
-                            // 使用 VisionItem 的内存地址作为 key 来分组
-                            let key = hit.item as *const VisionItem as usize;
+                            // 使用 VisionItem 的 id 作为 key 来分组
+                            let key = hit.item.txt();
                             item_hits.entry(key).or_default().push(hit.clone());
                         }
 

@@ -1,7 +1,7 @@
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use serde::Serialize;
 use sqlx::types::Json;
-use sqlx::{sqlite::SqliteConnectOptions, FromRow, Pool, Row, Sqlite, SqlitePool};
+use sqlx::{sqlite::SqliteConnectOptions, FromRow, Pool, Sqlite, SqlitePool};
 use std::path::PathBuf;
 use std::str::FromStr;
 use tauri::AppHandle;

@@ -5,8 +5,7 @@ use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use sqlx::types::Json;
 use sqlx::FromRow;
-use crate::infrastructure::capture::capture_method::CaptureMethod;
-
+// 
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceTable {

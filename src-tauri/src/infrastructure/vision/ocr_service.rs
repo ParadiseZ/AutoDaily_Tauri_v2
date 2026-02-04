@@ -10,8 +10,8 @@ use crate::infrastructure::logging::log_trait::Log;
 /// 新的OCR模型管理器 - 使用trait对象来处理不同的模型
 #[derive(Debug, Clone)]
 pub struct OcrService {
-    detector: Option<Arc<dyn TextDetector>>,
-    recognizer: Option<Arc<dyn TextRecognizer>>,
+    detector: Option<Arc<dyn TextDetector + Send + Sync>>,
+    recognizer: Option<Arc<dyn TextRecognizer + Send + Sync>>,
 }
 
 impl OcrService {
@@ -26,7 +26,7 @@ impl OcrService {
     /// 使用配置初始化检测器
     pub async fn init_detector(&mut self, config: DetectorType) -> VisionResult<()> {
         Log::info("初始化检测模型...");
-        let detector : Arc<dyn TextDetector> = match config {
+        let detector : Arc<dyn TextDetector + Send + Sync> = match config {
             DetectorType::Yolo11(mut yolo) => {
                 //加载标签
                 Log::info("加载yolo标签文件...");
@@ -44,7 +44,7 @@ impl OcrService {
     /// 使用配置初始化识别器
     pub async fn init_recognizer(&mut self, config: RecognizerType) -> VisionResult<()> {
         Log::info("初始化文字识别模型...");
-        let recognizer : Arc<dyn TextRecognizer> = match config {
+        let recognizer : Arc<dyn TextRecognizer + Send + Sync> = match config {
             RecognizerType::PaddleCrnn(mut crnn) => {
                 // 加载字典
                 Log::info("加载字典文件...");
@@ -57,12 +57,12 @@ impl OcrService {
     }
 
     /// 设置已有的检测器实例
-    pub fn set_detector_instance(&mut self, detector: Arc<dyn TextDetector>) {
+    pub fn set_detector_instance(&mut self, detector: Arc<dyn TextDetector + Send + Sync>) {
         self.detector = Some(detector);
     }
 
     /// 设置已有的识别器实例
-    pub fn set_recognizer_instance(&mut self, recognizer: Arc<dyn TextRecognizer>) {
+    pub fn set_recognizer_instance(&mut self, recognizer: Arc<dyn TextRecognizer + Send + Sync>) {
         self.recognizer = Some(recognizer);
     }
 

@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;
-use crate::infrastructure::context::init_error::InitResult;
+use crate::infrastructure::context::init_error::{InitError, InitResult};
 
 static DEVICE_CTX: OnceLock<Arc<DeviceCtx>> = OnceLock::new();
 
@@ -17,7 +17,8 @@ pub fn get_device_ctx() -> Arc<DeviceCtx> {
 }
 
 pub fn init_device_ctx(ctx: Arc<DeviceCtx>)-> InitResult<()> {
-    DEVICE_CTX.set(ctx).map_err(|e| e.to_string())?
+    DEVICE_CTX.set(ctx).map_err(|_| InitError::InitChildAppCtxFailed { e: "DeviceCtx already initialized".to_string() })?;
+    Ok(())
 }
 
 pub struct DeviceCtx {

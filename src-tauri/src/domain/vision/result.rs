@@ -54,8 +54,8 @@ impl fmt::Display for OcrResult {
             self.score,
             self.index,
             self.txt_char
-    )
-}
+        )
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Encode, Decode, PartialEq)]

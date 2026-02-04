@@ -34,7 +34,7 @@ pub struct ADBExecutor {
 
 impl std::fmt::Debug for ADBExecutor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"device:{},executor_is_looping:{}",self.executor_is_looping,self.device.as_deref())
+        write!(f,"device_connected:{},executor_is_looping:{}",self.device.is_some(),self.executor_is_looping)
     }
 }
 impl ADBExecutor {

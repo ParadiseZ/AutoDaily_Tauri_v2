@@ -201,7 +201,7 @@ impl ScriptExecutor {
                      // TODO: Call vision 
                      self.scope.set_value(output_var,  "100,200".to_string());
                 }
-                StepKind::ClickAction(click) => {
+                StepKind::ClickAction(_click) => {
                      // TODO: Click
                     /*match click {
                         Click::Label{
@@ -230,15 +230,18 @@ impl ScriptExecutor {
                         // 这里需要整合 adb_executor.capture()
                     }
 
-                    if let Some(snapshot) = &ctx.last_snapshot {
+                    let hits = if let Some(snapshot) = &ctx.last_snapshot {
                         let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(rule.get_all_keywords());
-                        let hits = searcher.search(snapshot);
-                        
-                        // 更新缓存
-                        ctx.last_hits = hits.clone();
-                        
-                        // 将命中结果存入变量
+                        Some(searcher.search(snapshot))
+                    } else {
+                        None
+                    };
+
+                    if let Some(hits) = hits {
+                        // 将命中结果存入缓存
                         let success = rule.evaluate(&hits);
+                        ctx.last_hits = hits;
+                        // 将命中结果存入变量
                         self.scope.set_value(output_var, success);
                     }
                 }

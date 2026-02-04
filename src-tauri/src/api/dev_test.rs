@@ -22,7 +22,6 @@ pub async fn dev_capture_test(
     adb_conf: ADBConnectConfig,
 ) -> Result<String, String> {
     ADBCtx::new(adb_conf).await;
-    let capture_method = CaptureMethod::from(method);
     let title = match device_conf.cap_method.clone() {
         CapMethod::Window(title) => Some(title),
         CapMethod::ADB => None,

@@ -1,7 +1,7 @@
 use crate::domain::scripts::script_info::ScriptInfo;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
-use crate::infrastructure::context::init_error::InitResult;
+use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{HashMap, PolicyId, ScriptId, TaskId};
 use crate::infrastructure::ipc::message::ExecuteTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
@@ -15,7 +15,8 @@ pub fn get_runtime_ctx() -> SharedRuntimeContext {
 }
 
 pub fn init_runtime_ctx(ctx: SharedRuntimeContext)->InitResult<()>  {
-    RUNTIME_CTX.set(ctx).map_err(|e| e.to_string())?
+    RUNTIME_CTX.set(ctx).map_err(|_| InitError::InitChildAppCtxFailed { e: "RuntimeContext already initialized".to_string() })?;
+    Ok(())
 }
 
 #[derive(Debug, Default, Clone)]
@@ -54,7 +55,7 @@ pub struct RuntimeContext {
     pub last_snapshot: Option<VisionSnapshot>,
     
     /// 每一帧的搜索命中结果缓存
-    pub last_hits: Vec<SearchHit<'static>>, 
+    pub last_hits: Vec<SearchHit>, 
 
     /// 设备相关属性
     pub screen_size: (u32, u32),
