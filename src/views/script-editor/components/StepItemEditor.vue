@@ -1,62 +1,172 @@
 <template>
-  <div class="step-item p-3 bg-base-100 border border-base-300 rounded-xl shadow-sm hover:shadow-md transition-all">
-    <!-- Header -->
-    <div class="flex items-center gap-3 cursor-pointer" @click="isCollapsed = !isCollapsed">
-      <div class="p-2 rounded-lg" :class="categoryColor">
-        <StepIcon :type="step.op" :category="category" class-name="w-5 h-5 text-white" />
-      </div>
-
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2">
-          <span class="font-bold text-sm truncate">{{ stepTitle }}</span>
-          <span v-if="step.label" class="badge badge-sm badge-ghost opacity-60">{{ step.label }}</span>
+  <div class="step-item p-1 bg-transparent group-step hover:translate-x-1 transition-transform duration-300">
+    <div
+      class="bg-base-100 border border-base-300 rounded-[1.5rem] shadow-sm hover:shadow-xl transition-all overflow-hidden"
+    >
+      <!-- Header -->
+      <div class="flex items-center gap-3 p-4 cursor-pointer select-none" @click="isExpanded = !isExpanded">
+        <div
+          class="w-10 h-10 rounded-2xl flex items-center justify-center transition-transform hover:scale-110 shadow-sm"
+          :class="categoryColor"
+        >
+          <StepIcon :type="step.op" :category="category" class-name="w-5 h-5 text-white" />
         </div>
-        <div v-if="stepSummary" class="text-[10px] opacity-50 truncate mt-0.5">{{ stepSummary }}</div>
-      </div>
 
-      <div class="flex items-center gap-1">
-        <button class="btn btn-ghost btn-xs btn-circle" @click.stop="$emit('move-up')">
-          <ChevronUpIcon class="w-3 h-3" />
-        </button>
-        <button class="btn btn-ghost btn-xs btn-circle" @click.stop="$emit('move-down')">
-          <ChevronDownIcon class="w-3 h-3" />
-        </button>
-        <button class="btn btn-ghost btn-xs btn-circle text-error" @click.stop="$emit('remove')">
-          <TrashIcon class="w-3 h-3" />
-        </button>
-        <div class="divider divider-horizontal mx-0 w-2"></div>
-        <ChevronRightIcon class="w-4 h-4 transition-transform" :class="{ 'rotate-90': !isCollapsed }" />
-      </div>
-    </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="font-black text-sm tracking-tight">{{ stepTitle }}</span>
+            <span
+              v-if="step.label"
+              class="badge badge-sm bg-base-200 border-none text-[10px] opacity-70 rounded-lg px-2"
+              >{{ step.label }}</span
+            >
+          </div>
+          <div class="text-[9px] font-mono opacity-30 uppercase tracking-widest mt-0.5 truncate">{{ stepSummary }}</div>
+        </div>
 
-    <!-- Content (Expanded) -->
-    <div v-if="!isCollapsed" class="mt-4 pt-4 border-t border-base-200">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Common Label/Remark -->
-        <div class="form-control col-span-full">
-          <label class="label py-1"
-            ><span class="label-text text-xs opacity-60 font-bold uppercase">备注 / Label</span></label
+        <div class="flex items-center gap-1">
+          <div class="flex flex-col gap-0.5 mr-2">
+            <button
+              class="btn btn-ghost !min-h-0 h-4 w-6 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+              @click.stop="$emit('move-up')"
+            >
+              <ChevronUpIcon class="w-3 h-3" />
+            </button>
+            <button
+              class="btn btn-ghost !min-h-0 h-4 w-6 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+              @click.stop="$emit('move-down')"
+            >
+              <ChevronDownIcon class="w-3 h-3" />
+            </button>
+          </div>
+          <button
+            class="btn btn-ghost btn-sm btn-circle text-error/40 hover:text-error hover:bg-error/10 transition-all"
+            @click.stop="$emit('remove')"
           >
-          <input
-            type="text"
-            v-model="localStep.label"
-            class="input input-bordered input-sm w-full"
-            placeholder="说明该步骤的作用..."
+            <TrashIcon class="w-4 h-4 text-error" />
+          </button>
+          <div class="divider divider-horizontal mx-1 w-px opacity-10"></div>
+          <ChevronRightIcon
+            class="w-4 h-4 transition-transform duration-300 opacity-30"
+            :class="{ 'rotate-90 opacity-100 text-primary': isExpanded }"
           />
         </div>
+      </div>
 
-        <!-- Dynamic Fields based on OP -->
-        <component :is="currentForm" :data="localStep" @update="onDataUpdate" />
-
-        <!-- Execution Controls -->
-        <div class="col-span-full mt-2 grid grid-cols-3 gap-2 p-3 bg-base-200/50 rounded-lg">
-          <div class="form-control">
-            <label class="label py-0"><span class="label-text text-[10px] opacity-70">最大执行次数</span></label>
-            <input type="number" v-model="localStep.execMax" class="input input-bordered input-xs" />
+      <!-- Content (Expanded) -->
+      <div
+        v-if="isExpanded"
+        class="p-6 border-t border-base-200 bg-base-200/5 animate-in slide-in-from-top-2 duration-300"
+      >
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Metadata Section -->
+          <div class="form-control col-span-full">
+            <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">步骤说明 / Remark</label>
+            <input
+              type="text"
+              v-model="localStep.label"
+              class="input input-bordered w-full rounded-xl focus:ring-2 focus:ring-primary/20 font-medium text-sm"
+              placeholder="说明该步骤的功能，e.g. 点击确认按钮..."
+              @change="onDataUpdate(localStep)"
+            />
           </div>
-          <div class="flex items-center gap-2 pt-2">
-            <input type="checkbox" v-model="localStep.skipFlag" class="checkbox checkbox-xs" />
-            <span class="text-[10px]">禁用此步骤</span>
+
+          <!-- Dynamic Body -->
+          <div class="col-span-full space-y-6">
+            <!-- WaitMs Form -->
+            <div v-if="step.op === 'WaitMs'" class="form-control">
+              <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block"
+                >等候时长 (Milliseconds)</label
+              >
+              <input
+                type="number"
+                v-model="localStep.ms"
+                class="input input-bordered w-32 font-mono"
+                @change="onDataUpdate(localStep)"
+              />
+            </div>
+
+            <!-- If/While Form -->
+            <div v-if="['If', 'While'].includes(step.op)" class="space-y-6">
+              <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm">
+                <SearchRuleEditor
+                  :rule="localStep.cond"
+                  @update="
+                    localStep.cond = $event;
+                    onDataUpdate(localStep);
+                  "
+                />
+              </div>
+
+              <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm relative">
+                <div
+                  class="absolute -top-3 left-8 bg-base-100 px-3 py-1 border border-base-300 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm"
+                >
+                  符合条件时执行序列
+                </div>
+                <ActionSequenceEditor
+                  v-model:steps="localStep.steps"
+                  :is-nested="true"
+                  @update:steps="
+                    localStep.steps = $event;
+                    onDataUpdate(localStep);
+                  "
+                />
+              </div>
+            </div>
+
+            <!-- Sequence Form -->
+            <div
+              v-if="step.op === 'Sequence'"
+              class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm relative"
+            >
+              <div
+                class="absolute -top-3 left-8 bg-base-100 px-3 py-1 border border-base-300 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm"
+              >
+                子步骤编排
+              </div>
+              <ActionSequenceEditor
+                v-model:steps="localStep.steps"
+                :is-nested="true"
+                @update:steps="
+                  localStep.steps = $event;
+                  onDataUpdate(localStep);
+                "
+              />
+            </div>
+
+            <!-- Placeholder for other forms -->
+            <div
+              v-if="!['WaitMs', 'If', 'While', 'Sequence'].includes(step.op)"
+              class="p-8 text-center bg-base-200/20 rounded-[2rem] border-2 border-dashed border-base-300 opacity-40"
+            >
+              <div class="text-[10px] font-black uppercase tracking-widest mb-2">配置项建设中</div>
+              <p class="text-[10px]">该类型的可视化表单正在飞奔而来的路上...</p>
+            </div>
+          </div>
+
+          <!-- Footer Controls -->
+          <div class="col-span-full mt-2 grid grid-cols-2 gap-4 p-4 bg-base-200/50 rounded-2xl border border-base-200">
+            <div class="form-control">
+              <label class="label py-0"
+                ><span class="label-text text-[10px] font-bold opacity-40 uppercase">最大次数限制</span></label
+              >
+              <input
+                type="number"
+                v-model="localStep.execMax"
+                class="input input-bordered input-sm font-mono w-24 rounded-lg mt-1"
+                @change="onDataUpdate(localStep)"
+              />
+            </div>
+            <div class="flex items-center justify-end gap-3 px-2">
+              <span class="text-[10px] font-bold opacity-40 uppercase">禁用步骤</span>
+              <input
+                type="checkbox"
+                v-model="localStep.skipFlag"
+                class="checkbox checkbox-primary checkbox-sm rounded-lg"
+                @change="onDataUpdate(localStep)"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -74,6 +184,9 @@ import {
   Plus as PlusIcon,
 } from 'lucide-vue-next';
 import StepIcon from './StepIcon.vue';
+import SearchRuleEditor from './SearchRuleEditor.vue';
+
+const ActionSequenceEditor = defineAsyncComponent(() => import('./ActionSequenceEditor.vue'));
 
 const props = defineProps({
   step: {
@@ -83,9 +196,9 @@ const props = defineProps({
   isNested: Boolean,
 });
 
-const emit = defineEmits(['update', 'remove', 'move-up', 'move-down', 'add-after']);
+const emit = defineEmits(['update', 'remove', 'move-up', 'move-down']);
 
-const isCollapsed = ref(true);
+const isExpanded = ref(false);
 const localStep = ref({ ...props.step });
 
 // Step Categorization (Maps to StepKind in Rust)
@@ -102,56 +215,48 @@ const category = computed(() => {
 
 const categoryColor = computed(() => {
   const map = {
-    control: 'bg-yellow-500',
-    interaction: 'bg-blue-500',
-    vision: 'bg-purple-500',
-    logic: 'bg-orange-500',
-    state: 'bg-emerald-500',
-    other: 'bg-slate-500',
+    control: 'bg-gradient-to-br from-amber-400 to-orange-500',
+    interaction: 'bg-gradient-to-br from-blue-400 to-indigo-600',
+    vision: 'bg-gradient-to-br from-purple-400 to-fuchsia-600',
+    logic: 'bg-gradient-to-br from-orange-400 to-rose-500',
+    state: 'bg-gradient-to-br from-emerald-400 to-teal-600',
+    other: 'bg-gradient-to-br from-slate-400 to-slate-600',
   };
   return map[category.value];
 });
 
 const stepTitle = computed(() => {
   const opMap = {
-    ClickAction: '点击操作',
+    ClickAction: '点击交互',
     WaitMs: '延时等待',
-    If: '逻辑判断 (If)',
-    While: '循环 (While)',
-    SetVar: '赋值变量',
+    If: '条件分支 (If)',
+    While: '循环控制 (While)',
+    SetVar: '变量赋值',
     VisionSearch: '强化视觉搜索',
     TakeScreenshot: '屏幕截图',
-    Sequence: '步骤序列',
+    Sequence: '步骤序列容器',
   };
   return opMap[props.step.op] || props.step.op;
 });
 
 const stepSummary = computed(() => {
-  // TODO: Logic for brief summary based on data
-  return '';
-});
-
-// Lazy load specific forms for each step kind
-const currentForm = computed(() => {
   const op = props.step.op;
-  try {
-    // Expected to be implemented in StepForms/ directory later
-    // return defineAsyncComponent(() => import(`./StepForms/${op}Form.vue`));
-    return null; // Mocked for now
-  } catch (e) {
-    return null;
-  }
+  if (op === 'WaitMs') return `等待 ${localStep.value.ms} 毫秒`;
+  if (op === 'Sequence') return `包含 ${localStep.value.steps?.length || 0} 个子动作`;
+  if (op === 'If' || op === 'While') return `判断条件后执行 ${localStep.value.steps?.length || 0} 个逻辑`;
+  return `OP: ${op}`;
 });
 
 const onDataUpdate = (newData) => {
-  localStep.value = { ...localStep.value, ...newData };
-  emit('update', localStep.value);
+  emit('update', { ...newData });
 };
 
 watch(
   () => props.step,
   (val) => {
-    localStep.value = { ...val };
+    if (JSON.stringify(val) !== JSON.stringify(localStep.value)) {
+      localStep.value = { ...val };
+    }
   },
   { deep: true }
 );

@@ -31,6 +31,10 @@ import {
   StopCircle,
   CheckCircle2,
   XCircle,
+  List,
+  RotateCcw,
+  Search,
+  LayoutGrid,
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -43,53 +47,52 @@ const props = defineProps({
 });
 
 const icon = computed(() => {
-  // Mapping by type
+  // Mapping by exact PascalCase OPs from Rust
   const typeMap = {
     // Interaction
+    ClickAction: MousePointer2,
+    SwipePoint: Move,
+    SwipePercent: Move,
+    WaitMs: Clock,
+
+    // Vision
+    VisionSearch: Zap,
+    Ocr: Type,
+    FindObject: Box,
+    DetRec: Target,
+    TakeScreenshot: Camera,
+
+    // Control
+    If: Split,
+    While: Repeat,
+    Sequence: LayoutGrid,
+    ForEachActivity: List,
+    Continue: SkipForward,
+    Break: StopCircle,
+    WaitUntil: Clock,
+
+    // Logic
+    SetVar: Variable,
+    GetVar: Terminal,
+    FilterHits: Filter,
+    IncIndex: ArrowRight,
+    ResetIndex: RotateCcw,
+
+    // State
+    SetState: Settings,
+    GetState: Info,
+    StopPolicy: XCircle,
+    FinishTask: CheckCircle2,
+  };
+
+  // Case-insensitive fallback for legacy or simplified calls
+  const lowerType = props.type?.toLowerCase();
+  const legacyMap = {
     click: MousePointer2,
     swipe: Move,
     wait: Clock,
-
-    // Vision
-    capture: Camera,
-    detect: Target,
-    ocr: Type,
-    vision_search: Zap,
-    find_object: Box,
-    det_rec: Target,
-
-    // Control
-    sequence: ListTodo, // fallback to Box if not listed
-    if: Split,
-    while: Repeat,
-    for_each: Repeat,
-    continue: SkipForward,
-    break: StopCircle,
-    wait_until: Clock,
-
-    // Logic
-    set_var: Variable,
-    get_var: Variable,
-    filter_hits: Filter,
-
-    // State/Policy
-    stop_policy: XCircle,
-    finish_task: CheckCircle2,
-    set_state: Settings,
-    get_state: Info,
-    inc_index: ArrowRight,
-    reset_index: RotateCcw,
   };
 
-  // Mapping by category if type not found
-  const categoryMap = {
-    interaction: MousePointer2,
-    vision: Zap,
-    control: GitBranch,
-    logic: Code,
-    state: Settings,
-  };
-
-  return typeMap[props.type] || categoryMap[props.category] || Box;
+  return typeMap[props.type] || legacyMap[lowerType] || Box;
 });
 </script>

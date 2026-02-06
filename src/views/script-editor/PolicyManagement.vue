@@ -41,7 +41,10 @@
             ]"
             @click="selectedItem = item"
           >
-            <div class="font-bold truncate">{{ item.data.name }}</div>
+            <div class="font-bold truncate">
+              {{ item.data.name }}
+              <span v-if="item.isNew" class="badge badge-xs badge-secondary ml-1">草案</span>
+            </div>
             <div class="text-xs opacity-60 truncate">{{ item.data.note || '无备注' }}</div>
           </div>
 
@@ -58,7 +61,7 @@
               <p class="text-base-content/60 mt-1">{{ selectedItem.data.note }}</p>
             </div>
             <div class="flex gap-2">
-              <button class="btn btn-outline btn-sm" @click="editItem">编辑</button>
+              <button v-if="activeTab !== 'policy'" class="btn btn-outline btn-sm">编辑数据</button>
               <button class="btn btn-error btn-sm btn-outline" @click="deleteItem">删除</button>
             </div>
           </div>
@@ -76,26 +79,16 @@
 
           <div v-else-if="activeTab === 'policy_group'">
             <div class="alert alert-info shadow-sm mb-4">
-              <InfoIcon class="w-5 h-5 shrink-0" />
-              <span>这里可以编排策略。</span>
+              <span class="flex items-center gap-2">
+                <InfoIcon class="w-5 h-5 shrink-0" />
+                这里可以编排策略。
+              </span>
             </div>
             <!-- TODO: Implement actual list of sub-policies -->
           </div>
 
           <div v-else-if="activeTab === 'policy'">
-            <div class="bg-base-200 p-4 rounded-xl">
-              <h4 class="font-bold mb-2 text-sm uppercase opacity-50">命中条件</h4>
-              <div v-if="selectedItem.data.conditions && selectedItem.data.conditions.length > 0">
-                <div
-                  v-for="(cond, idx) in selectedItem.data.conditions"
-                  :key="idx"
-                  class="badge badge-primary mr-2 mb-2"
-                >
-                  {{ cond }}
-                </div>
-              </div>
-              <div v-else class="opacity-40 italic">暂无命中条件</div>
-            </div>
+            <PolicyEditor v-if="selectedItem" :policy="selectedItem.data" @save="updateSelectedItemData" />
           </div>
         </div>
         <div v-else class="flex-1 flex flex-col items-center justify-center opacity-30">
@@ -111,6 +104,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { Library, LayoutGrid, ListTodo, Plus as PlusIcon, Info as InfoIcon } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
+import PolicyEditor from './components/PolicyEditor.vue';
 
 const props = defineProps({
   activeTab: {
@@ -125,14 +119,14 @@ const props = defineProps({
     type: Function,
     default: () => {},
   },
-  logLevels:{
+  logLevels: {
     type: Object,
     required: true,
   },
-  getUuidV7:{
+  getUuidV7: {
     type: Function,
     default: () => {},
-  }
+  },
 });
 
 const searchQuery = ref('');
@@ -201,23 +195,50 @@ const loadData = async () => {
 };
 
 const addNewItem = async () => {
-  // Basic implementation for demonstration
   const newItemName = `新${title.value} ${items.value.length + 1}`;
-  const id = await props.getUuidV7(); // Placeholder UUID logic
+  const id = await props.getUuidV7();
 
-  // In reality, this would open a modal
-  let item = {
+  let itemData = {
+    name: newItemName,
+    note: '',
+  };
+
+  if (props.activeTab === 'policy') {
+    itemData = {
+      ...itemData,
+      logPrint: '',
+      curPos: 0,
+      skipFlag: false,
+      execCur: 0,
+      execMax: 0,
+      beforeAction: [],
+      cond: { type: 'Group', op: 'And', scope: 'Global', items: [] },
+      afterAction: [],
+    };
+  }
+
+  const newItem = {
     id,
     scriptId: props.scriptId,
     orderIndex: items.value.length + 1,
-    data: {
-      name: newItemName,
-      note: '',
-    },
+    data: itemData,
+    isNew: true,
   };
 
+  items.value.push(newItem);
+  selectedItem.value = newItem;
+  props.addLog(`创建了新${title.value}草案`, props.logLevels.INFO);
+};
+
+const updateSelectedItemData = async (newData) => {
+  if (!selectedItem.value) return;
 
   try {
+    const updatedItem = {
+      ...selectedItem.value,
+      data: { ...newData },
+    };
+
     let command = '';
     let arg = '';
     switch (props.activeTab) {
@@ -227,37 +248,30 @@ const addNewItem = async () => {
         break;
       case 'policy_group':
         command = 'save_policy_group_cmd';
-        arg = 'group'
+        arg = 'group';
         break;
       case 'policy':
         command = 'save_policy_cmd';
         arg = 'policy';
-        item.data= {
-          name: newItemName,
-          note: '',
-          logPrint: '',
-          curPos: 0,
-          skipFlag: false,
-          execCur: 0,
-          execMax: 0,
-          beforeAction: [],
-          cond: { text: '' },
-          afterAction: [],
-        };
         break;
     }
-    await invoke(command, {
-      [arg]: item,
-    });
+
+    await invoke(command, { [arg]: updatedItem });
+    props.addLog(`保存${title.value} "${newData.name}" 成功`, props.logLevels.INFO);
     await loadData();
-    selectedItem.value = items.value.find((i) => i.id === id);
+    selectedItem.value = items.value.find((i) => i.id === updatedItem.id);
   } catch (e) {
-    props.addLog(`保存项目失败: ${e}`, props.logLevels.ERROR);
+    props.addLog(`保存失败: ${e}`, props.logLevels.ERROR);
   }
 };
 
 const deleteItem = async () => {
   if (!selectedItem.value) return;
+  if (selectedItem.value.isNew) {
+    items.value = items.value.filter((i) => i.id !== selectedItem.value.id);
+    selectedItem.value = null;
+    return;
+  }
 
   try {
     let command = '';
@@ -281,7 +295,6 @@ const deleteItem = async () => {
   }
 };
 
-// Reset selection when tab changes
 watch(
   () => props.activeTab,
   () => {
