@@ -1,36 +1,24 @@
 <template>
   <div class="search-rule-editor space-y-5">
-    <div class="flex items-center justify-between px-1">
-      <div class="flex items-center gap-3">
-        <label class="text-[11px] font-black tracking-widest text-primary uppercase opacity-60"
-          >规则编排 (Rule Logic)</label
-        >
-        <div class="badge badge-sm badge-outline opacity-40 rounded-md font-mono">
-          {{ localRule.items?.length || 0 }} Rules
-        </div>
-      </div>
-    </div>
-
-    <div class="bg-base-200/40 rounded-[2rem] p-6 border border-base-300 shadow-inner">
+    <div class="bg-base-200/40 rounded-4xl p-6 border border-base-300 shadow-inner">
       <!-- Group Settings -->
-      <div class="flex flex-wrap items-center gap-4 mb-6">
+      <div class="flex flex-wrap items-center gap-4 mb-2">
         <div class="join bg-base-100 p-1 rounded-2xl shadow-sm border border-base-300">
-          <select class="select select-ghost select-sm join-item w-28 text-xs font-bold" v-model="localRule.op">
-            <option value="And">AND (且)</option>
-            <option value="Or">OR (或)</option>
-            <option value="Not">NOT (非)</option>
+          <select class="select select-ghost select-sm join-item w-20 text-xs font-bold" v-model="localRule.op">
+            <option value="And">AND</option>
+            <option value="Or">OR</option>
+            <option value="Not">NOT</option>
           </select>
           <div class="divider divider-horizontal mx-0 w-px opacity-10"></div>
-          <select class="select select-ghost select-sm join-item w-32 text-xs font-bold" v-model="localRule.scope">
-            <option value="Global">Global (全屏)</option>
-            <option value="Item">Item (单框内)</option>
+          <select class="select select-ghost select-sm join-item w-24 text-xs font-bold" v-model="localRule.scope">
+            <option value="Global">全屏</option>
+            <option value="Item">单目标</option>
           </select>
         </div>
-        <div
-          class="text-[10px] bg-primary/5 text-primary/60 px-3 py-2 rounded-xl font-medium flex items-center gap-2 border border-primary/10"
-        >
-          <InfoIcon class="w-3 h-3" />
-          {{ scopeDescription }}
+        <div class="flex items-center gap-3">
+          <div class="badge badge-xm badge-outline opacity-40 rounded-md font-mono">
+            {{ localRule.items?.length || 0 }} 项
+          </div>
         </div>
       </div>
 
@@ -54,8 +42,8 @@
               <input
                 type="text"
                 v-model="item.pattern"
-                class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic placeholder:opacity-20"
-                :placeholder="item.type === 'Regex' ? 'e.g. ^\\d{3}-\\d{3}-\\d{4}$' : '输入关键字...'"
+                class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic "
+                :placeholder="item.type === 'Regex' ? 'e.g. ^\\d{3}-\\d{3}-\\d{4}$' : '关键字...'"
               />
             </div>
 
@@ -78,16 +66,15 @@
               @click="toggleGroup(idx)"
             >
               <div
-                class="flex-none w-10 h-10 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center shadow-sm"
+                class="flex-none w-10 h-10 rounded-xl bg-linear-to-br from-slate-200 to-slate-300 flex items-center justify-center shadow-sm"
               >
                 <GridIcon class="w-5 h-5 text-slate-600" />
               </div>
 
               <div class="flex-1 min-w-0">
-                <div class="text-[10px] font-black uppercase tracking-widest text-base-content/50">
-                  嵌套逻辑组 ({{ item.op }} / {{ item.scope }})
+                <div class="text-[14px] font-black uppercase tracking-widest text-base-content/50">
+                  子逻辑组 ({{ item.op }} / {{ item.scope }}) 【{{ item.items?.length || 0 }} 项】
                 </div>
-                <div class="text-[9px] font-mono text-primary mt-0.5">{{ item.items?.length || 0 }} 项规则</div>
               </div>
 
               <div class="flex items-center gap-2">
@@ -115,18 +102,18 @@
         </div>
 
         <!-- Add Rule Type Selector -->
-        <div class="grid grid-cols-3 gap-3 pt-4 border-t border-base-300/50 mt-6">
+        <div class="grid grid-cols-3 gap-3 pt-1 border-t border-base-300/50 mt-6">
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-primary hover:text-primary rounded-xl gap-2 shadow-sm font-bold"
             @click="addItem('Keyword')"
           >
-            <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">添加字面值</span>
+            <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">标签/文字</span>
           </button>
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-amber-500 hover:text-amber-600 rounded-xl gap-2 shadow-sm font-bold"
             @click="addItem('Regex')"
           >
-            <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">添加正则式</span>
+            <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">正则表达式</span>
           </button>
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-base-content rounded-xl gap-2 shadow-sm font-bold"
@@ -141,14 +128,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, watch } from 'vue';
 import {
   Plus as PlusIcon,
   Trash2 as TrashIcon,
   Type as TypeIcon,
   Zap as ZapIcon,
   LayoutGrid as GridIcon,
-  Info as InfoIcon,
   ChevronDown as ChevronDownIcon,
 } from 'lucide-vue-next';
 
@@ -188,12 +174,6 @@ const updateNestedGroup = (idx, newGroupData) => {
   localRule.value.items[idx] = newGroupData;
   onUpdate();
 };
-
-const scopeDescription = computed(() => {
-  return localRule.value.scope === 'Global'
-    ? '屏幕内任一可见文本区块匹配成功即可。'
-    : '所有子条件必须在属于同一个 OCR 边框的文本内同时满足。';
-});
 
 const addItem = (type) => {
   if (type === 'Group') {

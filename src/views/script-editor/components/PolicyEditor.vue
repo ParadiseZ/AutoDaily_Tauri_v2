@@ -17,7 +17,7 @@
 
       <div class="space-y-4 flex-1">
         <div class="form-control">
-          <label class="label py-1"><span class="label-text text-xs font-bold opacity-60">策略名称</span></label>
+          <label class="label py-1"><span class="label-text text-sm font-bold opacity-60">策略名称</span></label>
           <input
             v-model="localPolicy.name"
             type="text"
@@ -26,11 +26,10 @@
         </div>
 
         <div class="form-control">
-          <label class="label py-1"><span class="label-text text-xs font-bold opacity-60">备注说明</span></label>
+          <label class="label py-1"><span class="label-text text-sm font-bold opacity-60">备注</span></label>
           <textarea
             v-model="localPolicy.note"
             class="textarea textarea-bordered textarea-sm w-full h-24 resize-none focus:ring-2 focus:ring-primary/20"
-            placeholder="简要描述此策略的用途..."
           ></textarea>
         </div>
 
@@ -39,7 +38,7 @@
         <div class="grid grid-cols-2 gap-4">
           <div class="form-control">
             <label class="label py-1"
-              ><span class="label-text text-[10px] uppercase font-bold opacity-60">点击索引 (CurPos)</span></label
+              ><span class="label-text text-[16px] uppercase font-bold opacity-60">【点击】索引</span></label
             >
             <input
               v-model.number="localPolicy.curPos"
@@ -49,7 +48,7 @@
           </div>
           <div class="form-control">
             <label class="label py-1"
-              ><span class="label-text text-[10px] uppercase font-bold opacity-60">最大次数 (Limit)</span></label
+              ><span class="label-text text-[16px] uppercase font-bold opacity-60">最大执行次数</span></label
             >
             <input
               v-model.number="localPolicy.execMax"
@@ -61,12 +60,12 @@
 
         <div class="form-control">
           <label class="label py-1"
-            ><span class="label-text text-[10px] uppercase font-bold opacity-60">日志打印 (Hit Log)</span></label
+            ><span class="label-text text-[16px] uppercase font-bold opacity-60">命中时输出</span></label
           >
           <textarea
             v-model="localPolicy.logPrint"
-            class="textarea textarea-bordered textarea-xs w-full font-mono h-20 resize-none"
-            placeholder="当命中该策略时打印的自定义日志内容..."
+            class="textarea textarea-bordered textarea-xm w-full font-mono h-20 resize-none"
+            placeholder="命中策略时输出的日志内容..."
           ></textarea>
         </div>
       </div>
@@ -105,30 +104,30 @@
           <SearchRuleEditor :rule="localPolicy.cond" @update="localPolicy.cond = $event" />
         </div>
 
+        <div v-show="activeTab === 'after'" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div
+              class="alert bg-emerald-500/10 border-emerald-500/20 text-emerald-600 text-xs mb-6 rounded-2xl flex items-start gap-3"
+          >
+            <InfoIcon class="w-4 h-4 mt-0.5" />
+            <div class="flex-1">
+              <div class="font-bold mb-0.5 underline">命中行为</div>
+              <span>在命中条件后执行</span>
+            </div>
+          </div>
+          <ActionSequenceEditor v-model:steps="localPolicy.afterAction" />
+        </div>
+
         <div v-show="activeTab === 'before'" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div
             class="alert bg-primary/10 border-primary/20 text-primary text-xs mb-6 rounded-2xl flex items-start gap-3"
           >
             <InfoIcon class="w-4 h-4 mt-0.5" />
             <div class="flex-1">
-              <div class="font-bold mb-0.5 underline">前置钩子 (Before Hook)</div>
-              <span>在视觉匹配执行前运行。通常用于清理状态、滚动页面或预置变量。</span>
+              <div class="font-bold mb-0.5 underline">全局行为</div>
+              <span>无论条件是否命中都会执行</span>
             </div>
           </div>
           <ActionSequenceEditor v-model:steps="localPolicy.beforeAction" />
-        </div>
-
-        <div v-show="activeTab === 'after'" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div
-            class="alert bg-emerald-500/10 border-emerald-500/20 text-emerald-600 text-xs mb-6 rounded-2xl flex items-start gap-3"
-          >
-            <InfoIcon class="w-4 h-4 mt-0.5" />
-            <div class="flex-1">
-              <div class="font-bold mb-0.5 underline">后置钩子 (After Hook)</div>
-              <span>在视觉匹配成功且确认后运行。通常用于处理业务逻辑、状态流转或关闭弹窗。</span>
-            </div>
-          </div>
-          <ActionSequenceEditor v-model:steps="localPolicy.afterAction" />
         </div>
       </div>
     </div>
@@ -155,8 +154,8 @@ const localPolicy = ref({ ...props.policy });
 
 const tabs = [
   { id: 'cond', label: '命中条件', icon: Target },
-  { id: 'before', label: '前置动作', icon: ArrowBigUpDash },
-  { id: 'after', label: '命中动作', icon: ArrowBigDownDash },
+  { id: 'after', label: '命中行为', icon: ArrowBigDownDash },
+  { id: 'before', label: '全局行为', icon: ArrowBigUpDash },
 ];
 
 const onSave = () => {

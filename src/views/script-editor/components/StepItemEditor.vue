@@ -1,7 +1,7 @@
 <template>
   <div class="step-item p-1 bg-transparent group-step hover:translate-x-1 transition-transform duration-300">
     <div
-      class="bg-base-100 border border-base-300 rounded-[1.5rem] shadow-sm hover:shadow-xl transition-all overflow-hidden"
+      class="bg-base-100 border border-base-300 rounded-3xl shadow-sm hover:shadow-xl transition-all overflow-hidden"
     >
       <!-- Header -->
       <div class="flex items-center gap-3 p-4 cursor-pointer select-none" @click="isExpanded = !isExpanded">
@@ -12,28 +12,21 @@
           <StepIcon :type="step.op" :category="category" class-name="w-5 h-5 text-white" />
         </div>
 
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2">
-            <span class="font-black text-sm tracking-tight">{{ stepTitle }}</span>
-            <span
-              v-if="step.label"
-              class="badge badge-sm bg-base-200 border-none text-[10px] opacity-70 rounded-lg px-2"
-              >{{ step.label }}</span
-            >
-          </div>
+        <div class="flex-2 min-w-0">
+          <div class="font-black text-sm tracking-tight">{{ stepTitle }}<span v-if="step.label">{{step.label}}}</span></div>
           <div class="text-[9px] font-mono opacity-30 uppercase tracking-widest mt-0.5 truncate">{{ stepSummary }}</div>
         </div>
 
         <div class="flex items-center gap-1">
           <div class="flex flex-col gap-0.5 mr-2">
             <button
-              class="btn btn-ghost !min-h-0 h-4 w-6 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+              class="btn btn-ghost min-h-0! h-4 w-6 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
               @click.stop="$emit('move-up')"
             >
               <ChevronUpIcon class="w-3 h-3" />
             </button>
             <button
-              class="btn btn-ghost !min-h-0 h-4 w-6 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
+              class="btn btn-ghost min-h-0! h-4 w-6 p-0 hover:bg-primary/10 hover:text-primary transition-colors"
               @click.stop="$emit('move-down')"
             >
               <ChevronDownIcon class="w-3 h-3" />

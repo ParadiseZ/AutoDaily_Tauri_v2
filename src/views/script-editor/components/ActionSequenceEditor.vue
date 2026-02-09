@@ -2,7 +2,7 @@
   <div class="action-sequence-editor flex flex-col gap-4 p-2 relative">
     <div
       v-if="steps.length === 0"
-      class="text-center py-16 bg-base-200/20 border-2 border-dashed border-base-300 rounded-[2rem] flex flex-col items-center justify-center"
+      class="text-center py-16 bg-base-200/20 border-2 border-dashed border-base-300 rounded-4xl flex flex-col items-center justify-center"
     >
       <div
         class="w-16 h-16 rounded-3xl bg-base-200 flex items-center justify-center mb-4 text-base-content/20 shadow-inner"
@@ -16,7 +16,7 @@
       <!-- Connection Line -->
       <div
         v-if="index < steps.length - 1"
-        class="absolute left-7 top-14 bottom-0 w-0.5 bg-gradient-to-b from-base-300 via-base-300/50 to-transparent -z-10 group-hover:from-primary/30 transition-all duration-500"
+        class="absolute left-7 top-0 bottom-0 w-0.5 bg-linear-to-b from-base-300 via-base-300/50 to-transparent -z-10 group-hover:from-primary/30 transition-all duration-2000"
       ></div>
 
       <StepItemEditor
@@ -33,9 +33,9 @@
     <div class="flex flex-col items-center pt-8 relative pb-12">
       <div
         v-if="showPicker"
-        class="absolute bottom-[4.5rem] z-[100] p-6 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-80 backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
+        class="absolute bottom-18 z-100 p-6 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-80 backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
       >
-        <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-4 text-center">选择自动化操作</div>
+        <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-4 text-center">选择行为</div>
 
         <div v-for="(group, gName) in groupedActions" :key="gName" class="mb-4 last:mb-0">
           <div class="text-[9px] font-bold opacity-30 uppercase mb-2 pl-2">{{ gName }}</div>
@@ -89,21 +89,21 @@ const emit = defineEmits(['update:steps']);
 const showPicker = ref(false);
 
 const groupedActions = {
-  交互与延迟: [
+  action: [
     { name: '点击操作', op: 'ClickAction' },
     { name: '滑动手势', op: 'SwipePoint' },
     { name: '毫秒等待', op: 'WaitMs' },
   ],
-  视觉与搜索: [
+  vision: [
     { name: '视觉搜索', op: 'VisionSearch' },
     { name: 'OCR文字', op: 'Ocr' },
   ],
-  流程控制: [
+  flowControl: [
     { name: '判断 (If)', op: 'If' },
     { name: '循环 (While)', op: 'While' },
     { name: '序列 (Seq)', op: 'Sequence' },
   ],
-  逻辑与变量: [
+  varSet: [
     { name: '变量赋值', op: 'SetVar' },
     { name: '变量获取', op: 'GetVar' },
     { name: '状态通知', op: 'SetState' },
