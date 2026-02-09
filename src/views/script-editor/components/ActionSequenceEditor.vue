@@ -125,7 +125,17 @@ const addStepWithType = (op) => {
           steps: [],
         }
       : {}),
-    ...(op === 'Sequence' ? { steps: [] } : {}),
+    ...(op === 'Sequence' ? { steps: [], reverse: false } : {}),
+    ...(op === 'ClickAction' ? { Point: { x: 0, y: 0 } } : {}),
+    ...(op === 'SwipePoint' ? { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } } : {}),
+    ...(op === 'SwipePercent' ? { from: { x: 0.5, y: 0.3 }, to: { x: 0.5, y: 0.7 } } : {}),
+    ...(op === 'VisionSearch'
+      ? { rule: { type: 'Group', op: 'And', scope: 'Global', items: [] }, output_var: 'search_result' }
+      : {}),
+    ...(op === 'SetVar' ? { name: '', value_expr: '' } : {}),
+    ...(op === 'GetVar' ? { name: '' } : {}),
+    ...(op === 'TakeScreenshot' ? { output_var: 'screenshot' } : {}),
+    ...(op === 'SetState' ? { target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } } : {}),
   };
   newSteps.push(newStep);
   emit('update:steps', newSteps);

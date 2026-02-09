@@ -135,13 +135,333 @@
               />
             </div>
 
-            <!-- Placeholder for other forms -->
+            <!-- ClickAction Form -->
+            <div v-if="step.op === 'ClickAction'" class="space-y-4">
+              <div class="form-control">
+                <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">点击模式</label>
+                <select
+                  v-model="clickMode"
+                  class="select select-bordered select-sm w-full max-w-xs"
+                  @change="onClickModeChange"
+                >
+                  <option value="Point">坐标点击</option>
+                  <option value="Percent">百分比点击</option>
+                  <option value="Label">YOLO 标签点击</option>
+                  <option value="Txt">文字点击</option>
+                  <option value="Var">变量点击</option>
+                </select>
+              </div>
+
+              <!-- Point Mode -->
+              <div v-if="clickMode === 'Point'" class="grid grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-bold opacity-40 mb-1">X 坐标</label>
+                  <input
+                    type="number"
+                    v-model.number="localStep.Point.x"
+                    class="input input-bordered input-sm font-mono"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-bold opacity-40 mb-1">Y 坐标</label>
+                  <input
+                    type="number"
+                    v-model.number="localStep.Point.y"
+                    class="input input-bordered input-sm font-mono"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+              </div>
+
+              <!-- Percent Mode -->
+              <div v-if="clickMode === 'Percent'" class="grid grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-bold opacity-40 mb-1">X 百分比 (0-1)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    v-model.number="localStep.Percent.x"
+                    class="input input-bordered input-sm font-mono"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-bold opacity-40 mb-1">Y 百分比 (0-1)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    v-model.number="localStep.Percent.y"
+                    class="input input-bordered input-sm font-mono"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+              </div>
+
+              <!-- Label Mode -->
+              <div v-if="clickMode === 'Label'" class="form-control">
+                <label class="label-text text-[10px] font-bold opacity-40 mb-1">YOLO 标签索引 (多个用逗号分隔)</label>
+                <input
+                  type="text"
+                  :value="localStep.Label?.join(', ') || ''"
+                  class="input input-bordered input-sm font-mono"
+                  placeholder="e.g. 0, 1, 5"
+                  @change="onLabelChange($event.target.value)"
+                />
+              </div>
+
+              <!-- Txt Mode -->
+              <div v-if="clickMode === 'Txt'" class="form-control">
+                <label class="label-text text-[10px] font-bold opacity-40 mb-1">匹配文字 (多个用逗号分隔)</label>
+                <input
+                  type="text"
+                  :value="localStep.Txt?.join(', ') || ''"
+                  class="input input-bordered input-sm"
+                  placeholder="e.g. 确认, 提交"
+                  @change="onTxtChange($event.target.value)"
+                />
+              </div>
+
+              <!-- Var Mode -->
+              <div v-if="clickMode === 'Var'" class="form-control">
+                <label class="label-text text-[10px] font-bold opacity-40 mb-1">变量名</label>
+                <input
+                  type="text"
+                  v-model="localStep.Var"
+                  class="input input-bordered input-sm font-mono"
+                  placeholder="hit_target"
+                  @change="onDataUpdate(localStep)"
+                />
+              </div>
+            </div>
+
+            <!-- SwipePoint Form -->
+            <div v-if="step.op === 'SwipePoint'" class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-base-200/50 rounded-xl">
+                  <div class="text-[9px] font-black uppercase opacity-40 mb-2">起点 (From)</div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      v-model.number="localStep.from.x"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="X"
+                      @change="onDataUpdate(localStep)"
+                    />
+                    <input
+                      type="number"
+                      v-model.number="localStep.from.y"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="Y"
+                      @change="onDataUpdate(localStep)"
+                    />
+                  </div>
+                </div>
+                <div class="p-3 bg-base-200/50 rounded-xl">
+                  <div class="text-[9px] font-black uppercase opacity-40 mb-2">终点 (To)</div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      v-model.number="localStep.to.x"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="X"
+                      @change="onDataUpdate(localStep)"
+                    />
+                    <input
+                      type="number"
+                      v-model.number="localStep.to.y"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="Y"
+                      @change="onDataUpdate(localStep)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SwipePercent Form -->
+            <div v-if="step.op === 'SwipePercent'" class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="p-3 bg-base-200/50 rounded-xl">
+                  <div class="text-[9px] font-black uppercase opacity-40 mb-2">起点百分比</div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      v-model.number="localStep.from.x"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="X%"
+                      @change="onDataUpdate(localStep)"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      v-model.number="localStep.from.y"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="Y%"
+                      @change="onDataUpdate(localStep)"
+                    />
+                  </div>
+                </div>
+                <div class="p-3 bg-base-200/50 rounded-xl">
+                  <div class="text-[9px] font-black uppercase opacity-40 mb-2">终点百分比</div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      v-model.number="localStep.to.x"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="X%"
+                      @change="onDataUpdate(localStep)"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      v-model.number="localStep.to.y"
+                      class="input input-bordered input-xs font-mono"
+                      placeholder="Y%"
+                      @change="onDataUpdate(localStep)"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- VisionSearch Form -->
+            <div v-if="step.op === 'VisionSearch'" class="space-y-4">
+              <div class="form-control">
+                <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
+                <input
+                  type="text"
+                  v-model="localStep.output_var"
+                  class="input input-bordered input-sm font-mono w-48"
+                  placeholder="vision_hits"
+                  @change="onDataUpdate(localStep)"
+                />
+              </div>
+              <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm">
+                <SearchRuleEditor
+                  :rule="localStep.rule || { type: 'Group', op: 'And', scope: 'Global', items: [] }"
+                  @update="
+                    localStep.rule = $event;
+                    onDataUpdate(localStep);
+                  "
+                />
+              </div>
+            </div>
+
+            <!-- SetVar Form -->
+            <div v-if="step.op === 'SetVar'" class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
+                  <input
+                    type="text"
+                    v-model="localStep.name"
+                    class="input input-bordered input-sm font-mono"
+                    placeholder="my_var"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block"
+                    >值表达式 (Rhai)</label
+                  >
+                  <input
+                    type="text"
+                    v-model="localStep.value_expr"
+                    class="input input-bordered input-sm font-mono"
+                    placeholder="42 或 'hello'"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- GetVar Form -->
+            <div v-if="step.op === 'GetVar'" class="form-control">
+              <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
+              <input
+                type="text"
+                v-model="localStep.name"
+                class="input input-bordered input-sm font-mono w-48"
+                placeholder="my_var"
+                @change="onDataUpdate(localStep)"
+              />
+            </div>
+
+            <!-- TakeScreenshot Form -->
+            <div v-if="step.op === 'TakeScreenshot'" class="form-control">
+              <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
+              <input
+                type="text"
+                v-model="localStep.output_var"
+                class="input input-bordered input-sm font-mono w-48"
+                placeholder="screenshot_path"
+                @change="onDataUpdate(localStep)"
+              />
+            </div>
+
+            <!-- SetState Form -->
+            <div v-if="step.op === 'SetState'" class="space-y-4">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">目标类型</label>
+                  <select
+                    v-model="localStep.target.type"
+                    class="select select-bordered select-sm"
+                    @change="onDataUpdate(localStep)"
+                  >
+                    <option value="Policy">策略 (Policy)</option>
+                    <option value="Task">任务 (Task)</option>
+                  </select>
+                </div>
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">目标 ID</label>
+                  <input
+                    type="text"
+                    v-model="localStep.target.id"
+                    class="input input-bordered input-sm font-mono"
+                    placeholder="目标 ID"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">状态类型</label>
+                  <select
+                    v-model="localStep.status.type"
+                    class="select select-bordered select-sm"
+                    @change="onDataUpdate(localStep)"
+                  >
+                    <option value="Skip">跳过 (Skip)</option>
+                    <option value="Done">完成 (Done)</option>
+                  </select>
+                </div>
+                <div class="form-control">
+                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">状态值</label>
+                  <input
+                    type="checkbox"
+                    v-model="localStep.status.value"
+                    class="checkbox checkbox-primary"
+                    @change="onDataUpdate(localStep)"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Placeholder for remaining forms -->
             <div
-              v-if="!['WaitMs', 'If', 'While', 'Sequence'].includes(step.op)"
+              v-if="!supportedOps.includes(step.op)"
               class="p-8 text-center bg-base-200/20 rounded-[2rem] border-2 border-dashed border-base-300 opacity-40"
             >
               <div class="text-[10px] font-black uppercase tracking-widest mb-2">配置项建设中</div>
-              <p class="text-[10px]">该类型的可视化表单正在飞奔而来的路上...</p>
+              <p class="text-[10px]">该类型 ({{ step.op }}) 的可视化表单正在开发中...</p>
             </div>
           </div>
 
@@ -201,6 +521,78 @@ const emit = defineEmits(['update', 'remove', 'move-up', 'move-down']);
 const isExpanded = ref(false);
 const localStep = ref({ ...props.step });
 
+// 支持的操作类型列表
+const supportedOps = [
+  'WaitMs',
+  'If',
+  'While',
+  'Sequence',
+  'ClickAction',
+  'SwipePoint',
+  'SwipePercent',
+  'VisionSearch',
+  'SetVar',
+  'GetVar',
+  'TakeScreenshot',
+  'SetState',
+];
+
+// ClickAction 模式检测
+const detectClickMode = (step) => {
+  if (step.Point) return 'Point';
+  if (step.Percent) return 'Percent';
+  if (step.Label) return 'Label';
+  if (step.Txt) return 'Txt';
+  if (step.Var) return 'Var';
+  return 'Point'; // 默认
+};
+
+const clickMode = ref(detectClickMode(props.step));
+
+const onClickModeChange = () => {
+  // 清理旧模式数据，初始化新模式
+  delete localStep.value.Point;
+  delete localStep.value.Percent;
+  delete localStep.value.Label;
+  delete localStep.value.Txt;
+  delete localStep.value.Var;
+
+  switch (clickMode.value) {
+    case 'Point':
+      localStep.value.Point = { x: 0, y: 0 };
+      break;
+    case 'Percent':
+      localStep.value.Percent = { x: 0.5, y: 0.5 };
+      break;
+    case 'Label':
+      localStep.value.Label = [];
+      break;
+    case 'Txt':
+      localStep.value.Txt = [];
+      break;
+    case 'Var':
+      localStep.value.Var = '';
+      break;
+  }
+  onDataUpdate(localStep.value);
+};
+
+const onLabelChange = (value) => {
+  localStep.value.Label = value
+    .split(',')
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !isNaN(n));
+  onDataUpdate(localStep.value);
+};
+
+const onTxtChange = (value) => {
+  localStep.value.Txt = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s);
+  onDataUpdate(localStep.value);
+};
+
 // Step Categorization (Maps to StepKind in Rust)
 const category = computed(() => {
   const op = props.step.op;
@@ -232,9 +624,16 @@ const stepTitle = computed(() => {
     If: '条件分支 (If)',
     While: '循环控制 (While)',
     SetVar: '变量赋值',
+    GetVar: '变量读取',
     VisionSearch: '强化视觉搜索',
     TakeScreenshot: '屏幕截图',
     Sequence: '步骤序列容器',
+    SwipePoint: '坐标滑动',
+    SwipePercent: '百分比滑动',
+    SetState: '状态设置',
+    GetState: '状态读取',
+    StopPolicy: '停止策略',
+    FinishTask: '结束任务',
   };
   return opMap[props.step.op] || props.step.op;
 });
@@ -244,6 +643,13 @@ const stepSummary = computed(() => {
   if (op === 'WaitMs') return `等待 ${localStep.value.ms} 毫秒`;
   if (op === 'Sequence') return `包含 ${localStep.value.steps?.length || 0} 个子动作`;
   if (op === 'If' || op === 'While') return `判断条件后执行 ${localStep.value.steps?.length || 0} 个逻辑`;
+  if (op === 'ClickAction') return `${clickMode.value} 模式点击`;
+  if (op === 'SwipePoint' || op === 'SwipePercent') return `滑动手势`;
+  if (op === 'VisionSearch') return `搜索结果 → ${localStep.value.output_var || '?'}`;
+  if (op === 'SetVar') return `${localStep.value.name || '?'} = ${localStep.value.value_expr || '?'}`;
+  if (op === 'GetVar') return `读取 ${localStep.value.name || '?'}`;
+  if (op === 'TakeScreenshot') return `保存到 ${localStep.value.output_var || '?'}`;
+  if (op === 'SetState') return `设置 ${localStep.value.target?.type || '?'} 状态`;
   return `OP: ${op}`;
 });
 

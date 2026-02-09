@@ -36,44 +36,81 @@
 
       <!-- Rule Items -->
       <div class="space-y-3">
-        <div
-          v-for="(item, idx) in localRule.items"
-          :key="idx"
-          class="rule-item bg-base-100 rounded-2xl p-3 flex items-center gap-4 border border-base-300 hover:border-primary/30 hover:shadow-md transition-all group duration-300"
-        >
+        <div v-for="(item, idx) in localRule.items" :key="idx">
+          <!-- Keyword / Regex Item -->
           <div
-            class="flex-none w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm"
-            :class="item.type === 'Regex' ? 'bg-amber-100 text-amber-600' : 'bg-base-200 text-base-content/40'"
+            v-if="item.type !== 'Group'"
+            class="rule-item bg-base-100 rounded-2xl p-3 flex items-center gap-4 border border-base-300 hover:border-primary/30 hover:shadow-md transition-all group duration-300"
           >
-            <TypeIcon v-if="item.type === 'Keyword'" class="w-5 h-5" />
-            <ZapIcon v-else-if="item.type === 'Regex'" class="w-5 h-5" />
-            <GridIcon v-else class="w-5 h-5" />
-          </div>
-
-          <div class="flex-1 min-w-0">
             <div
-              v-if="item.type === 'Group'"
-              class="text-[10px] font-black py-2 px-3 bg-base-200 text-base-content/50 rounded-xl flex justify-between items-center border border-base-300"
+              class="flex-none w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm"
+              :class="item.type === 'Regex' ? 'bg-amber-100 text-amber-600' : 'bg-base-200 text-base-content/40'"
             >
-              <span class="tracking-widest uppercase">Nested Group ({{ item.op }} / {{ item.scope }})</span>
-              <span
-                class="opacity-100 text-primary font-mono bg-white px-2 py-0.5 rounded-lg shadow-sm border border-base-100"
-                >{{ item.items?.length || 0 }} 项规则</span
-              >
+              <TypeIcon v-if="item.type === 'Keyword'" class="w-5 h-5" />
+              <ZapIcon v-else class="w-5 h-5" />
             </div>
-            <input
-              v-else
-              type="text"
-              v-model="item.pattern"
-              class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic placeholder:opacity-20"
-              :placeholder="item.type === 'Regex' ? 'e.g. ^\\d{3}-\\d{3}-\\d{4}$' : '输入关键字...'"
-            />
+
+            <div class="flex-1 min-w-0">
+              <input
+                type="text"
+                v-model="item.pattern"
+                class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic placeholder:opacity-20"
+                :placeholder="item.type === 'Regex' ? 'e.g. ^\\d{3}-\\d{3}-\\d{4}$' : '输入关键字...'"
+              />
+            </div>
+
+            <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 pr-1">
+              <button class="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10" @click="removeItem(idx)">
+                <TrashIcon class="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 pr-1">
-            <button class="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10" @click="removeItem(idx)">
-              <TrashIcon class="w-4 h-4" />
-            </button>
+          <!-- Nested Group Item -->
+          <div
+            v-else
+            class="nested-group bg-base-100 rounded-2xl border border-base-300 overflow-hidden transition-all duration-300"
+            :class="{ 'border-primary/30': expandedGroups[idx] }"
+          >
+            <!-- Group Header (Clickable to toggle) -->
+            <div
+              class="flex items-center gap-3 p-3 cursor-pointer select-none group hover:bg-base-200/50 transition-colors"
+              @click="toggleGroup(idx)"
+            >
+              <div
+                class="flex-none w-10 h-10 rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center shadow-sm"
+              >
+                <GridIcon class="w-5 h-5 text-slate-600" />
+              </div>
+
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] font-black uppercase tracking-widest text-base-content/50">
+                  嵌套逻辑组 ({{ item.op }} / {{ item.scope }})
+                </div>
+                <div class="text-[9px] font-mono text-primary mt-0.5">{{ item.items?.length || 0 }} 项规则</div>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <button
+                  class="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click.stop="removeItem(idx)"
+                >
+                  <TrashIcon class="w-4 h-4" />
+                </button>
+                <ChevronDownIcon
+                  class="w-4 h-4 transition-transform duration-300"
+                  :class="{ 'rotate-180': expandedGroups[idx] }"
+                />
+              </div>
+            </div>
+
+            <!-- Expanded Group Content (Recursive) -->
+            <div
+              v-if="expandedGroups[idx]"
+              class="p-4 pt-0 border-t border-base-200 animate-in slide-in-from-top-2 duration-300"
+            >
+              <SearchRuleEditor :rule="item" @update="updateNestedGroup(idx, $event)" />
+            </div>
           </div>
         </div>
 
@@ -112,7 +149,12 @@ import {
   Zap as ZapIcon,
   LayoutGrid as GridIcon,
   Info as InfoIcon,
+  ChevronDown as ChevronDownIcon,
 } from 'lucide-vue-next';
+
+// 组件自引用需要显式定义名称
+import { defineAsyncComponent } from 'vue';
+const SearchRuleEditor = defineAsyncComponent(() => import('./SearchRuleEditor.vue'));
 
 const props = defineProps({
   rule: {
@@ -136,6 +178,16 @@ const parseInputRule = (r) => {
 };
 
 const localRule = ref(parseInputRule(props.rule));
+const expandedGroups = ref({});
+
+const toggleGroup = (idx) => {
+  expandedGroups.value[idx] = !expandedGroups.value[idx];
+};
+
+const updateNestedGroup = (idx, newGroupData) => {
+  localRule.value.items[idx] = newGroupData;
+  onUpdate();
+};
 
 const scopeDescription = computed(() => {
   return localRule.value.scope === 'Global'
