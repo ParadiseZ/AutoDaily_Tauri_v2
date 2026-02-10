@@ -33,13 +33,13 @@
     <div class="flex flex-col items-center pt-8 relative pb-12">
       <div
         v-if="showPicker"
-        class="absolute bottom-18 z-100 p-6 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-80 backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
+        class="absolute bottom-18 z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-80 backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
       >
-        <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-4 text-center">选择行为</div>
+        <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 text-center">选择行为</div>
 
-        <div v-for="(group, gName) in groupedActions" :key="gName" class="mb-4 last:mb-0">
+        <div v-for="(group, gName) in groupedActions" :key="gName" class="mb-2 last:mb-0">
           <div class="text-[9px] font-bold opacity-30 uppercase mb-2 pl-2">{{ gName }}</div>
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-2 gap-1.5">
             <button
               v-for="kind in group"
               :key="kind.op"

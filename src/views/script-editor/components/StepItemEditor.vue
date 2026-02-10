@@ -13,8 +13,10 @@
         </div>
 
         <div class="flex-2 min-w-0">
-          <div class="font-black text-sm tracking-tight">{{ stepTitle }}<span v-if="step.label">{{step.label}}}</span></div>
-          <div class="text-[9px] font-mono opacity-30 uppercase tracking-widest mt-0.5 truncate">{{ stepSummary }}</div>
+          <div class="font-black text-sm tracking-tight">
+            {{ stepTitle }}<span v-if="step.label">{{ step.label }}}</span>
+          </div>
+          <div class="text-[14px] font-mono opacity-60 tracking-tight mt-0.5 truncate">{{ stepSummary }}</div>
         </div>
 
         <div class="flex items-center gap-1">

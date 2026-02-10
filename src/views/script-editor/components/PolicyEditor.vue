@@ -2,23 +2,11 @@
   <div class="policy-editor flex h-full gap-6 overflow-hidden p-1">
     <!-- Left Sidebar: Metadata -->
     <div class="w-80 flex-none flex flex-col gap-4 p-5 bg-base-200/50 rounded-3xl border border-base-300 shadow-sm">
-      <div class="flex items-center justify-between mb-2">
-        <div class="flex items-center gap-2">
-          <div class="w-2 h-6 bg-primary rounded-full"></div>
-          <h4 class="text-xs font-bold uppercase tracking-wider opacity-60">策略配置</h4>
-        </div>
-        <button
-          class="btn btn-primary btn-sm px-4 rounded-full shadow-lg hover:scale-105 active:scale-95 transition-all"
-          @click="onSave"
-        >
-          保存修改
-        </button>
-      </div>
-
       <div class="space-y-4 flex-1">
         <div class="form-control">
           <label class="label py-1"><span class="label-text text-sm font-bold opacity-60">策略名称</span></label>
           <input
+            ref="nameInputRef"
             v-model="localPolicy.name"
             type="text"
             class="input input-bordered input-sm w-full font-bold focus:ring-2 focus:ring-primary/20"
@@ -106,7 +94,7 @@
 
         <div v-show="activeTab === 'after'" class="animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div
-              class="alert bg-emerald-500/10 border-emerald-500/20 text-emerald-600 text-xs mb-6 rounded-2xl flex items-start gap-3"
+            class="alert bg-emerald-500/10 border-emerald-500/20 text-emerald-600 text-xs mb-6 rounded-2xl flex items-start gap-3"
           >
             <InfoIcon class="w-4 h-4 mt-0.5" />
             <div class="flex-1">
@@ -151,6 +139,7 @@ const emit = defineEmits(['save', 'update']);
 
 const activeTab = ref('cond');
 const localPolicy = ref({ ...props.policy });
+const nameInputRef = ref(null);
 
 const tabs = [
   { id: 'cond', label: '命中条件', icon: Target },
@@ -161,6 +150,19 @@ const tabs = [
 const onSave = () => {
   emit('save', localPolicy.value);
 };
+
+const getPolicyData = () => {
+  return localPolicy.value;
+};
+
+const focusNameInput = () => {
+  nameInputRef.value?.focus();
+};
+
+defineExpose({
+  getPolicyData,
+  focusNameInput,
+});
 
 watch(
   () => props.policy,

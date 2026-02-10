@@ -16,10 +16,26 @@
           />
         </div>
       </div>
-      <button class="btn btn-primary btn-sm gap-2" @click="addNewItem">
-        <PlusIcon class="w-4 h-4" />
-        新建{{ title }}
-      </button>
+      <div class="flex items-center gap-2">
+        <!-- Batch Mode Toggle -->
+        <label class="label cursor-pointer gap-2">
+          <span class="label-text text-xs">批量</span>
+          <input type="checkbox" v-model="batchMode" class="checkbox checkbox-sm checkbox-primary" />
+        </label>
+        <!-- Delete Button (visible when item selected or batch mode) -->
+        <button
+          v-if="selectedItem || (batchMode && selectedItems.length > 0)"
+          class="btn btn-error btn-sm btn-outline gap-1"
+          @click="batchMode ? batchDeleteItems() : deleteItem()"
+        >
+          <TrashIcon class="w-4 h-4" />
+          删除{{ batchMode ? `(${selectedItems.length})` : '' }}
+        </button>
+        <button class="btn btn-primary btn-sm gap-2" @click="addNewItem">
+          <PlusIcon class="w-4 h-4" />
+          新建{{ title }}
+        </button>
+      </div>
     </div>
 
     <!-- Main List/Content -->
@@ -33,13 +49,13 @@
           <div
             v-for="item in filteredItems"
             :key="item.id"
-            class="p-3 rounded-lg cursor-pointer mb-1 transition-all"
+            class="p-3 rounded-lg cursor-pointer mb-1 transition-all flex items-center gap-2"
             :class="[
-              selectedItem?.id === item.id
+              (batchMode ? selectedItems.includes(item.id) : selectedItem?.id === item.id)
                 ? 'bg-primary text-primary-content'
                 : 'hover:bg-base-200 text-base-content/70',
             ]"
-            @click="selectedItem = item"
+            @click="batchMode ? toggleBatchSelect(item.id) : (selectedItem = item)"
           >
             <div class="font-bold truncate">
               {{ item.data.name }}
@@ -55,19 +71,7 @@
       <!-- Right: Details/Composition -->
       <div class="flex-1 bg-base-100 flex flex-col overflow-hidden">
         <div v-if="selectedItem" class="flex-1 flex flex-col p-6 overflow-y-auto">
-          <div class="flex justify-between items-start mb-6">
-            <div>
-              <h3 class="text-2xl font-bold">{{ selectedItem.data.name }}</h3>
-              <p class="text-base-content/60 mt-1">{{ selectedItem.data.note }}</p>
-            </div>
-            <div class="flex gap-2">
-              <button v-if="activeTab !== 'policy'" class="btn btn-outline btn-sm">编辑数据</button>
-              <button class="btn btn-error btn-sm btn-outline" @click="deleteItem">删除</button>
-            </div>
-          </div>
-
           <!-- Composition View based on tab -->
-          <div class="divider">组成结构</div>
 
           <div v-if="activeTab === 'policy_set'">
             <div class="alert alert-info shadow-sm mb-4">
@@ -88,7 +92,12 @@
           </div>
 
           <div v-else-if="activeTab === 'policy'">
-            <PolicyEditor v-if="selectedItem" :policy="selectedItem.data" @save="updateSelectedItemData" />
+            <PolicyEditor
+              ref="policyEditorRef"
+              v-if="selectedItem"
+              :policy="selectedItem.data"
+              @save="updateSelectedItemData"
+            />
           </div>
         </div>
         <div v-else class="flex-1 flex flex-col items-center justify-center opacity-30">
@@ -101,8 +110,15 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
-import { Library, LayoutGrid, ListTodo, Plus as PlusIcon, Info as InfoIcon } from 'lucide-vue-next';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
+import {
+  Library,
+  LayoutGrid,
+  ListTodo,
+  Plus as PlusIcon,
+  Info as InfoIcon,
+  Trash2 as TrashIcon,
+} from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import PolicyEditor from './components/PolicyEditor.vue';
 
@@ -133,6 +149,53 @@ const searchQuery = ref('');
 const selectedItem = ref(null);
 const items = ref([]);
 const loading = ref(false);
+const batchMode = ref(false);
+const selectedItems = ref([]);
+const policyEditorRef = ref(null);
+
+const toggleBatchSelect = (id) => {
+  const idx = selectedItems.value.indexOf(id);
+  if (idx > -1) {
+    selectedItems.value.splice(idx, 1);
+  } else {
+    selectedItems.value.push(id);
+  }
+};
+
+const batchDeleteItems = async () => {
+  if (selectedItems.value.length === 0) return;
+
+  try {
+    let command = '';
+    switch (props.activeTab) {
+      case 'policy_set':
+        command = 'delete_policy_set_cmd';
+        break;
+      case 'policy_group':
+        command = 'delete_policy_group_cmd';
+        break;
+      case 'policy':
+        command = 'delete_policy_cmd';
+        break;
+    }
+
+    for (const id of selectedItems.value) {
+      const item = items.value.find((i) => i.id === id);
+      if (item?.isNew) {
+        items.value = items.value.filter((i) => i.id !== id);
+      } else {
+        await invoke(command, { id });
+      }
+    }
+
+    props.addLog(`批量删除了 ${selectedItems.value.length} 个${title.value}`, props.logLevels.INFO);
+    selectedItems.value = [];
+    selectedItem.value = null;
+    await loadData();
+  } catch (e) {
+    props.addLog(`批量删除失败: ${e}`, props.logLevels.ERROR);
+  }
+};
 
 const title = computed(() => {
   switch (props.activeTab) {
@@ -228,6 +291,13 @@ const addNewItem = async () => {
   items.value.push(newItem);
   selectedItem.value = newItem;
   props.addLog(`创建了新${title.value}草案`, props.logLevels.INFO);
+
+  // Auto-focus the name input for policies
+  if (props.activeTab === 'policy') {
+    await nextTick(() => {
+      policyEditorRef.value?.focusNameInput();
+    });
+  }
 };
 
 const updateSelectedItemData = async (newData) => {

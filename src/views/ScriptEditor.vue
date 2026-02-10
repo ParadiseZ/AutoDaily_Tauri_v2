@@ -329,7 +329,14 @@
         </div>
 
         <div v-if="activeNavTab !== 'task'" class="flex-1 flex flex-col bg-base-100 overflow-hidden">
-          <PolicyManager :active-tab="activeNavTab" :script-id="scriptId" :add-log="addLog" :log-levels="LOG_LEVELS" :get-uuid-v7="getUuidV7" />
+          <PolicyManager
+            ref="policyManagerRef"
+            :active-tab="activeNavTab"
+            :script-id="scriptId"
+            :add-log="addLog"
+            :log-levels="LOG_LEVELS"
+            :get-uuid-v7="getUuidV7"
+          />
         </div>
       </div>
 
@@ -503,7 +510,7 @@ const { consoleLogs, logClass, addLog, clearConsole } = useConsoleLog();
 const { currentEditorTheme, toggleTheme, initTheme } = useThemeManager();
 
 // 5. 设备管理
-const { getAllDevices,getUuidV7 } = useDevices();
+const { getAllDevices, getUuidV7 } = useDevices();
 const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
   getAllDevices,
   getFromStore,
@@ -539,8 +546,6 @@ const {
   confirmDelete,
   cancelDelete,
 } = useFlowEditor({ addLog, LOG_LEVELS, getUuidV7 });
-
-
 
 // 4. Task Manager
 const {
@@ -649,6 +654,13 @@ const { onDragOver, onDrop, onDragLeave, isDragOver } = useDragAndDrop({
 // 键盘事件
 // ============================================
 const handleKeyDown = (event) => {
+  // Ctrl+S to save
+  if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    event.preventDefault();
+    saveScript();
+    return;
+  }
+
   if (event.key === 'Delete' || event.key === 'Backspace') {
     const activeElement = document.activeElement;
     if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
