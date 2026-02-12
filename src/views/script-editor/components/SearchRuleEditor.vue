@@ -48,7 +48,10 @@
             </div>
 
             <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 pr-1">
-              <button class="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10" @click="removeItem(idx)">
+              <button
+                class="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10"
+                @click="removeItem(idx as number)"
+              >
                 <TrashIcon class="w-4 h-4" />
               </button>
             </div>
@@ -58,12 +61,12 @@
           <div
             v-else
             class="nested-group bg-base-100 rounded-2xl border border-base-300 overflow-hidden transition-all duration-300"
-            :class="{ 'border-primary/30': expandedGroups[idx] }"
+            :class="{ 'border-primary/30': expandedGroups[idx as number] }"
           >
             <!-- Group Header (Clickable to toggle) -->
             <div
               class="flex items-center gap-3 p-3 cursor-pointer select-none group hover:bg-base-200/50 transition-colors"
-              @click="toggleGroup(idx)"
+              @click="toggleGroup(idx as number)"
             >
               <div
                 class="flex-none w-10 h-10 rounded-xl bg-linear-to-br from-slate-200 to-slate-300 flex items-center justify-center shadow-sm"
@@ -73,9 +76,7 @@
 
               <div class="flex-1 min-w-0">
                 <div class="text-[14px] font-black uppercase tracking-widest text-base-content/50">
-                  子逻辑组 ({{ (item as any).op }} / {{ (item as any).scope }}) 【{{
-                    (item as any).items?.length || 0
-                  }}
+                  子逻辑组 ({{ (item as any).op }} / {{ (item as any).scope }}) 【{{ (item as any).items?.length || 0 }}
                   项】
                 </div>
               </div>
@@ -83,23 +84,23 @@
               <div class="flex items-center gap-2">
                 <button
                   class="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 transition-opacity"
-                  @click.stop="removeItem(idx)"
+                  @click.stop="removeItem(idx as number)"
                 >
                   <TrashIcon class="w-4 h-4" />
                 </button>
                 <ChevronDownIcon
                   class="w-4 h-4 transition-transform duration-300"
-                  :class="{ 'rotate-180': expandedGroups[idx] }"
+                  :class="{ 'rotate-180': expandedGroups[idx as number] }"
                 />
               </div>
             </div>
 
             <!-- Expanded Group Content (Recursive) -->
             <div
-              v-if="expandedGroups[idx]"
+              v-if="expandedGroups[idx as number]"
               class="p-4 pt-0 border-t border-base-200 animate-in slide-in-from-top-2 duration-300"
             >
-              <SearchRuleEditor :rule="item as any" @update="updateNestedGroup(idx, $event)" />
+              <SearchRuleEditor :rule="item as any" @update="updateNestedGroup(idx as number, $event)" />
             </div>
           </div>
         </div>

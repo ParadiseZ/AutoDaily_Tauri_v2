@@ -458,7 +458,7 @@ import {
 import { editorThemeKey, deviceKey, setToStore, getFromStore } from '../store/store';
 
 // data
-import { useDevices } from '../assets/js/useDevices.js';
+import { useDevices } from '../assets/js/useDevices';
 import type { ScriptTable, ScriptInfo } from '../types/bindings';
 import type { JsonValue } from '../types/bindings/serde_json/JsonValue.js';
 
@@ -512,13 +512,13 @@ const { currentEditorTheme, toggleTheme, initTheme } = useThemeManager();
 const { getAllDevices, getUuidV7 } = useDevices();
 const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
   getAllDevices,
-  getFromStore,
-  setToStore,
+  getFromStore: (key: string) => getFromStore<string>(key).then((r) => r ?? null),
+  setToStore: (key: string, value: string) => setToStore(key, value),
   deviceKey,
 });
 
 const policyManagerRef = ref<any>(null);
-const nodeTypes = { custom: markRaw(FlowNode) };
+const nodeTypes = { custom: markRaw(FlowNode) } as any;
 const { screenToFlowCoordinate } = useVueFlow();
 
 const {
@@ -601,8 +601,8 @@ const saveScript = async () => {
     }
 
     if (currentTask.value) {
-      currentTask.value.nodes = [...nodes.value] as JsonValue;
-      currentTask.value.edges = [...edges.value] as JsonValue;
+      currentTask.value.nodes = [...nodes.value] as unknown as JsonValue;
+      currentTask.value.edges = [...edges.value] as unknown as JsonValue;
     }
 
     if (scriptInfo.value) {

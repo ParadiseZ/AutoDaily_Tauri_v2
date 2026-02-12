@@ -69,7 +69,7 @@
           <!-- Dynamic Body -->
           <div class="col-span-full space-y-6">
             <!-- WaitMs Form -->
-            <div v-if="step.op === 'WaitMs'" class="form-control">
+            <div v-if="step.op === 'waitMs'" class="form-control">
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block"
                 >等候时长 (Milliseconds)</label
               >
@@ -82,7 +82,7 @@
             </div>
 
             <!-- If/While Form -->
-            <div v-if="['If', 'While'].includes(step.op)" class="space-y-6">
+            <div v-if="['if', 'while'].includes(step.op)" class="space-y-6">
               <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm">
                 <SearchRuleEditor
                   :rule="(localStep as any).cond"
@@ -112,7 +112,7 @@
 
             <!-- Sequence Form -->
             <div
-              v-if="step.op === 'Sequence'"
+              v-if="step.op === 'sequence'"
               class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm relative"
             >
               <div
@@ -131,7 +131,7 @@
             </div>
 
             <!-- ClickAction Form -->
-            <div v-if="step.op === 'ClickAction'" class="space-y-4">
+            <div v-if="step.op === 'clickAction'" class="space-y-4">
               <div class="form-control">
                 <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">点击模式</label>
                 <select
@@ -235,7 +235,7 @@
             </div>
 
             <!-- SwipePoint Form -->
-            <div v-if="step.op === 'SwipePoint'" class="space-y-4">
+            <div v-if="step.op === 'swipePoint'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="p-3 bg-base-200/50 rounded-xl">
                   <div class="text-[9px] font-black uppercase opacity-40 mb-2">起点 (From)</div>
@@ -279,7 +279,7 @@
             </div>
 
             <!-- SwipePercent Form -->
-            <div v-if="step.op === 'SwipePercent'" class="space-y-4">
+            <div v-if="step.op === 'swipePercent'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="p-3 bg-base-200/50 rounded-xl">
                   <div class="text-[9px] font-black uppercase opacity-40 mb-2">起点百分比</div>
@@ -327,7 +327,7 @@
             </div>
 
             <!-- VisionSearch Form -->
-            <div v-if="step.op === 'VisionSearch'" class="space-y-4">
+            <div v-if="step.op === 'visionSearch'" class="space-y-4">
               <div class="form-control">
                 <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
                 <input
@@ -350,7 +350,7 @@
             </div>
 
             <!-- SetVar Form -->
-            <div v-if="step.op === 'SetVar'" class="space-y-4">
+            <div v-if="step.op === 'setVar'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
@@ -378,7 +378,7 @@
             </div>
 
             <!-- GetVar Form -->
-            <div v-if="step.op === 'GetVar'" class="form-control">
+            <div v-if="step.op === 'getVar'" class="form-control">
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
               <input
                 type="text"
@@ -390,7 +390,7 @@
             </div>
 
             <!-- TakeScreenshot Form -->
-            <div v-if="step.op === 'TakeScreenshot'" class="form-control">
+            <div v-if="step.op === 'takeScreenshot'" class="form-control">
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
               <input
                 type="text"
@@ -402,7 +402,7 @@
             </div>
 
             <!-- SetState Form -->
-            <div v-if="step.op === 'SetState'" class="space-y-4">
+            <div v-if="step.op === 'setState'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">目标类型</label>
@@ -468,7 +468,7 @@
               >
               <input
                 type="number"
-                v-model="localStep.execMax"
+                v-model="localStep.exec_max"
                 class="input input-bordered input-sm font-mono w-24 rounded-lg mt-1"
                 @change="onDataUpdate(localStep)"
               />
@@ -477,7 +477,7 @@
               <span class="text-[10px] font-bold opacity-40 uppercase">禁用步骤</span>
               <input
                 type="checkbox"
-                v-model="localStep.skipFlag"
+                v-model="localStep.skip_flag"
                 class="checkbox checkbox-primary checkbox-sm rounded-lg"
                 @change="onDataUpdate(localStep)"
               />
@@ -520,18 +520,18 @@ const localStep = ref<Step>({ ...props.step });
 
 // 支持的操作类型列表
 const supportedOps = [
-  'WaitMs',
-  'If',
-  'While',
-  'Sequence',
-  'ClickAction',
-  'SwipePoint',
-  'SwipePercent',
-  'VisionSearch',
-  'SetVar',
-  'GetVar',
-  'TakeScreenshot',
-  'SetState',
+  'waitMs',
+  'if',
+  'while',
+  'sequence',
+  'clickAction',
+  'swipePoint',
+  'swipePercent',
+  'visionSearch',
+  'setVar',
+  'getVar',
+  'takeScreenshot',
+  'setState',
 ];
 
 // ClickAction 模式检测
@@ -619,37 +619,37 @@ const categoryColor = computed(() => {
 
 const stepTitle = computed(() => {
   const opMap: Record<string, string> = {
-    ClickAction: '点击交互',
-    WaitMs: '延时等待',
-    If: '条件分支 (If)',
-    While: '循环控制 (While)',
-    SetVar: '变量赋值',
-    GetVar: '变量读取',
-    VisionSearch: '强化视觉搜索',
-    TakeScreenshot: '屏幕截图',
-    Sequence: '步骤序列容器',
-    SwipePoint: '坐标滑动',
-    SwipePercent: '百分比滑动',
-    SetState: '状态设置',
-    GetState: '状态读取',
-    StopPolicy: '停止策略',
-    FinishTask: '结束任务',
+    clickAction: '点击交互',
+    waitMs: '延时等待',
+    if: '条件分支 (if)',
+    while: '循环控制 (while)',
+    setVar: '变量赋值',
+    getVar: '变量读取',
+    visionSearch: '强化视觉搜索',
+    takeScreenshot: '屏幕截图',
+    sequence: '步骤序列容器',
+    swipePoint: '坐标滑动',
+    swipePercent: '百分比滑动',
+    setState: '状态设置',
+    getState: '状态读取',
+    stopPolicy: '停止策略',
+    finishTask: '结束任务',
   };
   return opMap[props.step.op] || props.step.op;
 });
 
 const stepSummary = computed(() => {
   const op = props.step.op;
-  if (op === 'WaitMs') return `等待 ${(localStep.value as any).ms} 毫秒`;
-  if (op === 'Sequence') return `包含 ${(localStep.value as any).steps?.length || 0} 个子动作`;
-  if (op === 'If' || op === 'While') return `判断条件后执行 ${(localStep.value as any).steps?.length || 0} 个逻辑`;
-  if (op === 'ClickAction') return `${clickMode.value} 模式点击`;
-  if (op === 'SwipePoint' || op === 'SwipePercent') return `滑动手势`;
-  if (op === 'VisionSearch') return `搜索结果 → ${(localStep.value as any).output_var || '?'}`;
-  if (op === 'SetVar') return `${(localStep.value as any).name || '?'} = ${(localStep.value as any).value_expr || '?'}`;
-  if (op === 'GetVar') return `读取 ${(localStep.value as any).name || '?'}`;
-  if (op === 'TakeScreenshot') return `保存到 ${(localStep.value as any).output_var || '?'}`;
-  if (op === 'SetState') return `设置 ${(localStep.value as any).target?.type || '?'} 状态`;
+  if (op === 'waitMs') return `等待 ${(localStep.value as any).ms} 毫秒`;
+  if (op === 'sequence') return `包含 ${(localStep.value as any).steps?.length || 0} 个子动作`;
+  if (op === 'if' || op === 'while') return `判断条件后执行 ${(localStep.value as any).steps?.length || 0} 个逻辑`;
+  if (op === 'clickAction') return `${clickMode.value} 模式点击`;
+  if (op === 'swipePoint' || op === 'swipePercent') return `滑动手势`;
+  if (op === 'visionSearch') return `搜索结果 → ${(localStep.value as any).output_var || '?'}`;
+  if (op === 'setVar') return `${(localStep.value as any).name || '?'} = ${(localStep.value as any).value_expr || '?'}`;
+  if (op === 'getVar') return `读取 ${(localStep.value as any).name || '?'}`;
+  if (op === 'takeScreenshot') return `保存到 ${(localStep.value as any).output_var || '?'}`;
+  if (op === 'setState') return `设置 ${(localStep.value as any).target?.type || '?'} 状态`;
   return `OP: ${op}`;
 });
 

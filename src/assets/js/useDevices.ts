@@ -17,8 +17,8 @@ export const useDevices = () => {
     return await invoke('delete_device_cmd', { deviceId });
   };
 
-  const getUuidV7 = async () => {
-    return await invoke('get_uuid_v7');
+  const getUuidV7 = async (): Promise<string> => {
+    return await invoke<string>('get_uuid_v7');
   };
 
   const getCpuCount = async () => {

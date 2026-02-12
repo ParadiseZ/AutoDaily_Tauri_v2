@@ -288,7 +288,7 @@ const saveDevice = async () => {
     if (!form.id) {
       form.id = (await getUuidV7()) as string;
     }
-    await apiSaveDevice(form);
+    await apiSaveDevice(form as DeviceTable);
     (document.getElementById('device_modal') as HTMLDialogElement).close();
     await loadDevices();
   } catch (e) {

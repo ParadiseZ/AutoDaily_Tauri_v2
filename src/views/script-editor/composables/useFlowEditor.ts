@@ -85,11 +85,11 @@ export function useFlowEditor(options: FlowOptions = {}) {
 
         const newNode = await createNode(type, finalPosition);
 
-        if (selectedNode.value && !position && selectedNode.value.sourceHandle === 'out') {
+        if (selectedNode.value && !position && (selectedNode.value as any).sourceHandle === 'out') {
             const newEdge: Connection = {
                 source: selectedNode.value.id,
                 target: newNode.id,
-                sourceHandle: selectedNode.value.sourceHandle,
+                sourceHandle: (selectedNode.value as any).sourceHandle,
                 targetHandle: 'in'
             };
             onConnect(newEdge);

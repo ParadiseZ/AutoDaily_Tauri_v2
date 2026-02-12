@@ -29,7 +29,7 @@ export function useThemeManager() {
 
     async function initTheme(key: string) {
         try {
-            const savedTheme = await getFromStore(key);
+            const savedTheme = await getFromStore<string>(key);
             if (!savedTheme) return;
             if (key === editorThemeKey && savedTheme !== DEFAULT_EDITOR_THEME) {
                 currentEditorTheme.value = savedTheme;

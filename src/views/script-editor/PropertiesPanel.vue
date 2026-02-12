@@ -295,7 +295,7 @@
               :key="idx"
               class="flex items-center gap-2 p-2 bg-base-200 rounded"
             >
-              <span class="badge badge-sm badge-neutral">{{ idx + 1 }}</span>
+              <span class="badge badge-sm badge-neutral">{{ (idx as number) + 1 }}</span>
               <input
                 type="text"
                 v-model="strategy.target"
@@ -306,7 +306,9 @@
                 <option value="click">Click</option>
                 <option value="back">Back</option>
               </select>
-              <button class="btn btn-xs btn-ghost btn-circle text-error" @click="removeStrategy(idx)">×</button>
+              <button class="btn btn-xs btn-ghost btn-circle text-error" @click="removeStrategy(idx as number)">
+                ×
+              </button>
             </div>
           </div>
           <button class="btn btn-xs btn-ghost mt-2" @click="addStrategy">+ Add Action</button>
@@ -442,7 +444,9 @@
                   />
                   <span v-else class="text-xs italic flex-1">Sub-group logic...</span>
                 </div>
-                <button class="btn btn-xs btn-ghost btn-circle text-error" @click="removeRuleItem(idx)">×</button>
+                <button class="btn btn-xs btn-ghost btn-circle text-error" @click="removeRuleItem(idx as number)">
+                  ×
+                </button>
               </div>
             </div>
 

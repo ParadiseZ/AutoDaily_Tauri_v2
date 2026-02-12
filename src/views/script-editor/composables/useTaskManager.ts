@@ -15,10 +15,10 @@ export function useTaskManager(options: TaskOptions) {
     const { nodes, edges, addLog = () => { }, LOG_LEVELS = {}, getUuidV7 = async () => '' } = options;
 
     // 任务列表
-    const taskList = ref<ScriptTaskTable[]>([]);
+    const taskList = ref<ScriptTaskTable[]>([]) as Ref<any[]>;
 
     // 当前任务
-    const currentTask = ref<ScriptTaskTable | null>(null);
+    const currentTask = ref<ScriptTaskTable | null>(null) as Ref<any | null>;
 
     // 搜索关键词
     const taskSearch = ref('');

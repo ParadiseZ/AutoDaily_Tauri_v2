@@ -30,7 +30,7 @@
       <!-- Special content for certain node types -->
       <div v-if="data.type === 'fallback'" class="mt-2 text-xs opacity-60">
         <div class="flex items-center gap-1" v-for="(strategy, idx) in data.strategies || defaultStrategies" :key="idx">
-          <span class="badge badge-xs badge-ghost">{{ idx + 1 }}</span>
+          <span class="badge badge-xs badge-ghost">{{ (idx as number) + 1 }}</span>
           {{ strategy.label || strategy.target || 'Strategy' }}
         </div>
       </div>

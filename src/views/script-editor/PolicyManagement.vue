@@ -369,8 +369,9 @@ const updateSelectedItemData = async (newData: any) => {
 
 const deleteItem = async () => {
   if (!selectedItem.value) return;
+  const id = selectedItem.value.id;
   if (selectedItem.value.isNew) {
-    items.value = items.value.filter((i) => i.id !== selectedItem.value.id);
+    items.value = items.value.filter((i) => i.id !== id);
     selectedItem.value = null;
     return;
   }
@@ -389,7 +390,7 @@ const deleteItem = async () => {
         break;
     }
 
-    await invoke(command, { id: selectedItem.value.id });
+    await invoke(command, { id });
     selectedItem.value = null;
     await loadData();
   } catch (e) {

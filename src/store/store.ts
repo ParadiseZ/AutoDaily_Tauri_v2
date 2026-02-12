@@ -6,10 +6,12 @@ export const editorThemeKey = 'editorTheme';
 export const appThemeKey = 'appTheme';
 
 export const deviceKey = 'editorDevice';
-export async function getFromStore(key) {
-    return await store.get(key);
+
+export async function getFromStore<T>(key: string): Promise<T | null | undefined> {
+    return await store.get<T>(key);
 }
 
-export async function setToStore(key, value) {
+export async function setToStore(key: string, value: any) {
     await store.set(key, value);
+    await store.save();
 }

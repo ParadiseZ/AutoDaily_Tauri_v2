@@ -42,7 +42,7 @@ interface ExtendedScriptTable extends Omit<ScriptTable, 'data'> {
 }
 
 const { scripts, selectedScript, selectedTemplate, getAllScripts, saveScript, deleteScript, selectScript } =
-  useScripts() as {
+  useScripts() as unknown as {
     scripts: Ref<ExtendedScriptTable[]>;
     selectedScript: Ref<ExtendedScriptTable | null>;
     selectedTemplate: Ref<string | null>;
