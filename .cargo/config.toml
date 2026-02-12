@@ -20,3 +20,7 @@ opt-level = 3
 # 依赖包编译优化 - 对依赖进行更高级别的优化，加快运行速度，同时不影响自己代码的编译速度
 [profile.dev.package."*"]
 opt-level = 3
+
+# ts-rs 生成的 TypeScript 绑定输出目录
+[env]
+TS_RS_EXPORT_DIR = { value = "src/types/bindings", relative = true }

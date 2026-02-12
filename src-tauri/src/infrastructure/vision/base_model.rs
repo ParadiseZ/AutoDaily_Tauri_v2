@@ -18,7 +18,8 @@ use std::sync::Mutex;
 /// 基础模型结构 - 包含所有模型的通用字段
 
 /// 模型来源
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, Default, ts_rs::TS)]
+#[ts(export)]
 pub enum ModelSource {
     /// 内置模型 - 从 resources/models/ 加载
     /// 路径由程序自动解析，无需用户指定
@@ -31,9 +32,11 @@ pub enum ModelSource {
     Custom,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct BaseModel {
     #[serde(skip)]
+    #[ts(skip)]
     pub session: Option<Mutex<Session>>,
     pub intra_thread_num: usize,
     pub intra_spinning: bool,
@@ -49,8 +52,10 @@ pub struct BaseModel {
     /// - BuiltIn: 此字段被忽略，由程序自动解析
     /// - Custom + Dev: 开发者指定的绝对路径
     /// - Custom + Published: 此字段被忽略，由程序解析为 scripts/{id}/models/
+    #[ts(as = "String")]
     pub model_path: std::path::PathBuf,
     #[serde(skip)]
+    #[ts(skip)]
     pub is_loaded: bool,
     pub model_type: ModelType,
 }
@@ -75,7 +80,8 @@ impl std::fmt::Debug for BaseModel{
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub enum ModelType {
     Yolo11,
     PaddleDet5,

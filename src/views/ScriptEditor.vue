@@ -456,6 +456,7 @@ import { editorThemeKey, deviceKey, setToStore, getFromStore } from '../store/st
 
 //data
 import { useDevices } from '../assets/js/useDevices.js';
+import { ScriptTable } from '../types/bindings/ScriptTable.ts';
 
 // ============================================
 // 核心状态
@@ -504,7 +505,7 @@ const stopResize = () => {
 // ============================================
 
 // 1. Console Log
-const { consoleLogs, logClass, addLog, clearConsole } = useConsoleLog();
+const { consoleLogs, consoleRef, logClass, addLog, clearConsole } = useConsoleLog();
 
 // 2. Theme Manager
 const { currentEditorTheme, toggleTheme, initTheme } = useThemeManager();
@@ -517,6 +518,9 @@ const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
   setToStore,
   deviceKey,
 });
+
+// PolicyManager ref for save integration
+const policyManagerRef = ref(null);
 
 // 3.VueFlow 设置
 const nodeTypes = { custom: markRaw(FlowNode) };
@@ -606,6 +610,11 @@ const loadScriptData = async () => {
 
 const saveScript = async () => {
   try {
+    // 0. 保存当前策略数据
+    if (policyManagerRef.value?.saveCurrentPolicy) {
+      await policyManagerRef.value.saveCurrentPolicy();
+    }
+
     // 1. 更新当前任务的数据
     if (currentTask.value) {
       currentTask.value.nodes = [...nodes.value];

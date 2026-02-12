@@ -4,10 +4,12 @@ use crate::infrastructure::vision::rec::RecognizerType;
 use sqlx::types::Json;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct ScriptTable {
     pub id : ScriptId,
+    #[ts(as = "ScriptInfo")]
     pub data : Json<ScriptInfo>
 }
 
@@ -20,7 +22,8 @@ impl Default for ScriptTable {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub enum ScriptType {
     /// 本地开发模式
@@ -37,7 +40,8 @@ pub enum ScriptType {
     Published,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct ScriptInfo {
     pub name : String,

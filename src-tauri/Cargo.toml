@@ -130,6 +130,9 @@ num = "0.4.3"
 aho-corasick = "1.1"
 regex = "1.12.2"
 
+# TypeScript 类型生成
+ts-rs = { version = "12", features = ["serde-json-impl"] }
+
 # Windows 原生API（命名共享内存、亲和性）
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Memory", "Win32_System_Threading"] }

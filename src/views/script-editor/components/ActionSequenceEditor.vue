@@ -31,35 +31,40 @@
 
     <!-- Add Step Picker Dropdown -->
     <div class="flex flex-col items-center pt-8 relative pb-12">
-      <div
-        v-if="showPicker"
-        class="absolute bottom-18 z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-80 backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
-      >
-        <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 text-center">选择行为</div>
+      <!-- Teleport popup to body to escape overflow-hidden ancestors -->
+      <Teleport to="body">
+        <div
+          v-if="showPicker"
+          class="fixed z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-80 backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
+          :style="pickerStyle"
+        >
+          <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 text-center">选择行为</div>
 
-        <div v-for="(group, gName) in groupedActions" :key="gName" class="mb-2 last:mb-0">
-          <div class="text-[9px] font-bold opacity-30 uppercase mb-2 pl-2">{{ gName }}</div>
-          <div class="grid grid-cols-2 gap-1.5">
-            <button
-              v-for="kind in group"
-              :key="kind.op"
-              class="btn btn-sm h-10 px-3 bg-base-200/50 border-none hover:bg-primary hover:text-white justify-start gap-2 rounded-xl group/btn transition-all duration-300"
-              @click="addStepWithType(kind.op)"
-            >
-              <StepIcon :type="kind.op" class-name="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
-              <span class="text-[10px] font-bold">{{ kind.name }}</span>
-            </button>
+          <div v-for="(group, gName) in groupedActions" :key="gName" class="mb-2 last:mb-0">
+            <div class="text-[9px] font-bold opacity-30 uppercase mb-2 pl-2">{{ gName }}</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button
+                v-for="kind in group"
+                :key="kind.op"
+                class="btn btn-sm h-10 px-3 bg-base-200/50 border-none hover:bg-primary hover:text-white justify-start gap-2 rounded-xl group/btn transition-all duration-300"
+                @click="addStepWithType(kind.op)"
+              >
+                <StepIcon :type="kind.op" class-name="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
+                <span class="text-[10px] font-bold">{{ kind.name }}</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div class="divider opacity-20 my-2"></div>
-        <button class="btn btn-sm btn-ghost w-full rounded-2xl opacity-50" @click="showPicker = false">取消</button>
-      </div>
+          <div class="divider opacity-20 my-2"></div>
+          <button class="btn btn-sm btn-ghost w-full rounded-2xl opacity-50" @click="showPicker = false">取消</button>
+        </div>
+      </Teleport>
 
       <button
+        ref="addBtnRef"
         class="btn btn-circle btn-primary btn-lg shadow-xl hover:scale-110 active:scale-95 transition-all group/plus"
         :class="{ 'rotate-45 btn-error': showPicker }"
-        @click="showPicker = !showPicker"
+        @click="togglePicker"
       >
         <PlusIcon class="w-8 h-8 transition-transform" />
       </button>
@@ -68,7 +73,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed, reactive } from 'vue';
 import { Plus as PlusIcon, ListTodo as ListTodoIcon } from 'lucide-vue-next';
 import StepItemEditor from './StepItemEditor.vue';
 import StepIcon from './StepIcon.vue';
@@ -87,6 +92,24 @@ const props = defineProps({
 const emit = defineEmits(['update:steps']);
 
 const showPicker = ref(false);
+const addBtnRef = ref(null);
+const pickerPos = reactive({ top: 0, left: 0 });
+
+const togglePicker = () => {
+  if (!showPicker.value && addBtnRef.value) {
+    const rect = addBtnRef.value.getBoundingClientRect();
+    // Position popup above the button, centered horizontally
+    pickerPos.top = rect.top - 8; // 8px gap above button
+    pickerPos.left = rect.left + rect.width / 2 - 160; // 160 = half of w-80 (320px)
+  }
+  showPicker.value = !showPicker.value;
+};
+
+const pickerStyle = computed(() => ({
+  top: 'auto',
+  bottom: `${window.innerHeight - pickerPos.top}px`,
+  left: `${Math.max(8, pickerPos.left)}px`,
+}));
 
 const groupedActions = {
   action: [

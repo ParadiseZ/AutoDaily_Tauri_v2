@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "cd src-tauri && cargo test export_bindings && cd ../ &&tauri",
+    "gen:types": "cd src-tauri && cargo test export_bindings"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.4",

@@ -24,7 +24,7 @@
         </label>
         <!-- Delete Button (visible when item selected or batch mode) -->
         <button
-          v-if="selectedItem || (batchMode && selectedItems.length > 0)"
+          v-if="batchMode ? selectedItems.length > 0 : selectedItem"
           class="btn btn-error btn-sm btn-outline gap-1"
           @click="batchMode ? batchDeleteItems() : deleteItem()"
         >
@@ -51,9 +51,11 @@
             :key="item.id"
             class="p-3 rounded-lg cursor-pointer mb-1 transition-all flex items-center gap-2"
             :class="[
-              (batchMode ? selectedItems.includes(item.id) : selectedItem?.id === item.id)
-                ? 'bg-primary text-primary-content'
-                : 'hover:bg-base-200 text-base-content/70',
+              batchMode && selectedItems.includes(item.id)
+                ? 'bg-error/20 text-error ring-1 ring-error/30'
+                : selectedItem?.id === item.id
+                  ? 'bg-primary text-primary-content'
+                  : 'hover:bg-base-200 text-base-content/70',
             ]"
             @click="batchMode ? toggleBatchSelect(item.id) : (selectedItem = item)"
           >
@@ -165,6 +167,9 @@ const toggleBatchSelect = (id) => {
 const batchDeleteItems = async () => {
   if (selectedItems.value.length === 0) return;
 
+  const idsToDelete = [...selectedItems.value];
+  const deleteCount = idsToDelete.length;
+
   try {
     let command = '';
     switch (props.activeTab) {
@@ -179,19 +184,43 @@ const batchDeleteItems = async () => {
         break;
     }
 
-    for (const id of selectedItems.value) {
+    // Separate new (unsaved) items from persisted ones
+    const newIds = [];
+    const persistedIds = [];
+    for (const id of idsToDelete) {
       const item = items.value.find((i) => i.id === id);
       if (item?.isNew) {
-        items.value = items.value.filter((i) => i.id !== id);
+        newIds.push(id);
       } else {
-        await invoke(command, { id });
+        persistedIds.push(id);
       }
     }
 
-    props.addLog(`批量删除了 ${selectedItems.value.length} 个${title.value}`, props.logLevels.INFO);
+    // Delete persisted items from backend
+    for (const id of persistedIds) {
+      await invoke(command, { id });
+    }
+
+    // Remove new items from local list
+    if (newIds.length > 0) {
+      items.value = items.value.filter((i) => !newIds.includes(i.id));
+    }
+
+    // Clear selection state
+    if (selectedItem.value && idsToDelete.includes(selectedItem.value.id)) {
+      selectedItem.value = null;
+    }
     selectedItems.value = [];
-    selectedItem.value = null;
-    await loadData();
+
+    // Reload persisted data (preserving remaining local-only items)
+    if (persistedIds.length > 0) {
+      const remainingNewItems = items.value.filter((i) => i.isNew);
+      await loadData();
+      // Re-add remaining new items that weren't deleted
+      items.value.push(...remainingNewItems);
+    }
+
+    props.addLog(`批量删除了 ${deleteCount} 个${title.value}`, props.logLevels.INFO);
   } catch (e) {
     props.addLog(`批量删除失败: ${e}`, props.logLevels.ERROR);
   }
@@ -299,40 +328,40 @@ const addNewItem = async () => {
     });
   }
 };
-
+// 策略保存,由ScriptEditor.vue处理错误
 const updateSelectedItemData = async (newData) => {
   if (!selectedItem.value) return;
+  const updatedItem = {
+    ...selectedItem.value,
+    data: { ...newData },
+  };
 
-  try {
-    const updatedItem = {
-      ...selectedItem.value,
-      data: { ...newData },
-    };
+  let command = '';
+  let arg = '';
+  switch (props.activeTab) {
+    case 'policy_set':
+      command = 'save_policy_set_cmd';
+      arg = 'set';
+      break;
+    case 'policy_group':
+      command = 'save_policy_group_cmd';
+      arg = 'group';
+      break;
+    case 'policy':
+      command = 'save_policy_cmd';
+      arg = 'policy';
+      break;
+  }
 
-    let command = '';
-    let arg = '';
-    switch (props.activeTab) {
-      case 'policy_set':
-        command = 'save_policy_set_cmd';
-        arg = 'set';
-        break;
-      case 'policy_group':
-        command = 'save_policy_group_cmd';
-        arg = 'group';
-        break;
-      case 'policy':
-        command = 'save_policy_cmd';
-        arg = 'policy';
-        break;
-    }
+  await invoke(command, { [arg]: updatedItem });
+  //props.addLog(`保存${title.value} "${newData.name}" 成功`, props.logLevels.INFO);
+  await loadData();
+  selectedItem.value = items.value.find((i) => i.id === updatedItem.id);
+/*  try {
 
-    await invoke(command, { [arg]: updatedItem });
-    props.addLog(`保存${title.value} "${newData.name}" 成功`, props.logLevels.INFO);
-    await loadData();
-    selectedItem.value = items.value.find((i) => i.id === updatedItem.id);
   } catch (e) {
     props.addLog(`保存失败: ${e}`, props.logLevels.ERROR);
-  }
+  }*/
 };
 
 const deleteItem = async () => {
@@ -365,10 +394,32 @@ const deleteItem = async () => {
   }
 };
 
+// Save current policy data (called by ScriptEditor on Ctrl+S / Save)
+const saveCurrentPolicy = async () => {
+  if (!selectedItem.value || props.activeTab !== 'policy') return;
+  const policyData = policyEditorRef.value?.getPolicyData?.();
+  if (policyData) {
+    await updateSelectedItemData(policyData);
+  }
+};
+
+defineExpose({
+  saveCurrentPolicy,
+});
+
+// Reset batch selection when toggling batch mode off
+watch(batchMode, (newVal) => {
+  if (!newVal) {
+    selectedItems.value = [];
+  }
+});
+
 watch(
   () => props.activeTab,
   () => {
     selectedItem.value = null;
+    batchMode.value = false;
+    selectedItems.value = [];
     loadData();
   }
 );

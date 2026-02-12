@@ -14,7 +14,8 @@ const MIN_AREA: f32 = 3.0;
 /// 经验值
 const MIN_AREA_AFTER: f32 = 5.0; //MIN_AREA+2.0
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct PaddleDetDbNet {
     pub base_model: BaseModel,
     pub db_thresh: f32,

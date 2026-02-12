@@ -10,14 +10,17 @@ use ndarray::{s, Array, ArrayD, ArrayViewD, Axis};
 use std::path::PathBuf;
 use tokio::fs::read_to_string;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct YoloDet {
     pub base_model: BaseModel,
     pub class_count: usize,
     #[serde(skip)]
+    #[ts(skip)]
     pub class_labels: HashMap<u16,String>,
     pub confidence_thresh: f32,
     pub iou_thresh: f32,
+    #[ts(as = "Option<String>")]
     pub label_path : Option<PathBuf>,
     pub txt_idx: Option<u16>
 }

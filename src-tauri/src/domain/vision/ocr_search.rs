@@ -7,7 +7,8 @@ use image::DynamicImage;
 use regex::Regex;
 
 /// 视觉对象的统一包装，用于搜索命中后的回溯
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub enum VisionItem {
     Ocr(OcrResult),
     Det(DetResult),
@@ -94,7 +95,8 @@ impl VisionSnapshot {
 }
 
 /// 逻辑判定操作符
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub enum LogicOp {
     And,
     Or,
@@ -102,7 +104,8 @@ pub enum LogicOp {
 }
 
 /// 搜索作用域
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[ts(export)]
 pub enum SearchScope {
     /// 全局匹配：只要画面中存在这些模式即可（不要求在同一个框内）
     Global,
@@ -111,7 +114,8 @@ pub enum SearchScope {
 }
 
 /// 逻辑规则定义
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub enum SearchRule {
     /// 关键字包含
     Keyword {
@@ -122,6 +126,7 @@ pub enum SearchRule {
     Regex {
         pattern: String,
         #[serde(skip)]
+        #[ts(skip)]
         compiled: Option<Regex>,
     },
     /// 逻辑组
@@ -133,7 +138,8 @@ pub enum SearchRule {
 }
 
 /// 搜索命中结果
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SearchHit {
     pub pattern: String,
     pub item: VisionItem,

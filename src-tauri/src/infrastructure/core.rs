@@ -118,3 +118,14 @@ impl From<UuidV7> for Uuid {
         Uuid::from_bytes(id.0.to_be_bytes())
     }
 }
+
+// ts-rs: UuidV7 → TypeScript `string`
+impl ts_rs::TS for UuidV7 {
+    type WithoutGenerics = Self;
+    type OptionInnerType = Self;
+    fn name(_cfg: &ts_rs::Config) -> String { "string".to_owned() }
+    fn inline(_cfg: &ts_rs::Config) -> String { "string".to_owned() }
+    fn visit_dependencies(_: &mut impl ts_rs::TypeVisitor) {}
+    fn visit_generics(_: &mut impl ts_rs::TypeVisitor) {}
+    fn output_path() -> Option<std::path::PathBuf> { None }
+}

@@ -2,7 +2,8 @@ use core::fmt;
 use crate::infrastructure::core::{Deserialize, Serialize};
 use bincode::{Decode, Encode};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq, ts_rs::TS)]
+#[ts(export)]
 pub struct DetResult {
     pub id: i32,
     pub pre_id: i32,
@@ -29,7 +30,8 @@ impl fmt::Display for DetResult {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq, ts_rs::TS)]
+#[ts(export)]
 pub struct OcrResult {
     pub id: i32,
     pub pre_id: i32,
@@ -58,7 +60,8 @@ impl fmt::Display for OcrResult {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Encode, Decode, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Encode, Decode, PartialEq, ts_rs::TS)]
+#[ts(export)]
 pub struct BoundingBox {
     pub x1: i32,
     pub y1: i32,

@@ -12,11 +12,14 @@ use ndarray::{Array3, Array4, ArrayD, ArrayViewD, ArrayViewMut3, Axis};
 use rayon::prelude::*;
 use tokio::fs::read_to_string;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct PaddleRecCrnn {
     pub base_model: BaseModel,
+    #[ts(as = "Option<String>")]
     pub dict_path: Option<PathBuf>,
     #[serde(skip)]
+    #[ts(skip)]
     pub dict: Vec<String>,
 }
 

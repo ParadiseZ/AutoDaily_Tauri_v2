@@ -6,12 +6,14 @@ use crate::infrastructure::logging::LogLevel;
 use sqlx::types::Json;
 use sqlx::FromRow;
 // 
-#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceTable {
     // 设备ID
     pub id: DeviceId,
     // 设备配置（以 JSON 格式存储在数据库中）
+    #[ts(as = "DeviceConfig")]
     pub data: Json<DeviceConfig>,
 }
 
@@ -24,7 +26,8 @@ impl Default for DeviceTable {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceConfig {
     // 设备名称
@@ -49,7 +52,8 @@ pub struct DeviceConfig {
     pub enable: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub enum  CapMethod {
     Window(String),

@@ -16,7 +16,8 @@ use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, reload, Registry};
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[ts(export)]
 #[repr(u8)]
 pub enum LogLevel {
     Debug = 1,

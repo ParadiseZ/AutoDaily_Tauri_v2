@@ -4,16 +4,19 @@ use crate::infrastructure::core::{Deserialize, PolicyGroupId, PolicyId, PolicySe
 use sqlx::types::Json;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyTable {
     pub id: PolicyId,
     pub script_id: ScriptId,
     pub order_index: i32,
+    #[ts(as = "PolicyInfo")]
     pub data: Json<PolicyInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyInfo {
     pub name: String,
@@ -33,32 +36,38 @@ pub struct PolicyInfo {
     pub after_action: Vec<Step>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyGroupTable {
     pub id: PolicyGroupId,
     pub script_id: ScriptId,
     pub order_index: i32,
+    #[ts(as = "PolicyGroupInfo")]
     pub data: Json<PolicyGroupInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyGroupInfo {
     pub name: String,
     pub note: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicySetTable {
     pub id: PolicySetId,
     pub script_id: ScriptId,
     pub order_index: i32,
+    #[ts(as = "PolicySetInfo")]
     pub data: Json<PolicySetInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicySetInfo {
     pub name: String,
@@ -66,7 +75,8 @@ pub struct PolicySetInfo {
 }
 
 // Structs for Many-to-Many fetching
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupPolicyRelation {
     pub group_id: PolicyGroupId,
@@ -74,7 +84,8 @@ pub struct GroupPolicyRelation {
     pub order_index: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct SetGroupRelation {
     pub set_id: PolicySetId,

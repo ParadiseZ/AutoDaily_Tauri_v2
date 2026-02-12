@@ -6,7 +6,8 @@ use ort::session::Session;
 use crate::infrastructure::core::{Deserialize, Serialize};
 
 // 执行器类型枚举（便于扩展）
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub enum InferenceBackend {
     Cuda,
     DirectML,

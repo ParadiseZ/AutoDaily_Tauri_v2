@@ -1,30 +1,34 @@
 use crate::domain::scripts::action::click::Click;
-use crate::domain::scripts::point::Point;
+use crate::domain::scripts::point::{Point, PointU16};
 use crate::domain::vision::ocr_search::SearchRule;
 use crate::infrastructure::core::{Deserialize, GuardId, PolicyId, ScriptId, Serialize, StepId, SubFlowId, TaskId};
 use crate::infrastructure::scripts::script_error::ScriptResult;
 
 // 逻辑组合
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub enum LogicOp {
     And,
     Or,
 }
 
 // 条件叶子（表达式由解释器处理，表达式语言后续可替换）
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct ConditionLeaf {
     pub expr: String,
 }
 
 // 条件组
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct ConditionGroup {
     pub op: LogicOp,
     pub items: Vec<ConditionNode>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(tag = "type")]
 pub enum ConditionNode {
     Leaf { leaf: ConditionLeaf },
@@ -32,7 +36,8 @@ pub enum ConditionNode {
 }
 
 // 动作引用：可调用内置动作，或引用可复用子流程
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 #[serde(tag = "kind")]
 pub enum ActionRef {
     Builtin {
@@ -44,7 +49,8 @@ pub enum ActionRef {
 }
 
 // 守卫：高优先级全局拦截处理
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct GuardDef {
     pub id: GuardId,
     pub name: String,
@@ -55,7 +61,8 @@ pub struct GuardDef {
 }
 
 // 策略条目：在特定目标下，命中条件时执行对应动作
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct PolicyDef {
     pub id: PolicyId,
     pub when_goal: String,
@@ -66,14 +73,16 @@ pub struct PolicyDef {
 }
 
 // 可复用子流程（小型图/序列），供 ActionRef::SubFlow 复用
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct SubFlowDef {
     pub id: SubFlowId,
     pub name: String,
     pub steps: Vec<Step>,
 }
 
-#[derive(Debug, Serialize, Deserialize,Clone)]
+#[derive(Debug, Serialize, Deserialize,Clone, ts_rs::TS)]
+#[ts(export)]
 pub struct Step {
     pub id: Option<StepId>,
     pub source_id : Option<StepId>,
@@ -90,8 +99,9 @@ pub struct Step {
     pub kind: StepKind,
 }
 
-#[derive(Debug, Serialize, Deserialize,Clone)]
-#[serde(tag = "op")]
+#[derive(Debug, Serialize, Deserialize,Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub enum StepKind {
     //Router { to: Option<Uuid> },
     Sequence {
@@ -170,7 +180,9 @@ pub enum StepKind {
         verify: Option<Vec<Step>>,
     },
     SwipePoint {
+        #[ts(as = "PointU16")]
         from: Point<u16>,
+        #[ts(as = "PointU16")]
         to: Point<u16>,
         verify: Option<Vec<Step>>,
     },
@@ -218,30 +230,34 @@ pub enum StepKind {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub enum StateTarget {
     Policy { id: PolicyId },
     Task { id: TaskId },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "camelCase")]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub enum StateStatus {
     Skip { value: bool },
     Done { value: bool },
 }
 
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "op")]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub enum LabelType {
     LabelIdx { idx: i32 },
     LabelName { name: String },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "op")]
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct PointPercent {
     x: f32,
     y: f32,
