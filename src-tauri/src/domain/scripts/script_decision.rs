@@ -1,10 +1,9 @@
 use crate::domain::scripts::action::click::Click;
 use crate::domain::scripts::point::{Point, PointU16};
 use crate::domain::vision::ocr_search::SearchRule;
-use crate::infrastructure::core::{Deserialize, GuardId, PolicyId, ScriptId, Serialize, StepId, SubFlowId, TaskId};
-use crate::infrastructure::scripts::script_error::ScriptResult;
+use crate::infrastructure::core::{Deserialize, PolicyId, Serialize, StepId, TaskId};
 
-// 逻辑组合
+/*// 逻辑组合
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub enum LogicOp {
@@ -80,7 +79,7 @@ pub struct SubFlowDef {
     pub name: String,
     pub steps: Vec<Step>,
 }
-
+*/
 #[derive(Debug, Serialize, Deserialize,Clone, ts_rs::TS)]
 #[ts(export)]
 pub struct Step {
@@ -101,7 +100,7 @@ pub struct Step {
 
 #[derive(Debug, Serialize, Deserialize,Clone, ts_rs::TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", tag="op")]
 pub enum StepKind {
     //Router { to: Option<Uuid> },
     Sequence {
@@ -159,7 +158,7 @@ pub enum StepKind {
     },
     /// 增强视觉搜索：支持 OCR + YOLO + 颜色逻辑
     VisionSearch {
-        rule: crate::domain::vision::ocr_search::SearchRule,
+        rule: SearchRule,
         output_var: String, // 存储命中结果的变量名 (Vec<SearchHit>)
     },
     FindObject {
@@ -263,7 +262,7 @@ pub struct PointPercent {
     y: f32,
 }
 
-// DDD 仓储接口（同步，便于简化依赖；调用方如需并发可自行 spawn）
+/*// DDD 仓储接口（同步，便于简化依赖；调用方如需并发可自行 spawn）
 pub trait GuardRepository: Send + Sync {
     fn load_common_guards(&self) -> ScriptResult<Vec<GuardDef>>;
     fn load_script_guards(&self, _script_id: ScriptId) -> ScriptResult<Vec<GuardDef>>;
@@ -278,3 +277,4 @@ pub trait SubFlowRepository: Send + Sync {
     fn load_common_subflows(&self) -> ScriptResult<Vec<SubFlowDef>>;
     fn load_script_subflows(&self, script_id: ScriptId) -> ScriptResult<Vec<SubFlowDef>>;
 }
+*/

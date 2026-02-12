@@ -1,9 +1,8 @@
-use crate::domain::vision::result::{DetResult, OcrResult};
+use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::ort::execution_provider_mgr::{
     configure_or_switch_provider, InferenceBackend,
 };
-use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::vision::base_traits::ModelHandler;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 
@@ -87,13 +86,6 @@ pub enum ModelType {
     PaddleDet5,
     PaddleCrnn5,
 }
-
-#[derive(Debug)]
-pub enum PostprocessRes{
-    Detection(Vec<DetResult>),
-    Recognition(Vec<OcrResult>),
-}
-
 impl BaseModel {
     pub fn new(
         input_width: u32,

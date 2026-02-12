@@ -14,7 +14,7 @@
 
         <div class="flex-2 min-w-0">
           <div class="font-black text-sm tracking-tight">
-            {{ stepTitle }}<span v-if="step.label">{{ step.label }}}</span>
+            {{ stepTitle }}<span v-if="step.label">{{ step.label }}</span>
           </div>
           <div class="text-[14px] font-mono opacity-60 tracking-tight mt-0.5 truncate">{{ stepSummary }}</div>
         </div>
@@ -75,7 +75,7 @@
               >
               <input
                 type="number"
-                v-model="localStep.ms"
+                v-model="(localStep as any).ms"
                 class="input input-bordered w-32 font-mono"
                 @change="onDataUpdate(localStep)"
               />
@@ -85,9 +85,9 @@
             <div v-if="['If', 'While'].includes(step.op)" class="space-y-6">
               <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm">
                 <SearchRuleEditor
-                  :rule="localStep.cond"
+                  :rule="(localStep as any).cond"
                   @update="
-                    localStep.cond = $event;
+                    (localStep as any).cond = $event;
                     onDataUpdate(localStep);
                   "
                 />
@@ -100,10 +100,10 @@
                   符合条件时执行序列
                 </div>
                 <ActionSequenceEditor
-                  v-model:steps="localStep.steps"
+                  v-model:steps="(localStep as any).steps"
                   :is-nested="true"
                   @update:steps="
-                    localStep.steps = $event;
+                    (localStep as any).steps = $event;
                     onDataUpdate(localStep);
                   "
                 />
@@ -121,10 +121,10 @@
                 子步骤编排
               </div>
               <ActionSequenceEditor
-                v-model:steps="localStep.steps"
+                v-model:steps="(localStep as any).steps"
                 :is-nested="true"
                 @update:steps="
-                  localStep.steps = $event;
+                  (localStep as any).steps = $event;
                   onDataUpdate(localStep);
                 "
               />
@@ -153,7 +153,7 @@
                   <label class="label-text text-[10px] font-bold opacity-40 mb-1">X 坐标</label>
                   <input
                     type="number"
-                    v-model.number="localStep.Point.x"
+                    v-model.number="(localStep as any).Point.x"
                     class="input input-bordered input-sm font-mono"
                     @change="onDataUpdate(localStep)"
                   />
@@ -162,7 +162,7 @@
                   <label class="label-text text-[10px] font-bold opacity-40 mb-1">Y 坐标</label>
                   <input
                     type="number"
-                    v-model.number="localStep.Point.y"
+                    v-model.number="(localStep as any).Point.y"
                     class="input input-bordered input-sm font-mono"
                     @change="onDataUpdate(localStep)"
                   />
@@ -178,7 +178,7 @@
                     step="0.01"
                     min="0"
                     max="1"
-                    v-model.number="localStep.Percent.x"
+                    v-model.number="(localStep as any).Percent.x"
                     class="input input-bordered input-sm font-mono"
                     @change="onDataUpdate(localStep)"
                   />
@@ -190,7 +190,7 @@
                     step="0.01"
                     min="0"
                     max="1"
-                    v-model.number="localStep.Percent.y"
+                    v-model.number="(localStep as any).Percent.y"
                     class="input input-bordered input-sm font-mono"
                     @change="onDataUpdate(localStep)"
                   />
@@ -202,10 +202,10 @@
                 <label class="label-text text-[10px] font-bold opacity-40 mb-1">YOLO 标签索引 (多个用逗号分隔)</label>
                 <input
                   type="text"
-                  :value="localStep.Label?.join(', ') || ''"
+                  :value="(localStep as any).Label?.join(', ') || ''"
                   class="input input-bordered input-sm font-mono"
                   placeholder="e.g. 0, 1, 5"
-                  @change="onLabelChange($event.target.value)"
+                  @change="onLabelChange(($event.target as HTMLInputElement).value)"
                 />
               </div>
 
@@ -214,10 +214,10 @@
                 <label class="label-text text-[10px] font-bold opacity-40 mb-1">匹配文字 (多个用逗号分隔)</label>
                 <input
                   type="text"
-                  :value="localStep.Txt?.join(', ') || ''"
+                  :value="(localStep as any).Txt?.join(', ') || ''"
                   class="input input-bordered input-sm"
                   placeholder="e.g. 确认, 提交"
-                  @change="onTxtChange($event.target.value)"
+                  @change="onTxtChange(($event.target as HTMLInputElement).value)"
                 />
               </div>
 
@@ -226,7 +226,7 @@
                 <label class="label-text text-[10px] font-bold opacity-40 mb-1">变量名</label>
                 <input
                   type="text"
-                  v-model="localStep.Var"
+                  v-model="(localStep as any).Var"
                   class="input input-bordered input-sm font-mono"
                   placeholder="hit_target"
                   @change="onDataUpdate(localStep)"
@@ -242,14 +242,14 @@
                   <div class="grid grid-cols-2 gap-2">
                     <input
                       type="number"
-                      v-model.number="localStep.from.x"
+                      v-model.number="(localStep as any).from.x"
                       class="input input-bordered input-xs font-mono"
                       placeholder="X"
                       @change="onDataUpdate(localStep)"
                     />
                     <input
                       type="number"
-                      v-model.number="localStep.from.y"
+                      v-model.number="(localStep as any).from.y"
                       class="input input-bordered input-xs font-mono"
                       placeholder="Y"
                       @change="onDataUpdate(localStep)"
@@ -261,14 +261,14 @@
                   <div class="grid grid-cols-2 gap-2">
                     <input
                       type="number"
-                      v-model.number="localStep.to.x"
+                      v-model.number="(localStep as any).to.x"
                       class="input input-bordered input-xs font-mono"
                       placeholder="X"
                       @change="onDataUpdate(localStep)"
                     />
                     <input
                       type="number"
-                      v-model.number="localStep.to.y"
+                      v-model.number="(localStep as any).to.y"
                       class="input input-bordered input-xs font-mono"
                       placeholder="Y"
                       @change="onDataUpdate(localStep)"
@@ -287,7 +287,7 @@
                     <input
                       type="number"
                       step="0.01"
-                      v-model.number="localStep.from.x"
+                      v-model.number="(localStep as any).from.x"
                       class="input input-bordered input-xs font-mono"
                       placeholder="X%"
                       @change="onDataUpdate(localStep)"
@@ -295,7 +295,7 @@
                     <input
                       type="number"
                       step="0.01"
-                      v-model.number="localStep.from.y"
+                      v-model.number="(localStep as any).from.y"
                       class="input input-bordered input-xs font-mono"
                       placeholder="Y%"
                       @change="onDataUpdate(localStep)"
@@ -308,7 +308,7 @@
                     <input
                       type="number"
                       step="0.01"
-                      v-model.number="localStep.to.x"
+                      v-model.number="(localStep as any).to.x"
                       class="input input-bordered input-xs font-mono"
                       placeholder="X%"
                       @change="onDataUpdate(localStep)"
@@ -316,7 +316,7 @@
                     <input
                       type="number"
                       step="0.01"
-                      v-model.number="localStep.to.y"
+                      v-model.number="(localStep as any).to.y"
                       class="input input-bordered input-xs font-mono"
                       placeholder="Y%"
                       @change="onDataUpdate(localStep)"
@@ -332,7 +332,7 @@
                 <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
                 <input
                   type="text"
-                  v-model="localStep.output_var"
+                  v-model="(localStep as any).output_var"
                   class="input input-bordered input-sm font-mono w-48"
                   placeholder="vision_hits"
                   @change="onDataUpdate(localStep)"
@@ -340,9 +340,9 @@
               </div>
               <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm">
                 <SearchRuleEditor
-                  :rule="localStep.rule || { type: 'Group', op: 'And', scope: 'Global', items: [] }"
+                  :rule="(localStep as any).rule || { type: 'Group', op: 'And', scope: 'Global', items: [] }"
                   @update="
-                    localStep.rule = $event;
+                    (localStep as any).rule = $event;
                     onDataUpdate(localStep);
                   "
                 />
@@ -356,7 +356,7 @@
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
                   <input
                     type="text"
-                    v-model="localStep.name"
+                    v-model="(localStep as any).name"
                     class="input input-bordered input-sm font-mono"
                     placeholder="my_var"
                     @change="onDataUpdate(localStep)"
@@ -368,7 +368,7 @@
                   >
                   <input
                     type="text"
-                    v-model="localStep.value_expr"
+                    v-model="(localStep as any).value_expr"
                     class="input input-bordered input-sm font-mono"
                     placeholder="42 或 'hello'"
                     @change="onDataUpdate(localStep)"
@@ -382,7 +382,7 @@
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
               <input
                 type="text"
-                v-model="localStep.name"
+                v-model="(localStep as any).name"
                 class="input input-bordered input-sm font-mono w-48"
                 placeholder="my_var"
                 @change="onDataUpdate(localStep)"
@@ -394,7 +394,7 @@
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
               <input
                 type="text"
-                v-model="localStep.output_var"
+                v-model="(localStep as any).output_var"
                 class="input input-bordered input-sm font-mono w-48"
                 placeholder="screenshot_path"
                 @change="onDataUpdate(localStep)"
@@ -407,7 +407,7 @@
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">目标类型</label>
                   <select
-                    v-model="localStep.target.type"
+                    v-model="(localStep as any).target.type"
                     class="select select-bordered select-sm"
                     @change="onDataUpdate(localStep)"
                   >
@@ -419,7 +419,7 @@
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">目标 ID</label>
                   <input
                     type="text"
-                    v-model="localStep.target.id"
+                    v-model="(localStep as any).target.id"
                     class="input input-bordered input-sm font-mono"
                     placeholder="目标 ID"
                     @change="onDataUpdate(localStep)"
@@ -430,7 +430,7 @@
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">状态类型</label>
                   <select
-                    v-model="localStep.status.type"
+                    v-model="(localStep as any).status.type"
                     class="select select-bordered select-sm"
                     @change="onDataUpdate(localStep)"
                   >
@@ -442,7 +442,7 @@
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">状态值</label>
                   <input
                     type="checkbox"
-                    v-model="localStep.status.value"
+                    v-model="(localStep as any).status.value"
                     class="checkbox checkbox-primary"
                     @change="onDataUpdate(localStep)"
                   />
@@ -489,32 +489,34 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, defineAsyncComponent } from 'vue';
 import {
   ChevronUp as ChevronUpIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
   Trash2 as TrashIcon,
-  Plus as PlusIcon,
 } from 'lucide-vue-next';
 import StepIcon from './StepIcon.vue';
 import SearchRuleEditor from './SearchRuleEditor.vue';
+import type { Step } from '@/types/bindings';
 
 const ActionSequenceEditor = defineAsyncComponent(() => import('./ActionSequenceEditor.vue'));
 
-const props = defineProps({
-  step: {
-    type: Object,
-    required: true,
-  },
-  isNested: Boolean,
-});
+const props = defineProps<{
+  step: Step;
+  isNested?: boolean;
+}>();
 
-const emit = defineEmits(['update', 'remove', 'move-up', 'move-down']);
+const emit = defineEmits<{
+  (e: 'update', step: Step): void;
+  (e: 'remove'): void;
+  (e: 'move-up'): void;
+  (e: 'move-down'): void;
+}>();
 
 const isExpanded = ref(false);
-const localStep = ref({ ...props.step });
+const localStep = ref<Step>({ ...props.step });
 
 // 支持的操作类型列表
 const supportedOps = [
@@ -533,7 +535,7 @@ const supportedOps = [
 ];
 
 // ClickAction 模式检测
-const detectClickMode = (step) => {
+const detectClickMode = (step: any) => {
   if (step.Point) return 'Point';
   if (step.Percent) return 'Percent';
   if (step.Label) return 'Label';
@@ -546,42 +548,45 @@ const clickMode = ref(detectClickMode(props.step));
 
 const onClickModeChange = () => {
   // 清理旧模式数据，初始化新模式
-  delete localStep.value.Point;
-  delete localStep.value.Percent;
-  delete localStep.value.Label;
-  delete localStep.value.Txt;
-  delete localStep.value.Var;
+  const s = localStep.value as any;
+  delete s.Point;
+  delete s.Percent;
+  delete s.Label;
+  delete s.Txt;
+  delete s.Var;
 
   switch (clickMode.value) {
     case 'Point':
-      localStep.value.Point = { x: 0, y: 0 };
+      s.Point = { x: 0, y: 0 };
       break;
     case 'Percent':
-      localStep.value.Percent = { x: 0.5, y: 0.5 };
+      s.Percent = { x: 0.5, y: 0.5 };
       break;
     case 'Label':
-      localStep.value.Label = [];
+      s.Label = [];
       break;
     case 'Txt':
-      localStep.value.Txt = [];
+      s.Txt = [];
       break;
     case 'Var':
-      localStep.value.Var = '';
+      s.Var = '';
       break;
   }
   onDataUpdate(localStep.value);
 };
 
-const onLabelChange = (value) => {
-  localStep.value.Label = value
+const onLabelChange = (value: string) => {
+  const s = localStep.value as any;
+  s.Label = value
     .split(',')
     .map((s) => parseInt(s.trim(), 10))
     .filter((n) => !isNaN(n));
   onDataUpdate(localStep.value);
 };
 
-const onTxtChange = (value) => {
-  localStep.value.Txt = value
+const onTxtChange = (value: string) => {
+  const s = localStep.value as any;
+  s.Txt = value
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s);
@@ -601,7 +606,7 @@ const category = computed(() => {
 });
 
 const categoryColor = computed(() => {
-  const map = {
+  const map: Record<string, string> = {
     control: 'bg-gradient-to-br from-amber-400 to-orange-500',
     interaction: 'bg-gradient-to-br from-blue-400 to-indigo-600',
     vision: 'bg-gradient-to-br from-purple-400 to-fuchsia-600',
@@ -613,7 +618,7 @@ const categoryColor = computed(() => {
 });
 
 const stepTitle = computed(() => {
-  const opMap = {
+  const opMap: Record<string, string> = {
     ClickAction: '点击交互',
     WaitMs: '延时等待',
     If: '条件分支 (If)',
@@ -635,20 +640,20 @@ const stepTitle = computed(() => {
 
 const stepSummary = computed(() => {
   const op = props.step.op;
-  if (op === 'WaitMs') return `等待 ${localStep.value.ms} 毫秒`;
-  if (op === 'Sequence') return `包含 ${localStep.value.steps?.length || 0} 个子动作`;
-  if (op === 'If' || op === 'While') return `判断条件后执行 ${localStep.value.steps?.length || 0} 个逻辑`;
+  if (op === 'WaitMs') return `等待 ${(localStep.value as any).ms} 毫秒`;
+  if (op === 'Sequence') return `包含 ${(localStep.value as any).steps?.length || 0} 个子动作`;
+  if (op === 'If' || op === 'While') return `判断条件后执行 ${(localStep.value as any).steps?.length || 0} 个逻辑`;
   if (op === 'ClickAction') return `${clickMode.value} 模式点击`;
   if (op === 'SwipePoint' || op === 'SwipePercent') return `滑动手势`;
-  if (op === 'VisionSearch') return `搜索结果 → ${localStep.value.output_var || '?'}`;
-  if (op === 'SetVar') return `${localStep.value.name || '?'} = ${localStep.value.value_expr || '?'}`;
-  if (op === 'GetVar') return `读取 ${localStep.value.name || '?'}`;
-  if (op === 'TakeScreenshot') return `保存到 ${localStep.value.output_var || '?'}`;
-  if (op === 'SetState') return `设置 ${localStep.value.target?.type || '?'} 状态`;
+  if (op === 'VisionSearch') return `搜索结果 → ${(localStep.value as any).output_var || '?'}`;
+  if (op === 'SetVar') return `${(localStep.value as any).name || '?'} = ${(localStep.value as any).value_expr || '?'}`;
+  if (op === 'GetVar') return `读取 ${(localStep.value as any).name || '?'}`;
+  if (op === 'TakeScreenshot') return `保存到 ${(localStep.value as any).output_var || '?'}`;
+  if (op === 'SetState') return `设置 ${(localStep.value as any).target?.type || '?'} 状态`;
   return `OP: ${op}`;
 });
 
-const onDataUpdate = (newData) => {
+const onDataUpdate = (newData: Step) => {
   emit('update', { ...newData });
 };
 

@@ -57,7 +57,7 @@ pub struct DeviceConfig {
 #[serde(rename_all = "camelCase")]
 pub enum  CapMethod {
     Window(String),
-    ADB
+    Adb
 }
 
 impl Default for DeviceConfig {

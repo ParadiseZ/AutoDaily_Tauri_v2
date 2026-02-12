@@ -60,7 +60,9 @@
 
       <div class="p-3 bg-base-300/30 rounded-2xl">
         <div class="text-[9px] opacity-40 uppercase font-bold mb-1">策略 ID</div>
-        <div class="text-[10px] font-mono opacity-50 break-all select-all">{{ localPolicy.id || 'Draft' }}</div>
+        <div class="text-[10px] font-mono opacity-50 break-all select-all">
+          {{ (localPolicy as any).id || 'Draft' }}
+        </div>
       </div>
     </div>
 
@@ -122,24 +124,25 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, watch } from 'vue';
 import { Target, ArrowBigUpDash, ArrowBigDownDash, Info as InfoIcon } from 'lucide-vue-next';
 import SearchRuleEditor from './SearchRuleEditor.vue';
 import ActionSequenceEditor from './ActionSequenceEditor.vue';
+import type { PolicyInfo } from '@/types/bindings';
 
-const props = defineProps({
-  policy: {
-    type: Object,
-    required: true,
-  },
-});
+const props = defineProps<{
+  policy: PolicyInfo;
+}>();
 
-const emit = defineEmits(['save', 'update']);
+const emit = defineEmits<{
+  (e: 'save', policy: PolicyInfo): void;
+  (e: 'update', policy: PolicyInfo): void;
+}>();
 
 const activeTab = ref('cond');
-const localPolicy = ref({ ...props.policy });
-const nameInputRef = ref(null);
+const localPolicy = ref<PolicyInfo>({ ...props.policy });
+const nameInputRef = ref<HTMLInputElement | null>(null);
 
 const tabs = [
   { id: 'cond', label: '命中条件', icon: Target },
@@ -147,13 +150,7 @@ const tabs = [
   { id: 'before', label: '全局行为', icon: ArrowBigUpDash },
 ];
 
-const onSave = () => {
-  emit('save', localPolicy.value);
-};
-
-const getPolicyData = () => {
-  return localPolicy.value;
-};
+const getPolicyData = () => localPolicy.value;
 
 const focusNameInput = () => {
   nameInputRef.value?.focus();

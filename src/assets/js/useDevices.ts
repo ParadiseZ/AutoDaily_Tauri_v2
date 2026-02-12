@@ -1,17 +1,19 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import type {DeviceTable} from '@/types/bindings';
+
 export const useDevices = () => {
   const getAllDevices = async () => {
-    const res = await invoke('get_all_devices_cmd');
+    const res = await invoke<DeviceTable[]>('get_all_devices_cmd');
     return Object.values(res);
   };
 
-  const saveDevice = async (device) => {
+  const saveDevice = async (device: DeviceTable & { id: string }) => {
     return await invoke('save_device_cmd', { device });
   };
 
-  const deleteDevice = async (deviceId) => {
+  const deleteDevice = async (deviceId: string) => {
     return await invoke('delete_device_cmd', { deviceId });
   };
 
@@ -20,7 +22,7 @@ export const useDevices = () => {
   };
 
   const getCpuCount = async () => {
-    return await invoke('get_cpu_count_cmd');
+    return await invoke<number>('get_cpu_count_cmd');
   };
 
   return {

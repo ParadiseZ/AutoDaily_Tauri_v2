@@ -83,7 +83,7 @@ impl ChildProcessInitData {
         // 7. 初始化设备上下文 (DEVICE_CTX)
         let (cap_method, title) = match &self.device_config.cap_method {
             CapMethod::Window(title) => (CaptureMethod::Window, Some(title.clone())),
-            CapMethod::ADB => (CaptureMethod::ADB, None),
+            CapMethod::Adb => (CaptureMethod::Adb, None),
         };
         
         let device_ctx = Arc::new(crate::infrastructure::devices::device_ctx::DeviceCtx::new(

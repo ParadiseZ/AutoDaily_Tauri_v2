@@ -61,9 +61,9 @@
           >
             <div class="font-bold truncate">
               {{ item.data.name }}
-              <span v-if="item.isNew" class="badge badge-xs badge-secondary ml-1">草案</span>
+              <span v-if="(item as any).isNew" class="badge badge-xs badge-secondary ml-1">草案</span>
             </div>
-            <div class="text-xs opacity-60 truncate">{{ item.data.note || '无备注' }}</div>
+            <div class="text-xs opacity-60 truncate">{{ (item.data as any).note || '无备注' }}</div>
           </div>
 
           <div v-if="filteredItems.length === 0" class="text-center py-10 opacity-40">未找到{{ title }}</div>
@@ -97,7 +97,7 @@
             <PolicyEditor
               ref="policyEditorRef"
               v-if="selectedItem"
-              :policy="selectedItem.data"
+              :policy="selectedItem.data as PolicyInfo"
               @save="updateSelectedItemData"
             />
           </div>
@@ -111,7 +111,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import {
   Library,
@@ -123,6 +123,16 @@ import {
 } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import PolicyEditor from './components/PolicyEditor.vue';
+import type {
+  PolicyTable,
+  PolicyGroupTable,
+  PolicySetTable,
+  PolicyInfo,
+  PolicyGroupInfo,
+  PolicySetInfo,
+} from '../../types/bindings';
+
+type ItemTable = (PolicyTable | PolicyGroupTable | PolicySetTable) & { isNew?: boolean };
 
 const props = defineProps({
   activeTab: {
@@ -148,14 +158,14 @@ const props = defineProps({
 });
 
 const searchQuery = ref('');
-const selectedItem = ref(null);
-const items = ref([]);
+const selectedItem = ref<ItemTable | null>(null);
+const items = ref<ItemTable[]>([]);
 const loading = ref(false);
 const batchMode = ref(false);
-const selectedItems = ref([]);
-const policyEditorRef = ref(null);
+const selectedItems = ref<string[]>([]);
+const policyEditorRef = ref<any>(null);
 
-const toggleBatchSelect = (id) => {
+const toggleBatchSelect = (id: string) => {
   const idx = selectedItems.value.indexOf(id);
   if (idx > -1) {
     selectedItems.value.splice(idx, 1);
@@ -184,9 +194,8 @@ const batchDeleteItems = async () => {
         break;
     }
 
-    // Separate new (unsaved) items from persisted ones
-    const newIds = [];
-    const persistedIds = [];
+    const newIds: string[] = [];
+    const persistedIds: string[] = [];
     for (const id of idsToDelete) {
       const item = items.value.find((i) => i.id === id);
       if (item?.isNew) {
@@ -196,27 +205,22 @@ const batchDeleteItems = async () => {
       }
     }
 
-    // Delete persisted items from backend
     for (const id of persistedIds) {
       await invoke(command, { id });
     }
 
-    // Remove new items from local list
     if (newIds.length > 0) {
       items.value = items.value.filter((i) => !newIds.includes(i.id));
     }
 
-    // Clear selection state
     if (selectedItem.value && idsToDelete.includes(selectedItem.value.id)) {
       selectedItem.value = null;
     }
     selectedItems.value = [];
 
-    // Reload persisted data (preserving remaining local-only items)
     if (persistedIds.length > 0) {
       const remainingNewItems = items.value.filter((i) => i.isNew);
       await loadData();
-      // Re-add remaining new items that weren't deleted
       items.value.push(...remainingNewItems);
     }
 
@@ -256,7 +260,9 @@ const filteredItems = computed(() => {
   if (!searchQuery.value) return items.value;
   const q = searchQuery.value.toLowerCase();
   return items.value.filter(
-    (item) => item.data.name.toLowerCase().includes(q) || (item.data.note && item.data.note.toLowerCase().includes(q))
+    (item) =>
+      item.data.name.toLowerCase().includes(q) ||
+      ((item.data as any).note && (item.data as any).note.toLowerCase().includes(q))
   );
 });
 
@@ -277,7 +283,7 @@ const loadData = async () => {
     }
 
     if (command) {
-      items.value = await invoke(command, { scriptId: props.scriptId });
+      items.value = await invoke<ItemTable[]>(command, { scriptId: props.scriptId });
     }
   } catch (e) {
     props.addLog(`加载策略数据失败: ${e}`, props.logLevels.ERROR);
@@ -287,10 +293,10 @@ const loadData = async () => {
 };
 
 const addNewItem = async () => {
-  const newItemName = `新${title.value} ${items.value.length + 1}`;
   const id = await props.getUuidV7();
+  const newItemName = `新${title.value} ${items.value.length + 1}`;
 
-  let itemData = {
+  let itemData: any = {
     name: newItemName,
     note: '',
   };
@@ -307,29 +313,32 @@ const addNewItem = async () => {
       cond: { type: 'Group', op: 'And', scope: 'Global', items: [] },
       afterAction: [],
     };
+  } else if (props.activeTab === 'policy_group') {
+    itemData = { ...itemData, policies: [] };
+  } else if (props.activeTab === 'policy_set') {
+    itemData = { ...itemData, groups: [] };
   }
 
-  const newItem = {
+  const newItem: ItemTable = {
     id,
     scriptId: props.scriptId,
     orderIndex: items.value.length + 1,
     data: itemData,
     isNew: true,
-  };
+  } as ItemTable;
 
   items.value.push(newItem);
   selectedItem.value = newItem;
   props.addLog(`创建了新${title.value}草案`, props.logLevels.INFO);
 
-  // Auto-focus the name input for policies
   if (props.activeTab === 'policy') {
     await nextTick(() => {
       policyEditorRef.value?.focusNameInput();
     });
   }
 };
-// 策略保存,由ScriptEditor.vue处理错误
-const updateSelectedItemData = async (newData) => {
+
+const updateSelectedItemData = async (newData: any) => {
   if (!selectedItem.value) return;
   const updatedItem = {
     ...selectedItem.value,
@@ -354,14 +363,8 @@ const updateSelectedItemData = async (newData) => {
   }
 
   await invoke(command, { [arg]: updatedItem });
-  //props.addLog(`保存${title.value} "${newData.name}" 成功`, props.logLevels.INFO);
   await loadData();
-  selectedItem.value = items.value.find((i) => i.id === updatedItem.id);
-/*  try {
-
-  } catch (e) {
-    props.addLog(`保存失败: ${e}`, props.logLevels.ERROR);
-  }*/
+  selectedItem.value = items.value.find((i) => i.id === updatedItem.id) || null;
 };
 
 const deleteItem = async () => {
@@ -394,7 +397,6 @@ const deleteItem = async () => {
   }
 };
 
-// Save current policy data (called by ScriptEditor on Ctrl+S / Save)
 const saveCurrentPolicy = async () => {
   if (!selectedItem.value || props.activeTab !== 'policy') return;
   const policyData = policyEditorRef.value?.getPolicyData?.();
@@ -407,7 +409,6 @@ defineExpose({
   saveCurrentPolicy,
 });
 
-// Reset batch selection when toggling batch mode off
 watch(batchMode, (newVal) => {
   if (!newVal) {
     selectedItems.value = [];

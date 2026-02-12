@@ -2,7 +2,7 @@
   <component :is="icon" :class="className" />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import {
   MousePointer2,
@@ -37,18 +37,14 @@ import {
   LayoutGrid,
 } from 'lucide-vue-next';
 
-const props = defineProps({
-  type: String,
-  category: String,
-  className: {
-    type: String,
-    default: 'w-4 h-4',
-  },
-});
+const props = defineProps<{
+  type?: string;
+  category?: string;
+  className?: string;
+}>();
 
 const icon = computed(() => {
-  // Mapping by exact PascalCase OPs from Rust
-  const typeMap = {
+  const typeMap: Record<string, any> = {
     // Interaction
     ClickAction: MousePointer2,
     SwipePoint: Move,
@@ -85,14 +81,13 @@ const icon = computed(() => {
     FinishTask: CheckCircle2,
   };
 
-  // Case-insensitive fallback for legacy or simplified calls
-  const lowerType = props.type?.toLowerCase();
-  const legacyMap = {
+  const lowerType = props.type?.toLowerCase() || '';
+  const legacyMap: Record<string, any> = {
     click: MousePointer2,
     swipe: Move,
     wait: Clock,
   };
 
-  return typeMap[props.type] || legacyMap[lowerType] || Box;
+  return (props.type ? typeMap[props.type] : null) || legacyMap[lowerType] || Box;
 });
 </script>

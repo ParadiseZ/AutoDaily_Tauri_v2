@@ -1,14 +1,21 @@
-
 import { ref } from 'vue';
+import type { DeviceTable } from '../../../types/bindings';
 
-export function useEditorDevice({ getAllDevices, getFromStore, setToStore, deviceKey }) {
-    const devices = ref([]);
-    const currentDevice = ref(null);
+interface EditorDeviceOptions {
+    getAllDevices: () => Promise<DeviceTable[]>;
+    getFromStore: (key: string) => Promise<string | null>;
+    setToStore: (key: string, value: string) => Promise<void>;
+    deviceKey: string;
+}
+
+export function useEditorDevice(options: EditorDeviceOptions) {
+    const { getAllDevices, getFromStore, setToStore, deviceKey } = options;
+    const devices = ref<DeviceTable[]>([]);
+    const currentDevice = ref<string | null>(null);
 
     const loadDevices = async () => {
         try {
             devices.value = await getAllDevices();
-            // Load saved device from store
             const savedDeviceId = await getFromStore(deviceKey);
             if (savedDeviceId && devices.value.some(d => d.id === savedDeviceId)) {
                 currentDevice.value = savedDeviceId;
@@ -18,7 +25,7 @@ export function useEditorDevice({ getAllDevices, getFromStore, setToStore, devic
         }
     };
 
-    const selectDevice = async (deviceId) => {
+    const selectDevice = async (deviceId: string) => {
         currentDevice.value = deviceId;
         await setToStore(deviceKey, deviceId);
     };

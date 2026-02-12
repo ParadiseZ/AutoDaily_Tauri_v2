@@ -1,5 +1,6 @@
-<script setup>
-import { ref, computed, onMounted, reactive } from 'vue';
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import type { Ref } from 'vue';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { useScripts } from '../assets/js/useScripts';
 import { confirm } from '@tauri-apps/plugin-dialog';
@@ -29,49 +30,62 @@ import {
   ChevronDown,
 } from 'lucide-vue-next';
 import ScriptConfigModal from './script-list/components/ScriptConfigModal.vue';
+import type { ScriptTable, ScriptInfo, DetectorType, RecognizerType, ScriptTaskTable } from '../types/bindings';
+
+interface ExtendedScriptInfo extends ScriptInfo {
+  tasks?: ScriptTaskTable[];
+  templates?: string[];
+}
+
+interface ExtendedScriptTable extends Omit<ScriptTable, 'data'> {
+  data: ExtendedScriptInfo;
+}
 
 const { scripts, selectedScript, selectedTemplate, getAllScripts, saveScript, deleteScript, selectScript } =
-  useScripts();
+  useScripts() as {
+    scripts: Ref<ExtendedScriptTable[]>;
+    selectedScript: Ref<ExtendedScriptTable | null>;
+    selectedTemplate: Ref<string | null>;
+    getAllScripts: () => Promise<ExtendedScriptTable[]>;
+    saveScript: (data: any) => Promise<void>;
+    deleteScript: (script: ExtendedScriptTable) => Promise<void>;
+    selectScript: (script: ExtendedScriptTable) => void;
+  };
 
-onMounted(() => {
-  getAllScripts();
-});
-
-// New script modal state
 const isNewModalOpen = ref(false);
+const isEditModalOpen = ref(false);
+const editingScriptData = ref<ExtendedScriptTable | null>(null);
+const searchQuery = ref('');
+const openDropdownId = ref<string | null>(null);
+const expandedModelInfo = ref<'imgDet' | 'txtDet' | 'txtRec' | null>(null);
+const globalDelay = ref(500);
+const randomRange = ref(5);
 
 const openNewModal = () => {
   isNewModalOpen.value = true;
 };
 
-const handleCreateScript = async (scriptData) => {
+const handleCreateScript = async (scriptData: any) => {
   try {
     await saveScript(scriptData);
     isNewModalOpen.value = false;
   } catch (e) {
-    // The component handles validation, but backend errors bubble up
     alert('创建失败: ' + e);
     console.error(e);
   }
 };
 
-// Edit script modal state
-const isEditModalOpen = ref(false);
-const editingScriptData = ref(null);
-
-const openEditModal = (script) => {
+const openEditModal = (script: ExtendedScriptTable) => {
   editingScriptData.value = script;
   isEditModalOpen.value = true;
 };
 
-const handleUpdateScript = async (scriptData) => {
+const handleUpdateScript = async (scriptData: ScriptInfo & { id: string }) => {
   try {
     await saveScript(scriptData);
     isEditModalOpen.value = false;
     editingScriptData.value = null;
-    // If we were editing the currently selected script, update it
     if (selectedScript.value?.id === scriptData.id) {
-      // Find the updated script in the list and re-select it
       const updated = scripts.value.find((s) => s.id === scriptData.id);
       if (updated) {
         selectedScript.value = updated;
@@ -83,35 +97,28 @@ const handleUpdateScript = async (scriptData) => {
   }
 };
 
-const searchQuery = ref('');
-
 const filteredScripts = computed(() => {
   if (!searchQuery.value) return scripts.value;
+  const q = searchQuery.value.toLowerCase();
   return scripts.value.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      s.description?.toLowerCase().includes(searchQuery.value.toLowerCase())
+    (s) => s.data.name.toLowerCase().includes(q) || s.data.description?.toLowerCase().includes(q)
   );
 });
 
-const handleSelect = (script) => {
+const handleSelect = (script: ExtendedScriptTable) => {
   selectScript(script);
-  openDropdownId.value = null; // Close dropdown when selecting
+  openDropdownId.value = null;
 };
 
-// Track which dropdown is open (only one at a time)
-const openDropdownId = ref(null);
-
-const toggleDropdown = (e, scriptId) => {
+const toggleDropdown = (e: MouseEvent, scriptId: string) => {
   e.preventDefault();
   e.stopPropagation();
   openDropdownId.value = openDropdownId.value === scriptId ? null : scriptId;
 };
 
-// Delete with confirmation
-const confirmDelete = async (script) => {
+const confirmDelete = async (script: ExtendedScriptTable) => {
   openDropdownId.value = null;
-  const confirmed = await confirm(`确定要删除 "${script.name}" 吗？\n此操作不可撤销。`, {
+  const confirmed = await confirm(`确定要删除 "${script.data.name}" 吗？\n此操作不可撤销。`, {
     title: '删除确认',
     kind: 'warning',
   });
@@ -120,27 +127,22 @@ const confirmDelete = async (script) => {
   }
 };
 
-// Model info expand state
-const expandedModelInfo = ref(null); // 'imgDet' | 'txtDet' | 'txtRec' | null
-
-const toggleModelInfo = (modelType) => {
+const toggleModelInfo = (modelType: 'imgDet' | 'txtDet' | 'txtRec') => {
   expandedModelInfo.value = expandedModelInfo.value === modelType ? null : modelType;
 };
 
-// Get model type name for display
-const getModelTypeName = (model) => {
+const getModelTypeName = (model: DetectorType | RecognizerType | null | undefined) => {
   if (!model) return null;
-  if (model.Yolo11) return 'YOLO11';
-  if (model.PaddleDbNet) return 'PaddleDbNet';
-  if (model.PaddleCrnn) return 'PaddleCrnn';
+  if ('Yolo11' in model) return 'YOLO11';
+  if ('PaddleDbNet' in model) return 'PaddleDbNet';
+  if ('PaddleCrnn' in model) return 'PaddleCrnn';
   return '自定义';
 };
 
-// Get model params for display (excluding path-related)
-const getModelDisplayParams = (model) => {
+const getModelDisplayParams = (model: DetectorType | RecognizerType | null | undefined) => {
   if (!model) return [];
 
-  if (model.Yolo11) {
+  if ('Yolo11' in model) {
     const m = model.Yolo11;
     return [
       { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
@@ -151,7 +153,7 @@ const getModelDisplayParams = (model) => {
     ];
   }
 
-  if (model.PaddleDbNet) {
+  if ('PaddleDbNet' in model) {
     const m = model.PaddleDbNet;
     return [
       { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
@@ -163,46 +165,39 @@ const getModelDisplayParams = (model) => {
     ];
   }
 
-  if (model.PaddleCrnn) {
+  if ('PaddleCrnn' in model) {
     const m = model.PaddleCrnn;
     return [
       { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
       { label: '输入尺寸', value: `${m.base_model?.input_width || 320} × ${m.base_model?.input_height || 48}` },
     ];
   }
-
   return [];
 };
 
-const formatTime = (time) => {
+const formatTime = (time: string | null | undefined) => {
   if (!time) return '无';
   return time.split('T')[0];
 };
 
-const globalDelay = ref(500);
-const randomRange = ref(5);
-
-// 搜索与过滤逻辑已在上面定义，此处无需重复
-
-// 逻辑编辑
-const openEditor = async (scriptId) => {
+const openEditor = async (scriptId: string) => {
   const webview = new WebviewWindow('script-editor', {
     url: '/editor?id=' + scriptId,
     title: '逻辑编辑',
     width: 1400,
     height: 900,
     center: true,
-    focus: true
+    focus: true,
   });
-/*
-  await webview.once('tauri://created', function () {
-    console.log('Script Editor window created');
-  });*/
 
   await webview.once('tauri://error', function (e) {
     console.error('打开编辑器失败', e);
   });
 };
+
+onMounted(async () => {
+  await getAllScripts();
+});
 </script>
 
 <template>
@@ -223,18 +218,18 @@ const openEditor = async (scriptId) => {
       <div class="grow overflow-y-auto overflow-x-visible custom-scrollbar p-2 space-y-2">
         <div
           v-for="script in filteredScripts"
-          :key="script.name"
+          :key="script.id"
           @click="handleSelect(script)"
           class="group relative rounded-xl border transition-all cursor-pointer"
           :class="[
-            selectedScript?.name === script.name
+            selectedScript?.id === script.id
               ? 'bg-primary/10 border-primary shadow-sm'
               : 'bg-base-200 border-transparent hover:bg-base-300 hover:border-base-content/10',
           ]"
         >
           <div class="p-3 flex items-start gap-3">
             <div class="w-10 h-10 rounded-lg bg-base-100 flex items-center justify-center shadow-sm">
-              <Download v-if="script.scriptType === 'published'" class="w-5 h-5 text-accent" />
+              <Download v-if="script.data.scriptType === 'published'" class="w-5 h-5 text-accent" />
               <Box v-else class="w-5 h-5 text-secondary" />
             </div>
 
@@ -242,13 +237,13 @@ const openEditor = async (scriptId) => {
               <div class="flex items-center justify-between gap-1">
                 <p
                   class="font-semibold truncate text-sm"
-                  :class="selectedScript?.name === script.name ? 'text-primary' : ''"
+                  :class="selectedScript?.id === script.id ? 'text-primary' : ''"
                 >
-                  {{ script.name }}
+                  {{ script.data.name }}
                 </p>
-                <span class="text-[10px] opacity-50">{{ script.verName }}</span>
+                <span class="text-[10px] opacity-50">{{ script.data.verName }}</span>
               </div>
-              <p class="text-xs opacity-60 line-clamp-1 mt-0.5">{{ script.description }}</p>
+              <p class="text-xs opacity-60 line-clamp-1 mt-0.5">{{ script.data.description }}</p>
             </div>
 
             <!-- 下拉操作菜单 -->
@@ -262,9 +257,7 @@ const openEditor = async (scriptId) => {
               <ul
                 class="dropdown-content menu bg-base-100 rounded-xl w-44 p-1.5 shadow-xl border border-base-content/10 z-50"
               >
-                <!-- === Dev 类型脚本菜单 === -->
-                <template v-if="script.scriptType === 'dev'">
-                  <!-- 编辑信息 -->
+                <template v-if="script.data.scriptType === 'dev'">
                   <li>
                     <a
                       @click="
@@ -277,11 +270,10 @@ const openEditor = async (scriptId) => {
                       <span>编辑信息</span>
                     </a>
                   </li>
-                  <!-- 编辑逻辑 -->
                   <li>
                     <a
                       @click="
-                        openEditor(script.id)
+                        openEditor(script.id);
                         openDropdownId = null;
                       "
                       class="flex items-center gap-3 text-sm hover:bg-secondary/10 hover:text-secondary cursor-pointer"
@@ -290,16 +282,10 @@ const openEditor = async (scriptId) => {
                       <span>编辑逻辑</span>
                     </a>
                   </li>
-
                   <li class="my-1"><hr class="border-base-content/10" /></li>
-
-                  <!-- 上传/更新到云端 -->
-                  <li v-if="!script.cloudId">
+                  <li v-if="!script.data.cloudId">
                     <a
-                      @click="
-                        console.log('首次上传', script.name);
-                        openDropdownId = null;
-                      "
+                      @click="openDropdownId = null"
                       class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
                     >
                       <Download class="w-4 h-4 rotate-180" />
@@ -308,64 +294,26 @@ const openEditor = async (scriptId) => {
                   </li>
                   <li v-else>
                     <a
-                      @click="
-                        console.log('更新云端版本', script.name, script.cloudId);
-                        openDropdownId = null;
-                      "
+                      @click="openDropdownId = null"
                       class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
                     >
                       <Download class="w-4 h-4 rotate-180" />
                       <span>更新云端版本</span>
                     </a>
                   </li>
-                  <!-- 查看云端版本 (仅已上传过的) -->
-                  <li v-if="script.cloudId">
-                    <a
-                      @click="
-                        console.log('查看云端版本', script.cloudId);
-                        openDropdownId = null;
-                      "
-                      class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
-                    >
-                      <Eye class="w-4 h-4" />
-                      <span>查看云端版本</span>
-                    </a>
-                  </li>
                 </template>
-
-                <!-- === Published 类型脚本菜单 === -->
-                <template v-else-if="script.scriptType === 'published'">
-                  <!-- 检查更新 -->
+                <template v-else-if="script.data.scriptType === 'published'">
                   <li>
                     <a
-                      @click="
-                        console.log('检查更新', script.name);
-                        openDropdownId = null;
-                      "
+                      @click="openDropdownId = null"
                       class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
                     >
                       <Clock class="w-4 h-4" />
                       <span>检查更新</span>
                     </a>
                   </li>
-                  <!-- 查看详情 -->
-                  <li>
-                    <a
-                      @click="
-                        console.log('查看详情', script.name);
-                        openDropdownId = null;
-                      "
-                      class="flex items-center gap-3 text-sm hover:bg-info/10 hover:text-info cursor-pointer"
-                    >
-                      <Info class="w-4 h-4" />
-                      <span>查看详情</span>
-                    </a>
-                  </li>
                 </template>
-
                 <li class="my-1"><hr class="border-base-content/10" /></li>
-
-                <!-- 删除 -->
                 <li>
                   <a
                     @click="confirmDelete(script)"
@@ -401,58 +349,61 @@ const openEditor = async (scriptId) => {
             <Info class="w-5 h-5 text-secondary" />
             详情
           </h2>
-          <div class="badge badge-sm" :class="selectedScript.scriptType === 'dev' ? 'badge-secondary' : 'badge-accent'">
-            {{ selectedScript.scriptType === 'dev' ? '本地开发' : '云端下载' }}
+          <div
+            class="badge badge-sm"
+            :class="selectedScript.data.scriptType === 'dev' ? 'badge-secondary' : 'badge-accent'"
+          >
+            {{ selectedScript.data.scriptType === 'dev' ? '本地开发' : '云端下载' }}
           </div>
         </div>
 
         <div class="grow overflow-y-auto custom-scrollbar p-4 space-y-6">
-          <!-- 核心信息 -->
           <section>
-            <!-- <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3">基本信息</h3> -->
             <div class="space-y-3">
               <div class="flex flex-col">
                 <span class="text-[10px] opacity-50">名称</span>
-                <span class="text-sm font-medium">{{ selectedScript.name }}</span>
+                <span class="text-sm font-medium">{{ selectedScript.data.name }}</span>
               </div>
               <div class="flex flex-col">
                 <span class="text-[10px] opacity-50">版本号</span>
-                <span class="text-sm font-medium">{{ selectedScript.verName }} ({{ selectedScript.verNum }})</span>
+                <span class="text-sm font-medium"
+                  >{{ selectedScript.data.verName }} ({{ selectedScript.data.verNum }})</span
+                >
               </div>
               <div class="flex flex-col">
                 <span class="text-[10px] opacity-50">脚本描述</span>
-                <p class="text-sm opacity-80 leading-relaxed">{{ selectedScript.description || '暂无描述' }}</p>
+                <p class="text-sm opacity-80 leading-relaxed">{{ selectedScript.data.description || '暂无描述' }}</p>
               </div>
             </div>
           </section>
 
-          <!-- 技术参数 -->
           <section class="bg-base-100/50 p-3 rounded-xl border border-base-content/5">
             <h3 class="text-xs font-bold uppercase tracking-wider opacity-40 mb-3 flex items-center gap-1">
               <Cpu class="w-3 h-3" /> 模型配置
             </h3>
             <div class="grid grid-cols-1 gap-2">
-              <!-- 应用包名 -->
               <div class="flex items-center justify-between">
                 <span class="text-xs opacity-60">应用包名</span>
                 <span class="text-xs font-mono bg-base-300 px-1.5 py-0.5 rounded max-w-[140px] truncate">{{
-                  selectedScript.pkgName || '未指定'
+                  selectedScript.data.pkgName || '未指定'
                 }}</span>
               </div>
+            </div>
+            <div class="divider m-0 opacity-10"></div>
 
-              <div class="divider m-0 opacity-10"></div>
-
+            <div class="space-y-4 pt-2">
               <!-- 图像识别 -->
               <div class="space-y-1">
                 <div class="flex items-center justify-between">
                   <span class="text-xs opacity-60">图像识别</span>
                   <div class="flex items-center gap-1">
-                    <span class="text-xs font-medium">{{ getModelTypeName(selectedScript.imgDetModel) || '无' }}</span>
+                    <span class="text-xs font-medium">{{
+                      getModelTypeName(selectedScript.data.imgDetModel) || '无'
+                    }}</span>
                     <button
-                      v-if="selectedScript.imgDetModel"
+                      v-if="selectedScript.data.imgDetModel"
                       @click="toggleModelInfo('imgDet')"
                       class="btn btn-ghost btn-xs btn-circle cursor-pointer"
-                      :class="expandedModelInfo === 'imgDet' ? 'bg-primary/20 text-primary' : ''"
                     >
                       <ChevronDown
                         class="w-3 h-3 transition-transform"
@@ -461,13 +412,12 @@ const openEditor = async (scriptId) => {
                     </button>
                   </div>
                 </div>
-                <!-- 展开的参数信息 -->
                 <div
-                  v-if="expandedModelInfo === 'imgDet' && selectedScript.imgDetModel"
-                  class="bg-base-200/50 rounded-lg p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200"
+                  v-if="expandedModelInfo === 'imgDet' && selectedScript.data.imgDetModel"
+                  class="bg-base-200/50 rounded-lg p-2 space-y-1"
                 >
                   <div
-                    v-for="param in getModelDisplayParams(selectedScript.imgDetModel)"
+                    v-for="param in getModelDisplayParams(selectedScript.data.imgDetModel)"
                     :key="param.label"
                     class="flex justify-between text-[10px]"
                   >
@@ -483,13 +433,12 @@ const openEditor = async (scriptId) => {
                   <span class="text-xs opacity-60">文本检测</span>
                   <div class="flex items-center gap-1">
                     <span class="text-xs font-medium">{{
-                      getModelTypeName(selectedScript.txtDetModel) || '内置'
+                      getModelTypeName(selectedScript.data.txtDetModel) || '内置'
                     }}</span>
                     <button
-                      v-if="selectedScript.txtDetModel"
+                      v-if="selectedScript.data.txtDetModel"
                       @click="toggleModelInfo('txtDet')"
                       class="btn btn-ghost btn-xs btn-circle cursor-pointer"
-                      :class="expandedModelInfo === 'txtDet' ? 'bg-secondary/20 text-secondary' : ''"
                     >
                       <ChevronDown
                         class="w-3 h-3 transition-transform"
@@ -498,13 +447,12 @@ const openEditor = async (scriptId) => {
                     </button>
                   </div>
                 </div>
-                <!-- 展开的参数信息 -->
                 <div
-                  v-if="expandedModelInfo === 'txtDet' && selectedScript.txtDetModel"
-                  class="bg-base-200/50 rounded-lg p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200"
+                  v-if="expandedModelInfo === 'txtDet' && selectedScript.data.txtDetModel"
+                  class="bg-base-200/50 rounded-lg p-2 space-y-1"
                 >
                   <div
-                    v-for="param in getModelDisplayParams(selectedScript.txtDetModel)"
+                    v-for="param in getModelDisplayParams(selectedScript.data.txtDetModel)"
                     :key="param.label"
                     class="flex justify-between text-[10px]"
                   >
@@ -520,13 +468,12 @@ const openEditor = async (scriptId) => {
                   <span class="text-xs opacity-60">文本识别</span>
                   <div class="flex items-center gap-1">
                     <span class="text-xs font-medium">{{
-                      getModelTypeName(selectedScript.txtRecModel) || '内置'
+                      getModelTypeName(selectedScript.data.txtRecModel) || '内置'
                     }}</span>
                     <button
-                      v-if="selectedScript.txtRecModel"
+                      v-if="selectedScript.data.txtRecModel"
                       @click="toggleModelInfo('txtRec')"
                       class="btn btn-ghost btn-xs btn-circle cursor-pointer"
-                      :class="expandedModelInfo === 'txtRec' ? 'bg-accent/20 text-accent' : ''"
                     >
                       <ChevronDown
                         class="w-3 h-3 transition-transform"
@@ -535,13 +482,12 @@ const openEditor = async (scriptId) => {
                     </button>
                   </div>
                 </div>
-                <!-- 展开的参数信息 -->
                 <div
-                  v-if="expandedModelInfo === 'txtRec' && selectedScript.txtRecModel"
-                  class="bg-base-200/50 rounded-lg p-2 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200"
+                  v-if="expandedModelInfo === 'txtRec' && selectedScript.data.txtRecModel"
+                  class="bg-base-200/50 rounded-lg p-2 space-y-1"
                 >
                   <div
-                    v-for="param in getModelDisplayParams(selectedScript.txtRecModel)"
+                    v-for="param in getModelDisplayParams(selectedScript.data.txtRecModel)"
                     :key="param.label"
                     class="flex justify-between text-[10px]"
                   >
@@ -553,45 +499,37 @@ const openEditor = async (scriptId) => {
             </div>
           </section>
 
-          <!-- 统计与元数据 -->
-          <section class="space-y-4 pt-2">
-            <div class="flex items-center gap-4 text-xs">
-              <div class="flex items-center gap-1.5 opacity-70">
-                <User class="w-3.5 h-3.5" />
-                <span>{{ selectedScript.userName }}</span>
-              </div>
-              <div class="flex items-center gap-1.5 opacity-70">
-                <Download class="w-3.5 h-3.5" />
-                <span>{{ selectedScript.downloadCount }} 次下载</span>
-              </div>
+          <section class="bg-base-100/50 p-3 rounded-xl border border-base-content/5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs opacity-60 flex items-center gap-1.5"><User class="w-3 h-3" /> 作者</span>
+              <span class="text-xs font-medium">{{ selectedScript.data.userName || '未知' }}</span>
             </div>
-
-            <div class="p-3 bg-base-100 rounded-lg space-y-2 border border-base-content/5">
-              <div class="flex justify-between text-[11px]">
-                <span class="opacity-50 flex items-center gap-1"><Calendar class="w-3 h-3" /> 创建时间</span>
-                <span class="opacity-80">{{ formatTime(selectedScript.createTime) }}</span>
-              </div>
-              <div class="flex justify-between text-[11px]">
-                <span class="opacity-50 flex items-center gap-1"><Clock class="w-3 h-3" /> 最后更新</span>
-                <span class="opacity-80">{{ formatTime(selectedScript.updateTime) }}</span>
-              </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs opacity-60 flex items-center gap-1.5"><Activity class="w-3 h-3" /> 下载量</span>
+              <span class="text-xs font-medium">{{ selectedScript.data.downloadCount || 0 }}</span>
+            </div>
+            <div class="divider m-0 opacity-10"></div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs opacity-60 flex items-center gap-1.5"><Calendar class="w-3 h-3" /> 创建时间</span>
+              <span class="text-[10px] font-medium opacity-80">{{ formatTime(selectedScript.data.createTime) }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs opacity-60 flex items-center gap-1.5"><Clock class="w-3 h-3" /> 最后更新</span>
+              <span class="text-[10px] font-medium opacity-80">{{ formatTime(selectedScript.data.updateTime) }}</span>
             </div>
           </section>
         </div>
       </div>
-
-      <!-- 未选择状态 -->
       <div v-else class="flex flex-col items-center justify-center h-full opacity-20 p-8 text-center">
         <Info class="w-16 h-16 mb-4" />
-        <p class="text-lg font-medium">详细信息</p>
-        <p class="text-sm">查看详情、管理任务及模版设置</p>
+        <p class="text-lg font-medium">详情</p>
+        <p class="text-sm">选中脚本以查看详细配置</p>
       </div>
     </div>
 
     <!-- 第三栏：任务设置 -->
     <div class="grow bg-base-100 flex flex-col">
       <div v-if="selectedScript" class="flex flex-col h-full animate-in fade-in slide-in-from-bottom-2 duration-400">
-        <!-- 任务设置页头：包含模版选择 -->
         <div class="p-4 border-b border-base-content/5 flex items-center justify-between bg-base-100">
           <div class="flex items-center gap-4 grow">
             <div class="flex items-center gap-2">
@@ -602,22 +540,18 @@ const openEditor = async (scriptId) => {
               v-model="selectedTemplate"
               class="select select-bordered select-sm bg-base-200 border-none focus-visible:outline-none w-fit max-w-xs"
             >
-              <option v-for="tpl in selectedScript.templates" :key="tpl.id" :value="tpl.id">
-                {{ tpl.name }}
-              </option>
-              <option disabled v-if="selectedScript.templates?.length">──────</option>
+              <template v-if="selectedScript.data.templates">
+                <option v-for="tpl in selectedScript.data.templates" :key="tpl" :value="tpl">{{ tpl }}</option>
+              </template>
+              <option disabled v-if="selectedScript.data.templates?.length">──────</option>
               <option value="add_new">+ 新增模板</option>
             </select>
           </div>
         </div>
 
         <div class="grow overflow-hidden flex flex-col bg-base-100">
-          <!-- 基础设置 -->
           <div class="flex-none p-4 pb-2 space-y-3 border-b border-base-content/5">
-            <div class="flex items-center gap-2">
-              <h2 class="text-[11px] font-bold uppercase tracking-widest opacity-50">基础设置</h2>
-            </div>
-
+            <h2 class="text-[11px] font-bold uppercase tracking-widest opacity-50">基础设置</h2>
             <div class="grid grid-cols-2 gap-4">
               <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50 border border-base-content/5">
                 <span class="text-xs font-medium opacity-80 text-nowrap">操作后延迟</span>
@@ -630,9 +564,8 @@ const openEditor = async (scriptId) => {
                   <span class="text-[10px] opacity-40">ms</span>
                 </div>
               </div>
-
               <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50 border border-base-content/5">
-                <span class="text-xs font-medium opacity-80 text-nowrap">随机坐标范围</span>
+                <span class="text-xs font-medium opacity-80 text-nowrap">随机范围</span>
                 <div class="flex items-center gap-1">
                   <input
                     type="number"
@@ -644,55 +577,45 @@ const openEditor = async (scriptId) => {
               </div>
             </div>
           </div>
-          <div class="grow p-4 flex flex-col min-h-0">
-            <div class="flex items-center gap-2 mb-4">
-              <h2 class="text-[11px] font-bold uppercase tracking-widest opacity-50">任务设置</h2>
-            </div>
 
+          <div class="grow p-4 flex flex-col min-h-0">
+            <h2 class="text-[11px] font-bold uppercase tracking-widest opacity-50 mb-4">任务设置</h2>
             <div class="grow overflow-y-auto custom-scrollbar space-y-1">
               <div
-                v-for="task in selectedScript.tasks"
+                v-for="task in selectedScript.data.tasks"
                 :key="task.id"
                 class="group flex items-center gap-3 p-2 rounded-lg hover:bg-base-200 transition-colors"
-                :style="{ marginLeft: `${task.indent * 24}px` }"
               >
                 <div class="flex-none flex items-center">
-                  <input type="checkbox" v-model="task.enabled" class="checkbox checkbox-sm checkbox-primary" />
+                  <input
+                    type="checkbox"
+                    :checked="!task.isHidden"
+                    @change="(e) => (task.isHidden = !(e.target as HTMLInputElement).checked)"
+                    class="checkbox checkbox-sm checkbox-primary"
+                  />
                 </div>
-
                 <div class="grow flex items-center gap-3">
-                  <span class="text-sm" :class="task.enabled ? 'font-medium opacity-90' : 'opacity-40 italic'">
-                    {{ task.name }}
-                  </span>
-                  <div v-if="task.indent > 0" class="h-px w-4 bg-base-content/10"></div>
+                  <span class="text-sm" :class="!task.isHidden ? 'font-medium opacity-90' : 'opacity-40 italic'">{{
+                    task.name
+                  }}</span>
                 </div>
-
-                <!-- <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
-                            <div class="flex items-center gap-1 text-[10px] bg-base-300 px-2 py-0.5 rounded text-base-content/60">
-                                <Clock class="w-3 h-3" /> {{ task.delay }}ms
-                            </div>
-                            <button class="btn btn-square btn-ghost btn-xs">
-                                <Settings class="w-3.5 h-3.5" />
-                            </button>
-                        </div> -->
+              </div>
+              <div v-if="!selectedScript.data.tasks?.length" class="text-center py-10 opacity-30 italic text-sm">
+                暂无预设任务
               </div>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- 未选择状态 -->
       <div v-else class="flex flex-col items-center justify-center h-full opacity-20 p-8 text-center">
         <Settings class="w-16 h-16 mb-4" />
         <p class="text-lg font-medium">任务设置</p>
-        <p class="text-sm">选中脚本后可在此配置自动化流程</p>
+        <p class="text-sm">选中脚本以进行配置</p>
       </div>
     </div>
 
-    <!-- 新建脚本 Modal -->
+    <!-- Modals -->
     <ScriptConfigModal :is-open="isNewModalOpen" @close="isNewModalOpen = false" @save="handleCreateScript" />
-
-    <!-- 编辑脚本信息 Modal -->
     <ScriptConfigModal
       :is-open="isEditModalOpen"
       :editing-script="editingScriptData"

@@ -125,8 +125,8 @@
         </div>
       </div>
 
-      <!-- Type: IF Found / IF Not Found -->
-      <div v-if="['if_found', 'if_not_found'].includes(selectedNode.data?.type)" class="space-y-3">
+      <!-- Type: IF Found -->
+      <div v-if="selectedNode.data?.type === 'if'" class="space-y-3">
         <div class="form-control w-full">
           <label class="label"><span class="label-text">Search Type</span></label>
           <select class="select select-bordered select-sm w-full" v-model="localData.searchType">
@@ -291,7 +291,7 @@
           <label class="label"><span class="label-text">Fallback Actions</span></label>
           <div class="space-y-2">
             <div
-              v-for="(strategy, idx) in localData.strategies || defaultStrategies"
+              v-for="(strategy, idx) in localData.strategies || []"
               :key="idx"
               class="flex items-center gap-2 p-2 bg-base-200 rounded"
             >
@@ -409,41 +409,6 @@
         </div>
       </div>
 
-      <!-- Type: Macro Action (Unified) -->
-      <div v-if="selectedNode.data?.type === 'macro_action'" class="space-y-3">
-        <div class="alert alert-warning text-[10px] leading-tight p-2">
-          Multi-step unified node: Screenshot -> Detect -> Click.
-        </div>
-        <div class="form-control w-full">
-          <label class="label cursor-pointer justify-start gap-2">
-            <input type="checkbox" v-model="localData.screenshot" class="checkbox checkbox-xs" />
-            <span class="label-text text-xs">Auto-Screenshot</span>
-          </label>
-        </div>
-        <div class="form-control w-full">
-          <label class="label pb-1"><span class="label-text text-xs">Detection Target</span></label>
-          <input
-            type="text"
-            v-model="localData.detectTarget"
-            placeholder="Image or text..."
-            class="input input-bordered input-xs w-full"
-          />
-        </div>
-        <div class="form-control w-full">
-          <label class="label pb-0"
-            ><span class="label-text text-xs">Confidence: {{ localData.confidence }}%</span></label
-          >
-          <input type="range" v-model="localData.confidence" min="50" max="100" class="range range-xs range-primary" />
-        </div>
-        <div class="form-control w-full pt-1">
-          <label class="label pb-1"><span class="label-text text-xs">Click Type</span></label>
-          <select class="select select-bordered select-xs w-full" v-model="localData.clickType">
-            <option value="coordinates">Relative Offset</option>
-            <option value="center">Center of Match</option>
-          </select>
-        </div>
-      </div>
-
       <!-- Type: Vision Logic (Advanced Search) -->
       <div v-if="selectedNode.data?.type === 'vision_logic'" class="space-y-4">
         <div class="form-control w-full">
@@ -508,7 +473,6 @@
           <label class="label"><span class="label-text">Target Task</span></label>
           <select class="select select-bordered select-sm w-full" v-model="localData.targetTaskId">
             <option :value="null">Select a task...</option>
-            <!-- In real implementation, this would list other tasks -->
             <option value="1">Login</option>
             <option value="2">Sign In</option>
             <option value="3">Claim Rewards</option>
@@ -579,41 +543,36 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { DEFAULT_FALLBACK_STRATEGIES, NODE_TYPES, getNodeDisplay, NODE_DATA_DEFAULTS } from './config.js';
+import type { Node } from '@vue-flow/core';
+import { DEFAULT_FALLBACK_STRATEGIES, getNodeDisplay, NODE_DATA_DEFAULTS } from './config';
 
-const props = defineProps({
-  selectedNode: {
-    type: Object,
-    default: null,
-  },
-});
+const props = defineProps<{
+  selectedNode: Node | null;
+}>();
 
-const emit = defineEmits(['delete-node', 'update-node']);
+const emit = defineEmits<{
+  (e: 'delete-node'): void;
+  (e: 'update-node', id: string, data: any): void;
+}>();
 
-// Local state for editing
 const nodeLabel = ref('');
-const localData = ref({});
+const localData = ref<any>({});
 
-// 使用统一配置
-const defaultStrategies = DEFAULT_FALLBACK_STRATEGIES;
-
-// Node type display - 使用配置函数
 const nodeTypeDisplay = computed(() => {
-  const type = props.selectedNode?.data?.type;
+  if (!props.selectedNode) return 'Unknown';
+  const type = props.selectedNode.data?.type;
   return getNodeDisplay(type) || type || 'Unknown';
 });
 
-// Watch for selected node changes
 watch(
   () => props.selectedNode,
   (newNode) => {
     if (newNode) {
-      nodeLabel.value = newNode.label || '';
+      nodeLabel.value = (newNode.label as string) || '';
       localData.value = { ...newNode.data };
 
-      // Initialize defaults from config
       if (!localData.value.targetType) localData.value.targetType = NODE_DATA_DEFAULTS.targetType;
       if (!localData.value.searchType) localData.value.searchType = NODE_DATA_DEFAULTS.searchType;
       if (!localData.value.confidence) localData.value.confidence = NODE_DATA_DEFAULTS.confidence;
@@ -622,11 +581,10 @@ watch(
       if (!localData.value.count) localData.value.count = NODE_DATA_DEFAULTS.count;
       if (!localData.value.loopType) localData.value.loopType = NODE_DATA_DEFAULTS.loopType;
       if (!localData.value.maxRetries) localData.value.maxRetries = NODE_DATA_DEFAULTS.maxRetries;
-      if (!localData.value.strategies) localData.value.strategies = defaultStrategies.map((s) => ({ ...s }));
+      if (!localData.value.strategies) localData.value.strategies = DEFAULT_FALLBACK_STRATEGIES.map((s) => ({ ...s }));
       if (localData.value.waitForComplete === undefined)
         localData.value.waitForComplete = NODE_DATA_DEFAULTS.waitForComplete;
 
-      // Vision Logic Initialization
       if (newNode.data?.type === 'vision_logic') {
         if (!localData.value.rule) {
           localData.value.rule = { type: 'Group', op: 'And', scope: 'Global', items: [] };
@@ -638,7 +596,6 @@ watch(
   { immediate: true, deep: true }
 );
 
-// Watch local data changes and emit updates
 watch(
   localData,
   (newData) => {
@@ -649,14 +606,12 @@ watch(
   { deep: true }
 );
 
-// Update label
 const updateLabel = () => {
   if (props.selectedNode) {
     emit('update-node', props.selectedNode.id, { ...localData.value, label: nodeLabel.value });
   }
 };
 
-// Fallback strategy management
 const addStrategy = () => {
   if (!localData.value.strategies) {
     localData.value.strategies = [];
@@ -664,17 +619,16 @@ const addStrategy = () => {
   localData.value.strategies.push({ target: '', action: 'click' });
 };
 
-const removeStrategy = (idx) => {
+const removeStrategy = (idx: number) => {
   localData.value.strategies.splice(idx, 1);
 };
 
-// Vision Logic Helpers
 const addRuleKeyword = () => {
   if (!localData.value.rule.items) localData.value.rule.items = [];
   localData.value.rule.items.push({ type: 'Keyword', text: '' });
 };
 
-const removeRuleItem = (idx) => {
+const removeRuleItem = (idx: number) => {
   localData.value.rule.items.splice(idx, 1);
 };
 </script>

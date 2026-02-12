@@ -41,8 +41,8 @@
             <div class="flex-1 min-w-0">
               <input
                 type="text"
-                v-model="item.pattern"
-                class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic "
+                v-model="(item as any).pattern"
+                class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic"
                 :placeholder="item.type === 'Regex' ? 'e.g. ^\\d{3}-\\d{3}-\\d{4}$' : '关键字...'"
               />
             </div>
@@ -73,7 +73,10 @@
 
               <div class="flex-1 min-w-0">
                 <div class="text-[14px] font-black uppercase tracking-widest text-base-content/50">
-                  子逻辑组 ({{ item.op }} / {{ item.scope }}) 【{{ item.items?.length || 0 }} 项】
+                  子逻辑组 ({{ (item as any).op }} / {{ (item as any).scope }}) 【{{
+                    (item as any).items?.length || 0
+                  }}
+                  项】
                 </div>
               </div>
 
@@ -96,7 +99,7 @@
               v-if="expandedGroups[idx]"
               class="p-4 pt-0 border-t border-base-200 animate-in slide-in-from-top-2 duration-300"
             >
-              <SearchRuleEditor :rule="item" @update="updateNestedGroup(idx, $event)" />
+              <SearchRuleEditor :rule="item as any" @update="updateNestedGroup(idx, $event)" />
             </div>
           </div>
         </div>
@@ -127,8 +130,8 @@
   </div>
 </template>
 
-<script setup>
-import { ref, watch } from 'vue';
+<script setup lang="ts">
+import { ref, watch, defineAsyncComponent } from 'vue';
 import {
   Plus as PlusIcon,
   Trash2 as TrashIcon,
@@ -137,45 +140,40 @@ import {
   LayoutGrid as GridIcon,
   ChevronDown as ChevronDownIcon,
 } from 'lucide-vue-next';
+import type { SearchRule } from '@/types/bindings';
 
-// 组件自引用需要显式定义名称
-import { defineAsyncComponent } from 'vue';
 const SearchRuleEditor = defineAsyncComponent(() => import('./SearchRuleEditor.vue'));
 
-const props = defineProps({
-  rule: {
-    type: Object,
-    required: true,
-  },
-});
+const props = defineProps<{
+  rule: SearchRule;
+}>();
 
-const emit = defineEmits(['update']);
+const emit = defineEmits<{
+  (e: 'update', rule: SearchRule): void;
+}>();
 
-// Internal normalization helper
-const parseInputRule = (r) => {
+const parseInputRule = (r: any): any => {
   if (!r) return { type: 'Group', op: 'And', scope: 'Global', items: [] };
-  if (r.type) return r; // already normalized
-
+  if (r.type) return r;
   if (r.Group) return { type: 'Group', ...r.Group };
   if (r.Keyword) return { type: 'Keyword', pattern: r.Keyword.pattern };
   if (r.Regex) return { type: 'Regex', pattern: r.Regex.pattern };
-
   return { type: 'Group', op: 'And', scope: 'Global', items: [] };
 };
 
 const localRule = ref(parseInputRule(props.rule));
-const expandedGroups = ref({});
+const expandedGroups = ref<Record<number, boolean>>({});
 
-const toggleGroup = (idx) => {
+const toggleGroup = (idx: number) => {
   expandedGroups.value[idx] = !expandedGroups.value[idx];
 };
 
-const updateNestedGroup = (idx, newGroupData) => {
+const updateNestedGroup = (idx: number, newGroupData: SearchRule) => {
   localRule.value.items[idx] = newGroupData;
   onUpdate();
 };
 
-const addItem = (type) => {
+const addItem = (type: string) => {
   if (type === 'Group') {
     localRule.value.items.push({ type: 'Group', op: 'And', scope: 'Global', items: [] });
   } else {
@@ -184,7 +182,7 @@ const addItem = (type) => {
   onUpdate();
 };
 
-const removeItem = (idx) => {
+const removeItem = (idx: number) => {
   localRule.value.items.splice(idx, 1);
   onUpdate();
 };
@@ -199,7 +197,6 @@ watch(
   () => props.rule,
   (newVal) => {
     const parsed = parseInputRule(newVal);
-    // Simple check to avoid loop if identical
     if (JSON.stringify(parsed) !== JSON.stringify(localRule.value)) {
       localRule.value = parsed;
     }

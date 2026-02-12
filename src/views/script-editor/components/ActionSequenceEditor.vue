@@ -72,15 +72,16 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, reactive } from 'vue';
 import { Plus as PlusIcon, ListTodo as ListTodoIcon } from 'lucide-vue-next';
 import StepItemEditor from './StepItemEditor.vue';
 import StepIcon from './StepIcon.vue';
+import type { Step } from '@/types/bindings';
 
 const props = defineProps({
   steps: {
-    type: Array,
+    type: Array as () => Step[],
     default: () => [],
   },
   isNested: {
@@ -89,18 +90,19 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:steps']);
+const emit = defineEmits<{
+  (e: 'update:steps', steps: Step[]): void;
+}>();
 
 const showPicker = ref(false);
-const addBtnRef = ref(null);
+const addBtnRef = ref<HTMLButtonElement | null>(null);
 const pickerPos = reactive({ top: 0, left: 0 });
 
 const togglePicker = () => {
   if (!showPicker.value && addBtnRef.value) {
     const rect = addBtnRef.value.getBoundingClientRect();
-    // Position popup above the button, centered horizontally
-    pickerPos.top = rect.top - 8; // 8px gap above button
-    pickerPos.left = rect.left + rect.width / 2 - 160; // 160 = half of w-80 (320px)
+    pickerPos.top = rect.top - 8;
+    pickerPos.left = rect.left + rect.width / 2 - 160;
   }
   showPicker.value = !showPicker.value;
 };
@@ -133,14 +135,13 @@ const groupedActions = {
   ],
 };
 
-const addStepWithType = (op) => {
+const addStepWithType = (op: string) => {
   const newSteps = [...props.steps];
-  const newStep = {
+  const newStep: any = {
     op,
     label: '',
     skipFlag: false,
     execMax: 0,
-    // Initialize required fields per type
     ...(op === 'WaitMs' ? { ms: 1000 } : {}),
     ...(op === 'If' || op === 'While'
       ? {
@@ -151,33 +152,31 @@ const addStepWithType = (op) => {
     ...(op === 'Sequence' ? { steps: [], reverse: false } : {}),
     ...(op === 'ClickAction' ? { Point: { x: 0, y: 0 } } : {}),
     ...(op === 'SwipePoint' ? { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } } : {}),
-    ...(op === 'SwipePercent' ? { from: { x: 0.5, y: 0.3 }, to: { x: 0.5, y: 0.7 } } : {}),
     ...(op === 'VisionSearch'
       ? { rule: { type: 'Group', op: 'And', scope: 'Global', items: [] }, output_var: 'search_result' }
       : {}),
     ...(op === 'SetVar' ? { name: '', value_expr: '' } : {}),
     ...(op === 'GetVar' ? { name: '' } : {}),
-    ...(op === 'TakeScreenshot' ? { output_var: 'screenshot' } : {}),
     ...(op === 'SetState' ? { target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } } : {}),
   };
-  newSteps.push(newStep);
+  newSteps.push(newStep as Step);
   emit('update:steps', newSteps);
   showPicker.value = false;
 };
 
-const updateStep = (index, newData) => {
+const updateStep = (index: number, newData: Step) => {
   const newSteps = [...props.steps];
   newSteps[index] = newData;
   emit('update:steps', newSteps);
 };
 
-const removeStep = (index) => {
+const removeStep = (index: number) => {
   const newSteps = [...props.steps];
   newSteps.splice(index, 1);
   emit('update:steps', newSteps);
 };
 
-const moveStep = (index, direction) => {
+const moveStep = (index: number, direction: number) => {
   const target = index + direction;
   if (target < 0 || target >= props.steps.length) return;
 

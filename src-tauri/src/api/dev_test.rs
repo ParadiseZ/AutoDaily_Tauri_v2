@@ -24,7 +24,7 @@ pub async fn dev_capture_test(
     ADBCtx::new(adb_conf).await;
     let title = match device_conf.cap_method.clone() {
         CapMethod::Window(title) => Some(title),
-        CapMethod::ADB => None,
+        CapMethod::Adb => None,
     };
     let device_ctx = DeviceCtx::new(
         Arc::new(RwLock::new(device_conf)),

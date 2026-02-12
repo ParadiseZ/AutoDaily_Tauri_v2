@@ -72,7 +72,7 @@
           <select
             class="select select-sm select-bordered max-w-xs"
             v-model="currentDevice"
-            @change="selectDevice(currentDevice)"
+            @change="selectDevice(currentDevice!)"
           >
             <option :value="null" disabled>Select Device</option>
             <option v-for="device in devices" :key="device.id" :value="device.id">
@@ -173,17 +173,17 @@
                         currentTask?.id === task.id
                           ? 'bg-white/20 group-hover:bg-white/30 text-white'
                           : 'bg-base-300 group-hover:bg-primary/20 text-base-content/60 group-hover:text-primary',
-                        task.hidden ? 'opacity-40' : 'opacity-100',
+                        task.isHidden ? 'opacity-40' : 'opacity-100',
                       ]"
                       @click.stop="toggleTaskVisibility(task)"
-                      :title="task.hidden ? 'Show Task' : 'Hide Task'"
+                      :title="task.isHidden ? 'Show Task' : 'Hide Task'"
                     >
-                      <IconRenderer :icon="task.hidden ? 'eye-off' : 'eye'" class="w-4.5 h-4.5" />
+                      <IconRenderer :icon="task.isHidden ? 'eye-off' : 'eye'" class="w-4.5 h-4.5" />
                     </div>
                     <span
                       class="truncate font-semibold tracking-tight transition-colors"
                       :class="[
-                        task.hidden ? 'opacity-40 italic font-normal' : '',
+                        task.isHidden ? 'opacity-40 italic font-normal' : '',
                         currentTask?.id === task.id ? 'text-white' : '',
                       ]"
                     >
@@ -316,8 +316,6 @@
                 </svg>
               </button>
             </div>
-
-            <!-- Console moved to parent level -->
           </div>
 
           <!-- 4. Right Panel (Properties) -->
@@ -328,7 +326,7 @@
           />
         </div>
 
-        <div v-if="activeNavTab !== 'task'" class="flex-1 flex flex-col bg-base-100 overflow-hidden">
+        <div v-show="activeNavTab !== 'task'" class="flex-1 flex flex-col bg-base-100 overflow-hidden">
           <PolicyManager
             ref="policyManagerRef"
             :active-tab="activeNavTab"
@@ -426,7 +424,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, markRaw, onUnmounted } from 'vue';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
@@ -446,17 +444,23 @@ import SideNavBar from './script-editor/components/SideNavBar.vue';
 import PolicyManager from './script-editor/PolicyManagement.vue';
 
 // Composables
-import { useDragAndDrop } from './script-editor/composables/useDragAndDrop.js';
-import { useConsoleLog, LOG_LEVELS } from './script-editor/composables/useConsoleLog.js';
-import { useTaskManager } from './script-editor/composables/useTaskManager.js';
-import { useThemeManager, useFlowEditor, useEditorDevice } from './script-editor/composables';
+import {
+  useDragAndDrop,
+  useConsoleLog,
+  LOG_LEVELS,
+  useTaskManager,
+  useThemeManager,
+  useFlowEditor,
+  useEditorDevice,
+} from './script-editor/composables';
 
-//store
-import { editorThemeKey, deviceKey, setToStore, getFromStore } from '../store/store.js';
+// store
+import { editorThemeKey, deviceKey, setToStore, getFromStore } from '../store/store';
 
-//data
+// data
 import { useDevices } from '../assets/js/useDevices.js';
-import { ScriptTable } from '../types/bindings/ScriptTable.ts';
+import type { ScriptTable, ScriptInfo } from '../types/bindings';
+import type { JsonValue } from '../types/bindings/serde_json/JsonValue.js';
 
 // ============================================
 // 核心状态
@@ -468,24 +472,22 @@ const showMiniMap = ref(false);
 const activeTab = ref('tasks');
 const activeNavTab = ref('task');
 
-// 从 URL 解析脚本 ID
 const params = new URLSearchParams(window.location.search);
 const scriptId = ref(params.get('id') || '');
 const scriptName = ref('加载中...');
-const scriptInfo = ref(null);
+const scriptInfo = ref<ScriptInfo | null>(null);
 
-// Console Resizing
 const consoleHeight = ref(160);
 const isResizing = ref(false);
 
-const startResize = (_) => {
+const startResize = (_: MouseEvent) => {
   isResizing.value = true;
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', stopResize);
   document.body.style.cursor = 'ns-resize';
 };
 
-const onResize = (e) => {
+const onResize = (e: MouseEvent) => {
   if (!isResizing.value) return;
   const newHeight = window.innerHeight - e.clientY;
   if (newHeight > 60 && newHeight < window.innerHeight * 0.7) {
@@ -504,13 +506,9 @@ const stopResize = () => {
 // Composables 初始化
 // ============================================
 
-// 1. Console Log
 const { consoleLogs, consoleRef, logClass, addLog, clearConsole } = useConsoleLog();
-
-// 2. Theme Manager
 const { currentEditorTheme, toggleTheme, initTheme } = useThemeManager();
 
-// 5. 设备管理
 const { getAllDevices, getUuidV7 } = useDevices();
 const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
   getAllDevices,
@@ -519,12 +517,8 @@ const { devices, currentDevice, loadDevices, selectDevice } = useEditorDevice({
   deviceKey,
 });
 
-// PolicyManager ref for save integration
-const policyManagerRef = ref(null);
-
-// 3.VueFlow 设置
+const policyManagerRef = ref<any>(null);
 const nodeTypes = { custom: markRaw(FlowNode) };
-
 const { screenToFlowCoordinate } = useVueFlow();
 
 const {
@@ -533,25 +527,16 @@ const {
   selectedNode,
   showDeleteConfirm,
   nodesToDelete,
-
-  // 节点操作
   addNodeToCanvas,
   updateNodeData,
-
-  //vue-flow 内容
   onPaneClick,
   fitView,
-
-  // 连接
   onConnect,
-
-  // 删除
   requestDeleteSelected,
   confirmDelete,
   cancelDelete,
-} = useFlowEditor({ addLog, LOG_LEVELS, getUuidV7 });
+} = useFlowEditor({ addLog, logLevel: LOG_LEVELS, getUuidV7 });
 
-// 4. Task Manager
 const {
   taskList,
   currentTask,
@@ -575,31 +560,32 @@ const loadScriptData = async () => {
   if (!scriptId.value) return;
 
   try {
-    const table = await invoke('get_script_by_id_cmd', { scriptId: scriptId.value });
+    const table = await invoke<ScriptTable>('get_script_by_id_cmd', { scriptId: scriptId.value });
     if (table) {
       scriptInfo.value = table.data;
       scriptName.value = table.data.name;
       addLog(`加载脚本成功: ${scriptName.value}`, LOG_LEVELS.INFO);
 
-      // 加载任务
-      const tasks = await invoke('get_script_tasks_cmd', { scriptId: scriptId.value });
+      const tasks = await invoke<any[]>('get_script_tasks_cmd', { scriptId: scriptId.value });
       if (tasks && tasks.length > 0) {
         taskList.value = tasks.map((t) => ({
           id: t.id,
+          scriptId: t.scriptId,
           name: t.name,
-          hidden: t.isHidden,
-          nodes: t.nodes,
-          edges: t.edges,
-          uiData: t.data?.uiData || {},
-          variables: t.data?.variables || {},
+          isHidden: t.isHidden,
+          nodes: t.nodes as JsonValue,
+          edges: t.edges as JsonValue,
+          data: {
+            uiData: t.data?.uiData || ({} as JsonValue),
+            variables: t.data?.variables || ({} as JsonValue),
+          },
         }));
       } else {
         taskList.value = [];
         await createNewTask();
       }
 
-      // 避免无任务时，createNewTask显示切换任务
-      if (taskList.value.length > 1) {
+      if (taskList.value.length > 0) {
         selectTask(taskList.value[0]);
       }
     }
@@ -610,37 +596,37 @@ const loadScriptData = async () => {
 
 const saveScript = async () => {
   try {
-    // 0. 保存当前策略数据
     if (policyManagerRef.value?.saveCurrentPolicy) {
       await policyManagerRef.value.saveCurrentPolicy();
     }
 
-    // 1. 更新当前任务的数据
     if (currentTask.value) {
-      currentTask.value.nodes = [...nodes.value];
-      currentTask.value.edges = [...edges.value];
+      currentTask.value.nodes = [...nodes.value] as JsonValue;
+      currentTask.value.edges = [...edges.value] as JsonValue;
     }
 
-    // 2. 将所有任务打包到 scriptInfo 中
     if (scriptInfo.value) {
       scriptInfo.value.updateTime = new Date().toISOString();
-      scriptInfo.value.tasks = taskList.value.map((t) => ({
+      const payloadTasks = taskList.value.map((t) => ({
         id: t.id,
+        scriptId: t.scriptId || scriptId.value,
         name: t.name,
-        isHidden: t.hidden,
-        nodes: t.nodes,
-        edges: t.edges,
+        isHidden: t.isHidden,
+        nodes: t.nodes as any,
+        edges: t.edges as any,
         data: {
-          uiData: t.uiData || {},
-          variables: t.variables || {},
+          uiData: t.data.uiData || {},
+          variables: t.data.variables || {},
         },
       }));
 
-      // 3. 保存全量脚本信息
       await invoke('save_script_cmd', {
         script: {
           id: scriptId.value,
-          data: scriptInfo.value,
+          data: {
+            ...scriptInfo.value,
+            tasks: payloadTasks,
+          },
         },
       });
 
@@ -651,19 +637,12 @@ const saveScript = async () => {
   }
 };
 
-// ============================================
-// 拖放功能
-// ============================================
 const { onDragOver, onDrop, onDragLeave, isDragOver } = useDragAndDrop({
   onAddNode: addNodeToCanvas,
   screenToFlowCoordinate,
 });
 
-// ============================================
-// 键盘事件
-// ============================================
-const handleKeyDown = (event) => {
-  // Ctrl+S to save
+const handleKeyDown = (event: KeyboardEvent) => {
   if ((event.ctrlKey || event.metaKey) && event.key === 's') {
     event.preventDefault();
     saveScript();
@@ -672,7 +651,7 @@ const handleKeyDown = (event) => {
 
   if (event.key === 'Delete' || event.key === 'Backspace') {
     const activeElement = document.activeElement;
-    if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+    if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
       return;
     }
     event.preventDefault();
@@ -680,9 +659,6 @@ const handleKeyDown = (event) => {
   }
 };
 
-// ============================================
-// 生命周期
-// ============================================
 onMounted(async () => {
   await initTheme(editorThemeKey);
   await loadDevices();
@@ -694,7 +670,7 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown);
 });
 </script>
-<!-- MyComponent.vue -->
+
 <style>
 @import '../assets/css/script-editor.css';
 </style>
