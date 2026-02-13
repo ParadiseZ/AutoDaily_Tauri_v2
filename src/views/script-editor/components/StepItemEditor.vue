@@ -83,7 +83,7 @@
 
             <!-- If/While Form -->
             <div v-if="['if', 'while'].includes(step.op)" class="space-y-6">
-              <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm">
+              <div class="p-5 bg-base-100 rounded-4xl border border-base-300 shadow-sm">
                 <SearchRuleEditor
                   :rule="(localStep as any).cond"
                   @update="
@@ -93,7 +93,7 @@
                 />
               </div>
 
-              <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm relative">
+              <div class="p-5 bg-base-100 rounded-4xl border border-base-300 shadow-sm relative">
                 <div
                   class="absolute -top-3 left-8 bg-base-100 px-3 py-1 border border-base-300 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm"
                 >
@@ -113,7 +113,7 @@
             <!-- Sequence Form -->
             <div
               v-if="step.op === 'sequence'"
-              class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm relative"
+              class="p-5 bg-base-100 rounded-4xl border border-base-300 shadow-sm relative"
             >
               <div
                 class="absolute -top-3 left-8 bg-base-100 px-3 py-1 border border-base-300 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm"
@@ -338,7 +338,7 @@
                   @change="onDataUpdate(localStep)"
                 />
               </div>
-              <div class="p-5 bg-base-100 rounded-[2rem] border border-base-300 shadow-sm">
+              <div class="p-5 bg-base-100 rounded-4xl border border-base-300 shadow-sm">
                 <SearchRuleEditor
                   :rule="(localStep as any).rule || { type: 'Group', op: 'And', scope: 'Global', items: [] }"
                   @update="
@@ -364,7 +364,7 @@
                 </div>
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block"
-                    >值表达式 (Rhai)</label
+                    >表达式 (Rhai)</label
                   >
                   <input
                     type="text"
@@ -453,7 +453,7 @@
             <!-- Placeholder for remaining forms -->
             <div
               v-if="!supportedOps.includes(step.op)"
-              class="p-8 text-center bg-base-200/20 rounded-[2rem] border-2 border-dashed border-base-300 opacity-40"
+              class="p-8 text-center bg-base-200/20 rounded-4xl border-2 border-dashed border-base-300 opacity-40"
             >
               <div class="text-[10px] font-black uppercase tracking-widest mb-2">配置项建设中</div>
               <p class="text-[10px]">该类型 ({{ step.op }}) 的可视化表单正在开发中...</p>
