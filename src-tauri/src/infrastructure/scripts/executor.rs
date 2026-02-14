@@ -230,18 +230,19 @@ impl ScriptExecutor {
                         // 这里需要整合 adb_executor.capture()
                     }
 
-                    let hits = if let Some(snapshot) = &ctx.last_snapshot {
-                        let mut rules = Vec::new();
-                        rules.push(rule.clone());
+                    let result = if let Some(snapshot) = &ctx.last_snapshot {
+                        let rules = vec![rule.clone()];
                         let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(&rules);
-                        Some(searcher.search(snapshot))
+                        let hits = searcher.search(snapshot);
+                        let det_results = &snapshot.det_items;
+                        Some((hits, det_results.clone()))
                     } else {
                         None
                     };
 
-                    if let Some(hits) = hits {
+                    if let Some((hits, det_results)) = result {
                         // 将命中结果存入缓存
-                        let success = rule.evaluate(&hits);
+                        let success = rule.evaluate(&hits, &det_results);
                         ctx.last_hits = hits;
                         // 将命中结果存入变量
                         self.scope.set_value(output_var, success);

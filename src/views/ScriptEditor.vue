@@ -455,12 +455,12 @@ import {
 } from './script-editor/composables';
 
 // store
-import { editorThemeKey, deviceKey, setToStore, getFromStore } from '../store/store';
+import { editorThemeKey, deviceKey, setToStore, getFromStore } from '@/store/store';
 
 // data
-import { useDevices } from '../assets/js/useDevices';
-import type { ScriptTable, ScriptInfo } from '../types/bindings';
-import type { JsonValue } from '../types/bindings/serde_json/JsonValue.js';
+import { useDevices } from '@/assets/js/useDevices';
+import type {ScriptTable, ScriptInfo, ScriptTaskTable} from '@/types/bindings';
+import type { JsonValue } from '@/types/bindings/serde_json/JsonValue';
 
 // ============================================
 // 核心状态
@@ -566,26 +566,16 @@ const loadScriptData = async () => {
       scriptName.value = table.data.name;
       addLog(`加载脚本成功: ${scriptName.value}`, LOG_LEVELS.INFO);
 
-      const tasks = await invoke<any[]>('get_script_tasks_cmd', { scriptId: scriptId.value });
+      const tasks = await invoke<ScriptTaskTable[]>('get_script_tasks_cmd', { scriptId: scriptId.value });
       if (tasks && tasks.length > 0) {
-        taskList.value = tasks.map((t) => ({
-          id: t.id,
-          scriptId: t.scriptId,
-          name: t.name,
-          isHidden: t.isHidden,
-          nodes: t.nodes as JsonValue,
-          edges: t.edges as JsonValue,
-          data: {
-            uiData: t.data?.uiData || ({} as JsonValue),
-            variables: t.data?.variables || ({} as JsonValue),
-          },
-        }));
+        taskList.value = tasks;
       } else {
         taskList.value = [];
         await createNewTask();
       }
 
-      if (taskList.value.length > 0) {
+      if (taskList.value.length > 1) {
+        // @ts-ignore
         selectTask(taskList.value[0]);
       }
     }
@@ -601,8 +591,8 @@ const saveScript = async () => {
     }
 
     if (currentTask.value) {
-      currentTask.value.nodes = [...nodes.value] as unknown as JsonValue;
-      currentTask.value.edges = [...edges.value] as unknown as JsonValue;
+      currentTask.value.nodes = [...nodes.value];
+      currentTask.value.edges = [...edges.value];
     }
 
     if (scriptInfo.value) {

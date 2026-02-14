@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue';
 import type { Ref } from 'vue';
-import type { ScriptTaskTable, ScriptTask } from '../../../types/bindings';
-import type { JsonValue } from '../../../types/bindings/serde_json/JsonValue';
+import type { ScriptTaskTable } from '@/types/bindings';
+import type { JsonValue } from '@/types/bindings/serde_json/JsonValue';
 
 interface TaskOptions {
     nodes: Ref<any[]>;
@@ -15,10 +15,10 @@ export function useTaskManager(options: TaskOptions) {
     const { nodes, edges, addLog = () => { }, LOG_LEVELS = {}, getUuidV7 = async () => '' } = options;
 
     // 任务列表
-    const taskList = ref<ScriptTaskTable[]>([]) as Ref<any[]>;
+    const taskList = ref<ScriptTaskTable[]>([]);
 
     // 当前任务
-    const currentTask = ref<ScriptTaskTable | null>(null) as Ref<any | null>;
+    const currentTask = ref<ScriptTaskTable | null>(null);
 
     // 搜索关键词
     const taskSearch = ref('');
@@ -27,7 +27,7 @@ export function useTaskManager(options: TaskOptions) {
     const filteredTasks = computed(() => {
         if (!taskSearch.value) return taskList.value;
         const search = taskSearch.value.toLowerCase();
-        return taskList.value.filter(t => t.name.toLowerCase().includes(search));
+        return taskList.value.filter((t: any) => t.name.toLowerCase().includes(search));
     });
 
     // 重命名相关
@@ -42,16 +42,16 @@ export function useTaskManager(options: TaskOptions) {
     function selectTask(task: ScriptTaskTable) {
         // 保存当前任务状态
         if (currentTask.value && nodes.value && edges.value) {
-            currentTask.value.nodes = [...nodes.value] as JsonValue;
-            currentTask.value.edges = [...edges.value] as JsonValue;
+            currentTask.value.nodes = [...nodes.value];
+            currentTask.value.edges = [...edges.value];
         }
 
         currentTask.value = task;
 
         // 加载任务的节点和边
         if (nodes.value && edges.value) {
-            nodes.value = [...(task.nodes as any[])];
-            edges.value = [...(task.edges as any[])];
+            nodes.value = [...task.nodes];
+            edges.value = [...task.edges];
         }
 
         addLog(`切换任务： ${task.name}`, LOG_LEVELS.INFO);
@@ -68,19 +68,20 @@ export function useTaskManager(options: TaskOptions) {
         const newTask: ScriptTaskTable = {
             id: newId,
             scriptId: '', // Will be set by parent
-            name: `New Task ${newTaskCount}`,
+            name: `新任务 ${newTaskCount}`,
             isHidden: false,
             nodes: [
                 { id: await getUuidV7(), type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
                 { id: await getUuidV7(), type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
-            ] as JsonValue,
-            edges: [] as JsonValue,
+            ],
+            edges: [],
             data: {
                 uiData: {} as JsonValue,
                 variables: {} as JsonValue
             }
         };
         
+        // @ts-ignore
         taskList.value.push(newTask);
         selectTask(newTask);
     }
@@ -157,5 +158,3 @@ export function useTaskManager(options: TaskOptions) {
         cancelRename,
     };
 }
-
-export default useTaskManager;

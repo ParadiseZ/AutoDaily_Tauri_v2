@@ -1,6 +1,6 @@
-use image::{DynamicImage, GenericImageView, Rgba};
-use crate::infrastructure::vision::vision_error::VisionResult;
 use crate::domain::vision::result::BoundingBox;
+use crate::infrastructure::vision::vision_error::VisionResult;
+use image::{GenericImageView, Rgba, RgbaImage};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ColorTag {
@@ -42,7 +42,7 @@ pub struct ColorAnalyzer;
 impl ColorAnalyzer {
     /// 分析给定区域的主导背景色和前景色
     /// 这里采用简化方案：采样区域像素并映射到 HSV 区间
-    pub fn analyze_box(image: &DynamicImage, bbox: &BoundingBox) -> VisionResult<(ColorTag, ColorTag)> {
+    pub fn analyze_box(image: &RgbaImage, bbox: &BoundingBox) -> VisionResult<(ColorTag, ColorTag)> {
         let (img_w, img_h) = image.dimensions();
         
         // 边界限制

@@ -1,96 +1,70 @@
-use crate::domain::vision::result::{OcrResult, DetResult, BoundingBox};
-use crate::infrastructure::vision::color_analyzer::ColorAnalyzer;
+use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::vision::vision_error::VisionResult;
 use aho_corasick::AhoCorasick;
-use serde::{Deserialize, Serialize};
-use image::DynamicImage;
+use image::RgbaImage;
 use regex::Regex;
+use std::collections::HashSet;
+use serde::{Deserialize, Serialize};
 
-/// 视觉对象的统一包装，用于搜索命中后的回溯
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
-#[ts(export)]
-pub enum VisionItem {
-    Ocr(OcrResult),
-    Det(DetResult),
-}
 
-impl VisionItem {
-    pub fn bounding_box(&self) -> &BoundingBox {
-        match self {
-            VisionItem::Ocr(r) => &r.bounding_box,
-            VisionItem::Det(r) => &r.bounding_box,
-        }
-    }
-
-    pub fn txt(&self) -> String {
-        match self {
-            VisionItem::Ocr(r) => r.txt.clone(),
-            VisionItem::Det(r) => r.label.clone(),
-        }
-    }
-}
-
-/// 视觉快照：包含脱敏/标记后的搜索缓冲区及元数据映射
-/// 每一帧图像处理后只需构建一次
+/// 文本快照：仅包含 OCR 文本的搜索缓冲区及元数据映射
+/// YOLO 检测结果不参与文本搜索，由 SearchRule::evaluate 单独处理
 #[derive(Debug)]
 pub struct VisionSnapshot {
-    /// 搜索缓冲区：`__BG:YEL__ __FG:BLK__ 确认 \n ...`
+    /// 搜索缓冲区：仅包含 OCR 文本内容
+    /// 格式：`__BG:YEL__ __FG:BLK__ 确认 \n ...`
     pub buffer: String,
-    /// 字符偏移量到 VisionItem 索引的映射 (sorted by offset)
+    /// 字符偏移量到 OcrResult 索引的映射 (sorted by offset)
     pub offset_map: Vec<(usize, usize)>,
-    /// 原始视觉项集合
-    pub items: Vec<VisionItem>,
+    /// OCR 结果集合
+    pub ocr_items: Vec<OcrResult>,
+    /// YOLO 检测结果集合（保留但不参与文本搜索）
+    pub det_items: Vec<DetResult>,
+
+    pub capture: Option<RgbaImage>,
 }
 
 impl VisionSnapshot {
     pub fn new(
         ocr_results: Vec<OcrResult>,
         det_results: Vec<DetResult>,
-        image: Option<&DynamicImage>,
+        image: Option<RgbaImage>,
     ) -> VisionResult<Self> {
         let mut buffer = String::new();
         let mut offset_map = Vec::new();
-        let mut items = Vec::new();
 
-        // 1. 合并并包装所有原始结果
-        for r in ocr_results { items.push(VisionItem::Ocr(r)); }
-        for r in det_results { items.push(VisionItem::Det(r)); }
-
-        // 2. 构建缓冲区
-        for (idx, item) in items.iter().enumerate() {
+        // 仅将 OCR 文本写入搜索缓冲区
+        for (idx, ocr) in ocr_results.iter().enumerate() {
             let start_offset = buffer.len();
-            
+
             // 写入颜色标记 (如果有图像)
-            if let Some(img) = image {
-                if let Ok((bg, fg)) = ColorAnalyzer::analyze_box(img, item.bounding_box()) {
+            /*if let Some(img) = image {
+                if let Ok((bg, fg)) = ColorAnalyzer::analyze_box(img, &ocr.bounding_box) {
                     buffer.push_str(&format!("__BG:{}__ __FG:{}__ ", bg.as_str(), fg.as_str()));
                 }
-            }
+            }*/
 
-            // 写入内容标记
-            match item {
-                VisionItem::Ocr(r) => {
-                    buffer.push_str(&r.txt);
-                }
-                VisionItem::Det(r) => {
-                    // YOLO 物体使用特定 ID 标记：__OBJ:index__
-                    buffer.push_str(&format!("__OBJ:{}__", r.index));
-                }
-            }
-            
+            // 写入 OCR 文本内容
+            buffer.push_str(&ocr.txt);
             buffer.push('\n'); // 换行作为分隔符
             offset_map.push((start_offset, idx));
         }
 
-        Ok(Self { buffer, offset_map, items })
+        Ok(Self {
+            buffer,
+            offset_map,
+            ocr_items: ocr_results,
+            det_items: det_results,
+            capture: image,
+        })
     }
 
-    /// 根据字符偏移量查找关联的 VisionItem
-    pub fn find_item_at(&self, offset: usize) -> Option<&VisionItem> {
+    /// 根据字符偏移量查找关联的 OcrResult
+    pub fn find_ocr_at(&self, offset: usize) -> Option<&OcrResult> {
         let idx = self.offset_map.binary_search_by(|(off, _)| off.cmp(&offset))
             .unwrap_or_else(|x| if x > 0 { x - 1 } else { 0 });
-        
-        self.offset_map.get(idx).map(|(_, item_idx)| &self.items[*item_idx])
+
+        self.offset_map.get(idx).map(|(_, item_idx)| &self.ocr_items[*item_idx])
     }
 }
 
@@ -113,15 +87,21 @@ pub enum SearchScope {
     Item,
 }
 
-/// 逻辑规则定义
+/// 搜索规则定义
+/// 结构体保留所有变体（Keyword、YoloLabel、Regex、Group）以支持前端展示和数据编辑。
+/// 但 OcrSearcher 仅处理文本相关变体（Keyword、Regex），
+/// YoloLabel 由 evaluate 方法通过 DetResult 列表单独判断。
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub enum SearchRule {
     /// 关键字包含
     Keyword {
-        pattern: String 
+        pattern: String
     },
-    /// 正则匹配
+    /// yolo 标签匹配（不参与文本搜索，由 evaluate 单独处理）
+    YoloLabel{
+        idx: i32,
+    },
     /// 正则匹配
     Regex {
         pattern: String,
@@ -137,14 +117,16 @@ pub enum SearchRule {
     },
 }
 
-/// 搜索命中结果
+/// 文本搜索命中结果（仅包含 OCR 文本命中）
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub struct SearchHit {
     pub pattern: String,
-    pub item: VisionItem,
+    pub ocr_item: OcrResult,
 }
 
+/// OCR 文本搜索器：仅处理文本类条件（Keyword、Regex），
+/// 通过 Aho-Corasick 自动机实现多模式一次遍历。
 pub struct OcrSearcher {
     automaton: AhoCorasick,
     patterns: Vec<String>,
@@ -152,6 +134,8 @@ pub struct OcrSearcher {
 }
 
 impl OcrSearcher {
+    /// 从规则集中提取文本条件，构建搜索自动机。
+    /// YoloLabel 变体会被跳过，不参与文本搜索。
     pub fn new(rules: &[SearchRule]) -> Self {
         let mut keywords = Vec::new();
         let mut regexes = Vec::new();
@@ -159,6 +143,9 @@ impl OcrSearcher {
         fn collect(rule: &SearchRule, keywords: &mut Vec<String>, regexes: &mut Vec<(String, Regex)>) {
             match rule {
                 SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
+                SearchRule::YoloLabel { .. } => {
+                    // YOLO 标签不参与文本搜索，跳过
+                }
                 SearchRule::Regex { pattern, .. } => {
                     if let Ok(re) = Regex::new(pattern) {
                         regexes.push((pattern.clone(), re));
@@ -183,27 +170,34 @@ impl OcrSearcher {
         Self { automaton, patterns: keywords, regexes }
     }
 
+    /// 在文本快照中搜索，返回所有文本命中结果
     pub fn search(&self, snapshot: &VisionSnapshot) -> Vec<SearchHit> {
         let mut hits = Vec::new();
-        
-        // 1. Aho-Corasick for literals
+        let mut seen = HashSet::new();
+
+        // 1. Aho-Corasick 关键字匹配
         for mat in self.automaton.find_iter(&snapshot.buffer) {
-            if let Some(item) = snapshot.find_item_at(mat.start()) {
-                hits.push(SearchHit {
-                    pattern: self.patterns[mat.pattern().as_usize()].clone(),
-                    item: item.clone(),
-                });
+            if let Some(ocr) = snapshot.find_ocr_at(mat.start()) {
+                let pattern = self.patterns[mat.pattern().as_usize()].clone();
+                if seen.insert((pattern.clone(), ocr.id)) {
+                    hits.push(SearchHit {
+                        pattern,
+                        ocr_item: ocr.clone(),
+                    });
+                }
             }
         }
 
-        // 2. Regex for patterns
+        // 2. 正则表达式匹配
         for (pattern_str, re) in &self.regexes {
             for mat in re.find_iter(&snapshot.buffer) {
-                if let Some(item) = snapshot.find_item_at(mat.start()) {
-                    hits.push(SearchHit {
-                        pattern: pattern_str.clone(),
-                        item: item.clone(),
-                    });
+                if let Some(ocr) = snapshot.find_ocr_at(mat.start()) {
+                    if seen.insert((pattern_str.clone(), ocr.id)) {
+                        hits.push(SearchHit {
+                            pattern: pattern_str.clone(),
+                            ocr_item: ocr.clone(),
+                        });
+                    }
                 }
             }
         }
@@ -213,55 +207,62 @@ impl OcrSearcher {
 }
 
 impl SearchRule {
-    /// 判定判定结果集是否满足规则
-    /// hits: 搜索到的所有命中所涉及的 pattern
-    pub fn evaluate(&self, hits: &[SearchHit]) -> bool {
+    /// 判定搜索结果是否满足规则。
+    ///
+    /// - `hits`: OcrSearcher 搜索到的文本命中结果
+    /// - `det_results`: YOLO 检测结果列表，用于 YoloLabel 条件的判断
+    ///
+    /// 文本条件（Keyword、Regex）从 hits 中查找；
+    /// YOLO 条件从 det_results 中查找；
+    /// 两者在 Group 逻辑中可自由组合。
+    pub fn evaluate(&self, hits: &[SearchHit], det_results: &[DetResult]) -> bool {
         match self {
-            SearchRule::Keyword { pattern } => hits.iter().any(|h| &h.pattern == pattern),
+            SearchRule::Keyword { pattern } => {
+                hits.iter().any(|h| &h.pattern == pattern)
+            }
+            SearchRule::YoloLabel { idx } => {
+                // 直接在 YOLO 检测结果中查找对应 index
+                det_results.iter().any(|d| d.index == *idx )
+            }
             SearchRule::Regex { pattern, .. } => {
                 hits.iter().any(|h| &h.pattern == pattern)
             }
             SearchRule::Group { op, scope, items } => {
                 match scope {
                     SearchScope::Global => {
-                        // 全局模式：所有子项的 eval 仅基于 hits 全集
+                        // 全局模式：所有子项的 eval 基于 hits 全集和 det_results 全集
                         match op {
-                            LogicOp::And => items.iter().all(|r| r.evaluate(hits)),
-                            LogicOp::Or => items.iter().any(|r| r.evaluate(hits)),
+                            LogicOp::And => items.iter().all(|r| r.evaluate(hits, det_results)),
+                            LogicOp::Or => items.iter().any(|r| r.evaluate(hits, det_results)),
                             LogicOp::Not => {
                                 if items.is_empty() { true }
-                                else { !items[0].evaluate(hits) }
+                                else { !items[0].evaluate(hits, det_results) }
                             }
                         }
                     }
                     SearchScope::Item => {
-                        // 元素模式：需要存在【至少一个视觉项】，其内部命中的模式集合满足逻辑
+                        // 元素模式：需要存在至少一个 OCR 元素，其内部命中的模式集合满足逻辑
+                        // 注意：YoloLabel 条件在 Item 模式下按 Global 逻辑处理，
+                        // 因为 YOLO 检测结果与 OCR 文本元素无对应关系
                         use std::collections::HashMap;
                         let mut item_hits: HashMap<String, Vec<SearchHit>> = HashMap::new();
                         for hit in hits {
-                            // 使用 VisionItem 的 id 作为 key 来分组
-                            let key = hit.item.txt();
+                            let key = hit.ocr_item.txt.clone();
                             item_hits.entry(key).or_default().push(hit.clone());
                         }
 
                         match op {
                             LogicOp::And => {
                                 item_hits.values().any(|sub_hits| {
-                                    items.iter().all(|r| r.evaluate(sub_hits))
+                                    items.iter().all(|r| r.evaluate(sub_hits, det_results))
                                 })
                             }
                             LogicOp::Or => {
-                                // 对于 OR，只要整体命中了其中一个即可（等同于 Global）
-                                hits.iter().any(|h| {
-                                    items.iter().any(|r| {
-                                        if let SearchRule::Keyword { pattern } = r { h.pattern == *pattern }
-                                        else { r.evaluate(hits) }
-                                    })
-                                })
+                                items.iter().any(|r| r.evaluate(hits, det_results))
                             }
                             LogicOp::Not => {
                                 !item_hits.values().any(|sub_hits| {
-                                    items.iter().any(|r| r.evaluate(sub_hits))
+                                    items.iter().any(|r| r.evaluate(sub_hits, det_results))
                                 })
                             }
                         }
@@ -280,10 +281,9 @@ impl SearchRule {
     }
 
     fn collect_keywords(&self, keywords: &mut Vec<String>) {
-        // This is now handled by OcrSearcher::new directly using rules
-        // But we keep it for compatibility if needed elsewhere
         match self {
             SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
+            SearchRule::YoloLabel { .. } => {},
             SearchRule::Regex { pattern, .. } => keywords.push(pattern.clone()),
             SearchRule::Group { items, .. } => {
                 for item in items {
@@ -300,14 +300,20 @@ mod tests {
     use crate::domain::vision::result::BoundingBox;
 
     #[test]
-    fn test_fusion_search() {
+    fn test_text_only_search() {
         let ocr = vec![
             OcrResult {
                 id: 1, pre_id: 0, next_id: 0,
                 bounding_box: BoundingBox::new(10, 10, 50, 30),
                 txt: "Confirm".to_string(),
                 score: vec![0.9], index: vec![0], txt_char: vec!["C".into()]
-            }
+            },
+            OcrResult {
+                id: 2, pre_id: 0, next_id: 0,
+                bounding_box: BoundingBox::new(60, 10, 120, 30),
+                txt: "Cancel".to_string(),
+                score: vec![0.85], index: vec![1], txt_char: vec!["C".into()]
+            },
         ];
         let det = vec![
             DetResult {
@@ -319,26 +325,92 @@ mod tests {
         ];
 
         // 构建快照 (不带图像则不分析颜色)
-        let snapshot = VisionSnapshot::new(ocr, det, None).unwrap();
-        
-        // 规则：包含 "Confirm" 且包含 5号物体 (button)
-        let mut rules= Vec::new();
-        rules.push(
-                SearchRule::Group {
-                    op: LogicOp::And,
-                    scope: SearchScope::Global,
-                    items: vec![
-                        SearchRule::Keyword { pattern: "Confirm".into() },
-                        SearchRule::Keyword { pattern: "__OBJ:5__".into() },
-                    ]
-                }
-        );
+        let snapshot = VisionSnapshot::new(ocr, det.clone(), None).unwrap();
 
-        let searcher = OcrSearcher::new(&rules);
+        // 验证缓冲区中不包含 YOLO 标记
+        assert!(!snapshot.buffer.contains("__OBJ:"));
+        assert!(snapshot.buffer.contains("Confirm"));
+        assert!(snapshot.buffer.contains("Cancel"));
+
+        // 规则：包含 "Confirm" 且存在 5 号 YOLO 目标
+        let rule = SearchRule::Group {
+            op: LogicOp::And,
+            scope: SearchScope::Global,
+            items: vec![
+                SearchRule::Keyword { pattern: "Confirm".into() },
+                SearchRule::YoloLabel { idx: 5 },
+            ]
+        };
+
+        let searcher = OcrSearcher::new(&[rule.clone()]);
         let hits = searcher.search(&snapshot);
 
-        for rule in rules{
-            assert!(rule.evaluate(&hits));
-        }
+        // 文本搜索应命中 "Confirm"
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].pattern, "Confirm");
+
+        // 综合评估应通过（文本 + YOLO 都满足）
+        assert!(rule.evaluate(&hits, &det));
+    }
+
+    #[test]
+    fn test_yolo_only_rule_no_text_hit() {
+        let ocr = vec![];
+        let det = vec![
+            DetResult {
+                id: 1, pre_id: 0, next_id: 0,
+                bounding_box: BoundingBox::new(100, 100, 150, 150),
+                index: 3,
+                label: "icon".into(), score: 0.9
+            }
+        ];
+
+        let snapshot = VisionSnapshot::new(ocr, det.clone(), None).unwrap();
+
+        // 纯 YOLO 规则
+        let rule = SearchRule::YoloLabel { idx: 3 };
+        let searcher = OcrSearcher::new(&[rule.clone()]);
+        let hits = searcher.search(&snapshot);
+
+        // 文本搜索无命中
+        assert!(hits.is_empty());
+        // 但 YOLO 评估应通过
+        assert!(rule.evaluate(&hits, &det));
+    }
+
+    #[test]
+    fn test_not_yolo_rule() {
+        let det = vec![];
+
+        // NOT(存在3号目标) — 在没有检测结果时应为 true
+        let rule = SearchRule::Group {
+            op: LogicOp::Not,
+            scope: SearchScope::Global,
+            items: vec![SearchRule::YoloLabel { idx: 3 }],
+        };
+
+        assert!(rule.evaluate(&[], &det));
+    }
+
+    #[test]
+    fn test_deduplication() {
+        let ocr = vec![
+            OcrResult {
+                id: 1, pre_id: 0, next_id: 0,
+                bounding_box: BoundingBox::new(10, 10, 100, 30),
+                txt: "Hello Hello".to_string(), // Contains two "Hello"
+                score: vec![0.9, 0.9], index: vec![0, 1], txt_char: vec!["H".into()]
+            },
+        ];
+        let snapshot = VisionSnapshot::new(ocr, vec![], None).unwrap();
+
+        let rule = SearchRule::Keyword { pattern: "Hello".into() };
+        let searcher = OcrSearcher::new(&[rule]);
+        let hits = searcher.search(&snapshot);
+
+        // Should only have 1 hit despite "Hello" appearing twice in the same box
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].pattern, "Hello");
+        assert_eq!(hits[0].ocr_item.id, 1);
     }
 }

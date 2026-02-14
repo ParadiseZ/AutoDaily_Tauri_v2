@@ -117,7 +117,7 @@ impl<'a> PolicySetEvaluator<'a> {
 
         // 4. 返回所有满足条件的策略
         self.policies.iter()
-            .filter(|p| p.cond.evaluate(&hits))
+            .filter(|p| p.cond.evaluate(&hits, &snapshot.det_items))
             .copied()
             .collect()
     }

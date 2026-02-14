@@ -21,9 +21,10 @@ pub struct ScriptTaskTable {
     pub script_id: ScriptId,
     pub name: String,
     pub is_hidden: bool,
-    #[ts(as = "serde_json::Value")]
+    ///直接指定（原 #[ts(as = "serde_json::Value")]）
+    #[ts(type = "Array<import('@vue-flow/core').Node>")]
     pub nodes: Json<Value>,
-    #[ts(as = "serde_json::Value")]
+    #[ts(type = "import('@vue-flow/core').Edge[]")]
     pub edges: Json<Value>,
     #[ts(as = "ScriptTask")]
     pub data: Json<ScriptTask>,
