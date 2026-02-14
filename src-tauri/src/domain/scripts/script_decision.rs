@@ -231,7 +231,7 @@ pub enum StepKind {
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum StateTarget {
     Policy { id: PolicyId },
     Task { id: TaskId },
@@ -239,7 +239,7 @@ pub enum StateTarget {
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum StateStatus {
     Skip { value: bool },
     Done { value: bool },
@@ -248,7 +248,7 @@ pub enum StateStatus {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum LabelType {
     LabelIdx { idx: i32 },
     LabelName { name: String },

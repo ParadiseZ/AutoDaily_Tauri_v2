@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug)]
 pub struct VisionSnapshot {
     /// 搜索缓冲区：仅包含 OCR 文本内容
-    /// 格式：`__BG:YEL__ __FG:BLK__ 确认 \n ...`
     pub buffer: String,
     /// 字符偏移量到 OcrResult 索引的映射 (sorted by offset)
     pub offset_map: Vec<(usize, usize)>,
@@ -88,18 +87,19 @@ pub enum SearchScope {
 }
 
 /// 搜索规则定义
-/// 结构体保留所有变体（Keyword、YoloLabel、Regex、Group）以支持前端展示和数据编辑。
+/// 结构体保留所有变体（Keyword、YoloIdx、Regex、Group）以支持前端展示和数据编辑。
 /// 但 OcrSearcher 仅处理文本相关变体（Keyword、Regex），
-/// YoloLabel 由 evaluate 方法通过 DetResult 列表单独判断。
+/// YoloIdx 由 evaluate 方法通过 DetResult 列表单独判断。
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
+#[serde(tag = "type")]
 pub enum SearchRule {
     /// 关键字包含
     Keyword {
         pattern: String
     },
     /// yolo 标签匹配（不参与文本搜索，由 evaluate 单独处理）
-    YoloLabel{
+    YoloIdx{
         idx: i32,
     },
     /// 正则匹配
@@ -135,7 +135,7 @@ pub struct OcrSearcher {
 
 impl OcrSearcher {
     /// 从规则集中提取文本条件，构建搜索自动机。
-    /// YoloLabel 变体会被跳过，不参与文本搜索。
+    /// YoloIdx 变体会被跳过，不参与文本搜索。
     pub fn new(rules: &[SearchRule]) -> Self {
         let mut keywords = Vec::new();
         let mut regexes = Vec::new();
@@ -143,7 +143,7 @@ impl OcrSearcher {
         fn collect(rule: &SearchRule, keywords: &mut Vec<String>, regexes: &mut Vec<(String, Regex)>) {
             match rule {
                 SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
-                SearchRule::YoloLabel { .. } => {
+                SearchRule::YoloIdx { .. } => {
                     // YOLO 标签不参与文本搜索，跳过
                 }
                 SearchRule::Regex { pattern, .. } => {
@@ -210,7 +210,7 @@ impl SearchRule {
     /// 判定搜索结果是否满足规则。
     ///
     /// - `hits`: OcrSearcher 搜索到的文本命中结果
-    /// - `det_results`: YOLO 检测结果列表，用于 YoloLabel 条件的判断
+    /// - `det_results`: YOLO 检测结果列表，用于 YoloIdx 条件的判断
     ///
     /// 文本条件（Keyword、Regex）从 hits 中查找；
     /// YOLO 条件从 det_results 中查找；
@@ -220,7 +220,7 @@ impl SearchRule {
             SearchRule::Keyword { pattern } => {
                 hits.iter().any(|h| &h.pattern == pattern)
             }
-            SearchRule::YoloLabel { idx } => {
+            SearchRule::YoloIdx { idx } => {
                 // 直接在 YOLO 检测结果中查找对应 index
                 det_results.iter().any(|d| d.index == *idx )
             }
@@ -242,7 +242,7 @@ impl SearchRule {
                     }
                     SearchScope::Item => {
                         // 元素模式：需要存在至少一个 OCR 元素，其内部命中的模式集合满足逻辑
-                        // 注意：YoloLabel 条件在 Item 模式下按 Global 逻辑处理，
+                        // 注意：YoloIdx 条件在 Item 模式下按 Global 逻辑处理，
                         // 因为 YOLO 检测结果与 OCR 文本元素无对应关系
                         use std::collections::HashMap;
                         let mut item_hits: HashMap<String, Vec<SearchHit>> = HashMap::new();
@@ -283,7 +283,7 @@ impl SearchRule {
     fn collect_keywords(&self, keywords: &mut Vec<String>) {
         match self {
             SearchRule::Keyword { pattern } => keywords.push(pattern.clone()),
-            SearchRule::YoloLabel { .. } => {},
+            SearchRule::YoloIdx { .. } => {},
             SearchRule::Regex { pattern, .. } => keywords.push(pattern.clone()),
             SearchRule::Group { items, .. } => {
                 for item in items {
@@ -338,7 +338,7 @@ mod tests {
             scope: SearchScope::Global,
             items: vec![
                 SearchRule::Keyword { pattern: "Confirm".into() },
-                SearchRule::YoloLabel { idx: 5 },
+                SearchRule::YoloIdx { idx: 5 },
             ]
         };
 
@@ -368,7 +368,7 @@ mod tests {
         let snapshot = VisionSnapshot::new(ocr, det.clone(), None).unwrap();
 
         // 纯 YOLO 规则
-        let rule = SearchRule::YoloLabel { idx: 3 };
+        let rule = SearchRule::YoloIdx { idx: 3 };
         let searcher = OcrSearcher::new(&[rule.clone()]);
         let hits = searcher.search(&snapshot);
 
@@ -386,7 +386,7 @@ mod tests {
         let rule = SearchRule::Group {
             op: LogicOp::Not,
             scope: SearchScope::Global,
-            items: vec![SearchRule::YoloLabel { idx: 3 }],
+            items: vec![SearchRule::YoloIdx { idx: 3 }],
         };
 
         assert!(rule.evaluate(&[], &det));

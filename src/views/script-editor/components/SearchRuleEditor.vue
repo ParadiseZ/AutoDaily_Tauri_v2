@@ -159,6 +159,7 @@ const parseInputRule = (r: any): any => {
   if (r.Group) return { type: 'Group', ...r.Group };
   if (r.Keyword) return { type: 'Keyword', pattern: r.Keyword.pattern };
   if (r.Regex) return { type: 'Regex', pattern: r.Regex.pattern };
+  if (r.YoloIdx) return { type: 'YoloIdx', idx: r.YoloLabel.idx };
   return { type: 'Group', op: 'And', scope: 'Global', items: [] };
 };
 
