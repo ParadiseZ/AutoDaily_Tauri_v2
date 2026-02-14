@@ -49,7 +49,10 @@
                 class="btn btn-sm h-10 px-3 bg-base-200/50 border-none hover:bg-primary hover:text-white justify-start gap-2 rounded-xl group/btn transition-all duration-300"
                 @click="addStepWithType(kind.op)"
               >
-                <StepIcon :type="kind.op" class-name="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
+                <IconRenderer
+                  :icon="getIcon(kind.op)"
+                  class="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform"
+                />
                 <span class="text-[10px] font-bold">{{ kind.name }}</span>
               </button>
             </div>
@@ -76,7 +79,7 @@
 import { ref, computed, reactive } from 'vue';
 import { Plus as PlusIcon, ListTodo as ListTodoIcon } from 'lucide-vue-next';
 import StepItemEditor from './StepItemEditor.vue';
-import StepIcon from './StepIcon.vue';
+import IconRenderer from '../IconRenderer.vue';
 import type { Step } from '@/types/bindings';
 
 const props = defineProps({
@@ -112,6 +115,23 @@ const pickerStyle = computed(() => ({
   bottom: `${window.innerHeight - pickerPos.top}px`,
   left: `${Math.max(8, pickerPos.left)}px`,
 }));
+
+const getIcon = (op: string) => {
+  const map: Record<string, string> = {
+    ClickAction: 'cursor',
+    SwipePoint: 'move',
+    WaitMs: 'clock',
+    VisionSearch: 'zap',
+    Ocr: 'type',
+    If: 'branch',
+    While: 'repeat',
+    Sequence: 'layers',
+    SetVar: 'variable',
+    GetVar: 'terminal',
+    SetState: 'settings',
+  };
+  return map[op] || 'box';
+};
 
 const groupedActions = {
   action: [

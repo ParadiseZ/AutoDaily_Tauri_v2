@@ -79,3 +79,17 @@ pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTab
     tx.commit().await.map_err(|e| e.to_string())?;
     Ok(())
 }
+
+/// 读取 YOLO 标签文件
+#[command]
+pub async fn get_yolo_labels_cmd(path: String) -> Result<std::collections::HashMap<u16, String>, String> {
+    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let values: serde_yaml::Value = serde_yaml::from_str(&content).map_err(|e| e.to_string())?;
+    
+    if let Some(names) = values.get("names") {
+        let labels: std::collections::HashMap<u16, String> = serde_yaml::from_value(names.clone()).map_err(|e| e.to_string())?;
+        Ok(labels)
+    } else {
+        Err("Yolo标签文件格式错误：未找到 names 属性".to_string())
+    }
+}

@@ -425,7 +425,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, markRaw, onUnmounted } from 'vue';
+import { ref, onMounted, markRaw, onUnmounted, provide } from 'vue';
 import { VueFlow, useVueFlow } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
@@ -459,7 +459,7 @@ import { editorThemeKey, deviceKey, setToStore, getFromStore } from '@/store/sto
 
 // data
 import { useDevices } from '@/assets/js/useDevices';
-import type {ScriptTable, ScriptInfo, ScriptTaskTable} from '@/types/bindings';
+import type { ScriptTable, ScriptInfo, ScriptTaskTable } from '@/types/bindings';
 import type { JsonValue } from '@/types/bindings/serde_json/JsonValue';
 
 // ============================================
@@ -476,6 +476,7 @@ const params = new URLSearchParams(window.location.search);
 const scriptId = ref(params.get('id') || '');
 const scriptName = ref('加载中...');
 const scriptInfo = ref<ScriptInfo | null>(null);
+provide('scriptInfo', scriptInfo);
 
 const consoleHeight = ref(160);
 const isResizing = ref(false);

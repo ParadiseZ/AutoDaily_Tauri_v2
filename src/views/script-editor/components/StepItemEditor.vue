@@ -9,7 +9,7 @@
           class="w-10 h-10 rounded-2xl flex items-center justify-center transition-transform hover:scale-110 shadow-sm"
           :class="categoryColor"
         >
-          <StepIcon :type="step.op" :category="category" class-name="w-5 h-5 text-white" />
+          <IconRenderer :icon="getIcon(step.op)" class="w-5 h-5 text-white" />
         </div>
 
         <div class="flex-2 min-w-0">
@@ -363,9 +363,7 @@
                   />
                 </div>
                 <div class="form-control">
-                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block"
-                    >表达式 (Rhai)</label
-                  >
+                  <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">表达式 (Rhai)</label>
                   <input
                     type="text"
                     v-model="(localStep as any).value_expr"
@@ -497,7 +495,7 @@ import {
   ChevronRight as ChevronRightIcon,
   Trash2 as TrashIcon,
 } from 'lucide-vue-next';
-import StepIcon from './StepIcon.vue';
+import IconRenderer from '../IconRenderer.vue';
 import SearchRuleEditor from './SearchRuleEditor.vue';
 import type { Step } from '@/types/bindings';
 
@@ -616,6 +614,24 @@ const categoryColor = computed(() => {
   };
   return map[category.value];
 });
+
+const getIcon = (op: string) => {
+  const map: Record<string, string> = {
+    clickAction: 'cursor',
+    waitMs: 'clock',
+    if: 'branch',
+    while: 'repeat',
+    sequence: 'layers',
+    setVar: 'variable',
+    getVar: 'terminal',
+    visionSearch: 'zap',
+    takeScreenshot: 'camera',
+    swipePoint: 'move',
+    swipePercent: 'move',
+    setState: 'settings',
+  };
+  return map[op] || 'box';
+};
 
 const stepTitle = computed(() => {
   const opMap: Record<string, string> = {

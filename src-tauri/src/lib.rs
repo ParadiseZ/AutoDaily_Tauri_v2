@@ -21,7 +21,7 @@ use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::get_uuid_v7;
 use crate::api::domain::devices::{get_all_devices_cmd, get_device_by_id_cmd, save_device_cmd, delete_device_cmd, get_cpu_count_cmd};
 use crate::api::domain::scripts::{get_all_scripts_cmd, get_script_by_id_cmd, save_script_cmd, delete_script_cmd,
-                                  get_script_tasks_cmd,save_script_tasks_cmd};
+                                  get_script_tasks_cmd,save_script_tasks_cmd, get_yolo_labels_cmd};
 use crate::api::domain::policy::*;
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
@@ -82,6 +82,7 @@ pub fn run() {
             // 脚本任务
             get_script_tasks_cmd,
             save_script_tasks_cmd,
+            get_yolo_labels_cmd,
             // 策略管理
             get_all_policies_cmd,
             save_policy_cmd,

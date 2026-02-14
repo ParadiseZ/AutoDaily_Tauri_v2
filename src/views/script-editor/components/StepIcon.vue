@@ -1,41 +1,10 @@
 <template>
-  <component :is="icon" :class="className" />
+  <IconRenderer :icon="iconName" :class="className" />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import {
-  MousePointer2,
-  Move,
-  Clock,
-  Zap,
-  Camera,
-  Target,
-  Type,
-  Repeat,
-  AlertTriangle,
-  GitBranch,
-  Play,
-  Square,
-  Box,
-  Variable,
-  Filter,
-  Split,
-  Info,
-  Settings,
-  Code,
-  Terminal,
-  ArrowRight,
-  Pause,
-  SkipForward,
-  StopCircle,
-  CheckCircle2,
-  XCircle,
-  List,
-  RotateCcw,
-  Search,
-  LayoutGrid,
-} from 'lucide-vue-next';
+import IconRenderer from '../IconRenderer.vue';
 
 const props = defineProps<{
   type?: string;
@@ -43,51 +12,51 @@ const props = defineProps<{
   className?: string;
 }>();
 
-const icon = computed(() => {
-  const typeMap: Record<string, any> = {
+const iconName = computed(() => {
+  const typeMap: Record<string, string> = {
     // Interaction
-    ClickAction: MousePointer2,
-    SwipePoint: Move,
-    SwipePercent: Move,
-    WaitMs: Clock,
+    ClickAction: 'cursor',
+    SwipePoint: 'move',
+    SwipePercent: 'move',
+    WaitMs: 'clock',
 
     // Vision
-    VisionSearch: Zap,
-    Ocr: Type,
-    FindObject: Box,
-    DetRec: Target,
-    TakeScreenshot: Camera,
+    VisionSearch: 'zap',
+    Ocr: 'type',
+    FindObject: 'layers', // Box mapping to layers or default
+    DetRec: 'target',
+    TakeScreenshot: 'camera',
 
     // Control
-    If: Split,
-    While: Repeat,
-    Sequence: LayoutGrid,
-    ForEachActivity: List,
-    Continue: SkipForward,
-    Break: StopCircle,
-    WaitUntil: Clock,
+    If: 'branch',
+    While: 'repeat',
+    Sequence: 'layers', // LayoutGrid mapping to layers
+    ForEachActivity: 'repeat',
+    Continue: 'play',
+    Break: 'square',
+    WaitUntil: 'clock',
 
     // Logic
-    SetVar: Variable,
-    GetVar: Terminal,
-    FilterHits: Filter,
-    IncIndex: ArrowRight,
-    ResetIndex: RotateCcw,
+    SetVar: 'variable',
+    GetVar: 'terminal', // Assuming terminal exists or default
+    FilterHits: 'filter',
+    IncIndex: 'arrow-right',
+    ResetIndex: 'repeat',
 
     // State
-    SetState: Settings,
-    GetState: Info,
-    StopPolicy: XCircle,
-    FinishTask: CheckCircle2,
+    SetState: 'settings',
+    GetState: 'info',
+    StopPolicy: 'eye-off',
+    FinishTask: 'task',
   };
 
   const lowerType = props.type?.toLowerCase() || '';
-  const legacyMap: Record<string, any> = {
-    click: MousePointer2,
-    swipe: Move,
-    wait: Clock,
+  const legacyMap: Record<string, string> = {
+    click: 'cursor',
+    swipe: 'move',
+    wait: 'clock',
   };
 
-  return (props.type ? typeMap[props.type] : null) || legacyMap[lowerType] || Box;
+  return (props.type ? typeMap[props.type] : null) || legacyMap[lowerType] || 'box';
 });
 </script>

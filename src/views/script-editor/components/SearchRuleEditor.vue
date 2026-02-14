@@ -32,19 +32,38 @@
           >
             <div
               class="flex-none w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm"
-              :class="item.type === 'Regex' ? 'bg-amber-100 text-amber-600' : 'bg-base-200 text-base-content/40'"
+              :class="{
+                'bg-amber-100 text-amber-600': item.type === 'Regex',
+                'bg-blue-100 text-blue-600': item.type === 'Keyword',
+                'bg-purple-100 text-purple-600': item.type === 'YoloIdx',
+                'bg-base-200 text-base-content/40': !['Regex', 'Keyword', 'YoloIdx'].includes(item.type),
+              }"
             >
-              <TypeIcon v-if="item.type === 'Keyword'" class="w-5 h-5" />
-              <ZapIcon v-else class="w-5 h-5" />
+              <IconRenderer v-if="item.type === 'Keyword'" icon="type" class="w-5 h-5" />
+              <IconRenderer v-else-if="item.type === 'Regex'" icon="zap" class="w-5 h-5" />
+              <IconRenderer v-else-if="item.type === 'YoloIdx'" icon="target" class="w-5 h-5" />
+              <IconRenderer v-else icon="box" class="w-5 h-5" />
             </div>
 
             <div class="flex-1 min-w-0">
               <input
+                v-if="item.type !== 'YoloIdx'"
+                ref="itemInputs"
                 type="text"
                 v-model="(item as any).pattern"
                 class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic"
-                :placeholder="item.type === 'Regex' ? 'e.g. ^\\d{3}-\\d{3}-\\d{4}$' : '关键字...'"
+                :placeholder="item.type === 'Regex' ? '^\\d+$ (数字)' : '文本内容...'"
               />
+              <select
+                v-else
+                v-model="(item as any).idx"
+                class="select select-ghost select-sm w-full focus:bg-base-200 font-mono text-sm tracking-tight"
+              >
+                <option :value="-1" disabled>请选择标签...</option>
+                <option v-for="(label, key) in yoloLabels" :key="key" :value="Number(key)">
+                  {{ key }}: {{ label }}
+                </option>
+              </select>
             </div>
 
             <div class="flex-none opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 pr-1">
@@ -71,7 +90,7 @@
               <div
                 class="flex-none w-10 h-10 rounded-xl bg-linear-to-br from-slate-200 to-slate-300 flex items-center justify-center shadow-sm"
               >
-                <GridIcon class="w-5 h-5 text-slate-600" />
+                <IconRenderer icon="layers" class="w-5 h-5 text-slate-600" />
               </div>
 
               <div class="flex-1 min-w-0">
@@ -106,12 +125,18 @@
         </div>
 
         <!-- Add Rule Type Selector -->
-        <div class="grid grid-cols-3 gap-3 pt-1 border-t border-base-300/50 mt-6">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-base-300/50 mt-6">
           <button
-            class="btn btn-sm bg-base-100 border-base-300 hover:border-primary hover:text-primary rounded-xl gap-2 shadow-sm font-bold"
+            class="btn btn-sm bg-base-100 border-base-300 hover:border-blue-500 hover:text-blue-600 rounded-xl gap-2 shadow-sm font-bold"
             @click="addItem('Keyword')"
           >
-            <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">标签/文字</span>
+            <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">文字匹配</span>
+          </button>
+          <button
+            class="btn btn-sm bg-base-100 border-base-300 hover:border-purple-500 hover:text-purple-600 rounded-xl gap-2 shadow-sm font-bold"
+            @click="addItem('YoloIdx')"
+          >
+            <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">标签匹配</span>
           </button>
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-amber-500 hover:text-amber-600 rounded-xl gap-2 shadow-sm font-bold"
@@ -132,15 +157,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, defineAsyncComponent } from 'vue';
-import {
-  Plus as PlusIcon,
-  Trash2 as TrashIcon,
-  Type as TypeIcon,
-  Zap as ZapIcon,
-  LayoutGrid as GridIcon,
-  ChevronDown as ChevronDownIcon,
-} from 'lucide-vue-next';
+import { ref, watch, defineAsyncComponent, nextTick, inject, onMounted } from 'vue';
+import { Plus as PlusIcon, Trash2 as TrashIcon, ChevronDown as ChevronDownIcon } from 'lucide-vue-next';
+import IconRenderer from '../IconRenderer.vue';
+import { invoke } from '@tauri-apps/api/core';
 import type { SearchRule } from '@/types/bindings';
 
 const SearchRuleEditor = defineAsyncComponent(() => import('./SearchRuleEditor.vue'));
@@ -159,12 +179,33 @@ const parseInputRule = (r: any): any => {
   if (r.Group) return { type: 'Group', ...r.Group };
   if (r.Keyword) return { type: 'Keyword', pattern: r.Keyword.pattern };
   if (r.Regex) return { type: 'Regex', pattern: r.Regex.pattern };
-  if (r.YoloIdx) return { type: 'YoloIdx', idx: r.YoloLabel.idx };
+  if (r.YoloIdx) return { type: 'YoloIdx', idx: r.YoloIdx.idx };
   return { type: 'Group', op: 'And', scope: 'Global', items: [] };
 };
 
+const scriptInfo = inject<any>('scriptInfo');
+const yoloLabels = ref<Record<number, string>>({});
+
+const loadYoloLabels = async () => {
+  const path = scriptInfo?.value?.img_det_model?.Yolo?.label_path;
+  if (path) {
+    try {
+      yoloLabels.value = await invoke('get_yolo_labels_cmd', { path });
+    } catch (e) {
+      console.error('Failed to load YOLO labels:', e);
+    }
+  }
+};
+
+onMounted(loadYoloLabels);
+watch(
+  () => scriptInfo?.value?.img_det_model?.Yolo?.label_path,
+  () => loadYoloLabels()
+);
+
 const localRule = ref(parseInputRule(props.rule));
 const expandedGroups = ref<Record<number, boolean>>({});
+const itemInputs = ref<HTMLInputElement[]>([]);
 
 const toggleGroup = (idx: number) => {
   expandedGroups.value[idx] = !expandedGroups.value[idx];
@@ -175,11 +216,21 @@ const updateNestedGroup = (idx: number, newGroupData: SearchRule) => {
   onUpdate();
 };
 
-const addItem = (type: string) => {
+const addItem = (type: string, pattern: string = '') => {
   if (type === 'Group') {
+    const newIdx = localRule.value.items.length;
     localRule.value.items.push({ type: 'Group', op: 'And', scope: 'Global', items: [] });
+    expandedGroups.value[newIdx] = true;
+  } else if (type === 'YoloIdx') {
+    localRule.value.items.push({ type: 'YoloIdx', idx: -1 });
   } else {
-    localRule.value.items.push({ type, pattern: '' });
+    localRule.value.items.push({ type, pattern });
+    nextTick(() => {
+      const inputs = itemInputs.value;
+      if (inputs && inputs.length > 0) {
+        inputs[inputs.length - 1]?.focus();
+      }
+    });
   }
   onUpdate();
 };
