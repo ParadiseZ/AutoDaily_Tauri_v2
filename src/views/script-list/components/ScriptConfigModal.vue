@@ -138,127 +138,130 @@ const handleSave = () => {
   // Note: ScriptInfo is camelCase, but internal structs are snake_case (standard Rust serde default)
 
   // When editing, preserve existing script data; when creating, use defaults
-  const existingScript = props.editingScript;
+  const existingScriptTable = props.editingScript;
+  const existingScript = existingScriptTable?.data || existingScriptTable;
 
   const scriptData = {
     // Preserve id if editing (needed for update)
-    id: existingScript?.id || undefined,
-    userId: existingScript?.userId || '019b82ca280377a09eeb95dbdca056cc',
-    name: formState.name,
-    description: formState.description || null,
-    pkgName: formState.pkgName || null,
-    scriptType: existingScript?.scriptType || 'dev',
-    // Metadata
-    verName: formState.verName,
-    verNum: formState.verNum,
-    latestVer: formState.latestVer,
-    sponsorshipQr: formState.sponsorshipQr || null,
-    sponsorshipUrl: formState.sponsorshipUrl || null,
-    contactInfo: formState.contactInfo || null,
+    id: existingScriptTable?.id || undefined,
+    data:{
+      userId: existingScript?.userId || '019b82ca280377a09eeb95dbdca056cc',
+      name: formState.name,
+      description: formState.description || null,
+      pkgName: formState.pkgName || null,
+      scriptType: existingScript?.scriptType || 'dev',
+      // Metadata
+      verName: formState.verName,
+      verNum: formState.verNum,
+      latestVer: formState.latestVer,
+      sponsorshipQr: formState.sponsorshipQr || null,
+      sponsorshipUrl: formState.sponsorshipUrl || null,
+      contactInfo: formState.contactInfo || null,
 
-    // Preserve other fields
-    downloadCount: existingScript?.downloadCount || 0,
-    isValid: formState.isValid ?? true,
-    createTime: existingScript?.createTime || new Date().toISOString(),
-    updateTime: new Date().toISOString(),
-    userName: existingScript?.userName || 'Local User',
-    cloudId: existingScript?.cloudId || null,
-    tasks: existingScript?.tasks || [],
-    templates: existingScript?.templates || [],
+      // Preserve other fields
+      downloadCount: existingScript?.downloadCount || 0,
+      isValid: formState.isValid ?? true,
+      createTime: existingScript?.createTime || new Date().toISOString(),
+      updateTime: new Date().toISOString(),
+      userName: existingScript?.userName || 'Local User',
+      cloudId: existingScript?.cloudId || null,
+      tasks: existingScript?.tasks || [],
+      templates: existingScript?.templates || [],
+    }
   };
 
   // Image Detection Model Construction yolo11
   if (formState.imgDetType === ModelAlgorithm.Yolo11) {
-    scriptData.imgDetModel = {
+    scriptData.data.imgDetModel = {
       Yolo11: {
-        base_model: {
-          input_width: parseInt(formState.yoloParams.inputWidth),
-          input_height: parseInt(formState.yoloParams.inputHeight),
-          model_source: formState.imgDetSource,
-          model_path: formState.imgDetSource === ModelSource.BuiltIn ? '' : formState.yoloParams.modelPath,
-          execution_provider: formState.yoloParams.executionProvider,
-          intra_thread_num: 4,
-          intra_spinning: true,
-          inter_thread_num: 1,
-          inter_spinning: true,
-          model_type: ModelAlgorithm.Yolo11, // Ensure enum match
+        baseModel: {
+          inputWidth: parseInt(formState.yoloParams.inputWidth),
+          inputHeight: parseInt(formState.yoloParams.inputHeight),
+          modelSource: formState.imgDetSource,
+          modelPath: formState.imgDetSource === ModelSource.BuiltIn ? '' : formState.yoloParams.modelPath,
+          executionProvider: formState.yoloParams.executionProvider,
+          intraThreadNum: 4,
+          intraSpinning: true,
+          interThreadNum: 1,
+          interSpinning: true,
+          modelType: ModelAlgorithm.Yolo11, // Ensure enum match
         },
-        class_count: parseInt(formState.yoloParams.classCount),
-        class_labels: [],
-        confidence_thresh: parseFloat(formState.yoloParams.confidenceThresh),
-        iou_thresh: parseFloat(formState.yoloParams.iouThresh),
-        label_path: formState.yoloParams.labelPath,
-        txt_idx: 0,
+        classCount: parseInt(formState.yoloParams.classCount),
+        classLabels: [],
+        confidenceThresh: parseFloat(formState.yoloParams.confidenceThresh),
+        iouThresh: parseFloat(formState.yoloParams.iouThresh),
+        labelPath: formState.yoloParams.labelPath,
+        txtIdx: 0,
       },
     };
   }
 
   // Text Detection Model Construction
   if (formState.txtDetType === ModelAlgorithm.Yolo11) {
-    scriptData.txtDetModel = {
+    scriptData.data.txtDetModel = {
       Yolo11: {
-        base_model: {
-          input_width: parseInt(formState.txtDetYoloParams.inputWidth),
-          input_height: parseInt(formState.txtDetYoloParams.inputHeight),
-          model_source: formState.txtDetSource,
-          model_path: formState.txtDetSource === ModelSource.BuiltIn ? '' : formState.txtDetYoloParams.modelPath,
-          execution_provider: formState.txtDetYoloParams.executionProvider,
-          intra_thread_num: 4,
-          intra_spinning: true,
-          inter_thread_num: 1,
-          inter_spinning: true,
-          model_type: ModelAlgorithm.Yolo11,
+        baseModel: {
+          inputWidth: parseInt(formState.txtDetYoloParams.inputWidth),
+          inputHeight: parseInt(formState.txtDetYoloParams.inputHeight),
+          modelSource: formState.txtDetSource,
+          modelPath: formState.txtDetSource === ModelSource.BuiltIn ? '' : formState.txtDetYoloParams.modelPath,
+          executionProvider: formState.txtDetYoloParams.executionProvider,
+          intraThreadNum: 4,
+          intraSpinning: true,
+          interThreadNum: 1,
+          interSpinning: true,
+          modelType: ModelAlgorithm.Yolo11,
         },
-        class_count: parseInt(formState.txtDetYoloParams.classCount),
-        class_labels: [],
-        confidence_thresh: parseFloat(formState.txtDetYoloParams.confidenceThresh),
-        iou_thresh: parseFloat(formState.txtDetYoloParams.iouThresh),
-        label_path: formState.txtDetYoloParams.labelPath,
-        txt_idx: parseInt(formState.txtDetYoloParams.txtIdx),
+        classCount: parseInt(formState.txtDetYoloParams.classCount),
+        classLabels: [],
+        confidenceThresh: parseFloat(formState.txtDetYoloParams.confidenceThresh),
+        iouThresh: parseFloat(formState.txtDetYoloParams.iouThresh),
+        labelPath: formState.txtDetYoloParams.labelPath,
+        txtIdx: parseInt(formState.txtDetYoloParams.txtIdx),
       },
     };
   }
 
   if (formState.txtDetType === ModelAlgorithm.PaddleDbNet) {
-    scriptData.txtDetModel = {
+    scriptData.data.txtDetModel = {
       PaddleDbNet: {
-        base_model: {
-          input_width: parseInt(formState.dbNetParams.inputWidth),
-          input_height: parseInt(formState.dbNetParams.inputHeight),
-          model_source: formState.txtDetSource,
-          model_path: formState.txtDetSource === ModelSource.BuiltIn ? '' : formState.dbNetParams.modelPath,
-          execution_provider: formState.dbNetParams.executionProvider,
-          intra_thread_num: 4,
-          intra_spinning: true,
-          inter_thread_num: 1,
-          inter_spinning: true,
-          model_type: ModelAlgorithm.PaddleDbNet,
+        baseModel: {
+          inputWidth: parseInt(formState.dbNetParams.inputWidth),
+          inputHeight: parseInt(formState.dbNetParams.inputHeight),
+          modelSource: formState.txtDetSource,
+          modelPath: formState.txtDetSource === ModelSource.BuiltIn ? '' : formState.dbNetParams.modelPath,
+          executionProvider: formState.dbNetParams.executionProvider,
+          intraThreadNum: 4,
+          intraSpinning: true,
+          interThreadNum: 1,
+          interSpinning: true,
+          modelType: ModelAlgorithm.PaddleDbNet,
         },
-        db_thresh: parseFloat(formState.dbNetParams.dbThresh),
-        db_box_thresh: parseFloat(formState.dbNetParams.dbBoxThresh),
-        unclip_ratio: parseFloat(formState.dbNetParams.unclipRatio),
-        use_dilation: formState.dbNetParams.useDilation,
+        dbThresh: parseFloat(formState.dbNetParams.dbThresh),
+        dbBoxThresh: parseFloat(formState.dbNetParams.dbBoxThresh),
+        unclipRatio: parseFloat(formState.dbNetParams.unclipRatio),
+        useDilation: formState.dbNetParams.useDilation,
       },
     };
   }
 
   // Text Recognition Model Construction
   if (formState.txtRecType === ModelAlgorithm.PaddleCrnn) {
-    scriptData.txtRecModel = {
+    scriptData.data.txtRecModel = {
       PaddleCrnn: {
-        base_model: {
-          input_width: parseInt(formState.crnnParams.inputWidth),
-          input_height: parseInt(formState.crnnParams.inputHeight),
-          model_source: formState.txtRecSource,
-          model_path: formState.txtRecSource === ModelSource.BuiltIn ? '' : formState.crnnParams.modelPath,
-          execution_provider: formState.crnnParams.executionProvider,
-          intra_thread_num: 4,
-          intra_spinning: true,
-          inter_thread_num: 1,
-          inter_spinning: true,
-          model_type: ModelAlgorithm.PaddleCrnn,
+        baseModel: {
+          inputWidth: parseInt(formState.crnnParams.inputWidth),
+          inputHeight: parseInt(formState.crnnParams.inputHeight),
+          modelSource: formState.txtRecSource,
+          modelPath: formState.txtRecSource === ModelSource.BuiltIn ? '' : formState.crnnParams.modelPath,
+          executionProvider: formState.crnnParams.executionProvider,
+          intraThreadNum: 4,
+          intraSpinning: true,
+          interThreadNum: 1,
+          interSpinning: true,
+          modelType: ModelAlgorithm.PaddleCrnn,
         },
-        dict_path: formState.crnnParams.dictPath || null,
+        dictPath: formState.crnnParams.dictPath || null,
         dict: [],
       },
     };
@@ -368,8 +371,9 @@ const resetForm = () => {
 };
 
 // Populate form from editing script
-const populateFormFromScript = (script) => {
-  if (!script) return;
+const populateFormFromScript = (input) => {
+  if (!input) return;
+  const script = input.data || input;
 
   formState.name = script.name || '';
   formState.description = script.description || '';
@@ -380,15 +384,15 @@ const populateFormFromScript = (script) => {
   if (script.imgDetModel?.Yolo11) {
     formState.imgDetType = ModelAlgorithm.Yolo11;
     const yolo = script.imgDetModel.Yolo11;
-    formState.imgDetSource = yolo.base_model?.model_source || ModelSource.Custom;
-    formState.yoloParams.modelPath = yolo.base_model?.model_path || '';
-    formState.yoloParams.labelPath = yolo.label_path || '';
-    formState.yoloParams.executionProvider = yolo.base_model?.execution_provider || executionProviders[0];
-    formState.yoloParams.inputWidth = yolo.base_model?.input_width || yoloDefaultParams.inputWidth;
-    formState.yoloParams.inputHeight = yolo.base_model?.input_height || yoloDefaultParams.inputHeight;
-    formState.yoloParams.classCount = yolo.class_count || 80;
-    formState.yoloParams.confidenceThresh = yolo.confidence_thresh || yoloDefaultParams.confidenceThresh;
-    formState.yoloParams.iouThresh = yolo.iou_thresh || yoloDefaultParams.iouThresh;
+    formState.imgDetSource = yolo.baseModel?.modelSource || ModelSource.Custom;
+    formState.yoloParams.modelPath = yolo.baseModel?.modelPath || '';
+    formState.yoloParams.labelPath = yolo.labelPath || '';
+    formState.yoloParams.executionProvider = yolo.baseModel?.executionProvider || executionProviders[0];
+    formState.yoloParams.inputWidth = yolo.baseModel?.inputWidth || yoloDefaultParams.inputWidth;
+    formState.yoloParams.inputHeight = yolo.baseModel?.inputHeight || yoloDefaultParams.inputHeight;
+    formState.yoloParams.classCount = yolo.classCount || 80;
+    formState.yoloParams.confidenceThresh = yolo.confidenceThresh || yoloDefaultParams.confidenceThresh;
+    formState.yoloParams.iouThresh = yolo.iouThresh || yoloDefaultParams.iouThresh;
   } else {
     formState.imgDetType = ModelAlgorithm.None;
     formState.imgDetSource = ModelSource.Custom;
@@ -398,28 +402,28 @@ const populateFormFromScript = (script) => {
   if (script.txtDetModel?.Yolo11) {
     formState.txtDetType = ModelAlgorithm.Yolo11;
     const yolo = script.txtDetModel.Yolo11;
-    formState.txtDetSource = yolo.base_model?.model_source || ModelSource.Custom;
-    formState.txtDetYoloParams.modelPath = yolo.base_model?.model_path || '';
-    formState.txtDetYoloParams.labelPath = yolo.label_path || '';
-    formState.txtDetYoloParams.executionProvider = yolo.base_model?.execution_provider || executionProviders[0];
-    formState.txtDetYoloParams.inputWidth = yolo.base_model?.input_width || yoloDefaultParams.inputWidth;
-    formState.txtDetYoloParams.inputHeight = yolo.base_model?.input_height || yoloDefaultParams.inputHeight;
-    formState.txtDetYoloParams.classCount = yolo.class_count || 80;
-    formState.txtDetYoloParams.confidenceThresh = yolo.confidence_thresh || yoloDefaultParams.confidenceThresh;
-    formState.txtDetYoloParams.iouThresh = yolo.iou_thresh || yoloDefaultParams.iouThresh;
-    formState.txtDetYoloParams.txtIdx = yolo.txt_idx || 0;
+    formState.txtDetSource = yolo.baseModel?.modelSource || ModelSource.Custom;
+    formState.txtDetYoloParams.modelPath = yolo.baseModel?.modelPath || '';
+    formState.txtDetYoloParams.labelPath = yolo.labelPath || '';
+    formState.txtDetYoloParams.executionProvider = yolo.baseModel?.executionProvider || executionProviders[0];
+    formState.txtDetYoloParams.inputWidth = yolo.baseModel?.inputWidth || yoloDefaultParams.inputWidth;
+    formState.txtDetYoloParams.inputHeight = yolo.baseModel?.inputHeight || yoloDefaultParams.inputHeight;
+    formState.txtDetYoloParams.classCount = yolo.classCount || 80;
+    formState.txtDetYoloParams.confidenceThresh = yolo.confidenceThresh || yoloDefaultParams.confidenceThresh;
+    formState.txtDetYoloParams.iouThresh = yolo.iouThresh || yoloDefaultParams.iouThresh;
+    formState.txtDetYoloParams.txtIdx = yolo.txtIdx || 0;
   } else if (script.txtDetModel?.PaddleDbNet) {
     formState.txtDetType = ModelAlgorithm.PaddleDbNet;
     const dbnet = script.txtDetModel.PaddleDbNet;
-    formState.txtDetSource = dbnet.base_model?.model_source || ModelSource.Custom;
-    formState.dbNetParams.modelPath = dbnet.base_model?.model_path || '';
-    formState.dbNetParams.executionProvider = dbnet.base_model?.execution_provider || executionProviders[0];
-    formState.dbNetParams.inputWidth = dbnet.base_model?.input_width || dbNetDefaultParams.inputWidth;
-    formState.dbNetParams.inputHeight = dbnet.base_model?.input_height || dbNetDefaultParams.inputHeight;
-    formState.dbNetParams.dbThresh = dbnet.db_thresh || dbNetDefaultParams.dbThresh;
-    formState.dbNetParams.dbBoxThresh = dbnet.db_box_thresh || dbNetDefaultParams.dbBoxThresh;
-    formState.dbNetParams.unclipRatio = dbnet.unclip_ratio || dbNetDefaultParams.unclipRatio;
-    formState.dbNetParams.useDilation = dbnet.use_dilation || dbNetDefaultParams.useDilation;
+    formState.txtDetSource = dbnet.baseModel?.modelSource || ModelSource.Custom;
+    formState.dbNetParams.modelPath = dbnet.baseModel?.modelPath || '';
+    formState.dbNetParams.executionProvider = dbnet.baseModel?.executionProvider || executionProviders[0];
+    formState.dbNetParams.inputWidth = dbnet.baseModel?.inputWidth || dbNetDefaultParams.inputWidth;
+    formState.dbNetParams.inputHeight = dbnet.baseModel?.inputHeight || dbNetDefaultParams.inputHeight;
+    formState.dbNetParams.dbThresh = dbnet.dbThresh || dbNetDefaultParams.dbThresh;
+    formState.dbNetParams.dbBoxThresh = dbnet.dbBoxThresh || dbNetDefaultParams.dbBoxThresh;
+    formState.dbNetParams.unclipRatio = dbnet.unclipRatio || dbNetDefaultParams.unclipRatio;
+    formState.dbNetParams.useDilation = dbnet.useDilation || dbNetDefaultParams.useDilation;
   } else {
     formState.txtDetType = ModelAlgorithm.None;
     formState.txtDetSource = ModelSource.Custom;
@@ -429,20 +433,20 @@ const populateFormFromScript = (script) => {
   if (script.txtRecModel?.PaddleCrnn) {
     formState.txtRecType = ModelAlgorithm.PaddleCrnn;
     const crnn = script.txtRecModel.PaddleCrnn;
-    formState.txtRecSource = crnn.base_model?.model_source || ModelSource.BuiltIn;
-    formState.crnnParams.modelPath = crnn.base_model?.model_path || '';
-    formState.crnnParams.executionProvider = crnn.base_model?.execution_provider || executionProviders[0];
-    formState.crnnParams.inputWidth = crnn.base_model?.input_width || crnnDefaultParams.inputWidth;
-    formState.crnnParams.inputHeight = crnn.base_model?.input_height || crnnDefaultParams.inputHeight;
-    formState.crnnParams.dictPath = crnn.dict_path || '';
+    formState.txtRecSource = crnn.baseModel?.modelSource || ModelSource.BuiltIn;
+    formState.crnnParams.modelPath = crnn.baseModel?.modelPath || '';
+    formState.crnnParams.executionProvider = crnn.baseModel?.executionProvider || executionProviders[0];
+    formState.crnnParams.inputWidth = crnn.baseModel?.inputWidth || crnnDefaultParams.inputWidth;
+    formState.crnnParams.inputHeight = crnn.baseModel?.inputHeight || crnnDefaultParams.inputHeight;
+    formState.crnnParams.dictPath = crnn.dictPath || '';
   } else {
     formState.txtRecSource = ModelSource.BuiltIn;
   }
 
   // Metadata
   formState.verName = script.verName || 'v1.0.0';
-  formState.verNum = script.verNum || 1;
-  formState.latestVer = script.latestVer || 1;
+  formState.verNum = script.verNum !== undefined ? Number(script.verNum) : 1;
+  formState.latestVer = script.latestVer !== undefined ? Number(script.latestVer) : 1;
   formState.sponsorshipQr = script.sponsorshipQr || '';
   formState.sponsorshipUrl = script.sponsorshipUrl || '';
   formState.contactInfo = script.contactInfo || '';
@@ -1113,7 +1117,7 @@ watch(
                         try {
                           const base64 = await invoke('convert_img_to_base64_cmd', { imgPath: p });
                           formState.sponsorshipQr = `data:image/png;base64,${base64}`;
-                          imgPath = p;
+                          imgPath.value = p;
                         } catch (e) {
                           console.log('图像转换失败=');
                         }

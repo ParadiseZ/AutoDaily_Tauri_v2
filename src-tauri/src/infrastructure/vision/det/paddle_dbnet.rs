@@ -16,6 +16,7 @@ const MIN_AREA_AFTER: f32 = 5.0; //MIN_AREA+2.0
 
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct PaddleDetDbNet {
     pub base_model: BaseModel,
     pub db_thresh: f32,

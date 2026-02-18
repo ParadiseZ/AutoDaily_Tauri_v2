@@ -2,14 +2,13 @@
 import { ref, computed, onMounted } from 'vue';
 import type { Ref } from 'vue';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-import { useScripts } from '../assets/js/useScripts';
+import { useScripts } from '@/assets/js/useScripts';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import {
   Layers,
   Search,
   Trash2,
   Edit,
-  ChevronRight,
   Info,
   Settings,
   Cpu,
@@ -18,19 +17,14 @@ import {
   Calendar,
   MoreHorizontal,
   Package,
-  Eye,
   Activity,
   Box,
-  CheckCircle2,
   Clock,
   Plus,
-  AlertTriangle,
-  FileJson,
-  X,
   ChevronDown,
 } from 'lucide-vue-next';
 import ScriptConfigModal from './script-list/components/ScriptConfigModal.vue';
-import type { ScriptTable, ScriptInfo, DetectorType, RecognizerType, ScriptTaskTable } from '../types/bindings';
+import type { ScriptTable, ScriptInfo, DetectorType, RecognizerType, ScriptTaskTable } from '@/types/bindings';
 
 interface ExtendedScriptInfo extends ScriptInfo {
   tasks?: ScriptTaskTable[];
@@ -67,6 +61,7 @@ const openNewModal = () => {
 
 const handleCreateScript = async (scriptData: any) => {
   try {
+    console.log(scriptData);
     await saveScript(scriptData);
     isNewModalOpen.value = false;
   } catch (e) {
@@ -145,31 +140,31 @@ const getModelDisplayParams = (model: DetectorType | RecognizerType | null | und
   if ('Yolo11' in model) {
     const m = model.Yolo11;
     return [
-      { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
-      { label: '输入尺寸', value: `${m.base_model?.input_width || 640} × ${m.base_model?.input_height || 640}` },
-      { label: '类别数', value: m.class_count || 80 },
-      { label: '置信度阈值', value: m.confidence_thresh || 0.25 },
-      { label: 'IOU阈值', value: m.iou_thresh || 0.45 },
+      { label: '执行器', value: m.baseModel?.executionProvider || 'CPU' },
+      { label: '输入尺寸', value: `${m.baseModel?.inputWidth || 640} × ${m.baseModel?.inputHeight || 640}` },
+      { label: '类别数', value: m.classCount || 80 },
+      { label: '置信度阈值', value: m.confidenceThresh || 0.25 },
+      { label: 'IOU阈值', value: m.iouThresh || 0.45 },
     ];
   }
 
   if ('PaddleDbNet' in model) {
     const m = model.PaddleDbNet;
     return [
-      { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
-      { label: '输入尺寸', value: `${m.base_model?.input_width || 640} × ${m.base_model?.input_height || 640}` },
-      { label: '二值化阈值', value: m.db_thresh || 0.3 },
-      { label: '框阈值', value: m.db_box_thresh || 0.5 },
-      { label: '扩充比例', value: m.unclip_ratio || 1.5 },
-      { label: '膨胀', value: m.use_dilation ? '是' : '否' },
+      { label: '执行器', value: m.baseModel?.executionProvider || 'CPU' },
+      { label: '输入尺寸', value: `${m.baseModel?.inputWidth || 640} × ${m.baseModel?.inputHeight || 640}` },
+      { label: '二值化阈值', value: m.dbThresh || 0.3 },
+      { label: '框阈值', value: m.dbBoxThresh || 0.5 },
+      { label: '扩充比例', value: m.unclipRatio || 1.5 },
+      { label: '膨胀', value: m.useDilation ? '是' : '否' },
     ];
   }
 
   if ('PaddleCrnn' in model) {
     const m = model.PaddleCrnn;
     return [
-      { label: '执行器', value: m.base_model?.execution_provider || 'CPU' },
-      { label: '输入尺寸', value: `${m.base_model?.input_width || 320} × ${m.base_model?.input_height || 48}` },
+      { label: '执行器', value: m.baseModel?.executionProvider || 'CPU' },
+      { label: '输入尺寸', value: `${m.baseModel?.inputWidth || 320} × ${m.baseModel?.inputHeight || 48}` },
     ];
   }
   return [];

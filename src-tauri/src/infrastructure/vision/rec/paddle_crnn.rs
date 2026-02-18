@@ -14,6 +14,7 @@ use tokio::fs::read_to_string;
 
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct PaddleRecCrnn {
     pub base_model: BaseModel,
     #[ts(as = "Option<String>")]

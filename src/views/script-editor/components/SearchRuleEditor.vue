@@ -187,13 +187,16 @@ const scriptInfo = inject<any>('scriptInfo');
 const yoloLabels = ref<Record<number, string>>({});
 
 const loadYoloLabels = async () => {
-  const path = scriptInfo?.value?.img_det_model?.Yolo?.label_path;
+  const path = scriptInfo?.value?.imgDetModel?.Yolo11?.labelPath;
+  console.log(scriptInfo.value);
   if (path) {
     try {
       yoloLabels.value = await invoke('get_yolo_labels_cmd', { path });
     } catch (e) {
       console.error('Failed to load YOLO labels:', e);
     }
+  } else {
+    alert('请先配置图像检测模型标签路径');
   }
 };
 

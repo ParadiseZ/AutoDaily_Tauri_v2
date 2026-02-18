@@ -33,6 +33,7 @@ pub enum ModelSource {
 
 #[derive(Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct BaseModel {
     #[serde(skip)]
     #[ts(skip)]
