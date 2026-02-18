@@ -144,35 +144,37 @@ const handleSave = () => {
   const scriptData = {
     // Preserve id if editing (needed for update)
     id: existingScriptTable?.id || undefined,
-    data:{
-      userId: existingScript?.userId || '019b82ca280377a09eeb95dbdca056cc',
-      name: formState.name,
-      description: formState.description || null,
-      pkgName: formState.pkgName || null,
-      scriptType: existingScript?.scriptType || 'dev',
-      // Metadata
-      verName: formState.verName,
-      verNum: formState.verNum,
-      latestVer: formState.latestVer,
-      sponsorshipQr: formState.sponsorshipQr || null,
-      sponsorshipUrl: formState.sponsorshipUrl || null,
-      contactInfo: formState.contactInfo || null,
+    userId: existingScript?.userId || '019b82ca280377a09eeb95dbdca056cc',
+    name: formState.name,
+    description: formState.description || null,
+    pkgName: formState.pkgName || null,
+    scriptType: existingScript?.scriptType || 'dev',
+    // Metadata
+    verName: formState.verName,
+    verNum: formState.verNum,
+    latestVer: formState.latestVer,
+    sponsorshipQr: formState.sponsorshipQr || null,
+    sponsorshipUrl: formState.sponsorshipUrl || null,
+    contactInfo: formState.contactInfo || null,
 
-      // Preserve other fields
-      downloadCount: existingScript?.downloadCount || 0,
-      isValid: formState.isValid ?? true,
-      createTime: existingScript?.createTime || new Date().toISOString(),
-      updateTime: new Date().toISOString(),
-      userName: existingScript?.userName || 'Local User',
-      cloudId: existingScript?.cloudId || null,
-      tasks: existingScript?.tasks || [],
-      templates: existingScript?.templates || [],
-    }
+    // Preserve other fields
+    downloadCount: existingScript?.downloadCount || 0,
+    isValid: formState.isValid ?? true,
+    createTime: existingScript?.createTime || new Date().toISOString(),
+    updateTime: new Date().toISOString(),
+    userName: existingScript?.userName || 'Local User',
+    cloudId: existingScript?.cloudId || null,
+    tasks: existingScript?.tasks || [],
+    templates: existingScript?.templates || [],
+    // Default models to null
+    imgDetModel: null,
+    txtDetModel: null,
+    txtRecModel: null,
   };
 
   // Image Detection Model Construction yolo11
   if (formState.imgDetType === ModelAlgorithm.Yolo11) {
-    scriptData.data.imgDetModel = {
+    scriptData.imgDetModel = {
       Yolo11: {
         baseModel: {
           inputWidth: parseInt(formState.yoloParams.inputWidth),
@@ -198,7 +200,7 @@ const handleSave = () => {
 
   // Text Detection Model Construction
   if (formState.txtDetType === ModelAlgorithm.Yolo11) {
-    scriptData.data.txtDetModel = {
+    scriptData.txtDetModel = {
       Yolo11: {
         baseModel: {
           inputWidth: parseInt(formState.txtDetYoloParams.inputWidth),
@@ -223,7 +225,7 @@ const handleSave = () => {
   }
 
   if (formState.txtDetType === ModelAlgorithm.PaddleDbNet) {
-    scriptData.data.txtDetModel = {
+    scriptData.txtDetModel = {
       PaddleDbNet: {
         baseModel: {
           inputWidth: parseInt(formState.dbNetParams.inputWidth),
@@ -247,7 +249,7 @@ const handleSave = () => {
 
   // Text Recognition Model Construction
   if (formState.txtRecType === ModelAlgorithm.PaddleCrnn) {
-    scriptData.data.txtRecModel = {
+    scriptData.txtRecModel = {
       PaddleCrnn: {
         baseModel: {
           inputWidth: parseInt(formState.crnnParams.inputWidth),

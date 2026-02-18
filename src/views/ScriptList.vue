@@ -61,7 +61,6 @@ const openNewModal = () => {
 
 const handleCreateScript = async (scriptData: any) => {
   try {
-    console.log(scriptData);
     await saveScript(scriptData);
     isNewModalOpen.value = false;
   } catch (e) {
@@ -75,7 +74,7 @@ const openEditModal = (script: ExtendedScriptTable) => {
   isEditModalOpen.value = true;
 };
 
-const handleUpdateScript = async (scriptData: ScriptInfo & { id: string }) => {
+const handleUpdateScript = async (scriptData: any) => {
   try {
     await saveScript(scriptData);
     isEditModalOpen.value = false;
