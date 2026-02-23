@@ -1,7 +1,9 @@
-use crate::domain::scripts::action::click::Click;
-use crate::domain::scripts::point::{Point, PointU16};
-use crate::domain::vision::ocr_search::SearchRule;
-use crate::infrastructure::core::{Deserialize, PolicyId, Serialize, StepId, TaskId};
+use crate::domain::scripts::nodes::action::Action;
+use crate::domain::scripts::nodes::data_handing::DataHanding;
+use crate::domain::scripts::nodes::flow_control::FlowControl;
+use crate::domain::scripts::nodes::task_control::TaskControl;
+use crate::domain::scripts::nodes::vision_node::VisionNode;
+use crate::infrastructure::core::{Deserialize, Serialize, StepId};
 
 /*// 逻辑组合
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -107,159 +109,28 @@ pub enum StepKind {
         steps: Vec<Step>,
         reverse: bool,
     },
-    Continue,
-    Break,
-    Filter{
-        cond:String,
-        then_steps: Box<Step>,
-        output_var: Option<String>,
-    },
-    If {
-        cond: String,
-        then_steps: Vec<Step>,
-        else_steps: Option<Box<Step>>,
-    },
-    While {
-        cond: String,
-        steps: Vec<Step>,
-        max_loop: Option<u32>,
+
+    Action{
+        cur_exec_num: u32,
+        max_exec_num: u32,
+        a: Action
     },
 
-    ForEachActivity {
-        filter: Option<Vec<String>>, // 可选：只处理指定活动
-        body: Box<Step>,             // 可用 {{activity.id}} 等变量
-    },
-    WaitMs {
-        ms: u64,
-    },
-    WaitUntil {
-        cond: String,
-        timeout_ms: u64,
+    DataHanding{
+        a: DataHanding
     },
 
-    SetVar {
-        name: String,
-        value_expr: String,
-    }, // value_expr 是 Rhai 表达式
-    GetVar {
-        name: String,
+    FlowControl{
+        cur_exec_num: u32,
+        max_exec_num: u32,
+        a: FlowControl
     },
-    // 视觉/设备操作
-    TakeScreenshot {
-        output_var: String, // 存储 ImageHandle/Path 的变量名
+    TaskControl{
+        a: TaskControl,
     },
-    DetRec {
-        det_var: String, // 输入图片变量
-        output_var: String, // 输出结果变量 (DetectionResult)
-    },
-    Ocr {
-        image_var: String, // 输入图片变量
-        output_var: String, // 输出结果变量 (DetectionResult)
-    },
-    /// 增强视觉搜索：支持 OCR + YOLO + 颜色逻辑
-    VisionSearch {
-        rule: SearchRule,
-        output_var: String, // 存储命中结果的变量名 (Vec<SearchHit>)
-    },
-    FindObject {
-        image_var: String, // 输入图片
-        query: String, // 查找内容 (文本 regex 或 模板名称)
-        output_var: String, // 输出坐标/区域变量
-    },
-    ClickAction(Click),
-    // 安卓
-    SwipeDet {
-        from: LabelType,
-        to: LabelType,
-        verify: Option<Vec<Step>>,
-    },
-    SwipeTxt {
-        from: String,
-        to: String,
-        verify: Option<Vec<Step>>,
-    },
-    SwipePoint {
-        #[ts(as = "PointU16")]
-        from: Point<u16>,
-        #[ts(as = "PointU16")]
-        to: Point<u16>,
-        verify: Option<Vec<Step>>,
-    },
-    SwipePercent {
-        from: PointPercent,
-        to: PointPercent,
-        verify: Option<Vec<Step>>,
-    },
-    // 索引管理
-    IncIndex {
-        id: StepId,
-        amount: Option<usize>,
-    },
-    ResetIndex {
-        id: Option<StepId>, // None 表示重置所有
-    },
-    IfAndClick {
-        #[serde(default)]
-        cur_pos: u16,
-        cond: SearchRule,
-        click : Click,
-        then_steps: Vec<Step>,
-        else_steps: Option<Vec<Step>>,
-    },
-
-    // 状态与流程管理
-    SetState {
-        target: StateTarget,
-        status: StateStatus,
-    },
-    GetState {
-        target: StateTarget,
-        output_var: String,
-    },
-    StopPolicy,
-    FinishTask {
-        success: bool,
-        message: Option<String>,
-    },
-    /// 结果过滤与逻辑处理 (e.g. 筛选数字并比较)
-    FilterHits {
-        input_var: String,  // Vec<SearchHit>
-        output_var: String, // 根据逻辑输出 bool 或 filtered hits
-        logic_expr: String, // Rhai 表达式，用于进一步过滤或判定
-    },
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum StateTarget {
-    Policy { id: PolicyId },
-    Task { id: TaskId },
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum StateStatus {
-    Skip { value: bool },
-    Done { value: bool },
-}
-
-
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum LabelType {
-    LabelIdx { idx: i32 },
-    LabelName { name: String },
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase")]
-pub struct PointPercent {
-    x: f32,
-    y: f32,
+    Vision{
+        a:VisionNode
+    }
 }
 
 /*// DDD 仓储接口（同步，便于简化依赖；调用方如需并发可自行 spawn）
