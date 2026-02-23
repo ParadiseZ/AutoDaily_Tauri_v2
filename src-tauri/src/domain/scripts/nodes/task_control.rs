@@ -11,7 +11,7 @@ pub enum TaskControl{
     },
     GetState {
         target: StateTarget,
-        output_var: StateStatus,
+        status: StateStatus,
     },
 }
 
