@@ -27,32 +27,32 @@
         <div v-for="(item, idx) in localRule.items" :key="idx">
           <!-- Keyword / Regex Item -->
           <div
-            v-if="item.type !== 'Group'"
+            v-if="item.type !== 'group'"
             class="rule-item bg-base-100 rounded-2xl p-3 flex items-center gap-4 border border-base-300 hover:border-primary/30 hover:shadow-md transition-all group duration-300"
           >
             <div
               class="flex-none w-10 h-10 rounded-xl flex items-center justify-center transition-colors shadow-sm"
               :class="{
-                'bg-amber-100 text-amber-600': item.type === 'Regex',
-                'bg-blue-100 text-blue-600': item.type === 'Keyword',
-                'bg-purple-100 text-purple-600': item.type === 'YoloIdx',
-                'bg-base-200 text-base-content/40': !['Regex', 'Keyword', 'YoloIdx'].includes(item.type),
+                'bg-amber-100 text-amber-600': item.type === 'regex',
+                'bg-blue-100 text-blue-600': item.type === 'keyword',
+                'bg-purple-100 text-purple-600': item.type === 'yoloIdx',
+                'bg-base-200 text-base-content/40': !['regex', 'keyword', 'yoloIdx'].includes(item.type),
               }"
             >
-              <IconRenderer v-if="item.type === 'Keyword'" icon="type" class="w-5 h-5" />
-              <IconRenderer v-else-if="item.type === 'Regex'" icon="zap" class="w-5 h-5" />
-              <IconRenderer v-else-if="item.type === 'YoloIdx'" icon="target" class="w-5 h-5" />
+              <IconRenderer v-if="item.type === 'keyword'" icon="type" class="w-5 h-5" />
+              <IconRenderer v-else-if="item.type === 'regex'" icon="zap" class="w-5 h-5" />
+              <IconRenderer v-else-if="item.type === 'yoloIdx'" icon="target" class="w-5 h-5" />
               <IconRenderer v-else icon="box" class="w-5 h-5" />
             </div>
 
             <div class="flex-1 min-w-0">
               <input
-                v-if="item.type !== 'YoloIdx'"
+                v-if="item.type !== 'yoloIdx'"
                 ref="itemInputs"
                 type="text"
                 v-model="(item as any).pattern"
                 class="input input-ghost w-full focus:bg-base-200 font-mono text-sm tracking-tight placeholder:italic"
-                :placeholder="item.type === 'Regex' ? '^\\d+$ (数字)' : '文本内容...'"
+                :placeholder="item.type === 'regex' ? '^\\d+$ (数字)' : '文本内容...'"
               />
               <select
                 v-else
@@ -128,25 +128,25 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1 border-t border-base-300/50 mt-6">
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-blue-500 hover:text-blue-600 rounded-xl gap-2 shadow-sm font-bold"
-            @click="addItem('Keyword')"
+            @click="addItem('keyword')"
           >
             <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">文字匹配</span>
           </button>
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-purple-500 hover:text-purple-600 rounded-xl gap-2 shadow-sm font-bold"
-            @click="addItem('YoloIdx')"
+            @click="addItem('yoloIdx')"
           >
             <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">标签匹配</span>
           </button>
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-amber-500 hover:text-amber-600 rounded-xl gap-2 shadow-sm font-bold"
-            @click="addItem('Regex')"
+            @click="addItem('regex')"
           >
             <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">正则表达式</span>
           </button>
           <button
             class="btn btn-sm bg-base-100 border-base-300 hover:border-base-content rounded-xl gap-2 shadow-sm font-bold"
-            @click="addItem('Group')"
+            @click="addItem('group')"
           >
             <PlusIcon class="w-3.5 h-3.5" /> <span class="text-[10px]">创建子逻辑组</span>
           </button>
@@ -174,13 +174,13 @@ const emit = defineEmits<{
 }>();
 
 const parseInputRule = (r: any): any => {
-  if (!r) return { type: 'Group', op: 'And', scope: 'Global', items: [] };
+  if (!r) return { type: 'group', op: 'And', scope: 'Global', items: [] };
   if (r.type) return r;
-  if (r.Group) return { type: 'Group', ...r.Group };
-  if (r.Keyword) return { type: 'Keyword', pattern: r.Keyword.pattern };
-  if (r.Regex) return { type: 'Regex', pattern: r.Regex.pattern };
-  if (r.YoloIdx) return { type: 'YoloIdx', idx: r.YoloIdx.idx };
-  return { type: 'Group', op: 'And', scope: 'Global', items: [] };
+  if (r.Group) return { type: 'group', ...r.Group };
+  if (r.Keyword) return { type: 'keyword', pattern: r.Keyword.pattern };
+  if (r.Regex) return { type: 'regex', pattern: r.Regex.pattern };
+  if (r.YoloIdx) return { type: 'yoloIdx', idx: r.YoloIdx.idx };
+  return { type: 'group', op: 'And', scope: 'Global', items: [] };
 };
 
 const scriptInfo = inject<any>('scriptInfo');
@@ -220,12 +220,12 @@ const updateNestedGroup = (idx: number, newGroupData: SearchRule) => {
 };
 
 const addItem = (type: string, pattern: string = '') => {
-  if (type === 'Group') {
+  if (type === 'group') {
     const newIdx = localRule.value.items.length;
-    localRule.value.items.push({ type: 'Group', op: 'And', scope: 'Global', items: [] });
+    localRule.value.items.push({ type: 'group', op: 'And', scope: 'Global', items: [] });
     expandedGroups.value[newIdx] = true;
-  } else if (type === 'YoloIdx') {
-    localRule.value.items.push({ type: 'YoloIdx', idx: -1 });
+  } else if (type === 'yoloIdx') {
+    localRule.value.items.push({ type: 'yoloIdx', idx: -1 });
   } else {
     localRule.value.items.push({ type, pattern });
     nextTick(() => {

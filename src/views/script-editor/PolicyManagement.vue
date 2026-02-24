@@ -310,7 +310,7 @@ const addNewItem = async () => {
       execCur: 0,
       execMax: 0,
       beforeAction: [],
-      cond: { type: 'Group', op: 'And', scope: 'Global', items: [] },
+      cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
       afterAction: [],
     };
   } else if (props.activeTab === 'policy_group') {

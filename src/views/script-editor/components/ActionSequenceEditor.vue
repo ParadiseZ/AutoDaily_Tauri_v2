@@ -165,7 +165,7 @@ const addStepWithType = (op: string) => {
     ...(op === 'WaitMs' ? { ms: 1000 } : {}),
     ...(op === 'If' || op === 'While'
       ? {
-          cond: { type: 'Group', op: 'And', scope: 'Global', items: [] },
+          cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
           steps: [],
         }
       : {}),
@@ -173,7 +173,7 @@ const addStepWithType = (op: string) => {
     ...(op === 'ClickAction' ? { Point: { x: 0, y: 0 } } : {}),
     ...(op === 'SwipePoint' ? { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } } : {}),
     ...(op === 'VisionSearch'
-      ? { rule: { type: 'Group', op: 'And', scope: 'Global', items: [] }, output_var: 'search_result' }
+      ? { rule: { type: 'group', op: 'And', scope: 'Global', items: [] }, output_var: 'search_result' }
       : {}),
     ...(op === 'SetVar' ? { name: '', value_expr: '' } : {}),
     ...(op === 'GetVar' ? { name: '' } : {}),

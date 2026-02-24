@@ -287,7 +287,7 @@ export function getNodeDefaults(type: string): any {
             return { type, con: { type: 'rawExpr', expr: '' } };
         case 'detect': return { type, imagePath: '', confidence: base.confidence, resultVar: '' };
         case 'ocr': return { type, regionX: null, regionY: null, regionW: null, regionH: null, resultVar: '' };
-        case 'vision_logic': return { type, rule: { type: 'Group', op: 'And', scope: 'Global', items: [] }, outputVar: 'search_results' };
+        case 'vision_logic': return { type, rule: { type: 'group', op: 'And', scope: 'Global', items: [] }, outputVar: 'search_results' };
         case 'loop': return { type, count: base.count, loopType: base.loopType, breakCondition: base.breakCondition };
         case 'fallback': return { type, maxRetries: base.maxRetries, strategies: DEFAULT_FALLBACK_STRATEGIES.map(s => ({ ...s })) };
         case 'subflow': return { type, targetTaskId: base.targetTaskId, waitForComplete: base.waitForComplete };

@@ -417,9 +417,9 @@
             <div class="space-y-2">
               <div v-for="(item, idx) in localData.rule.items" :key="idx" class="flex items-center gap-2">
                 <div class="flex-1 flex items-center bg-base-100 rounded px-2 py-1 gap-2 border border-base-300">
-                  <span class="text-[10px] opacity-50">{{ item.type === 'Keyword' ? 'KW' : 'GRP' }}</span>
+                  <span class="text-[10px] opacity-50">{{ item.type === 'keyword' ? 'KW' : 'GRP' }}</span>
                   <input
-                    v-if="item.type === 'Keyword'"
+                    v-if="item.type === 'keyword'"
                     type="text"
                     v-model="item.text"
                     class="input input-ghost input-xs flex-1 focus:bg-base-100"
@@ -582,7 +582,7 @@ watch(
 
       if (newNode.data?.type === 'vision_logic') {
         if (!localData.value.rule) {
-          localData.value.rule = { type: 'Group', op: 'And', scope: 'Global', items: [] };
+          localData.value.rule = { type: 'group', op: 'And', scope: 'Global', items: [] };
         }
         if (!localData.value.outputVar) localData.value.outputVar = 'search_results';
       }
@@ -648,7 +648,7 @@ const removeStrategy = (idx: number) => {
 
 const addRuleKeyword = () => {
   if (!localData.value.rule.items) localData.value.rule.items = [];
-  localData.value.rule.items.push({ type: 'Keyword', text: '' });
+  localData.value.rule.items.push({ type: 'keyword', text: '' });
 };
 
 const removeRuleItem = (idx: number) => {

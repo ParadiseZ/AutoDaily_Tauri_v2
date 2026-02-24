@@ -69,7 +69,7 @@
           <!-- Dynamic Body -->
           <div class="col-span-full space-y-6">
             <!-- WaitMs Form -->
-            <div v-if="step.op === 'waitMs'" class="form-control">
+            <div v-if="(step as any).op === 'waitMs'" class="form-control">
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block"
                 >等候时长 (Milliseconds)</label
               >
@@ -82,10 +82,11 @@
             </div>
 
             <!-- If/While Form -->
-            <div v-if="['if', 'while'].includes(step.op)" class="space-y-6">
+            <div v-if="['if', 'while'].includes((step as any).op)" class="space-y-6">
               <div class="p-5 bg-base-100 rounded-4xl border border-base-300 shadow-sm">
-                <SearchRuleEditor
-                  :rule="(localStep as any).cond"
+                <ConditionNodeEditor
+                  :condition="(localStep as any).cond"
+                  :isRoot="true"
                   @update="
                     (localStep as any).cond = $event;
                     onDataUpdate(localStep);
@@ -112,7 +113,7 @@
 
             <!-- Sequence Form -->
             <div
-              v-if="step.op === 'sequence'"
+              v-if="(step as any).op === 'sequence'"
               class="p-5 bg-base-100 rounded-4xl border border-base-300 shadow-sm relative"
             >
               <div
@@ -131,7 +132,7 @@
             </div>
 
             <!-- ClickAction Form -->
-            <div v-if="step.op === 'clickAction'" class="space-y-4">
+            <div v-if="(step as any).op === 'clickAction'" class="space-y-4">
               <div class="form-control">
                 <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">点击模式</label>
                 <select
@@ -235,7 +236,7 @@
             </div>
 
             <!-- SwipePoint Form -->
-            <div v-if="step.op === 'swipePoint'" class="space-y-4">
+            <div v-if="(step as any).op === 'swipePoint'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="p-3 bg-base-200/50 rounded-xl">
                   <div class="text-[9px] font-black uppercase opacity-40 mb-2">起点 (From)</div>
@@ -279,7 +280,7 @@
             </div>
 
             <!-- SwipePercent Form -->
-            <div v-if="step.op === 'swipePercent'" class="space-y-4">
+            <div v-if="(step as any).op === 'swipePercent'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="p-3 bg-base-200/50 rounded-xl">
                   <div class="text-[9px] font-black uppercase opacity-40 mb-2">起点百分比</div>
@@ -327,7 +328,7 @@
             </div>
 
             <!-- VisionSearch Form -->
-            <div v-if="step.op === 'visionSearch'" class="space-y-4">
+            <div v-if="(step as any).op === 'visionSearch'" class="space-y-4">
               <div class="form-control">
                 <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
                 <input
@@ -340,7 +341,7 @@
               </div>
               <div class="p-5 bg-base-100 rounded-4xl border border-base-300 shadow-sm">
                 <SearchRuleEditor
-                  :rule="(localStep as any).rule || { type: 'Group', op: 'And', scope: 'Global', items: [] }"
+                  :rule="(localStep as any).rule || { type: 'group', op: 'And', scope: 'Global', items: [] }"
                   @update="
                     (localStep as any).rule = $event;
                     onDataUpdate(localStep);
@@ -350,7 +351,7 @@
             </div>
 
             <!-- SetVar Form -->
-            <div v-if="step.op === 'setVar'" class="space-y-4">
+            <div v-if="(step as any).op === 'setVar'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
@@ -376,7 +377,7 @@
             </div>
 
             <!-- GetVar Form -->
-            <div v-if="step.op === 'getVar'" class="form-control">
+            <div v-if="(step as any).op === 'getVar'" class="form-control">
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">变量名</label>
               <input
                 type="text"
@@ -388,7 +389,7 @@
             </div>
 
             <!-- TakeScreenshot Form -->
-            <div v-if="step.op === 'takeScreenshot'" class="form-control">
+            <div v-if="(step as any).op === 'takeScreenshot'" class="form-control">
               <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">输出变量名</label>
               <input
                 type="text"
@@ -400,7 +401,7 @@
             </div>
 
             <!-- SetState Form -->
-            <div v-if="step.op === 'setState'" class="space-y-4">
+            <div v-if="(step as any).op === 'setState'" class="space-y-4">
               <div class="grid grid-cols-2 gap-4">
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">目标类型</label>
@@ -497,6 +498,7 @@ import {
 } from 'lucide-vue-next';
 import IconRenderer from '../IconRenderer.vue';
 import SearchRuleEditor from './SearchRuleEditor.vue';
+import ConditionNodeEditor from './ConditionNodeEditor.vue';
 import type { Step } from '@/types/bindings';
 
 const ActionSequenceEditor = defineAsyncComponent(() => import('./ActionSequenceEditor.vue'));
@@ -651,11 +653,11 @@ const stepTitle = computed(() => {
     stopPolicy: '停止策略',
     finishTask: '结束任务',
   };
-  return opMap[props.step.op] || props.step.op;
+  return opMap[(props.step as any).op] || (props.step as any).op;
 });
 
 const stepSummary = computed(() => {
-  const op = props.step.op;
+  const op = (props.step as any).op;
   if (op === 'waitMs') return `等待 ${(localStep.value as any).ms} 毫秒`;
   if (op === 'sequence') return `包含 ${(localStep.value as any).steps?.length || 0} 个子动作`;
   if (op === 'if' || op === 'while') return `判断条件后执行 ${(localStep.value as any).steps?.length || 0} 个逻辑`;

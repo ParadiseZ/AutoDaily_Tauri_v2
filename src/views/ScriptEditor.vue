@@ -460,7 +460,6 @@ import { editorThemeKey, deviceKey, setToStore, getFromStore } from '@/store/sto
 // data
 import { useDevices } from '@/assets/js/useDevices';
 import type { ScriptTable, ScriptInfo, ScriptTaskTable } from '@/types/bindings';
-import type { JsonValue } from '@/types/bindings/serde_json/JsonValue';
 
 // ============================================
 // 核心状态

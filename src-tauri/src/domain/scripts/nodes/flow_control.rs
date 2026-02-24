@@ -59,7 +59,7 @@ pub enum ConditionNode {
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase", tag = "type")]
+#[serde(rename_all = "camelCase")]
 pub enum CompareOp {
     Eq,
     Ne,
