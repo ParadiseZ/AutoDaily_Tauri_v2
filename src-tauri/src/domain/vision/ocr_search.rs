@@ -70,6 +70,7 @@ impl VisionSnapshot {
 /// 逻辑判定操作符
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum LogicOp {
     And,
     Or,
@@ -79,6 +80,7 @@ pub enum LogicOp {
 /// 搜索作用域
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, ts_rs::TS)]
 #[ts(export)]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum SearchScope {
     /// 全局匹配：只要画面中存在这些模式即可（不要求在同一个框内）
     Global,
@@ -92,7 +94,7 @@ pub enum SearchScope {
 /// YoloIdx 由 evaluate 方法通过 DetResult 列表单独判断。
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
-#[serde(tag = "type")]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum SearchRule {
     /// 关键字包含
     Keyword {

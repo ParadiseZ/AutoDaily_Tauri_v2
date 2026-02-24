@@ -44,15 +44,33 @@ export const NODE_TYPES: Record<string, NodeTypeConfig> = {
         description: 'Swipe gesture',
     },
 
-    // Condition Nodes
+    // Condition & Flow Nodes
     if: {
         color: 'bg-yellow-500',
         icon: 'branch',
-        display: 'IF Found',
+        display: 'IF',
         displayCn: '判断',
         category: 'condition',
-        placeholder: 'Set search target...',
+        placeholder: 'Set condition...',
         description: 'If condition met, then...',
+    },
+    while: {
+        color: 'bg-yellow-600',
+        icon: 'rotate-cw',
+        display: 'While',
+        displayCn: '当条件成立',
+        category: 'condition',
+        placeholder: 'While condition...',
+        description: 'Loop while condition is met',
+    },
+    for: {
+        color: 'bg-green-600',
+        icon: 'repeat',
+        display: 'For',
+        displayCn: '条件循环',
+        category: 'condition',
+        placeholder: 'For loop...',
+        description: 'For loop based on condition',
     },
 
     // Vision Nodes
@@ -174,7 +192,7 @@ export const NODE_CATEGORIES = [
         key: 'condition',
         label: '条件逻辑',
         labelEn: 'Conditions',
-        types: ['if'],
+        types: ['if', 'while', 'for'],
     },
     {
         key: 'vision',
@@ -263,7 +281,10 @@ export function getNodeDefaults(type: string): any {
         case 'click': return { type, targetType: base.targetType, x: base.x, y: base.y, target: base.target };
         case 'wait': return { type, duration: base.duration, randomize: base.randomize };
         case 'swipe': return { type, startX: 0, startY: 0, endX: 0, endY: 0, duration: base.duration };
-        case 'if': return { type, searchType: base.searchType, target: base.target, confidence: base.confidence, timeout: base.timeout };
+        case 'if':
+        case 'while':
+        case 'for':
+            return { type, con: { type: 'rawExpr', expr: '' } };
         case 'detect': return { type, imagePath: '', confidence: base.confidence, resultVar: '' };
         case 'ocr': return { type, regionX: null, regionY: null, regionW: null, regionH: null, resultVar: '' };
         case 'vision_logic': return { type, rule: { type: 'Group', op: 'And', scope: 'Global', items: [] }, outputVar: 'search_results' };
@@ -311,5 +332,5 @@ export function getNodePlaceholder(type: string): string { return getNodeTypeCon
 export function getNodeDescription(type: string): string { return getNodeTypeConfig(type).description || ''; }
 export function isStartNode(type: string): boolean { return type === 'start'; }
 export function isConditionNode(type: string): boolean { return type === 'if'; }
-export function isLoopNode(type: string): boolean { return type === 'loop'; }
+export function isLoopNode(type: string): boolean { return ['loop', 'while', 'for'].includes(type); }
 export function isEndNode(type: string): boolean { return type === 'end'; }
