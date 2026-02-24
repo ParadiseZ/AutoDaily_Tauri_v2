@@ -139,183 +139,11 @@
             <option value="taskStatus">Task Status Check</option>
             <option value="colorCompare">OCR Color Compare</option>
             <option value="varCompare">Variable Compare</option>
+            <option value="group">Logic Group (And/Or/Not)</option>
           </select>
         </div>
 
-        <!-- RawExpr -->
-        <div v-if="localData.con?.type === 'rawExpr'" class="form-control w-full">
-          <label class="label"><span class="label-text">Rhai Expression</span></label>
-          <input
-            type="text"
-            v-model="localData.con.expr"
-            placeholder="e.g. var_name == 1"
-            class="input input-sm input-bordered w-full font-mono"
-          />
-        </div>
-
-        <!-- ExecNumCompare -->
-        <div v-if="localData.con?.type === 'execNumCompare'" class="space-y-2">
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Target Type</span></label>
-            <select class="select select-bordered select-sm w-full" v-model="localData.con.a.type">
-              <option value="policy">Policy</option>
-              <option value="task">Task</option>
-            </select>
-          </div>
-          <div class="form-control w-full" v-if="localData.con.a?.type">
-            <label class="label"><span class="label-text">Target ID</span></label>
-            <input type="number" v-model="localData.con.a.id" class="input input-sm input-bordered w-full" />
-          </div>
-        </div>
-
-        <!-- TaskStatus -->
-        <div v-if="localData.con?.type === 'taskStatus'" class="space-y-2">
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Target Action</span></label>
-            <select class="select select-bordered select-sm w-full" v-model="localData.con.a.type">
-              <option value="getState">Get State</option>
-              <option value="setState">Set State</option>
-            </select>
-          </div>
-          <div class="form-control w-full flex gap-2">
-            <div class="flex-1">
-              <label class="label"><span class="label-text text-xs">Target</span></label>
-              <select class="select select-bordered select-sm w-full" v-model="localData.con.a.target.type">
-                <option value="policy">Policy</option>
-                <option value="task">Task</option>
-              </select>
-            </div>
-            <div class="flex-1">
-              <label class="label"><span class="label-text text-xs">ID</span></label>
-              <input type="number" v-model="localData.con.a.target.id" class="input input-sm input-bordered w-full" />
-            </div>
-          </div>
-          <div class="form-control w-full flex gap-2">
-            <div class="flex-1">
-              <label class="label"><span class="label-text text-xs">Status Check</span></label>
-              <select class="select select-bordered select-sm w-full" v-model="localData.con.a.status.type">
-                <option value="skip">Skip</option>
-                <option value="done">Done</option>
-              </select>
-            </div>
-            <div class="flex-1 flex items-end pb-1 pl-2">
-              <label class="cursor-pointer label justify-start gap-2 h-8">
-                <input type="checkbox" v-model="localData.con.a.status.value" class="checkbox checkbox-sm" />
-                <span class="label-text text-xs">Value</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <!-- ColorCompare -->
-        <div v-if="localData.con?.type === 'colorCompare'" class="space-y-2">
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Target Text</span></label>
-            <input
-              type="text"
-              v-model="localData.con.txtTarget"
-              placeholder="Text to match..."
-              class="input input-sm input-bordered w-full"
-            />
-          </div>
-          <div class="form-control w-full">
-            <label class="cursor-pointer label justify-start gap-2">
-              <input type="checkbox" v-model="localData.con.isFont" class="checkbox checkbox-sm" />
-              <span class="label-text">Is Font Color (uncheck for Background)</span>
-            </label>
-          </div>
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">RGB Values</span></label>
-            <div class="join w-full">
-              <input
-                type="number"
-                v-model="localData.con.r"
-                min="0"
-                max="255"
-                placeholder="R"
-                class="join-item input input-sm input-bordered w-1/3"
-              />
-              <input
-                type="number"
-                v-model="localData.con.g"
-                min="0"
-                max="255"
-                placeholder="G"
-                class="join-item input input-sm input-bordered w-1/3"
-              />
-              <input
-                type="number"
-                v-model="localData.con.b"
-                min="0"
-                max="255"
-                placeholder="B"
-                class="join-item input input-sm input-bordered w-1/3"
-              />
-            </div>
-          </div>
-        </div>
-
-        <!-- VarCompare -->
-        <div v-if="localData.con?.type === 'varCompare'" class="space-y-2">
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text">Variable Name</span></label>
-            <input type="text" v-model="localData.con.varName" class="input input-sm input-bordered w-full" />
-          </div>
-          <div class="flex gap-2 w-full">
-            <div class="form-control flex-1">
-              <label class="label"><span class="label-text text-xs">Operator</span></label>
-              <select class="select select-bordered select-sm w-full" v-model="localData.con.op">
-                <option value="eq">==</option>
-                <option value="ne">!=</option>
-                <option value="lt">&lt;</option>
-                <option value="le">&lt;=</option>
-                <option value="gt">&gt;</option>
-                <option value="ge">&gt;=</option>
-              </select>
-            </div>
-            <div class="form-control flex-1">
-              <label class="label"><span class="label-text text-xs">Value Type</span></label>
-              <select
-                class="select select-bordered select-sm w-full"
-                v-model="localData.con.value.type"
-                @change="onVarCompareTypeChange"
-              >
-                <option value="int">Integer</option>
-                <option value="float">Float</option>
-                <option value="bool">Boolean</option>
-                <option value="string">String</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-control w-full">
-            <label class="label"><span class="label-text text-xs">Value</span></label>
-            <div v-if="localData.con.value?.type === 'int'">
-              <input
-                type="number"
-                v-model="localData.con.value.value"
-                step="1"
-                class="input input-sm input-bordered w-full"
-              />
-            </div>
-            <div v-else-if="localData.con.value?.type === 'float'">
-              <input
-                type="number"
-                v-model="localData.con.value.value"
-                step="0.01"
-                class="input input-sm input-bordered w-full"
-              />
-            </div>
-            <div v-else-if="localData.con.value?.type === 'bool'">
-              <label class="cursor-pointer label justify-start gap-2 h-8 pl-2">
-                <input type="checkbox" v-model="localData.con.value.value" class="checkbox checkbox-sm" />
-                <span class="label-text text-xs">True / False</span>
-              </label>
-            </div>
-            <div v-else-if="localData.con.value?.type === 'string'">
-              <input type="text" v-model="localData.con.value.value" class="input input-sm input-bordered w-full" />
-            </div>
-          </div>
-        </div>
+        <ConditionNodeEditor v-if="localData.con" :condition="localData.con" :isRoot="true" @update="updateCondition" />
       </div>
 
       <!-- Type: Find Image -->
@@ -703,9 +531,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, defineAsyncComponent } from 'vue';
 import type { Node } from '@vue-flow/core';
 import { DEFAULT_FALLBACK_STRATEGIES, getNodeDisplay, NODE_DATA_DEFAULTS } from './config';
+
+const ConditionNodeEditor = defineAsyncComponent(() => import('./components/ConditionNodeEditor.vue'));
 
 const props = defineProps<{
   selectedNode: Node | null;
@@ -780,14 +610,13 @@ const onConTypeChange = () => {
     localData.value.con = { type: 'colorCompare', txtTarget: '', isFont: true, r: 0, g: 0, b: 0 };
   } else if (t === 'varCompare') {
     localData.value.con = { type: 'varCompare', varName: '', op: 'eq', value: { type: 'string', value: '' } };
+  } else if (t === 'group') {
+    localData.value.con = { type: 'group', op: 'And', items: [] };
   }
 };
 
-const onVarCompareTypeChange = () => {
-  const t = localData.value.con.value.type;
-  if (t === 'int' || t === 'float') localData.value.con.value.value = 0;
-  else if (t === 'bool') localData.value.con.value.value = true;
-  else localData.value.con.value.value = '';
+const updateCondition = (newCond: any) => {
+  localData.value.con = newCond;
 };
 
 watch(

@@ -1,11 +1,16 @@
-use rhai::{Engine, Scope, Dynamic};
+use std::error::Error;
 use crate::domain::scripts::script_decision::Step;
-use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::infrastructure::context::runtime_context::SharedRuntimeContext;
-use crate::infrastructure::core::StepId;
-use tokio::time::Duration;
-use std::pin::Pin;
+use crate::infrastructure::core::{HashMap, StepId};
+use crate::infrastructure::scripts::script_error::ExecuteResult;
+use rhai::{Engine, Scope};
 use std::future::Future;
+use std::pin::Pin;
+use crate::domain::scripts::nodes::action::Action;
+use crate::domain::scripts::nodes::data_handing::DataHanding;
+use crate::domain::scripts::nodes::flow_control::FlowControl;
+use crate::domain::scripts::nodes::task_control::TaskControl;
+use crate::domain::scripts::nodes::vision_node::VisionNode;
 
 #[derive(Debug)]
 pub enum ControlFlow {
@@ -19,7 +24,7 @@ pub struct ScriptExecutor {
     pub engine: Engine,
     pub scope: Scope<'static>,
     pub runtime_ctx: SharedRuntimeContext,
-    pub node_indices: crate::infrastructure::core::HashMap<StepId, usize>,
+    pub node_indices: HashMap<StepId, usize>,
 }
 
 impl ScriptExecutor {
@@ -30,7 +35,7 @@ impl ScriptExecutor {
             engine,
             scope: Scope::new(),
             runtime_ctx,
-            node_indices: crate::infrastructure::core::HashMap::new(),
+            node_indices:HashMap::new(),
         }
     }
 
@@ -67,7 +72,7 @@ impl ScriptExecutor {
         Ok(ControlFlow::Next)
     }
 
-    fn execute_step<'a>(&'a mut self, step: &'a crate::domain::scripts::script_decision::Step) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
+    fn execute_step<'a>(&'a mut self, step: &'a Step) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
         Box::pin(async move {
             use crate::domain::scripts::script_decision::StepKind;
             
@@ -92,8 +97,27 @@ impl ScriptExecutor {
                             _ => return Ok(flow), // Propagate Break/Continue/Return
                         }
                     }
-                }
-                StepKind::Continue => return Ok(ControlFlow::Continue),
+                },
+                StepKind::Action{ cur_exec_num, max_exec_num, a} => {
+                    if *cur_exec_num > *max_exec_num {
+                        return Ok(ControlFlow::Continue);
+                    }
+                },
+                StepKind::FlowControl { cur_exec_num, max_exec_num, a } => {
+                    if *cur_exec_num > *max_exec_num {
+                        return Ok(ControlFlow::Continue);
+                    }
+                },
+                StepKind::TaskControl { a } => {
+
+                },
+                StepKind::DataHanding { a }=>{
+
+                },
+                StepKind::Vision { a }=>{
+
+                },
+                /*StepKind::Continue => return Ok(ControlFlow::Continue),
                 StepKind::Break => return Ok(ControlFlow::Break),
                 StepKind::If { cond, then_steps, else_steps } => {
                     let val: bool = self.engine.eval_expression_with_scope(&mut self.scope, cond)
@@ -279,7 +303,7 @@ impl ScriptExecutor {
                 StepKind::FilterHits { .. } => {
                      // TODO: Implementation with Rhai
                 }
-                _ => {}
+                _ => {}*/
             }
             
             // 自动迭代逻辑
@@ -292,4 +316,51 @@ impl ScriptExecutor {
             Ok(ControlFlow::Next)
         })
     }
+
+    /*fn action_handler<'a>(&'a mut self, action: &Action) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
+        match action {
+            Action::ClickPoint { p } => {
+                // TODO: Click
+                Ok(ControlFlow::Next)
+            }
+            _=>{Ok(ControlFlow::Next)}
+        }
+    }
+
+    fn task_control_handler(&self, task_control: &TaskControl) -> Result<ControlFlow, Box<dyn Error>> {
+        match task_control {
+            TaskControl::GetState {  .. } => {
+                // TODO: GetState
+                Ok(ControlFlow::Next)
+            }
+            _=>{Ok(ControlFlow::Next)}
+        }
+    }
+
+    fn flow_control_handler(&self, flow_control: &FlowControl) -> Result<ControlFlow, Box<dyn Error>> {
+        match flow_control {
+            FlowControl::If { con, then, else_steps } => {
+                Ok(ControlFlow::Next)
+            }
+            _=>{Ok(ControlFlow::Next)}
+        }
+    }
+
+    fn data_handler(&self, data_handling: &DataHanding) -> Result<ControlFlow, Box<dyn Error>> {
+        match data_handling {
+            DataHanding::GetVar { .. } => {
+                Ok(ControlFlow::Next)
+            }
+            _=>{Ok(ControlFlow::Next)}
+        }
+    }
+
+    fn vision_handler(&self, vision: &VisionNode) -> Result<ControlFlow, Box<dyn Error>> {
+        match vision {
+            VisionNode::VisionSearch { .. } => {
+                Ok(ControlFlow::Next)
+            }
+            _=>{Ok(ControlFlow::Next)}
+        }
+    }*/
 }

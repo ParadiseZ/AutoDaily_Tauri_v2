@@ -1,8 +1,7 @@
-use image::RgbaImage;
+use crate::domain::scripts::nodes::data_handing::VarValue;
 use crate::domain::scripts::nodes::task_control::{StateTarget, TaskControl};
 use crate::domain::scripts::script_decision::Step;
 use crate::domain::vision::ocr_search::LogicOp;
-use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::core::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
@@ -68,18 +67,4 @@ pub enum CompareOp {
     Le,
     Gt,
     Ge,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum VarValue {
-    Int(i32),
-    Float(f32),
-    Bool(bool),
-    String(String),
-
-    Picture(RgbaImage),
-    OcrRes(Vec<OcrResult>),
-    DetRes(Vec<DetResult>)
 }
