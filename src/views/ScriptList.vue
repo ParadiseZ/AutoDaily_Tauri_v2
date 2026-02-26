@@ -171,7 +171,21 @@ const getModelDisplayParams = (model: DetectorType | RecognizerType | null | und
 
 const formatTime = (time: string | null | undefined) => {
   if (!time) return '无';
-  return time.split('T')[0];
+  try {
+    let t = time;
+    if (!t.endsWith('Z') && !t.includes('+')) {
+      t += 'Z'; // Assume UTC if no timezone is provided
+    }
+    const d = new Date(t);
+    if (isNaN(d.getTime())) return time.split('T')[0];
+    const utc8Date = new Date(d.getTime() + 8 * 3600 * 1000);
+    const yyyy = utc8Date.getUTCFullYear();
+    const MM = String(utc8Date.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(utc8Date.getUTCDate()).padStart(2, '0');
+    return `${yyyy}-${MM}-${dd}`;
+  } catch (e) {
+    return time.split('T')[0];
+  }
 };
 
 const openEditor = async (scriptId: string) => {

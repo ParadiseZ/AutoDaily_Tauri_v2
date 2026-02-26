@@ -50,7 +50,7 @@
                 @click="addStepWithType(kind.op)"
               >
                 <IconRenderer
-                  :icon="getIcon(kind.op)"
+                  :icon="NODE_TYPES[kind.op]?.icon || 'box'"
                   class="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform"
                 />
                 <span class="text-[10px] font-bold">{{ kind.name }}</span>
@@ -80,6 +80,7 @@ import { ref, computed, reactive } from 'vue';
 import { Plus as PlusIcon, ListTodo as ListTodoIcon } from 'lucide-vue-next';
 import StepItemEditor from './StepItemEditor.vue';
 import IconRenderer from '../IconRenderer.vue';
+import { NODE_TYPES, NODE_CATEGORIES } from '../config';
 import type { Step } from '@/types/bindings';
 
 const props = defineProps({
@@ -116,44 +117,17 @@ const pickerStyle = computed(() => ({
   left: `${Math.max(8, pickerPos.left)}px`,
 }));
 
-const getIcon = (op: string) => {
-  const map: Record<string, string> = {
-    ClickAction: 'cursor',
-    SwipePoint: 'move',
-    WaitMs: 'clock',
-    VisionSearch: 'zap',
-    Ocr: 'type',
-    If: 'branch',
-    While: 'repeat',
-    Sequence: 'layers',
-    SetVar: 'variable',
-    GetVar: 'terminal',
-    SetState: 'settings',
-  };
-  return map[op] || 'box';
-};
-
-const groupedActions = {
-  action: [
-    { name: '点击操作', op: 'ClickAction' },
-    { name: '滑动手势', op: 'SwipePoint' },
-    { name: '毫秒等待', op: 'WaitMs' },
-  ],
-  vision: [
-    { name: '视觉搜索', op: 'VisionSearch' },
-    { name: 'OCR文字', op: 'Ocr' },
-  ],
-  flowControl: [
-    { name: '判断 (If)', op: 'If' },
-    { name: '循环 (While)', op: 'While' },
-    { name: '序列 (Seq)', op: 'Sequence' },
-  ],
-  varSet: [
-    { name: '变量赋值', op: 'SetVar' },
-    { name: '变量获取', op: 'GetVar' },
-    { name: '状态通知', op: 'SetState' },
-  ],
-};
+const groupedActions = computed(() => {
+  const groups: Record<string, any[]> = {};
+  for (const cat of NODE_CATEGORIES) {
+    if (cat.key === 'special') continue;
+    groups[cat.label] = cat.types.map((t) => ({
+      name: NODE_TYPES[t].displayCn,
+      op: t,
+    }));
+  }
+  return groups;
+});
 
 const addStepWithType = (op: string) => {
   const newSteps = [...props.steps];
@@ -162,22 +136,23 @@ const addStepWithType = (op: string) => {
     label: '',
     skipFlag: false,
     execMax: 0,
-    ...(op === 'WaitMs' ? { ms: 1000 } : {}),
-    ...(op === 'If' || op === 'While'
+    ...(op === 'waitMs' ? { ms: 1000 } : {}),
+    ...(op === 'if' || op === 'while'
       ? {
           cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
           steps: [],
         }
       : {}),
-    ...(op === 'Sequence' ? { steps: [], reverse: false } : {}),
-    ...(op === 'ClickAction' ? { Point: { x: 0, y: 0 } } : {}),
-    ...(op === 'SwipePoint' ? { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } } : {}),
-    ...(op === 'VisionSearch'
+    ...(op === 'sequence' ? { steps: [], reverse: false } : {}),
+    ...(op === 'clickAction' ? { Point: { x: 0, y: 0 } } : {}),
+    ...(op === 'swipePoint' || op === 'swipePercent' ? { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } } : {}),
+    ...(op === 'visionSearch'
       ? { rule: { type: 'group', op: 'And', scope: 'Global', items: [] }, output_var: 'search_result' }
       : {}),
-    ...(op === 'SetVar' ? { name: '', value_expr: '' } : {}),
-    ...(op === 'GetVar' ? { name: '' } : {}),
-    ...(op === 'SetState' ? { target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } } : {}),
+    ...(op === 'takeScreenshot' ? { output_var: 'screenshot_path' } : {}),
+    ...(op === 'setVar' ? { name: '', value_expr: '' } : {}),
+    ...(op === 'getVar' ? { name: '' } : {}),
+    ...(op === 'setState' ? { target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } } : {}),
   };
   newSteps.push(newStep as Step);
   emit('update:steps', newSteps);

@@ -2,7 +2,7 @@ use crate::domain::scripts::nodes::data_handing::VarValue;
 use crate::domain::scripts::nodes::task_control::{StateTarget, TaskControl};
 use crate::domain::scripts::script_decision::Step;
 use crate::domain::vision::ocr_search::LogicOp;
-use crate::infrastructure::core::{Deserialize, Serialize};
+use crate::infrastructure::core::{Deserialize, PolicySetId, Serialize, TaskId};
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
@@ -20,6 +20,13 @@ pub enum FlowControl{
     WaitMs {
         ms: u64,
     },
+    Link{
+        target: TaskId,
+    },
+    AddPolicies{
+        source: PolicySetId,
+        target: PolicySetId,
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]

@@ -16,32 +16,32 @@ export interface NodeTypeConfig {
 
 export const NODE_TYPES: Record<string, NodeTypeConfig> = {
     // Basic Nodes
-    click: {
+    clickAction: {
         color: 'bg-blue-500',
         icon: 'cursor',
-        display: 'Click',
-        displayCn: '点击',
+        display: 'Click Action',
+        displayCn: '点击操作',
         category: 'basic',
         placeholder: 'Set click target...',
         description: 'Click on a target',
     },
-    wait: {
+    waitMs: {
         color: 'bg-gray-500',
         icon: 'clock',
-        display: 'Wait',
-        displayCn: '等待',
+        display: 'Wait (ms)',
+        displayCn: '延时等待',
         category: 'basic',
         placeholder: 'Set wait duration...',
         description: 'Wait for duration',
     },
-    swipe: {
+    swipePoint: {
         color: 'bg-cyan-500',
         icon: 'move',
         display: 'Swipe',
-        displayCn: '滑动',
+        displayCn: '坐标滑动',
         category: 'basic',
         placeholder: 'Set swipe gesture...',
-        description: 'Swipe gesture',
+        description: 'Swipe gesture by points',
     },
 
     // Condition & Flow Nodes
@@ -49,7 +49,7 @@ export const NODE_TYPES: Record<string, NodeTypeConfig> = {
         color: 'bg-yellow-500',
         icon: 'branch',
         display: 'IF',
-        displayCn: '判断',
+        displayCn: '条件分支',
         category: 'condition',
         placeholder: 'Set condition...',
         description: 'If condition met, then...',
@@ -58,23 +58,23 @@ export const NODE_TYPES: Record<string, NodeTypeConfig> = {
         color: 'bg-yellow-600',
         icon: 'rotate-cw',
         display: 'While',
-        displayCn: '当条件成立',
+        displayCn: '循环控制',
         category: 'condition',
         placeholder: 'While condition...',
         description: 'Loop while condition is met',
     },
-    for: {
+    sequence: {
         color: 'bg-green-600',
-        icon: 'repeat',
-        display: 'For',
-        displayCn: '条件循环',
+        icon: 'layers',
+        display: 'Sequence',
+        displayCn: '序列容器',
         category: 'condition',
-        placeholder: 'For loop...',
-        description: 'For loop based on condition',
+        placeholder: 'Step Sequence...',
+        description: 'Container for nested steps',
     },
 
     // Vision Nodes
-    capture: {
+    takeScreenshot: {
         color: 'bg-slate-500',
         icon: 'camera',
         display: 'Screenshot',
@@ -83,81 +83,53 @@ export const NODE_TYPES: Record<string, NodeTypeConfig> = {
         placeholder: 'Save to variable...',
         description: 'Capture screen to variable',
     },
-    detect: {
-        color: 'bg-purple-500',
-        icon: 'target',
-        display: 'Find Image',
-        displayCn: '目标检测',
-        category: 'vision',
-        placeholder: 'Select image...',
-        description: 'Locate image on screen',
-    },
-    ocr: {
-        color: 'bg-violet-500',
-        icon: 'type',
-        display: 'OCR',
-        displayCn: '文字识别',
-        category: 'vision',
-        placeholder: 'Set OCR region...',
-        description: 'Recognize text',
-    },
-    vision_logic: {
-        color: 'bg-pink-600',
+    visionSearch: {
+        color: 'bg-indigo-500',
         icon: 'zap',
         display: 'Vision Logic',
-        displayCn: '视觉逻辑',
+        displayCn: '强化视觉搜索',
         category: 'vision',
-        placeholder: 'Configure vision rules...',
-        description: 'Advanced search logic (Text + Object + Color)',
+        placeholder: 'Set vision rules...',
+        description: 'Advanced vision element finder',
+    },
+    ocr: {
+        color: 'bg-purple-600',
+        icon: 'type',
+        display: 'OCR Text',
+        displayCn: '文字提取',
+        category: 'vision',
+        placeholder: 'Configure OCR...',
+        description: 'Extract text via OCR',
     },
 
     // Data Nodes
-    variable: {
-        color: 'bg-orange-500',
+    setVar: {
+        color: 'bg-emerald-500',
         icon: 'variable',
-        display: 'Variable',
-        displayCn: '变量',
+        display: 'Set Variable',
+        displayCn: '变量赋值',
         category: 'data',
-        placeholder: 'Expression...',
-        description: 'Process data / set variable',
+        placeholder: 'Set var using expr...',
+        description: 'Set memory variable',
     },
-    filter: {
-        color: 'bg-orange-400',
-        icon: 'filter',
-        display: 'Filter/Map',
-        displayCn: '数据过滤',
+    getVar: {
+        color: 'bg-emerald-600',
+        icon: 'terminal',
+        display: 'Get Variable',
+        displayCn: '变量读取',
         category: 'data',
-        placeholder: 'Filter or transform...',
-        description: 'Filter or Map array data',
+        placeholder: 'Get var...',
+        description: 'Read memory variable',
     },
 
-    // Control Flow Nodes
-    loop: {
-        color: 'bg-green-500',
-        icon: 'repeat',
-        display: 'Loop',
-        displayCn: '循环',
-        category: 'control',
-        placeholder: 'Configure loop...',
-        description: 'Repeat N times',
-    },
-    fallback: {
-        color: 'bg-red-500',
-        icon: 'alert-triangle',
-        display: 'Fallback',
-        displayCn: '回调',
-        category: 'control',
-        placeholder: 'Fallback actions',
-        description: 'Retry actions when all conditions fail',
-    },
-    subflow: {
-        color: 'bg-pink-500',
-        icon: 'git-branch',
-        display: 'Sub-Flow',
-        displayCn: '子流程',
-        category: 'control',
-        placeholder: 'Select sub-flow...',
-        description: "Call another task's flow",
+    setState: {
+        color: 'bg-teal-500',
+        icon: 'settings',
+        display: 'Set State',
+        displayCn: '状态设置',
+        category: 'data',
+        placeholder: 'Set Target State...',
+        description: 'Set Policy/Task state',
     },
 
     // Special Nodes
@@ -184,33 +156,27 @@ export const NODE_TYPES: Record<string, NodeTypeConfig> = {
 export const NODE_CATEGORIES = [
     {
         key: 'basic',
-        label: '基本',
-        labelEn: 'Basic',
-        types: ['click', 'wait', 'swipe'],
-    },
-    {
-        key: 'condition',
-        label: '条件逻辑',
-        labelEn: 'Conditions',
-        types: ['if', 'while', 'for'],
+        label: '互动行为',
+        labelEn: 'Interaction',
+        types: ['clickAction', 'waitMs', 'swipePoint'],
     },
     {
         key: 'vision',
-        label: '视觉',
-        labelEn: 'Vision',
-        types: ['capture', 'detect', 'ocr', 'vision_logic'],
+        label: '视觉与解析',
+        labelEn: 'Vision & Inference',
+        types: ['visionSearch', 'ocr', 'takeScreenshot'],
+    },
+    {
+        key: 'condition',
+        label: '控制与编排',
+        labelEn: 'Control Flow',
+        types: ['if', 'while', 'sequence'],
     },
     {
         key: 'data',
-        label: '数据处理',
-        labelEn: 'Data',
-        types: ['variable', 'filter'],
-    },
-    {
-        key: 'control',
-        label: '控制流',
-        labelEn: 'Control Flow',
-        types: ['loop', 'fallback', 'subflow'],
+        label: '数据与状态',
+        labelEn: 'Data & State',
+        types: ['setVar', 'getVar', 'setState'],
     },
 ];
 
@@ -220,11 +186,11 @@ export const NODE_TEMPLATES: Record<string, any> = {
         displayCn: '视觉循环模板',
         description: 'Loop -> Screenshot -> Detect -> Click',
         nodes: [
-            { type: 'loop', label: '循环', position: { x: 0, y: 0 } },
-            { type: 'screenshot', label: '截图', position: { x: 0, y: 100 } },
-            { type: 'detect', label: '检测', position: { x: 0, y: 200 } },
+            { type: 'while', label: '循环', position: { x: 0, y: 0 } },
+            { type: 'takeScreenshot', label: '截图', position: { x: 0, y: 100 } },
+            { type: 'visionSearch', label: '检测', position: { x: 0, y: 200 } },
             { type: 'if', label: '是否成功', position: { x: 0, y: 300 } },
-            { type: 'click', label: '点击', position: { x: 0, y: 400 } },
+            { type: 'clickAction', label: '点击', position: { x: 0, y: 400 } },
         ],
         edges: [
             { sourceIdx: 0, targetIdx: 1, handle: 'loopStart' },
@@ -239,12 +205,12 @@ export const NODE_TEMPLATES: Record<string, any> = {
 export const SOURCE_HANDLE: Record<string, { label: string | null, animated: boolean }> = {
     'ifTrue': { label: '是', animated: true },
     'ifFalse': { label: '否', animated: true },
-    'loopStart': { label: '循环开始', animated: true },
+    'loopStart': { label: '内含流程', animated: true },
     'out': { label: null, animated: false }
 }
 
 export const TARGET_HANDLE: Record<string, { label: string | null, animated: boolean }> = {
-    'loopEnd': { label: '循环结束', animated: true },
+    'loopEnd': { label: '子流交汇', animated: true },
     'in': { label: null, animated: false }
 }
 
@@ -275,27 +241,29 @@ export const NODE_DATA_DEFAULTS: Record<string, any> = {
     condition: '',
 };
 
-export function getNodeDefaults(type: string): any {
-    const base = { ...NODE_DATA_DEFAULTS };
-    switch (type) {
-        case 'click': return { type, targetType: base.targetType, x: base.x, y: base.y, target: base.target };
-        case 'wait': return { type, duration: base.duration, randomize: base.randomize };
-        case 'swipe': return { type, startX: 0, startY: 0, endX: 0, endY: 0, duration: base.duration };
+export function getNodeDefaults(op: string): any {
+    const base = { op, type: op, label: '', skipFlag: false, execMax: 0 };
+    switch (op) {
+        case 'clickAction': return { ...base, Point: { x: 0, y: 0 } };
+        case 'waitMs': return { ...base, ms: 1000 };
+        case 'swipePoint': return { ...base, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };
         case 'if':
         case 'while':
-        case 'for':
-            return { type, con: { type: 'rawExpr', expr: '' } };
-        case 'detect': return { type, imagePath: '', confidence: base.confidence, resultVar: '' };
-        case 'ocr': return { type, regionX: null, regionY: null, regionW: null, regionH: null, resultVar: '' };
-        case 'vision_logic': return { type, rule: { type: 'group', op: 'And', scope: 'Global', items: [] }, outputVar: 'search_results' };
-        case 'loop': return { type, count: base.count, loopType: base.loopType, breakCondition: base.breakCondition };
-        case 'fallback': return { type, maxRetries: base.maxRetries, strategies: DEFAULT_FALLBACK_STRATEGIES.map(s => ({ ...s })) };
-        case 'subflow': return { type, targetTaskId: base.targetTaskId, waitForComplete: base.waitForComplete };
-        case 'capture': return { type, outputVar: 'last_capture' };
-        case 'variable': return { type, varName: '', opType: 'set', expression: '' };
-        case 'filter': return { type, sourceVar: '', targetVar: '', mode: 'filter', logic: '' };
-        case 'macro_1': return { type, screenshot: true, detectTarget: '', confidence: 80, clickType: 'coordinates', postProcess: '' };
-        default: return { type };
+            return {
+                ...base,
+                cond: { type: 'group', op: 'And', items: [] },
+                steps: [],
+            };
+        case 'sequence':
+            return { ...base, steps: [], reverse: false };
+        case 'visionSearch':
+            return { ...base, rule: { type: 'group', op: 'And', items: [] }, output_var: 'search_result' };
+        case 'takeScreenshot': return { ...base, output_var: 'last_capture' };
+        case 'setVar': return { ...base, name: '', value_expr: '' };
+        case 'getVar': return { ...base, name: '' };
+        case 'setState': return { ...base, target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } };
+        case 'ocr': return { ...base };
+        default: return { ...base };
     }
 }
 

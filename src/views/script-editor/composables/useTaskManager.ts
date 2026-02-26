@@ -70,15 +70,21 @@ export function useTaskManager(options: TaskOptions) {
             scriptId: '', // Will be set by parent
             name: `新任务 ${newTaskCount}`,
             isHidden: false,
+            taskType: 'main',
+            index: newTaskCount,
             nodes: [
-                { id: await getUuidV7(), type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
-                { id: await getUuidV7(), type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
-            ],
-            edges: [],
+                { id: await (getUuidV7 as () => Promise<string>)(), type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
+                { id: await (getUuidV7 as () => Promise<string>)(), type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
+            ] as any,
+            edges: [] as any,
             data: {
                 uiData: {} as JsonValue,
                 variables: {} as JsonValue
-            }
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            deletedAt: null,
+            isDeleted: false,
         };
         
         // @ts-ignore

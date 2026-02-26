@@ -86,12 +86,20 @@
             <option value="policy">策略 (Policy)</option>
             <option value="task">任务 (Task)</option>
           </select>
-          <input
-            type="number"
+          <select
+            v-if="localCondition.a.type === 'policy'"
+            class="select select-bordered select-sm w-32"
             v-model="localCondition.a.id"
-            class="input input-sm input-bordered w-24"
-            placeholder="ID"
-          />
+          >
+            <option v-for="p in policies" :key="p.id" :value="p.id">{{ p.data?.name || '未命名策略' }}</option>
+          </select>
+          <select
+            v-else-if="localCondition.a.type === 'task'"
+            class="select select-bordered select-sm w-32"
+            v-model="localCondition.a.id"
+          >
+            <option v-for="t in tasks" :key="t.id" :value="t.id">{{ t.name || '未命名任务' }}</option>
+          </select>
         </div>
 
         <!-- TaskStatus -->
@@ -105,12 +113,20 @@
               <option value="policy">Policy</option>
               <option value="task">Task</option>
             </select>
-            <input
-              type="number"
+            <select
+              v-if="localCondition.a.target.type === 'policy'"
+              class="select select-bordered select-sm w-24"
               v-model="localCondition.a.target.id"
-              class="input input-sm input-bordered w-16"
-              placeholder="ID"
-            />
+            >
+              <option v-for="p in policies" :key="p.id" :value="p.id">{{ p.data?.name || '未命名' }}</option>
+            </select>
+            <select
+              v-else-if="localCondition.a.target.type === 'task'"
+              class="select select-bordered select-sm w-24"
+              v-model="localCondition.a.target.id"
+            >
+              <option v-for="t in tasks" :key="t.id" :value="t.id">{{ t.name || '未命名' }}</option>
+            </select>
           </div>
           <div class="flex gap-2 items-center">
             <select class="select select-bordered select-sm flex-1" v-model="localCondition.a.status.type">
@@ -134,8 +150,12 @@
           />
           <div class="flex gap-2 items-center">
             <label class="cursor-pointer flex items-center space-x-2 text-xs">
-              <input type="checkbox" v-model="localCondition.isFont" class="checkbox checkbox-xs" />
+              <input type="radio" :value="true" v-model="localCondition.isFont" class="radio radio-xs" />
               <span>字体色</span>
+            </label>
+            <label class="cursor-pointer flex items-center space-x-2 text-xs ml-2">
+              <input type="radio" :value="false" v-model="localCondition.isFont" class="radio radio-xs" />
+              <span>背景色</span>
             </label>
             <input
               type="number"
@@ -173,13 +193,15 @@
             class="input input-sm input-bordered w-full text-xs"
           />
           <div class="flex gap-1">
-            <select class="select select-bordered select-sm w-16" v-model="localCondition.op">
+            <select class="select select-bordered select-sm w-20" v-model="localCondition.op">
               <option value="eq">==</option>
               <option value="ne">!=</option>
               <option value="lt">&lt;</option>
               <option value="le">&lt;=</option>
               <option value="gt">&gt;</option>
               <option value="ge">&gt;=</option>
+              <option value="contains">包含</option>
+              <option value="notContains">不包含</option>
             </select>
             <select
               class="select select-bordered select-sm w-20"
@@ -221,7 +243,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, inject, onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+
+const scriptInfo: any = inject('scriptInfo', ref(null));
+const policies = ref<any[]>([]);
+const tasks = ref<any[]>([]);
+
+const loadData = async () => {
+  if (!scriptInfo.value?.id) return;
+  try {
+    const rawPolicies = await invoke<any[]>('get_all_policies_cmd', { scriptId: scriptInfo.value.id });
+    policies.value = rawPolicies || [];
+  } catch (e) {
+    alert(e);
+  }
+  try {
+    const rawTasks = await invoke<any[]>('get_script_tasks_cmd', { scriptId: scriptInfo.value.id });
+    tasks.value = rawTasks || [];
+  } catch (e) {
+    alert(e);
+  }
+};
+
+onMounted(() => {
+  loadData();
+});
+watch(
+  () => scriptInfo.value?.id,
+  () => loadData()
+);
 
 const props = defineProps<{
   condition: any;
@@ -233,7 +284,25 @@ const emit = defineEmits<{
   (e: 'remove'): void;
 }>();
 
-const localCondition = ref(JSON.parse(JSON.stringify(props.condition || { type: 'rawExpr', expr: '' })));
+const ensureConditionStructure = (cond: any) => {
+  if (!cond) return { type: 'rawExpr', expr: '' };
+  if (cond.type === 'execNumCompare') {
+    if (!cond.a) cond.a = { type: 'task', id: '' };
+  } else if (cond.type === 'taskStatus') {
+    if (!cond.a) cond.a = { type: 'getState', target: { type: 'task', id: '' }, status: { type: 'done', value: true } };
+    if (!cond.a.target) cond.a.target = { type: 'task', id: '' };
+    if (!cond.a.status) cond.a.status = { type: 'done', value: true };
+  } else if (cond.type === 'varCompare') {
+    if (!cond.value) cond.value = { type: 'string', value: '' };
+  } else if (cond.type === 'colorCompare') {
+    if (cond.isFont === undefined) cond.isFont = true;
+  }
+  return cond;
+};
+
+const localCondition = ref(
+  ensureConditionStructure(JSON.parse(JSON.stringify(props.condition || { type: 'rawExpr', expr: '' })))
+);
 
 const onUpdate = () => {
   emit('update', localCondition.value);
@@ -262,11 +331,11 @@ const addCondition = (type: string) => {
 
   let newCond: any = { type };
   if (type === 'rawExpr') newCond = { type, expr: '' };
-  else if (type === 'execNumCompare') newCond = { type, a: { type: 'task', id: 0 } };
+  else if (type === 'execNumCompare') newCond = { type, a: { type: 'task', id: '' } };
   else if (type === 'taskStatus')
     newCond = {
       type,
-      a: { type: 'getState', target: { type: 'task', id: 0 }, status: { type: 'done', value: true } },
+      a: { type: 'getState', target: { type: 'task', id: '' }, status: { type: 'done', value: true } },
     };
   else if (type === 'colorCompare') newCond = { type, txtTarget: '', isFont: true, r: 0, g: 0, b: 0 };
   else if (type === 'varCompare') newCond = { type, varName: '', op: 'eq', value: { type: 'string', value: '' } };
@@ -298,7 +367,7 @@ watch(localCondition, onUpdate, { deep: true });
 watch(
   () => props.condition,
   (newVal) => {
-    const parsed = JSON.parse(JSON.stringify(newVal));
+    const parsed = ensureConditionStructure(JSON.parse(JSON.stringify(newVal || { type: 'rawExpr', expr: '' })));
     if (JSON.stringify(parsed) !== JSON.stringify(localCondition.value)) {
       localCondition.value = parsed;
     }

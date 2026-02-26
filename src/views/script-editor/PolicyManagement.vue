@@ -49,21 +49,35 @@
           <div
             v-for="item in filteredItems"
             :key="item.id"
-            class="p-3 rounded-lg cursor-pointer mb-1 transition-all flex items-center gap-2"
+            class="p-2 rounded-lg cursor-pointer mb-1 transition-all flex items-center gap-2 group"
             :class="[
               batchMode && selectedItems.includes(item.id)
                 ? 'bg-error/20 text-error ring-1 ring-error/30'
                 : selectedItem?.id === item.id
-                  ? 'bg-primary text-primary-content'
+                  ? 'bg-primary text-primary-content shadow-md'
                   : 'hover:bg-base-200 text-base-content/70',
             ]"
             @click="batchMode ? toggleBatchSelect(item.id) : (selectedItem = item)"
           >
-            <div class="font-bold truncate">
-              {{ item.data.name }}
-              <span v-if="(item as any).isNew" class="badge badge-xs badge-secondary ml-1">草案</span>
+            <div class="flex-1 min-w-0">
+              <input
+                v-if="selectedItem?.id === item.id && !batchMode"
+                v-model="item.data.name"
+                class="input input-sm w-full font-bold focus:outline-none focus:ring-2 focus:ring-white/50"
+                :class="
+                  selectedItem?.id === item.id
+                    ? 'bg-primary-focus text-primary-content placeholder-primary-content/50 border-none'
+                    : 'bg-transparent text-base-content'
+                "
+                placeholder="请输入策略名称..."
+                @change="updateSelectedItemData(selectedItem?.data)"
+                @click.stop
+              />
+              <div v-else class="font-bold truncate px-2 py-1">
+                {{ item.data.name || '未命名' }}
+                <span v-if="(item as any).isNew" class="badge badge-xs badge-secondary ml-1">草案</span>
+              </div>
             </div>
-            <div class="text-xs opacity-60 truncate">{{ (item.data as any).note || '无备注' }}</div>
           </div>
 
           <div v-if="filteredItems.length === 0" class="text-center py-10 opacity-40">未找到{{ title }}</div>
@@ -128,9 +142,7 @@ import type {
   PolicyGroupTable,
   PolicySetTable,
   PolicyInfo,
-  PolicyGroupInfo,
-  PolicySetInfo,
-} from '../../types/bindings';
+} from '@/types/bindings';
 
 type ItemTable = (PolicyTable | PolicyGroupTable | PolicySetTable) & { isNew?: boolean };
 
@@ -332,9 +344,12 @@ const addNewItem = async () => {
   props.addLog(`创建了新${title.value}草案`, props.logLevels.INFO);
 
   if (props.activeTab === 'policy') {
-    await nextTick(() => {
-      policyEditorRef.value?.focusNameInput();
-    });
+    await nextTick();
+    const inputs = document.querySelectorAll('input[placeholder="请输入策略名称..."]');
+    if (inputs && inputs.length > 0) {
+      (inputs[inputs.length - 1] as HTMLInputElement).focus();
+      (inputs[inputs.length - 1] as HTMLInputElement).select();
+    }
   }
 };
 

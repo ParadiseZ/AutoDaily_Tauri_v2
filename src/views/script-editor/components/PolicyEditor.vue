@@ -3,25 +3,7 @@
     <!-- Left Sidebar: Metadata -->
     <div class="w-80 flex-none flex flex-col gap-4 p-5 bg-base-200/50 rounded-3xl border border-base-300 shadow-sm">
       <div class="space-y-4 flex-1">
-        <div class="form-control">
-          <label class="label py-1"><span class="label-text text-sm font-bold opacity-60">策略名称</span></label>
-          <input
-            ref="nameInputRef"
-            v-model="localPolicy.name"
-            type="text"
-            class="input input-bordered input-sm w-full font-bold focus:ring-2 focus:ring-primary/20"
-          />
-        </div>
-
-        <div class="form-control">
-          <label class="label py-1"><span class="label-text text-sm font-bold opacity-60">备注</span></label>
-          <textarea
-            v-model="localPolicy.note"
-            class="textarea textarea-bordered textarea-sm w-full h-24 resize-none focus:ring-2 focus:ring-primary/20"
-          ></textarea>
-        </div>
-
-        <div class="divider opacity-30 my-1"></div>
+        <div class="divider opacity-30 mt-0 mb-1"></div>
 
         <div class="grid grid-cols-2 gap-4">
           <div class="form-control">
@@ -142,7 +124,6 @@ const emit = defineEmits<{
 
 const activeTab = ref('cond');
 const localPolicy = ref<PolicyInfo>({ ...props.policy });
-const nameInputRef = ref<HTMLInputElement | null>(null);
 
 const tabs = [
   { id: 'cond', label: '命中条件', icon: Target },
@@ -152,13 +133,8 @@ const tabs = [
 
 const getPolicyData = () => localPolicy.value;
 
-const focusNameInput = () => {
-  nameInputRef.value?.focus();
-};
-
 defineExpose({
   getPolicyData,
-  focusNameInput,
 });
 
 watch(

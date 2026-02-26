@@ -29,16 +29,20 @@ pub struct ScriptTaskTable {
     pub edges: Json<Value>,
     #[ts(as = "ScriptTask")]
     pub data: Json<ScriptTask>,
+    #[ts(type = "string")]
     pub created_at: chrono::DateTime<chrono::Utc>,
+    #[ts(type = "string")]
     pub updated_at: chrono::DateTime<chrono::Utc>,
+    #[ts(type = "string | null")]
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
     pub is_deleted: bool,
     pub index: u32,//排序
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
+#[sqlx(rename_all = "camelCase")]
 pub enum TaskType{
     Main,// 执行的任务（主循环执行）
     Child// 子任务（通过节点的链接功能执行）

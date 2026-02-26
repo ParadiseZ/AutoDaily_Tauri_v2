@@ -597,16 +597,22 @@ const saveScript = async () => {
 
     if (scriptInfo.value) {
       scriptInfo.value.updateTime = new Date().toISOString();
-      const payloadTasks = taskList.value.map((t) => ({
+      const payloadTasks = taskList.value.map((t, index) => ({
         id: t.id,
         scriptId: t.scriptId || scriptId.value,
         name: t.name,
         isHidden: t.isHidden,
+        taskType: t.taskType || 'main',
         nodes: t.nodes as any,
         edges: t.edges as any,
+        index: t.index !== undefined ? t.index : index,
+        createdAt: t.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: t.deletedAt || null,
+        isDeleted: t.isDeleted || false,
         data: {
-          uiData: t.data.uiData || {},
-          variables: t.data.variables || {},
+          uiData: t.data?.uiData || {},
+          variables: t.data?.variables || {},
         },
       }));
 

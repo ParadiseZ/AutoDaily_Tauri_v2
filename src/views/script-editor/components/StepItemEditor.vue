@@ -1,10 +1,12 @@
 <template>
-  <div class="step-item p-1 bg-transparent group-step hover:translate-x-1 transition-transform duration-300">
-    <div
-      class="bg-base-100 border border-base-300 rounded-3xl shadow-sm hover:shadow-xl transition-all overflow-hidden"
-    >
+  <div class="step-item p-1 bg-transparent group-step">
+    <div class="bg-base-100 border border-base-300 rounded-3xl shadow-sm overflow-hidden">
       <!-- Header -->
-      <div class="flex items-center gap-3 p-4 cursor-pointer select-none" @click="isExpanded = !isExpanded">
+      <div
+        v-if="!isPropertiesPanel"
+        class="flex items-center gap-3 p-4 cursor-pointer select-none"
+        @click="isExpanded = !isExpanded"
+      >
         <div
           class="w-10 h-10 rounded-2xl flex items-center justify-center transition-transform hover:scale-110 shadow-sm"
           :class="categoryColor"
@@ -416,13 +418,22 @@
                 </div>
                 <div class="form-control">
                   <label class="label-text text-[10px] font-black uppercase opacity-30 mb-2 block">目标 ID</label>
-                  <input
-                    type="text"
+                  <select
+                    v-if="(localStep as any).target.type === 'Policy'"
+                    class="select select-bordered select-sm"
                     v-model="(localStep as any).target.id"
-                    class="input input-bordered input-sm font-mono"
-                    placeholder="目标 ID"
                     @change="onDataUpdate(localStep)"
-                  />
+                  >
+                    <option v-for="p in policies" :key="p.id" :value="p.id">{{ p.data?.name || '未命名' }}</option>
+                  </select>
+                  <select
+                    v-else-if="(localStep as any).target.type === 'Task'"
+                    class="select select-bordered select-sm"
+                    v-model="(localStep as any).target.id"
+                    @change="onDataUpdate(localStep)"
+                  >
+                    <option v-for="t in tasks" :key="t.id" :value="t.id">{{ t.name || '未命名' }}</option>
+                  </select>
                 </div>
               </div>
               <div class="grid grid-cols-2 gap-4">
@@ -463,7 +474,9 @@
           <div class="col-span-full mt-2 grid grid-cols-2 gap-4 p-4 bg-base-200/50 rounded-2xl border border-base-200">
             <div class="form-control">
               <label class="label py-0"
-                ><span class="label-text text-[10px] font-bold opacity-40 uppercase">最大次数限制</span></label
+                ><span class="label-text text-[10px] font-bold opacity-40 uppercase"
+                  >当前步骤限制执行次数(0不限)</span
+                ></label
               >
               <input
                 type="number"
@@ -489,7 +502,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, defineAsyncComponent } from 'vue';
+import { ref, computed, watch, defineAsyncComponent, inject, onMounted } from 'vue';
 import {
   ChevronUp as ChevronUpIcon,
   ChevronDown as ChevronDownIcon,
@@ -500,12 +513,14 @@ import IconRenderer from '../IconRenderer.vue';
 import SearchRuleEditor from './SearchRuleEditor.vue';
 import ConditionNodeEditor from './ConditionNodeEditor.vue';
 import type { Step } from '@/types/bindings';
+import { invoke } from '@tauri-apps/api/core';
 
 const ActionSequenceEditor = defineAsyncComponent(() => import('./ActionSequenceEditor.vue'));
 
 const props = defineProps<{
   step: Step;
   isNested?: boolean;
+  isPropertiesPanel?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -515,8 +530,72 @@ const emit = defineEmits<{
   (e: 'move-down'): void;
 }>();
 
-const isExpanded = ref(false);
-const localStep = ref<Step>({ ...props.step });
+const isExpanded = ref(props.isPropertiesPanel || false);
+
+const ensureStepStructure = (step: Step) => {
+  const s = { ...step } as any;
+  if (!s) return s as Step;
+
+  // Migrate old capitalized ops to camelCase ops to sync with config.ts and new formats
+  const opMap: Record<string, string> = {
+    ClickAction: 'clickAction',
+    SwipePoint: 'swipePoint',
+    SwipePercent: 'swipePercent',
+    WaitMs: 'waitMs',
+    If: 'if',
+    While: 'while',
+    Sequence: 'sequence',
+    VisionSearch: 'visionSearch',
+    Ocr: 'ocr',
+    TakeScreenshot: 'takeScreenshot',
+    SetVar: 'setVar',
+    GetVar: 'getVar',
+    SetState: 'setState',
+  };
+  if (s.op && opMap[s.op]) {
+    s.op = opMap[s.op];
+  }
+
+  // Ensure default data shapes for complex ops
+  if (s.op === 'setState') {
+    if (!s.target) s.target = { type: 'Policy', id: '' };
+    if (!s.status) s.status = { type: 'Skip', value: false };
+  }
+  if (s.op === 'waitMs') {
+    if (s.ms === undefined) s.ms = 1000;
+  }
+  return s as Step;
+};
+
+const localStep = ref<Step>(ensureStepStructure(props.step));
+
+const scriptInfo: any = inject('scriptInfo', ref(null));
+const policies = ref<any[]>([]);
+const tasks = ref<any[]>([]);
+
+const loadData = async () => {
+  if (!scriptInfo.value?.id) return;
+  try {
+    const rawPolicies = await invoke<any[]>('get_all_policies_cmd', { scriptId: scriptInfo.value.id });
+    policies.value = rawPolicies || [];
+  } catch (e) {
+    console.error(e);
+  }
+  try {
+    const rawTasks = await invoke<any[]>('get_script_tasks_cmd', { scriptId: scriptInfo.value.id });
+    tasks.value = rawTasks || [];
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+onMounted(() => {
+  loadData();
+});
+watch(
+  () => scriptInfo.value?.id,
+  () => loadData()
+);
 
 // 支持的操作类型列表
 const supportedOps = [
@@ -679,7 +758,7 @@ watch(
   () => props.step,
   (val) => {
     if (JSON.stringify(val) !== JSON.stringify(localStep.value)) {
-      localStep.value = { ...val };
+      localStep.value = ensureStepStructure({ ...val });
     }
   },
   { deep: true }

@@ -149,6 +149,7 @@ const handleSave = () => {
     description: formState.description || null,
     pkgName: formState.pkgName || null,
     scriptType: existingScript?.scriptType || 'dev',
+    runtimeType: existingScript?.runtimeType || 'rhai',
     // Metadata
     verName: formState.verName,
     verNum: formState.verNum,
