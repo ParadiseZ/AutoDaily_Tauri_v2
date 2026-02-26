@@ -67,4 +67,6 @@ pub enum CompareOp {
     Le,
     Gt,
     Ge,
+    Contains,
+    NotContains,
 }

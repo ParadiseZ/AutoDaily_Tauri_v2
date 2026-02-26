@@ -21,6 +21,7 @@ pub struct ScriptTaskTable {
     pub script_id: ScriptId,
     pub name: String,
     pub is_hidden: bool,
+    pub task_type: TaskType,
     ///直接指定（原 #[ts(as = "serde_json::Value")]）
     #[ts(type = "Array<import('@vue-flow/core').Node>")]
     pub nodes: Json<Value>,
@@ -28,4 +29,17 @@ pub struct ScriptTaskTable {
     pub edges: Json<Value>,
     #[ts(as = "ScriptTask")]
     pub data: Json<ScriptTask>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub is_deleted: bool,
+    pub index: u32,//排序
+}
+
+#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum TaskType{
+    Main,// 执行的任务（主循环执行）
+    Child// 子任务（通过节点的链接功能执行）
 }

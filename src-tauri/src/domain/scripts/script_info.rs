@@ -40,6 +40,15 @@ pub enum ScriptType {
     Published,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum RuntimeType {
+    Rhai,
+    JavaScript,
+    Lua,
+}
+
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +57,8 @@ pub struct ScriptInfo {
     pub description : Option<String>,
     pub user_id : UserId,
     pub user_name : Option<String>,
+    
+    pub runtime_type: RuntimeType,
 
     pub sponsorship_qr : Option<String>,
     pub sponsorship_url : Option<String>,
@@ -83,6 +94,7 @@ impl Default for ScriptInfo {
             description: None,
             user_id: UserId::new_v7(),
             user_name: None,
+            runtime_type: RuntimeType::Rhai,
             sponsorship_qr: None,
             sponsorship_url: None,
             contact_info: None,
