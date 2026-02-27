@@ -35,14 +35,14 @@
       <Teleport to="body">
         <div
           v-if="showPicker"
-          class="fixed z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-80 backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
+          class="fixed z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-[560px] backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
           :style="pickerStyle"
         >
           <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 text-center">选择行为</div>
 
           <div v-for="(group, gName) in groupedActions" :key="gName" class="mb-2 last:mb-0">
             <div class="text-[9px] font-bold opacity-30 uppercase mb-2 pl-2">{{ gName }}</div>
-            <div class="grid grid-cols-2 gap-1.5">
+            <div class="grid grid-cols-5 gap-1.5">
               <button
                 v-for="kind in group"
                 :key="kind.op"
@@ -51,9 +51,9 @@
               >
                 <IconRenderer
                   :icon="NODE_TYPES[kind.op]?.icon || 'box'"
-                  class="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform"
+                  class="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform shrink-0"
                 />
-                <span class="text-[10px] font-bold">{{ kind.name }}</span>
+                <span class="text-xs font-bold whitespace-nowrap overflow-hidden text-ellipsis">{{ kind.name }}</span>
               </button>
             </div>
           </div>
@@ -132,28 +132,77 @@ const groupedActions = computed(() => {
 const addStepWithType = (op: string) => {
   const newSteps = [...props.steps];
   const newStep: any = {
-    op,
     label: '',
-    skipFlag: false,
-    execMax: 0,
-    ...(op === 'waitMs' ? { ms: 1000 } : {}),
-    ...(op === 'if' || op === 'while'
-      ? {
-          cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
-          steps: [],
-        }
-      : {}),
-    ...(op === 'sequence' ? { steps: [], reverse: false } : {}),
-    ...(op === 'clickAction' ? { Point: { x: 0, y: 0 } } : {}),
-    ...(op === 'swipePoint' || op === 'swipePercent' ? { from: { x: 0, y: 0 }, to: { x: 0, y: 0 } } : {}),
-    ...(op === 'visionSearch'
-      ? { rule: { type: 'group', op: 'And', scope: 'Global', items: [] }, output_var: 'search_result' }
-      : {}),
-    ...(op === 'takeScreenshot' ? { output_var: 'screenshot_path' } : {}),
-    ...(op === 'setVar' ? { name: '', value_expr: '' } : {}),
-    ...(op === 'getVar' ? { name: '' } : {}),
-    ...(op === 'setState' ? { target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } } : {}),
+    skip_flag: false,
+    exec_cur: 0,
+    exec_max: 0,
   };
+
+  if (op === 'clickAction') {
+    newStep.op = 'action';
+    newStep.curExecNum = 0;
+    newStep.maxExecNum = 0;
+    newStep.a = { ac: 'click', mode: 'point', p: { x: 0, y: 0 } };
+  } else if (op === 'swipePoint') {
+    newStep.op = 'action';
+    newStep.curExecNum = 0;
+    newStep.maxExecNum = 0;
+    newStep.a = { ac: 'swipe', mode: 'point', duration: 1000, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };
+  } else if (op === 'swipePercent') {
+    newStep.op = 'action';
+    newStep.curExecNum = 0;
+    newStep.maxExecNum = 0;
+    newStep.a = { ac: 'swipe', mode: 'percent', duration: 1000, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };
+  } else if (op === 'waitMs') {
+    newStep.op = 'flowControl';
+    newStep.curExecNum = 0;
+    newStep.maxExecNum = 0;
+    newStep.a = { type: 'waitMs', ms: 1000 };
+  } else if (op === 'if') {
+    newStep.op = 'flowControl';
+    newStep.curExecNum = 0;
+    newStep.maxExecNum = 0;
+    newStep.a = {
+      type: 'if',
+      con: { type: 'group', op: 'And', scope: 'Global', items: [] },
+      then: [],
+      elseSteps: null,
+    };
+  } else if (op === 'while') {
+    newStep.op = 'flowControl';
+    newStep.curExecNum = 0;
+    newStep.maxExecNum = 0;
+    newStep.a = { type: 'while', con: { type: 'group', op: 'And', scope: 'Global', items: [] }, flow: [] };
+  } else if (op === 'sequence') {
+    newStep.op = 'sequence';
+    newStep.steps = [];
+    newStep.reverse = false;
+  } else if (op === 'visionSearch') {
+    newStep.op = 'vision';
+    newStep.a = {
+      type: 'visionSearch',
+      rule: { type: 'group', op: 'And', scope: 'Global', items: [] },
+      outVar: 'search_result',
+      thenSteps: [],
+    };
+  } else if (op === 'takeScreenshot') {
+    newStep.op = 'action';
+    newStep.curExecNum = 0;
+    newStep.maxExecNum = 0;
+    newStep.a = { ac: 'capture', outputVar: 'screenshot_path' };
+  } else if (op === 'setVar') {
+    newStep.op = 'dataHanding';
+    newStep.a = { type: 'setVar', name: '', val: null, expr: null };
+  } else if (op === 'getVar') {
+    newStep.op = 'dataHanding';
+    newStep.a = { type: 'getVar', name: '', defaultVal: null };
+  } else if (op === 'setState') {
+    newStep.op = 'taskControl';
+    newStep.a = { type: 'setState', target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } };
+  } else {
+    newStep.op = op; // Fallback
+  }
+
   newSteps.push(newStep as Step);
   emit('update:steps', newSteps);
   showPicker.value = false;

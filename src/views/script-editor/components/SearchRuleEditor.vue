@@ -188,7 +188,6 @@ const yoloLabels = ref<Record<number, string>>({});
 
 const loadYoloLabels = async () => {
   const path = scriptInfo?.value?.imgDetModel?.Yolo11?.labelPath;
-  console.log(scriptInfo.value);
   if (path) {
     try {
       yoloLabels.value = await invoke('get_yolo_labels_cmd', { path });

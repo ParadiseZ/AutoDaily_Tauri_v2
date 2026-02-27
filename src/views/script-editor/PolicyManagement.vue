@@ -41,7 +41,7 @@
     <!-- Main List/Content -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Left: List -->
-      <div class="w-80 border-r border-base-300 flex flex-col bg-base-100">
+      <div class="w-40 border-r border-base-300 flex flex-col bg-base-100">
         <div v-if="loading" class="flex-1 flex items-center justify-center">
           <span class="loading loading-spinner loading-md"></span>
         </div>
@@ -137,12 +137,7 @@ import {
 } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import PolicyEditor from './components/PolicyEditor.vue';
-import type {
-  PolicyTable,
-  PolicyGroupTable,
-  PolicySetTable,
-  PolicyInfo,
-} from '@/types/bindings';
+import type { PolicyTable, PolicyGroupTable, PolicySetTable, PolicyInfo } from '@/types/bindings';
 
 type ItemTable = (PolicyTable | PolicyGroupTable | PolicySetTable) & { isNew?: boolean };
 

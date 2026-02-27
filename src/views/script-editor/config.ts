@@ -242,28 +242,21 @@ export const NODE_DATA_DEFAULTS: Record<string, any> = {
 };
 
 export function getNodeDefaults(op: string): any {
-    const base = { op, type: op, label: '', skipFlag: false, execMax: 0 };
+    const base = { type: op, label: '', skip_flag: false, exec_cur: 0, exec_max: 0 };
     switch (op) {
-        case 'clickAction': return { ...base, Point: { x: 0, y: 0 } };
-        case 'waitMs': return { ...base, ms: 1000 };
-        case 'swipePoint': return { ...base, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };
-        case 'if':
-        case 'while':
-            return {
-                ...base,
-                cond: { type: 'group', op: 'And', items: [] },
-                steps: [],
-            };
-        case 'sequence':
-            return { ...base, steps: [], reverse: false };
-        case 'visionSearch':
-            return { ...base, rule: { type: 'group', op: 'And', items: [] }, output_var: 'search_result' };
-        case 'takeScreenshot': return { ...base, output_var: 'last_capture' };
-        case 'setVar': return { ...base, name: '', value_expr: '' };
-        case 'getVar': return { ...base, name: '' };
-        case 'setState': return { ...base, target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } };
-        case 'ocr': return { ...base };
-        default: return { ...base };
+        case 'clickAction': return { ...base, op: 'action', a: { ac: 'click', mode: 'point', p: { x: 0, y: 0 } } };
+        case 'waitMs': return { ...base, op: 'flowControl', a: { type: 'waitMs', ms: 1000 } };
+        case 'swipePoint': return { ...base, op: 'action', a: { ac: 'swipe', mode: 'point', duration: 1000, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } } };
+        case 'if': return { ...base, op: 'flowControl', a: { type: 'if', con: { type: 'group', op: 'And', scope: 'Global', items: [] }, then: [], elseSteps: null } };
+        case 'while': return { ...base, op: 'flowControl', a: { type: 'while', con: { type: 'group', op: 'And', scope: 'Global', items: [] }, flow: [] } };
+        case 'sequence': return { ...base, op: 'sequence', steps: [], reverse: false };
+        case 'visionSearch': return { ...base, op: 'vision', a: { type: 'visionSearch', rule: { type: 'group', op: 'And', scope: 'Global', items: [] }, outVar: 'search_result', thenSteps: [] } };
+        case 'takeScreenshot': return { ...base, op: 'action', a: { ac: 'capture', outputVar: 'last_capture' } };
+        case 'setVar': return { ...base, op: 'dataHanding', a: { type: 'setVar', name: '', val: null, expr: null } };
+        case 'getVar': return { ...base, op: 'dataHanding', a: { type: 'getVar', name: '', defaultVal: null } };
+        case 'setState': return { ...base, op: 'taskControl', a: { type: 'setState', target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } } };
+        case 'ocr': return { ...base, op: 'vision', a: { type: 'ocr' } };
+        default: return { ...base, op };
     }
 }
 

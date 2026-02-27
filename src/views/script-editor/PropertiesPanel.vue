@@ -38,8 +38,8 @@
         <line x1="9" y1="9" x2="15" y2="15" />
         <line x1="15" y1="9" x2="9" y2="15" />
       </svg>
-      <span class="mt-2 text-sm">Select a node to edit</span>
-      <span class="mt-1 text-xs opacity-50">Click on any node in the canvas</span>
+      <span class="mt-2 text-sm">选择一个节点后编辑</span>
+      <span class="mt-1 text-xs opacity-50">点击画布中的任意节点</span>
     </div>
   </div>
 </template>

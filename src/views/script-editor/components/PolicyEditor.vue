@@ -1,14 +1,14 @@
 <template>
-  <div class="policy-editor flex h-full gap-6 overflow-hidden p-1">
+  <div class="policy-editor flex h-full gap-3 overflow-hidden p-1">
     <!-- Left Sidebar: Metadata -->
-    <div class="w-80 flex-none flex flex-col gap-4 p-5 bg-base-200/50 rounded-3xl border border-base-300 shadow-sm">
+    <div class="w-64 flex-none flex flex-col gap-3 p-3 bg-base-200/50 rounded-3xl border border-base-300 shadow-sm">
       <div class="space-y-4 flex-1">
         <div class="divider opacity-30 mt-0 mb-1"></div>
 
         <div class="grid grid-cols-2 gap-4">
           <div class="form-control">
             <label class="label py-1"
-              ><span class="label-text text-[16px] uppercase font-bold opacity-60">【点击】索引</span></label
+              ><span class="label-text text-xs uppercase font-bold opacity-60">【点击】索引</span></label
             >
             <input
               v-model.number="localPolicy.curPos"
@@ -18,7 +18,7 @@
           </div>
           <div class="form-control">
             <label class="label py-1"
-              ><span class="label-text text-[16px] uppercase font-bold opacity-60">最大执行次数</span></label
+              ><span class="label-text text-xs uppercase font-bold opacity-60">最大执行次数</span></label
             >
             <input
               v-model.number="localPolicy.execMax"
@@ -29,8 +29,8 @@
         </div>
 
         <div class="form-control">
-          <label class="label py-1"
-            ><span class="label-text text-[16px] uppercase font-bold opacity-60">命中时输出</span></label
+          <label class="label py-0 mb-1"
+            ><span class="label-text text-xs uppercase font-bold opacity-60">命中时输出</span></label
           >
           <textarea
             v-model="localPolicy.logPrint"
