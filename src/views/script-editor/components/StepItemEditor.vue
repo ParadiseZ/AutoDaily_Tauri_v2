@@ -514,6 +514,7 @@ import SearchRuleEditor from './SearchRuleEditor.vue';
 import ConditionNodeEditor from './ConditionNodeEditor.vue';
 import type { Step } from '@/types/bindings';
 import { invoke } from '@tauri-apps/api/core';
+import { getNodeColor, getNodeDisplay, getNodeIcon } from '../config';
 
 const ActionSequenceEditor = defineAsyncComponent(() => import('./ActionSequenceEditor.vue'));
 
@@ -532,11 +533,61 @@ const emit = defineEmits<{
 
 const isExpanded = ref(props.isPropertiesPanel || false);
 
+const getStepVirtualOp = (step: any) => {
+  if (!step || !step.op) return 'unknown';
+  if (step.op === 'sequence') return 'sequence';
+  if (step.op === 'action') {
+    const a = step.a;
+    if (!a) return 'unknown';
+    if (a.ac === 'click') return 'clickAction';
+    if (a.ac === 'swipe') {
+      if (a.mode === 'point') return 'swipePoint';
+      if (a.mode === 'percent') return 'swipePercent';
+      if (a.mode === 'txt') return 'swipeTxt';
+      if (a.mode === 'labelIdx') return 'swipeLabelIdx';
+      return 'swipePoint';
+    }
+    if (a.ac === 'capture') return 'takeScreenshot';
+    return a.ac;
+  }
+  if (step.op === 'dataHanding') {
+    const a = step.a;
+    if (!a) return 'unknown';
+    if (a.type === 'getVar') return 'getVar';
+    if (a.type === 'setVar') return 'setVar';
+    return a.type;
+  }
+  if (step.op === 'flowControl') {
+    const a = step.a;
+    if (!a) return 'unknown';
+    if (a.type === 'waitMs') return 'waitMs';
+    if (a.type === 'if') return 'if';
+    if (a.type === 'while') return 'while';
+    return a.type;
+  }
+  if (step.op === 'taskControl') {
+    const a = step.a;
+    if (!a) return 'unknown';
+    if (a.type === 'setState') return 'setState';
+    if (a.type === 'getState') return 'getState';
+    if (a.type === 'stopPolicy') return 'stopPolicy';
+    if (a.type === 'finishTask') return 'finishTask';
+    return a.type;
+  }
+  if (step.op === 'vision') {
+    const a = step.a;
+    if (!a) return 'unknown';
+    if (a.type === 'visionSearch') return 'visionSearch';
+    if (a.type === 'ocr') return 'ocr';
+    return a.type;
+  }
+  return step.op;
+};
+
 const ensureStepStructure = (step: Step) => {
   const s = { ...step } as any;
   if (!s) return s as Step;
 
-  // Migrate old capitalized ops to camelCase ops to sync with config.ts and new formats
   const opMap: Record<string, string> = {
     ClickAction: 'clickAction',
     SwipePoint: 'swipePoint',
@@ -556,18 +607,17 @@ const ensureStepStructure = (step: Step) => {
     s.op = opMap[s.op];
   }
 
-  // Ensure default data shapes for complex ops
-  if (s.op === 'setState') {
-    if (!s.target) s.target = { type: 'Policy', id: '' };
-    if (!s.status) s.status = { type: 'Skip', value: false };
-  }
-  if (s.op === 'waitMs') {
-    if (s.ms === undefined) s.ms = 1000;
-  }
+  // Ensure 'a' field
+  if (s.op === 'setState' && !s.a)
+    s.a = { type: 'setState', target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } };
+  if (s.op === 'waitMs' && !s.a) s.a = { type: 'waitMs', ms: s.ms || 1000 };
+
   return s as Step;
 };
 
 const localStep = ref<Step>(ensureStepStructure(props.step));
+const displayVirtualOp = computed(() => getStepVirtualOp(props.step));
+const virtualOp = computed(() => getStepVirtualOp(localStep.value));
 
 const scriptInfo: any = inject('scriptInfo', ref(null));
 const policies = ref<any[]>([]);
@@ -615,40 +665,44 @@ const supportedOps = [
 
 // ClickAction 模式检测
 const detectClickMode = (step: any) => {
-  if (step.Point) return 'Point';
-  if (step.Percent) return 'Percent';
-  if (step.Label) return 'Label';
-  if (step.Txt) return 'Txt';
-  if (step.Var) return 'Var';
-  return 'Point'; // 默认
+  if (virtualOp?.value !== 'clickAction' || !step.a) return 'Point';
+  if (step.a.mode === 'point') return 'Point';
+  if (step.a.mode === 'percent') return 'Percent';
+  if (step.a.mode === 'labelIdx') return 'Label';
+  if (step.a.mode === 'txt') return 'Txt';
+  return 'Point';
 };
 
-const clickMode = ref(detectClickMode(props.step));
+const clickMode = ref(detectClickMode(localStep.value));
 
 const onClickModeChange = () => {
-  // 清理旧模式数据，初始化新模式
   const s = localStep.value as any;
-  delete s.Point;
-  delete s.Percent;
-  delete s.Label;
-  delete s.Txt;
-  delete s.Var;
+  if (!s.a) s.a = { ac: 'click' };
+
+  delete s.a.p;
+  delete s.a.idx;
+  delete s.a.txt;
 
   switch (clickMode.value) {
     case 'Point':
-      s.Point = { x: 0, y: 0 };
+      s.a.mode = 'point';
+      s.a.p = { x: 0, y: 0 };
       break;
     case 'Percent':
-      s.Percent = { x: 0.5, y: 0.5 };
+      s.a.mode = 'percent';
+      s.a.p = { x: 0.5, y: 0.5 };
       break;
     case 'Label':
-      s.Label = [];
+      s.a.mode = 'labelIdx';
+      s.a.idx = [];
       break;
     case 'Txt':
-      s.Txt = [];
+      s.a.mode = 'txt';
+      s.a.txt = [];
       break;
     case 'Var':
-      s.Var = '';
+      s.a.mode = 'txt';
+      s.a.txt = '';
       break;
   }
   onDataUpdate(localStep.value);
@@ -656,7 +710,7 @@ const onClickModeChange = () => {
 
 const onLabelChange = (value: string) => {
   const s = localStep.value as any;
-  s.Label = value
+  s.a.idx = value
     .split(',')
     .map((s) => parseInt(s.trim(), 10))
     .filter((n) => !isNaN(n));
@@ -665,7 +719,7 @@ const onLabelChange = (value: string) => {
 
 const onTxtChange = (value: string) => {
   const s = localStep.value as any;
-  s.Txt = value
+  s.a.txt = value
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s);
