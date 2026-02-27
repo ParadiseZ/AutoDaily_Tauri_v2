@@ -80,7 +80,7 @@ import { ref, computed, reactive } from 'vue';
 import { Plus as PlusIcon, ListTodo as ListTodoIcon } from 'lucide-vue-next';
 import StepItemEditor from './StepItemEditor.vue';
 import IconRenderer from '../IconRenderer.vue';
-import { NODE_TYPES, NODE_CATEGORIES } from '../config';
+import { NODE_TYPES, NODE_CATEGORIES, getNodeDefaults } from '../config';
 import type { Step } from '@/types/bindings';
 
 const props = defineProps({
@@ -131,78 +131,7 @@ const groupedActions = computed(() => {
 
 const addStepWithType = (op: string) => {
   const newSteps = [...props.steps];
-  const newStep: any = {
-    label: '',
-    skip_flag: false,
-    exec_cur: 0,
-    exec_max: 0,
-  };
-
-  if (op === 'clickAction') {
-    newStep.op = 'action';
-    newStep.curExecNum = 0;
-    newStep.maxExecNum = 0;
-    newStep.a = { ac: 'click', mode: 'point', p: { x: 0, y: 0 } };
-  } else if (op === 'swipePoint') {
-    newStep.op = 'action';
-    newStep.curExecNum = 0;
-    newStep.maxExecNum = 0;
-    newStep.a = { ac: 'swipe', mode: 'point', duration: 1000, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };
-  } else if (op === 'swipePercent') {
-    newStep.op = 'action';
-    newStep.curExecNum = 0;
-    newStep.maxExecNum = 0;
-    newStep.a = { ac: 'swipe', mode: 'percent', duration: 1000, from: { x: 0, y: 0 }, to: { x: 0, y: 0 } };
-  } else if (op === 'waitMs') {
-    newStep.op = 'flowControl';
-    newStep.curExecNum = 0;
-    newStep.maxExecNum = 0;
-    newStep.a = { type: 'waitMs', ms: 1000 };
-  } else if (op === 'if') {
-    newStep.op = 'flowControl';
-    newStep.curExecNum = 0;
-    newStep.maxExecNum = 0;
-    newStep.a = {
-      type: 'if',
-      con: { type: 'group', op: 'And', scope: 'Global', items: [] },
-      then: [],
-      elseSteps: null,
-    };
-  } else if (op === 'while') {
-    newStep.op = 'flowControl';
-    newStep.curExecNum = 0;
-    newStep.maxExecNum = 0;
-    newStep.a = { type: 'while', con: { type: 'group', op: 'And', scope: 'Global', items: [] }, flow: [] };
-  } else if (op === 'sequence') {
-    newStep.op = 'sequence';
-    newStep.steps = [];
-    newStep.reverse = false;
-  } else if (op === 'visionSearch') {
-    newStep.op = 'vision';
-    newStep.a = {
-      type: 'visionSearch',
-      rule: { type: 'group', op: 'And', scope: 'Global', items: [] },
-      outVar: 'search_result',
-      thenSteps: [],
-    };
-  } else if (op === 'takeScreenshot') {
-    newStep.op = 'action';
-    newStep.curExecNum = 0;
-    newStep.maxExecNum = 0;
-    newStep.a = { ac: 'capture', outputVar: 'screenshot_path' };
-  } else if (op === 'setVar') {
-    newStep.op = 'dataHanding';
-    newStep.a = { type: 'setVar', name: '', val: null, expr: null };
-  } else if (op === 'getVar') {
-    newStep.op = 'dataHanding';
-    newStep.a = { type: 'getVar', name: '', defaultVal: null };
-  } else if (op === 'setState') {
-    newStep.op = 'taskControl';
-    newStep.a = { type: 'setState', target: { type: 'Policy', id: '' }, status: { type: 'Skip', value: false } };
-  } else {
-    newStep.op = op; // Fallback
-  }
-
+  const newStep = getNodeDefaults(op);
   newSteps.push(newStep as Step);
   emit('update:steps', newSteps);
   showPicker.value = false;

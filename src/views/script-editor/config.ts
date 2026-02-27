@@ -260,6 +260,58 @@ export function getNodeDefaults(op: string): any {
     }
 }
 
+/**
+ * 所有 StepItemEditor / ActionSequenceEditor 支持的虚拟操作类型列表。
+ * 新增类型时只需在这里和 NODE_TYPES 各加一行即可。
+ */
+export const SUPPORTED_STEP_OPS: string[] = Object.keys(NODE_TYPES).filter(
+    k => !['start', 'end'].includes(k)
+);
+
+/**
+ * 从后端嵌套结构 step 推导出前端统一的虚拟操作类型 key（对应 NODE_TYPES 的 key）。
+ * 这是 StepItemEditor 渲染的核心依据，所有组件统一使用此函数。
+ */
+export function getStepVirtualOp(step: any): string {
+    if (!step || !step.op) return 'unknown';
+    if (step.op === 'sequence') return 'sequence';
+    if (step.op === 'action') {
+        const a = step.a;
+        if (!a) return 'unknown';
+        if (a.ac === 'click') return 'clickAction';
+        if (a.ac === 'swipe') {
+            if (a.mode === 'point') return 'swipePoint';
+            if (a.mode === 'percent') return 'swipePercent';
+            if (a.mode === 'txt') return 'swipeTxt';
+            if (a.mode === 'labelIdx') return 'swipeLabelIdx';
+            return 'swipePoint';
+        }
+        if (a.ac === 'capture') return 'takeScreenshot';
+        return a.ac;
+    }
+    if (step.op === 'dataHanding') {
+        const a = step.a;
+        if (!a) return 'unknown';
+        return a.type || 'unknown';
+    }
+    if (step.op === 'flowControl') {
+        const a = step.a;
+        if (!a) return 'unknown';
+        return a.type || 'unknown';
+    }
+    if (step.op === 'taskControl') {
+        const a = step.a;
+        if (!a) return 'unknown';
+        return a.type || 'unknown';
+    }
+    if (step.op === 'vision') {
+        const a = step.a;
+        if (!a) return 'unknown';
+        return a.type || 'unknown';
+    }
+    return step.op;
+}
+
 export const THEMES = [
     'dark', 'light', 'cupcake', 'bumblebee', 'emerald', 'corporate',
     'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden',

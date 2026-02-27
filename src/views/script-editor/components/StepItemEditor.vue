@@ -11,7 +11,7 @@
           class="w-10 h-10 rounded-2xl flex items-center justify-center transition-transform hover:scale-110 shadow-sm"
           :class="categoryColor"
         >
-          <IconRenderer :icon="getIcon(step.op)" class="w-5 h-5 text-white" />
+          <IconRenderer :icon="getNodeIcon(displayVirtualOp)" class="w-5 h-5 text-white" />
         </div>
 
         <div class="flex-2 min-w-0">
@@ -514,7 +514,7 @@ import SearchRuleEditor from './SearchRuleEditor.vue';
 import ConditionNodeEditor from './ConditionNodeEditor.vue';
 import type { Step } from '@/types/bindings';
 import { invoke } from '@tauri-apps/api/core';
-import { getNodeColor, getNodeDisplay, getNodeIcon } from '../config';
+import { getNodeColor, getNodeDisplay, getNodeIcon, getStepVirtualOp, SUPPORTED_STEP_OPS } from '../config';
 
 const ActionSequenceEditor = defineAsyncComponent(() => import('./ActionSequenceEditor.vue'));
 
@@ -532,57 +532,6 @@ const emit = defineEmits<{
 }>();
 
 const isExpanded = ref(props.isPropertiesPanel || false);
-
-const getStepVirtualOp = (step: any) => {
-  if (!step || !step.op) return 'unknown';
-  if (step.op === 'sequence') return 'sequence';
-  if (step.op === 'action') {
-    const a = step.a;
-    if (!a) return 'unknown';
-    if (a.ac === 'click') return 'clickAction';
-    if (a.ac === 'swipe') {
-      if (a.mode === 'point') return 'swipePoint';
-      if (a.mode === 'percent') return 'swipePercent';
-      if (a.mode === 'txt') return 'swipeTxt';
-      if (a.mode === 'labelIdx') return 'swipeLabelIdx';
-      return 'swipePoint';
-    }
-    if (a.ac === 'capture') return 'takeScreenshot';
-    return a.ac;
-  }
-  if (step.op === 'dataHanding') {
-    const a = step.a;
-    if (!a) return 'unknown';
-    if (a.type === 'getVar') return 'getVar';
-    if (a.type === 'setVar') return 'setVar';
-    return a.type;
-  }
-  if (step.op === 'flowControl') {
-    const a = step.a;
-    if (!a) return 'unknown';
-    if (a.type === 'waitMs') return 'waitMs';
-    if (a.type === 'if') return 'if';
-    if (a.type === 'while') return 'while';
-    return a.type;
-  }
-  if (step.op === 'taskControl') {
-    const a = step.a;
-    if (!a) return 'unknown';
-    if (a.type === 'setState') return 'setState';
-    if (a.type === 'getState') return 'getState';
-    if (a.type === 'stopPolicy') return 'stopPolicy';
-    if (a.type === 'finishTask') return 'finishTask';
-    return a.type;
-  }
-  if (step.op === 'vision') {
-    const a = step.a;
-    if (!a) return 'unknown';
-    if (a.type === 'visionSearch') return 'visionSearch';
-    if (a.type === 'ocr') return 'ocr';
-    return a.type;
-  }
-  return step.op;
-};
 
 const ensureStepStructure = (step: Step) => {
   const s = { ...step } as any;
@@ -647,21 +596,8 @@ watch(
   () => loadData()
 );
 
-// 支持的操作类型列表
-const supportedOps = [
-  'waitMs',
-  'if',
-  'while',
-  'sequence',
-  'clickAction',
-  'swipePoint',
-  'swipePercent',
-  'visionSearch',
-  'setVar',
-  'getVar',
-  'takeScreenshot',
-  'setState',
-];
+// 直接使用 config.ts 中统一管理的列表
+const supportedOps = SUPPORTED_STEP_OPS;
 
 // ClickAction 模式检测
 const detectClickMode = (step: any) => {
@@ -726,81 +662,29 @@ const onTxtChange = (value: string) => {
   onDataUpdate(localStep.value);
 };
 
-// Step Categorization (Maps to StepKind in Rust)
-const category = computed(() => {
-  const op = props.step.op;
-  if (['Sequence', 'If', 'While', 'ForEachActivity', 'Continue', 'Break', 'WaitUntil'].includes(op)) return 'control';
-  if (['ClickAction', 'SwipePoint', 'SwipePercent', 'SwipeDet', 'SwipeTxt', 'WaitMs'].includes(op))
-    return 'interaction';
-  if (['VisionSearch', 'Ocr', 'DetRec', 'FindObject', 'TakeScreenshot'].includes(op)) return 'vision';
-  if (['SetVar', 'GetVar', 'FilterHits', 'IncIndex', 'ResetIndex'].includes(op)) return 'logic';
-  if (['SetState', 'GetState', 'StopPolicy', 'FinishTask'].includes(op)) return 'state';
-  return 'other';
-});
-
+// ========== 全部从 config.ts 统一获取，不再本地硬编码 ==========
 const categoryColor = computed(() => {
-  const map: Record<string, string> = {
-    control: 'bg-gradient-to-br from-amber-400 to-orange-500',
-    interaction: 'bg-gradient-to-br from-blue-400 to-indigo-600',
-    vision: 'bg-gradient-to-br from-purple-400 to-fuchsia-600',
-    logic: 'bg-gradient-to-br from-orange-400 to-rose-500',
-    state: 'bg-gradient-to-br from-emerald-400 to-teal-600',
-    other: 'bg-gradient-to-br from-slate-400 to-slate-600',
-  };
-  return map[category.value];
+  const color = getNodeColor(displayVirtualOp.value);
+  return color || 'bg-base-300';
 });
-
-const getIcon = (op: string) => {
-  const map: Record<string, string> = {
-    clickAction: 'cursor',
-    waitMs: 'clock',
-    if: 'branch',
-    while: 'repeat',
-    sequence: 'layers',
-    setVar: 'variable',
-    getVar: 'terminal',
-    visionSearch: 'zap',
-    takeScreenshot: 'camera',
-    swipePoint: 'move',
-    swipePercent: 'move',
-    setState: 'settings',
-  };
-  return map[op] || 'box';
-};
 
 const stepTitle = computed(() => {
-  const opMap: Record<string, string> = {
-    clickAction: '点击交互',
-    waitMs: '延时等待',
-    if: '条件分支 (if)',
-    while: '循环控制 (while)',
-    setVar: '变量赋值',
-    getVar: '变量读取',
-    visionSearch: '强化视觉搜索',
-    takeScreenshot: '屏幕截图',
-    sequence: '步骤序列容器',
-    swipePoint: '坐标滑动',
-    swipePercent: '百分比滑动',
-    setState: '状态设置',
-    getState: '状态读取',
-    stopPolicy: '停止策略',
-    finishTask: '结束任务',
-  };
-  return opMap[(props.step as any).op] || (props.step as any).op;
+  return getNodeDisplay(displayVirtualOp.value, 'cn') || displayVirtualOp.value;
 });
 
 const stepSummary = computed(() => {
-  const op = (props.step as any).op;
-  if (op === 'waitMs') return `等待 ${(localStep.value as any).ms} 毫秒`;
+  const op = displayVirtualOp.value;
+  if (op === 'waitMs') return `等待 ${(localStep.value as any).a?.ms || 0} 毫秒`;
   if (op === 'sequence') return `包含 ${(localStep.value as any).steps?.length || 0} 个子动作`;
-  if (op === 'if' || op === 'while') return `判断条件后执行 ${(localStep.value as any).steps?.length || 0} 个逻辑`;
+  if (op === 'if') return `判断条件后执行`;
+  if (op === 'while') return `符合条件时循环`;
   if (op === 'clickAction') return `${clickMode.value} 模式点击`;
   if (op === 'swipePoint' || op === 'swipePercent') return `滑动手势`;
-  if (op === 'visionSearch') return `搜索结果 → ${(localStep.value as any).output_var || '?'}`;
-  if (op === 'setVar') return `${(localStep.value as any).name || '?'} = ${(localStep.value as any).value_expr || '?'}`;
-  if (op === 'getVar') return `读取 ${(localStep.value as any).name || '?'}`;
-  if (op === 'takeScreenshot') return `保存到 ${(localStep.value as any).output_var || '?'}`;
-  if (op === 'setState') return `设置 ${(localStep.value as any).target?.type || '?'} 状态`;
+  if (op === 'visionSearch') return `搜索结果 → ${(localStep.value as any).a?.outVar || '?'}`;
+  if (op === 'setVar') return `${(localStep.value as any).a?.name || '?'} = ${(localStep.value as any).a?.expr || '?'}`;
+  if (op === 'getVar') return `读取 ${(localStep.value as any).a?.name || '?'}`;
+  if (op === 'takeScreenshot') return `保存到 ${(localStep.value as any).a?.outputVar || '?'}`;
+  if (op === 'setState') return `设置 ${(localStep.value as any).a?.target?.type || '?'} 状态`;
   return `OP: ${op}`;
 });
 
