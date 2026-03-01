@@ -89,22 +89,12 @@
         <div v-if="selectedItem" class="flex-1 flex flex-col p-6 overflow-y-auto">
           <!-- Composition View based on tab -->
 
-          <div v-if="activeTab === 'policy_set'">
-            <div class="alert alert-info shadow-sm mb-4">
-              <InfoIcon class="w-5 h-5 shrink-0" />
-              <span>这里可以编排策略组。</span>
-            </div>
-            <!-- TODO: Implement actual list of sub-groups -->
+          <div v-if="activeTab === 'policy_set'" class="flex-1 flex flex-col overflow-hidden">
+            <PolicySetComposer ref="policySetComposerRef" :set-id="selectedItem.id" :script-id="scriptId" />
           </div>
 
-          <div v-else-if="activeTab === 'policy_group'">
-            <div class="alert alert-info shadow-sm mb-4">
-              <span class="flex items-center gap-2">
-                <InfoIcon class="w-5 h-5 shrink-0" />
-                这里可以编排策略。
-              </span>
-            </div>
-            <!-- TODO: Implement actual list of sub-policies -->
+          <div v-else-if="activeTab === 'policy_group'" class="flex-1 flex flex-col overflow-hidden">
+            <PolicyGroupComposer ref="policyGroupComposerRef" :group-id="selectedItem.id" :script-id="scriptId" />
           </div>
 
           <div v-else-if="activeTab === 'policy'">
@@ -137,6 +127,8 @@ import {
 } from 'lucide-vue-next';
 import { invoke } from '@tauri-apps/api/core';
 import PolicyEditor from './components/PolicyEditor.vue';
+import PolicyGroupComposer from './components/PolicyGroupComposer.vue';
+import PolicySetComposer from './components/PolicySetComposer.vue';
 import type { PolicyTable, PolicyGroupTable, PolicySetTable, PolicyInfo } from '@/types/bindings';
 
 type ItemTable = (PolicyTable | PolicyGroupTable | PolicySetTable) & { isNew?: boolean };
@@ -171,6 +163,8 @@ const loading = ref(false);
 const batchMode = ref(false);
 const selectedItems = ref<string[]>([]);
 const policyEditorRef = ref<any>(null);
+const policyGroupComposerRef = ref<any>(null);
+const policySetComposerRef = ref<any>(null);
 
 const toggleBatchSelect = (id: string) => {
   const idx = selectedItems.value.indexOf(id);
@@ -416,8 +410,22 @@ const saveCurrentPolicy = async () => {
   }
 };
 
+const saveComposers = async () => {
+  try {
+    if (policyGroupComposerRef.value?.saveGroupPolicies) {
+      await policyGroupComposerRef.value.saveGroupPolicies();
+    }
+    if (policySetComposerRef.value?.saveSetGroups) {
+      await policySetComposerRef.value.saveSetGroups();
+    }
+  } catch (e) {
+    props.addLog(`保存编排关系失败: ${e}`, props.logLevels.ERROR);
+  }
+};
+
 defineExpose({
   saveCurrentPolicy,
+  saveComposers,
 });
 
 watch(batchMode, (newVal) => {

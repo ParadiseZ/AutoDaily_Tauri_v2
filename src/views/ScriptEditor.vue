@@ -589,6 +589,9 @@ const saveScript = async () => {
     if (policyManagerRef.value?.saveCurrentPolicy) {
       await policyManagerRef.value.saveCurrentPolicy();
     }
+    if (policyManagerRef.value?.saveComposers) {
+      await policyManagerRef.value.saveComposers();
+    }
 
     if (currentTask.value) {
       currentTask.value.nodes = [...nodes.value];
