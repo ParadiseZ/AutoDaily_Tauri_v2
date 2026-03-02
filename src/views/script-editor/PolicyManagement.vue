@@ -412,6 +412,33 @@ const saveCurrentPolicy = async () => {
 
 const saveComposers = async () => {
   try {
+    // 如果当前选中的组/集是草案，先持久化它
+    if (selectedItem.value?.isNew) {
+      const updatedItem = { ...selectedItem.value };
+      delete (updatedItem as any).isNew;
+
+      let command = '';
+      let arg = '';
+      switch (props.activeTab) {
+        case 'policy_set':
+          command = 'save_policy_set_cmd';
+          arg = 'set';
+          break;
+        case 'policy_group':
+          command = 'save_policy_group_cmd';
+          arg = 'group';
+          break;
+        case 'policy':
+          command = 'save_policy_cmd';
+          arg = 'policy';
+          break;
+      }
+      if (command) {
+        await invoke(command, { [arg]: updatedItem });
+        selectedItem.value.isNew = false;
+      }
+    }
+
     if (policyGroupComposerRef.value?.saveGroupPolicies) {
       await policyGroupComposerRef.value.saveGroupPolicies();
     }

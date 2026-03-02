@@ -10,11 +10,10 @@
         </h3>
       </div>
 
-      <!-- 已选列表 - 支持拖拽排序 -->
+      <!-- 已选列表 - 支持指针拖拽排序 -->
       <div
-        class="flex-1 overflow-y-auto border border-base-300 rounded-xl bg-base-200/30 min-h-[120px]"
-        @dragover.prevent="onDragOverSelected"
-        @drop="onDropSelected"
+        ref="listContainerRef"
+        class="flex-1 overflow-y-auto border border-base-300 rounded-xl bg-base-200/30 min-h-[120px] relative select-none"
       >
         <div
           v-if="selectedPolicies.length === 0"
@@ -25,19 +24,19 @@
         <div
           v-for="(policy, index) in selectedPolicies"
           :key="policy.id"
-          class="flex items-center gap-2 px-3 py-2 border-b border-base-300/50 last:border-b-0 group transition-all"
+          class="flex items-center gap-2 px-3 py-2 border-b border-base-300/50 last:border-b-0 group transition-colors"
           :class="[
-            dragOverIndex === index ? 'bg-primary/10 border-t-2 border-t-primary' : 'hover:bg-base-200',
-            draggingIndex === index ? 'opacity-30' : '',
+            dragOverIndex === index && draggingIndex !== index
+              ? 'bg-primary/10 border-t-2 border-t-primary'
+              : 'hover:bg-base-200',
+            draggingIndex === index ? 'opacity-30 bg-base-300/30' : '',
           ]"
-          draggable="true"
-          @dragstart="onDragStart(index, $event)"
-          @dragend="onDragEnd"
-          @dragover.prevent="onDragOverItem(index)"
-          @dragleave="onDragLeaveItem"
         >
           <!-- 拖拽手柄 -->
-          <div class="cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-70 transition-opacity">
+          <div
+            class="cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-70 transition-opacity touch-none"
+            @pointerdown="onPointerDown(index, $event)"
+          >
             <GripVerticalIcon class="w-4 h-4" />
           </div>
 
@@ -116,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import {
   Link as LinkIcon,
   ListTodo as ListTodoIcon,
@@ -142,6 +141,7 @@ const searchQuery = ref('');
 // 拖拽状态
 const draggingIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
+const listContainerRef = ref<HTMLElement | null>(null);
 
 // 已选策略（完整对象，保持顺序）
 const selectedPolicies = computed(() => {
@@ -197,53 +197,47 @@ const removePolicy = (index: number) => {
   selectedPolicyIds.value.splice(index, 1);
 };
 
-// 拖拽排序
-const onDragStart = (index: number, event: DragEvent) => {
+// ============ 基于 Pointer Events 的拖拽排序 ============
+
+const getItemIndexFromPoint = (y: number): number | null => {
+  if (!listContainerRef.value) return null;
+  const children = listContainerRef.value.children;
+  for (let i = 0; i < children.length; i++) {
+    const rect = children[i].getBoundingClientRect();
+    if (y >= rect.top && y <= rect.bottom) {
+      return i;
+    }
+  }
+  return null;
+};
+
+const onPointerDown = (index: number, event: PointerEvent) => {
+  event.preventDefault();
   draggingIndex.value = index;
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', String(index));
-  }
-};
 
-const onDragEnd = () => {
-  draggingIndex.value = null;
-  dragOverIndex.value = null;
-};
+  const onPointerMove = (e: PointerEvent) => {
+    const targetIndex = getItemIndexFromPoint(e.clientY);
+    if (targetIndex !== null && targetIndex !== draggingIndex.value) {
+      dragOverIndex.value = targetIndex;
+    }
+  };
 
-const onDragOverSelected = (event: DragEvent) => {
-  event.preventDefault();
-};
+  const onPointerUp = () => {
+    if (draggingIndex.value !== null && dragOverIndex.value !== null && draggingIndex.value !== dragOverIndex.value) {
+      const list = [...selectedPolicyIds.value];
+      const [moved] = list.splice(draggingIndex.value, 1);
+      list.splice(dragOverIndex.value, 0, moved);
+      selectedPolicyIds.value = list;
+    }
 
-const onDragOverItem = (index: number) => {
-  if (draggingIndex.value !== null && draggingIndex.value !== index) {
-    dragOverIndex.value = index;
-  }
-};
-
-const onDragLeaveItem = () => {
-  dragOverIndex.value = null;
-};
-
-const onDropSelected = (event: DragEvent) => {
-  event.preventDefault();
-  if (draggingIndex.value === null || dragOverIndex.value === null) {
+    draggingIndex.value = null;
     dragOverIndex.value = null;
-    return;
-  }
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup', onPointerUp);
+  };
 
-  const from = draggingIndex.value;
-  const to = dragOverIndex.value;
-
-  if (from !== to) {
-    const list = [...selectedPolicyIds.value];
-    const [moved] = list.splice(from, 1);
-    list.splice(to, 0, moved);
-    selectedPolicyIds.value = list;
-  }
-
-  draggingIndex.value = null;
-  dragOverIndex.value = null;
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', onPointerUp);
 };
 
 // 保存方法（暴露给父组件）
@@ -254,7 +248,6 @@ const saveGroupPolicies = async () => {
   });
 };
 
-// 获取当前数据（暴露给父组件，与 saveScript 集成）
 const getComposerData = () => ({
   groupId: props.groupId,
   policyIds: [...selectedPolicyIds.value],

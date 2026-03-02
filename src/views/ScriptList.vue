@@ -196,6 +196,7 @@ const openEditor = async (scriptId: string) => {
     height: 900,
     center: true,
     focus: true,
+    dragDropEnabled: false,
   });
 
   await webview.once('tauri://error', function (e) {

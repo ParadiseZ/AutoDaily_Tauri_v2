@@ -4,7 +4,6 @@
     <div class="flex justify-between items-center mb-6">
       <h1 class="text-2xl font-bold">任务管理</h1>
       <div class="flex gap-2">
-        <button class="btn btn-sm btn-info text-white" @click="openEditor">Dev: Script Editor</button>
         <button class="btn btn-sm btn-primary">全部开始</button>
         <button class="btn btn-sm btn-warning">全部暂停</button>
         <button class="btn btn-sm btn-error text-white">全部取消</button>
@@ -13,9 +12,12 @@
 
     <!-- Device Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-20 h-[calc(100vh-9rem)]">
-      <div v-for="device in devices" :key="device.id" 
-           class="card bg-base-100 shadow-xl border border-base-300 transition-all duration-300 h-full"
-           :class="{ 'opacity-60 grayscale': !device.enabled }">
+      <div
+        v-for="device in devices"
+        :key="device.id"
+        class="card bg-base-100 shadow-xl border border-base-300 transition-all duration-300 h-full"
+        :class="{ 'opacity-60 grayscale': !device.enabled }"
+      >
         <div class="card-body p-4 h-full flex flex-col">
           <!-- Card Header: Title & Toggle -->
           <div class="flex justify-between items-center mb-2">
@@ -58,24 +60,31 @@
             </div>
             <div class="space-y-2 max-h-[40vh] overflow-y-auto pr-1 custom-scrollbar">
               <!-- 当前任务 -->
-              <div v-if="device.currentTask" class="alert alert-success py-2 px-3 text-xs flex justify-start gap-2 rounded-md">
+              <div
+                v-if="device.currentTask"
+                class="alert alert-success py-2 px-3 text-xs flex justify-start gap-2 rounded-md"
+              >
                 <Play class="w-3 h-3" />
                 <div class="flex-1">
                   <div class="font-bold">{{ device.currentTask.name }}</div>
                   <div class="opacity-70">运行中: {{ device.currentTask.action }}</div>
                 </div>
                 <div class="flex gap-1">
-                   <button class="btn btn-xs btn-circle btn-ghost" title="暂停"><Pause class="w-3 h-3" /></button>
-                   <button class="btn btn-xs btn-circle btn-ghost" title="取消"><X class="w-3 h-3" /></button>
+                  <button class="btn btn-xs btn-circle btn-ghost" title="暂停"><Pause class="w-3 h-3" /></button>
+                  <button class="btn btn-xs btn-circle btn-ghost" title="取消"><X class="w-3 h-3" /></button>
                 </div>
               </div>
               <!-- 任务队列 -->
-              <div v-for="task in device.queue" :key="task.id" class="bg-base-100 p-2 rounded text-xs flex items-center gap-2 opacity-80 group">
+              <div
+                v-for="task in device.queue"
+                :key="task.id"
+                class="bg-base-100 p-2 rounded text-xs flex items-center gap-2 opacity-80 group"
+              >
                 <Hourglass class="w-3 h-3" />
                 <span class="flex-1">{{ task.name }}</span>
                 <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                   <button class="btn btn-xs btn-circle btn-ghost" title="暂停"><Pause class="w-3 h-3" /></button>
-                   <button class="btn btn-xs btn-circle btn-ghost" title="取消"><X class="w-3 h-3" /></button>
+                  <button class="btn btn-xs btn-circle btn-ghost" title="暂停"><Pause class="w-3 h-3" /></button>
+                  <button class="btn btn-xs btn-circle btn-ghost" title="取消"><X class="w-3 h-3" /></button>
                 </div>
               </div>
               <!-- 空闲显示 -->
@@ -117,8 +126,6 @@ const devices = ref([
       { id: 10, name: 'Reward Claim' },
       { id: 11, name: 'Reward Claim' },
 
-
-
       { id: 12, name: 'Reward Claim' },
       { id: 13, name: 'Reward Claim' },
       { id: 14, name: 'Reward Claim' },
@@ -130,8 +137,8 @@ const devices = ref([
       { id: 20, name: 'Reward Claim' },
       { id: 21, name: 'Reward Claim' },
       { id: 22, name: 'Reward Claim' },
-      { id: 23, name: 'Reward Claim' }
-    ]
+      { id: 23, name: 'Reward Claim' },
+    ],
   },
   {
     id: 2,
@@ -142,7 +149,7 @@ const devices = ref([
     enabled: true,
     running: true,
     currentTask: null,
-    queue: []
+    queue: [],
   },
   {
     id: 3,
@@ -153,9 +160,7 @@ const devices = ref([
     enabled: false,
     running: false,
     currentTask: { name: 'Game B - Event', action: 'Boss Battle' },
-    queue: [
-      { id: 3, name: 'Reward Claim' }
-    ]
+    queue: [{ id: 3, name: 'Reward Claim' }],
   },
   {
     id: 4,
@@ -166,32 +171,13 @@ const devices = ref([
     enabled: true,
     running: false,
     currentTask: null,
-    queue: []
-  }
+    queue: [],
+  },
 ]);
 
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 const runAll = () => {
   console.log('Running all enabled devices...');
-};
-
-const openEditor = async () => {
-  const webview = new WebviewWindow('script-editor', {
-    url: '/editor',
-    title: '逻辑编辑',
-    width: 1400,
-    height: 900,
-    center: true,
-    focus: true
-  });
-  
-  await webview.once('tauri://created', function () {
-    console.log('Script Editor window created');
-  });
-  
-  await webview.once('tauri://error', function (e) {
-    console.error('Error creating window', e);
-  });
 };
 </script>
