@@ -2,12 +2,19 @@
   <div class="flex flex-col gap-4 h-full">
     <!-- 已关联的策略组列表 -->
     <div class="flex-1 flex flex-col min-h-0">
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-2 mb-2">
         <h3 class="text-sm font-bold opacity-70 flex items-center gap-2">
           <LinkIcon class="w-4 h-4 text-primary" />
           已关联的策略组
           <span class="badge badge-sm badge-primary">{{ selectedGroups.length }}</span>
         </h3>
+        <div class="flex-1"></div>
+        <input
+          type="text"
+          v-model="associatedSearchQuery"
+          placeholder="搜索已关联..."
+          class="input input-bordered input-sm w-40"
+        />
       </div>
 
       <!-- 已选列表 - 支持指针拖拽排序 -->
@@ -15,11 +22,14 @@
         ref="listContainerRef"
         class="flex-1 overflow-y-auto border border-base-300 rounded-xl bg-base-200/30 min-h-[120px] relative select-none"
       >
-        <div v-if="selectedGroups.length === 0" class="flex items-center justify-center h-full opacity-40 text-sm py-8">
-          <span>暂无关联策略组，从下方候选列表中添加</span>
+        <div
+          v-if="filteredSelectedGroups.length === 0"
+          class="flex items-center justify-center h-full opacity-40 text-sm py-8"
+        >
+          <span>{{ associatedSearchQuery ? '未找到匹配的策略组' : '暂无关联策略组，从下方候选列表中添加' }}</span>
         </div>
         <div
-          v-for="(group, index) in selectedGroups"
+          v-for="(group, index) in filteredSelectedGroups"
           :key="group.id"
           class="flex items-center gap-2 px-3 py-2 border-b border-base-300/50 last:border-b-0 group transition-colors"
           :class="[
@@ -134,6 +144,7 @@ const allGroups = ref<PolicyGroupTable[]>([]);
 const selectedGroupIds = ref<string[]>([]);
 // 搜索
 const searchQuery = ref('');
+const associatedSearchQuery = ref('');
 
 // 拖拽状态
 const draggingIndex = ref<number | null>(null);
@@ -145,6 +156,15 @@ const selectedGroups = computed(() => {
   return selectedGroupIds.value
     .map((id) => allGroups.value.find((g) => g.id === id))
     .filter(Boolean) as PolicyGroupTable[];
+});
+
+// 过滤后的已关联策略组
+const filteredSelectedGroups = computed(() => {
+  if (!associatedSearchQuery.value) return selectedGroups.value;
+  const q = associatedSearchQuery.value.toLowerCase();
+  return selectedGroups.value.filter(
+    (g) => g.data.name.toLowerCase().includes(q) || (g.data.note && g.data.note.toLowerCase().includes(q))
+  );
 });
 
 // 候选策略组（未被选中的）

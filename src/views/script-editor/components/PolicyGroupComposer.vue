@@ -2,12 +2,18 @@
   <div class="flex flex-col gap-4 h-full">
     <!-- 已关联的策略列表 -->
     <div class="flex-1 flex flex-col min-h-0">
-      <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-2 mb-2">
         <h3 class="text-sm font-bold opacity-70 flex items-center gap-2">
           <LinkIcon class="w-4 h-4 text-primary" />
-          已关联的策略
+          关联策略
           <span class="badge badge-sm badge-primary">{{ selectedPolicies.length }}</span>
         </h3>
+        <input
+          type="text"
+          v-model="associatedSearchQuery"
+          placeholder="搜索名称或备注..."
+          class="input input-bordered input-sm w-80"
+        />
       </div>
 
       <!-- 已选列表 - 支持指针拖拽排序 -->
@@ -16,13 +22,13 @@
         class="flex-1 overflow-y-auto border border-base-300 rounded-xl bg-base-200/30 min-h-[120px] relative select-none"
       >
         <div
-          v-if="selectedPolicies.length === 0"
+          v-if="filteredSelectedPolicies.length === 0"
           class="flex items-center justify-center h-full opacity-40 text-sm py-8"
         >
-          <span>暂无关联策略，从下方候选列表中添加</span>
+          <span>{{ associatedSearchQuery ? '未找到匹配的策略' : '暂无关联策略，从下方候选列表中添加' }}</span>
         </div>
         <div
-          v-for="(policy, index) in selectedPolicies"
+          v-for="(policy, index) in filteredSelectedPolicies"
           :key="policy.id"
           class="flex items-center gap-2 px-3 py-2 border-b border-base-300/50 last:border-b-0 group transition-colors"
           :class="[
@@ -31,28 +37,36 @@
               : 'hover:bg-base-200',
             draggingIndex === index ? 'opacity-30 bg-base-300/30' : '',
           ]"
+          @click="removePolicy(index)"
         >
           <!-- 拖拽手柄 -->
           <div
             class="cursor-grab active:cursor-grabbing opacity-30 group-hover:opacity-70 transition-opacity touch-none"
             @pointerdown="onPointerDown(index, $event)"
           >
-            <GripVerticalIcon class="w-4 h-4" />
+            <MoveVerticalIcon class="w-4 h-4" />
           </div>
 
           <!-- 序号 -->
-          <span class="text-xs font-mono opacity-40 w-5 text-center shrink-0">{{ index + 1 }}</span>
+          <span class="text-xl font-mono opacity-60 w-5 text-center">{{ index + 1 }}</span>
 
           <!-- 策略信息 -->
-          <div class="flex-1 min-w-0">
+          <!-- <div class="flex-1 min-w-0">
             <div class="font-semibold text-sm truncate">{{ policy.data.name || '未命名' }}</div>
-            <div v-if="policy.data.note" class="text-xs opacity-50 truncate">{{ policy.data.note }}</div>
+            <div v-if="policy.data.note" class="text-sm opacity-50 truncate">{{ policy.data.note }}</div>
+          </div> -->
+          <div class="flex-1 min-w-0 flex gap-2">
+            <div class="font-semibold text-sm truncate flex-1">
+              {{ policy.data.name || '未命名' }}
+            </div>
+            <div v-if="policy.data.note" class="text-sm opacity-50 truncate flex-4">
+              {{ policy.data.note }}
+            </div>
           </div>
 
           <!-- 移除按钮 -->
           <button
             class="btn btn-xs btn-ghost btn-circle opacity-0 group-hover:opacity-70 hover:opacity-100! text-error transition-all"
-            @click="removePolicy(index)"
             title="移除"
           >
             <XIcon class="w-3.5 h-3.5" />
@@ -69,14 +83,14 @@
         <h3 class="text-sm font-bold opacity-70 flex items-center gap-2">
           <ListTodoIcon class="w-4 h-4" />
           候选策略
+          <span class="badge badge-sm badge-primary">{{ filteredCandidates.length }}</span>
         </h3>
-        <div class="flex-1"></div>
         <div class="form-control">
           <input
             type="text"
             v-model="searchQuery"
-            placeholder="搜索策略名称或备注..."
-            class="input input-bordered input-sm w-56"
+            placeholder="搜索名称或备注..."
+            class="input input-bordered input-sm w-80"
           />
         </div>
       </div>
@@ -96,9 +110,18 @@
           @click="addPolicy(policy)"
         >
           <!-- 策略信息 -->
-          <div class="flex-1 min-w-0">
+          <!-- <div class="flex-1 min-w-0">
             <div class="font-semibold text-sm truncate">{{ policy.data.name || '未命名' }}</div>
             <div v-if="policy.data.note" class="text-xs opacity-50 truncate">{{ policy.data.note }}</div>
+          </div> -->
+
+          <div class="flex-1 min-w-0 flex gap-2">
+            <div class="font-semibold text-sm truncate flex-1">
+              {{ policy.data.name || '未命名' }}
+            </div>
+            <div v-if="policy.data.note" class="text-sm opacity-50 truncate flex-4">
+              {{ policy.data.note }}
+            </div>
           </div>
 
           <!-- 添加按钮 -->
@@ -119,7 +142,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import {
   Link as LinkIcon,
   ListTodo as ListTodoIcon,
-  GripVertical as GripVerticalIcon,
+  MoveVertical as MoveVerticalIcon,
   X as XIcon,
   Plus as PlusIcon,
 } from 'lucide-vue-next';
@@ -137,6 +160,7 @@ const allPolicies = ref<PolicyTable[]>([]);
 const selectedPolicyIds = ref<string[]>([]);
 // 搜索
 const searchQuery = ref('');
+const associatedSearchQuery = ref('');
 
 // 拖拽状态
 const draggingIndex = ref<number | null>(null);
@@ -148,6 +172,15 @@ const selectedPolicies = computed(() => {
   return selectedPolicyIds.value
     .map((id) => allPolicies.value.find((p) => p.id === id))
     .filter(Boolean) as PolicyTable[];
+});
+
+// 过滤后的已关联策略
+const filteredSelectedPolicies = computed(() => {
+  if (!associatedSearchQuery.value) return selectedPolicies.value;
+  const q = associatedSearchQuery.value.toLowerCase();
+  return selectedPolicies.value.filter(
+    (p) => p.data.name.toLowerCase().includes(q) || (p.data.note && p.data.note.toLowerCase().includes(q))
+  );
 });
 
 // 候选策略（未被选中的）

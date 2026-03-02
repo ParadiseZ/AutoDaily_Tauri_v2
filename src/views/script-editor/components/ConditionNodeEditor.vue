@@ -36,7 +36,7 @@
         </div>
 
         <!-- Add Rule Type Selector for Group -->
-        <div class="grid grid-cols-2 md:grid-cols-3 gap-2 pt-2 mt-4 border-t border-base-300/50">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2 pt-2 mt-4 border-t border-base-300/50">
           <button class="btn btn-xs btn-outline btn-ghost" @click="addCondition('rawExpr')">Rhai 表达式</button>
           <button class="btn btn-xs btn-outline btn-ghost" @click="addCondition('execNumCompare')">执行次数</button>
           <button class="btn btn-xs btn-outline btn-ghost" @click="addCondition('taskStatus')">任务状态</button>

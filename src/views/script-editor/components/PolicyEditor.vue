@@ -3,7 +3,14 @@
     <!-- Left Sidebar: Metadata -->
     <div class="w-64 flex-none flex flex-col gap-3 p-3 bg-base-200/50 rounded-3xl border border-base-300 shadow-sm">
       <div class="space-y-4 flex-1">
-        <div class="divider opacity-30 mt-0 mb-1"></div>
+        <div class="form-control">
+          <label class="label py-1"><span class="label-text text-xs uppercase font-bold opacity-60">备注</span></label>
+          <textarea
+            v-model="localPolicy.note"
+            class="textarea textarea-bordered textarea-xm w-full font-mono h-20 resize-none"
+            placeholder="记个笔记免得忘了作用..."
+          ></textarea>
+        </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div class="form-control">
@@ -40,12 +47,12 @@
         </div>
       </div>
 
-      <div class="p-3 bg-base-300/30 rounded-2xl">
+      <!-- <div class="p-3 bg-base-300/30 rounded-2xl">
         <div class="text-[9px] opacity-40 uppercase font-bold mb-1">策略 ID</div>
         <div class="text-[10px] font-mono opacity-50 break-all select-all">
           {{ (localPolicy as any).id || 'Draft' }}
         </div>
-      </div>
+      </div> -->
     </div>
 
     <!-- Right Content: Logic -->

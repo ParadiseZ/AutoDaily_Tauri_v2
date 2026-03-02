@@ -33,7 +33,8 @@
         </button>
         <button class="btn btn-primary btn-sm gap-2" @click="addNewItem">
           <PlusIcon class="w-4 h-4" />
-          新建{{ title }}
+          新建
+          <!-- {{ title }} -->
         </button>
       </div>
     </div>
@@ -41,7 +42,7 @@
     <!-- Main List/Content -->
     <div class="flex-1 flex overflow-hidden">
       <!-- Left: List -->
-      <div class="w-40 border-r border-base-300 flex flex-col bg-base-100">
+      <div class="w-52 border-r border-base-300 flex flex-col bg-base-100">
         <div v-if="loading" class="flex-1 flex items-center justify-center">
           <span class="loading loading-spinner loading-md"></span>
         </div>
@@ -54,7 +55,7 @@
               batchMode && selectedItems.includes(item.id)
                 ? 'bg-error/20 text-error ring-1 ring-error/30'
                 : selectedItem?.id === item.id
-                  ? 'bg-primary text-primary-content shadow-md'
+                  ? 'bg-primary/15 text-primary ring-1 ring-primary/30 shadow-sm'
                   : 'hover:bg-base-200 text-base-content/70',
             ]"
             @click="batchMode ? toggleBatchSelect(item.id) : (selectedItem = item)"
@@ -63,10 +64,10 @@
               <input
                 v-if="selectedItem?.id === item.id && !batchMode"
                 v-model="item.data.name"
-                class="input input-sm w-full font-bold focus:outline-none focus:ring-2 focus:ring-white/50"
+                class="input input-sm w-full font-bold focus:outline-none focus:ring-2 focus:ring-primary/30"
                 :class="
                   selectedItem?.id === item.id
-                    ? 'bg-primary-focus text-primary-content placeholder-primary-content/50 border-none'
+                    ? 'bg-primary/10 text-primary placeholder-primary/50 border-primary/20'
                     : 'bg-transparent text-base-content'
                 "
                 placeholder="请输入策略名称..."

@@ -20,13 +20,16 @@ pub enum FlowControl{
     WaitMs {
         ms: u64,
     },
-    Link{
+    Link {
         target: TaskId,
     },
     AddPolicies{
         source: PolicySetId,
         target: PolicySetId,
-    }
+    },
+    HandlePolicySet{
+        target: Vec<PolicySetId>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]

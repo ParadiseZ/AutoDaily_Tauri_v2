@@ -61,4 +61,7 @@ pub enum Action {
     LaunchApp{
         pkg_name: String,
     },
+    StopApp{
+        pkg_name: String,
+    },
 }

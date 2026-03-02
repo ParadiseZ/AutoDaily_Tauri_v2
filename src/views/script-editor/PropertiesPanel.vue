@@ -8,7 +8,6 @@
 
     <!-- Node Selected -->
     <div class="flex-1 p-4 overflow-y-auto" v-if="selectedNode">
-      <div class="divider text-xs opacity-50 mt-0">Configuration</div>
 
       <!-- Step Mode: Use unified StepItemEditor -->
       <div v-if="!['start', 'end'].includes(selectedNode.data?.type)" class="-mx-3">

@@ -12,21 +12,43 @@
       <p class="text-sm font-bold opacity-30 text-balance px-10">该序列为空，请使用下方的神奇按钮添加第一个步骤 🪄</p>
     </div>
 
-    <div v-for="(step, index) in steps" :key="step.id || index" class="relative group">
-      <!-- Connection Line -->
+    <!-- Steps List with Pointer Drag -->
+    <div ref="stepsContainerRef" class="flex flex-col gap-4 select-none">
       <div
-        v-if="index < steps.length - 1"
-        class="absolute left-7 top-0 bottom-0 w-0.5 bg-linear-to-b from-base-300 via-base-300/50 to-transparent -z-10 group-hover:from-primary/30 transition-all duration-2000"
-      ></div>
+        v-for="(step, index) in steps"
+        :key="step.id || index"
+        class="relative group transition-colors"
+        :class="[
+          dragOverIndex === index && draggingIndex !== index ? 'ring-2 ring-primary/40 rounded-3xl' : '',
+          draggingIndex === index ? 'opacity-30' : '',
+        ]"
+      >
+        <!-- Connection Line -->
+        <div
+          v-if="index < steps.length - 1"
+          class="absolute left-7 top-0 bottom-0 w-0.5 bg-linear-to-b from-base-300 via-base-300/50 to-transparent -z-10 group-hover:from-primary/30 transition-all duration-2000"
+        ></div>
 
-      <StepItemEditor
-        :step="step"
-        :is-nested="isNested"
-        @update="updateStep(index, $event)"
-        @remove="removeStep(index)"
-        @move-up="moveStep(index, -1)"
-        @move-down="moveStep(index, 1)"
-      />
+        <div class="flex items-start gap-1">
+          <!-- Drag Handle -->
+          <div
+            class="cursor-grab active:cursor-grabbing opacity-20 hover:opacity-60 transition-opacity pt-5 touch-none shrink-0"
+            @pointerdown="onPointerDown(index, $event)"
+          >
+            <GripVerticalIcon class="w-4 h-4" />
+          </div>
+
+          <!-- Step Editor -->
+          <div class="flex-1 min-w-0">
+            <StepItemEditor
+              :step="step"
+              :is-nested="isNested"
+              @update="updateStep(index, $event)"
+              @remove="removeStep(index)"
+            />
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Add Step Picker Dropdown -->
@@ -35,14 +57,14 @@
       <Teleport to="body">
         <div
           v-if="showPicker"
-          class="fixed z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl w-[560px] backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
+          class="fixed z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
           :style="pickerStyle"
         >
           <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 text-center">选择行为</div>
 
           <div v-for="(group, gName) in groupedActions" :key="gName" class="mb-2 last:mb-0">
             <div class="text-[9px] font-bold opacity-30 uppercase mb-2 pl-2">{{ gName }}</div>
-            <div class="grid grid-cols-5 gap-1.5">
+            <div class="grid gap-1.5" :style="gridStyle(group.length)">
               <button
                 v-for="kind in group"
                 :key="kind.op"
@@ -77,7 +99,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive } from 'vue';
-import { Plus as PlusIcon, ListTodo as ListTodoIcon } from 'lucide-vue-next';
+import { Plus as PlusIcon, ListTodo as ListTodoIcon, GripVertical as GripVerticalIcon } from 'lucide-vue-next';
 import StepItemEditor from './StepItemEditor.vue';
 import IconRenderer from '../IconRenderer.vue';
 import { NODE_TYPES, NODE_CATEGORIES, getNodeDefaults } from '../config';
@@ -102,11 +124,58 @@ const showPicker = ref(false);
 const addBtnRef = ref<HTMLButtonElement | null>(null);
 const pickerPos = reactive({ top: 0, left: 0 });
 
+// ─── Drag and Drop via Pointer Events ─────────────
+const stepsContainerRef = ref<HTMLElement | null>(null);
+const draggingIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
+
+const getItemIndexFromPoint = (y: number): number | null => {
+  if (!stepsContainerRef.value) return null;
+  const children = stepsContainerRef.value.children;
+  for (let i = 0; i < children.length; i++) {
+    const rect = children[i].getBoundingClientRect();
+    if (y >= rect.top && y <= rect.bottom) {
+      return i;
+    }
+  }
+  return null;
+};
+
+const onPointerDown = (index: number, event: PointerEvent) => {
+  event.preventDefault();
+  draggingIndex.value = index;
+
+  const onPointerMove = (e: PointerEvent) => {
+    const targetIndex = getItemIndexFromPoint(e.clientY);
+    if (targetIndex !== null && targetIndex !== draggingIndex.value) {
+      dragOverIndex.value = targetIndex;
+    }
+  };
+
+  const onPointerUp = () => {
+    if (draggingIndex.value !== null && dragOverIndex.value !== null && draggingIndex.value !== dragOverIndex.value) {
+      const newSteps = [...props.steps];
+      const [moved] = newSteps.splice(draggingIndex.value, 1);
+      newSteps.splice(dragOverIndex.value, 0, moved);
+      emit('update:steps', newSteps);
+    }
+    draggingIndex.value = null;
+    dragOverIndex.value = null;
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointerup', onPointerUp);
+  };
+
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', onPointerUp);
+};
+
+// ─── Picker ───────────────────────────────────────
+
 const togglePicker = () => {
   if (!showPicker.value && addBtnRef.value) {
     const rect = addBtnRef.value.getBoundingClientRect();
     pickerPos.top = rect.top - 8;
-    pickerPos.left = rect.left + rect.width / 2 - 160;
+    pickerPos.left = rect.left + rect.width / 2;
   }
   showPicker.value = !showPicker.value;
 };
@@ -114,15 +183,22 @@ const togglePicker = () => {
 const pickerStyle = computed(() => ({
   top: 'auto',
   bottom: `${window.innerHeight - pickerPos.top}px`,
-  left: `${Math.max(8, pickerPos.left)}px`,
+  left: `${pickerPos.left}px`,
+  transform: 'translateX(-50%)',
 }));
+
+/** 自适应网格：最多 5 列，不足时收缩 */
+const gridStyle = (count: number) => {
+  const cols = Math.min(count, 5);
+  return { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` };
+};
 
 const groupedActions = computed(() => {
   const groups: Record<string, any[]> = {};
   for (const cat of NODE_CATEGORIES) {
     if (cat.key === 'special') continue;
     groups[cat.label] = cat.types.map((t) => ({
-      name: NODE_TYPES[t].displayCn,
+      name: NODE_TYPES[t]?.displayCn || t,
       op: t,
     }));
   }
@@ -146,18 +222,6 @@ const updateStep = (index: number, newData: Step) => {
 const removeStep = (index: number) => {
   const newSteps = [...props.steps];
   newSteps.splice(index, 1);
-  emit('update:steps', newSteps);
-};
-
-const moveStep = (index: number, direction: number) => {
-  const target = index + direction;
-  if (target < 0 || target >= props.steps.length) return;
-
-  const newSteps = [...props.steps];
-  const item = newSteps[index];
-  newSteps[index] = newSteps[target];
-  newSteps[target] = item;
-
   emit('update:steps', newSteps);
 };
 </script>
