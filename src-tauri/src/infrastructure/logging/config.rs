@@ -1,14 +1,16 @@
 use crate::infrastructure::core::{Deserialize, Serialize};
 use std::fmt;
-// 日志配置 - 临时实现
 use crate::infrastructure::logging::logger::LogLevel;
 
+/// 主进程日志配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LogMain {
+    /// 主进程日志级别
     pub log_level: LogLevel,
+    /// 日志文件目录（相对路径或绝对路径）
     pub log_dir: String,
-    pub max_file_size: usize,
+    /// 日志保留天数（超过此天数的日志文件将被自动清理）
     pub retention_days: u32,
 }
 
@@ -17,7 +19,6 @@ impl Default for LogMain {
         Self {
             log_level: LogLevel::Info,
             log_dir: "logs".to_string(),
-            max_file_size: 10240, // 10MB
             retention_days: 7,
         }
     }
@@ -27,8 +28,8 @@ impl fmt::Display for LogMain {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "loglevel:{}, log_dir:{}, max_file_size:{}kb, retention_days:{}day",
-            self.log_level, self.log_dir, self.max_file_size, self.retention_days
+            "loglevel:{}, log_dir:{}, retention_days:{}day",
+            self.log_level, self.log_dir, self.retention_days
         )
     }
 }

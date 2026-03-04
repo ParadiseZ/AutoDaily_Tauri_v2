@@ -15,7 +15,10 @@ pub mod infrastructure;
 use crate::api::dev_test::{
     dev_capture_test, paddle_ocr_inference_test, save_captured_image, yolo_inference_test,
 };
-use crate::api::infrastructure::config::log_api::{update_log_level_cmd};
+use crate::api::infrastructure::config::log_api::{
+    update_log_level_cmd, update_log_dir_cmd, update_retention_days_cmd,
+    get_log_config_cmd, clean_logs_now_cmd, update_child_log_level_cmd,
+};
 use crate::api::infrastructure::config::sys_conf::{set_system_settings_cmd};
 use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::get_uuid_v7;
@@ -24,7 +27,6 @@ use crate::api::domain::scripts::{get_all_scripts_cmd, get_script_by_id_cmd, sav
                                   get_script_tasks_cmd,save_script_tasks_cmd, get_yolo_labels_cmd};
 use crate::api::domain::policy::*;
 use crate::app::init_start::init_at_start;
-use crate::infrastructure::ipc::chanel_server::IpcServer;
 use tauri::{App, Emitter, Manager};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -60,6 +62,11 @@ pub fn run() {
             paddle_ocr_inference_test,
             //日志更新级别
             update_log_level_cmd,
+            update_log_dir_cmd,
+            update_retention_days_cmd,
+            get_log_config_cmd,
+            clean_logs_now_cmd,
+            update_child_log_level_cmd,
             //性能设置
             //get_performance_cmd,set_performance_cmd,get_cpu_cores_cmd,
             //uuid
@@ -105,7 +112,6 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-    IpcServer::start().expect("Failed to start to IPC server");
     ort::init()
         .with_telemetry(false)
         .commit()

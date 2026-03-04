@@ -16,7 +16,10 @@ pub enum LogError {
     ReloadDataNotInit,
 
     #[error("设置日志订阅者失败: {e}")]
-    SetRegistryErr{e:String},
+    SetRegistryErr { e: String },
+
+    #[error("更新日志配置失败: {e}")]
+    UpdateConfigErr { e: String },
 }
 
 pub type LogResult<T> = Result<T, LogError>;

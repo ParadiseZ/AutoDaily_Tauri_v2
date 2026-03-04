@@ -29,7 +29,13 @@ pub async fn init_at_start(app_handle: &AppHandle) {
     };
     // 初始化日志设置
     let log_conf: LogMain = get_or_init_config(store.clone(), LOG_CONFIG_KEY);
-    let _ = LogMain::init( log_conf,"AutoDaily").await;
+    let _ = LogMain::init(log_conf, "AutoDaily").await;
+    // 初始化子进程日志接收器
+    crate::infrastructure::logging::main_process_log_handler::init_child_log_receiver();
+    // 启动 IPC Server
+    if let Err(e) = crate::infrastructure::ipc::chanel_server::IpcServer::start() {
+        Log::error(&format!("启动 IPC Server 失败: {}", e));
+    }
     // 初始化系统设置
     let sys_conf : SystemConfig = get_or_init_config(store.clone(), SYSTEM_SETTINGS_KEY);
     // 处理开机自启动

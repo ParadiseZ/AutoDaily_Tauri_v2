@@ -12,6 +12,7 @@ use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::ChannelResult;
 use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload, MessageType};
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use interprocess::local_socket::tokio::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::tokio::Listener;
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, ToNsName};
@@ -279,6 +280,32 @@ impl IpcServer {
 impl ChannelTrait for IpcServer {
     fn handle_msg(msg: IpcMessage) {
         match msg.message_type {
+            MessageType::Logger => {
+                // 子进程日志消息：写入文件 + emit 前端
+                if let MessagePayload::Logger(ref log_msg) = msg.payload {
+                    let device_id = msg.source_or_target;
+                    let log_msg_clone = log_msg.clone();
+                    tokio::spawn(async move {
+                        if let Some(receiver) = get_child_log_receiver() {
+                            receiver.handle_log(&device_id, &log_msg_clone).await;
+                        }
+                        // emit 到前端
+                        if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
+                            let emit_data = serde_json::json!({
+                                "deviceId": device_id.to_string(),
+                                "level": format!("{}", log_msg_clone.level),
+                                "message": log_msg_clone.message,
+                                "time": chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+                            });
+                            let _ = main_window.emit("child-log", emit_data);
+                        }
+                    });
+                }
+            }
+            MessageType::Heartbeat => {
+                // 心跳消息：更新最后心跳时间
+                // TODO: 更新 IpcClientState.last_heartbeat
+            }
             MessageType::Command => {}
             _ => {}
         }

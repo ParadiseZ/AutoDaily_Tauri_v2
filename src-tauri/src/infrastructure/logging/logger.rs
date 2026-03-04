@@ -6,10 +6,11 @@ use crate::infrastructure::logging::log_trait::{Log, LogTrait};
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use chrono::Local;
 use std::path::PathBuf;
+use std::sync::Arc;
 use bincode::{Decode, Encode};
 use lazy_static::lazy_static;
 use tauri::path::BaseDirectory;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use tracing::subscriber::set_global_default;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::filter::LevelFilter;
@@ -51,11 +52,14 @@ impl std::fmt::Display for LogLevel {
     }
 }
 
-lazy_static!{
+lazy_static! {
+    /// 日志级别 reload handle（用于动态调整主进程日志级别）
     pub static ref LOG_LEVEL_HANDLE: Mutex<Option<reload::Handle<LevelFilter, Registry>>> = Mutex::new(None);
+    /// 当前日志目录（可动态修改）
+    pub static ref LOG_DIR: RwLock<PathBuf> = RwLock::new(PathBuf::new());
 }
 
-// Convert string log level to LevelFilter
+/// 将 LogLevel 转换为 tracing 的 LevelFilter
 pub fn parse_log_level(level: &LogLevel) -> LevelFilter {
     match level {
         LogLevel::Debug => LevelFilter::DEBUG,
@@ -67,10 +71,10 @@ pub fn parse_log_level(level: &LogLevel) -> LevelFilter {
 }
 
 impl LogMain {
+    /// 动态更新主进程日志级别
     pub async fn update_level(level: &LogLevel) -> LogResult<()> {
         let level_filter = parse_log_level(level);
 
-        // Safely handle the mutex and update the log level
         if let Some(handle) = LOG_LEVEL_HANDLE.lock().await.as_ref() {
             handle
                 .reload(level_filter)
@@ -82,66 +86,103 @@ impl LogMain {
 
         Ok(())
     }
+
+    /// 获取当前日志目录
+    pub async fn get_log_dir() -> PathBuf {
+        LOG_DIR.read().await.clone()
+    }
+
+    /// 更新日志目录（运行时动态切换）
+    pub async fn update_log_dir(new_dir: &str) -> LogResult<()> {
+        let new_path = PathUtil::get_absolute_path(new_dir, BaseDirectory::AppLog)
+            .map_err(|e| LogError::CreateOrGet { e: e.to_string() })?;
+
+        // 确保目录存在
+        if !new_path.exists() {
+            std::fs::create_dir_all(&new_path)
+                .map_err(|e| LogError::CreateOrGet { e: e.to_string() })?;
+        }
+
+        let mut log_dir = LOG_DIR.write().await;
+        *log_dir = new_path;
+
+        Log::info(&format!("日志目录变更为: {}", new_dir));
+        Ok(())
+    }
 }
 
 impl LogMain {
+    /// 初始化主进程日志系统
     pub async fn init(conf: LogMain, app_name: &str) -> LogResult<Self> {
-        // 获取日志配置并立即初始化日志系统
-
         let log_level_filter = parse_log_level(&conf.log_level);
 
-        // Resolve and ensure log directory
+        // 解析并确保日志目录存在
         let log_dir_path: PathBuf =
             PathUtil::get_absolute_path(&conf.log_dir, BaseDirectory::AppLog)
                 .map_err(|e| LogError::CreateOrGet { e: e.to_string() })?;
 
+        if !log_dir_path.exists() {
+            std::fs::create_dir_all(&log_dir_path)
+                .map_err(|e| LogError::CreateOrGet { e: e.to_string() })?;
+        }
+
+        // 存储日志目录
+        {
+            let mut log_dir = LOG_DIR.write().await;
+            *log_dir = log_dir_path.clone();
+        }
+
         let date_str = Local::now().format("%y%m%d").to_string();
-        let log_file = format!("AutoDaily_{}.log", date_str);
+        let log_file = format!("{}_{}.log",app_name, date_str);
 
-        // 添加调试信息
-        /*        println!("主程序日志目录: {}", log_dir_path.display());
-        println!("日志文件: {}", log_file);
-        println!("日志级别: {:?}", log_level_filter);*/
-
-        // Create a rolling file appender that creates a new file each day
+        // 创建文件日志 appender（按天滚动）
         let file_appender = RollingFileAppender::new(
-            Rotation::NEVER, // Create new file daily
+            Rotation::NEVER,
             &log_dir_path,
             log_file,
         );
 
-        // Create a reloadable filter
+        // 创建可 reload 的级别过滤器
         let (filter, reload_handle) = reload::Layer::new(log_level_filter);
 
-        // Store the reload handle for later use - safely handle the mutex
-        let mut guard =  LOG_LEVEL_HANDLE.lock().await;
+        // 存储 reload handle
+        let mut guard = LOG_LEVEL_HANDLE.lock().await;
         *guard = Some(reload_handle);
 
-        // Set up a single layer for file logging
+        // 文件日志 layer
         let file_layer = fmt::Layer::new()
             .with_writer(file_appender)
             .with_timer(LocalTimer::DayStamp)
             .with_ansi(false)
             .with_target(true);
 
-        // Set up a layer for console output
+        // 控制台日志 layer
         let stdout_layer = fmt::Layer::new()
             .with_writer(std::io::stdout)
             .with_timer(LocalTimer::DayStamp)
             .with_ansi(true)
             .with_target(true);
 
-        // Create the subscriber with both layers and the reloadable filter
+        // 组合 subscriber
         let subscriber = Registry::default()
             .with(filter)
             .with(stdout_layer)
             .with(file_layer);
 
-        set_global_default(subscriber).map_err(|e| LogError::SetRegistryErr{e: e.to_string()})?;
+        set_global_default(subscriber).map_err(|e| LogError::SetRegistryErr { e: e.to_string() })?;
 
-        // Record startup log
-        tracing::info!("===== {} 启动 =====", app_name);
-        tracing::info!("Log level set to: {:?}", log_level_filter);
+        // 记录启动日志
+        //tracing::info!("===== {} 启动 =====", app_name);
+        tracing::info!("level: {:?}, Dir: {}", log_level_filter, log_dir_path.display());
+
+        // 启动日志清理器
+        if conf.retention_days > 0 {
+            let cleaner_dir = log_dir_path.clone();
+            let days = conf.retention_days;
+            tokio::spawn(async move {
+                crate::infrastructure::logging::log_cleaner::LogCleaner::start(cleaner_dir, days).await;
+            });
+        }
 
         Ok(conf)
     }
@@ -150,7 +191,6 @@ impl LogMain {
     pub fn info_with_fields(message: &str, fields: Vec<(&str, String)>) {
         let span = tracing::info_span!("", message = message);
         let _enter = span.enter();
-
         for (key, value) in fields {
             tracing::info!(key = key, value = value);
         }

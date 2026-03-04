@@ -1,22 +1,14 @@
 <template>
   <div class="p-6">
     <h1 class="text-2xl font-bold mb-6">设置</h1>
-    
+
     <div class="columns-1 md:columns-2 gap-6 space-y-6">
       <!-- Basic Settings Block -->
       <div class="card bg-base-100 shadow-xl border border-base-300 break-inside-avoid">
         <div class="card-body p-4">
           <h2 class="card-title text-lg mb-4">基础设置</h2>
-          
+
           <div class="grid grid-cols-1 gap-4">
-<!--          <div class="flex justify-between items-center">
-              <span class="font-medium">Language</span>
-              <select class="select select-bordered select-sm w-40">
-                <option>English</option>
-                <option>Chinese</option>
-              </select>
-            </div>-->
-            
             <div class="flex justify-between items-center">
               <span class="font-medium">启动模式</span>
               <select class="select select-bordered select-sm w-40">
@@ -27,17 +19,21 @@
             </div>
 
             <div class="flex justify-between items-center">
-               <span class="font-medium">开机自启</span>
-               <input type="checkbox" class="toggle toggle-primary toggle-sm" />
+              <span class="font-medium">开机自启</span>
+              <input type="checkbox" class="toggle toggle-primary toggle-sm" />
             </div>
             <div class="flex justify-between items-center">
-               <span class="font-medium">保持置顶</span>
-               <input type="checkbox" class="toggle toggle-primary toggle-sm" />
+              <span class="font-medium">保持置顶</span>
+              <input type="checkbox" class="toggle toggle-primary toggle-sm" />
             </div>
 
             <div class="flex justify-between items-center">
               <span class="font-medium">主题设置</span>
-              <select class="select select-bordered select-sm w-40" v-model="currentAppTheme" @change="setTheme(currentAppTheme, appThemeKey)">
+              <select
+                class="select select-bordered select-sm w-40"
+                v-model="currentAppTheme"
+                @change="setTheme(currentAppTheme, appThemeKey)"
+              >
                 <option v-for="theme in themes.slice(0, 2)" :key="theme" :value="theme">
                   {{ theme === 'dark' ? '深色' : '浅色' }}
                 </option>
@@ -46,11 +42,61 @@
 
             <div class="flex justify-between items-center">
               <span class="font-medium">启动页面</span>
-              <select class="select select-bordered select-sm w-40" v-model="currentRouter" @change="handleRouterChange">
+              <select
+                class="select select-bordered select-sm w-40"
+                v-model="currentRouter"
+                @change="handleRouterChange"
+              >
                 <option v-for="route in routesDisplay" :key="route.path" :value="route">
-                  {{ route.label}}
+                  {{ route.label }}
                 </option>
               </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Log Settings Block -->
+      <div class="card bg-base-100 shadow-xl border border-base-300 break-inside-avoid">
+        <div class="card-body p-4">
+          <h2 class="card-title text-lg mb-4">日志设置</h2>
+          <div class="grid grid-cols-1 gap-4">
+            <div class="flex justify-between items-center">
+              <span class="font-medium">主进程日志级别</span>
+              <select class="select select-bordered select-sm w-40" v-model="logLevel" @change="handleLogLevelChange">
+                <option value="Debug">Debug</option>
+                <option value="Info">Info</option>
+                <option value="Warn">Warn</option>
+                <option value="Error">Error</option>
+                <option value="Off">Off</option>
+              </select>
+            </div>
+
+            <div class="flex justify-between items-center gap-2">
+              <span class="font-medium shrink-0">日志目录</span>
+              <div class="flex gap-1 flex-1 justify-end">
+                <input type="text" v-model="logDir" class="input input-bordered input-sm w-48" placeholder="logs" />
+                <button class="btn btn-sm btn-outline" @click="selectLogDir">选择</button>
+                <button class="btn btn-sm btn-primary" @click="handleLogDirChange">保存</button>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center">
+              <span class="font-medium">日志保留天数</span>
+              <div class="flex gap-1 items-center">
+                <input
+                  type="number"
+                  v-model.number="retentionDays"
+                  class="input input-bordered input-sm w-20"
+                  min="0"
+                  max="365"
+                />
+                <button class="btn btn-sm btn-primary" @click="handleRetentionDaysChange">保存</button>
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <button class="btn btn-sm btn-warning" @click="handleCleanLogs">手动清理日志</button>
             </div>
           </div>
         </div>
@@ -59,48 +105,117 @@
       <!-- Performance Block -->
       <div class="card bg-base-100 shadow-xl border border-base-300 break-inside-avoid">
         <div class="card-body p-4">
-           <h2 class="card-title text-lg mb-4">性能设置</h2>
-           <div class="flex justify-between items-center mb-2">
-              <span class="font-medium">并行任务数</span>
-              <input type="number" class="input input-bordered input-sm w-20" value="4" />
-           </div>
-           <div class="flex justify-between items-center">
-              <span class="font-medium">GPU推理</span>
-              <input type="checkbox" class="toggle toggle-secondary toggle-sm" checked />
-           </div>
+          <h2 class="card-title text-lg mb-4">性能设置</h2>
+          <div class="flex justify-between items-center mb-2">
+            <span class="font-medium">并行任务数</span>
+            <input type="number" class="input input-bordered input-sm w-20" value="4" />
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="font-medium">GPU推理</span>
+            <input type="checkbox" class="toggle toggle-secondary toggle-sm" checked />
+          </div>
         </div>
       </div>
 
-       <!-- About Block -->
+      <!-- About Block -->
       <div class="card bg-base-100 shadow-xl border border-base-300 break-inside-avoid">
         <div class="card-body p-4">
-           <h2 class="card-title text-lg mb-4">关于</h2>
-           <div class="text-sm opacity-70">
-              <p>Version: 2.0.0 Alpha</p>
-              <p>Build: 20251205</p>
-              <p class="mt-2">AutoDaily is an automation tool designed for efficiency.</p>
-           </div>
+          <h2 class="card-title text-lg mb-4">关于</h2>
+          <div class="text-sm opacity-70">
+            <p>Version: 2.0.0 Alpha</p>
+            <p>Build: 20251205</p>
+            <p class="mt-2">AutoDaily is an automation tool designed for efficiency.</p>
+          </div>
         </div>
       </div>
-
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { useThemeManager } from './script-editor/composables/index.js';
-import {appThemeKey, defaultRouterKey,setToStore} from '../store/store.js'
-import {THEMES} from "./script-editor/config.js";
-import { currentRouter,routesDisplay } from '../router/index.js'
+import { appThemeKey, defaultRouterKey, setToStore } from '../store/store.js';
+import { THEMES } from './script-editor/config.js';
+import { currentRouter, routesDisplay } from '../router/index.js';
 
 const themes = THEMES;
 // 基础设置
-const {
-  currentAppTheme,
-  setTheme} = useThemeManager()
+const { currentAppTheme, setTheme } = useThemeManager();
+
+// 日志设置
+const logLevel = ref('Info');
+const logDir = ref('logs');
+const retentionDays = ref(7);
 
 // 启动页面设置
 const handleRouterChange = async () => {
   await setToStore(defaultRouterKey, currentRouter.value);
 };
+
+// 加载日志配置
+const loadLogConfig = async () => {
+  try {
+    const config = await invoke('get_log_config_cmd');
+    logDir.value = config.logDir || 'logs';
+    retentionDays.value = config.retentionDays || 7;
+  } catch (e) {
+    console.error('加载日志配置失败:', e);
+  }
+};
+
+// 日志级别变更
+const handleLogLevelChange = async () => {
+  try {
+    await invoke('update_log_level_cmd', { logLevel: logLevel.value });
+  } catch (e) {
+    console.error('更新日志级别失败:', e);
+  }
+};
+
+// 选择日志目录
+const selectLogDir = async () => {
+  try {
+    const selected = await open({ directory: true, multiple: false });
+    if (selected) {
+      logDir.value = selected;
+    }
+  } catch (e) {
+    console.error('选择目录失败:', e);
+  }
+};
+
+// 日志目录变更
+const handleLogDirChange = async () => {
+  try {
+    await invoke('update_log_dir_cmd', { logDir: logDir.value });
+  } catch (e) {
+    console.error('更新日志目录失败:', e);
+  }
+};
+
+// 保留天数变更
+const handleRetentionDaysChange = async () => {
+  try {
+    await invoke('update_retention_days_cmd', { days: retentionDays.value });
+  } catch (e) {
+    console.error('更新保留天数失败:', e);
+  }
+};
+
+// 手动清理日志
+const handleCleanLogs = async () => {
+  try {
+    const result = await invoke('clean_logs_now_cmd');
+    console.log(result);
+  } catch (e) {
+    console.error('清理日志失败:', e);
+  }
+};
+
+onMounted(() => {
+  loadLogConfig();
+});
 </script>
