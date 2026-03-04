@@ -15,6 +15,7 @@ pub enum RunningStatus {
     Paused = 3,
     Stopped = 4,
     Error = 5,
+    Stopping = 6,
     Unknown = 0,
 }
 
@@ -27,6 +28,7 @@ impl From<u8> for RunningStatus {
             3 => RunningStatus::Paused,
             4 => RunningStatus::Stopped,
             5 => RunningStatus::Error,
+            6 => RunningStatus::Stopping,
             _ => RunningStatus::Unknown,
         }
     }
@@ -41,10 +43,8 @@ pub fn get_running_status() -> RunningStatus {
     RunningStatus::from(RUNNING.load(Ordering::Acquire))
 }
 pub fn process_need_stop() -> bool {
-    matches!(RUNNING.load(Ordering::Acquire), 4 | 5) // Stopped=4, Error=5
+    matches!(RUNNING.load(Ordering::Acquire), 4 | 5 | 6) // Stopped=4, Error=5, Stopping=6
 }
-
-/// InitData 类型移动到 context::child_process 模块
 
 /// IPC客户端
 static IPC_CLIENT: OnceLock<Arc<IpcClient>> = OnceLock::new();
@@ -56,6 +56,7 @@ pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitRes
         .set(manager)
         .map_err(|e| InitError::InitChildIpcClientFailed { e: e.clone().to_string() })
 }
-pub fn get_ipc_client() -> Arc<IpcClient> {
-    IPC_CLIENT.get().unwrap().clone()
+
+pub fn get_ipc_client() -> Option<Arc<IpcClient>> {
+    IPC_CLIENT.get().cloned()
 }

@@ -241,16 +241,6 @@ impl IpcClient {
 /// 日志相关方法在日志模块里
 impl ChannelTrait for IpcClient {
     fn handle_msg(msg: IpcMessage) {
-        match msg.message_type {
-            MessageType::Logger => {
-                // 日志级别切换
-                if let MessagePayload::Logger(log) = msg.payload {
-                    let client = get_ipc_client();
-                    client.log_level.store(log.level as u8, Ordering::Release)
-                }
-            }
-            MessageType::Command => {}
-            _ => {}
-        }
+        crate::infrastructure::ipc::msg_handler_child::handle_main_message(msg);
     }
 }

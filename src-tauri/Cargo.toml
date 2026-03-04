@@ -29,6 +29,7 @@ serde = { version = "1", features = ["derive"] }
 thiserror = "2.0"
 #tokio = { version = "1", features = ["full"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "io-util", "macros", "time", "process", "signal", "sync", "fs", "parking_lot"] }
+tokio-util = { version = "0.7", features = ["rt"] }
 crossbeam-channel = "0.5.15"
 image = { version = "0.25", features = ["png", "jpeg"] }
 tracing = "0.1"
@@ -107,6 +108,7 @@ interprocess = { version = "2.2.3", features = ["tokio"] }
 
 #异步
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 # 异步通道
 crossbeam-channel = { workspace = true}
 

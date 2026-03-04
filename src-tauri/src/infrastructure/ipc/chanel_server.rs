@@ -10,9 +10,8 @@ use crate::infrastructure::core::{
 };
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::ChannelResult;
-use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload, MessageType};
+use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload};
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use interprocess::local_socket::tokio::prelude::LocalSocketStream;
 use interprocess::local_socket::traits::tokio::Listener;
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, ToNsName};
@@ -76,53 +75,49 @@ impl IpcServer {
                                 if let Ok((msg, _)) =
                                     decode_from_slice::<IpcMessage, _>(&buffer, serialize_config())
                                 {
-                                    match msg.message_type {
-                                        MessageType::Event => match msg.payload {
-                                            MessagePayload::SocketRegistration(pid) => {
-                                                let device_id = Arc::new(msg.source_or_target);
-                                                Log::info(&format!(
-                                                    "[ socket ] [{}]ipc加入连接...",
-                                                    *device_id
-                                                ));
-                                                let childrens = get_app_handle()
-                                                    .state::<MainProcessCtx>()
-                                                    .ipc_servers
-                                                    .clone();
-                                                match childrens.write() {
-                                                    Ok(mut childrens) => {
-                                                        childrens.insert(
-                                                            device_id.clone(),
-                                                            Arc::new(IpcClientState {
-                                                                pid,
-                                                                device_id: device_id.clone(),
-                                                                last_heartbeat:
-                                                                    LocalTimer::DayStamp,
-                                                                writer: writer.take().map(|w| {
-                                                                    Arc::new(TokioRwLock::new(
-                                                                        BufWriter::new(w),
-                                                                    ))
-                                                                }),
-                                                                running_status: RunningStatus::Idle,
+                                    match &msg.payload {
+                                        MessagePayload::SocketRegistration(pid) => {
+                                            let pid = *pid;
+                                            let device_id = Arc::new(msg.source_or_target);
+                                            Log::info(&format!(
+                                                "[ socket ] [{}]ipc加入连接...",
+                                                *device_id
+                                            ));
+                                            let childrens = get_app_handle()
+                                                .state::<MainProcessCtx>()
+                                                .ipc_servers
+                                                .clone();
+                                            match childrens.write() {
+                                                Ok(mut childrens) => {
+                                                    childrens.insert(
+                                                        device_id.clone(),
+                                                        Arc::new(IpcClientState {
+                                                            pid,
+                                                            device_id: device_id.clone(),
+                                                            last_heartbeat:
+                                                                LocalTimer::DayStamp,
+                                                            writer: writer.take().map(|w| {
+                                                                Arc::new(TokioRwLock::new(
+                                                                    BufWriter::new(w),
+                                                                ))
                                                             }),
-                                                        );
-                                                        let msg = format!(
-                                                            "[ socket ] [{}]加入ipc连接成功！",
-                                                            device_id
-                                                        );
-                                                        Log::info(&msg);
-                                                        Self::success_to_ui(None, Some(msg));
-                                                    }
-                                                    Err(_) => {
-                                                        let msg = format!("[ socket ] [{}]加入ipc连接失败:获取锁失败！", device_id);
-                                                        Log::error(&msg);
-                                                        Self::error_to_ui(None, Some(msg));
-                                                    }
-                                                };
-                                            }
-                                            _ => {
-                                                Self::handle_msg(msg);
-                                            }
-                                        },
+                                                            running_status: RunningStatus::Idle,
+                                                        }),
+                                                    );
+                                                    let msg = format!(
+                                                        "[ socket ] [{}]加入ipc连接成功！",
+                                                        device_id
+                                                    );
+                                                    Log::info(&msg);
+                                                    Self::success_to_ui(None, Some(msg));
+                                                }
+                                                Err(_) => {
+                                                    let msg = format!("[ socket ] [{}]加入ipc连接失败:获取锁失败！", device_id);
+                                                    Log::error(&msg);
+                                                    Self::error_to_ui(None, Some(msg));
+                                                }
+                                            };
+                                        }
                                         _ => {
                                             Self::handle_msg(msg);
                                         }
@@ -141,112 +136,98 @@ impl IpcServer {
         });
         Ok(())
     }
-    fn send_msg(msg: IpcMessage, device_id: DeviceId) {
-        tokio::spawn(async move {
-            let ipc_client_state_opt = {
-                match get_app_handle()
-                    .state::<MainProcessCtx>()
-                    .ipc_servers
-                    .read()
-                {
-                    Ok(childrens) => childrens.get(&device_id).cloned(),
+    pub async fn send_to_client(device_id: &DeviceId, msg: IpcMessage) {
+        let device_id = *device_id;
+        let ipc_client_state_opt = {
+            match get_app_handle()
+                .state::<MainProcessCtx>()
+                .ipc_servers
+                .read()
+            {
+                Ok(childrens) => childrens.get(&device_id).cloned(),
+                Err(_) => {
+                    let msg = format!(
+                        "[ socket ] ️向设备[{}]发送消息失败：获取ipc通道数据锁失败！",
+                        device_id
+                    );
+                    Log::warn(&msg);
+                    Self::error_to_ui(None, Some(msg));
+                    None
+                }
+            }
+        };
+
+        if let Some(ipc_client_state) = ipc_client_state_opt {
+            if let Some(writer_lock) = &ipc_client_state.writer {
+                let mut sender = writer_lock.write().await;
+
+                let buffer = match encode_to_vec(msg, serialize_config()) {
+                    Ok(b) => b,
                     Err(_) => {
                         let msg = format!(
-                            "[ socket ] ️向设备[{}]发送消息失败：获取ipc通道数据锁失败！",
+                            "[ socket ] ️向设备[{}]发送消息失败：编码消息失败！",
                             device_id
                         );
-                        Log::warn(&msg);
+                        Log::error(&msg);
                         Self::error_to_ui(None, Some(msg));
-                        None
+                        return;
                     }
-                }
-            };
+                };
 
-            if let Some(ipc_client_state) = ipc_client_state_opt {
-                if let Some(writer_lock) = &ipc_client_state.writer {
-                    let mut sender = writer_lock.write().await;
-
-                    let buffer = match encode_to_vec(msg, serialize_config()) {
-                        Ok(b) => b,
-                        Err(_) => {
-                            let msg = format!(
-                                "[ socket ] ️向设备[{}]发送消息失败：编码消息失败！",
-                                device_id
-                            );
-                            Log::error(&msg);
-                            Self::error_to_ui(None, Some(msg));
-                            return;
-                        }
-                    };
-
-                    let len = match u32::try_from(buffer.len()) {
-                        Ok(l) => l,
-                        Err(_) => {
-                            let msg = format!(
-                                "[ socket ] ️向设备[{}]发送消息失败：计算消息长度失败！",
-                                device_id
-                            );
-                            Log::error(&msg);
-                            Self::error_to_ui(None, Some(msg));
-                            return;
-                        }
-                    };
-                    if let Err(_) = sender.write_all(&len.to_le_bytes()).await {
+                let len = match u32::try_from(buffer.len()) {
+                    Ok(l) => l,
+                    Err(_) => {
                         let msg = format!(
-                            "[ socket ] ️向设备[{}]发送消息失败：写入消息长度失败！",
+                            "[ socket ] ️向设备[{}]发送消息失败：计算消息长度失败！",
                             device_id
                         );
                         Log::error(&msg);
                         Self::error_to_ui(None, Some(msg));
                         return;
-                    };
-                    if let Err(_) = sender.write_all(&buffer).await {
-                        let msg = format!(
-                            "[ socket ] ️向设备[{}]发送消息失败：写入消息失败！",
-                            device_id
-                        );
-                        Log::error(&msg);
-                        Self::error_to_ui(None, Some(msg));
-                        return;
-                    };
-                    if let Err(_) = sender.flush().await {
-                        let msg = format!(
-                            "[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！！",
-                            device_id
-                        );
-                        Log::error(&msg);
-                        Self::error_to_ui(None, Some(msg));
-                    };
-                } else {
+                    }
+                };
+                if let Err(_) = sender.write_all(&len.to_le_bytes()).await {
                     let msg = format!(
-                        "[ socket ] ️向设备[{}]发送消息失败：Writer不可用！",
+                        "[ socket ] ️向设备[{}]发送消息失败：写入消息长度失败！",
                         device_id
                     );
                     Log::error(&msg);
                     Self::error_to_ui(None, Some(msg));
-                }
+                    return;
+                };
+                if let Err(_) = sender.write_all(&buffer).await {
+                    let msg = format!(
+                        "[ socket ] ️向设备[{}]发送消息失败：写入消息失败！",
+                        device_id
+                    );
+                    Log::error(&msg);
+                    Self::error_to_ui(None, Some(msg));
+                    return;
+                };
+                if let Err(_) = sender.flush().await {
+                    let msg = format!(
+                        "[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！",
+                        device_id
+                    );
+                    Log::error(&msg);
+                    Self::error_to_ui(None, Some(msg));
+                };
             } else {
-                // Only log if we didn't already log an error (i.e. if we got the lock but didn't find the device)
-                // The original code logged "刷新缓存失败！" for the None case of .get(), which seems wrong,but I'll use a generic error.
-                // Actually, checking original code:
-                // match childrens.get(&device_id) { Some => ..., _ => { Log::warn("...刷新缓存失败！"); ... } }
-                // So I should log that here.
-                // But wait, my `ipc_client_state_opt` is None if `read()` failed OR if `get()` failed.
-                // If `read()` failed, I already logged.
-                // So I need to distinguish?
-                // The `read()` failure returns None and logs.
-                // So if I am here,and it is None, it *could* be because `read()` failed.
-                // But I don't want to log again.
-                // So I should only log if `read()` succeeded but `get()` failed.
-                // Let's adjust the logic slightly.
                 let msg = format!(
-                    "[ socket ] ️向设备[{}]发送消息失败：获取该设备状态信息失败！",
+                    "[ socket ] ️向设备[{}]发送消息失败：Writer不可用！",
                     device_id
                 );
                 Log::error(&msg);
                 Self::error_to_ui(None, Some(msg));
             }
-        });
+        } else {
+            let msg = format!(
+                "[ socket ] ️向设备[{}]发送消息失败：获取该设备状态信息失败！",
+                device_id
+            );
+            Log::error(&msg);
+            Self::error_to_ui(None, Some(msg));
+        }
     }
 
     fn success_to_ui(data: Option<String>, msg: Option<String>) {
@@ -279,35 +260,9 @@ impl IpcServer {
 }
 impl ChannelTrait for IpcServer {
     fn handle_msg(msg: IpcMessage) {
-        match msg.message_type {
-            MessageType::Logger => {
-                // 子进程日志消息：写入文件 + emit 前端
-                if let MessagePayload::Logger(ref log_msg) = msg.payload {
-                    let device_id = msg.source_or_target;
-                    let log_msg_clone = log_msg.clone();
-                    tokio::spawn(async move {
-                        if let Some(receiver) = get_child_log_receiver() {
-                            receiver.handle_log(&device_id, &log_msg_clone).await;
-                        }
-                        // emit 到前端
-                        if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
-                            let emit_data = serde_json::json!({
-                                "deviceId": device_id.to_string(),
-                                "level": format!("{}", log_msg_clone.level),
-                                "message": log_msg_clone.message,
-                                "time": chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
-                            });
-                            let _ = main_window.emit("child-log", emit_data);
-                        }
-                    });
-                }
-            }
-            MessageType::Heartbeat => {
-                // 心跳消息：更新最后心跳时间
-                // TODO: 更新 IpcClientState.last_heartbeat
-            }
-            MessageType::Command => {}
-            _ => {}
-        }
+        // 委托给消息处理器
+        tokio::spawn(async move {
+            crate::infrastructure::ipc::msg_handler_main::handle_child_message(msg).await;
+        });
     }
 }

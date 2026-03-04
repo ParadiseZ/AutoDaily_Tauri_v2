@@ -1,13 +1,12 @@
 // IPC消息定义模块
-// 定义进程间通信的消息类型和结构
+// 精简后的进程间通信消息类型和结构
 
 use std::path::PathBuf;
 use bincode::{Decode, Encode};
-use crate::domain::vision::result::{DetResult, OcrResult};
-use crate::infrastructure::core::{Deserialize, DeviceId, MessageId, PolicyGroupId, PolicySetId, ScriptId, TaskId};
+use crate::infrastructure::core::{Deserialize, DeviceId, MessageId, PolicyGroupId, PolicySetId, ScriptId, Serialize, TaskId};
 use crate::infrastructure::logging::LogLevel;
 
-/// IPC消息枚举
+/// IPC消息
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct IpcMessage {
     pub id: MessageId,
@@ -35,143 +34,150 @@ impl IpcMessage {
     pub fn create_response(&self, source: DeviceId, response_payload: MessagePayload) -> Self {
         Self::new(source, MessageType::Response, response_payload)
     }
-
-    pub fn set_heart_payload(mut self, msg_payload: MessagePayload) {
-        self.payload = msg_payload;
-    }
 }
 
-/// 消息类型枚举
+/// 消息类型
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize, Hash)]
 pub enum MessageType {
-    // 控制消息
-    Request,  // 请求
-    Response, // 响应
-    Command,  // 命令
-    Event,    // 事件
-
-    // 系统消息
-    Heartbeat, // 心跳
-    Status,    // 状态报告
-    Error,     // 错误报告
-
-    // 数据消息
-    Data,   // 数据传输
-    Stream, // 流数据
-
-    // 通知消息
-    Notification, // 通知
-    Broadcast,    // 广播
-
-    // 日志信息
+    /// 命令（主进程 → 子进程）
+    Command,
+    /// 响应（子进程 → 主进程，回复 Command）
+    Response,
+    /// 心跳（双向）
+    Heartbeat,
+    /// 日志（子进程 → 主进程）
     Logger,
+    /// 状态报告（子进程 → 主进程）
+    Status,
+    /// 错误报告（子进程 → 主进程）
+    Error,
 }
 
-/// 消息载荷枚举
+/// 消息载荷
 #[derive(Debug, Clone, PartialEq, Encode, Decode, Deserialize)]
 pub enum MessagePayload {
-    // socket注册
+    /// Socket 注册（子进程连接时，携带 PID）
     SocketRegistration(u32),
 
-    // 进程控制消息
+    /// 进程控制
     ProcessControl(ProcessControlMessage),
 
-    // 脚本管理消息
-    ScriptManagement(ScriptManagementMessage),
+    /// 脚本任务管理
+    ScriptTask(ScriptTaskMessage),
 
-    // 状态同步消息
-    StateSync(StateSyncMessage),
+    /// 配置更新
+    ConfigUpdate(ConfigUpdateMessage),
 
-    // 日志消息
+    /// 状态报告
+    StatusReport(StatusReportMessage),
+
+    /// 日志
     Logger(LogMessage),
 
-    // 心跳消息
+    /// 心跳
     Heartbeat(HeartbeatMessage),
 
-    // 性能监控消息
-
-    // 资源管理消息
-    Resource(ResourceMessage),
-
-    // 配置更新消息
-    Config(ConfigMessage),
-
-    // 视觉处理消息
-    Vision(VisionMessage),
-
-    // 错误消息
+    /// 错误
     Error(ErrorMessage),
 
-    // 空消息（用于ACK等）
+    /// 空消息（ACK）
     Empty,
 }
-/// 进程控制消息
-#[derive(Debug, Encode, Clone, Decode, Deserialize, PartialEq)]
+
+// ========== 进程控制 ==========
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct ProcessControlMessage {
     pub action: ProcessAction,
-    pub process_id: DeviceId,
-    //pub parameters: HashMap<String, String>,
 }
 
-#[derive(Debug, Encode, Clone, Decode, Deserialize, PartialEq)]
-pub enum ProcessAction {
-    Start,
-    Stop,
-    Restart,
-    Pause,
-    Resume,
-    Kill,
-    GetStatus,
-    UpdateConfig,
-}
-
-/// 脚本管理消息
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub struct ScriptManagementMessage {
-    pub action: ScriptAction,
-    pub script_id: ScriptId,
-    pub script_content: Option<String>,
-    //pub parameters: HashMap<String, String>,
+pub enum ProcessAction {
+    /// 开始执行调度（恢复运行）
+    Start,
+    /// 停止当前执行，进入 Idle
+    Stop,
+    /// 暂停调度（可恢复）
+    Pause,
+    /// 关闭子进程
+    Shutdown,
 }
 
+// ========== 脚本任务管理 ==========
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct ScriptTaskMessage {
+    pub action: ScriptTaskAction,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub enum ScriptTaskAction {
+    /// 添加脚本到执行队列
+    Add { script_id: ScriptId },
+    /// 从执行队列移除脚本
+    Remove { script_id: ScriptId },
+    /// 执行指定目标（开发者调试用）
+    Execute {
+        script_id: ScriptId,
+        target: ExecuteTarget,
+    },
+}
+
+/// 执行目标（开发者调试）
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ExecuteTarget {
+    /// 执行整个脚本
     FullScript,
+    /// 仅执行指定任务
     Task(TaskId),
+    /// 仅执行指定策略组
     PolicyGroup(PolicyGroupId),
+    /// 仅执行指定策略集
     PolicySet(PolicySetId),
 }
 
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum ScriptAction {
-    Load(PathBuf),
-    Unload,
-    Execute {
-        target: ExecuteTarget,
-    },
-    Stop,
-    GetStatus,
-    UpdateParameters,
-}
+// ========== 配置更新 ==========
 
-/// 状态同步消息
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub struct StateSyncMessage {
-    pub state_type: StateType,
-    //pub data: HashMap<String, String>,
-    pub version: u64,
+pub struct ConfigUpdateMessage {
+    pub update: ConfigUpdateType,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum StateType {
-    ProcessState,
-    DeviceState,
-    SystemState,
-    ConfigState,
-    ModelState,
-    SocketState,
+pub enum ConfigUpdateType {
+    /// 更新日志级别
+    LogLevel(LogLevel),
+    /// 更新日志写入文件开关
+    LogToFile(bool),
 }
-/// 日志消息
+
+// ========== 状态报告 ==========
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq)]
+pub struct StatusReportMessage {
+    pub status: ChildProcessStatus,
+    pub current_script: Option<ScriptId>,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq)]
+pub enum ChildProcessStatus {
+    /// 初始化中
+    Initializing,
+    /// 空闲等待任务
+    Idle,
+    /// 正在执行脚本
+    Running,
+    /// 已暂停
+    Paused,
+    /// 正在停止
+    Stopping,
+    /// 错误状态
+    Error,
+}
+
+// ========== 日志 ==========
+
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct LogMessage {
     pub level: LogLevel,
@@ -179,99 +185,19 @@ pub struct LogMessage {
     pub module: Option<String>,
 }
 
-/// 心跳消息
+// ========== 心跳 ==========
+
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct HeartbeatMessage {
     pub cpu_usage: f32,
     pub memory_usage: u64,
 }
 
+// ========== 错误 ==========
 
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum MetricsType {
-    CpuMetrics,
-    MemoryMetrics,
-    InferenceMetrics,
-    NetworkMetrics,
-}
-
-/// 资源管理消息
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub struct ResourceMessage {
-    pub resource_type: ResourceType,
-    pub action: ResourceAction,
-    //pub details: HashMap<String, serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum ResourceType {
-    CpuCores,
-    Memory,
-    ThreadPool,
-    Model,
-    File,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum ResourceAction {
-    Allocate,
-    Deallocate,
-    Update,
-    Query,
-    Lock,
-    Unlock,
-}
-
-/// 配置更新消息
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub struct ConfigMessage {
-    pub config_type: String,
-    pub action: ConfigAction,
-    pub data: Vec<u8>,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum ConfigAction {
-    Get,
-    Set,
-    Update,
-    Reset,
-    Validate,
-}
-
-/// 视觉处理消息
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub struct VisionMessage {
-    pub vision_type: VisionType,
-    pub processing_time_ms: f64,
-}
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum VisionType {
-    ObjectDetection(Vec<DetResult>),
-    TextDetection(Vec<DetResult>),
-    TextRecognition(Vec<OcrResult>),
-    TemplateMatching,
-    ColorDetection,
-    Combined,
-}
-
-/// 错误消息
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct ErrorMessage {
-    pub error_type: ErrorType,
     pub code: u32,
     pub message: String,
     pub details: Option<String>,
-    pub stack_trace: Option<String>,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum ErrorType {
-    ProcessError,
-    ConfigError,
-    ResourceError,
-    CommunicationError,
-    VisionError,
-    SystemError,
-    Unknown,
 }
