@@ -19,6 +19,8 @@
     "core:window:hide",
     "core:window:close",
     "core:webview:allow-create-webview-window",
+    "core:event:allow-listen",
+    "core:event:default",
     "opener:default",
     "global-shortcut:allow-is-registered",
     "global-shortcut:allow-register",

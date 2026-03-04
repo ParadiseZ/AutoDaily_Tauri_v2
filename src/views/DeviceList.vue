@@ -79,6 +79,13 @@
             </select>
           </div>
 
+          <div class="form-control">
+            <label class="label cursor-pointer justify-start gap-4">
+              <span class="label-text">日志写入文件</span>
+              <input type="checkbox" v-model="form.data.logToFile" class="checkbox checkbox-sm" />
+            </label>
+          </div>
+
           <div class="form-control md:col-span-2">
             <label class="label"><span class="label-text">CPU核心 (多选)</span></label>
             <div class="flex flex-wrap gap-2 p-2 bg-base-200 rounded-lg">
@@ -190,6 +197,7 @@ const form = reactive<{ id: string | null; data: DeviceConfig }>({
     deviceName: '',
     cores: [],
     logLevel: 'Off' as LogLevel,
+    logToFile: true,
     capMethod: 'adb', // Use 'aDB' as default to satisfy non-null constraint
     imageCompression: 'WindowOriginal' as ImageCompression,
     enable: true,
@@ -253,6 +261,7 @@ const openModal = (device: DeviceTable | null) => {
       deviceName: '',
       cores: [],
       logLevel: 'Off' as LogLevel,
+      logToFile: true,
       capMethod: 'adb',
       imageCompression: 'WindowOriginal' as ImageCompression,
       enable: true,

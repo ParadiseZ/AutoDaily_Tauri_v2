@@ -29,7 +29,15 @@ pub async fn init_at_start(app_handle: &AppHandle) {
     };
     // 初始化日志设置
     let log_conf: LogMain = get_or_init_config(store.clone(), LOG_CONFIG_KEY);
-    let _ = LogMain::init(log_conf, "AutoDaily").await;
+    match LogMain::init(log_conf, "AutoDaily").await {
+        Ok(conf) => {
+            // 注册主进程 Logger 到全局 LOGGER，使 Log::info() 等方法可用
+            if let Err(e) = Log::init_logger(Box::new(conf)) {
+                eprintln!("注册主进程 Logger 失败: {}", e);
+            }
+        }
+        Err(e) => eprintln!("初始化日志系统失败: {}", e),
+    }
     // 初始化子进程日志接收器
     crate::infrastructure::logging::main_process_log_handler::init_child_log_receiver();
     // 启动 IPC Server

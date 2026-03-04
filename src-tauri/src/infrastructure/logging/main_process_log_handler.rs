@@ -23,23 +23,32 @@ struct DeviceLogWriter {
     file: Option<std::fs::File>,
     current_date: String,
     log_dir: PathBuf,
+    /// 是否写入文件（false 时仅输出到前端）
+    log_to_file: bool,
 }
 
 impl DeviceLogWriter {
-    fn new(device_name: String, log_dir: PathBuf) -> Self {
+    fn new(device_name: String, log_dir: PathBuf, log_to_file: bool) -> Self {
         let current_date = Local::now().format("%y%m%d").to_string();
         let mut writer = Self {
             device_name,
             file: None,
             current_date,
             log_dir,
+            log_to_file,
         };
-        writer.ensure_file();
+        if log_to_file {
+            writer.ensure_file();
+        }
         writer
     }
 
     /// 确保日志文件已打开，如果日期变了则创建新文件
     fn ensure_file(&mut self) {
+        if !self.log_to_file {
+            return;
+        }
+
         let today = Local::now().format("%y%m%d").to_string();
         if self.file.is_some() && self.current_date == today {
             return;
@@ -72,6 +81,9 @@ impl DeviceLogWriter {
 
     /// 写入一条日志
     fn write_log(&mut self, log: &LogMessage) {
+        if !self.log_to_file {
+            return;
+        }
         self.ensure_file();
         if let Some(ref mut file) = self.file {
             let timestamp = Local::now().format("%m-%d %H:%M:%S%.3f");
@@ -79,6 +91,14 @@ impl DeviceLogWriter {
             if let Err(e) = file.write_all(line.as_bytes()) {
                 tracing::warn!("写入设备[{}]日志失败: {}", self.device_name, e);
             }
+        }
+    }
+
+    /// 更新 log_to_file 设置
+    fn set_log_to_file(&mut self, enabled: bool) {
+        self.log_to_file = enabled;
+        if !enabled {
+            self.file = None; // 关闭文件
         }
     }
 }
@@ -102,11 +122,11 @@ pub fn get_child_log_receiver() -> Option<Arc<ChildLogReceiver>> {
 
 impl ChildLogReceiver {
     /// 注册一个设备（子进程连接时调用）
-    pub async fn register_device(&self, device_id: DeviceId, device_name: String) {
+    pub async fn register_device(&self, device_id: DeviceId, device_name: String, log_to_file: bool) {
         let log_dir = LOG_DIR.read().await.clone();
-        let writer = DeviceLogWriter::new(device_name.clone(), log_dir);
+        let writer = DeviceLogWriter::new(device_name.clone(), log_dir, log_to_file);
         self.writers.write().await.insert(device_id, writer);
-        tracing::info!("[ log ] 已注册设备[{}]的日志写入器", device_name);
+        tracing::info!("[ log ] 已注册设备[{}]的日志写入器 (写入文件: {})", device_name, log_to_file);
     }
 
     /// 注销一个设备（子进程断开时调用）
@@ -116,15 +136,22 @@ impl ChildLogReceiver {
         }
     }
 
+    /// 更新设备的 log_to_file 设置
+    pub async fn update_log_to_file(&self, device_id: &DeviceId, enabled: bool) {
+        let mut writers = self.writers.write().await;
+        if let Some(writer) = writers.get_mut(device_id) {
+            writer.set_log_to_file(enabled);
+            tracing::info!("[ log ] 设备[{}]日志写入文件: {}", writer.device_name, enabled);
+        }
+    }
+
     /// 处理来自子进程的日志消息
-    /// - 写入对应设备的日志文件
-    /// - 通过 tauri event emit 到前端
+    /// - 写入对应设备的日志文件（如果 log_to_file 启用）
+    /// - 通过 tauri event emit 到前端由调用方负责
     pub async fn handle_log(&self, device_id: &DeviceId, log: &LogMessage) {
-        // 写入文件
         let mut writers = self.writers.write().await;
         if let Some(writer) = writers.get_mut(device_id) {
             writer.write_log(log);
         }
-        // emit 到前端由调用方负责（在 chanel_server.rs 中处理）
     }
 }

@@ -41,6 +41,8 @@ pub struct DeviceConfig {
     pub cores: Vec<u8>,
     // 日志级别
     pub log_level: LogLevel,
+    // 日志是否写入文件（禁用时仅输出到前端）
+    pub log_to_file: bool,
 
     // 模拟器信息
     pub adb_info: Option<AdbInfo>,
@@ -68,6 +70,7 @@ impl Default for DeviceConfig {
             exe_args: None,
             cores: vec![0,1],
             log_level: LogLevel::Off,
+            log_to_file: true,
             adb_info: Some(AdbInfo {
                 ip_addr: Ipv4Addr::new(127, 0, 0, 1),
                 port: 16416,
