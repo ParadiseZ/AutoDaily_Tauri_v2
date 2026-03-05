@@ -26,9 +26,10 @@ dist-ssr
 .cursor/*
 .lingma/*
 .qoderignore
-docx/*
+docs/*
 target/*
 
+doc_old/*
 doc/*
 src_bak/*
 .trae/*
