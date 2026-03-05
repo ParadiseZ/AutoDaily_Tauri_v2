@@ -44,6 +44,8 @@ pub async fn init_at_start(app_handle: &AppHandle) {
     if let Err(e) = crate::infrastructure::ipc::chanel_server::IpcServer::start() {
         Log::error(&format!("启动 IPC Server 失败: {}", e));
     }
+    // 初始化子进程管理器
+    crate::infrastructure::context::child_process_manager::init_process_manager();
     // 初始化系统设置
     let sys_conf : SystemConfig = get_or_init_config(store.clone(), SYSTEM_SETTINGS_KEY);
     // 处理开机自启动

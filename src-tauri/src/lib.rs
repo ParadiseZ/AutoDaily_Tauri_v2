@@ -30,6 +30,7 @@ use crate::api::infrastructure::process_api::{
     cmd_device_start, cmd_device_stop, cmd_device_pause,
     cmd_add_script_to_device, cmd_remove_script_from_device,
     cmd_device_shutdown, cmd_get_running_devices,
+    cmd_spawn_device, cmd_is_device_running,
 };
 use crate::app::init_start::init_at_start;
 use tauri::{App, Emitter, Manager};
@@ -119,6 +120,8 @@ pub fn run() {
             cmd_remove_script_from_device,
             cmd_device_shutdown,
             cmd_get_running_devices,
+            cmd_spawn_device,
+            cmd_is_device_running,
             //退出前函数
 
         ])
