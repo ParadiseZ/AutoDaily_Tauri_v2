@@ -56,18 +56,34 @@ fn handle_process_control(ctrl: ProcessControlMessage) {
 }
 
 fn handle_script_task(task: ScriptTaskMessage) {
+    use crate::infrastructure::scripts::scheduler::get_scheduler;
+
     match task.action {
         ScriptTaskAction::Add { script_id } => {
             Log::info(&format!("[ child ] 添加脚本到队列: {}", script_id));
-            // TODO: 通知调度器添加脚本
+            if let Some(scheduler) = get_scheduler() {
+                tokio::spawn(async move {
+                    scheduler.add_script(script_id).await;
+                });
+            }
         }
         ScriptTaskAction::Remove { script_id } => {
             Log::info(&format!("[ child ] 从队列移除脚本: {}", script_id));
-            // TODO: 通知调度器移除脚本
+            if let Some(scheduler) = get_scheduler() {
+                tokio::spawn(async move {
+                    scheduler.remove_script(&script_id).await;
+                });
+            }
         }
         ScriptTaskAction::Execute { script_id, target } => {
             Log::info(&format!("[ child ] 调试执行脚本: {} target: {:?}", script_id, target));
-            // TODO: 直接执行指定目标
+            if let Some(scheduler) = get_scheduler() {
+                tokio::spawn(async move {
+                    if let Err(e) = scheduler.debug_execute(script_id, target).await {
+                        Log::error(&format!("[ child ] 调试执行失败: {}", e));
+                    }
+                });
+            }
         }
     }
 }

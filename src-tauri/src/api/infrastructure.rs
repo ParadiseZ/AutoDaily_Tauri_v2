@@ -3,6 +3,7 @@ use tauri::command;
 
 pub mod config;
 pub mod img;
+pub mod process_api;
 
 /// 设备配置表名
 #[command]

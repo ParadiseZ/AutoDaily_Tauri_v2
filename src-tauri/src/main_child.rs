@@ -5,6 +5,7 @@ use auto_daily_lib::infrastructure::context::child_process_sec::{
 use auto_daily_lib::infrastructure::context::init_error::InitError;
 use auto_daily_lib::infrastructure::core::{Deserialize, Error, Serialize};
 use auto_daily_lib::infrastructure::logging::log_trait::Log;
+use auto_daily_lib::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -73,14 +74,18 @@ async fn run_child_process() -> ChildProcessResult<()> {
         });
     }
 
-    // 5. 设置运行状态为 Idle，等待主进程指令
+    // 5. 初始化脚本调度器
+    init_scheduler(cancel_token.clone());
+    Log::info("[ child ] 脚本调度器已初始化");
+
+    // 6. 设置运行状态为 Idle，等待主进程指令
     set_running_status(RunningStatus::Idle);
     Log::info("[ child ] 进入主循环（Idle），等待主进程指令");
 
-    // 6. 主循环
+    // 7. 主循环
     run_main_loop(cancel_token.clone()).await;
 
-    // 7. 清理
+    // 8. 清理
     Log::info("[ child ] 子进程主循环结束，执行清理");
     set_running_status(RunningStatus::Stopped);
 
@@ -114,16 +119,23 @@ async fn run_main_loop(cancel_token: CancellationToken) {
             }
             RunningStatus::Running => {
                 // 运行状态：执行脚本调度
-                // TODO: 第二阶段后续 — 从任务队列中取出脚本并执行
-                // 当前占位：等待 500ms
                 tokio::select! {
                     _ = cancel_token.cancelled() => {
                         Log::info("[ child ] Running 中收到取消信号");
                         break;
                     }
-                    _ = tokio::time::sleep(tokio::time::Duration::from_millis(500)) => {
-                        // TODO: 调度器 tick
-                    }
+                    _ = async {
+                        if let Some(scheduler) = get_scheduler() {
+                            let has_more = scheduler.tick().await;
+                            if !has_more {
+                                // 队列执行完毕，回到 Idle 等待新任务
+                                Log::info("[ child ] 脚本队列已空，回到 Idle 状态");
+                                set_running_status(RunningStatus::Idle);
+                            }
+                        } else {
+                            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                        }
+                    } => {}
                 }
             }
             RunningStatus::Stopping | RunningStatus::Stopped | RunningStatus::Error => {

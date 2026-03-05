@@ -26,6 +26,11 @@ use crate::api::domain::devices::{get_all_devices_cmd, get_device_by_id_cmd, sav
 use crate::api::domain::scripts::{get_all_scripts_cmd, get_script_by_id_cmd, save_script_cmd, delete_script_cmd,
                                   get_script_tasks_cmd,save_script_tasks_cmd, get_yolo_labels_cmd};
 use crate::api::domain::policy::*;
+use crate::api::infrastructure::process_api::{
+    cmd_device_start, cmd_device_stop, cmd_device_pause,
+    cmd_add_script_to_device, cmd_remove_script_from_device,
+    cmd_device_shutdown, cmd_get_running_devices,
+};
 use crate::app::init_start::init_at_start;
 use tauri::{App, Emitter, Manager};
 
@@ -107,6 +112,13 @@ pub fn run() {
             // 空闲监控
                                   //start_idle_monitoring_cmd,stop_idle_monitoring_cmd,update_activity_cmd,cancel_shutdown_cmd,
                                   // 进程管理
+            cmd_device_start,
+            cmd_device_stop,
+            cmd_device_pause,
+            cmd_add_script_to_device,
+            cmd_remove_script_from_device,
+            cmd_device_shutdown,
+            cmd_get_running_devices,
             //退出前函数
 
         ])
