@@ -60,3 +60,20 @@ pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitRes
 pub fn get_ipc_client() -> Option<Arc<IpcClient>> {
     IPC_CLIENT.get().cloned()
 }
+
+/// 全局 CancellationToken（子进程用于优雅停止）
+static CANCEL_TOKEN: OnceLock<tokio_util::sync::CancellationToken> = OnceLock::new();
+
+pub fn init_cancel_token(token: tokio_util::sync::CancellationToken) {
+    let _ = CANCEL_TOKEN.set(token);
+}
+
+pub fn get_cancel_token() -> Option<&'static tokio_util::sync::CancellationToken> {
+    CANCEL_TOKEN.get()
+}
+
+pub fn trigger_cancel() {
+    if let Some(token) = CANCEL_TOKEN.get() {
+        token.cancel();
+    }
+}

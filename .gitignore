@@ -36,4 +36,4 @@ src_bak/*
 
 .shared/*
 
-/src/types/
+src/types/bindings/*

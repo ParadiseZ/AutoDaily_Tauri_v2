@@ -4,7 +4,7 @@ use crate::infrastructure::ipc::message::{
     StatusReportMessage, ChildProcessStatus,
 };
 use crate::infrastructure::context::child_process_sec::{
-    get_ipc_client, set_running_status, RunningStatus,
+    get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;
@@ -37,18 +37,20 @@ fn handle_process_control(ctrl: ProcessControlMessage) {
             // TODO: 第二阶段后续 - 通知调度器开始执行
         }
         ProcessAction::Stop => {
-            Log::info("[ child ] 收到停止命令");
-            set_running_status(RunningStatus::Stopping);
-            // TODO: 取消当前 CancellationToken
+            Log::info("[ child ] 收到停止命令，停止当前脚本执行");
+            set_running_status(RunningStatus::Idle);
+            // 停止当前脚本执行但不退出进程，回到 Idle 状态
+            // TODO: 持久化运行时数据
         }
         ProcessAction::Pause => {
             Log::info("[ child ] 收到暂停命令");
             set_running_status(RunningStatus::Paused);
         }
         ProcessAction::Shutdown => {
-            Log::info("[ child ] 收到关闭命令");
+            Log::info("[ child ] 收到关闭命令，准备退出");
             set_running_status(RunningStatus::Stopping);
-            // 进程将在主循环中检测到停止状态后退出
+            trigger_cancel(); // 取消 CancellationToken，主循环立即退出
+            // TODO: 持久化运行时数据
         }
     }
 }
