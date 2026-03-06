@@ -140,6 +140,7 @@ import { useThemeManager } from './script-editor/composables/index.js';
 import { appThemeKey, defaultRouterKey, setToStore } from '../store/store.js';
 import { THEMES } from './script-editor/config.js';
 import { currentRouter, routesDisplay } from '../router/index.js';
+import { showToast } from '../utils/toast.js';
 
 const themes = THEMES;
 // 基础设置
@@ -160,9 +161,11 @@ const loadLogConfig = async () => {
   try {
     const config = await invoke('get_log_config_cmd');
     logDir.value = config.logDir || 'logs';
+    logLevel.value = config.logLevel || 'Info';
     retentionDays.value = config.retentionDays || 7;
   } catch (e) {
     console.error('加载日志配置失败:', e);
+    showToast('加载日志配置失败', 'error');
   }
 };
 
@@ -172,6 +175,7 @@ const handleLogLevelChange = async () => {
     await invoke('update_log_level_cmd', { logLevel: logLevel.value });
   } catch (e) {
     console.error('更新日志级别失败:', e);
+    showToast('更新日志级别失败', 'error');
   }
 };
 
@@ -184,6 +188,7 @@ const selectLogDir = async () => {
     }
   } catch (e) {
     console.error('选择目录失败:', e);
+    showToast('选择目录失败', 'error');
   }
 };
 
@@ -191,8 +196,10 @@ const selectLogDir = async () => {
 const handleLogDirChange = async () => {
   try {
     await invoke('update_log_dir_cmd', { logDir: logDir.value });
+    showToast('日志目录已变更，重启生效', 'info');
   } catch (e) {
     console.error('更新日志目录失败:', e);
+    showToast('更新日志目录失败', 'error');
   }
 };
 
@@ -200,18 +207,21 @@ const handleLogDirChange = async () => {
 const handleRetentionDaysChange = async () => {
   try {
     await invoke('update_retention_days_cmd', { days: retentionDays.value });
+    showToast('保存成功', 'success');
   } catch (e) {
     console.error('更新保留天数失败:', e);
+    showToast('更新保留天数失败', 'error');
   }
 };
 
 // 手动清理日志
 const handleCleanLogs = async () => {
   try {
-    const result = await invoke('clean_logs_now_cmd');
-    console.log(result);
+    await invoke('clean_logs_now_cmd');
+    showToast('清理日志成功', 'success');
   } catch (e) {
     console.error('清理日志失败:', e);
+    showToast('清理日志失败', 'error');
   }
 };
 
