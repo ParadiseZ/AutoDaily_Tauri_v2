@@ -75,9 +75,14 @@
             <div class="flex justify-between items-center gap-2">
               <span class="font-medium shrink-0">日志目录</span>
               <div class="flex gap-1 flex-1 justify-end">
-                <input type="text" v-model="logDir" class="input input-bordered input-sm w-48" placeholder="logs" />
-                <button class="btn btn-sm btn-outline" @click="selectLogDir">选择</button>
-                <button class="btn btn-sm btn-primary" @click="handleLogDirChange">保存</button>
+                <input
+                  type="text"
+                  v-model="logDir"
+                  class="input input-bordered input-sm w-48 read-only:bg-base-300"
+                  placeholder="logs"
+                  readonly
+                />
+                <button class="btn btn-sm btn-outline" @click="selectLogDir">···</button>
               </div>
             </div>
 
@@ -185,6 +190,7 @@ const selectLogDir = async () => {
     const selected = await open({ directory: true, multiple: false });
     if (selected) {
       logDir.value = selected;
+      handleLogDirChange();
     }
   } catch (e) {
     console.error('选择目录失败:', e);

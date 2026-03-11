@@ -1,6 +1,5 @@
-use std::net::Ipv4Addr;
 use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
-use crate::infrastructure::devices::adb_info::{AdbConnectStatus, AdbInfo};
+use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use sqlx::types::Json;
@@ -44,14 +43,16 @@ pub struct DeviceConfig {
     // 日志是否写入文件（禁用时仅输出到前端）
     pub log_to_file: bool,
 
-    // 模拟器信息
-    pub adb_info: Option<AdbInfo>,
+    // ADB 连接配置（adb_path 运行时从全局设置注入，不存储在此）
+    pub adb_connect: Option<ADBConnectConfig>,
     // 截图方式
     pub cap_method: CapMethod,
     // 图像压缩方式
     pub image_compression: ImageCompression,
     // 是否启用
     pub enable: bool,
+    // 启用时是否自动启动（启动设备+连接+调度脚本）
+    pub auto_start: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -71,14 +72,11 @@ impl Default for DeviceConfig {
             cores: vec![0,1],
             log_level: LogLevel::Off,
             log_to_file: true,
-            adb_info: Some(AdbInfo {
-                ip_addr: Ipv4Addr::new(127, 0, 0, 1),
-                port: 16416,
-                states: AdbConnectStatus::Disconnect,
-            }),
+            adb_connect: None,
             cap_method: CapMethod::Window("AutoDaily".into()),
             image_compression: ImageCompression::WindowOriginal,
             enable: false,
+            auto_start: false,
         }
     }
 }

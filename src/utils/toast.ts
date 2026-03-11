@@ -1,9 +1,19 @@
+let toastContainer: HTMLElement | null = null;
+
+function getToastContainer() {
+    if (!toastContainer || !document.body.contains(toastContainer)) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast toast-top toast-center z-[9999] pointer-events-none flex flex-col gap-3 mt-2';
+        document.body.appendChild(toastContainer);
+    }
+    return toastContainer;
+}
+
 export function showToast(msg: string, type: 'info' | 'error' | 'success' | 'warning' = 'info', duration = 3000) {
-    const toastContainer = document.createElement('div');
-    toastContainer.className = 'toast toast-top toast-center z-[9999]';
+    const container = getToastContainer();
     
     const alert = document.createElement('div');
-    alert.className = `alert shadow-lg transition-opacity duration-300 opacity-0 bg-base-100/90 backdrop-blur border-none pointer-events-none flex items-center pr-6`;
+    alert.className = `alert shadow-lg transition-all duration-300 opacity-0 -translate-y-6 bg-base-100/90 backdrop-blur border-none pointer-events-auto flex items-center pr-6 relative overflow-hidden`;
     
     let svgInner = '';
 
@@ -29,24 +39,45 @@ export function showToast(msg: string, type: 'info' | 'error' | 'success' | 'war
     text.className = 'font-medium';
     text.textContent = msg;
     
+    // Create progress bar
+    const progress = document.createElement('div');
+    progress.className = 'absolute bottom-0 left-0 h-[3px] bg-current opacity-40';
+    progress.style.width = '100%';
+    progress.style.transition = `width ${duration}ms linear`;
+
     alert.appendChild(iconWrapper.firstElementChild as Node);
     alert.appendChild(text);
-    toastContainer.appendChild(alert);
-    document.body.appendChild(toastContainer);
+    alert.appendChild(progress);
+    
+    container.appendChild(alert);
     
     // trigger animation
     requestAnimationFrame(() => {
-        alert.classList.remove('opacity-0');
-        alert.classList.add('opacity-100');
+        requestAnimationFrame(() => {
+            alert.classList.remove('opacity-0', '-translate-y-6');
+            alert.classList.add('opacity-100', 'translate-y-0');
+            progress.style.width = '0%';
+        });
     });
 
-    setTimeout(() => {
-        alert.classList.remove('opacity-100');
-        alert.classList.add('opacity-0');
+    let isRemoving = false;
+    const removeToast = () => {
+        if (isRemoving) return;
+        isRemoving = true;
+        
+        alert.classList.remove('opacity-100', 'translate-y-0');
+        alert.classList.add('opacity-0', '-translate-y-6');
+        
         setTimeout(() => {
-            if (document.body.contains(toastContainer)) {
-                document.body.removeChild(toastContainer);
+            if (alert.parentNode) {
+                alert.parentNode.removeChild(alert);
+            }
+            if (container.childNodes.length === 0 && container.parentNode) {
+                container.parentNode.removeChild(container);
+                toastContainer = null;
             }
         }, 300); // Wait for transition
-    }, duration);
+    };
+
+    setTimeout(removeToast, duration);
 }

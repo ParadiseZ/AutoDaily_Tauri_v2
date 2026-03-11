@@ -2,10 +2,13 @@ use std::net::SocketAddrV4;
 use std::path::PathBuf;
 use crate::infrastructure::core::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct AdbServerConfig {
-    pub(crate) adb_path: Option<String>,
-    pub(crate) server_connect: Option<SocketAddrV4>,
+    pub adb_path: Option<String>,
+    #[ts(as = "Option<String>")]
+    pub server_connect: Option<SocketAddrV4>,
 }
 
 impl AdbServerConfig {
@@ -16,7 +19,9 @@ impl AdbServerConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct AdbServerConnectName {
     pub adb_config: AdbServerConfig,
     pub device_name: Option<String>,
@@ -28,10 +33,13 @@ impl AdbServerConnectName {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct AdbServerConnectIp {
-    pub(crate) adb_config: AdbServerConfig,
-    pub(crate) client_connect: Option<SocketAddrV4>,
+    pub adb_config: AdbServerConfig,
+    #[ts(as = "Option<String>")]
+    pub client_connect: Option<SocketAddrV4>,
 }
 
 impl AdbServerConnectIp {
@@ -40,17 +48,21 @@ impl AdbServerConnectIp {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub struct DirectUsbConnect {
     pub vendor_id: u16,
     pub product_id: u16,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
 pub enum ADBConnectConfig {
     ServerConnectByName(AdbServerConnectName),
     ServerConnectByIp(AdbServerConnectIp),
-    DirectTcp(Option<SocketAddrV4>),
+    DirectTcp(#[ts(as = "Option<String>")] Option<SocketAddrV4>),
     DirectUsb(DirectUsbConnect),
 }
 

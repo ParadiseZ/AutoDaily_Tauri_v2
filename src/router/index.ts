@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { Monitor, Smartphone, FileCode, ShoppingBag, SettingsIcon, Info, FileText, ListTodo } from 'lucide-vue-next';
 import { getFromStore, defaultRouterKey } from '@/store/store';
 
-const defaultPath = await getFromStore<{ path: string }>(defaultRouterKey).then((r: any) => r?.path).catch(() => '/tasks');
+const defaultPath = (await getFromStore<{ path: string }>(defaultRouterKey).then((r: any) => r?.path).catch(() => '/tasks')) || '/tasks';
 const routes = [
     {
         path: '/',
