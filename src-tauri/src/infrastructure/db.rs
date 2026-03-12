@@ -152,6 +152,56 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
+    // 9. 设备脚本分配表（队列定义）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS device_script_assignments (
+            id TEXT PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            script_id TEXT NOT NULL,
+            time_template_id TEXT,
+            account_data JSON NOT NULL DEFAULT '{}',
+            `index` INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 10. 设备脚本调度记录表（append-only）
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS device_script_schedules (
+            id TEXT PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            script_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            task_cycle TEXT NOT NULL DEFAULT 'everyRun',
+            status TEXT NOT NULL DEFAULT 'success',
+            started_at TEXT NOT NULL,
+            completed_at TEXT,
+            message TEXT,
+            FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    // 11. 时间模板表
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS time_templates (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            start_time TEXT,
+            end_time TEXT
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 

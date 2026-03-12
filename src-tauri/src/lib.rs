@@ -32,6 +32,11 @@ use crate::api::infrastructure::process_api::{
     cmd_device_shutdown, cmd_get_running_devices,
     cmd_spawn_device, cmd_is_device_running,
 };
+use crate::api::domain::schedule::{
+    get_assignments_by_device_cmd, save_assignment_cmd, delete_assignment_cmd, reorder_assignments_cmd,
+    get_schedules_by_device_cmd, clear_schedules_cmd, clear_schedules_by_script_cmd,
+    get_all_time_templates_cmd, save_time_template_cmd, delete_time_template_cmd,
+};
 use crate::app::init_start::init_at_start;
 use tauri::{App, Emitter, Manager};
 
@@ -122,6 +127,17 @@ pub fn run() {
             cmd_get_running_devices,
             cmd_spawn_device,
             cmd_is_device_running,
+            // 调度管理
+            get_assignments_by_device_cmd,
+            save_assignment_cmd,
+            delete_assignment_cmd,
+            reorder_assignments_cmd,
+            get_schedules_by_device_cmd,
+            clear_schedules_cmd,
+            clear_schedules_by_script_cmd,
+            get_all_time_templates_cmd,
+            save_time_template_cmd,
+            delete_time_template_cmd,
             //退出前函数
 
         ])

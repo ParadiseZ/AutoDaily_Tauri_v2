@@ -5,6 +5,7 @@ use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::core::{DeviceId, ScriptId};
 use crate::infrastructure::db::DbRepo;
+use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
@@ -130,13 +131,21 @@ pub async fn cmd_spawn_device(
 
     let device_config = device_table.data.0;
 
-    // 2. 获取数据库路径
+    // 2. auto_start 时先启动模拟器并等待连接
+    if device_config.auto_start {
+        if device_config.exe_path.is_some() {
+            launch_device(&device_config).await
+                .map_err(|e| format!("自动启动设备失败: {}", e))?;
+        }
+    }
+
+    // 3. 获取数据库路径
     let db_path = app_handle
         .path()
         .app_data_dir()
         .map_err(|e| format!("获取数据库路径失败: {}", e))?;
 
-    // 3. 构造初始化数据
+    // 4. 构造初始化数据
     let init_data = ChildProcessInitData {
         device_id,
         device_config: device_config.clone(),
@@ -146,7 +155,7 @@ pub async fn cmd_spawn_device(
         db_path,
     };
 
-    // 4. 获取进程管理器并启动子进程
+    // 5. 获取进程管理器并启动子进程
     let manager = get_process_manager()
         .ok_or_else(|| "进程管理器未初始化".to_string())?;
 

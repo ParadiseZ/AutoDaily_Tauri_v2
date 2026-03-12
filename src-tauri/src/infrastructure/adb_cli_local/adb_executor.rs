@@ -503,6 +503,7 @@ impl ADBExecutor {
             ADBConnectConfig::ServerConnectByName(dev) => {
                 // 检查服务器连接地址是否配置
                 if !dev.valid() {
+                    Log::warn("[ ADB ] ServerConnectByName 配置无效（缺少 adb_path/server_connect/device_name）");
                     None
                 } else {
                     let device = ADBServer::new_from_path(
@@ -510,16 +511,19 @@ impl ADBExecutor {
                         dev.adb_config.adb_path.clone(),
                     )
                         .get_device_by_name(dev.device_name.as_ref().unwrap().as_str());
-                    if let Ok(device) = device {
-                        Some(Box::new(device))
-                    } else {
-                        None
+                    match device {
+                        Ok(device) => Some(Box::new(device)),
+                        Err(e) => {
+                            Log::warn(&format!("[ ADB ] ServerConnectByName 获取设备失败: {}", e));
+                            None
+                        }
                     }
                 }
             }
             ADBConnectConfig::ServerConnectByIp(dev) => {
                 // 检查服务器连接地址是否配置
                 if !dev.valid() {
+                    Log::warn("[ ADB ] ServerConnectByIp 配置无效（缺少 adb_path/server_connect/client_connect）");
                     None
                 } else {
                     // 初始化 ADB 服务器+连接到设备
@@ -528,37 +532,50 @@ impl ADBExecutor {
                         dev.adb_config.adb_path.clone(),
                     );
                     //连接设备
-                    let server = adb_server.connect_device(dev.client_connect.unwrap());
-                    if let Ok(_) = server {
-                        let device =
-                            adb_server.get_device_by_name(&dev.client_connect.unwrap().to_string());
-                        if let Ok(device) = device {
-                            Some(Box::new(device))
-                        } else {
+                    match adb_server.connect_device(dev.client_connect.unwrap()) {
+                        Ok(_) => {
+                            match adb_server.get_device_by_name(&dev.client_connect.unwrap().to_string()) {
+                                Ok(device) => Some(Box::new(device)),
+                                Err(e) => {
+                                    Log::warn(&format!("[ ADB ] ServerConnectByIp 获取设备失败: {}", e));
+                                    None
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            Log::warn(&format!("[ ADB ] ServerConnectByIp connect_device 失败: {}", e));
                             None
                         }
-                    } else {
-                        None
                     }
                 }
             }
             ADBConnectConfig::DirectTcp(dev) => {
                 // 检查设备连接地址是否配置
                 if dev.is_none() {
+                    Log::warn("[ ADB ] DirectTcp 配置无效：未设置连接地址");
                     None
                 } else {
-                    if let Ok(device) = ADBTcpDevice::new(SocketAddr::V4(dev.unwrap())) {
-                        Some(Box::new(device))
-                    } else {
-                        None
+                    match ADBTcpDevice::new(SocketAddr::V4(dev.unwrap())) {
+                        Ok(device) => Some(Box::new(device)),
+                        Err(e) => {
+                            Log::warn(&format!("[ ADB ] DirectTcp 连接失败 ({}): {}", dev.unwrap(), e));
+                            None
+                        }
                     }
                 }
             }
-            ADBConnectConfig::DirectUsb(_) => None,
+            ADBConnectConfig::DirectUsb(_) => {
+                Log::warn("[ ADB ] DirectUsb 暂不支持");
+                None
+            }
         };
-        self.device =  device;
-        if self.device.is_some(){
-            true
-        }else { false }
+        self.device = device;
+        let connected = self.device.is_some();
+        if connected {
+            Log::info("[ ADB ] 设备连接成功");
+        } else {
+            Log::warn("[ ADB ] 设备连接失败");
+        }
+        connected
     }
 }

@@ -103,11 +103,20 @@ fn handle_config_update(config: ConfigUpdateMessage) {
         }
         ConfigUpdateType::AdbPath(path) => {
             Log::info(&format!("[ child ] ADB路径已更新: {:?}", path));
-            // TODO: 更新 ADBCtx 中的 adb_path
+            tokio::spawn(async move {
+                let adb_ctx = crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx();
+                let mut config = adb_ctx.adb_executor.adb_config.lock().await;
+                config.update_adb_path(path);
+            });
         }
         ConfigUpdateType::AdbServerAddr(addr) => {
             Log::info(&format!("[ child ] ADB服务地址已更新: {:?}", addr));
-            // TODO: 更新 ADBCtx 中的 server_connect 地址
+            tokio::spawn(async move {
+                let adb_ctx = crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx();
+                let mut config = adb_ctx.adb_executor.adb_config.lock().await;
+                config.update_server_addr(addr);
+            });
         }
     }
 }
+

@@ -1,6 +1,7 @@
 pub mod devices;
 pub mod scripts;
 pub(crate) mod policy;
+pub mod schedule;
 
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use std::process::{Command, Stdio};

@@ -102,4 +102,39 @@ impl ADBConnectConfig {
             ADBConnectConfig::DirectUsb(_) => false,
         }
     }
+
+    /// 更新 adb_path（仅对 Server 类型有效）
+    pub fn update_adb_path(&mut self, path: Option<String>) {
+        match self {
+            ADBConnectConfig::ServerConnectByName(config) => {
+                config.adb_config.adb_path = path;
+            }
+            ADBConnectConfig::ServerConnectByIp(config) => {
+                config.adb_config.adb_path = path;
+            }
+            _ => {
+                // DirectTcp / DirectUsb 不使用 adb_path
+            }
+        }
+    }
+
+    /// 更新 server_connect 地址（仅对 Server 类型有效）
+    pub fn update_server_addr(&mut self, addr: Option<String>) {
+        use std::net::SocketAddrV4;
+        let parsed: Option<SocketAddrV4> = addr
+            .as_deref()
+            .and_then(|s| s.parse::<SocketAddrV4>().ok());
+        match self {
+            ADBConnectConfig::ServerConnectByName(config) => {
+                config.adb_config.server_connect = parsed;
+            }
+            ADBConnectConfig::ServerConnectByIp(config) => {
+                config.adb_config.server_connect = parsed;
+            }
+            _ => {
+                // DirectTcp / DirectUsb 不使用 server_connect
+            }
+        }
+    }
 }
+
