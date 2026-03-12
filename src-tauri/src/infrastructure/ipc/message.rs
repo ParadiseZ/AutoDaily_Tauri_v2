@@ -149,6 +149,10 @@ pub enum ConfigUpdateType {
     LogLevel(LogLevel),
     /// 更新日志写入文件开关
     LogToFile(bool),
+    /// 更新 ADB 服务路径（广播给所有子进程）
+    AdbPath(Option<String>),
+    /// 更新 ADB 服务地址（广播给所有子进程）
+    AdbServerAddr(Option<String>),
 }
 
 // ========== 状态报告 ==========

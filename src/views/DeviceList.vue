@@ -24,8 +24,8 @@
               <div class="text-xs opacity-50">{{ device.id }}</div>
             </td>
             <td>
-              <span v-if="device.data.adbInfo" class="badge badge-ghost badge-sm"
-                >{{ device.data.adbInfo.ipAddr }}:{{ device.data.adbInfo.port }}</span
+              <span v-if="device.data.adbConnect" class="badge badge-ghost badge-sm"
+                >{{ getConnectDisplay(device.data.adbConnect) }}</span
               >
             </td>
             <td>{{ device.data.cores?.join(',') || 'None' }}</td>
@@ -127,31 +127,50 @@
             />
           </div>
 
-          <div class="divider md:col-span-2 font-bold text-sm">高级</div>
+          <div class="divider md:col-span-2 font-bold text-sm">连接设置</div>
 
-          <!-- <div class="form-control">
-            <label class="label"><span class="label-text">图片压缩</span></label>
-             <select v-model="form.imageCompression" class="select select-bordered w-full">
-              <option value="WindowOriginal">Window Original</option>
-              <option value="Jpg">JPG</option>
-              <option value="Png">PNG</option>
+          <div class="form-control">
+            <label class="label"><span class="label-text">连接方式</span></label>
+            <select v-model="connectMethod" class="select select-bordered w-full">
+              <option value="directTcp">TCP 直连</option>
+              <option value="serverConnectByIp">ADB 服务 (IP)</option>
+              <option value="serverConnectByName">ADB 服务 (设备名)</option>
             </select>
-          </div> -->
+          </div>
 
-          <div class="form-control">
-            <label class="label"><span class="label-text">IP</span></label>
-            <input type="text" v-model="adbIp" class="input input-bordered w-full" placeholder="127.0.0.1" />
+          <div class="form-control" v-if="connectMethod === 'directTcp'">
+            <label class="label"><span class="label-text">设备地址 (IP:端口)</span></label>
+            <input type="text" v-model="connectAddr" class="input input-bordered w-full" placeholder="127.0.0.1:5555" />
           </div>
-          <div class="form-control">
-            <label class="label"><span class="label-text">端口</span></label>
-            <input type="number" v-model.number="adbPort" class="input input-bordered w-full" placeholder="5555" />
-          </div>
+
+          <template v-if="connectMethod === 'serverConnectByIp'">
+            <div class="form-control">
+              <label class="label"><span class="label-text">设备地址 (IP:端口)</span></label>
+              <input type="text" v-model="connectAddr" class="input input-bordered w-full" placeholder="127.0.0.1:5555" />
+            </div>
+          </template>
+
+          <template v-if="connectMethod === 'serverConnectByName'">
+            <div class="form-control">
+              <label class="label"><span class="label-text">设备名称</span></label>
+              <input type="text" v-model="connectDeviceName" class="input input-bordered w-full" placeholder="emulator-5554" />
+            </div>
+          </template>
+
+          <div class="divider md:col-span-2 font-bold text-sm">控制</div>
 
           <div class="form-control md:col-span-2">
             <label class="label cursor-pointer justify-start gap-4">
               <span class="label-text">启用</span>
               <input type="checkbox" v-model="form.data.enable" class="checkbox" />
             </label>
+          </div>
+          <div class="form-control md:col-span-2">
+            <label class="label cursor-pointer justify-start gap-4">
+              <span class="label-text">自动启动</span>
+              <input type="checkbox" v-model="form.data.autoStart" class="checkbox" />
+            </label>
+            <span class="label-text-alt opacity-50 ml-1">启用设备时自动启动并连接目标设备，然后调度脚本队列</span>
           </div>
         </div>
 
@@ -170,7 +189,7 @@
 import { ref, onMounted, reactive } from 'vue';
 import { confirm, message } from '@tauri-apps/plugin-dialog';
 import { Plus } from 'lucide-vue-next';
-import type { DeviceTable, DeviceConfig, CapMethod, ImageCompression, LogLevel, AdbInfo } from '@/types/bindings';
+import type { DeviceTable, DeviceConfig, CapMethod, ImageCompression, LogLevel, ADBConnectConfig } from '@/types/bindings';
 
 import { useDevices } from '@/assets/js/useDevices';
 
@@ -188,24 +207,75 @@ const capMethodType = ref<'window' | 'adb'>('window');
 const capMethodValue = ref('');
 const cpuCount = ref<number>(0);
 
-const adbIp = ref('');
-const adbPort = ref<number | null>(null);
+// ADB 连接方式
+const connectMethod = ref<'directTcp' | 'serverConnectByIp' | 'serverConnectByName'>('directTcp');
+const connectAddr = ref('');         // IP:Port 格式
+const connectDeviceName = ref('');   // 设备名称（serverConnectByName 用）
+
+const defaultFormData = (): DeviceConfig => ({
+  deviceName: '',
+  cores: [],
+  logLevel: 'Off' as LogLevel,
+  logToFile: true,
+  capMethod: 'adb',
+  imageCompression: 'WindowOriginal' as ImageCompression,
+  enable: true,
+  exePath: null,
+  exeArgs: null,
+  adbConnect: null,
+  autoStart: false,
+});
 
 const form = reactive<{ id: string | null; data: DeviceConfig }>({
   id: '',
-  data: {
-    deviceName: '',
-    cores: [],
-    logLevel: 'Off' as LogLevel,
-    logToFile: true,
-    capMethod: 'adb', // Use 'aDB' as default to satisfy non-null constraint
-    imageCompression: 'WindowOriginal' as ImageCompression,
-    enable: true,
-    exePath: null,
-    exeArgs: null,
-    adbInfo: null,
-  },
+  data: defaultFormData(),
 });
+
+/** 从 ADBConnectConfig 提取显示用文本 */
+const getConnectDisplay = (cfg: ADBConnectConfig): string => {
+  if ('directTcp' in cfg) return cfg.directTcp || '未设置';
+  if ('serverConnectByIp' in cfg) return cfg.serverConnectByIp.clientConnect || '未设置';
+  if ('serverConnectByName' in cfg) return cfg.serverConnectByName.deviceName || '未设置';
+  return '未知';
+};
+
+/** 从 ADBConnectConfig 解析到表单字段 */
+const parseAdbConnect = (cfg: ADBConnectConfig | null) => {
+  if (!cfg) {
+    connectMethod.value = 'directTcp';
+    connectAddr.value = '';
+    connectDeviceName.value = '';
+    return;
+  }
+  if ('directTcp' in cfg) {
+    connectMethod.value = 'directTcp';
+    connectAddr.value = cfg.directTcp || '';
+  } else if ('serverConnectByIp' in cfg) {
+    connectMethod.value = 'serverConnectByIp';
+    connectAddr.value = cfg.serverConnectByIp.clientConnect || '';
+  } else if ('serverConnectByName' in cfg) {
+    connectMethod.value = 'serverConnectByName';
+    connectDeviceName.value = cfg.serverConnectByName.deviceName || '';
+  }
+};
+
+/** 从表单字段构建 ADBConnectConfig（adb_path 不存储在此，运行时注入） */
+const buildAdbConnect = (): ADBConnectConfig | null => {
+  if (connectMethod.value === 'directTcp') {
+    return connectAddr.value ? { directTcp: connectAddr.value } : null;
+  }
+  if (connectMethod.value === 'serverConnectByIp') {
+    return connectAddr.value
+      ? { serverConnectByIp: { adbConfig: { adbPath: null, serverConnect: null }, clientConnect: connectAddr.value } }
+      : null;
+  }
+  if (connectMethod.value === 'serverConnectByName') {
+    return connectDeviceName.value
+      ? { serverConnectByName: { adbConfig: { adbPath: null, serverConnect: null }, deviceName: connectDeviceName.value } }
+      : null;
+  }
+  return null;
+};
 
 const loadDevices = async () => {
   try {
@@ -218,7 +288,6 @@ const loadDevices = async () => {
 const openModal = (device: DeviceTable | null) => {
   if (device) {
     isEditing.value = true;
-    // Deep clone the device object
     const cloned = JSON.parse(JSON.stringify(device));
     form.id = cloned.id;
     form.data = cloned.data;
@@ -230,49 +299,22 @@ const openModal = (device: DeviceTable | null) => {
         capMethodValue.value = form.data.capMethod.window;
       } else if (form.data.capMethod === 'adb') {
         capMethodType.value = 'adb';
-        // When capMethod is 'aDB', capMethodValue is not directly used for the value itself,
-        // but the input field still needs a placeholder or a default.
-        // For 'aDB', the value is fixed, so we can set a placeholder or leave it empty.
-        // Let's set it to an empty string as it's not directly editable for 'aDB' type.
         capMethodValue.value = '';
       }
     } else {
-      // If capMethod is null (e.g., from old data), default to 'window'
       capMethodType.value = 'window';
       capMethodValue.value = '';
     }
 
-    // Parse adbInfo
-    if (form.data.adbInfo) {
-      adbIp.value = form.data.adbInfo.ipAddr || '';
-      adbPort.value = form.data.adbInfo.port;
-    } else {
-      adbIp.value = '';
-      adbPort.value = null;
-    }
+    // Parse adbConnect
+    parseAdbConnect(form.data.adbConnect);
   } else {
     isEditing.value = false;
-    // Generate UUID v7 compatible ID (mocking it with v4 for now, ideally backend generates)
-    // But since we are sending the whole config, we need an ID.
-    // Let's use a placeholder or ask backend to generate.
-    // For now, random UUID.
     form.id = null;
-    form.data = {
-      deviceName: '',
-      cores: [],
-      logLevel: 'Off' as LogLevel,
-      logToFile: true,
-      capMethod: 'adb',
-      imageCompression: 'WindowOriginal' as ImageCompression,
-      enable: true,
-      exePath: null,
-      exeArgs: null,
-      adbInfo: null,
-    };
+    form.data = defaultFormData();
     capMethodType.value = 'window';
     capMethodValue.value = '';
-    adbIp.value = '';
-    adbPort.value = null;
+    parseAdbConnect(null);
   }
   (document.getElementById('device_modal') as HTMLDialogElement).showModal();
 };
@@ -285,15 +327,9 @@ const saveDevice = async () => {
       form.data.capMethod = 'adb';
     }
 
-    if (adbIp.value && adbPort.value) {
-      form.data.adbInfo = {
-        ipAddr: adbIp.value,
-        port: adbPort.value,
-        states: 'disconnect',
-      };
-    } else {
-      form.data.adbInfo = null;
-    }
+    // 构建 adbConnect
+    form.data.adbConnect = buildAdbConnect();
+
     if (!form.id) {
       form.id = (await getUuidV7()) as string;
     }

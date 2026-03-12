@@ -101,5 +101,13 @@ fn handle_config_update(config: ConfigUpdateMessage) {
             Log::info(&format!("[ child ] 日志写入文件: {}", enabled));
             // log_to_file 由主进程的 ChildLogReceiver 控制，不需要子进程处理
         }
+        ConfigUpdateType::AdbPath(path) => {
+            Log::info(&format!("[ child ] ADB路径已更新: {:?}", path));
+            // TODO: 更新 ADBCtx 中的 adb_path
+        }
+        ConfigUpdateType::AdbServerAddr(addr) => {
+            Log::info(&format!("[ child ] ADB服务地址已更新: {:?}", addr));
+            // TODO: 更新 ADBCtx 中的 server_connect 地址
+        }
     }
 }

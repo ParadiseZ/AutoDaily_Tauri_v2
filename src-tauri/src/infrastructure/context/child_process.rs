@@ -15,7 +15,7 @@ use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddrV4;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -54,11 +54,9 @@ impl ChildProcessInitData {
         })?;
 
         // 5. 初始化 ADB 上下文 (在子进程中使用 OnceLock 模型)
-        let adb_config = if let Some(adb_info) = &self.device_config.adb_info {
-            ADBConnectConfig::DirectTcp(Some(SocketAddrV4::new(adb_info.ip_addr, adb_info.port)))
-        } else {
-            ADBConnectConfig::DirectTcp(Some(SocketAddrV4::new([127, 0, 0, 1].into(), 16416)))
-        };
+        // adb_connect 直接存储了连接方式（DirectTcp/ServerConnectByIp/...），adb_path 从全局设置注入
+        let adb_config = self.device_config.adb_connect.clone()
+            .unwrap_or_else(|| ADBConnectConfig::DirectTcp(None));
         ADBCtx::new(adb_config).await;
 
         // 6. 初始化运行时上下文 (RUNTIME_CTX)
