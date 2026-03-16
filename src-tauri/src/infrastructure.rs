@@ -23,3 +23,4 @@ pub mod ort;
 pub mod path_resolve;
 pub mod vision;
 pub mod store_local;
+pub mod http_client;

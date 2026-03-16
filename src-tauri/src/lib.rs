@@ -39,6 +39,9 @@ use crate::api::domain::schedule::{
 };
 use crate::app::init_start::init_at_start;
 use tauri::{App, Emitter, Manager};
+use crate::api::backend_cmd::{
+    backend_send_verification_code, backend_register, backend_login, backend_logout,
+};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -138,6 +141,11 @@ pub fn run() {
             get_all_time_templates_cmd,
             save_time_template_cmd,
             delete_time_template_cmd,
+            // 远端服务器相关
+            backend_send_verification_code,
+            backend_register,
+            backend_login,
+            backend_logout,
             //退出前函数
 
         ])

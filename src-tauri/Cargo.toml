@@ -109,6 +109,7 @@ interprocess = { version = "2.2.3", features = ["tokio"] }
 #异步
 tokio = { workspace = true }
 tokio-util = { workspace = true }
+reqwest = { version = "0.12", features = ["json", "stream"] }
 # 异步通道
 crossbeam-channel = { workspace = true}
 

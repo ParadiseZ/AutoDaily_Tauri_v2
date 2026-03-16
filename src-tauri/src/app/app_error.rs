@@ -41,6 +41,9 @@ pub enum AppError {
 
     #[error("设置系统设置失败：{detail}, {e}")]
     SetConfigFailed { detail: String, e: String },
+
+    #[error("HTTP请求出错：{detail}, {e}")]
+    HttpErr { detail: String, e: String },
 }
 
 pub type AppResult<T> = Result<T, AppError>;
