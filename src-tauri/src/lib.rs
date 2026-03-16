@@ -41,6 +41,8 @@ use crate::app::init_start::init_at_start;
 use tauri::{App, Emitter, Manager};
 use crate::api::backend_cmd::{
     backend_send_verification_code, backend_register, backend_login, backend_logout,
+    backend_get_profile, backend_search_scripts, backend_redeem_sponsor_code, 
+    backend_check_update, backend_download_script,
 };
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -146,7 +148,11 @@ pub fn run() {
             backend_register,
             backend_login,
             backend_logout,
-            //退出前函数
+            backend_get_profile,
+            backend_search_scripts,
+            backend_redeem_sponsor_code,
+            backend_check_update,
+            backend_download_script,
 
         ])
         .run(tauri::generate_context!())

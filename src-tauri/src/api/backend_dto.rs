@@ -47,3 +47,34 @@ pub struct BackendApiRes<T> {
     pub message: String,
     pub data: Option<T>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SponsorRedeemReq {
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TauriUpdateRes {
+    pub version: String,
+    pub notes: String,
+    #[serde(rename = "pub_date")]
+    pub pub_date: String,
+    pub platforms: std::collections::HashMap<String, PlatformUpdateInfo>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformUpdateInfo {
+    pub signature: String,
+    pub url: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageRes<T> {
+    pub records: Vec<T>,
+    pub total: i64,
+    pub size: i64,
+    pub current: i64,
+}
