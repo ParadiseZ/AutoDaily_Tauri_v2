@@ -78,3 +78,15 @@ pub struct PageRes<T> {
     pub size: i64,
     pub current: i64,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptUploadRequest {
+    pub script: crate::domain::scripts::script_info::ScriptTable,
+    pub policies: Vec<crate::domain::scripts::policy::PolicyTable>,
+    pub tasks: Vec<crate::domain::scripts::script_task::ScriptTaskTable>,
+    pub policy_groups: Vec<crate::domain::scripts::policy::PolicyGroupTable>,
+    pub policy_sets: Vec<crate::domain::scripts::policy::PolicySetTable>,
+    pub group_policies: Vec<crate::domain::scripts::policy::GroupPolicyRelation>,
+    pub set_groups: Vec<crate::domain::scripts::policy::SetGroupRelation>,
+}

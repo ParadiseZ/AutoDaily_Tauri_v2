@@ -47,6 +47,8 @@ pub enum RuntimeType {
     Rhai,
     JavaScript,
     Lua,
+    AIAndVision,
+    AI
 }
 
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -77,6 +79,7 @@ pub struct ScriptInfo {
     pub download_count: u64,
     pub script_type: ScriptType,
     pub is_valid: bool,
+    pub allow_clone: bool,
     
     /// 云端脚本 ID (仅 Dev 类型有此字段)
     /// - None: 从未上传过
@@ -110,6 +113,7 @@ impl Default for ScriptInfo {
             download_count: 0,
             script_type: ScriptType::Dev,
             is_valid: false,
+            allow_clone: true,
             cloud_id: None,
             //template_time: None,
         }

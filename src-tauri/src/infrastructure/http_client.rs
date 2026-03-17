@@ -98,4 +98,70 @@ impl HttpClient {
         let request = self.client.post(&url).json(body);
         self.execute(request).await
     }
+
+    pub async fn download_file(&self, endpoint: &str, target_path: &std::path::Path) -> AppResult<()> {
+        use std::io::Write;
+        let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
+        let mut request = self.client.get(&url);
+        if let Some(token) = self.get_jwt_token() {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await.map_err(|e| AppError::HttpErr {
+            detail: "请求下载文件失败".to_string(),
+            e: e.to_string(),
+        })?;
+
+        if !response.status().is_success() {
+            return Err(AppError::HttpErr {
+                detail: format!("文件下载返回了失败状态码: {}", response.status()),
+                e: "".to_string(),
+            });
+        }
+
+        let bytes = response.bytes().await.map_err(|e| AppError::HttpErr {
+            detail: "读取下载文件流失败".to_string(),
+            e: e.to_string(),
+        })?;
+
+        let mut file = std::fs::File::create(target_path).map_err(|e| AppError::HttpErr {
+            detail: format!("创建本地文件 {} 失败", target_path.display()),
+            e: e.to_string(),
+        })?;
+
+        file.write_all(&bytes).map_err(|e| AppError::HttpErr {
+            detail: format!("写入本地文件 {} 失败", target_path.display()),
+            e: e.to_string(),
+        })?;
+
+        Ok(())
+    }
+
+    pub async fn upload_file<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        file_path: &std::path::Path,
+        file_part_name: &str,
+        file_name: &str,
+    ) -> AppResult<T> {
+        let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
+        let mut request = self.client.post(&url);
+        
+        if let Some(token) = self.get_jwt_token() {
+            request = request.bearer_auth(token);
+        }
+
+        let file_contents = std::fs::read(file_path).map_err(|e| AppError::HttpErr {
+            detail: format!("读取本地文件 {} 失败", file_path.display()),
+            e: e.to_string(),
+        })?;
+
+        let part = reqwest::multipart::Part::bytes(file_contents)
+            .file_name(file_name.to_string());
+        
+        let form = reqwest::multipart::Form::new().part(file_part_name.to_string(), part);
+        request = request.multipart(form);
+
+        self.execute(request).await
+    }
 }

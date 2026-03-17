@@ -42,7 +42,7 @@ use tauri::{App, Emitter, Manager};
 use crate::api::backend_cmd::{
     backend_send_verification_code, backend_register, backend_login, backend_logout,
     backend_get_profile, backend_search_scripts, backend_redeem_sponsor_code, 
-    backend_check_update, backend_download_script,
+    backend_check_update, backend_download_script, backend_upload_model, backend_download_model,
 };
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -96,16 +96,17 @@ pub fn run() {
             delete_device_cmd,
             get_cpu_count_cmd,
             // 脚本配置
-            get_all_scripts_cmd,
-            get_script_by_id_cmd,
-            save_script_cmd,
-            delete_script_cmd,
+            scripts::get_all_scripts_cmd,
+            scripts::get_script_by_id_cmd,
+            scripts::save_script_cmd,
+            scripts::delete_script_cmd,
             // 图像转换
             convert_img_to_base64_cmd,
             // 脚本任务
-            get_script_tasks_cmd,
-            save_script_tasks_cmd,
-            get_yolo_labels_cmd,
+            scripts::get_script_tasks_cmd,
+            scripts::save_script_tasks_cmd,
+            scripts::get_yolo_labels_cmd,
+            scripts::clone_local_script_cmd,
             // 策略管理
             get_all_policies_cmd,
             save_policy_cmd,
@@ -153,6 +154,8 @@ pub fn run() {
             backend_redeem_sponsor_code,
             backend_check_update,
             backend_download_script,
+            backend_upload_model,
+            backend_download_model,
 
         ])
         .run(tauri::generate_context!())
