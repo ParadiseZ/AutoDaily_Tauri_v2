@@ -3,6 +3,48 @@
     <h1 class="text-2xl font-bold mb-6">设置</h1>
 
     <div class="columns-1 md:columns-2 gap-6 space-y-6">
+      <!-- Account Settings Block -->
+      <div class="card bg-base-100 shadow-xl border border-base-300 break-inside-avoid">
+        <div class="card-body p-4">
+          <div class="flex justify-between items-center mb-4">
+              <h2 class="card-title text-lg">账号信息</h2>
+              <button v-if="userStore.isLoggedIn" class="btn btn-sm btn-ghost text-error" @click="handleLogout">退出登录</button>
+          </div>
+          
+          <div v-if="!userStore.isLoggedIn" class="flex flex-col items-center justify-center py-4 gap-4">
+              <p class="text-base-content/70">您尚未登录，登录以体验云端功能</p>
+              <button class="btn btn-primary btn-sm px-8" @click="userStore.openAuthModal">登录 / 注册</button>
+          </div>
+          <div v-else class="grid grid-cols-1 gap-4">
+              <div class="flex justify-between items-center">
+                  <span class="font-medium">昵称</span>
+                  <span class="opacity-80">{{ userStore.userProfile?.displayName || userStore.userProfile?.username || '获取中...' }}</span>
+              </div>
+              <div class="flex justify-between items-center">
+                  <span class="font-medium">开发者状态</span>
+                  <div class="badge" :class="userStore.userProfile?.isDeveloper ? 'badge-primary' : 'badge-ghost'">
+                      {{ userStore.userProfile?.isDeveloper ? '开发者 (至 ' + formatDate(userStore.userProfile?.devUntil) + ')' : '普通用户' }}
+                  </div>
+              </div>
+              <div class="flex justify-between items-center">
+                  <span class="font-medium">赞助VIP状态</span>
+                  <div class="badge" :class="userStore.userProfile?.sponsorUntil && new Date(userStore.userProfile.sponsorUntil) > new Date() ? 'badge-secondary' : 'badge-ghost'">
+                      {{ userStore.userProfile?.sponsorUntil ? '有效至 ' + formatDate(userStore.userProfile?.sponsorUntil) : '未赞助' }}
+                  </div>
+              </div>
+
+              <!-- Redeem Code -->
+              <div class="divider my-0"></div>
+              <div class="flex gap-2">
+                  <input type="text" placeholder="输入赞助兑换码" class="input input-sm input-bordered flex-1" v-model="sponsorCode" @keyup.enter="handleRedeem" />
+                  <button class="btn btn-sm btn-outline" :disabled="!sponsorCode || isRedeeming" @click="handleRedeem">
+                      <span v-if="isRedeeming" class="loading loading-spinner loading-xs"></span>兑换
+                  </button>
+              </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Basic Settings Block -->
       <div class="card bg-base-100 shadow-xl border border-base-300 break-inside-avoid">
         <div class="card-body p-4">
@@ -181,12 +223,47 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { invoke as apiInvoke } from '../utils/api.js';
+import { useUserStore } from '../store/user.js';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useThemeManager } from './script-editor/composables/index.js';
 import { appThemeKey, defaultRouterKey, adbServerConfigKey, setToStore, getFromStore } from '../store/store.js';
 import { THEMES } from './script-editor/config.js';
 import { currentRouter, routesDisplay } from '../router/index.js';
 import { showToast } from '../utils/toast.js';
+
+const userStore = useUserStore();
+const sponsorCode = ref('');
+const isRedeeming = ref(false);
+
+const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+};
+
+const handleLogout = async () => {
+    await userStore.logout();
+};
+
+const handleRedeem = async () => {
+    if (!sponsorCode.value) return;
+    isRedeeming.value = true;
+    try {
+        const res = await apiInvoke('backend_redeem_sponsor_code', { req: { code: sponsorCode.value.trim() } });
+        if (res && res.success) {
+            showToast('兑换成功！', 'success');
+            sponsorCode.value = '';
+            await userStore.checkProfile();
+        } else {
+            showToast(res?.message || '兑换失败', 'error');
+        }
+    } catch (e) {
+        showToast(e.message || '网络异常', 'error');
+    } finally {
+        isRedeeming.value = false;
+    }
+};
 
 const themes = THEMES;
 // 基础设置

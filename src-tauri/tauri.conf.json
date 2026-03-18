@@ -33,5 +33,10 @@
       "icons/icon.ico"
     ],
     "resources": ["./models/**/*"]
+  },
+  "plugins": {
+    "server_config": {
+      "server_url": "https://api.example.com"
+    }
   }
 }
