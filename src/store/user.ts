@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import { invoke } from '../utils/api';
-import { showToast } from '../utils/toast';
+import { invoke } from '@/utils/api';
+import { showToast } from '@/utils/toast';
 
 export const useUserStore = defineStore('user', () => {
     const isAuthModalOpen = ref(false);

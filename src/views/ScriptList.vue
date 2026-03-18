@@ -22,9 +22,13 @@ import {
   Clock,
   Plus,
   ChevronDown,
+  Copy,
 } from 'lucide-vue-next';
 import ScriptConfigModal from './script-list/components/ScriptConfigModal.vue';
 import type { ScriptTable, ScriptInfo, DetectorType, RecognizerType, ScriptTaskTable } from '@/types/bindings';
+import { invoke as apiInvoke } from '@/utils/api';
+import { useUserStore } from '@/store/user';
+import { showToast } from '@/utils/toast';
 
 interface ExtendedScriptInfo extends ScriptInfo {
   tasks?: ScriptTaskTable[];
@@ -46,6 +50,7 @@ const { scripts, selectedScript, selectedTemplate, getAllScripts, saveScript, de
     selectScript: (script: ExtendedScriptTable) => void;
   };
 
+const userStore = useUserStore();
 const isNewModalOpen = ref(false);
 const isEditModalOpen = ref(false);
 const editingScriptData = ref<ExtendedScriptTable | null>(null);
@@ -54,6 +59,7 @@ const openDropdownId = ref<string | null>(null);
 const expandedModelInfo = ref<'imgDet' | 'txtDet' | 'txtRec' | null>(null);
 const globalDelay = ref(500);
 const randomRange = ref(5);
+const isProcessing = ref(false);
 
 const openNewModal = () => {
   isNewModalOpen.value = true;
@@ -123,6 +129,75 @@ const confirmDelete = async (script: ExtendedScriptTable) => {
 
 const toggleModelInfo = (modelType: 'imgDet' | 'txtDet' | 'txtRec') => {
   expandedModelInfo.value = expandedModelInfo.value === modelType ? null : modelType;
+};
+
+const handleUploadScript = async (script: ExtendedScriptTable) => {
+    openDropdownId.value = null;
+    if (!userStore.isLoggedIn) {
+        showToast('请先登录再分享脚本', 'warning');
+        userStore.openAuthModal();
+        return;
+    }
+
+    if (script.data.scriptType !== 'dev') {
+        showToast('只有本地开发类型的脚本才能上传', 'error');
+        return;
+    }
+
+    isProcessing.value = true;
+    try {
+        const res = await apiInvoke('backend_upload_script', { scriptId: script.id });
+        if (res && res.success) {
+            showToast('脚本上传成功！已同步至云端', 'success');
+            await getAllScripts(); // Refresh list to get new cloudId
+        } else {
+            showToast(res?.message || '上传失败', 'error');
+        }
+    } catch (e: any) {
+        showToast(e.message || '网络异常', 'error');
+    } finally {
+        isProcessing.value = false;
+    }
+};
+
+const handleCloneScript = async (script: ExtendedScriptTable) => {
+    openDropdownId.value = null;
+    const isCloudScript = script.data.scriptType === 'published';
+    
+    // 如果是克隆 Published(下载的) 转化为 Dev
+    if (isCloudScript && !userStore.isLoggedIn) {
+        showToast('克隆云端版本需要登录凭证', 'warning');
+        userStore.openAuthModal();
+        return;
+    }
+
+    let overwriteCloudId = false;
+    if (isCloudScript && script.data.cloudId) {
+        overwriteCloudId = await confirm('发现现有该同源脚本开发版已被覆盖。\n是要【覆盖旧开发版】还是【作为全新副本】？\n\n点击【确认】代表覆盖同源开发版', {
+            title: '克隆选项',
+            kind: 'info',
+        });
+    }
+
+    isProcessing.value = true;
+    try {
+        const res = await apiInvoke('clone_local_script_cmd', { 
+            sourceScriptId: script.id,
+            currentUserId: userStore.userProfile?.id || null,
+            overwriteCloudId
+        });
+        
+        if (res && res.success) {
+            showToast('克隆成功，已在列表中', 'success');
+            await getAllScripts();
+        } else {
+            showToast(res?.message || '克隆限制或失败', 'error');
+        }
+    } catch (e: any) {
+        showToast(e.message || '内部异常', 'error');
+    } finally {
+        isProcessing.value = false;
+    }
 };
 
 const getModelTypeName = (model: DetectorType | RecognizerType | null | undefined) => {
@@ -266,6 +341,18 @@ onMounted(async () => {
               <ul
                 class="dropdown-content menu bg-base-100 rounded-xl w-44 p-1.5 shadow-xl border border-base-content/10 z-50"
               >
+                <!-- 通用功能: 复制（转化为 Dev） -->
+                <li>
+                  <a
+                    @click="handleCloneScript(script)"
+                    class="flex items-center gap-3 text-sm hover:bg-success/10 hover:text-success cursor-pointer"
+                  >
+                    <Copy class="w-4 h-4" />
+                    <span>克隆副本</span>
+                  </a>
+                </li>
+                <li class="my-1"><hr class="border-base-content/10" /></li>
+
                 <template v-if="script.data.scriptType === 'dev'">
                   <li>
                     <a
@@ -294,8 +381,9 @@ onMounted(async () => {
                   <li class="my-1"><hr class="border-base-content/10" /></li>
                   <li v-if="!script.data.cloudId">
                     <a
-                      @click="openDropdownId = null"
+                      @click="handleUploadScript(script)"
                       class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
+                      :class="{'opacity-50 pointer-events-none': isProcessing}"
                     >
                       <Download class="w-4 h-4 rotate-180" />
                       <span>上传到云端</span>
@@ -303,8 +391,9 @@ onMounted(async () => {
                   </li>
                   <li v-else>
                     <a
-                      @click="openDropdownId = null"
+                      @click="handleUploadScript(script)"
                       class="flex items-center gap-3 text-sm hover:bg-accent/10 hover:text-accent cursor-pointer"
+                      :class="{'opacity-50 pointer-events-none': isProcessing}"
                     >
                       <Download class="w-4 h-4 rotate-180" />
                       <span>更新云端版本</span>
@@ -313,12 +402,13 @@ onMounted(async () => {
                 </template>
                 <template v-else-if="script.data.scriptType === 'published'">
                   <li>
+                    <!-- The update cloud is implemented later by comparing version locally inside rust -->
                     <a
                       @click="openDropdownId = null"
                       class="flex items-center gap-3 text-sm hover:bg-primary/10 hover:text-primary cursor-pointer"
                     >
                       <Clock class="w-4 h-4" />
-                      <span>检查更新</span>
+                      <span>云端更新</span>
                     </a>
                   </li>
                 </template>

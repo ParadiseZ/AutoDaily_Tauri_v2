@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useUserStore } from '../store/user';
-import { invoke } from '../utils/api';
-import { showToast } from '../utils/toast';
+import { useUserStore } from '@/store/user';
+import { invoke } from '@/utils/api';
+import { showToast } from '@/utils/toast';
 
 const userStore = useUserStore();
 const activeTab = ref<'login' | 'register'>('login');
