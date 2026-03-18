@@ -101,8 +101,8 @@ twox-hash = { version = "2.1.1", features = ["xxhash3_64"] }
 #memmap2 = "0.9"
 #双缓冲
 #ringbuf = "0.4"
-# 系统信息
-sysinfo = "0.37"
+# 系统信息/监控
+#sysinfo = "0.37"
 # 进程间通信
 interprocess = { version = "2.2.3", features = ["tokio"] }
 
@@ -135,6 +135,8 @@ regex = "1.12.2"
 
 # TypeScript 类型生成
 ts-rs = { version = "12", features = ["serde-json-impl"] }
+machineid-rs = "1.2.4"
+#machine-uid = "0.5.4"
 
 # Windows 原生API（命名共享内存、亲和性）
 [target.'cfg(windows)'.dependencies]

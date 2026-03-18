@@ -24,7 +24,7 @@ use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::get_uuid_v7;
 use crate::api::domain::devices::{get_all_devices_cmd, get_device_by_id_cmd, save_device_cmd, delete_device_cmd, get_cpu_count_cmd};
 use crate::api::domain::scripts::{get_all_scripts_cmd, get_script_by_id_cmd, save_script_cmd, delete_script_cmd,
-                                  get_script_tasks_cmd,save_script_tasks_cmd, get_yolo_labels_cmd};
+                                  get_script_tasks_cmd,save_script_tasks_cmd, get_yolo_labels_cmd, clone_local_script_cmd};
 use crate::api::domain::policy::*;
 use crate::api::infrastructure::process_api::{
     cmd_device_start, cmd_device_stop, cmd_device_pause,
@@ -43,6 +43,7 @@ use crate::api::backend_cmd::{
     backend_send_verification_code, backend_register, backend_login, backend_logout,
     backend_get_profile, backend_search_scripts, backend_redeem_sponsor_code, 
     backend_check_update, backend_download_script, backend_upload_model, backend_download_model,
+    backend_reset_password,
 };
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -96,17 +97,17 @@ pub fn run() {
             delete_device_cmd,
             get_cpu_count_cmd,
             // 脚本配置
-            scripts::get_all_scripts_cmd,
-            scripts::get_script_by_id_cmd,
-            scripts::save_script_cmd,
-            scripts::delete_script_cmd,
+            get_all_scripts_cmd,
+            get_script_by_id_cmd,
+            save_script_cmd,
+            delete_script_cmd,
             // 图像转换
             convert_img_to_base64_cmd,
             // 脚本任务
-            scripts::get_script_tasks_cmd,
-            scripts::save_script_tasks_cmd,
-            scripts::get_yolo_labels_cmd,
-            scripts::clone_local_script_cmd,
+            get_script_tasks_cmd,
+            save_script_tasks_cmd,
+            get_yolo_labels_cmd,
+            clone_local_script_cmd,
             // 策略管理
             get_all_policies_cmd,
             save_policy_cmd,
@@ -156,7 +157,7 @@ pub fn run() {
             backend_download_script,
             backend_upload_model,
             backend_download_model,
-
+            backend_reset_password,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

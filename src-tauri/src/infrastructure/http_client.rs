@@ -5,6 +5,19 @@ use reqwest::{Client, RequestBuilder};
 use serde::{de::DeserializeOwned, Serialize};
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
+use std::sync::OnceLock;
+use machineid_rs::{IdBuilder, Encryption, HWIDComponent};
+
+pub fn get_machine_code() -> String {
+    static MACHINE_CODE: OnceLock<String> = OnceLock::new();
+    MACHINE_CODE.get_or_init(|| {
+        IdBuilder::new(Encryption::MD5)
+            .add_component(HWIDComponent::SystemID)
+            .add_component(HWIDComponent::MacAddress)
+            .build("auto_daily")
+            .unwrap_or_else(|_| "unknown_machine_val".to_string())
+    }).clone()
+}
 
 // 可以在正式环境使用环境变量或配置
 const BACKEND_BASE_URL: &str = "http://localhost:8080/api";
@@ -65,6 +78,9 @@ impl HttpClient {
             request = request.bearer_auth(token);
         }
 
+        let machine_id = get_machine_code();
+        request = request.header("Machine-Code", machine_id);
+
         let response = request.send().await.map_err(|e| AppError::HttpErr {
             detail: "请求发送失败".to_string(),
             e: e.to_string(),
@@ -106,6 +122,9 @@ impl HttpClient {
         if let Some(token) = self.get_jwt_token() {
             request = request.bearer_auth(token);
         }
+
+        let machine_id = get_machine_code();
+        request = request.header("Machine-Code", machine_id);
 
         let response = request.send().await.map_err(|e| AppError::HttpErr {
             detail: "请求下载文件失败".to_string(),
@@ -150,6 +169,9 @@ impl HttpClient {
         if let Some(token) = self.get_jwt_token() {
             request = request.bearer_auth(token);
         }
+
+        let machine_id = get_machine_code();
+        request = request.header("Machine-Code", machine_id);
 
         let file_contents = std::fs::read(file_path).map_err(|e| AppError::HttpErr {
             detail: format!("读取本地文件 {} 失败", file_path.display()),

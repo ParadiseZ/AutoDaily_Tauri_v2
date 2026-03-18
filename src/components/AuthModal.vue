@@ -5,7 +5,13 @@ import { invoke } from '@/utils/api';
 import { showToast } from '@/utils/toast';
 
 const userStore = useUserStore();
-const activeTab = ref<'login' | 'register'>('login');
+const activeTab = ref<'login' | 'register' | 'reset'>('login');
+
+const formReset = ref({
+    email: '',
+    code: '',
+    password: ''
+});
 
 const formLogin = ref({
     username: '',
@@ -79,6 +85,45 @@ const sendVerificationCode = async () => {
         showToast(e.message || '网络异常', 'error');
     }
 };
+
+const handleReset = async () => {
+    if (!formReset.value.email || !formReset.value.code || !formReset.value.password) {
+        showToast('请完整填写邮箱、验证码和新密码', 'warning');
+        return;
+    }
+    isSubmitting.value = true;
+    try {
+        const res = await invoke('backend_reset_password', { req: formReset.value });
+        if (res && res.success) {
+            showToast('重置密码成功，请使用新密码登录', 'success');
+            activeTab.value = 'login';
+            formLogin.value.username = formReset.value.email;
+        } else {
+            showToast(res?.message || '重置失败', 'error');
+        }
+    } catch (e: any) {
+        showToast(e.message || '重置密码异常出错', 'error');
+    } finally {
+        isSubmitting.value = false;
+    }
+};
+
+const sendResetVerificationCode = async () => {
+    if (!formReset.value.email) {
+        showToast('请先输入邮箱', 'warning');
+        return;
+    }
+    try {
+        const res = await invoke('backend_send_verification_code', { email: formReset.value.email });
+        if (res && res.success) {
+            showToast('验证码发送成功', 'success');
+        } else {
+            showToast(res?.message || '发送失败', 'error');
+        }
+    } catch (e: any) {
+        showToast(e.message || '网络异常', 'error');
+    }
+};
 </script>
 
 <template>
@@ -113,6 +158,9 @@ const sendVerificationCode = async () => {
                     <div class="form-control">
                         <label class="label"><span class="label-text font-medium">密码</span></label>
                         <input type="password" placeholder="••••••••" class="input input-bordered" v-model="formLogin.password" @keyup.enter="handleLogin" />
+                        <label class="label">
+                            <a href="#" class="label-text-alt link link-hover" @click.prevent="activeTab = 'reset'">忘记密码？</a>
+                        </label>
                     </div>
                     
                     <button class="btn btn-primary mt-4" :disabled="isSubmitting" @click="handleLogin">
@@ -152,6 +200,33 @@ const sendVerificationCode = async () => {
                         <span v-if="isSubmitting" class="loading loading-spinner"></span>
                         立即注册
                     </button>
+                </div>
+                
+                <!-- Reset Password Form -->
+                <div v-show="activeTab === 'reset'" class="flex flex-col gap-4">
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium">电子邮箱</span></label>
+                        <div class="flex gap-2">
+                            <input type="email" placeholder="注册时使用的邮箱" class="input input-bordered flex-1" v-model="formReset.email" />
+                            <button class="btn btn-outline" @click.prevent="sendResetVerificationCode">发送验证码</button>
+                        </div>
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium">邮箱验证码</span></label>
+                        <input type="text" placeholder="6 digits" class="input input-bordered w-full max-w-xs" v-model="formReset.code" />
+                    </div>
+                    <div class="form-control">
+                        <label class="label"><span class="label-text font-medium">新密码</span></label>
+                        <input type="password" placeholder="••••••••" class="input input-bordered" v-model="formReset.password" />
+                    </div>
+                    
+                    <button class="btn btn-primary mt-4" :disabled="isSubmitting" @click="handleReset">
+                        <span v-if="isSubmitting" class="loading loading-spinner"></span>
+                        重置密码
+                    </button>
+                    <div class="text-center mt-2">
+                        <a href="#" class="text-sm link link-hover text-base-content/70" @click.prevent="activeTab = 'login'">返回登录</a>
+                    </div>
                 </div>
             </div>
 

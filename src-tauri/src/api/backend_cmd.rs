@@ -3,6 +3,7 @@ use crate::api::backend_dto::*;
 use crate::app::app_error::AppResult;
 use crate::infrastructure::http_client::HttpClient;
 use tauri::{command, AppHandle};
+use crate::infrastructure::core::Serialize;
 
 #[command]
 pub async fn backend_send_verification_code(
@@ -22,6 +23,16 @@ pub async fn backend_register(
 ) -> ApiResponse<String> {
     let client = HttpClient::new(app_handle);
     let res: AppResult<BackendApiRes<String>> = client.post("/auth/register", &req).await;
+    trans_api_res(res)
+}
+
+#[command]
+pub async fn backend_reset_password(
+    app_handle: AppHandle,
+    req: ResetPasswordReq,
+) -> ApiResponse<String> {
+    let client = HttpClient::new(app_handle);
+    let res: AppResult<BackendApiRes<String>> = client.post("/auth/reset-password", &req).await;
     trans_api_res(res)
 }
 
@@ -95,10 +106,8 @@ pub async fn backend_check_update(app_handle: AppHandle) -> ApiResponse<TauriUpd
 #[command]
 pub async fn backend_download_script(app_handle: AppHandle, script_id: String, current_user_id: Option<String>) -> ApiResponse<String> {
     use crate::infrastructure::db::get_pool;
-    use crate::domain::scripts::script_info::{ScriptType};
-    use crate::infrastructure::core::{ScriptId, PolicyId, PolicyGroupId, PolicySetId, TaskId, UserId};
-    use std::str::FromStr;
-
+    use crate::domain::scripts::script_info::ScriptType;
+    use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, ScriptId, TaskId, UserId};
     let client = HttpClient::new(app_handle);
     let url = format!("/scripts/download/{}", script_id);
     // 1. Fetch from backend
@@ -134,8 +143,8 @@ pub async fn backend_download_script(app_handle: AppHandle, script_id: String, c
     download_data.script.data.script_type = ScriptType::Published;
     // Replace user_id if importing (logged in local user)
     if let Some(uid_str) = current_user_id {
-        if let Ok(uid) = UserId::from_str(&uid_str) {
-            download_data.script.data.user_id = uid;
+        if let Ok(uuid) = uuid::Uuid::parse_str(&uid_str) {
+            download_data.script.data.user_id = UserId::from(uuid);
         }
     }
 
@@ -382,7 +391,7 @@ pub async fn backend_download_model(
     }
 }
 
-fn trans_api_res<T,R>(api_res: AppResult<BackendApiRes<T>>)   -> ApiResponse<R> {
+fn trans_api_res<T: Serialize>(api_res: AppResult<BackendApiRes<T>>) -> ApiResponse<T> {
     match api_res {
         Ok(api_res) => {
             if api_res.code == 200 {

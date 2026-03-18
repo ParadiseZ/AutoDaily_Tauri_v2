@@ -21,6 +21,14 @@ pub struct RegisterReq {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ResetPasswordReq {
+    pub email: String,
+    pub password: String,
+    pub code: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthRes {
     #[serde(rename = "accessToken")]
     pub access_token: String,

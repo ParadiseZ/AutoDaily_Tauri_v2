@@ -1,12 +1,11 @@
+use crate::api::api_response::ApiResponse;
 use crate::constant::table_name::{SCRIPT_TABLE, SCRIPT_TASK_TABLE};
+use crate::domain::scripts::policy::*;
 use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::db::{get_pool, DbRepo};
 use tauri::command;
-use crate::api::api_response::ApiResponse;
-use crate::api::backend_dto::ScriptUploadRequest;
-use crate::domain::scripts::policy::*;
 
 /// 获取所有脚本配置
 #[command]
@@ -144,8 +143,8 @@ pub async fn clone_local_script_cmd(
     script.data.name = format!("{} (Clone)", script.data.name);
     script.data.script_type = ScriptType::Dev;
     
-    if let Ok(uid) = UserId::from_str(&user_id) {
-        script.data.user_id = uid;
+    if let Ok(uuid) = uuid::Uuid::parse_str(&user_id) {
+        script.data.user_id = UserId::from(uuid);
     }
 
     let mut target_delete_id: Option<String> = None;
@@ -217,5 +216,5 @@ pub async fn clone_local_script_cmd(
 
     if let Err(e) = tx.commit().await { return ApiResponse::error(Some(e.to_string())); }
     
-    ApiResponse::success(Some(new_script_id.to_string()), Some("克隆成功".to_string()))
+    ApiResponse::success(Some(new_script_id.to_string()), Some("复制成功".to_string()))
 }
