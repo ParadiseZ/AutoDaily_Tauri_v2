@@ -23,12 +23,14 @@ import {
   Plus,
   ChevronDown,
   Copy,
+  History,
 } from 'lucide-vue-next';
 import ScriptConfigModal from './script-list/components/ScriptConfigModal.vue';
 import type { ScriptTable, ScriptInfo, DetectorType, RecognizerType, ScriptTaskTable } from '@/types/bindings';
 import { invoke as apiInvoke } from '@/utils/api';
 import { useUserStore } from '@/store/user';
 import { showToast } from '@/utils/toast';
+import { useAssignments } from '@/assets/js/useAssignments';
 
 interface ExtendedScriptInfo extends ScriptInfo {
   tasks?: ScriptTaskTable[];
@@ -60,6 +62,8 @@ const expandedModelInfo = ref<'imgDet' | 'txtDet' | 'txtRec' | null>(null);
 const globalDelay = ref(500);
 const randomRange = ref(5);
 const isProcessing = ref(false);
+
+const { clearSchedulesByScript } = useAssignments();
 
 const openNewModal = () => {
   isNewModalOpen.value = true;
@@ -125,6 +129,16 @@ const confirmDelete = async (script: ExtendedScriptTable) => {
   if (confirmed) {
     await deleteScript(script);
   }
+};
+
+const handleClearSchedules = async (script: ExtendedScriptTable) => {
+    openDropdownId.value = null;
+    try {
+        await clearSchedulesByScript(script.id);
+        showToast('运行记录已清除', 'success');
+    } catch (e: any) {
+        showToast(e.message || '清除失败', 'error');
+    }
 };
 
 const toggleModelInfo = (modelType: 'imgDet' | 'txtDet' | 'txtRec') => {
@@ -412,6 +426,16 @@ onMounted(async () => {
                     </a>
                   </li>
                 </template>
+                <li class="my-1"><hr class="border-base-content/10" /></li>
+                <li>
+                  <a
+                    @click="handleClearSchedules(script)"
+                    class="flex items-center gap-3 text-sm hover:bg-warning/10 hover:text-warning cursor-pointer"
+                  >
+                    <History class="w-4 h-4" />
+                    <span>清除运行记录</span>
+                  </a>
+                </li>
                 <li class="my-1"><hr class="border-base-content/10" /></li>
                 <li>
                   <a

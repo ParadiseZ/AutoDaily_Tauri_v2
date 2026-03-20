@@ -16,7 +16,6 @@
 
 <script setup lang="ts">
 import IconRenderer from './IconRenderer.vue';
-import { useDragAndDrop } from './composables';
 
 const props = defineProps<{
   type: string;
@@ -30,10 +29,11 @@ const emit = defineEmits<{
   (e: 'add-node', type: string): void;
 }>();
 
-const { onDragStart } = useDragAndDrop();
-
 const handleDragStart = (event: DragEvent) => {
-  onDragStart(event, props.type);
+  if (event.dataTransfer) {
+    event.dataTransfer.setData('application/vueflow', props.type);
+    event.dataTransfer.effectAllowed = 'move';
+  }
 };
 
 const onClick = () => {

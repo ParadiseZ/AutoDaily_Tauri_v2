@@ -57,7 +57,7 @@
       <Teleport to="body">
         <div
           v-if="showPicker"
-          class="fixed z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300"
+          class="fixed z-9999 p-4 bg-base-100 border border-base-300 shadow-2xl rounded-3xl backdrop-blur-xl animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300 min-w-[280px] max-w-[520px]"
           :style="pickerStyle"
         >
           <div class="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-2 text-center">选择行为</div>
@@ -68,14 +68,15 @@
               <button
                 v-for="kind in group"
                 :key="kind.op"
-                class="btn btn-sm h-10 px-3 bg-base-200/50 border-none hover:bg-primary hover:text-white justify-start gap-2 rounded-xl group/btn transition-all duration-300"
+                class="btn btn-sm h-10 px-2 bg-base-200/50 border-none hover:bg-primary hover:text-white justify-start gap-1.5 rounded-xl group/btn transition-all duration-300 w-full min-w-0"
+                :title="kind.name"
                 @click="addStepWithType(kind.op)"
               >
                 <IconRenderer
                   :icon="NODE_TYPES[kind.op]?.icon || 'box'"
                   class="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform shrink-0"
                 />
-                <span class="text-xs font-bold whitespace-nowrap overflow-hidden text-ellipsis">{{ kind.name }}</span>
+                <span class="text-xs font-bold truncate">{{ kind.name }}</span>
               </button>
             </div>
           </div>
@@ -189,8 +190,8 @@ const pickerStyle = computed(() => ({
 
 /** 自适应网格：最多 5 列，不足时收缩 */
 const gridStyle = (count: number) => {
-  const cols = Math.min(count, 5);
-  return { gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` };
+  const cols = Math.min(count, 4);
+  return { gridTemplateColumns: `repeat(${cols}, minmax(90px, 1fr))` };
 };
 
 const groupedActions = computed(() => {

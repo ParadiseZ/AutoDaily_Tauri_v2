@@ -1,18 +1,18 @@
 import { ref, computed } from 'vue';
 import type { Ref } from 'vue';
 import type { ScriptTaskTable } from '@/types/bindings';
+import type { Step } from '@/types/bindings';
 import type { JsonValue } from '@/types/bindings/serde_json/JsonValue';
 
 interface TaskOptions {
-    nodes: Ref<any[]>;
-    edges: Ref<any[]>;
+    steps: Ref<Step[]>;
     addLog?: (message: string, level: any) => void;
     LOG_LEVELS?: any;
     getUuidV7?: () => Promise<string>;
 }
 
 export function useTaskManager(options: TaskOptions) {
-    const { nodes, edges, addLog = () => { }, LOG_LEVELS = {}, getUuidV7 = async () => '' } = options;
+    const { steps, addLog = () => { }, LOG_LEVELS = {}, getUuidV7 = async () => '' } = options;
 
     // 任务列表
     const taskList = ref<ScriptTaskTable[]>([]);
@@ -40,18 +40,23 @@ export function useTaskManager(options: TaskOptions) {
     // ============================================
 
     function selectTask(task: ScriptTaskTable) {
-        // 保存当前任务状态
-        if (currentTask.value && nodes.value && edges.value) {
-            currentTask.value.nodes = [...nodes.value];
-            currentTask.value.edges = [...edges.value];
+        // 保存当前任务的 steps 到 nodes 字段 (兼容后端存储)
+        if (currentTask.value && steps.value) {
+            (currentTask.value as any).data.steps = [...steps.value];
+            (currentTask.value as any).data.steps = [];
         }
 
         currentTask.value = task;
 
-        // 加载任务的节点和边
-        if (nodes.value && edges.value) {
-            nodes.value = [...task.nodes];
-            edges.value = [...task.edges];
+        // 加载任务的步骤
+        if (steps.value !== undefined) {
+            // 兼容: 如果 nodes 里存的是 Step[] 则直接用, 否则清空
+            const taskNodes = (task as any).data.steps;
+            if (Array.isArray(taskNodes)) {
+                steps.value = [...taskNodes];
+            } else {
+                steps.value = [];
+            }
         }
 
         addLog(`切换任务： ${task.name}`, LOG_LEVELS.INFO);
@@ -72,21 +77,17 @@ export function useTaskManager(options: TaskOptions) {
             isHidden: false,
             taskType: 'main',
             index: newTaskCount,
-            nodes: [
-                { id: await (getUuidV7 as () => Promise<string>)(), type: 'custom', label: '开始', position: { x: 200, y: 50 }, data: { type: 'start' } },
-                { id: await (getUuidV7 as () => Promise<string>)(), type: 'custom', label: '结束', position: { x: 200, y: 150 }, data: { type: 'end' } }
-            ] as any,
-            edges: [] as any,
             data: {
                 uiData: {} as JsonValue,
-                variables: {} as JsonValue
+                variables: {} as JsonValue,
+                steps: [] as Step[],
             },
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             deletedAt: null,
             isDeleted: false,
         };
-        
+
         // @ts-ignore
         taskList.value.push(newTask);
         selectTask(newTask);
