@@ -194,54 +194,18 @@ pub async fn backend_download_script(app_handle: AppHandle, script_id: String, c
         Err(e) => return ApiResponse::error(Some(format!("开启事务失败: {}", e))),
     };
 
-    // Insert script
-    if let Err(e) = sqlx::query("INSERT INTO scripts (id, `data`) VALUES (?, ?)")
-        .bind(download_data.script.id.to_string())
-        .bind(download_data.script.data)
-        .execute(&mut *tx).await {
-            return ApiResponse::error(Some(format!("写入 Script 表失败: {}", e)));
-    }
-
-    // Insert policies
-    for policy in download_data.policies {
-        if let Err(e) = sqlx::query("INSERT INTO policies (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)")
-            .bind(policy.id.to_string()).bind(policy.script_id.to_string()).bind(policy.order_index).bind(policy.data)
-            .execute(&mut *tx).await { return ApiResponse::error(Some(format!("写入 Policy 失败: {}", e))); }
-    }
-
-    // Insert groups
-    for group in download_data.policy_groups {
-        if let Err(e) = sqlx::query("INSERT INTO policy_groups (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)")
-            .bind(group.id.to_string()).bind(group.script_id.to_string()).bind(group.order_index).bind(group.data)
-            .execute(&mut *tx).await { return ApiResponse::error(Some(format!("写入 Group 失败: {}", e))); }
-    }
-
-    // Insert sets
-    for set in download_data.policy_sets {
-        if let Err(e) = sqlx::query("INSERT INTO policy_sets (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)")
-            .bind(set.id.to_string()).bind(set.script_id.to_string()).bind(set.order_index).bind(set.data)
-            .execute(&mut *tx).await { return ApiResponse::error(Some(format!("写入 Set 失败: {}", e))); }
-    }
-
-    // Insert relation group_policies
-    for gp in download_data.group_policies {
-        if let Err(e) = sqlx::query("INSERT INTO group_policies (group_id, policy_id, order_index) VALUES (?, ?, ?)")
-            .bind(gp.group_id.to_string()).bind(gp.policy_id.to_string()).bind(gp.order_index)
-            .execute(&mut *tx).await { return ApiResponse::error(Some(format!("写入 group_policies 失败: {}", e))); }
-    }
-
-    // Insert relation set_groups
-    for sg in download_data.set_groups {
-        if let Err(e) = sqlx::query("INSERT INTO set_groups (set_id, group_id, order_index) VALUES (?, ?, ?)")
-            .bind(sg.set_id.to_string()).bind(sg.group_id.to_string()).bind(sg.order_index)
-            .execute(&mut *tx).await { return ApiResponse::error(Some(format!("写入 set_groups 失败: {}", e))); }
-    }
-
-    // Insert tasks
-    for task in download_data.tasks {
-        if let Err(e) = sqlx::query("INSERT INTO script_tasks (id, script_id, name, is_hidden, nodes, edges, `data`) VALUES (?, ?, ?, ?, ?, ?, ?)")
-            .bind(task.id.to_string()).bind(task.script_id.to_string()).bind(task.name).bind(task.is_hidden).bind(task.nodes).bind(task.edges).bind(task.data)
-            .execute(&mut *tx).await { return ApiResponse::error(Some(format!("写入 Tasks 失败: {}", e))); }
+    // Batch insert all related data
+    if let Err(e) = crate::api::domain::script_batch_insert::batch_insert_script_related(
+        &mut tx,
+        &download_data.script,
+        &download_data.policies,
+        &download_data.policy_groups,
+        &download_data.policy_sets,
+        &download_data.group_policies,
+        &download_data.set_groups,
+        &download_data.tasks,
+    ).await {
+        return ApiResponse::error(Some(e));
     }
 
     if let Err(e) = tx.commit().await {

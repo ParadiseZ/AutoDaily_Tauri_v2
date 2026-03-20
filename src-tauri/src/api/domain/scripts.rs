@@ -206,13 +206,9 @@ pub async fn clone_local_script_cmd(
         let _ = sqlx::query("DELETE FROM policy_sets WHERE script_id = ?").bind(&source_script_id).execute(&mut *tx).await;
     }
 
-    if let Err(e) = sqlx::query("INSERT INTO scripts (id, `data`) VALUES (?, ?)").bind(script.id.to_string()).bind(script.data).execute(&mut *tx).await { return ApiResponse::error(Some(e.to_string())); }
-    for x in policies { if let Err(e) = sqlx::query("INSERT INTO policies (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)").bind(x.id.to_string()).bind(x.script_id.to_string()).bind(x.order_index).bind(x.data).execute(&mut *tx).await { return ApiResponse::error(Some(e.to_string())); } }
-    for x in policy_groups { if let Err(e) = sqlx::query("INSERT INTO policy_groups (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)").bind(x.id.to_string()).bind(x.script_id.to_string()).bind(x.order_index).bind(x.data).execute(&mut *tx).await { return ApiResponse::error(Some(e.to_string())); } }
-    for x in policy_sets { if let Err(e) = sqlx::query("INSERT INTO policy_sets (id, script_id, order_index, `data`) VALUES (?, ?, ?, ?)").bind(x.id.to_string()).bind(x.script_id.to_string()).bind(x.order_index).bind(x.data).execute(&mut *tx).await { return ApiResponse::error(Some(e.to_string())); } }
-    for x in group_policies { if let Err(e) = sqlx::query("INSERT INTO group_policies (group_id, policy_id, order_index) VALUES (?, ?, ?)").bind(x.group_id.to_string()).bind(x.policy_id.to_string()).bind(x.order_index).execute(&mut *tx).await { return ApiResponse::error(Some(e.to_string())); } }
-    for x in set_groups { if let Err(e) = sqlx::query("INSERT INTO set_groups (set_id, group_id, order_index) VALUES (?, ?, ?)").bind(x.set_id.to_string()).bind(x.group_id.to_string()).bind(x.order_index).execute(&mut *tx).await { return ApiResponse::error(Some(e.to_string())); } }
-    for x in tasks { if let Err(e) = sqlx::query("INSERT INTO script_tasks (id, script_id, name, is_hidden, nodes, edges, `data`) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(x.id.to_string()).bind(x.script_id.to_string()).bind(x.name).bind(x.is_hidden).bind(x.nodes).bind(x.edges).bind(x.data).execute(&mut *tx).await { return ApiResponse::error(Some(e.to_string())); } }
+    if let Err(e) = crate::api::domain::script_batch_insert::batch_insert_script_related(
+        &mut tx, &script, &policies, &policy_groups, &policy_sets, &group_policies, &set_groups, &tasks,
+    ).await { return ApiResponse::error(Some(e)); }
 
     if let Err(e) = tx.commit().await { return ApiResponse::error(Some(e.to_string())); }
     
