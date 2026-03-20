@@ -29,8 +29,8 @@ const formRegister = ref({
 const isSubmitting = ref(false);
 
 const handleLogin = async () => {
-    if (!formLogin.value.username || !formLogin.value.password) {
-        showToast('请输入用户名和密码', 'warning');
+    if (!formLogin.value.username || !formLogin.value.password || formLogin.value.password.length < 8) {
+        showToast('账号/密码无效', 'warning');
         return;
     }
     isSubmitting.value = true;
@@ -152,12 +152,12 @@ const sendResetVerificationCode = async () => {
                 <!-- Login Form -->
                 <div v-show="activeTab === 'login'" class="flex flex-col gap-4">
                     <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">账户名</span></label>
-                        <input type="text" placeholder="username" class="input input-bordered" v-model="formLogin.username" />
+                        <label class="label"><span class="label-text font-medium">账号</span></label>
+                        <input type="text" placeholder="用户名/邮箱" class="input input-bordered" v-model="formLogin.username" />
                     </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text font-medium">密码</span></label>
-                        <input type="password" placeholder="••••••••" class="input input-bordered" v-model="formLogin.password" @keyup.enter="handleLogin" />
+                        <input type="password" class="input input-bordered" v-model="formLogin.password" @keyup.enter="handleLogin" />
                         <label class="label">
                             <a href="#" class="label-text-alt link link-hover" @click.prevent="activeTab = 'reset'">忘记密码？</a>
                         </label>
@@ -200,15 +200,22 @@ const sendResetVerificationCode = async () => {
                 <!-- Reset Password Form -->
                 <div v-show="activeTab === 'reset'" class="flex flex-col gap-4">
                     <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">电子邮箱</span></label>
+                        <label class="label"><span class="label-text font-medium">邮箱</span></label>
                         <div class="flex gap-2">
-                            <input type="email" placeholder="注册时使用的邮箱" class="input input-bordered flex-1" v-model="formReset.email" />
+                            <input type="email" class="input input-bordered flex-1" v-model="formReset.email" />
+                            <select>
+                              <option value="@qq.com">@qq.com</option>
+                              <option value="@163.com">@163.com</option>
+                              <option value="@gmail.com">@gmail.com</option>
+                              <option value="@outlook.com">@outlook.com</option>
+                              <option value="@foxmail.com">@foxmail.com</option>
+                            </select>
                             <button class="btn btn-outline" @click.prevent="sendResetVerificationCode">发送验证码</button>
                         </div>
                     </div>
                     <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">邮箱验证码</span></label>
-                        <input type="text" placeholder="6 digits" class="input input-bordered w-full max-w-xs" v-model="formReset.code" />
+                        <label class="label"><span class="label-text font-medium">验证码</span></label>
+                        <input type="text" placeholder="8位" class="input input-bordered w-full max-w-xs" v-model="formReset.code" />
                     </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text font-medium">新密码</span></label>

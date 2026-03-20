@@ -30,12 +30,12 @@
               </div>
               <div class="flex justify-between items-center">
                   <span class="font-medium">开发者状态</span>
-                  <div class="badge" :class="userStore.userProfile?.isDeveloper ? 'badge-primary' : 'badge-ghost'">
-                      {{ userStore.userProfile?.isDeveloper ? '开发者 (至 ' + formatDate(userStore.userProfile?.devUntil) + ')' : '普通用户' }}
+                  <div class="badge" :class="userStore.userProfile?.lastScriptUploadTime && new Date(userStore.userProfile.lastScriptUploadTime) > new Date() ? 'badge-primary' : 'badge-ghost'">
+                      {{ userStore.userProfile?.lastScriptUploadTime ? '有效期 (至 ' + formatDate(userStore.userProfile?.lastScriptUploadTime) + ')' : '普通用户' }}
                   </div>
               </div>
               <div class="flex justify-between items-center">
-                  <span class="font-medium">赞助VIP状态</span>
+                  <span class="font-medium">赞助状态</span>
                   <div class="badge" :class="userStore.userProfile?.sponsorUntil && new Date(userStore.userProfile.sponsorUntil) > new Date() ? 'badge-secondary' : 'badge-ghost'">
                       {{ userStore.userProfile?.sponsorUntil ? '有效至 ' + formatDate(userStore.userProfile?.sponsorUntil) : '未赞助' }}
                   </div>
@@ -357,7 +357,7 @@ const selectLogDir = async () => {
     const selected = await open({ directory: true, multiple: false });
     if (selected) {
       logDir.value = selected;
-      handleLogDirChange();
+      await handleLogDirChange();
     }
   } catch (e) {
     console.error('选择目录失败:', e);
@@ -399,8 +399,8 @@ const handleCleanLogs = async () => {
 };
 
 onMounted(async () => {
-  loadLogConfig();
-  loadAdbConfig();
+  await loadLogConfig();
+  await loadAdbConfig();
 });
 
 // ADB 配置加载
@@ -450,4 +450,5 @@ const handleSaveAdbConfig = async () => {
     console.error('保存ADB配置失败:', e);
     showToast('保存ADB配置失败', 'error');
   }
-};
+}
+</script>

@@ -6,6 +6,15 @@ use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use sqlx::{Sqlite, Transaction};
 
+macro_rules! bind_chunk {
+    ($query:expr, $p:expr) => {
+        $query
+            .bind($p.id.to_string())
+            .bind($p.script_id.to_string())
+            .bind($p.order_index)
+            .bind(&$p.data)
+    };
+}
 /// 在给定事务中批量插入脚本及其所有关联数据
 /// 使用多行 INSERT 语法优化性能
 pub async fn batch_insert_script_related(
@@ -52,7 +61,7 @@ pub async fn batch_insert_script_related(
             );
             let mut query = sqlx::query(&sql);
             for g in chunk {
-                query = bind_chunk!(query, p);
+                query = bind_chunk!(query, g);
             }
             query.execute(&mut **tx).await.map_err(|e| format!("批量写入 policy_groups 失败: {}", e))?;
         }
@@ -68,7 +77,7 @@ pub async fn batch_insert_script_related(
             );
             let mut query = sqlx::query(&sql);
             for s in chunk {
-                query = bind_chunk!(query, p);
+                query = bind_chunk!(query, s);
             }
             query.execute(&mut **tx).await.map_err(|e| format!("批量写入 policy_sets 失败: {}", e))?;
         }
@@ -127,8 +136,6 @@ pub async fn batch_insert_script_related(
                     .bind(t.script_id.to_string())
                     .bind(&t.name)
                     .bind(t.is_hidden)
-                    .bind(&t.nodes)
-                    .bind(&t.edges)
                     .bind(&t.data);
             }
             query.execute(&mut **tx).await.map_err(|e| format!("批量写入 script_tasks 失败: {}", e))?;
@@ -136,14 +143,4 @@ pub async fn batch_insert_script_related(
     }
 
     Ok(())
-}
-
-macro_rules! bind_chunk {
-    ($query:expr, $p:expr) => {
-        $query
-            .bind($p.id.to_string())
-            .bind($p.script_id.to_string())
-            .bind($p.order_index)
-            .bind(&$p.data)
-    };
 }

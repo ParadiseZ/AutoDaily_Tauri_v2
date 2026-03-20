@@ -54,7 +54,7 @@ serde = { workspace = true}
 serde_json = "1"
 serde_yaml = "0.9"
 #erased-serde = "0.4.6"
-bincode = { version = "3.0.0" }
+bincode = { version = "=2.0.1" }
 
 # 截图
 xcap = "0.9.2"
@@ -78,7 +78,7 @@ base64 = "0.22"
 #图像处理
 image = { workspace = true }
 #ort = {version = "2.0.0-rc.10", features = ["directml", "cuda"] }
-ort = {version = "2.0.0-rc.10", features = ["directml"] }
+ort = {version = "2.0.0-rc.12", features = ["directml"] }
 ndarray = "0.17.2"
 imageproc = "0.26.1"
 rayon = "1.11.0"
@@ -94,7 +94,7 @@ num_cpus = "1.17"
 # 高性能哈希,hashmap
 ahash = {version = "0.8.12", features = ["serde"] }
 # 高性能哈希,hash值计算/文件一致性
-twox-hash = { version = "2.1.1", features = ["xxhash3_64"] }
+twox-hash = { version = "2", features = ["xxhash3_64"] }
 # 哈希加密用
 #sha3 = "0.10.8"
 # 内存映射(onnx无法避免加载模型数据这一步，故取消)
@@ -104,7 +104,7 @@ twox-hash = { version = "2.1.1", features = ["xxhash3_64"] }
 # 系统信息/监控
 #sysinfo = "0.37"
 # 进程间通信
-interprocess = { version = "2.2.3", features = ["tokio"] }
+interprocess = { version = "2", features = ["tokio"] }
 
 #异步
 tokio = { workspace = true }

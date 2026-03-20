@@ -164,6 +164,5 @@ pub fn run() {
         .expect("error while running tauri application");
     ort::init()
         .with_telemetry(false)
-        .commit()
-        .expect("ort 关闭遥测失败！");
+        .commit();
 }

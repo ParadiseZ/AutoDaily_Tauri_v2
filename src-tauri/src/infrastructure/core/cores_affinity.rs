@@ -32,11 +32,16 @@ pub fn set_process_affinity(cpu_ids: &[usize]) -> CoreResult<()> {
     }
 
     unsafe {
-        SetProcessAffinityMask(GetCurrentProcess(), process_mask).map_err(|e| {
+        if SetProcessAffinityMask(GetCurrentProcess(), process_mask) == 0 {
+            return Err(CoreError::AffinityMaskErr {
+                e: format!("Failed to set process affinity: {}", std::io::Error::last_os_error()),
+            });
+        }
+        /*SetProcessAffinityMask(GetCurrentProcess(), process_mask).map_err(|e| {
             CoreError::AffinityMaskErr {
                 e: format!("Failed to set process affinity: {}", e),
             }
-        })?;
+        })?;*/
 
         Ok(())
     }

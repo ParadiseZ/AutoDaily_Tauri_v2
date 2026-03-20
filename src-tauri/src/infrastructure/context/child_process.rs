@@ -4,7 +4,7 @@ use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::context::child_process_sec::init_ipc_client;
 use crate::infrastructure::context::init_error::{InitError, InitResult};
-use crate::infrastructure::context::runtime_context::{init_runtime_ctx, RuntimeContext, SharedRuntimeContext};
+use crate::infrastructure::context::runtime_context::{init_runtime_ctx, RuntimeContext};
 use crate::infrastructure::core::cores_affinity::set_process_affinity;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::init_db_with_path;
@@ -86,6 +86,6 @@ impl ChildProcessInitData {
     }
 
     pub fn init_ort_env() -> bool {
-        ort::init().with_telemetry(false).commit().unwrap_or(false)
+        ort::init().with_telemetry(false).commit()
     }
 }

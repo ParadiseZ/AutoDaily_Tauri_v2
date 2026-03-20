@@ -70,8 +70,6 @@ pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTab
             .bind(script_id.to_string())
             .bind(task.name)
             .bind(task.is_hidden)
-            .bind(task.nodes)
-            .bind(task.edges)
             .bind(task.data)
             .execute(&mut *tx)
             .await
@@ -108,8 +106,6 @@ pub async fn clone_local_script_cmd(
 ) -> ApiResponse<String> {
     use crate::domain::scripts::script_info::ScriptType;
     use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, TaskId, UserId};
-    use std::str::FromStr;
-
     let pool = get_pool();
     
     // 1. Fetch Script
@@ -188,8 +184,14 @@ pub async fn clone_local_script_cmd(
     for g in policy_groups.iter_mut() { let n = PolicyGroupId::new_v7(); group_map.insert(g.id.clone(), n.clone()); g.id = n; g.script_id = new_script_id.clone(); }
     for s in policy_sets.iter_mut() { let n = PolicySetId::new_v7(); set_map.insert(s.id.clone(), n.clone()); s.id = n; s.script_id = new_script_id.clone(); }
     for t in tasks.iter_mut() { t.id = TaskId::new_v7(); t.script_id = new_script_id.clone(); }
-    for gp in group_policies.iter_mut() { if let Some(n) = group_map.get(&gp.group_id) { gp.group_id = n.clone(); } if let Some(n) = policy_map.get(&gp.policy_id) { gp.policy_id = n.clone(); } }
-    for sg in set_groups.iter_mut() { if let Some(n) = set_map.get(&sg.set_id) { sg.set_id = n.clone(); } if let Some(n) = group_map.get(&sg.group_id) { sg.group_id = n.clone(); } }
+    for gp in group_policies.iter_mut() {
+        if let Some(n) = group_map.get(&gp.group_id) { gp.group_id = n.clone(); }
+        if let Some(n) = policy_map.get(&gp.policy_id) { gp.policy_id = n.clone(); }
+    }
+    for sg in set_groups.iter_mut() {
+        if let Some(n) = set_map.get(&sg.set_id) { sg.set_id = n.clone(); }
+        if let Some(n) = group_map.get(&sg.group_id) { sg.group_id = n.clone(); }
+    }
 
     // 7. Push to Transaction
     let mut tx = match pool.begin().await {

@@ -464,8 +464,6 @@ const saveScript = async () => {
         name: t.name,
         isHidden: t.isHidden,
         taskType: t.taskType || 'main',
-        nodes: t.nodes as any,
-        edges: t.edges as any,
         index: t.index !== undefined ? t.index : index,
         createdAt: t.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
