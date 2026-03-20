@@ -2,12 +2,14 @@
 # sccache 编译缓存加速 - 首次编译后，相同代码重编译速度提升 5-10 倍
 # 如果没有安装 sccache，运行: cargo install sccache
 rustc-wrapper = "D:\\Database\\Rust\\cargo\\bin\\sccache.exe"
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
 
 # 开发模式优化配置
 [profile.dev]
 incremental = true        # 增量编译（默认启用）
-opt-level = 3           # 轻量优化，显著减少编译时间
-lto = "thin"               # 禁用链接时优化
+opt-level = 2          # 轻量优化，显著减少编译时间
+lto = "fat"               # 禁用链接时优化
 codegen-units = 16       # 最大化并行编译
 strip = "none"            # 移除调试符号
 panic = "abort"          # panic 处理

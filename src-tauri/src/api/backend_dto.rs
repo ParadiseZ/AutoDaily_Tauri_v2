@@ -13,8 +13,6 @@ pub struct RegisterReq {
     pub username: String,
     pub password: String,
     pub email: String,
-    #[serde(rename = "displayName")]
-    pub display_name: String,
     pub code: String,
     pub phone: Option<String>,
 }
@@ -97,4 +95,10 @@ pub struct ScriptUploadRequest {
     pub policy_sets: Vec<crate::domain::scripts::policy::PolicySetTable>,
     pub group_policies: Vec<crate::domain::scripts::policy::GroupPolicyRelation>,
     pub set_groups: Vec<crate::domain::scripts::policy::SetGroupRelation>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateUsernameReq {
+    pub new_username: String,
 }

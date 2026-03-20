@@ -17,8 +17,16 @@
           </div>
           <div v-else class="grid grid-cols-1 gap-4">
               <div class="flex justify-between items-center">
-                  <span class="font-medium">昵称</span>
-                  <span class="opacity-80">{{ userStore.userProfile?.displayName || userStore.userProfile?.username || '获取中...' }}</span>
+                  <span class="font-medium">用户名</span>
+                  <div class="flex items-center gap-2">
+                      <span v-if="!isEditingUsername" class="opacity-80">{{ userStore.userProfile?.username || '获取中...' }}</span>
+                      <input v-else type="text" v-model="newUsername" class="input input-xs input-bordered w-32" @keyup.enter="handleUpdateUsername" />
+                      <button class="btn btn-xs btn-ghost" @click="isEditingUsername ? handleUpdateUsername() : startEditUsername()">
+                          <span v-if="isUpdatingUsername" class="loading loading-spinner loading-xs"></span>
+                          {{ isEditingUsername ? '保存' : '修改' }}
+                      </button>
+                      <button v-if="isEditingUsername" class="btn btn-xs btn-ghost text-error" @click="cancelEditUsername">取消</button>
+                  </div>
               </div>
               <div class="flex justify-between items-center">
                   <span class="font-medium">开发者状态</span>
@@ -235,6 +243,42 @@ import { showToast } from '../utils/toast.js';
 const userStore = useUserStore();
 const sponsorCode = ref('');
 const isRedeeming = ref(false);
+
+const isEditingUsername = ref(false);
+const isUpdatingUsername = ref(false);
+const newUsername = ref('');
+
+const startEditUsername = () => {
+    newUsername.value = userStore.userProfile?.username || '';
+    isEditingUsername.value = true;
+};
+
+const cancelEditUsername = () => {
+    isEditingUsername.value = false;
+    newUsername.value = '';
+};
+
+const handleUpdateUsername = async () => {
+    if (!newUsername.value || newUsername.value === userStore.userProfile?.username) {
+        isEditingUsername.value = false;
+        return;
+    }
+    isUpdatingUsername.value = true;
+    try {
+        const res = await apiInvoke('backend_update_username', { req: { newUsername: newUsername.value.trim() } });
+        if (res && res.success) {
+            showToast('用户名修改成功', 'success');
+            isEditingUsername.value = false;
+            await userStore.checkProfile();
+        } else {
+            showToast(res?.message || '修改失败', 'error');
+        }
+    } catch (e) {
+        showToast(e.message || '网络异常', 'error');
+    } finally {
+        isUpdatingUsername.value = false;
+    }
+};
 
 const formatDate = (dateStr) => {
     if (!dateStr) return '';

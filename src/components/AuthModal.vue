@@ -175,11 +175,6 @@ const sendResetVerificationCode = async () => {
                         <label class="label"><span class="label-text font-medium">账户名</span></label>
                         <input type="text" placeholder="仅限字母与数字" class="input input-bordered" v-model="formRegister.username" />
                     </div>
-                    <!-- Display Name -->
-                    <div class="form-control">
-                        <label class="label"><span class="label-text font-medium">昵称</span></label>
-                        <input type="text" placeholder="任意昵称" class="input input-bordered" v-model="formRegister.displayName" />
-                    </div>
                     <div class="form-control">
                         <label class="label"><span class="label-text font-medium">密码</span></label>
                         <input type="password" placeholder="••••••••" class="input input-bordered" v-model="formRegister.password" />

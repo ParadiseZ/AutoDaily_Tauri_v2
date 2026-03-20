@@ -43,20 +43,7 @@ pub async fn backend_login(
 ) -> ApiResponse<AuthRes> {
     let client = HttpClient::new(app_handle);
     let res: AppResult<BackendApiRes<AuthRes>> = client.post("/auth/login", &req).await;
-    match res {
-        Ok(api_res) => {
-            if api_res.code == 200 {
-                if let Some(auth_data) = &api_res.data {
-                    // Save JWT locally via Store
-                    let _ = client.set_jwt_token(&auth_data.access_token);
-                }
-                ApiResponse::success(api_res.data, Some(api_res.message))
-            } else {
-                ApiResponse::error(Some(api_res.message))
-            }
-        }
-        Err(e) => ApiResponse::error(Some(e.to_string())),
-    }
+    trans_api_res_token(client,res)
 }
 
 #[command]
@@ -91,6 +78,16 @@ pub async fn backend_redeem_sponsor_code(
     let client = HttpClient::new(app_handle);
     let res: AppResult<BackendApiRes<String>> = client.post("/sponsor/redeem", &req).await;
     trans_api_res(res)
+}
+
+#[command]
+pub async fn backend_update_username(
+    app_handle: AppHandle,
+    req: UpdateUsernameReq,
+) -> ApiResponse<AuthRes> {
+    let client = HttpClient::new(app_handle);
+    let res: AppResult<BackendApiRes<AuthRes>> = client.post("/user/username", &req).await;
+    trans_api_res_token(client,res)
 }
 
 #[command]
@@ -395,6 +392,23 @@ fn trans_api_res<T: Serialize>(api_res: AppResult<BackendApiRes<T>>) -> ApiRespo
     match api_res {
         Ok(api_res) => {
             if api_res.code == 200 {
+                ApiResponse::success(api_res.data, Some(api_res.message))
+            } else {
+                ApiResponse::error(Some(api_res.message))
+            }
+        }
+        Err(e) => ApiResponse::error(Some(e.to_string())),
+    }
+}
+
+fn trans_api_res_token(client: HttpClient,api_res: AppResult<BackendApiRes<AuthRes>>) -> ApiResponse<AuthRes> {
+    match api_res {
+        Ok(api_res) => {
+            if api_res.code == 200 {
+                if let Some(auth_data) = &api_res.data {
+                    // Save JWT locally via Store
+                    let _ = client.set_jwt_token(&auth_data.access_token);
+                }
                 ApiResponse::success(api_res.data, Some(api_res.message))
             } else {
                 ApiResponse::error(Some(api_res.message))

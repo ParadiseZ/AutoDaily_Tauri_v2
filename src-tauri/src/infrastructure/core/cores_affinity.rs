@@ -12,7 +12,7 @@ pub struct CurrentProcess {
 
 #[cfg(target_os = "windows")]
 pub fn set_process_affinity(cpu_ids: &[usize]) -> CoreResult<()> {
-    use windows::Win32::System::Threading::{GetCurrentProcess, SetProcessAffinityMask};
+    use windows_sys::Win32::System::Threading::{GetCurrentProcess, SetProcessAffinityMask};
     // 输入验证
     if cpu_ids.is_empty() {
         return Err(CoreError::AffinityMaskErr {
