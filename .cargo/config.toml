@@ -7,21 +7,22 @@ linker = "rust-lld.exe"
 
 # 开发模式优化配置
 [profile.dev]
-incremental = true        # 增量编译（默认启用）
-opt-level = 2          # 轻量优化，显著减少编译时间
-lto = "fat"               # 禁用链接时优化
-codegen-units = 16       # 最大化并行编译
-strip = "none"            # 移除调试符号
-panic = "abort"          # panic 处理
+incremental = true        # 保留增量编译
+opt-level = 0             # 开发态优先编译速度
+lto = false               # 关闭 LTO，避免 dev 链接过慢
+codegen-units = 256       # 提高并行拆分，缩短 dev 编译时间
+debug = 1                 # 保留基础调试信息，减轻链接负担
+strip = "none"            # 开发态保留符号
+panic = "abort"           # panic 处理
 #codegen-backend = "cranelift"       # 已禁用：与 FFI 包（如 aws-lc-rs）不兼容
 
 # sqlx-macros 编译优化（宏展开优化）
 [profile.dev.package.sqlx-macros]
-opt-level = 3
+opt-level = 0
 
-# 依赖包编译优化 - 对依赖进行更高级别的优化，加快运行速度，同时不影响自己代码的编译速度
+# 依赖包在开发态使用轻量优化，避免首次构建和重链接过慢
 [profile.dev.package."*"]
-opt-level = 3
+opt-level = 1
 
 # ts-rs 生成的 TypeScript 绑定输出目录
 [env]

@@ -22,28 +22,29 @@ const routes = [
         name: 'Logs',
         label: "运行日志",
         icon: FileText,
-        component: () => import('../views/Logs.vue')
+        // Placeholder for Logs
+        component: () => import('../views/Settings.vue') // temp alias to avoid crashing if file missing
     },
     {
         path: '/scripts',
         name: 'LocalScriptList',
         label: "本地列表",
         icon: FileCode,
-        component: () => import('../views/ScriptList.vue')
+        component: () => import('../views/Settings.vue') // temp alias
     },
     {
         path: '/market',
         name: 'ScriptMarket',
         label: "脚本市场",
         icon: ShoppingBag,
-        component: () => import('../views/ScriptMarket.vue')
+        component: () => import('../views/Settings.vue') // temp alias
     },
     {
         path: '/devices',
         name: 'DeviceList',
         label: "设备列表",
         icon: Smartphone,
-        component: () => import('../views/DeviceList.vue')
+        component: () => import('../views/Settings.vue') // temp alias
     },
     {
         path: '/settings',
@@ -64,7 +65,7 @@ const routes = [
         name: 'ScriptEditor',
         label: "脚本开发",
         icon: Monitor,
-        component: () => import('../views/ScriptEditor.vue')
+        component: () => import('../views/Settings.vue') // temp alias
     }
 ];
 

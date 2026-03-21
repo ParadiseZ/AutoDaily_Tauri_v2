@@ -32,6 +32,7 @@ target/*
 doc_old/*
 doc/*
 src_bak/*
+src_bak_sec/*
 .trae/*
 .agent/*
 
