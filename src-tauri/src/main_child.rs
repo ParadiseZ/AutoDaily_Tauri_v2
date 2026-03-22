@@ -1,11 +1,11 @@
-use auto_daily_lib::infrastructure::context::child_process::ChildProcessInitData;
-use auto_daily_lib::infrastructure::context::child_process_sec::{
+use child_support::infrastructure::context::child_process::ChildProcessInitData;
+use child_support::infrastructure::context::child_process_sec::{
     get_running_status, process_need_stop, set_running_status, RunningStatus,
 };
-use auto_daily_lib::infrastructure::context::init_error::InitError;
-use auto_daily_lib::infrastructure::core::{Deserialize, Error, Serialize};
-use auto_daily_lib::infrastructure::logging::log_trait::Log;
-use auto_daily_lib::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
+use child_support::infrastructure::context::init_error::InitError;
+use child_support::infrastructure::core::{Deserialize, Error, Serialize};
+use child_support::infrastructure::logging::log_trait::Log;
+use child_support::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Error, Debug, Serialize, Deserialize)]
@@ -59,7 +59,7 @@ async fn run_child_process() -> ChildProcessResult<()> {
 
     // 3. 创建 CancellationToken 用于优雅停止，并注册到全局
     let cancel_token = CancellationToken::new();
-    auto_daily_lib::infrastructure::context::child_process_sec::init_cancel_token(cancel_token.clone());
+    child_support::infrastructure::context::child_process_sec::init_cancel_token(cancel_token.clone());
 
     // 4. 启动信号处理器
     {

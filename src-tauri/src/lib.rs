@@ -4,7 +4,7 @@
 
 extern crate core;
 
-// Legacy modules (will be gradually phased out)
+// Legacy modules (will be gradually phased out).
 mod api;
 mod app;
 mod constant;
