@@ -43,6 +43,19 @@ crossbeam-channel = "0.5.15"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tracing = "0.1"
 adb_client = { version = "3.1.1", default-features = false, features = ["mdns", "usb"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.18.0", features = ["v7", "serde"] }
+serde_yaml = "0.9"
+bincode = { version = "=2.0.1" }
+base64 = "0.22"
+ort = { version = "2.0.0-rc.12", features = ["directml"] }
+ndarray = "0.17.2"
+imageproc = { version = "0.26.1", default-features = false, features = ["rayon"] }
+rayon = "1.11.0"
+ahash = { version = "0.8.12", features = ["serde"] }
+aho-corasick = "1.1"
+regex = "1.12.2"
+ts-rs = { version = "12", features = ["serde-json-impl"] }
 
 
 [build-dependencies]
@@ -64,9 +77,8 @@ tauri-plugin-store = "2"
 #序列化/yaml
 serde = { workspace = true}
 serde_json = "1"
-serde_yaml = "0.9"
+serde_yaml = { workspace = true }
 #erased-serde = "0.4.6"
-bincode = { version = "=2.0.1" }
 
 # 截图
 xcap = "0.9.2"
@@ -83,17 +95,14 @@ tracing-subscriber  = { version = "0.3", features = ["env-filter", "fmt", "ansi"
 tracing-appender = "0.2"
 #once_cell = "1.21"
 # time format
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { workspace = true }
 # encode/decode
-base64 = "0.22"
+base64 = { workspace = true }
 
 #图像处理
 image = { workspace = true }
 #ort = {version = "2.0.0-rc.10", features = ["directml", "cuda"] }
-ort = {version = "2.0.0-rc.12", features = ["directml"] }
-ndarray = "0.17.2"
-imageproc = { version = "0.26.1", default-features = false, features = ["rayon"] }
-rayon = "1.11.0"
+ort = { workspace = true }
 
 ##绘制/更改为前端绘制检测结果
 #raqote = { version = "0.8", default-features = false,  features = ["text"] }
@@ -103,8 +112,6 @@ rayon = "1.11.0"
 num_cpus = "1.17"
 # cpu亲和性
 #core_affinity = "0"
-# 高性能哈希,hashmap
-ahash = {version = "0.8.12", features = ["serde"] }
 # 高性能哈希,hash值计算/文件一致性
 twox-hash = { version = "2", features = ["xxhash3_64"] }
 # 哈希加密用
@@ -127,7 +134,7 @@ crossbeam-channel = { workspace = true}
 
 # 异步trait
 async-trait = "0.1.89"
-uuid = { version = "1.18.0", features = ["v7", "serde"] }
+uuid = { workspace = true }
 
 # 日期口而笑哦
 cron = "0.15.0"
@@ -142,11 +149,8 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 num = "0.4.3"
 
 # 字符串搜索
-aho-corasick = "1.1"
-regex = "1.12.2"
-
 # TypeScript 类型生成
-ts-rs = { version = "12", features = ["serde-json-impl"] }
+ts-rs = { workspace = true }
 machineid-rs = "1.2.4"
 #machine-uid = "0.5.4"
 

@@ -16,32 +16,32 @@ tracing = { workspace = true }
 adb_client = { workspace = true }
 
 serde_json = "1"
-serde_yaml = "0.9"
-bincode = { version = "=2.0.1" }
+serde_yaml = { workspace = true }
+bincode = { workspace = true }
 xcap = "0.9.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
 tracing-appender = "0.2"
-chrono = { version = "0.4", features = ["serde"] }
-base64 = "0.22"
-ort = { version = "2.0.0-rc.12", features = ["directml"] }
-ndarray = "0.17.2"
-imageproc = { version = "0.26.1", default-features = false, features = ["rayon"] }
-rayon = "1.11.0"
+chrono = { workspace = true }
+base64 = { workspace = true }
+ort = { workspace = true }
+ndarray = { workspace = true }
+imageproc = { workspace = true }
+rayon = { workspace = true }
 num_cpus = "1.17"
-ahash = { version = "0.8.12", features = ["serde"] }
+ahash = { workspace = true }
 twox-hash = { version = "2", features = ["xxhash3_64"] }
 interprocess = { version = "2", features = ["tokio"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "json", "multipart"] }
 async-trait = "0.1.89"
-uuid = { version = "1.18.0", features = ["v7", "serde"] }
+uuid = { workspace = true }
 cron = "0.15.0"
 rhai = { version = "1.23.4", features = ["serde", "sync"] }
 lazy_static = "1.5.0"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "json", "chrono", "macros", "derive"] }
 num = "0.4.3"
-aho-corasick = "1.1"
-regex = "1.12.2"
-ts-rs = { version = "12", features = ["serde-json-impl"] }
+aho-corasick = { workspace = true }
+regex = { workspace = true }
+ts-rs = { workspace = true }
 machineid-rs = "1.2.4"
 tauri = { version = "2", features = ["uuid", "unstable"] }
 tauri-plugin-store = "2"
