@@ -19,7 +19,7 @@ Note: Vite dev server uses port 9999 and `strictPort: true` (see `vite.config.js
 ## High-level architecture (what to know immediately)
 
 - Frontend (src/): Vue 3 + Vite. Main entry: `src/main.js`. Router in `src/router`. UI layouts in `src/layouts/` and `src/components/`.
-- Backend (src-tauri/): Rust/Tauri. Library crate `auto_daily_lib` and a child binary `auto_daily_child` (see `src-tauri/Cargo.toml` and `src/main_child.rs`). Rust code is modularized under `src-tauri/src/` — notable modules: `api.rs`, `infrastructure/`, `domain/`, `dev_test`.
+- Backend (src-tauri/): Rust/Tauri. Library crate `auto_daily_lib` and an opt-in child binary `child` (enable with feature `child-bin`; see `src-tauri/Cargo.toml` and `src/main_child.rs`). Rust code is modularized under `src-tauri/src/` — notable modules: `api.rs`, `infrastructure/`, `domain/`, `dev_test`.
 - IPC & multi-process: The project is moving to a multi-process architecture for device isolation and performance. Look for `interprocess`, `rayon`, `tokio`, and `crossbeam-channel` usages in `src-tauri/Cargo.toml` and `src-tauri/src`.
 - Resources & models: Bundled model files are referenced in `src-tauri/tauri.conf.json` under `bundle.resources` (e.g. `./models/**/*`).
 

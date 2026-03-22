@@ -1,2 +1,1 @@
-pub mod execution_provider_mgr;
-pub mod ort_error;
+pub use vision_core::infrastructure::ort::{execution_provider_mgr, ort_error};

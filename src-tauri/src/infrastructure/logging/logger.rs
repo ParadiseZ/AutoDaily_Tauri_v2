@@ -1,13 +1,12 @@
 use crate::infrastructure::core::time_format::LocalTimer;
-use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::logging::config::LogMain;
 use crate::infrastructure::logging::log_error::{LogError, LogResult};
 use crate::infrastructure::logging::log_trait::{Log, LogTrait};
+use crate::infrastructure::logging::LogLevel;
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use chrono::Local;
 use std::path::PathBuf;
 use std::sync::Arc;
-use bincode::{Decode, Encode};
 use lazy_static::lazy_static;
 use tauri::path::BaseDirectory;
 use tokio::sync::{Mutex, RwLock};
@@ -16,41 +15,6 @@ use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::filter::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{fmt, reload, Registry};
-
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, ts_rs::TS)]
-#[ts(export)]
-#[repr(u8)]
-pub enum LogLevel {
-    Debug = 1,
-    Info = 2,
-    Warn = 3,
-    Error = 4,
-    Off = 5,
-}
-impl From<u8> for LogLevel {
-    fn from(v: u8) -> Self {
-        match v {
-            1 => LogLevel::Debug,
-            2 => LogLevel::Info,
-            3 => LogLevel::Warn,
-            4 => LogLevel::Error,
-            _ => LogLevel::Off,
-        }
-    }
-}
-
-impl std::fmt::Display for LogLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let s = match self {
-            LogLevel::Debug => "Debug",
-            LogLevel::Info => "Info",
-            LogLevel::Warn => "Warn",
-            LogLevel::Error => "Error",
-            LogLevel::Off => "Off",
-        };
-        write!(f, "{}", s)
-    }
-}
 
 lazy_static! {
     /// 日志级别 reload handle（用于动态调整主进程日志级别）

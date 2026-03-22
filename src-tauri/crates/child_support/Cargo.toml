@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+runtime_common = { path = "../runtime_common" }
+vision_core = { path = "../vision_core" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }

@@ -39,7 +39,8 @@ impl ChildProcessInitData {
             .map_err(|e| InitError::InitChildCoreAffinity { e: e.to_string() })?;
 
         // 2. 初始化日志
-        Log::init_logger(Box::new(LogChild))?;
+        Log::init_logger(Box::new(LogChild))
+            .map_err(|e| InitError::InitLoggerFailed { e: e.to_string() })?;
 
         // 3. 初始化数据库连接
         init_db_with_path(&self.db_path)

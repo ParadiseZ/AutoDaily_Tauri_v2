@@ -1,7 +1,1 @@
-pub mod color_analyzer;
-pub mod det;
-pub mod base_traits;
-pub mod ocr_service;
-pub mod rec;
-pub mod vision_error;
-mod base_model;
+pub use vision_core::infrastructure::vision::{base_traits, color_analyzer, det, ocr_service, rec, vision_error};

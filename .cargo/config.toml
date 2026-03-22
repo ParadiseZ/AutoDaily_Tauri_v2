@@ -24,6 +24,17 @@ opt-level = 0
 [profile.dev.package."*"]
 opt-level = 1
 
+[alias]
+# 默认主应用检查/构建：不拉起 child 相关 feature
+appcheck = "check"
+appbuild = "build"
+# 子进程联调：按需启用 child-bin
+childcheck = "check --features child-bin --bin child"
+childbuild = "build --features child-bin --bin child"
+# 需要一起验证主应用 + child 时使用
+fullcheck = "check --features child-bin"
+fullbuild = "build --features child-bin"
+
 # ts-rs 生成的 TypeScript 绑定输出目录
 [env]
 TS_RS_EXPORT_DIR = { value = "src/types/bindings", relative = true }

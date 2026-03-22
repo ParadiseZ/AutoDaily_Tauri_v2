@@ -11,7 +11,7 @@ default = []
 child-bin = ["dep:child_support"]
 
 [workspace]
-members = [".", "crates/child_support"]
+members = [".", "crates/child_support", "crates/runtime_common", "crates/vision_core"]
 resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -50,6 +50,8 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 child_support = { path = "crates/child_support", optional = true }
+runtime_common = { path = "crates/runtime_common" }
+vision_core = { path = "crates/vision_core" }
 #tauri
 tauri = { version = "2", features = ["uuid", "unstable"] }
 tauri-plugin-opener = "2"

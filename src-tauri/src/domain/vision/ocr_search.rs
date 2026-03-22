@@ -1,4 +1,4 @@
-use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
+use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::vision::vision_error::VisionResult;
 use aho_corasick::AhoCorasick;
 use image::RgbaImage;

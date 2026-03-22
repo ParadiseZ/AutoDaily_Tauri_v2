@@ -2,14 +2,13 @@ use crate::api::api_response::ApiResponse;
 use crate::constant::project::{MAIN_WINDOW, SOCKET_NAME};
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::child_process_sec::RunningStatus;
-use crate::infrastructure::context::init_error::InitError;
 use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::time_format::LocalTimer;
 use crate::infrastructure::core::{
     decode_from_slice, encode_to_vec, serialize_config, Deserialize, DeviceId, Serialize,
 };
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
-use crate::infrastructure::ipc::channel_error::ChannelResult;
+use crate::infrastructure::ipc::channel_error::{ChannelError, ChannelResult};
 use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload};
 use crate::infrastructure::logging::log_trait::Log;
 use interprocess::local_socket::tokio::prelude::LocalSocketStream;
@@ -34,19 +33,17 @@ pub struct IpcServer;
 impl IpcServer {
     pub(crate) fn start() -> ChannelResult<()> {
         let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>().map_err(|e| {
-            InitError::InitMainIpcServerErr {
-                name: SOCKET_NAME.to_string(),
-                e: e.to_string(),
+            ChannelError::InitFailed {
+                e: format!("初始化主进程 IPC 服务失败 [{}]: {}", SOCKET_NAME, e),
             }
         })?;
         let opts = ListenerOptions::new().name(name);
         let listener: interprocess::local_socket::tokio::Listener = match opts.create_tokio() {
             Err(e) => {
                 Log::info(&format!("[ socket ] ❌ {}，启动失败", SOCKET_NAME));
-                return Err(InitError::InitMainIpcServerErr {
-                    name: SOCKET_NAME.to_string(),
-                    e: e.to_string(),
-                })?;
+                return Err(ChannelError::InitFailed {
+                    e: format!("初始化主进程 IPC 服务失败 [{}]: {}", SOCKET_NAME, e),
+                });
             }
             Ok(l) => l,
         };

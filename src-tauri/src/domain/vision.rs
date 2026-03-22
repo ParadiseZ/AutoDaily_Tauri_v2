@@ -1,2 +1,1 @@
-pub mod result;
-pub mod ocr_search;
+pub use vision_core::domain::vision::*;

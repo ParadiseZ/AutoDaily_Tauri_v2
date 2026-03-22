@@ -1,6 +1,6 @@
 use crate::domain::vision::result::BoundingBox;
 use crate::infrastructure::vision::vision_error::VisionResult;
-use image::{GenericImageView, Rgba, RgbaImage};
+use image::{Rgba, RgbaImage};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ColorTag {

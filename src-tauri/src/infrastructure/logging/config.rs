@@ -1,6 +1,6 @@
 use crate::infrastructure::core::{Deserialize, Serialize};
 use std::fmt;
-use crate::infrastructure::logging::logger::LogLevel;
+use crate::infrastructure::logging::LogLevel;
 
 /// 主进程日志配置
 #[derive(Debug, Clone, Serialize, Deserialize)]

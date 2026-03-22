@@ -447,6 +447,7 @@ dependencies = [
  "regex",
  "reqwest 0.13.2",
  "rhai",
+ "runtime_common",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -470,6 +471,7 @@ dependencies = [
  "ts-rs",
  "twox-hash",
  "uuid",
+ "vision_core",
  "windows-sys 0.61.2",
  "xcap",
 ]
@@ -938,6 +940,7 @@ dependencies = [
  "regex",
  "reqwest 0.13.2",
  "rhai",
+ "runtime_common",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -953,6 +956,7 @@ dependencies = [
  "ts-rs",
  "twox-hash",
  "uuid",
+ "vision_core",
  "windows-sys 0.61.2",
  "xcap",
 ]
@@ -5558,6 +5562,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "runtime_common"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "async-trait",
+ "bincode",
+ "chrono",
+ "lazy_static",
+ "serde",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing-subscriber",
+ "ts-rs",
+ "uuid",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "rusb"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7854,6 +7877,27 @@ name = "virtue"
 version = "0.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "051eb1abcf10076295e815102942cc58f9d5e3b4560e46e53c21e8ff6f3af7b1"
+
+[[package]]
+name = "vision_core"
+version = "0.1.0"
+dependencies = [
+ "aho-corasick",
+ "base64 0.22.1",
+ "bincode",
+ "image",
+ "imageproc",
+ "ndarray",
+ "ort",
+ "rayon",
+ "regex",
+ "runtime_common",
+ "serde",
+ "serde_yaml",
+ "thiserror 2.0.18",
+ "tokio",
+ "ts-rs",
+]
 
 [[package]]
 name = "vswhom"
