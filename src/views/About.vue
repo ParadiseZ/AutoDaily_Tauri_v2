@@ -1,7 +1,7 @@
 <template>
   <div class="w-full max-w-3xl mx-auto flex flex-col items-center justify-center gap-6 py-20">
-    <div class="w-24 h-24 rounded-3xl bg-gradient-to-tr from-base-content/80 to-base-content/30 flex items-center justify-center shadow-lg">
-      <Command class="w-12 h-12 text-base-100" />
+    <div class="w-24 h-24 rounded-3xl bg-linear-to-tr from-primary to-secondary flex items-center justify-center shadow-xl shadow-primary/20">
+      <Command class="w-12 h-12 text-primary-content" />
     </div>
     
     <div class="text-center">
@@ -15,7 +15,7 @@
           旨在提供最高效的原生体验。
        </p>
        
-       <button class="btn btn-sm mt-6 font-medium bg-base-content text-base-100 rounded-lg hover:bg-base-content/90 border-none tracking-wide px-6">
+       <button class="btn btn-sm btn-primary mt-6 font-medium rounded-lg border-none tracking-wide px-6 shadow-md shadow-primary/20">
           检查更新
        </button>
     </div>

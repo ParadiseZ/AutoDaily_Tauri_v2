@@ -9,9 +9,8 @@
 import { onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import MainLayout from './layouts/MainLayout.vue';
-import AuthModal from './components/AuthModal.vue';
-//import { useThemeManager } from './views/script-editor/composables/index.js';
-import { appThemeKey } from './store/store.js';
+import { useThemeManager } from './composables/useThemeManager';
+import { appThemeKey } from './store/store';
 import { useUserStore } from './store/user.js';
 
 const { initTheme } = useThemeManager();

@@ -7,7 +7,8 @@ const defaultPath = (await getFromStore<{ path: string }>(defaultRouterKey).then
 const routes = [
     {
         path: '/',
-        redirect: defaultPath,
+        //redirect: defaultPath,
+        component: () => import('../views/Settings.vue')
         //label: "根路径" //不展示根目录
     },
     {

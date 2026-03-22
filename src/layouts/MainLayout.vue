@@ -22,8 +22,8 @@
             class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors duration-150 cursor-pointer"
             :class="[
               isActive(route.path) 
-                ? 'bg-base-content/10 text-base-content shadow-sm' 
-                : 'text-base-content/60 hover:bg-base-content/5 hover:text-base-content/80'
+                ? 'bg-primary text-primary-content shadow-md shadow-primary/20' 
+                : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'
             ]"
           >
             <component :is="route.icon" class="w-4 h-4 opacity-80" />
@@ -43,8 +43,8 @@
             class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors duration-150 cursor-pointer"
             :class="[
               isActive(route.path) 
-                ? 'bg-base-content/10 text-base-content shadow-sm' 
-                : 'text-base-content/60 hover:bg-base-content/5 hover:text-base-content/80'
+                ? 'bg-primary text-primary-content shadow-md shadow-primary/20' 
+                : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'
             ]"
           >
             <component :is="route.icon" class="w-4 h-4 opacity-80" />
@@ -56,13 +56,13 @@
         <div class="w-full h-px bg-base-content/5 my-2"></div>
 
         <!-- User Profile Area -->
-        <div class="mt-2 px-2 flex items-center gap-3 cursor-pointer hover:bg-base-content/5 p-1.5 rounded-lg transition-colors" @click="handleUserClick">
-          <div class="w-7 h-7 rounded-full bg-gradient-to-br from-base-content/80 to-base-content/40 flex items-center justify-center text-base-100 text-xs font-bold shadow-sm">
+        <div class="mt-2 px-2 flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded-xl transition-colors" @click="handleUserClick">
+          <div class="w-8 h-8 rounded-full bg-linear-to-br from-primary to-secondary flex items-center justify-center text-primary-content text-sm font-bold shadow-md">
             {{ userInitial }}
           </div>
           <div class="flex flex-col">
-            <span class="text-[12px] font-medium leading-tight text-base-content/80">{{ userName }}</span>
-            <span class="text-[10px] text-base-content/40 leading-tight">{{ userStatus }}</span>
+            <span class="text-[13px] font-semibold leading-tight text-base-content">{{ userName }}</span>
+            <span class="text-[11px] text-primary font-medium leading-tight mt-0.5">{{ userStatus }}</span>
           </div>
         </div>
       </div>
@@ -97,8 +97,8 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 // NOTE: Extension omitted to let Vite resolve .ts or .js automatically
-import { routesMenu } from '../router/index';
-import { useUserStore } from '../store/user';
+import { routesMenu } from '@/router';
+import { useUserStore } from '@/store/user';
 import { Command } from 'lucide-vue-next';
 
 const route = useRoute();

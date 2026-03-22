@@ -10,26 +10,26 @@
       <h2 class="text-[11px] font-semibold uppercase tracking-wider text-base-content/50 ml-4 mb-1">常规</h2>
       <div class="bg-base-100 border border-base-content/5 rounded-2xl overflow-hidden shadow-sm">
         
-        <div class="p-4 flex items-center justify-between bg-base-100 hover:bg-base-content/[0.02] transition-colors cursor-pointer" @click="toggleAutoStart">
+        <div class="p-4 flex items-center justify-between bg-base-100 hover:bg-base-200/80 transition-colors cursor-pointer" @click="toggleAutoStart">
           <div>
             <div class="text-[14px] font-medium text-base-content/90">开机自启</div>
             <div class="text-[12px] text-base-content/50 mt-0.5">登录操作系统后自动运行 AutoDaily</div>
           </div>
           <!-- DaisyUI switch styled to look more like iOS -->
-          <input type="checkbox" v-model="autoStart" class="toggle toggle-md bg-base-300 border-base-300 [&:checked]:bg-emerald-500 [&:checked]:border-emerald-500 hover:opacity-90" @click.stop />
+          <input type="checkbox" v-model="autoStart" class="toggle toggle-md bg-base-300 border-base-300 checked:bg-primary checked:border-primary hover:opacity-90 transition-all" @click.stop />
         </div>
         
         <div class="w-auto h-px bg-base-content/5 ml-4"></div>
         
-        <div class="p-4 flex items-center justify-between bg-base-100 hover:bg-base-content/[0.02] transition-colors">
+        <div class="p-4 flex items-center justify-between bg-base-100 hover:bg-base-200/80 transition-colors">
           <div>
             <div class="text-[14px] font-medium text-base-content/90">外观模式</div>
             <div class="text-[12px] text-base-content/50 mt-0.5">选择界面色彩主题</div>
           </div>
-          <select class="select select-sm select-bordered w-32 bg-base-200/50 text-[13px] rounded-lg focus:outline-none focus:ring-2 focus:ring-base-content/20 transition-all border-none">
-            <option>随系统</option>
-            <option>浅色</option>
-            <option>深色</option>
+          <select v-model="themeSetting" @change="handleThemeChange" class="select select-sm select-bordered w-32 bg-base-200/50 text-[13px] rounded-lg focus:outline-none focus:ring-2 focus:ring-base-content/20 transition-all border-none">
+            <option value="system">随系统</option>
+            <option value="light">浅色</option>
+            <option value="dark">深色</option>
           </select>
         </div>
 
@@ -56,11 +56,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
+import { useThemeManager } from '../composables/useThemeManager';
+import { appThemeKey, getFromStore } from '../store/store';
 
 const autoStart = ref(true);
-
 const toggleAutoStart = () => {
     autoStart.value = !autoStart.value;
+};
+
+// Theme integration
+const { setTheme } = useThemeManager();
+const themeSetting = ref('system');
+
+onMounted(async () => {
+    const saved = await getFromStore<string>(appThemeKey);
+    if (saved && ['light', 'dark', 'system'].includes(saved)) {
+        themeSetting.value = saved;
+    }
+});
+
+const handleThemeChange = async () => {
+    await setTheme(appThemeKey, themeSetting.value as 'light' | 'dark' | 'system');
 };
 </script>
