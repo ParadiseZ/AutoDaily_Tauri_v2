@@ -27,27 +27,26 @@ ahash = { workspace = true }
 aho-corasick = { workspace = true }
 regex = { workspace = true }
 ts-rs = { workspace = true }
-
-serde_json = "1"
-xcap = "0.9.2"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
-tracing-appender = "0.2"
-num_cpus = "1.17"
-twox-hash = { version = "2", features = ["xxhash3_64"] }
-interprocess = { version = "2", features = ["tokio"] }
-reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "json", "multipart"] }
-async-trait = "0.1.89"
-cron = "0.15.0"
-rhai = { version = "1.23.4", features = ["serde", "sync"] }
-lazy_static = "1.5.0"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "json", "chrono", "macros", "derive"] }
-num = "0.4.3"
-machineid-rs = "1.2.4"
-tauri = { version = "2", features = ["uuid", "unstable"] }
-tauri-plugin-store = "2"
+serde_json = { workspace = true }
+xcap = { workspace = true }
+tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
+num_cpus = { workspace = true }
+twox-hash = { workspace = true }
+interprocess = { workspace = true }
+reqwest = { workspace = true }
+async-trait = { workspace = true }
+cron = { workspace = true }
+rhai = { workspace = true }
+lazy_static = { workspace = true }
+sqlx = { workspace = true }
+num = { workspace = true }
+machineid-rs = { workspace = true }
+tauri = { workspace = true }
+tauri-plugin-store = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Security", "Win32_System_Threading"] }
+windows-sys = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
-nix = "0.31.2"
+nix = { workspace = true }

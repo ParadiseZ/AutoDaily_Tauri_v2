@@ -461,7 +461,6 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-appender",
- "tracing-subscriber",
  "ts-rs",
  "twox-hash",
  "uuid",

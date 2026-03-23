@@ -9,5 +9,5 @@ vision_core = { path = "../vision_core" }
 runtime_engine = { path = "../runtime_engine" }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
-interprocess = { version = "2", features = ["tokio"] }
-rhai = { version = "1.23.4", features = ["serde", "sync"] }
+interprocess = { workspace = true }
+rhai = { workspace = true }
