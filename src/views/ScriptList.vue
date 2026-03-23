@@ -12,12 +12,13 @@
         :scripts="filteredScripts"
         :selected-script-id="scriptStore.selectedScriptId"
         @select="scriptStore.selectScript"
-        @create="handleCreateScript"
+        @create="openCreateDialog"
       />
 
       <ScriptDetailPanel
         :script="selectedScript"
         @open-editor="openEditor"
+        @edit-info="openEditDialog"
         @upload="handleUpload"
         @clone="handleClone"
         @clear-logs="handleClearLogs"
@@ -33,6 +34,13 @@
         :time-templates="taskStore.timeTemplates"
       />
     </div>
+
+    <ScriptInfoDialog
+      :open="scriptInfoDialogOpen"
+      :script="editingScript"
+      @close="closeInfoDialog"
+      @save="handleSaveScriptInfo"
+    />
   </div>
 </template>
 
@@ -42,12 +50,14 @@ import { useRouter } from 'vue-router';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
+import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import ScriptListSidebar from '@/views/script-list/ScriptListSidebar.vue';
 import ScriptTaskInspector from '@/views/script-list/ScriptTaskInspector.vue';
 import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
+import type { ScriptInfoDraft } from '@/types/app/domain';
 import { showToast } from '@/utils/toast';
 
 const router = useRouter();
@@ -56,6 +66,8 @@ const scriptStore = useScriptStore();
 const taskStore = useTaskStore();
 const userStore = useUserStore();
 const searchQuery = ref('');
+const scriptInfoDialogOpen = ref(false);
+const editingScriptId = ref<string | null>(null);
 
 const filteredScripts = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -79,14 +91,43 @@ const selectedScript = computed(() => {
   return filteredScripts.value[0] ?? null;
 });
 
-const handleCreateScript = async () => {
+const editingScript = computed(() => {
+  if (!editingScriptId.value) {
+    return null;
+  }
+
+  return scriptStore.scripts.find((script) => script.id === editingScriptId.value) ?? null;
+});
+
+const openCreateDialog = () => {
+  editingScriptId.value = null;
+  scriptInfoDialogOpen.value = true;
+};
+
+const openEditDialog = (scriptId: string) => {
+  scriptStore.selectScript(scriptId);
+  editingScriptId.value = scriptId;
+  scriptInfoDialogOpen.value = true;
+};
+
+const closeInfoDialog = () => {
+  scriptInfoDialogOpen.value = false;
+  editingScriptId.value = null;
+};
+
+const handleSaveScriptInfo = async (draft: ScriptInfoDraft) => {
   try {
-    const script = await scriptStore.createScript(`未命名脚本 ${scriptStore.scripts.length + 1}`, userStore.userProfile);
-    showToast('已创建本地脚本草稿', 'success');
-    openEditor(script.id);
+    if (editingScriptId.value) {
+      await scriptStore.saveScriptInfo(editingScriptId.value, draft);
+      showToast('脚本信息已更新', 'success');
+    } else {
+      const script = await scriptStore.createScript(draft, userStore.userProfile);
+      scriptStore.selectScript(script.id);
+      showToast('已创建本地脚本', 'success');
+    }
+    closeInfoDialog();
   } catch (error) {
-    console.log(error);
-    showToast(error instanceof Error ? error.message : '创建失败', 'error');
+    showToast(error instanceof Error ? error.message : '保存失败', 'error');
   }
 };
 

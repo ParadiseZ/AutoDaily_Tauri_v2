@@ -12,19 +12,28 @@
       </div>
 
       <div class="flex flex-wrap gap-2">
-        <button class="app-button app-button-primary" type="button" @click="$emit('open-editor', script.id)">
+        <button class="app-button app-button-primary app-toolbar-button" type="button" @click="$emit('open-editor', script.id)">
+          <SquarePen class="h-4 w-4" />
           打开编辑器
         </button>
-        <button class="app-button app-button-ghost" type="button" @click="$emit('upload', script.id)">
+        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('edit-info', script.id)">
+          <PencilLine class="h-4 w-4" />
+          编辑信息
+        </button>
+        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('upload', script.id)">
+          <CloudUpload class="h-4 w-4" />
           上传云端
         </button>
-        <button class="app-button app-button-ghost" type="button" @click="$emit('clone', script.id)">
+        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('clone', script.id)">
+          <Copy class="h-4 w-4" />
           克隆副本
         </button>
-        <button class="app-button app-button-warning" type="button" @click="$emit('clear-logs', script.id)">
+        <button class="app-button app-button-warning app-toolbar-button" type="button" @click="$emit('clear-logs', script.id)">
+          <Eraser class="h-4 w-4" />
           清理记录
         </button>
-        <button class="app-button app-button-danger" type="button" @click="$emit('delete', script.id)">
+        <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('delete', script.id)">
+          <Trash2 class="h-4 w-4" />
           删除
         </button>
       </div>
@@ -89,6 +98,7 @@
 </template>
 
 <script setup lang="ts">
+import { CloudUpload, Copy, Eraser, PencilLine, SquarePen, Trash2 } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -101,6 +111,7 @@ defineProps<{
 
 defineEmits<{
   'open-editor': [scriptId: string];
+  'edit-info': [scriptId: string];
   upload: [scriptId: string];
   clone: [scriptId: string];
   'clear-logs': [scriptId: string];

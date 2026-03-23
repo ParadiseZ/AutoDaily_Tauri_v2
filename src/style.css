@@ -51,6 +51,12 @@
   --app-text-faint: rgba(100, 116, 139, 0.62);
   --app-accent: rgba(70, 110, 255, 0.96);
   --app-accent-soft: rgba(70, 110, 255, 0.12);
+  --app-state-hover-bg: rgba(255, 255, 255, 0.26);
+  --app-state-hover-border: rgba(15, 23, 42, 0.16);
+  --app-state-active-bg: linear-gradient(180deg, rgba(70, 110, 255, 0.16), rgba(70, 110, 255, 0.1));
+  --app-state-active-hover-bg: linear-gradient(180deg, rgba(70, 110, 255, 0.2), rgba(70, 110, 255, 0.14));
+  --app-state-active-border: rgba(70, 110, 255, 0.28);
+  --app-state-active-hover-border: rgba(70, 110, 255, 0.34);
 }
 
 [data-theme='dark'] {
@@ -84,6 +90,12 @@
   --app-text-faint: rgba(148, 163, 184, 0.68);
   --app-accent: rgba(129, 170, 255, 0.96);
   --app-accent-soft: rgba(129, 170, 255, 0.18);
+  --app-state-hover-bg: rgba(255, 255, 255, 0.08);
+  --app-state-hover-border: rgba(255, 255, 255, 0.16);
+  --app-state-active-bg: linear-gradient(180deg, rgba(129, 170, 255, 0.22), rgba(129, 170, 255, 0.16));
+  --app-state-active-hover-bg: linear-gradient(180deg, rgba(129, 170, 255, 0.26), rgba(129, 170, 255, 0.2));
+  --app-state-active-border: rgba(129, 170, 255, 0.3);
+  --app-state-active-hover-border: rgba(129, 170, 255, 0.36);
 }
 
 html,
@@ -175,21 +187,29 @@ a {
   align-items: center;
   gap: 0.75rem;
   border-radius: 16px;
+  border: 1px solid transparent;
   padding: 0.75rem 0.9rem;
   color: var(--app-text-soft);
-  transition: all 0.18s ease;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .app-sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.34);
-  /*background: linear-gradient(180deg, rgba(70, 110, 255, 0.2), rgba(70, 110, 255, 0.14));*/
+  background: var(--app-state-hover-bg);
+  border-color: var(--app-state-hover-border);
   color: var(--app-text-strong);
 }
 
 .app-sidebar-link-active {
-  background: color-mix(in srgb, var(--app-accent-soft) 82%, transparent);
+  background: var(--app-state-active-bg);
+  border-color: var(--app-state-active-border);
   color: var(--app-text-strong);
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.18);
+}
+
+.app-sidebar-link-active:hover {
+  background: var(--app-state-active-hover-bg);
+  border-color: var(--app-state-active-hover-border);
 }
 
 .app-stat {
@@ -248,6 +268,13 @@ a {
   min-height: 2.7rem;
   padding: 0.7rem 1rem;
   font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.app-toolbar-button {
+  min-height: 2.4rem;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.84rem;
   font-weight: 600;
 }
 
@@ -413,24 +440,24 @@ a {
   border: 1px solid var(--app-border);
   padding: 0.9rem 1rem;
   text-align: left;
+  cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .app-list-item:hover {
-  background: rgba(255, 255, 255, 0.26);
-  border-color: var(--app-border-strong);
-  cursor: pointer;
+  background: var(--app-state-hover-bg);
+  border-color: var(--app-state-hover-border);
 }
 
 .app-list-item-active {
-  border-color: rgba(70, 110, 255, 0.28);
-  background: linear-gradient(180deg, rgba(70, 110, 255, 0.16), rgba(70, 110, 255, 0.1));
+  border-color: var(--app-state-active-border);
+  background: var(--app-state-active-bg);
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.14);
 }
 
 .app-list-item-active:hover {
-  background: linear-gradient(180deg, rgba(70, 110, 255, 0.2), rgba(70, 110, 255, 0.14));
-  border-color: rgba(70, 110, 255, 0.34);
+  background: var(--app-state-active-hover-bg);
+  border-color: var(--app-state-active-hover-border);
 }
 
 .app-select-trigger {
@@ -453,25 +480,40 @@ a {
   backdrop-filter: blur(18px);
 }
 
+.app-select-menu-floating {
+  position: fixed;
+  z-index: 120;
+  margin-top: 0;
+}
+
 .app-select-option {
   display: flex;
   width: 100%;
   flex-direction: column;
   gap: 0.2rem;
+  border: 1px solid transparent;
   border-radius: 12px;
   padding: 0.72rem 0.8rem;
   text-align: left;
   color: var(--app-text);
-  transition: background 0.14s ease;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .app-select-option:hover {
-  background: rgba(255, 255, 255, 0.24);
+  background: var(--app-state-hover-bg);
+  border-color: var(--app-state-hover-border);
 }
 
 .app-select-option-active {
-  background: var(--app-accent-soft);
+  background: var(--app-state-active-bg);
+  border-color: var(--app-state-active-border);
   color: var(--app-text-strong);
+}
+
+.app-select-option-active:hover {
+  background: var(--app-state-active-hover-bg);
+  border-color: var(--app-state-active-hover-border);
 }
 
 .custom-scrollbar::-webkit-scrollbar {

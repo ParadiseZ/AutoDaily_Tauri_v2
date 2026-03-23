@@ -10,12 +10,20 @@
     "script-editor"
   ],
   "permissions": [
-    "global-shortcut:default",
+    "core:window:default",
+    "core:event:default",
+    "core:event:allow-listen",
     "autostart:default",
     "core:webview:allow-create-webview-window",
     "store:allow-load",
     "store:default",
     "dialog:default",
-    "dialog:allow-message"
+    "dialog:allow-message",
+    "global-shortcut:allow-is-registered",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "window-state:default",
+    "autostart:default",
+    "notification:default"
   ]
 }

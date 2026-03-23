@@ -9,7 +9,6 @@
   "permissions": [
     "core:default",
     "core:event:default",
-    "core:window:default",
     "core:resources:default",
     "core:menu:default",
     "core:tray:default",
@@ -21,13 +20,7 @@
     "core:webview:allow-create-webview-window",
     "core:event:allow-listen",
     "core:event:default",
-    "opener:default",
-    "global-shortcut:allow-is-registered",
-    "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister",
-    "window-state:default",
-    "autostart:default",
-    "notification:default"
+    "opener:default"
   ],
   "capabilities": []
 }

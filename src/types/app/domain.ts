@@ -65,13 +65,28 @@ type RawScriptInfo = ScriptInfo & {
     scriptTyCpe?: ScriptType;
 };
 
-export interface ScriptInfoRecord extends Omit<RawScriptInfo, 'scriptTyCpe'> {
+export interface ScriptInfoRecord extends Omit<RawScriptInfo, 'scriptTyCpe' | 'verNum' | 'latestVer' | 'downloadCount'> {
     scriptType: ScriptType;
+    verNum: number;
+    latestVer: number;
+    downloadCount: number;
 }
 
 export interface ScriptTableRecord {
     id: string;
     data: ScriptInfoRecord;
+}
+
+export interface ScriptInfoDraft {
+    name: string;
+    description: string;
+    pkgName: string;
+    runtimeType: ScriptInfoRecord['runtimeType'];
+    verName: string;
+    allowClone: boolean;
+    contactInfo: string;
+    sponsorshipUrl: string;
+    sponsorshipQr: string;
 }
 
 export interface AssignmentRecord extends Omit<DeviceScriptAssignment, 'accountData'> {

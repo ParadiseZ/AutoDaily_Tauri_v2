@@ -5,6 +5,7 @@ import type { ScriptType } from '@/types/bindings/ScriptType';
 import type {
     MarketPage,
     MarketScriptRecord,
+    ScriptInfoDraft,
     ScriptSearchInput,
     ScriptTableRecord,
     UserProfile,
@@ -23,12 +24,39 @@ interface ApiEnvelope<T> {
     message?: string;
 }
 
+type ScriptTablePayload = {
+    id: string;
+    data: Omit<ScriptTable['data'], 'scriptTyCpe' | 'verNum' | 'latestVer' | 'downloadCount'> & {
+        scriptTyCpe: ScriptType;
+        verNum: number;
+        latestVer: number;
+        downloadCount: number;
+    };
+};
+
 const emptyMarketPage = (query: ScriptSearchInput): MarketPage<MarketScriptRecord> => ({
     records: [],
     total: 0,
     size: query.size,
     current: query.page,
 });
+
+const toSafeNumber = (value: bigint | number | string | null | undefined, fallback = 0) => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value;
+    }
+
+    if (typeof value === 'bigint') {
+        return Number(value);
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    return fallback;
+};
 
 export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): ScriptTableRecord => {
     const raw = script as RawScriptTable;
@@ -37,6 +65,9 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
         data: {
             ...raw.data,
             scriptType: raw.data.scriptType ?? raw.data.scriptTyCpe ?? 'dev',
+            verNum: toSafeNumber(raw.data.verNum, 1),
+            latestVer: toSafeNumber(raw.data.latestVer, 1),
+            downloadCount: toSafeNumber(raw.data.downloadCount, 0),
         },
     };
 };
@@ -59,13 +90,41 @@ export const createBlankScript = (name: string, userProfile: UserProfile | null,
         createTime: new Date().toISOString(),
         updateTime: new Date().toISOString(),
         verName: '0.1.0',
-        verNum: 1n,
-        latestVer: 1n,
-        downloadCount: 0n,
+        verNum: 1,
+        latestVer: 1,
+        downloadCount: 0,
         scriptType: 'dev',
         isValid: true,
         allowClone: true,
         cloudId: null,
+    },
+});
+
+export const applyScriptDraft = (script: ScriptTableRecord, draft: ScriptInfoDraft): ScriptTableRecord => ({
+    ...script,
+    data: {
+        ...script.data,
+        name: draft.name.trim(),
+        description: draft.description.trim() || null,
+        pkgName: draft.pkgName.trim() || null,
+        runtimeType: draft.runtimeType,
+        verName: draft.verName.trim() || '0.1.0',
+        allowClone: draft.allowClone,
+        contactInfo: draft.contactInfo.trim() || null,
+        sponsorshipUrl: draft.sponsorshipUrl.trim() || null,
+        sponsorshipQr: draft.sponsorshipQr.trim() || null,
+        updateTime: new Date().toISOString(),
+    },
+});
+
+const serializeScriptTable = (script: ScriptTableRecord): ScriptTablePayload => ({
+    id: script.id,
+    data: {
+        ...script.data,
+        scriptTyCpe: script.data.scriptType,
+        verNum: toSafeNumber(script.data.verNum, 1),
+        latestVer: toSafeNumber(script.data.latestVer, 1),
+        downloadCount: toSafeNumber(script.data.downloadCount, 0),
     },
 });
 
@@ -76,7 +135,7 @@ export const scriptService = {
     },
     listTasks: (scriptId: string) => invoke('get_script_tasks_cmd', { scriptId }) as Promise<ScriptTaskTable[]>,
     saveLocal: async (script: ScriptTableRecord): Promise<void> => {
-        await invoke('save_script_cmd', { script });
+        await invoke('save_script_cmd', { script: serializeScriptTable(script) });
     },
     removeLocal: async (scriptId: string): Promise<void> => {
         await invoke('delete_script_cmd', { scriptId });
