@@ -1,90 +1,89 @@
 <template>
-  <div class="flex h-screen w-full bg-base-100 overflow-hidden font-sans text-base-content" data-tauri-drag-region>
-    <!-- Sidebar -->
-    <aside class="w-[220px] shrink-0 flex flex-col justify-between bg-base-200/40 backdrop-blur-2xl border-r border-base-content/5 relative z-10 transition-colors duration-300">
-      
-      <!-- Top Section -->
-      <div>
-        <!-- App Drag Handle / Logo Area -->
-        <div class="h-[44px] w-full flex items-center px-5 mt-2" data-tauri-drag-region>
-          <div class="flex items-center gap-2 pointer-events-none text-base-content/80">
-            <Command class="w-5 h-5" />
-            <span class="font-semibold text-[14px] tracking-wide">AutoDaily</span>
+  <div class="app-shell flex h-screen w-full overflow-hidden">
+    <aside class="app-sidebar hidden w-[280px] shrink-0 flex-col justify-between px-4 py-5 lg:flex">
+      <div class="space-y-6">
+        <div class="space-y-3 px-2" data-tauri-drag-region>
+          <div class="flex items-center gap-3">
+            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--app-accent-soft)] text-[var(--app-accent)]">
+              <Command class="h-5 w-5" />
+            </div>
+            <div>
+              <p class="text-sm font-semibold tracking-[0.18em] text-[var(--app-text-faint)]">AUTODAILY</p>
+              <p class="text-lg font-semibold text-[var(--app-text-strong)]">控制台</p>
+            </div>
+          </div>
+          <p class="text-sm leading-6 text-[var(--app-text-soft)]">
+            多设备自动化调度、脚本资产管理与系统配置统一收敛在同一工作台里。
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="app-stat">
+            <p class="app-stat-label">在线设备</p>
+            <p class="app-stat-value">{{ deviceStore.deviceSummary.online }}</p>
+          </div>
+          <div class="app-stat">
+            <p class="app-stat-label">运行中</p>
+            <p class="app-stat-value">{{ deviceStore.deviceSummary.running }}</p>
           </div>
         </div>
 
-        <!-- Navigation Menu -->
-        <nav class="flex flex-col gap-1 px-3 mt-4">
+        <nav class="space-y-2">
           <RouterLink
-            v-for="route in mainRoutes"
+            v-for="route in primaryRoutes"
             :key="route.path"
             :to="route.path"
-            class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors duration-150 cursor-pointer"
-            :class="[
-              isActive(route.path) 
-                ? 'bg-primary text-primary-content shadow-md shadow-primary/20' 
-                : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'
-            ]"
+            class="app-sidebar-link"
+            :class="{ 'app-sidebar-link-active': isActive(route.path) }"
           >
-            <component :is="route.icon" class="w-4 h-4 opacity-80" />
-            <span>{{ route.label }}</span>
+            <component :is="route.icon" class="h-4 w-4" />
+            <span class="font-medium">{{ route.label }}</span>
           </RouterLink>
         </nav>
       </div>
 
-      <!-- Bottom Spacer & User/Settings -->
-      <div class="px-3 pb-4">
-        <!-- Navigation Menu (Bottom) -->
-        <nav class="flex flex-col gap-1 mb-2">
+      <div class="space-y-3 border-t border-[var(--app-border)] pt-4">
+        <nav class="space-y-2">
           <RouterLink
-            v-for="route in bottomRoutes"
+            v-for="route in secondaryRoutes"
             :key="route.path"
             :to="route.path"
-            class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-colors duration-150 cursor-pointer"
-            :class="[
-              isActive(route.path) 
-                ? 'bg-primary text-primary-content shadow-md shadow-primary/20' 
-                : 'text-base-content/70 hover:bg-base-200 hover:text-base-content'
-            ]"
+            class="app-sidebar-link"
+            :class="{ 'app-sidebar-link-active': isActive(route.path) }"
           >
-            <component :is="route.icon" class="w-4 h-4 opacity-80" />
-            <span>{{ route.label }}</span>
+            <component :is="route.icon" class="h-4 w-4" />
+            <span class="font-medium">{{ route.label }}</span>
           </RouterLink>
         </nav>
 
-        <!-- Optional Divider -->
-        <div class="w-full h-px bg-base-content/5 my-2"></div>
-
-        <!-- User Profile Area -->
-        <div class="mt-2 px-2 flex items-center gap-3 cursor-pointer hover:bg-base-200 p-2 rounded-xl transition-colors" @click="handleUserClick">
-          <div class="w-8 h-8 rounded-full bg-linear-to-br from-primary to-secondary flex items-center justify-center text-primary-content text-sm font-bold shadow-md">
+        <button class="app-panel flex w-full items-center gap-3 p-3 text-left" type="button" @click="handleUserClick">
+          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--app-accent-soft)] text-sm font-semibold text-[var(--app-accent)]">
             {{ userInitial }}
           </div>
-          <div class="flex flex-col">
-            <span class="text-[13px] font-semibold leading-tight text-base-content">{{ userName }}</span>
-            <span class="text-[11px] text-primary font-medium leading-tight mt-0.5">{{ userStatus }}</span>
+          <div class="min-w-0">
+            <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ userName }}</p>
+            <p class="truncate text-xs text-[var(--app-text-soft)]">{{ userState }}</p>
           </div>
-        </div>
+        </button>
       </div>
     </aside>
 
-    <!-- Main Content Area -->
-    <main class="flex-1 flex flex-col min-w-0 bg-base-100 relative z-0">
-      <!-- Top Titlebar / Toolbar (Invisible Drag Region) -->
-      <header class="h-[44px] w-full flex items-center justify-between px-6 border-b border-base-content/5 shrink-0 bg-base-100" data-tauri-drag-region>
-        <div class="text-[15px] font-semibold text-base-content/90 pointer-events-none">
-          {{ currentRouteName }}
+    <main class="min-w-0 flex-1">
+      <header class="app-titlebar flex h-[68px] items-center justify-between px-5 lg:px-8" data-tauri-drag-region>
+        <div>
+          <p class="text-xs uppercase tracking-[0.2em] text-[var(--app-text-faint)]">{{ currentRouteMeta?.label }}</p>
+          <p class="text-base font-semibold text-[var(--app-text-strong)]">{{ routeSummary }}</p>
         </div>
-        <!-- Right side tools can go here (e.g. search, global actions) -->
-        <div class="flex items-center gap-3">
-          <!-- Frame controls can be added here if not using OS default -->
+        <div class="flex items-center gap-2">
+          <div class="hidden rounded-full border border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-text-soft)] md:block">
+            {{ deviceStore.deviceSummary.enabled }} / {{ deviceStore.deviceSummary.total }} 已启用
+          </div>
         </div>
       </header>
 
-      <!-- Scrollable Content -->
-      <div class="flex-1 overflow-y-auto custom-scrollbar p-0">
+      <div class="h-[calc(100vh-68px)] overflow-y-auto custom-scrollbar px-4 pb-8 pt-6 lg:px-8">
         <router-view v-slot="{ Component }">
-          <transition name="fade" mode="out-in">
+          <transition name="shell-fade" mode="out-in">
             <component :is="Component" />
           </transition>
         </router-view>
@@ -96,65 +95,75 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-// NOTE: Extension omitted to let Vite resolve .ts or .js automatically
+import { Command } from 'lucide-vue-next';
 import { routesMenu } from '@/router';
 import { useUserStore } from '@/store/user';
-import { Command } from 'lucide-vue-next';
+import { useDeviceStore } from '@/store/device';
 
 const route = useRoute();
 const userStore = useUserStore();
+const deviceStore = useDeviceStore();
 
-// Split routes into main app logic and bottom actions (Settings/About)
-const mainRoutes = computed(() => {
-  return routesMenu.filter(r => !['/settings', '/about'].includes(r.path));
+const primaryRoutes = computed(() => routesMenu.filter((item) => !['/settings', '/about'].includes(item.path)));
+const secondaryRoutes = computed(() => routesMenu.filter((item) => ['/settings', '/about'].includes(item.path)));
+
+const currentRouteMeta = computed(() => {
+  return routesMenu.find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`));
 });
 
-const bottomRoutes = computed(() => {
-  return routesMenu.filter(r => ['/settings', '/about'].includes(r.path));
+const routeSummary = computed(() => {
+  if (route.path === '/tasks') {
+    return '多设备任务中心';
+  }
+  if (route.path === '/devices') {
+    return '设备连接与执行配置';
+  }
+  if (route.path === '/scripts') {
+    return '本地脚本与任务关系';
+  }
+  if (route.path === '/market') {
+    return '云端脚本浏览与下载';
+  }
+  if (route.path === '/logs') {
+    return '长时间运行排查面板';
+  }
+  if (route.path === '/settings') {
+    return '系统行为与账户管理';
+  }
+  return 'AutoDaily';
+});
+
+const userInitial = computed(() => userStore.userProfile?.username?.slice(0, 1).toUpperCase() || 'A');
+const userName = computed(() => userStore.userProfile?.username || '未登录');
+const userState = computed(() => {
+  if (!userStore.isLoggedIn) {
+    return '点击登录后同步云端能力';
+  }
+  return userStore.isDeveloper ? '开发者权限已激活' : '本地模式';
 });
 
 const isActive = (path: string) => {
-  // exact match for / to prevent everything matching, otherwise startsWith
-  if (path === '/') return route.path === '/';
-  if (path === '/tasks') return route.path.startsWith('/tasks');
-  return route.path.startsWith(path);
+  if (path === '/') {
+    return route.path === '/';
+  }
+  return route.path === path || route.path.startsWith(`${path}/`);
 };
-
-const currentRouteName = computed(() => {
-  const current = routesMenu.find(r => route.path.startsWith(r.path));
-  return current ? current.label : '';
-});
-
-const userInitial = computed(() => {
-  return userStore.userProfile?.username?.charAt(0).toUpperCase() || 'G';
-});
-
-const userName = computed(() => {
-  return userStore.userProfile?.username || 'Guest';
-});
-
-const userStatus = computed(() => {
-  return userStore.isLoggedIn ? (userStore.userProfile?.sponsorUntil ? 'Pro' : 'Free') : 'Not Logged In';
-});
 
 const handleUserClick = () => {
   if (!userStore.isLoggedIn) {
     userStore.openAuthModal();
-  } else {
-    // Optionally route to settings/profile
   }
 };
 </script>
 
 <style scoped>
-/* Page transition matching Apple style fade */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.15s ease-out;
+.shell-fade-enter-active,
+.shell-fade-leave-active {
+  transition: opacity 0.14s ease;
 }
 
-.fade-enter-from,
-.fade-leave-to {
+.shell-fade-enter-from,
+.shell-fade-leave-to {
   opacity: 0;
 }
 </style>

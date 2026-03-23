@@ -1,132 +1,252 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
-import { invoke } from '../utils/api';
+import { computed, ref } from 'vue';
 import { listen } from '@tauri-apps/api/event';
-import type { DeviceTable } from '../types/bindings/DeviceTable';
+import { deviceService } from '@/services/deviceService';
+import type { DeviceRuntimeStatus, DeviceStatusEvent, DeviceSummary } from '@/types/app/domain';
+import type { DeviceTable } from '@/types/bindings/DeviceTable';
+
+const emptyStatus: DeviceRuntimeStatus = {
+    rawStatus: 'Stopped',
+    kind: 'stopped',
+    currentScript: null,
+    message: null,
+};
+
+const toStatusKind = (status: string): DeviceRuntimeStatus['kind'] => {
+    const normalized = status.toLowerCase();
+    if (normalized.includes('run') || normalized.includes('work') || normalized.includes('busy')) return 'running';
+    if (normalized.includes('pause')) return 'paused';
+    if (normalized.includes('stop') || normalized.includes('shutdown')) return 'stopped';
+    if (normalized.includes('error') || normalized.includes('fail')) return 'error';
+    if (normalized.includes('idle') || normalized.includes('wait')) return 'idle';
+    return 'unknown';
+};
+
+const toStatusEvent = (payload: unknown): DeviceStatusEvent | null => {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const record = payload as Record<string, unknown>;
+    if (typeof record.deviceId !== 'string' || typeof record.status !== 'string') {
+        return null;
+    }
+
+    return {
+        deviceId: record.deviceId,
+        status: record.status,
+        currentScript: typeof record.currentScript === 'string' ? record.currentScript : null,
+        message: typeof record.message === 'string' ? record.message : null,
+    };
+};
 
 export const useDeviceStore = defineStore('device', () => {
-    // 1. 所有已配置的设备列表 (来自数据库 get_all_devices_cmd)
     const devices = ref<DeviceTable[]>([]);
-    
-    // 2. 在线的设备 ID 列表 (也就是已经拥有运行中子进程的设备 cmd_get_running_devices)
     const onlineDeviceIds = ref<string[]>([]);
-    
-    // 3. 设备的实时执行状态 (来自子进程 IPC 广播的 device-status)
-    // 包含当前执行的脚本、详细运行状态等
-    const deviceStatuses = ref<Record<string, { status: string, currentScript?: string, message?: string }>>({});
-
+    const deviceStatuses = ref<Record<string, DeviceRuntimeStatus>>({});
     const selectedDeviceId = ref<string | null>(null);
+    const loading = ref(false);
+    const cpuCount = ref(0);
 
-    // 计算属性: 在线的设备数量 (子进程存活)
-    const onlineDevicesCount = computed(() => onlineDeviceIds.value.length);
-    
-    // 计算属性: 运行中的设备数量 (IPC 状态为执行相关的状态，这里暂时假定 Running 或执行中状态，根据具体枚举调整)
-    const runningDevicesCount = computed(() => {
-        return Object.values(deviceStatuses.value).filter(s => 
-            s.status !== 'Idle' && s.status !== 'Error' && s.status !== 'Stopped'
-        ).length;
-    });
+    const deviceSummary = computed<DeviceSummary>(() => ({
+        total: devices.value.length,
+        enabled: devices.value.filter((device) => device.data.enable).length,
+        online: onlineDeviceIds.value.length,
+        running: Object.values(deviceStatuses.value).filter((item) => item.kind === 'running').length,
+    }));
 
-    // ========== API 调用 ==========
-    // 加载配置的设备
+    const selectedDevice = computed(() =>
+        devices.value.find((device) => device.id === selectedDeviceId.value) ?? null,
+    );
+
     const loadDevices = async () => {
+        loading.value = true;
         try {
-            const res = await invoke('get_all_devices_cmd');
-            if (res) devices.value = res; 
-        } catch (error) {
-            console.error('Failed to load devices:', error);
+            devices.value = await deviceService.list();
+            if (!selectedDeviceId.value && devices.value.length > 0) {
+                selectedDeviceId.value = devices.value[0].id;
+            }
+        } finally {
+            loading.value = false;
         }
     };
 
-    // 获取当前拥有子进程的设备 (即在线设备)
-    const fetchOnlineDevices = async () => {
-        try {
-            const res = await invoke('cmd_get_running_devices');
-            if (res) onlineDeviceIds.value = res;
-        } catch (error) {
-            console.error('Failed to fetch online/running process devices:', error);
-        }
+    const loadCpuCount = async () => {
+        cpuCount.value = await deviceService.getCpuCount();
     };
 
-    // ========== 进程级控制 (上下线) ==========
+    const refreshRunningDevices = async () => {
+        onlineDeviceIds.value = await deviceService.getRunningDeviceIds();
+    };
+
+    const refreshAll = async () => {
+        await Promise.all([loadDevices(), refreshRunningDevices(), loadCpuCount()]);
+    };
+
+    const saveDevice = async (device: DeviceTable) => {
+        await deviceService.save(device);
+        await loadDevices();
+    };
+
+    const deleteDevice = async (deviceId: string) => {
+        await deviceService.remove(deviceId);
+        deviceStatuses.value = Object.fromEntries(
+            Object.entries(deviceStatuses.value).filter(([currentId]) => currentId !== deviceId),
+        );
+        await loadDevices();
+        await refreshRunningDevices();
+    };
+
     const spawnDeviceProcess = async (deviceId: string) => {
-        try {
-            await invoke('cmd_spawn_device', { deviceId });
-            await fetchOnlineDevices();
-        } catch (error) {
-            console.error(`Failed to spawn device ${deviceId}:`, error);
-        }
+        await deviceService.spawn(deviceId);
+        await refreshRunningDevices();
     };
 
     const shutdownDeviceProcess = async (deviceId: string) => {
-        try {
-            await invoke('cmd_device_shutdown', { deviceId });
-            await fetchOnlineDevices();
-            delete deviceStatuses.value[deviceId];
-        } catch (error) {
-            console.error(`Failed to shutdown device ${deviceId}:`, error);
-        }
+        await deviceService.shutdown(deviceId);
+        deviceStatuses.value = {
+            ...deviceStatuses.value,
+            [deviceId]: emptyStatus,
+        };
+        await refreshRunningDevices();
     };
 
-    // ========== 任务级控制 (向在线子进程发指令) ==========
     const sendTaskStart = async (deviceId: string) => {
-        await invoke('cmd_device_start', { deviceId });
+        await deviceService.start(deviceId);
     };
 
     const sendTaskStop = async (deviceId: string) => {
-        await invoke('cmd_device_stop', { deviceId });
+        await deviceService.stop(deviceId);
     };
 
     const sendTaskPause = async (deviceId: string) => {
-        await invoke('cmd_device_pause', { deviceId });
+        await deviceService.pause(deviceId);
     };
 
-    // ========== IPC 事件监听 (Tauri Events) ==========
-    let _ipcInitialized = false;
+    const startDevice = async (deviceId: string) => {
+        if (!onlineDeviceIds.value.includes(deviceId)) {
+            await spawnDeviceProcess(deviceId);
+        }
+        await sendTaskStart(deviceId);
+    };
+
+    const pauseDevice = async (deviceId: string) => {
+        if (!onlineDeviceIds.value.includes(deviceId)) {
+            return;
+        }
+        await sendTaskPause(deviceId);
+    };
+
+    const stopDevice = async (deviceId: string) => {
+        if (!onlineDeviceIds.value.includes(deviceId)) {
+            return;
+        }
+        await sendTaskStop(deviceId);
+    };
+
+    const startDevices = async (deviceIds: string[]) => {
+        await Promise.all(deviceIds.map(startDevice));
+        await refreshRunningDevices();
+    };
+
+    const pauseDevices = async (deviceIds: string[]) => {
+        await Promise.all(deviceIds.map(pauseDevice));
+    };
+
+    const stopDevices = async (deviceIds: string[]) => {
+        await Promise.all(deviceIds.map(stopDevice));
+    };
+
+    const shutdownDevices = async (deviceIds: string[]) => {
+        await Promise.all(deviceIds.map(shutdownDeviceProcess));
+        await refreshRunningDevices();
+    };
+
+    const getDeviceStatus = (deviceId: string): DeviceRuntimeStatus => {
+        const status = deviceStatuses.value[deviceId];
+        if (status) {
+            return status;
+        }
+
+        return onlineDeviceIds.value.includes(deviceId)
+            ? { rawStatus: 'Idle', kind: 'idle', currentScript: null, message: null }
+            : emptyStatus;
+    };
+
+    const isDeviceOnline = (deviceId: string) => onlineDeviceIds.value.includes(deviceId);
+
+    let ipcInitialized = false;
     const initIpcListeners = async () => {
-        if (_ipcInitialized) return;
-        
-        // 监听设备状态报告
-        await listen('device-status', (event: any) => {
-            const payload = event.payload;
-            if (payload && payload.deviceId) {
-                deviceStatuses.value[payload.deviceId] = {
-                    status: payload.status,
-                    currentScript: payload.currentScript,
-                    message: payload.message
-                };
+        if (ipcInitialized) {
+            return;
+        }
+
+        await listen('device-status', (event) => {
+            const payload = toStatusEvent(event.payload);
+            if (!payload) {
+                return;
             }
+
+            deviceStatuses.value = {
+                ...deviceStatuses.value,
+                [payload.deviceId]: {
+                    rawStatus: payload.status,
+                    kind: toStatusKind(payload.status),
+                    currentScript: payload.currentScript,
+                    message: payload.message,
+                },
+            };
         });
 
-        // 监听设备错误报告
-        await listen('device-error', (event: any) => {
-            const payload = event.payload;
-            if (payload && payload.deviceId) {
-                console.error(`Device ${payload.deviceId} IPC Error: [${payload.code}] ${payload.message}`);
-                deviceStatuses.value[payload.deviceId] = {
-                    status: 'Error',
-                    message: payload.message
-                };
+        await listen('device-error', (event) => {
+            const payload = toStatusEvent(event.payload);
+            if (!payload) {
+                return;
             }
+
+            deviceStatuses.value = {
+                ...deviceStatuses.value,
+                [payload.deviceId]: {
+                    rawStatus: payload.status || 'Error',
+                    kind: 'error',
+                    currentScript: payload.currentScript,
+                    message: payload.message,
+                },
+            };
         });
-        
-        _ipcInitialized = true;
+
+        ipcInitialized = true;
     };
 
     return {
-        devices,
-        onlineDeviceIds,
+        cpuCount,
+        deleteDevice,
         deviceStatuses,
-        selectedDeviceId,
-        onlineDevicesCount,
-        runningDevicesCount,
+        deviceSummary,
+        devices,
+        getDeviceStatus,
+        initIpcListeners,
+        isDeviceOnline,
+        loadCpuCount,
         loadDevices,
-        fetchOnlineDevices,
-        spawnDeviceProcess,
-        shutdownDeviceProcess,
+        loading,
+        onlineDeviceIds,
+        pauseDevice,
+        pauseDevices,
+        refreshAll,
+        refreshRunningDevices,
+        saveDevice,
+        selectedDevice,
+        selectedDeviceId,
+        sendTaskPause,
         sendTaskStart,
         sendTaskStop,
-        sendTaskPause,
-        initIpcListeners
+        shutdownDeviceProcess,
+        shutdownDevices,
+        spawnDeviceProcess,
+        startDevice,
+        startDevices,
+        stopDevice,
+        stopDevices,
     };
 });

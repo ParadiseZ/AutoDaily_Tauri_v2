@@ -1,100 +1,121 @@
 <template>
-  <div class="w-full max-w-5xl mx-auto flex flex-col gap-6 py-4">
-    <div class="px-2">
-      <h1 class="text-2xl font-semibold tracking-tight text-base-content">任务管理</h1>
-      <p class="text-sm text-base-content/60 mt-1">全局调度设备的运行脚本与任务队列。</p>
-    </div>
-
-    <!-- Global Control Bar -->
-    <div class="bg-base-100 border border-base-content/5 rounded-2xl p-4 flex items-center justify-between shadow-sm">
-      <div class="flex items-center gap-3">
-        <div class="w-3 h-3 rounded-full bg-success animate-pulse shadow-[0_0_8px] shadow-success/60"></div>
-        <span class="text-sm font-semibold text-success">3 台设备在线，2 台运行中</span>
-      </div>
-      <div class="flex gap-2">
-        <button
-          class="btn btn-sm btn-ghost text-base-content/70 hover:text-base-content bg-base-200 hover:bg-base-300 font-medium border-none shadow-none rounded-lg"
-        >
+  <div class="space-y-6">
+    <AppPageHeader
+      eyebrow="Workspace"
+      title="任务管理"
+      description="把多设备的运行状态、脚本队列与最近执行结果放在同一工作台里，减少切页和上下文切换。"
+    >
+      <template #actions>
+        <button class="app-button app-button-ghost" type="button" @click="deviceStore.pauseDevices(deviceIds)">
           全部暂停
         </button>
-        <button
-          class="btn btn-sm btn-primary font-medium border-none shadow-md shadow-primary/20 rounded-lg"
-        >
+        <button class="app-button app-button-warning" type="button" @click="deviceStore.stopDevices(deviceIds)">
+          全部停止
+        </button>
+        <button class="app-button app-button-primary" type="button" @click="deviceStore.startDevices(deviceIds)">
           全部启动
         </button>
-      </div>
+      </template>
+    </AppPageHeader>
+
+    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <SurfacePanel class="space-y-1">
+        <p class="app-stat-label">已配置设备</p>
+        <p class="app-stat-value">{{ deviceStore.deviceSummary.total }}</p>
+      </SurfacePanel>
+      <SurfacePanel class="space-y-1">
+        <p class="app-stat-label">在线设备</p>
+        <p class="app-stat-value">{{ deviceStore.deviceSummary.online }}</p>
+      </SurfacePanel>
+      <SurfacePanel class="space-y-1">
+        <p class="app-stat-label">运行中</p>
+        <p class="app-stat-value">{{ deviceStore.deviceSummary.running }}</p>
+      </SurfacePanel>
+      <SurfacePanel class="space-y-1">
+        <p class="app-stat-label">队列总数</p>
+        <p class="app-stat-value">{{ totalAssignments }}</p>
+      </SurfacePanel>
     </div>
 
-    <!-- Device List Container -->
-    <div class="flex flex-col gap-3 mt-2">
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-base-content/50 ml-2 mb-1">设备节点</h2>
+    <EmptyState
+      v-if="!deviceIds.length"
+      title="还没有可调度设备"
+      description="先去设备列表创建一台设备，配置连接方式和截图能力后，任务中心会自动接入。"
+      :icon="MonitorSmartphone"
+    />
 
-      <!-- Device Item Placeholder -->
-      <div
-        class="bg-base-100 border border-base-content/5 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200 group cursor-default"
-      >
-        <div class="flex items-center gap-4">
-          <div
-            class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform"
-          >
-            <Smartphone class="w-6 h-6" />
-          </div>
-          <div class="flex flex-col justify-center">
-            <h3 class="text-[15px] font-semibold text-base-content tracking-wide">Nexus 7 · 192.168.1.101</h3>
-            <div class="text-[12px] text-base-content/60 mt-0.5 flex items-center gap-2">
-              <span class="text-success font-medium flex items-center gap-1.5">
-                <div class="w-2 h-2 rounded-full bg-success shadow-[0_0_4px] shadow-success/50"></div>
-                运行中
-              </span>
-              <span class="text-base-content/20">|</span>
-              <span class="truncate max-w-[200px]">正在执行：日常任务一条龙</span>
-            </div>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-          <button
-            class="btn btn-sm btn-square btn-ghost text-primary hover:bg-primary/20 font-medium"
-          >
-            <Pause class="w-4 h-4" />
-          </button>
-          <button
-            class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:bg-base-200 hover:text-base-content"
-          >
-            <Settings class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      <!-- Device Item Placeholder (Offline) -->
-      <div
-        class="bg-base-100 border border-base-content/5 rounded-2xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all duration-200 group cursor-default"
-      >
-        <div class="flex items-center gap-4">
-          <div class="w-10 h-10 rounded-xl bg-base-200/50 flex items-center justify-center text-base-content/40">
-            <Smartphone class="w-5 h-5" />
-          </div>
-          <div class="flex flex-col justify-center">
-            <h3 class="text-[14px] font-semibold text-base-content/60 tracking-wide">Pixel 5 · Offline</h3>
-            <div class="text-[12px] text-base-content/40 mt-0.5 flex items-center gap-2">
-              <span class="font-medium flex items-center gap-1 text-base-content/50">
-                <div class="w-1.5 h-1.5 rounded-full bg-base-content/30"></div>
-                未连接
-              </span>
-              <span class="text-base-content/20">|</span>
-              <span>队列为空</span>
-            </div>
-          </div>
-        </div>
-        <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:text-base-content">
-            <Settings class="w-4 h-4" />
-          </button>
-        </div>
-      </div>
+    <div v-else class="space-y-4">
+      <TaskDevicePanel
+        v-for="device in orderedDevices"
+        :key="device.id"
+        :device="device"
+        :status="deviceStore.getDeviceStatus(device.id)"
+        :scripts="scriptStore.sortedScripts"
+        :time-templates="taskStore.timeTemplates"
+        :assignments="taskStore.assignmentsByDevice[device.id] ?? []"
+        :schedules="taskStore.schedulesByDevice[device.id] ?? []"
+        :loading-assignments="Boolean(taskStore.loadingAssignments[device.id])"
+        :loading-schedules="Boolean(taskStore.loadingSchedules[device.id])"
+        @add-script="handleAddScript"
+        @remove-assignment="handleRemoveAssignment"
+        @clear-schedules="taskStore.clearSchedules"
+        @start="deviceStore.startDevice"
+        @pause="deviceStore.pauseDevice"
+        @stop="deviceStore.stopDevice"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Smartphone, Pause, Settings } from 'lucide-vue-next';
+import { computed, onMounted } from 'vue';
+import { MonitorSmartphone } from 'lucide-vue-next';
+import AppPageHeader from '@/components/shared/AppPageHeader.vue';
+import EmptyState from '@/components/shared/EmptyState.vue';
+import SurfacePanel from '@/components/shared/SurfacePanel.vue';
+import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
+import { useDeviceStore } from '@/store/device';
+import { useScriptStore } from '@/store/script';
+import { useTaskStore } from '@/store/task';
+import { showToast } from '@/utils/toast';
+import type { AssignmentRecord } from '@/types/app/domain';
+
+const deviceStore = useDeviceStore();
+const scriptStore = useScriptStore();
+const taskStore = useTaskStore();
+
+const deviceIds = computed(() => deviceStore.devices.map((device) => device.id));
+const orderedDevices = computed(() =>
+  [...deviceStore.devices].sort((left, right) => Number(right.data.enable) - Number(left.data.enable)),
+);
+const totalAssignments = computed(() =>
+  Object.values(taskStore.assignmentsByDevice).reduce((count, items) => count + items.length, 0),
+);
+
+const loadPageData = async () => {
+  await Promise.all([deviceStore.refreshAll(), scriptStore.loadScripts()]);
+  await taskStore.hydrateForDevices(deviceIds.value);
+};
+
+const handleAddScript = async (deviceId: string, scriptId: string, timeTemplateId: string | null) => {
+  try {
+    await taskStore.createAssignment(deviceId, scriptId, timeTemplateId);
+    showToast('脚本已加入设备队列', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '脚本追加失败', 'error');
+  }
+};
+
+const handleRemoveAssignment = async (deviceId: string, assignment: AssignmentRecord) => {
+  try {
+    await taskStore.removeAssignment(deviceId, assignment);
+    showToast('脚本已从队列移除', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '移除失败', 'error');
+  }
+};
+
+onMounted(async () => {
+  await loadPageData();
+});
 </script>

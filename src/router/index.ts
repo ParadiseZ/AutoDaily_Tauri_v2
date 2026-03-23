@@ -3,13 +3,12 @@ import { ref } from "vue";
 import { Monitor, Smartphone, FileCode, ShoppingBag, SettingsIcon, Info, FileText, ListTodo } from 'lucide-vue-next';
 import { getFromStore, defaultRouterKey } from '@/store/store';
 
-const defaultPath = (await getFromStore<{ path: string }>(defaultRouterKey).then((r: any) => r?.path).catch(() => '/tasks')) || '/tasks';
+const storedRoute = await getFromStore<string | { path?: string }>(defaultRouterKey).catch(() => '/tasks');
+const defaultPath = typeof storedRoute === 'string' ? storedRoute : storedRoute?.path || '/tasks';
 const routes = [
     {
         path: '/',
-        //redirect: defaultPath,
-        component: () => import('../views/Settings.vue')
-        //label: "根路径" //不展示根目录
+        redirect: defaultPath,
     },
     {
         path: '/tasks',
@@ -23,29 +22,28 @@ const routes = [
         name: 'Logs',
         label: "运行日志",
         icon: FileText,
-        // Placeholder for Logs
-        component: () => import('../views/Settings.vue') // temp alias to avoid crashing if file missing
+        component: () => import('../views/Logs.vue')
     },
     {
         path: '/scripts',
         name: 'LocalScriptList',
         label: "本地列表",
         icon: FileCode,
-        component: () => import('../views/Settings.vue') // temp alias
+        component: () => import('../views/ScriptList.vue')
     },
     {
         path: '/market',
         name: 'ScriptMarket',
         label: "脚本市场",
         icon: ShoppingBag,
-        component: () => import('../views/Settings.vue') // temp alias
+        component: () => import('../views/ScriptMarket.vue')
     },
     {
         path: '/devices',
         name: 'DeviceList',
         label: "设备列表",
         icon: Smartphone,
-        component: () => import('../views/Settings.vue') // temp alias
+        component: () => import('../views/DeviceList.vue')
     },
     {
         path: '/settings',
@@ -66,7 +64,7 @@ const routes = [
         name: 'ScriptEditor',
         label: "脚本开发",
         icon: Monitor,
-        component: () => import('../views/Settings.vue') // temp alias
+        component: () => import('../views/ScriptEditor.vue')
     }
 ];
 

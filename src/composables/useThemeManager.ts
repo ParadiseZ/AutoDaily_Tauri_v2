@@ -1,13 +1,14 @@
 import { ref } from 'vue';
 import { getFromStore, setToStore } from '@/store/store';
+import type { AppTheme } from '@/types/app/domain';
 
 // Global state for current setting
-const currentThemeSetting = ref<'light' | 'dark' | 'system'>('system');
+const currentThemeSetting = ref<AppTheme>('system');
 let mediaQueryListener: ((e: MediaQueryListEvent) => void) | null = null;
 let mediaQuery: MediaQueryList | null = null;
 
 export function useThemeManager() {
-    const applyTheme = (theme: 'light' | 'dark' | 'system') => {
+    const applyTheme = (theme: AppTheme) => {
         let actualTheme = theme;
         if (theme === 'system') {
             if (!mediaQuery) mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -39,7 +40,7 @@ export function useThemeManager() {
         try {
             const savedTheme = await getFromStore<string>(storeKey);
             if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
-                currentThemeSetting.value = savedTheme as any;
+                currentThemeSetting.value = savedTheme as AppTheme;
             }
         } catch (e) {
             console.warn('Failed to load theme from store, defaulting to system:', e);
@@ -54,7 +55,7 @@ export function useThemeManager() {
         }
     };
 
-    const setTheme = async (storeKey: string, theme: 'light' | 'dark' | 'system') => {
+    const setTheme = async (storeKey: string, theme: AppTheme) => {
         currentThemeSetting.value = theme;
         applyTheme(theme);
         try {

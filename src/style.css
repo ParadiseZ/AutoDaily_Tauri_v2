@@ -2,7 +2,7 @@
 @plugin "daisyui";
 
 @theme {
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-sans: "SF Pro Display", "SF Pro Text", "PingFang SC", "Microsoft YaHei UI", "Segoe UI", sans-serif;
 
   /* Map DaisyUI variables to Tailwind 4 colors */
   --color-primary: oklch(var(--p));
@@ -19,54 +19,398 @@
   --color-base-content: oklch(var(--bc));
 }
 
-/* Custom Premium Themes for DaisyUI 5 (using OKLCH components)
-oklch 0 到 1（或 0% 到 100%）,
-HSL 360 100% 100%
-*/
 :root,
 [data-theme='light'] {
-  --p: 0.54 0.21 260;
-  /* iOS Blue */
+  --p: 0.63 0.15 242;
   --pc: 1 0 0;
-  --s: 0.6 0.2 300;
-  /* Violet */
+  --s: 0.71 0.05 225;
   --sc: 1 0 0;
-  --a: 0.6 0.14 184.22;
-  /* Teal-600 */
+  --a: 0.76 0.06 202;
   --ac: 1 0 0;
   
-  --su: 0.7 0.18 160;
-  /* Vibrant Green */
+  --su: 0.76 0.11 158;
   --suc: 1 0 0;
 
-  --n: 0.95 0.01 247;
-  --nc: 0.2 0.02 247;
-  --b1: 1 0 0;
+  --n: 0.96 0.01 247;
+  --nc: 0.23 0.02 247;
+  --b1: 0.99 0.005 255;
   --b2: 0.97 0.01 247;
   --b3: 0.94 0.01 247;
   --bc: 0.22 0.02 247;
+
+  --app-bg: rgba(247, 249, 252, 0.88);
+  --app-panel: rgba(255, 255, 255, 0.74);
+  --app-panel-muted: rgba(246, 248, 251, 0.9);
+  --app-border: rgba(15, 23, 42, 0.08);
+  --app-border-strong: rgba(15, 23, 42, 0.12);
+  --app-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+  --app-shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --app-text-strong: rgba(15, 23, 42, 0.94);
+  --app-text: rgba(15, 23, 42, 0.82);
+  --app-text-soft: rgba(71, 85, 105, 0.8);
+  --app-text-faint: rgba(100, 116, 139, 0.62);
+  --app-accent: rgba(70, 110, 255, 0.96);
+  --app-accent-soft: rgba(70, 110, 255, 0.12);
 }
 
 [data-theme='dark'] {
-  --p: 0.62 0.21 258;
+  --p: 0.72 0.15 247;
   --pc: 1 0 0;
-  --s: 0.7 0.2 300;
+  --s: 0.56 0.03 244;
   --sc: 0 0 0;
-  --a: 0.7 0.14 184.22;
+  --a: 0.62 0.04 195;
   --ac: 0 0 0;
   
-  --su: 0.65 0.18 160;
+  --su: 0.69 0.11 158;
   --suc: 0 0 0;
 
-  --n: 0.2 0.05 247;
-  --nc: 0.9 0.02 247;
-  --b1: 0.15 0.05 247;
-  --b2: 0.12 0.05 247;
-  --b3: 0.1 0.05 247;
-  --bc: 0.9 0.02 247;
+  --n: 0.23 0.03 247;
+  --nc: 0.94 0.02 247;
+  --b1: 0.17 0.02 250;
+  --b2: 0.19 0.02 247;
+  --b3: 0.23 0.02 247;
+  --bc: 0.92 0.02 247;
+
+  --app-bg: rgba(12, 17, 27, 0.9);
+  --app-panel: rgba(18, 26, 38, 0.76);
+  --app-panel-muted: rgba(20, 30, 44, 0.9);
+  --app-border: rgba(255, 255, 255, 0.08);
+  --app-border-strong: rgba(255, 255, 255, 0.12);
+  --app-shadow: 0 18px 60px rgba(0, 0, 0, 0.3);
+  --app-shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.22);
+  --app-text-strong: rgba(255, 255, 255, 0.94);
+  --app-text: rgba(226, 232, 240, 0.86);
+  --app-text-soft: rgba(203, 213, 225, 0.72);
+  --app-text-faint: rgba(148, 163, 184, 0.68);
+  --app-accent: rgba(129, 170, 255, 0.96);
+  --app-accent-soft: rgba(129, 170, 255, 0.18);
 }
 
-/* Custom styles can go here */
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--app-text);
+  background:
+    radial-gradient(circle at top left, rgba(121, 167, 255, 0.14), transparent 26%),
+    radial-gradient(circle at bottom right, rgba(129, 211, 248, 0.12), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 35%),
+    var(--app-bg);
+  background-attachment: fixed;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--app-accent-soft);
+}
+
+.app-shell {
+  background: transparent;
+}
+
+.app-sidebar {
+  background: color-mix(in srgb, var(--app-panel) 88%, transparent);
+  border-right: 1px solid var(--app-border);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+}
+
+.app-titlebar {
+  border-bottom: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-panel) 92%, transparent);
+  backdrop-filter: blur(20px);
+}
+
+.app-panel {
+  border: 1px solid var(--app-border);
+  background: var(--app-panel);
+  box-shadow: var(--app-shadow-soft);
+  border-radius: 24px;
+  backdrop-filter: blur(16px);
+}
+
+.app-panel-muted {
+  background: var(--app-panel-muted);
+}
+
+.app-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-page-title {
+  color: var(--app-text-strong);
+  font-size: 1.75rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+}
+
+.app-page-description {
+  color: var(--app-text-soft);
+  font-size: 0.96rem;
+  line-height: 1.6;
+}
+
+.app-eyebrow {
+  color: var(--app-text-faint);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.app-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 16px;
+  padding: 0.75rem 0.9rem;
+  color: var(--app-text-soft);
+  transition: all 0.18s ease;
+}
+
+.app-sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.34);
+  color: var(--app-text-strong);
+}
+
+.app-sidebar-link-active {
+  background: color-mix(in srgb, var(--app-accent-soft) 82%, transparent);
+  color: var(--app-text-strong);
+  box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.14);
+}
+
+.app-stat {
+  border-radius: 20px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-panel) 80%, transparent);
+  padding: 1rem 1.1rem;
+}
+
+.app-stat-label {
+  color: var(--app-text-faint);
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-stat-value {
+  color: var(--app-text-strong);
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+.app-input,
+.app-select,
+.app-textarea {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-panel-muted) 86%, transparent);
+  color: var(--app-text-strong);
+  padding: 0.8rem 0.9rem;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.app-input:focus,
+.app-select:focus,
+.app-textarea:focus {
+  outline: none;
+  border-color: rgba(70, 110, 255, 0.3);
+  box-shadow: 0 0 0 4px rgba(70, 110, 255, 0.1);
+}
+
+.app-button,
+.app-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.app-button {
+  min-height: 2.7rem;
+  padding: 0.7rem 1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.app-icon-button {
+  width: 2.45rem;
+  height: 2.45rem;
+  color: var(--app-text-soft);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--app-border);
+}
+
+.app-button:hover,
+.app-icon-button:hover {
+  transform: translateY(-1px);
+}
+
+.app-button-primary {
+  background: var(--app-accent);
+  color: white;
+  box-shadow: 0 16px 32px rgba(70, 110, 255, 0.22);
+}
+
+.app-button-ghost {
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--app-text-strong);
+  border-color: var(--app-border);
+}
+
+.app-button-danger {
+  background: rgba(220, 38, 38, 0.08);
+  color: rgb(220, 38, 38);
+  border-color: rgba(220, 38, 38, 0.12);
+}
+
+.app-button-warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: rgb(180, 83, 9);
+  border-color: rgba(245, 158, 11, 0.16);
+}
+
+.app-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.34rem 0.7rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.app-badge-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.app-badge-neutral {
+  background: rgba(100, 116, 139, 0.12);
+  color: rgba(71, 85, 105, 0.92);
+}
+
+.app-badge-info {
+  background: rgba(70, 110, 255, 0.12);
+  color: rgba(70, 110, 255, 0.94);
+}
+
+.app-badge-success {
+  background: rgba(22, 163, 74, 0.12);
+  color: rgba(22, 163, 74, 0.92);
+}
+
+.app-badge-warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: rgba(180, 83, 9, 0.92);
+}
+
+.app-badge-danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: rgba(220, 38, 38, 0.92);
+}
+
+.app-empty-state {
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  border: 1px dashed var(--app-border-strong);
+  border-radius: 24px;
+  padding: 2rem;
+}
+
+.app-empty-icon {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--app-accent-soft);
+  color: var(--app-accent);
+}
+
+.app-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(10px);
+}
+
+.app-dialog {
+  width: min(100%, 960px);
+  border-radius: 28px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-panel) 94%, transparent);
+  box-shadow: var(--app-shadow);
+  padding: 1.5rem;
+}
+
+.app-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.app-table th,
+.app-table td {
+  border-bottom: 1px solid var(--app-border);
+  padding: 0.95rem 0.85rem;
+  text-align: left;
+}
+
+.app-table th {
+  color: var(--app-text-faint);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-tab {
+  border-radius: 999px;
+  padding: 0.55rem 0.9rem;
+  color: var(--app-text-soft);
+  transition: all 0.16s ease;
+}
+
+.app-tab-active {
+  background: var(--app-accent-soft);
+  color: var(--app-text-strong);
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

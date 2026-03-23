@@ -21,7 +21,7 @@ pub struct RegisterReq {
 #[serde(rename_all = "camelCase")]
 pub struct ResetPasswordReq {
     pub email: String,
-    pub password: String,
+    pub new_password: String,
     pub code: String,
 }
 

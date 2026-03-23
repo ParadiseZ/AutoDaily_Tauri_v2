@@ -1,82 +1,314 @@
 <template>
-  <div class="w-full max-w-4xl mx-auto flex flex-col gap-8 pb-10 pt-4">
-    <div class="px-2">
-      <h1 class="text-2xl font-semibold tracking-tight text-base-content">系统设置</h1>
-      <p class="text-sm text-base-content/50 mt-1">管理系统行为、外观与本地配置。</p>
-    </div>
-    
-    <!-- Group: Conventional -->
-    <div class="flex flex-col gap-2">
-      <h2 class="text-[11px] font-semibold uppercase tracking-wider text-base-content/50 ml-4 mb-1">常规</h2>
-      <div class="bg-base-100 border border-base-content/5 rounded-2xl overflow-hidden shadow-sm">
-        
-        <div class="p-4 flex items-center justify-between bg-base-100 hover:bg-base-200/80 transition-colors cursor-pointer" @click="toggleAutoStart">
-          <div>
-            <div class="text-[14px] font-medium text-base-content/90">开机自启</div>
-            <div class="text-[12px] text-base-content/50 mt-0.5">登录操作系统后自动运行 AutoDaily</div>
-          </div>
-          <!-- DaisyUI switch styled to look more like iOS -->
-          <input type="checkbox" v-model="autoStart" class="toggle toggle-md bg-base-300 border-base-300 checked:bg-primary checked:border-primary hover:opacity-90 transition-all" @click.stop />
-        </div>
-        
-        <div class="w-auto h-px bg-base-content/5 ml-4"></div>
-        
-        <div class="p-4 flex items-center justify-between bg-base-100 hover:bg-base-200/80 transition-colors">
-          <div>
-            <div class="text-[14px] font-medium text-base-content/90">外观模式</div>
-            <div class="text-[12px] text-base-content/50 mt-0.5">选择界面色彩主题</div>
-          </div>
-          <select v-model="themeSetting" @change="handleThemeChange" class="select select-sm select-bordered w-32 bg-base-200/50 text-[13px] rounded-lg focus:outline-none focus:ring-2 focus:ring-base-content/20 transition-all border-none">
-            <option value="system">随系统</option>
-            <option value="light">浅色</option>
-            <option value="dark">深色</option>
-          </select>
-        </div>
+  <div class="space-y-6">
+    <AppPageHeader
+      eyebrow="Preferences"
+      title="系统设置"
+      description="账户、桌面行为、ADB 与日志配置保持统一来源，本地持久化和运行时命令分开处理。"
+    />
 
+    <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <div class="space-y-4">
+        <SettingsSection title="账户信息" description="云端能力集中在这里管理，避免分散到脚本页和市场页。">
+          <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-[var(--app-border)] px-4 py-4">
+            <div>
+              <p class="text-sm font-medium text-[var(--app-text-strong)]">当前未登录</p>
+              <p class="text-sm text-[var(--app-text-soft)]">登录后可同步脚本、访问脚本市场和管理用户名。</p>
+            </div>
+            <button class="app-button app-button-primary" type="button" @click="userStore.openAuthModal()">登录</button>
+          </div>
+
+          <template v-else>
+            <div class="grid gap-3 md:grid-cols-2">
+              <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-4">
+                <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">用户名</p>
+                <div class="mt-2 flex items-center gap-3">
+                  <input v-model.trim="usernameDraft" class="app-input" />
+                  <button class="app-button app-button-ghost h-11 px-4" type="button" @click="saveUsername">
+                    保存
+                  </button>
+                </div>
+              </div>
+              <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-4">
+                <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">邮箱</p>
+                <p class="mt-3 text-sm font-medium text-[var(--app-text-strong)]">{{ userStore.userProfile?.email }}</p>
+              </div>
+            </div>
+
+            <div class="grid gap-3 md:grid-cols-3">
+              <div class="app-stat">
+                <p class="app-stat-label">开发者状态</p>
+                <p class="app-stat-value text-base">{{ userStore.isDeveloper ? '有效' : '普通用户' }}</p>
+              </div>
+              <div class="app-stat">
+                <p class="app-stat-label">最近上传</p>
+                <p class="app-stat-value text-base">{{ formatDate(userStore.userProfile?.lastScriptUploadTime) }}</p>
+              </div>
+              <div class="app-stat">
+                <p class="app-stat-label">用户名修改</p>
+                <p class="app-stat-value text-base">{{ formatDate(userStore.userProfile?.lastUsernameChangeTime) }}</p>
+              </div>
+            </div>
+
+            <div class="flex justify-end">
+              <button class="app-button app-button-danger" type="button" @click="userStore.logout()">退出登录</button>
+            </div>
+          </template>
+        </SettingsSection>
+
+        <SettingsSection title="界面与启动" description="这些偏工作流的偏好写入本地 Store，并且主题会立即反馈到桌面界面。">
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">主题</span>
+              <select v-model="settingsStore.preferences.appTheme" class="app-select" @change="handleThemeChange">
+                <option value="system">跟随系统</option>
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
+              </select>
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">默认页面</span>
+              <select v-model="settingsStore.preferences.defaultRoute" class="app-select" @change="handleRouteChange">
+                <option value="/tasks">任务管理</option>
+                <option value="/devices">设备列表</option>
+                <option value="/scripts">本地脚本</option>
+                <option value="/market">脚本市场</option>
+                <option value="/logs">运行日志</option>
+                <option value="/settings">系统设置</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">启动模式</span>
+              <select v-model="settingsStore.preferences.startMode" class="app-select" @change="saveSystemPreferences">
+                <option value="normal">正常显示</option>
+                <option value="minimized">最小化启动</option>
+                <option value="tray">启动到托盘</option>
+              </select>
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">空闲处理</span>
+              <select v-model="settingsStore.preferences.idleAction" class="app-select" @change="saveSystemPreferences">
+                <option value="none">无动作</option>
+                <option value="shutdown">关机</option>
+                <option value="sleep">睡眠</option>
+                <option value="hibernate">休眠</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-3">
+            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
+              <span class="text-sm text-[var(--app-text-strong)]">开机自启</span>
+              <input v-model="settingsStore.preferences.autoStart" type="checkbox" class="toggle toggle-sm" @change="saveSystemPreferences" />
+            </label>
+            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
+              <span class="text-sm text-[var(--app-text-strong)]">窗口置顶</span>
+              <input v-model="settingsStore.preferences.alwaysOnTop" type="checkbox" class="toggle toggle-sm" @change="saveSystemPreferences" />
+            </label>
+            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
+              <span class="text-sm text-[var(--app-text-strong)]">关闭即退出</span>
+              <input v-model="settingsStore.preferences.closeExit" type="checkbox" class="toggle toggle-sm" @change="saveSystemPreferences" />
+            </label>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title="ADB 与环境" description="没有现成后端命令的字段保存在本地 Store，给设备编辑器和运行环境统一复用。">
+          <div class="grid gap-4 md:grid-cols-[1fr_auto]">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">ADB 路径</span>
+              <input v-model="settingsStore.preferences.adbPath" class="app-input" placeholder="选择 adb.exe 路径" />
+            </label>
+            <button class="app-button app-button-ghost self-end" type="button" @click="pickAdbPath">选择路径</button>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">ADB 服务 Host</span>
+              <input v-model.trim="settingsStore.preferences.adbServerHost" class="app-input" placeholder="127.0.0.1" />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">ADB 服务 Port</span>
+              <input v-model.number="settingsStore.preferences.adbServerPort" class="app-input" type="number" min="1" max="65535" />
+            </label>
+          </div>
+          <div class="flex justify-end">
+            <button class="app-button app-button-primary" type="button" @click="saveEnvironmentPreferences">保存环境配置</button>
+          </div>
+        </SettingsSection>
+      </div>
+
+      <div class="space-y-4">
+        <SettingsSection title="日志设置" description="主进程日志由 Tauri 命令即时修改，日志路径和保留天数都在这里维护。">
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">主进程日志级别</span>
+              <select v-model="settingsStore.logConfig.logLevel" class="app-select">
+                <option value="Debug">Debug</option>
+                <option value="Info">Info</option>
+                <option value="Warn">Warn</option>
+                <option value="Error">Error</option>
+                <option value="Off">Off</option>
+              </select>
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">保留天数</span>
+              <input v-model.number="settingsStore.logConfig.retentionDays" class="app-input" type="number" min="1" max="365" />
+            </label>
+          </div>
+          <div class="grid gap-4 md:grid-cols-[1fr_auto]">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">日志目录</span>
+              <input v-model="settingsStore.logConfig.logDir" class="app-input" />
+            </label>
+            <button class="app-button app-button-ghost self-end" type="button" @click="pickLogDir">选择目录</button>
+          </div>
+          <div class="flex flex-wrap justify-end gap-3">
+            <button class="app-button app-button-warning" type="button" @click="cleanLogs">立即清理</button>
+            <button class="app-button app-button-primary" type="button" @click="saveLogSettings">保存日志配置</button>
+          </div>
+        </SettingsSection>
+
+        <SettingsSection title="关于与更新" description="保持一个轻量的版本信息区，不把宣传内容塞进专业工具型桌面应用。">
+          <div class="grid gap-3 md:grid-cols-2">
+            <div class="rounded-[20px] border border-[var(--app-border)] p-4">
+              <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">版本</p>
+              <p class="mt-2 text-lg font-semibold text-[var(--app-text-strong)]">AutoDaily 0.1.0</p>
+            </div>
+            <div class="rounded-[20px] border border-[var(--app-border)] p-4">
+              <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">最近更新</p>
+              <p class="mt-2 text-sm text-[var(--app-text-strong)]">
+                {{ settingsStore.updateInfo ? `${settingsStore.updateInfo.version} · ${formatDate(settingsStore.updateInfo.pubDate)}` : '尚未检查' }}
+              </p>
+            </div>
+          </div>
+          <div class="rounded-[20px] border border-[var(--app-border)] p-4 text-sm text-[var(--app-text-soft)]">
+            {{ settingsStore.updateInfo?.notes || '当前还没有拉取更新说明。' }}
+          </div>
+          <div class="flex justify-end">
+            <button class="app-button app-button-primary" type="button" @click="checkUpdate">检查更新</button>
+          </div>
+        </SettingsSection>
       </div>
     </div>
-
-    <!-- Group: ADB Configuration -->
-    <div class="flex flex-col gap-2">
-      <h2 class="text-[11px] font-semibold uppercase tracking-wider text-base-content/50 ml-4 mb-1">ADB 配置</h2>
-      <div class="bg-base-100 border border-base-content/5 rounded-2xl overflow-hidden shadow-sm">
-        <div class="p-4 flex flex-col gap-3 bg-base-100">
-          <div class="flex items-center justify-between">
-             <div class="text-[14px] font-medium text-base-content/90">ADB 可执行路径</div>
-             <button class="btn btn-xs font-normal bg-base-200 hover:bg-base-300 border-none rounded-md text-base-content/80">选择路径</button>
-          </div>
-          <div class="flex gap-2 items-center">
-            <input type="text" class="input input-sm w-full bg-base-200/30 text-base-content/70 rounded-md border border-base-content/10 focus:outline-none focus:border-base-content/30 text-[13px] font-mono" value="C:\Android\platform-tools\adb.exe" readonly />
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useThemeManager } from '../composables/useThemeManager';
-import { appThemeKey, getFromStore } from '../store/store';
+import { onMounted, ref, watch } from 'vue';
+import { open } from '@tauri-apps/plugin-dialog';
+import AppPageHeader from '@/components/shared/AppPageHeader.vue';
+import SettingsSection from '@/views/settings/SettingsSection.vue';
+import { useSettingsStore } from '@/store/settings';
+import { useUserStore } from '@/store/user';
+import { useThemeManager } from '@/composables/useThemeManager';
+import { appThemeKey } from '@/store/store';
+import { showToast } from '@/utils/toast';
+import { formatDate } from '@/utils/presenters';
 
-const autoStart = ref(true);
-const toggleAutoStart = () => {
-    autoStart.value = !autoStart.value;
-};
-
-// Theme integration
+const settingsStore = useSettingsStore();
+const userStore = useUserStore();
 const { setTheme } = useThemeManager();
-const themeSetting = ref('system');
-
-onMounted(async () => {
-    const saved = await getFromStore<string>(appThemeKey);
-    if (saved && ['light', 'dark', 'system'].includes(saved)) {
-        themeSetting.value = saved;
-    }
-});
+const usernameDraft = ref('');
 
 const handleThemeChange = async () => {
-    await setTheme(appThemeKey, themeSetting.value as 'light' | 'dark' | 'system');
+  await settingsStore.updatePreferences({ appTheme: settingsStore.preferences.appTheme });
+  await setTheme(appThemeKey, settingsStore.preferences.appTheme);
 };
+
+const handleRouteChange = async () => {
+  await settingsStore.updatePreferences({ defaultRoute: settingsStore.preferences.defaultRoute });
+  showToast('默认页面已保存', 'success');
+};
+
+const saveSystemPreferences = async () => {
+  try {
+    await settingsStore.applySystemPreferences({
+      startMode: settingsStore.preferences.startMode,
+      closeExit: settingsStore.preferences.closeExit,
+      alwaysOnTop: settingsStore.preferences.alwaysOnTop,
+      idleAction: settingsStore.preferences.idleAction,
+      autoStart: settingsStore.preferences.autoStart,
+    });
+    showToast('桌面行为已更新', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '更新失败', 'error');
+  }
+};
+
+const saveEnvironmentPreferences = async () => {
+  await settingsStore.updatePreferences({
+    adbPath: settingsStore.preferences.adbPath,
+    adbServerHost: settingsStore.preferences.adbServerHost,
+    adbServerPort: settingsStore.preferences.adbServerPort,
+  });
+  showToast('环境配置已保存到本地', 'success');
+};
+
+const saveLogSettings = async () => {
+  try {
+    await settingsStore.updateLogSettings({
+      logLevel: settingsStore.logConfig.logLevel,
+      logDir: settingsStore.logConfig.logDir,
+      retentionDays: settingsStore.logConfig.retentionDays,
+    });
+    showToast('日志配置已保存', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '日志配置保存失败', 'error');
+  }
+};
+
+const cleanLogs = async () => {
+  try {
+    await settingsStore.cleanLogsNow();
+    showToast('日志清理完成', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '日志清理失败', 'error');
+  }
+};
+
+const pickAdbPath = async () => {
+  const value = await open({ multiple: false, directory: false });
+  if (typeof value === 'string') {
+    settingsStore.preferences.adbPath = value;
+  }
+};
+
+const pickLogDir = async () => {
+  const value = await open({ directory: true, multiple: false });
+  if (typeof value === 'string') {
+    settingsStore.logConfig.logDir = value;
+  }
+};
+
+const saveUsername = async () => {
+  if (!usernameDraft.value || usernameDraft.value === userStore.userProfile?.username) {
+    return;
+  }
+
+  try {
+    await userStore.updateUsername(usernameDraft.value);
+  } catch {}
+};
+
+const checkUpdate = async () => {
+  try {
+    const result = await settingsStore.refreshUpdateInfo();
+    showToast(result ? `发现版本 ${result.version}` : '当前已是最新版本', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '检查失败', 'error');
+  }
+};
+
+watch(
+  () => userStore.userProfile?.username,
+  (value) => {
+    usernameDraft.value = value || '';
+  },
+  { immediate: true },
+);
+
+onMounted(async () => {
+  await Promise.all([settingsStore.loadPreferences(), userStore.checkProfile()]);
+});
 </script>
