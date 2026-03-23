@@ -59,42 +59,22 @@
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">主题</span>
-              <select v-model="settingsStore.preferences.appTheme" class="app-select" @change="handleThemeChange">
-                <option value="system">跟随系统</option>
-                <option value="light">浅色</option>
-                <option value="dark">深色</option>
-              </select>
+              <AppSelect v-model="settingsStore.preferences.appTheme" :options="themeOptions" @update:model-value="handleThemeChange" />
             </label>
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">默认页面</span>
-              <select v-model="settingsStore.preferences.defaultRoute" class="app-select" @change="handleRouteChange">
-                <option value="/tasks">任务管理</option>
-                <option value="/devices">设备列表</option>
-                <option value="/scripts">本地脚本</option>
-                <option value="/market">脚本市场</option>
-                <option value="/logs">运行日志</option>
-                <option value="/settings">系统设置</option>
-              </select>
+              <AppSelect v-model="settingsStore.preferences.defaultRoute" :options="defaultRouteOptions" @update:model-value="handleRouteChange" />
             </label>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">启动模式</span>
-              <select v-model="settingsStore.preferences.startMode" class="app-select" @change="saveSystemPreferences">
-                <option value="normal">正常显示</option>
-                <option value="minimized">最小化启动</option>
-                <option value="tray">启动到托盘</option>
-              </select>
+              <AppSelect v-model="settingsStore.preferences.startMode" :options="startModeOptions" @update:model-value="saveSystemPreferences" />
             </label>
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">空闲处理</span>
-              <select v-model="settingsStore.preferences.idleAction" class="app-select" @change="saveSystemPreferences">
-                <option value="none">无动作</option>
-                <option value="shutdown">关机</option>
-                <option value="sleep">睡眠</option>
-                <option value="hibernate">休眠</option>
-              </select>
+              <AppSelect v-model="settingsStore.preferences.idleAction" :options="idleActionOptions" @update:model-value="saveSystemPreferences" />
             </label>
           </div>
 
@@ -143,13 +123,7 @@
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">主进程日志级别</span>
-              <select v-model="settingsStore.logConfig.logLevel" class="app-select">
-                <option value="Debug">Debug</option>
-                <option value="Info">Info</option>
-                <option value="Warn">Warn</option>
-                <option value="Error">Error</option>
-                <option value="Off">Off</option>
-              </select>
+              <AppSelect v-model="settingsStore.logConfig.logLevel" :options="logLevelOptions" />
             </label>
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">保留天数</span>
@@ -197,6 +171,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import SettingsSection from '@/views/settings/SettingsSection.vue';
 import { useSettingsStore } from '@/store/settings';
@@ -210,6 +185,37 @@ const settingsStore = useSettingsStore();
 const userStore = useUserStore();
 const { setTheme } = useThemeManager();
 const usernameDraft = ref('');
+const themeOptions = [
+  { label: '跟随系统', value: 'system' },
+  { label: '浅色', value: 'light' },
+  { label: '深色', value: 'dark' },
+];
+const defaultRouteOptions = [
+  { label: '任务管理', value: '/tasks' },
+  { label: '设备列表', value: '/devices' },
+  { label: '本地脚本', value: '/scripts' },
+  { label: '脚本市场', value: '/market' },
+  { label: '运行日志', value: '/logs' },
+  { label: '系统设置', value: '/settings' },
+];
+const startModeOptions = [
+  { label: '正常显示', value: 'normal' },
+  { label: '最小化启动', value: 'minimized' },
+  { label: '启动到托盘', value: 'tray' },
+];
+const idleActionOptions = [
+  { label: '无动作', value: 'none' },
+  { label: '关机', value: 'shutdown' },
+  { label: '睡眠', value: 'sleep' },
+  { label: '休眠', value: 'hibernate' },
+];
+const logLevelOptions = [
+  { label: 'Debug', value: 'Debug' },
+  { label: 'Info', value: 'Info' },
+  { label: 'Warn', value: 'Warn' },
+  { label: 'Error', value: 'Error' },
+  { label: 'Off', value: 'Off' },
+];
 
 const handleThemeChange = async () => {
   await settingsStore.updatePreferences({ appTheme: settingsStore.preferences.appTheme });

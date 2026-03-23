@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { createBlankScript, normalizeScriptTable, scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
+import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type {
     MarketPage,
     MarketScriptRecord,
@@ -30,8 +31,10 @@ export const useScriptStore = defineStore('script', () => {
     const selectedScriptId = ref<string | null>(null);
     const loading = ref(false);
     const marketLoading = ref(false);
+    const taskLoading = ref<Record<string, boolean>>({});
     const marketQuery = ref<ScriptSearchInput>(defaultMarketQuery());
     const marketPage = ref<MarketPage<MarketScriptRecord>>(emptyMarketPage());
+    const tasksByScriptId = ref<Record<string, ScriptTaskTable[]>>({});
 
     const selectedScript = computed(
         () => scripts.value.find((script) => script.id === selectedScriptId.value) ?? null,
@@ -75,6 +78,26 @@ export const useScriptStore = defineStore('script', () => {
         await loadScripts();
     };
 
+    const loadScriptTasks = async (scriptId: string) => {
+        taskLoading.value = {
+            ...taskLoading.value,
+            [scriptId]: true,
+        };
+        try {
+            const tasks = await scriptService.listTasks(scriptId);
+            tasksByScriptId.value = {
+                ...tasksByScriptId.value,
+                [scriptId]: tasks,
+            };
+            return tasks;
+        } finally {
+            taskLoading.value = {
+                ...taskLoading.value,
+                [scriptId]: false,
+            };
+        }
+    };
+
     const deleteScript = async (scriptId: string) => {
         await scriptService.removeLocal(scriptId);
         scripts.value = scripts.value.filter((script) => script.id !== scriptId);
@@ -110,6 +133,7 @@ export const useScriptStore = defineStore('script', () => {
         deleteScript,
         downloadMarketScript,
         loadScripts,
+        loadScriptTasks,
         loading,
         marketLoading,
         marketPage,
@@ -121,6 +145,8 @@ export const useScriptStore = defineStore('script', () => {
         selectedScriptId,
         selectScript,
         sortedScripts,
+        taskLoading,
+        tasksByScriptId,
         uploadScript,
     };
 });

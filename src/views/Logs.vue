@@ -7,26 +7,14 @@
     />
 
     <SurfacePanel class="grid gap-3 xl:grid-cols-[220px_180px_minmax(0,1fr)_180px_auto]">
-      <select v-model="selectedDeviceId" class="app-select">
-        <option value="">全部设备</option>
-        <option v-for="device in deviceStore.devices" :key="device.id" :value="device.id">
-          {{ device.data.deviceName }}
-        </option>
-      </select>
-      <select v-model="selectedLevel" class="app-select">
-        <option value="">全部级别</option>
-        <option value="Debug">Debug</option>
-        <option value="Info">Info</option>
-        <option value="Warn">Warn</option>
-        <option value="Error">Error</option>
-      </select>
+      <AppSelect v-model="selectedDeviceId" :options="deviceOptions" placeholder="全部设备" />
+      <AppSelect v-model="selectedLevel" :options="levelOptions" placeholder="全部级别" />
       <input v-model.trim="searchText" class="app-input" placeholder="搜索日志内容" />
-      <select v-if="selectedDeviceId" v-model="deviceLogLevel" class="app-select" @change="updateDeviceLogLevel">
-        <option value="Debug">Debug</option>
-        <option value="Info">Info</option>
-        <option value="Warn">Warn</option>
-        <option value="Error">Error</option>
-      </select>
+      <AppSelect
+        v-if="selectedDeviceId"
+        v-model="deviceLogLevel"
+        :options="levelOptions.filter((item) => item.value)"
+      />
       <button class="app-button app-button-ghost" type="button" @click="logsStore.clearLogs(selectedDeviceId || undefined)">
         清空
       </button>
@@ -55,6 +43,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import { useDeviceStore } from '@/store/device';
@@ -70,6 +59,22 @@ const selectedLevel = ref('');
 const searchText = ref('');
 const deviceLogLevel = ref<LogLevel>('Info');
 const logContainer = ref<HTMLDivElement | null>(null);
+
+const deviceOptions = computed(() => [
+  { label: '全部设备', value: '' },
+  ...deviceStore.devices.map((device) => ({
+    label: device.data.deviceName,
+    value: device.id,
+  })),
+]);
+
+const levelOptions = [
+  { label: '全部级别', value: '' },
+  { label: 'Debug', value: 'Debug' },
+  { label: 'Info', value: 'Info' },
+  { label: 'Warn', value: 'Warn' },
+  { label: 'Error', value: 'Error' },
+];
 
 const filteredLogs = computed(() => {
   const pool = selectedDeviceId.value
@@ -132,6 +137,16 @@ watch(
       deviceStore.devices.find((device) => device.id === deviceId)?.data.logLevel || 'Info';
   },
   { immediate: true },
+);
+
+watch(
+  () => deviceLogLevel.value,
+  async (level, previousLevel) => {
+    if (!selectedDeviceId.value || level === previousLevel) {
+      return;
+    }
+    await updateDeviceLogLevel();
+  },
 );
 
 onMounted(async () => {

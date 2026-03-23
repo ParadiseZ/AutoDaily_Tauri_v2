@@ -38,19 +38,9 @@
           <StatusBadge :label="`${assignments.length} 条`" tone="neutral" />
         </div>
 
-        <div class="grid gap-3 lg:grid-cols-[1fr_180px_auto]">
-          <select v-model="selectedScriptId" class="app-select">
-            <option disabled value="">选择要追加的脚本</option>
-            <option v-for="script in scripts" :key="script.id" :value="script.id">
-              {{ script.data.name }}
-            </option>
-          </select>
-          <select v-model="selectedTemplateId" class="app-select">
-            <option value="">全天</option>
-            <option v-for="template in timeTemplates" :key="template.id" :value="template.id">
-              {{ template.name }}
-            </option>
-          </select>
+        <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
+          <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择要追加的脚本" />
+          <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
           <button class="app-button app-button-ghost" type="button" @click="handleAddScript">
             追加
           </button>
@@ -117,6 +107,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import type { AssignmentRecord, DeviceRuntimeStatus, ScriptTableRecord } from '@/types/app/domain';
@@ -154,6 +145,23 @@ const emit = defineEmits<{
 
 const selectedScriptId = ref('');
 const selectedTemplateId = ref('');
+
+const scriptOptions = computed(() =>
+  props.scripts.map((script) => ({
+    label: script.data.name,
+    value: script.id,
+    description: script.data.description || undefined,
+  })),
+);
+
+const templateOptions = computed(() => [
+  { label: '每次', value: '' },
+  ...props.timeTemplates.map((template) => ({
+    label: template.name,
+    value: template.id,
+    description: formatTemplateWindow(template),
+  })),
+]);
 
 const templateMap = computed(() =>
   Object.fromEntries(props.timeTemplates.map((template) => [template.id, template])),

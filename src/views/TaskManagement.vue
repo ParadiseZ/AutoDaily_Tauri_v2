@@ -44,18 +44,47 @@
       :icon="MonitorSmartphone"
     />
 
-    <div v-else class="space-y-4">
+    <div v-else class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <SurfacePanel class="space-y-3">
+        <div>
+          <p class="text-sm font-semibold text-[var(--app-text-strong)]">设备节点</p>
+          <p class="text-xs text-[var(--app-text-faint)]">左侧快速切换设备，右侧只展开当前设备的完整运行上下文。</p>
+        </div>
+
+        <div class="space-y-2">
+          <button
+            v-for="device in orderedDevices"
+            :key="device.id"
+            type="button"
+            class="app-list-item"
+            :class="{ 'app-list-item-active': device.id === activeDevice?.id }"
+            @click="deviceStore.selectedDeviceId = device.id"
+          >
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ device.data.deviceName }}</p>
+                <p class="mt-1 truncate text-xs text-[var(--app-text-faint)]">
+                  {{ taskStore.assignmentsByDevice[device.id]?.length || 0 }} 条队列
+                </p>
+              </div>
+              <span class="text-xs text-[var(--app-text-soft)]">
+                {{ deviceStore.getDeviceStatus(device.id).kind === 'running' ? '运行中' : deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
+              </span>
+            </div>
+          </button>
+        </div>
+      </SurfacePanel>
+
       <TaskDevicePanel
-        v-for="device in orderedDevices"
-        :key="device.id"
-        :device="device"
-        :status="deviceStore.getDeviceStatus(device.id)"
+        v-if="activeDevice"
+        :device="activeDevice"
+        :status="deviceStore.getDeviceStatus(activeDevice.id)"
         :scripts="scriptStore.sortedScripts"
         :time-templates="taskStore.timeTemplates"
-        :assignments="taskStore.assignmentsByDevice[device.id] ?? []"
-        :schedules="taskStore.schedulesByDevice[device.id] ?? []"
-        :loading-assignments="Boolean(taskStore.loadingAssignments[device.id])"
-        :loading-schedules="Boolean(taskStore.loadingSchedules[device.id])"
+        :assignments="taskStore.assignmentsByDevice[activeDevice.id] ?? []"
+        :schedules="taskStore.schedulesByDevice[activeDevice.id] ?? []"
+        :loading-assignments="Boolean(taskStore.loadingAssignments[activeDevice.id])"
+        :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         @add-script="handleAddScript"
         @remove-assignment="handleRemoveAssignment"
         @clear-schedules="taskStore.clearSchedules"
@@ -88,6 +117,9 @@ const deviceIds = computed(() => deviceStore.devices.map((device) => device.id))
 const orderedDevices = computed(() =>
   [...deviceStore.devices].sort((left, right) => Number(right.data.enable) - Number(left.data.enable)),
 );
+const activeDevice = computed(() =>
+  orderedDevices.value.find((device) => device.id === deviceStore.selectedDeviceId) ?? orderedDevices.value[0] ?? null,
+);
 const totalAssignments = computed(() =>
   Object.values(taskStore.assignmentsByDevice).reduce((count, items) => count + items.length, 0),
 );
@@ -95,6 +127,9 @@ const totalAssignments = computed(() =>
 const loadPageData = async () => {
   await Promise.all([deviceStore.refreshAll(), scriptStore.loadScripts()]);
   await taskStore.hydrateForDevices(deviceIds.value);
+  if (!deviceStore.selectedDeviceId && orderedDevices.value.length) {
+    deviceStore.selectedDeviceId = orderedDevices.value[0].id;
+  }
 };
 
 const handleAddScript = async (deviceId: string, scriptId: string, timeTemplateId: string | null) => {

@@ -15,6 +15,7 @@ import { useUserStore } from './store/user';
 import { useSettingsStore } from './store/settings';
 import { useDeviceStore } from './store/device';
 import { useLogsStore } from './store/logs';
+import AuthModal from "@/components/AuthModal.vue";
 
 const { initTheme } = useThemeManager();
 const route = useRoute();

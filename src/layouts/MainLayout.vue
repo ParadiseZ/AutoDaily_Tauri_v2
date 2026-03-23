@@ -17,14 +17,18 @@
           </p>
         </div>
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-3 gap-3">
           <div class="app-stat">
-            <p class="app-stat-label">在线设备</p>
+            <p class="app-stat-label">在线</p>
             <p class="app-stat-value">{{ deviceStore.deviceSummary.online }}</p>
           </div>
           <div class="app-stat">
-            <p class="app-stat-label">运行中</p>
+            <p class="app-stat-label">运行</p>
             <p class="app-stat-value">{{ deviceStore.deviceSummary.running }}</p>
+          </div>
+          <div class="app-stat">
+            <p class="app-stat-label">启用</p>
+            <p class="app-stat-value">{{ deviceStore.deviceSummary.enabled }}/{{ deviceStore.deviceSummary.total }}</p>
           </div>
         </div>
 
@@ -69,18 +73,6 @@
     </aside>
 
     <main class="min-w-0 flex-1">
-      <header class="app-titlebar flex h-[68px] items-center justify-between px-5 lg:px-8" data-tauri-drag-region>
-        <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-[var(--app-text-faint)]">{{ currentRouteMeta?.label }}</p>
-          <p class="text-base font-semibold text-[var(--app-text-strong)]">{{ routeSummary }}</p>
-        </div>
-        <div class="flex items-center gap-2">
-          <div class="hidden rounded-full border border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-text-soft)] md:block">
-            {{ deviceStore.deviceSummary.enabled }} / {{ deviceStore.deviceSummary.total }} 已启用
-          </div>
-        </div>
-      </header>
-
       <div class="h-[calc(100vh-68px)] overflow-y-auto custom-scrollbar px-4 pb-8 pt-6 lg:px-8">
         <router-view v-slot="{ Component }">
           <transition name="shell-fade" mode="out-in">

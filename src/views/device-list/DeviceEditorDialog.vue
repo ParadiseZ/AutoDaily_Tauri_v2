@@ -14,23 +14,14 @@
         </label>
         <label class="grid gap-2">
           <span class="text-sm text-[var(--app-text-soft)]">日志级别</span>
-          <select v-model="form.logLevel" class="app-select">
-            <option value="Off">Off</option>
-            <option value="Error">Error</option>
-            <option value="Warn">Warn</option>
-            <option value="Info">Info</option>
-            <option value="Debug">Debug</option>
-          </select>
+          <AppSelect v-model="form.logLevel" :options="logLevelOptions" />
         </label>
       </div>
 
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
           <span class="text-sm text-[var(--app-text-soft)]">截图方式</span>
-          <select v-model="form.capMethodType" class="app-select">
-            <option value="window">窗口截取</option>
-            <option value="adb">ADB 截图</option>
-          </select>
+          <AppSelect v-model="form.capMethodType" :options="captureOptions" />
         </label>
         <label class="grid gap-2">
           <span class="text-sm text-[var(--app-text-soft)]">窗口名 / 标识</span>
@@ -46,11 +37,7 @@
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
           <span class="text-sm text-[var(--app-text-soft)]">连接方式</span>
-          <select v-model="form.connectMethod" class="app-select">
-            <option value="directTcp">TCP 直连</option>
-            <option value="serverConnectByIp">ADB 服务（按 IP）</option>
-            <option value="serverConnectByName">ADB 服务（按名称）</option>
-          </select>
+          <AppSelect v-model="form.connectMethod" :options="connectOptions" />
         </label>
         <label class="grid gap-2">
           <span class="text-sm text-[var(--app-text-soft)]">地址 / 设备名</span>
@@ -120,6 +107,7 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import type { DeviceFormState } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
@@ -153,6 +141,25 @@ const createEmptyForm = (): DeviceFormState => ({
 });
 
 const form = reactive<DeviceFormState>(createEmptyForm());
+
+const logLevelOptions = [
+  { label: 'Off', value: 'Off' },
+  { label: 'Error', value: 'Error' },
+  { label: 'Warn', value: 'Warn' },
+  { label: 'Info', value: 'Info' },
+  { label: 'Debug', value: 'Debug' },
+];
+
+const captureOptions = [
+  { label: '窗口截取', value: 'window' },
+  { label: 'ADB 截图', value: 'adb' },
+];
+
+const connectOptions = [
+  { label: 'TCP 直连', value: 'directTcp' },
+  { label: 'ADB 服务（按 IP）', value: 'serverConnectByIp' },
+  { label: 'ADB 服务（按名称）', value: 'serverConnectByName' },
+];
 
 const syncForm = (device: DeviceTable | null) => {
   Object.assign(form, createEmptyForm());

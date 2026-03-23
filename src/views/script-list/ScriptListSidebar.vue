@@ -6,7 +6,7 @@
         <p class="text-xs text-[var(--app-text-faint)]">最近修改的脚本会优先排在上面。</p>
       </div>
       <button class="app-button app-button-primary h-10 px-4" type="button" @click="$emit('create')">
-        新建
+        +
       </button>
     </div>
 
@@ -22,8 +22,8 @@
         v-for="script in scripts"
         :key="script.id"
         type="button"
-        class="w-full rounded-[18px] border border-[var(--app-border)] px-4 py-3 text-left transition hover:bg-white/20 dark:hover:bg-white/5"
-        :class="{ 'bg-[var(--app-accent-soft)]': script.id === selectedScriptId }"
+        class="app-list-item"
+        :class="{ 'app-list-item-active': script.id === selectedScriptId }"
         @click="$emit('select', script.id)"
       >
         <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ script.data.name }}</p>

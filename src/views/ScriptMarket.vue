@@ -9,14 +9,7 @@
     <SurfacePanel class="grid gap-3 lg:grid-cols-[1.2fr_1fr_220px_120px]">
       <input v-model.trim="filters.keyword" class="app-input" placeholder="搜索脚本名或描述" />
       <input v-model.trim="filters.author" class="app-input" placeholder="按作者筛选" />
-      <select v-model="filters.runtimeType" class="app-select">
-        <option value="">全部运行时</option>
-        <option value="rhai">Rhai</option>
-        <option value="javaScript">JavaScript</option>
-        <option value="lua">Lua</option>
-        <option value="aIAndVision">AI + Vision</option>
-        <option value="aI">AI</option>
-      </select>
+      <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="全部运行时" />
       <button class="app-button app-button-primary" type="button" @click="search">
         搜索
       </button>
@@ -40,8 +33,8 @@
             v-for="script in scriptStore.marketPage.records"
             :key="script.id"
             type="button"
-            class="w-full rounded-[18px] border border-[var(--app-border)] px-4 py-3 text-left transition hover:bg-white/20 dark:hover:bg-white/5"
-            :class="{ 'bg-[var(--app-accent-soft)]': script.id === selectedScriptId }"
+            class="app-list-item"
+            :class="{ 'app-list-item-active': script.id === selectedScriptId }"
             @click="selectedScriptId = script.id"
           >
             <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ script.name || '未命名脚本' }}</p>
@@ -115,6 +108,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
@@ -133,6 +127,14 @@ const filters = reactive({
   author: '',
   runtimeType: '',
 });
+const runtimeOptions = [
+  { label: '全部运行时', value: '' },
+  { label: 'Rhai', value: 'rhai' },
+/*  { label: 'JavaScript', value: 'javaScript' },
+  { label: 'Lua', value: 'lua' },*/
+  { label: 'AI + Vision', value: 'aIAndVision' },
+  { label: 'AI', value: 'aI' },
+];
 
 const selectedScript = computed(
   () => scriptStore.marketPage.records.find((script) => script.id === selectedScriptId.value) ?? null,

@@ -6,7 +6,7 @@
       description="列表、详情和下一步动作分离布局，浏览脚本时不用再被大量卡片和冗余按钮打断。"
     />
 
-    <div class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+    <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
       <ScriptListSidebar
         v-model:search-query="searchQuery"
         :scripts="filteredScripts"
@@ -23,23 +23,35 @@
         @clear-logs="handleClearLogs"
         @delete="handleDelete"
       />
+
+      <ScriptTaskInspector
+        :script="selectedScript"
+        :tasks="selectedScript ? scriptStore.tasksByScriptId[selectedScript.id] ?? [] : []"
+        :loading="selectedScript ? Boolean(scriptStore.taskLoading[selectedScript.id]) : false"
+        :devices="deviceStore.devices"
+        :assignments-by-device="taskStore.assignmentsByDevice"
+        :time-templates="taskStore.timeTemplates"
+      />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
 import ScriptListSidebar from '@/views/script-list/ScriptListSidebar.vue';
+import ScriptTaskInspector from '@/views/script-list/ScriptTaskInspector.vue';
+import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
 import { showToast } from '@/utils/toast';
 
 const router = useRouter();
+const deviceStore = useDeviceStore();
 const scriptStore = useScriptStore();
 const taskStore = useTaskStore();
 const userStore = useUserStore();
@@ -148,6 +160,33 @@ const handleDelete = async (scriptId: string) => {
 };
 
 onMounted(async () => {
-  await scriptStore.loadScripts();
+  await Promise.all([scriptStore.loadScripts(), deviceStore.loadDevices()]);
+  await taskStore.hydrateForDevices(deviceStore.devices.map((device) => device.id));
 });
+
+watch(
+  () => selectedScript.value?.id,
+  async (scriptId) => {
+    if (!scriptId) {
+      return;
+    }
+    await scriptStore.loadScriptTasks(scriptId);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => filteredScripts.value.map((script) => script.id).join(','),
+  () => {
+    if (!filteredScripts.value.length) {
+      return;
+    }
+
+    const currentId = scriptStore.selectedScriptId;
+    const exists = filteredScripts.value.some((script) => script.id === currentId);
+    if (!exists) {
+      scriptStore.selectScript(filteredScripts.value[0].id);
+    }
+  },
+);
 </script>

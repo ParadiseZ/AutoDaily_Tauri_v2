@@ -1,4 +1,5 @@
 import { invoke } from '@/utils/api';
+import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { ScriptTable } from '@/types/bindings/ScriptTable';
 import type { ScriptType } from '@/types/bindings/ScriptType';
 import type {
@@ -73,6 +74,7 @@ export const scriptService = {
         const scripts = (await invoke('get_all_scripts_cmd')) as ScriptTable[];
         return scripts.map(normalizeScriptTable);
     },
+    listTasks: (scriptId: string) => invoke('get_script_tasks_cmd', { scriptId }) as Promise<ScriptTaskTable[]>,
     saveLocal: async (script: ScriptTableRecord): Promise<void> => {
         await invoke('save_script_cmd', { script });
     },

@@ -72,7 +72,6 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 num = "0.4.3"
 machineid-rs = "1.2.4"
 tauri = { version = "2", features = ["uuid", "unstable"] }
-tauri-build = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
@@ -85,7 +84,7 @@ windows-sys = { version = "0.61.2" ,features = ["Win32_Security", "Win32_System_
 nix = "0.31.2"
 
 [build-dependencies]
-tauri-build = { workspace = true }
+tauri-build = { version = "2", features = [] }
 
 [dependencies]
 child_support = { path = "crates/child_support", optional = true }
