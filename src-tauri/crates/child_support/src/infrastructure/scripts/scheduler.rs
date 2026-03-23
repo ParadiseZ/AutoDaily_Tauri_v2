@@ -1,14 +1,11 @@
 // 脚本调度器
 // 管理子进程中的脚本执行队列，按顺序执行脚本
 
-use crate::infrastructure::context::child_process_sec::{
-    get_running_status, set_running_status, RunningStatus,
-};
 use crate::infrastructure::context::runtime_context::get_runtime_ctx;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::ipc::message::ExecuteTarget;
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::scripts::executor::{ControlFlow, ScriptExecutor};
+use crate::infrastructure::scripts::executor::ScriptExecutor;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -129,7 +126,7 @@ impl ScriptScheduler {
         }
 
         // 创建执行器
-        let mut executor = ScriptExecutor::new(runtime_ctx.clone());
+        let _executor = ScriptExecutor::new(runtime_ctx.clone());
 
         // TODO: 从数据库加载脚本的任务列表（ScriptTaskTable）
         // TODO: 解析节点/边为 Step 执行序列
@@ -165,7 +162,7 @@ impl ScriptScheduler {
             ctx.target = target;
         }
 
-        let mut executor = ScriptExecutor::new(runtime_ctx.clone());
+        let _executor = ScriptExecutor::new(runtime_ctx.clone());
 
         // TODO: 根据 target 加载对应的步骤
         // match target {

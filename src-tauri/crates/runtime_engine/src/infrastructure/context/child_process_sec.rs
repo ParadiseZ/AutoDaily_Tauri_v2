@@ -1,12 +1,5 @@
-use crate::infrastructure::context::init_error::{InitError, InitResult};
-use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
-use crate::infrastructure::ipc::chanel_client::IpcClient;
-use crate::infrastructure::logging::LogLevel;
-use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::{Arc, OnceLock};
+use crate::infrastructure::core::{Deserialize, Serialize};
 
-/// 运行标志
-static RUNNING: AtomicU8 = AtomicU8::new(0);
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum RunningStatus {
@@ -31,49 +24,5 @@ impl From<u8> for RunningStatus {
             6 => RunningStatus::Stopping,
             _ => RunningStatus::Unknown,
         }
-    }
-}
-pub fn is_idle() -> bool {
-    RUNNING.load(Ordering::Acquire) == 1u8
-}
-pub fn set_running_status(status: RunningStatus) {
-    RUNNING.store(status as u8, Ordering::Relaxed);
-}
-pub fn get_running_status() -> RunningStatus {
-    RunningStatus::from(RUNNING.load(Ordering::Acquire))
-}
-pub fn process_need_stop() -> bool {
-    matches!(RUNNING.load(Ordering::Acquire), 4 | 5 | 6) // Stopped=4, Error=5, Stopping=6
-}
-
-/// IPC客户端
-static IPC_CLIENT: OnceLock<Arc<IpcClient>> = OnceLock::new();
-
-pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitResult<()> {
-    let manager = Arc::new(IpcClient::new(device_id, AtomicU8::from(log_level as u8)));
-    manager.clone().spawn_reconnect_task();
-    IPC_CLIENT
-        .set(manager)
-        .map_err(|e| InitError::InitChildIpcClientFailed { e: e.clone().to_string() })
-}
-
-pub fn get_ipc_client() -> Option<Arc<IpcClient>> {
-    IPC_CLIENT.get().cloned()
-}
-
-/// 全局 CancellationToken（子进程用于优雅停止）
-static CANCEL_TOKEN: OnceLock<tokio_util::sync::CancellationToken> = OnceLock::new();
-
-pub fn init_cancel_token(token: tokio_util::sync::CancellationToken) {
-    let _ = CANCEL_TOKEN.set(token);
-}
-
-pub fn get_cancel_token() -> Option<&'static tokio_util::sync::CancellationToken> {
-    CANCEL_TOKEN.get()
-}
-
-pub fn trigger_cancel() {
-    if let Some(token) = CANCEL_TOKEN.get() {
-        token.cancel();
     }
 }

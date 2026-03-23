@@ -1,4 +1,3 @@
-use crate::infrastructure::core::time_format::LocalTimer;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::ipc::message::LogMessage;
 use crate::infrastructure::logging::logger::LOG_DIR;

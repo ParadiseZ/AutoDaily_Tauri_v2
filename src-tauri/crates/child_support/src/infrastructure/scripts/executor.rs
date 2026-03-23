@@ -1,4 +1,3 @@
-use std::error::Error;
 use crate::domain::scripts::script_decision::Step;
 use crate::infrastructure::context::runtime_context::SharedRuntimeContext;
 use crate::infrastructure::core::{HashMap, StepId};
@@ -6,11 +5,6 @@ use crate::infrastructure::scripts::script_error::ExecuteResult;
 use rhai::{Engine, Scope};
 use std::future::Future;
 use std::pin::Pin;
-use crate::domain::scripts::nodes::action::Action;
-use crate::domain::scripts::nodes::data_handing::DataHanding;
-use crate::domain::scripts::nodes::flow_control::FlowControl;
-use crate::domain::scripts::nodes::task_control::TaskControl;
-use crate::domain::scripts::nodes::vision_node::VisionNode;
 
 #[derive(Debug)]
 pub enum ControlFlow {
@@ -98,23 +92,23 @@ impl ScriptExecutor {
                         }
                     }
                 },
-                StepKind::Action{ cur_exec_num, max_exec_num, a} => {
+                StepKind::Action{ cur_exec_num, max_exec_num, a: _ } => {
                     if *cur_exec_num > *max_exec_num {
                         return Ok(ControlFlow::Continue);
                     }
                 },
-                StepKind::FlowControl { cur_exec_num, max_exec_num, a } => {
+                StepKind::FlowControl { cur_exec_num, max_exec_num, a: _ } => {
                     if *cur_exec_num > *max_exec_num {
                         return Ok(ControlFlow::Continue);
                     }
                 },
-                StepKind::TaskControl { a } => {
+                StepKind::TaskControl { a: _ } => {
 
                 },
-                StepKind::DataHanding { a }=>{
+                StepKind::DataHanding { a: _ }=>{
 
                 },
-                StepKind::Vision { a }=>{
+                StepKind::Vision { a: _ }=>{
 
                 },
                 /*StepKind::Continue => return Ok(ControlFlow::Continue),

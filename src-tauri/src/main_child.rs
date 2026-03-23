@@ -1,4 +1,4 @@
-use child_support::infrastructure::context::child_process::ChildProcessInitData;
+use child_support::infrastructure::context::child_process::{init_environment, ChildProcessInitData};
 use child_support::infrastructure::context::child_process_sec::{
     get_running_status, process_need_stop, set_running_status, RunningStatus,
 };
@@ -50,8 +50,7 @@ async fn run_child_process() -> ChildProcessResult<()> {
     })?;
 
     // 2. 初始化子进程环境（CPU亲和性、日志、数据库、IPC、ADB、运行时上下文）
-    init_data
-        .init_environment()
+    init_environment(&init_data)
         .await
         .map_err(ChildProcessError::InitErr)?;
 

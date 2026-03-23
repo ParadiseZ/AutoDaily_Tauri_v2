@@ -1,8 +1,6 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::infrastructure::app_handle::get_app_handle;
-use crate::infrastructure::ipc::message::{
-    IpcMessage, MessagePayload, MessageType, StatusReportMessage,
-};
+use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use tauri::{Emitter, Manager};
@@ -29,7 +27,7 @@ pub async fn handle_child_message(msg: IpcMessage) {
                 let _ = main_window.emit("child-log", emit_data);
             }
         }
-        MessagePayload::Heartbeat(ref heartbeat) => {
+        MessagePayload::Heartbeat(_) => {
             // 心跳消息：更新最后心跳时间
             // TODO: 更新 IpcClientState.last_heartbeat
         }

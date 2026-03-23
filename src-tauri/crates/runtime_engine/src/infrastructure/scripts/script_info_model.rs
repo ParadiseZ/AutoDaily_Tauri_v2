@@ -58,6 +58,7 @@ pub struct ScriptPageResp {
 }
 
 /// 脚本管理器 - 处理分页和排序
+#[allow(dead_code)]
 pub struct ScriptManager {
     // 使用索引而不是全量加载
     script_index: Arc<RwLock<HashMap<ScriptId, Arc<RwLock<ScriptMeta>>>>>,

@@ -50,6 +50,7 @@ impl<T: Num + Copy> SubAssign for Point<T> {
     }
 }
 
+#[allow(dead_code)]
 impl<T: NumCast> Point<T> {
     /// Converts to a Point<f64>. Panics if the cast fails.
     pub(crate) fn to_f64(&self) -> Point<f64> {
@@ -68,11 +69,13 @@ impl<T: NumCast> Point<T> {
 }
 
 /// Returns the Euclidean distance between two points.
+#[allow(dead_code)]
 pub(crate) fn distance<T: NumCast>(p: Point<T>, q: Point<T>) -> f64 {
     distance_sq(p, q).sqrt()
 }
 
 /// Returns the square of the Euclidean distance between two points.
+#[allow(dead_code)]
 pub(crate) fn distance_sq<T: NumCast>(p: Point<T>, q: Point<T>) -> f64 {
     let p = p.to_f64();
     let q = q.to_f64();
@@ -81,12 +84,14 @@ pub(crate) fn distance_sq<T: NumCast>(p: Point<T>, q: Point<T>) -> f64 {
 
 /// A fixed rotation. This struct exists solely to cache the values of `sin(theta)` and `cos(theta)` when
 /// applying a fixed rotation to multiple points.
+#[allow(dead_code)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) struct Rotation {
     sin_theta: f64,
     cos_theta: f64,
 }
 
+#[allow(dead_code)]
 impl Rotation {
     /// A rotation of `theta` radians.
     pub(crate) fn new(theta: f64) -> Rotation {
@@ -98,6 +103,7 @@ impl Rotation {
     }
 }
 
+#[allow(dead_code)]
 impl Point<f64> {
     /// Rotates a point.
     pub(crate) fn rotate(&self, rotation: Rotation) -> Point<f64> {
@@ -115,6 +121,7 @@ impl Point<f64> {
 }
 
 /// A line of the form Ax + By + C = 0.
+#[allow(dead_code)]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) struct Line {
     a: f64,
@@ -122,6 +129,7 @@ pub(crate) struct Line {
     c: f64,
 }
 
+#[allow(dead_code)]
 impl Line {
     /// Returns the `Line` that passes through p and q.
     pub fn from_points(p: Point<f64>, q: Point<f64>) -> Line {

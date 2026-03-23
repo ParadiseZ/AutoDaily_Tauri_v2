@@ -1,6 +1,6 @@
 use crate::constant::project::{HEARTBEAT_INTERVAL, SOCKET_NAME};
 use crate::infrastructure::context::child_process_sec::{
-    get_ipc_client, process_need_stop, set_running_status, RunningStatus,
+    process_need_stop, set_running_status, RunningStatus,
 };
 use crate::infrastructure::core::{decode_from_slice, encode_to_vec, serialize_config, DeviceId};
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;

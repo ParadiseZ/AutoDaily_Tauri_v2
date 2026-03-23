@@ -1,13 +1,11 @@
 use crate::infrastructure::ipc::message::{
-    ConfigUpdateMessage, ConfigUpdateType, IpcMessage, MessagePayload, MessageType,
-    ProcessAction, ProcessControlMessage, ScriptTaskAction, ScriptTaskMessage,
-    StatusReportMessage, ChildProcessStatus,
+    ConfigUpdateMessage, ConfigUpdateType, IpcMessage, MessagePayload, ProcessAction,
+    ProcessControlMessage, ScriptTaskAction, ScriptTaskMessage,
 };
 use crate::infrastructure::context::child_process_sec::{
     get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::logging::LogLevel;
 use std::sync::atomic::Ordering;
 
 /// 子进程消息处理器

@@ -1,5 +1,3 @@
-#![feature(portable_simd)]
-
 extern crate core;
 
 pub use runtime_engine::api;

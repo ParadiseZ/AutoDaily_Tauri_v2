@@ -911,8 +911,12 @@ dependencies = [
 name = "child_support"
 version = "0.1.0"
 dependencies = [
+ "interprocess",
+ "rhai",
  "runtime_common",
  "runtime_engine",
+ "tokio",
+ "tokio-util",
  "vision_core",
 ]
 
