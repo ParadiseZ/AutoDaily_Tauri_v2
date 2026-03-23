@@ -1,5 +1,2 @@
-pub mod config;
-pub mod scripts;
+pub use runtime_engine::domain::{config, devices, schedule, scripts};
 pub mod vision;
-pub mod devices;
-pub mod schedule;

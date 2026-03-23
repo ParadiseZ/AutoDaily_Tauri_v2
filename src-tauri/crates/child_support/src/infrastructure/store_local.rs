@@ -1,2 +1,1 @@
-#[path = "../../../../src/infrastructure/store_local/config_store.rs"]
-pub mod config_store;
+pub use runtime_engine::infrastructure::store_local::*;

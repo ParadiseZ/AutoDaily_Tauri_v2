@@ -16,7 +16,6 @@ pub mod app_handle;
 pub mod capture;
 pub mod context;
 pub mod devices;
-mod hash_calculated;
 pub mod image;
 pub mod ipc;
 pub mod ort;

@@ -1,3 +1,1 @@
-
-pub mod device_conf;
-pub mod device_schedule;
+pub use runtime_engine::domain::devices::*;

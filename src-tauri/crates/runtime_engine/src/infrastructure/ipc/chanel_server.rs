@@ -31,7 +31,7 @@ pub struct IpcClientState {
 pub struct IpcServer;
 
 impl IpcServer {
-    pub(crate) fn start() -> ChannelResult<()> {
+    pub fn start() -> ChannelResult<()> {
         let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>().map_err(|e| {
             ChannelError::InitFailed {
                 e: format!("初始化主进程 IPC 服务失败 [{}]: {}", SOCKET_NAME, e),
