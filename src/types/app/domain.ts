@@ -1,6 +1,8 @@
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
+import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { LogLevel } from '@/types/bindings/LogLevel';
-import type { ScriptInfo } from '@/types/bindings/ScriptInfo';
+import type { RecognizerType } from '@/types/bindings/RecognizerType';
+import type { RuntimeType } from '@/types/bindings/RuntimeType';
 import type { ScriptType } from '@/types/bindings/ScriptType';
 import type { JsonValue as StoreJsonValue } from '@/types/bindings/serde_json/JsonValue';
 
@@ -59,16 +61,29 @@ export interface UserProfile {
     sponsorUntil?: string | null;
 }
 
-type RawScriptInfo = ScriptInfo & {
-    scriptType?: ScriptType;
-    scriptTyCpe?: ScriptType;
-};
-
-export interface ScriptInfoRecord extends Omit<RawScriptInfo, 'scriptTyCpe' | 'verNum' | 'latestVer' | 'downloadCount'> {
+export interface ScriptInfoRecord {
+    name: string;
+    description: string | null;
+    userId: string;
+    userName: string | null;
+    runtimeType: RuntimeType;
+    sponsorshipQr: string | null;
+    sponsorshipUrl: string | null;
+    contactInfo: string | null;
+    imgDetModel: DetectorType | null;
+    txtDetModel: DetectorType | null;
+    txtRecModel: RecognizerType | null;
+    pkgName: string | null;
+    createTime: string | null;
+    updateTime: string | null;
+    verName: string;
     scriptType: ScriptType;
     verNum: number;
     latestVer: number;
     downloadCount: number;
+    isValid: boolean;
+    allowClone: boolean;
+    cloudId: string | null;
 }
 
 export interface ScriptTableRecord {

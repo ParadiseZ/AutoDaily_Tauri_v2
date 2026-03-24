@@ -13,7 +13,6 @@ import type {
 type RawScriptTable = ScriptTable & {
     data: ScriptTableRecord['data'] & {
         scriptType?: ScriptType;
-        scriptTyCpe?: ScriptType;
     };
 };
 
@@ -25,8 +24,7 @@ interface ApiEnvelope<T> {
 
 type ScriptTablePayload = {
     id: string;
-    data: Omit<ScriptTable['data'], 'scriptTyCpe' | 'verNum' | 'latestVer' | 'downloadCount'> & {
-        scriptTyCpe: ScriptType;
+    data: Omit<ScriptTableRecord['data'], 'verNum' | 'latestVer' | 'downloadCount'> & {
         verNum: number;
         latestVer: number;
         downloadCount: number;
@@ -63,7 +61,7 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
         id: raw.id,
         data: {
             ...raw.data,
-            scriptType: raw.data.scriptType ?? raw.data.scriptTyCpe ?? 'dev',
+            scriptType: raw.data.scriptType ?? 'dev',
             verNum: toSafeNumber(raw.data.verNum, 1),
             latestVer: toSafeNumber(raw.data.latestVer, 1),
             downloadCount: toSafeNumber(raw.data.downloadCount, 0),
@@ -101,16 +99,12 @@ export const createBlankScript = (name: string, userProfile: UserProfile | null,
 
 const serializeScriptTable = (script: ScriptTableRecord): ScriptTablePayload => ({
     id: script.id,
-    data: (() => {
-        const { scriptType, ...rest } = script.data;
-        return {
-            ...rest,
-            scriptTyCpe: scriptType,
-            verNum: toSafeNumber(script.data.verNum, 1),
-            latestVer: toSafeNumber(script.data.latestVer, 1),
-            downloadCount: toSafeNumber(script.data.downloadCount, 0),
-        };
-    })(),
+    data: {
+        ...script.data,
+        verNum: toSafeNumber(script.data.verNum, 1),
+        latestVer: toSafeNumber(script.data.latestVer, 1),
+        downloadCount: toSafeNumber(script.data.downloadCount, 0),
+    },
 });
 
 export const createScriptName = (index: number) => `未命名脚本 ${index}`;

@@ -25,7 +25,7 @@
             @click="selectOption(option.value)"
           >
             <span class="font-medium">{{ option.label }}</span>
-            <span v-if="option.description" class="text-xs text-[var(--app-text-faint)]">{{ option.description }}</span>
+            <span v-if="props.showDescription && option.description" class="text-xs text-[var(--app-text-faint)]">{{ option.description }}</span>
           </button>
         </div>
       </transition>
@@ -53,11 +53,13 @@ const props = withDefaults(
     placeholder?: string;
     disabled?: boolean;
     align?: 'left' | 'right';
+    showDescription?: boolean;
   }>(),
   {
     placeholder: '请选择',
     disabled: false,
     align: 'left',
+    showDescription: false,
   },
 );
 
