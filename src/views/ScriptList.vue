@@ -125,6 +125,7 @@ const handleSaveScriptInfo = async (script: ScriptTableRecord) => {
     showToast(dialogMode.value === 'edit' ? '脚本信息已更新' : '已创建本地脚本', 'success');
     closeInfoDialog();
   } catch (error) {
+    console.error(error);
     showToast(error instanceof Error ? error.message : '保存失败', 'error');
   }
 };

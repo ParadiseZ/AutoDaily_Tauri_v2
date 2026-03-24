@@ -2,6 +2,7 @@ use crate::infrastructure::core::UuidV7;
 use tauri::command;
 
 pub mod config;
+pub mod frontend_debug;
 pub mod img;
 pub mod process_api;
 

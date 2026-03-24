@@ -532,7 +532,7 @@ function submit() {
   form.value.data.name = form.value.data.name.trim();
   form.value.data.verName = form.value.data.verName.trim() || '0.1.0';
   form.value.data.updateTime = new Date().toISOString();
-  emit('save', structuredClone(form.value));
+  emit('save', JSON.parse(JSON.stringify(form.value)));
 }
 
 watch(
@@ -541,7 +541,8 @@ watch(
     if (!open || !props.script) {
       return;
     }
-    form.value = structuredClone(props.script);
+    form.value = JSON.parse(JSON.stringify(props.script));
+    //form.value = structuredClone(props.script);
     imgYolo26.value = createYolo26Draft(false);
     txtYolo26.value = createYolo26Draft(true);
     syncKinds();

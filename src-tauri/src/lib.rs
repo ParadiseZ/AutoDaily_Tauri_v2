@@ -19,6 +19,7 @@ use crate::api::infrastructure::config::log_api::{
 };
 use crate::api::infrastructure::config::sys_conf::{set_system_settings_cmd};
 use crate::api::infrastructure::img::convert_img_to_base64_cmd;
+use crate::api::infrastructure::frontend_debug::frontend_debug_log_cmd;
 use crate::api::infrastructure::get_uuid_v7;
 use crate::api::domain::devices::{get_all_devices_cmd, get_device_by_id_cmd, save_device_cmd, delete_device_cmd, get_cpu_count_cmd};
 use crate::api::domain::scripts::{get_all_scripts_cmd, get_script_by_id_cmd, save_script_cmd, delete_script_cmd,
@@ -86,6 +87,7 @@ pub fn run() {
             //get_performance_cmd,set_performance_cmd,get_cpu_cores_cmd,
             //uuid
             get_uuid_v7,
+            frontend_debug_log_cmd,
             // 常规/系统设置
             set_system_settings_cmd,
             // 设备配置
