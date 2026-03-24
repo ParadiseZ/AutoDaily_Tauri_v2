@@ -5,7 +5,6 @@ import type { ScriptType } from '@/types/bindings/ScriptType';
 import type {
     MarketPage,
     MarketScriptRecord,
-    ScriptInfoDraft,
     ScriptSearchInput,
     ScriptTableRecord,
     UserProfile,
@@ -100,33 +99,27 @@ export const createBlankScript = (name: string, userProfile: UserProfile | null,
     },
 });
 
-export const applyScriptDraft = (script: ScriptTableRecord, draft: ScriptInfoDraft): ScriptTableRecord => ({
-    ...script,
-    data: {
-        ...script.data,
-        name: draft.name.trim(),
-        description: draft.description.trim() || null,
-        pkgName: draft.pkgName.trim() || null,
-        runtimeType: draft.runtimeType,
-        verName: draft.verName.trim() || '0.1.0',
-        allowClone: draft.allowClone,
-        contactInfo: draft.contactInfo.trim() || null,
-        sponsorshipUrl: draft.sponsorshipUrl.trim() || null,
-        sponsorshipQr: draft.sponsorshipQr.trim() || null,
-        updateTime: new Date().toISOString(),
-    },
-});
-
 const serializeScriptTable = (script: ScriptTableRecord): ScriptTablePayload => ({
     id: script.id,
-    data: {
-        ...script.data,
-        scriptTyCpe: script.data.scriptType,
-        verNum: toSafeNumber(script.data.verNum, 1),
-        latestVer: toSafeNumber(script.data.latestVer, 1),
-        downloadCount: toSafeNumber(script.data.downloadCount, 0),
-    },
+    data: (() => {
+        const { scriptType, ...rest } = script.data;
+        return {
+            ...rest,
+            scriptTyCpe: scriptType,
+            verNum: toSafeNumber(script.data.verNum, 1),
+            latestVer: toSafeNumber(script.data.latestVer, 1),
+            downloadCount: toSafeNumber(script.data.downloadCount, 0),
+        };
+    })(),
 });
+
+export const createScriptName = (index: number) => `未命名脚本 ${index}`;
+
+export const createEditableScript = async (
+    requestUuid: () => Promise<string>,
+    userProfile: UserProfile | null,
+    name: string,
+): Promise<ScriptTableRecord> => createBlankScript(name, userProfile, await requestUuid());
 
 export const scriptService = {
     listLocal: async (): Promise<ScriptTableRecord[]> => {

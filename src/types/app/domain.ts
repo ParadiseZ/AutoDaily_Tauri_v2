@@ -3,7 +3,6 @@ import type { LogLevel } from '@/types/bindings/LogLevel';
 import type { ScriptInfo } from '@/types/bindings/ScriptInfo';
 import type { ScriptType } from '@/types/bindings/ScriptType';
 import type { JsonValue as StoreJsonValue } from '@/types/bindings/serde_json/JsonValue';
-import type { DeviceTable } from '@/types/bindings/DeviceTable';
 
 export type JsonValue = StoreJsonValue;
 
@@ -75,18 +74,6 @@ export interface ScriptInfoRecord extends Omit<RawScriptInfo, 'scriptTyCpe' | 'v
 export interface ScriptTableRecord {
     id: string;
     data: ScriptInfoRecord;
-}
-
-export interface ScriptInfoDraft {
-    name: string;
-    description: string;
-    pkgName: string;
-    runtimeType: ScriptInfoRecord['runtimeType'];
-    verName: string;
-    allowClone: boolean;
-    contactInfo: string;
-    sponsorshipUrl: string;
-    sponsorshipQr: string;
 }
 
 export interface AssignmentRecord extends Omit<DeviceScriptAssignment, 'accountData'> {
@@ -190,13 +177,6 @@ export interface DeviceSummary {
     online: number;
     running: number;
 }
-
-export interface DeviceOption {
-    label: string;
-    value: string;
-}
-
-export type DeviceRecord = DeviceTable;
 
 export const DEFAULT_SHORTCUTS: ShortCutConfig = {
     toggleWindow: 'CommandOrControl+H',

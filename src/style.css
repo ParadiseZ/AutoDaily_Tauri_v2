@@ -484,6 +484,7 @@ a {
   position: fixed;
   z-index: 120;
   margin-top: 0;
+  min-width: 0;
 }
 
 .app-select-option {

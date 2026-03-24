@@ -1,12 +1,11 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { applyScriptDraft, createBlankScript, normalizeScriptTable, scriptService } from '@/services/scriptService';
+import { createEditableScript, normalizeScriptTable, scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type {
     MarketPage,
     MarketScriptRecord,
-    ScriptInfoDraft,
     ScriptSearchInput,
     ScriptTableRecord,
     UserProfile,
@@ -65,29 +64,14 @@ export const useScriptStore = defineStore('script', () => {
         selectedScriptId.value = scriptId;
     };
 
-    const createScript = async (draft: ScriptInfoDraft, userProfile: UserProfile | null) => {
-        const id = await taskService.requestUuid();
-        const script = applyScriptDraft(createBlankScript(draft.name, userProfile, id), draft);
-        await scriptService.saveLocal(script);
-        await loadScripts();
-        selectScript(id);
-        return script;
-    };
-
     const saveScript = async (script: ScriptTableRecord) => {
         await scriptService.saveLocal(script);
         await loadScripts();
+        selectScript(script.id);
     };
 
-    const saveScriptInfo = async (scriptId: string, draft: ScriptInfoDraft) => {
-        const current = scripts.value.find((script) => script.id === scriptId);
-        if (!current) {
-            throw new Error('脚本不存在，无法保存信息');
-        }
-
-        await saveScript(applyScriptDraft(current, draft));
-        selectScript(scriptId);
-    };
+    const prepareScript = (userProfile: UserProfile | null, name: string) =>
+        createEditableScript(taskService.requestUuid, userProfile, name);
 
     const loadScriptTasks = async (scriptId: string) => {
         taskLoading.value = {
@@ -140,7 +124,6 @@ export const useScriptStore = defineStore('script', () => {
 
     return {
         cloneScript,
-        createScript,
         deleteScript,
         downloadMarketScript,
         loadScripts,
@@ -149,8 +132,8 @@ export const useScriptStore = defineStore('script', () => {
         marketLoading,
         marketPage,
         marketQuery,
+        prepareScript,
         saveScript,
-        saveScriptInfo,
         scripts,
         searchMarket,
         selectedScript,

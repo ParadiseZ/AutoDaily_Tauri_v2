@@ -36,8 +36,9 @@
     </div>
 
     <ScriptInfoDialog
+      :mode="dialogMode"
       :open="scriptInfoDialogOpen"
-      :script="editingScript"
+      :script="dialogScript"
       @close="closeInfoDialog"
       @save="handleSaveScriptInfo"
     />
@@ -49,6 +50,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
+import { createScriptName } from '@/services/scriptService';
 import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import ScriptListSidebar from '@/views/script-list/ScriptListSidebar.vue';
@@ -57,7 +59,7 @@ import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
-import type { ScriptInfoDraft } from '@/types/app/domain';
+import type { ScriptTableRecord } from '@/types/app/domain';
 import { showToast } from '@/utils/toast';
 
 const router = useRouter();
@@ -67,7 +69,8 @@ const taskStore = useTaskStore();
 const userStore = useUserStore();
 const searchQuery = ref('');
 const scriptInfoDialogOpen = ref(false);
-const editingScriptId = ref<string | null>(null);
+const dialogMode = ref<'create' | 'edit'>('create');
+const dialogScript = ref<ScriptTableRecord | null>(null);
 
 const filteredScripts = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -91,40 +94,35 @@ const selectedScript = computed(() => {
   return filteredScripts.value[0] ?? null;
 });
 
-const editingScript = computed(() => {
-  if (!editingScriptId.value) {
-    return null;
+const openCreateDialog = async () => {
+  try {
+    dialogMode.value = 'create';
+    dialogScript.value = await scriptStore.prepareScript(
+      userStore.userProfile,
+      createScriptName(scriptStore.scripts.length + 1),
+    );
+    scriptInfoDialogOpen.value = true;
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '初始化脚本失败', 'error');
   }
-
-  return scriptStore.scripts.find((script) => script.id === editingScriptId.value) ?? null;
-});
-
-const openCreateDialog = () => {
-  editingScriptId.value = null;
-  scriptInfoDialogOpen.value = true;
 };
 
 const openEditDialog = (scriptId: string) => {
   scriptStore.selectScript(scriptId);
-  editingScriptId.value = scriptId;
+  dialogMode.value = 'edit';
+  dialogScript.value = scriptStore.scripts.find((script) => script.id === scriptId) ?? null;
   scriptInfoDialogOpen.value = true;
 };
 
 const closeInfoDialog = () => {
   scriptInfoDialogOpen.value = false;
-  editingScriptId.value = null;
+  dialogScript.value = null;
 };
 
-const handleSaveScriptInfo = async (draft: ScriptInfoDraft) => {
+const handleSaveScriptInfo = async (script: ScriptTableRecord) => {
   try {
-    if (editingScriptId.value) {
-      await scriptStore.saveScriptInfo(editingScriptId.value, draft);
-      showToast('脚本信息已更新', 'success');
-    } else {
-      const script = await scriptStore.createScript(draft, userStore.userProfile);
-      scriptStore.selectScript(script.id);
-      showToast('已创建本地脚本', 'success');
-    }
+    await scriptStore.saveScript(script);
+    showToast(dialogMode.value === 'edit' ? '脚本信息已更新' : '已创建本地脚本', 'success');
     closeInfoDialog();
   } catch (error) {
     showToast(error instanceof Error ? error.message : '保存失败', 'error');

@@ -107,7 +107,7 @@ const updateMenuPosition = () => {
   menuStyle.value = {
     top: `${Math.max(top, viewportPadding)}px`,
     left: `${left}px`,
-    width: `${rect.width}px`,
+    minWidth: `${rect.width}px`,
     maxHeight: `${Math.max(window.innerHeight - viewportPadding * 2, 180)}px`,
   };
 };
