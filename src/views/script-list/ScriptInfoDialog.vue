@@ -13,6 +13,7 @@
           :key="tab.id"
           type="button"
           class="app-list-item"
+          :data-testid="`script-dialog-tab-${tab.id}`"
           :class="{ 'app-list-item-active': activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
@@ -55,7 +56,13 @@
               <div class="grid gap-4 md:grid-cols-2">
                 <label class="space-y-2 md:col-span-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">脚本名称</span>
-                  <input v-model.trim="form.data.name" class="app-input" maxlength="40" placeholder="例如：每日清体力" />
+                  <input
+                    v-model.trim="form.data.name"
+                    class="app-input"
+                    data-testid="script-basic-name"
+                    maxlength="40"
+                    placeholder="例如：每日清体力"
+                  />
                 </label>
 
                 <label class="space-y-2 md:col-span-2">
@@ -63,6 +70,7 @@
                   <textarea
                     v-model="descriptionValue"
                     class="app-textarea min-h-[130px]"
+                    data-testid="script-basic-description"
                     maxlength="240"
                     placeholder="简述脚本作用、运行前提和风险提示。"
                   />
@@ -70,22 +78,40 @@
 
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">运行时</span>
-                  <AppSelect v-model="form.data.runtimeType" :options="runtimeOptions" />
+                  <AppSelect v-model="form.data.runtimeType" :options="runtimeOptions" test-id="script-basic-runtime-type" />
                 </label>
 
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">包名</span>
-                  <input v-model.trim="pkgNameValue" class="app-input" maxlength="80" placeholder="com.example.app" />
+                  <input
+                    v-model.trim="pkgNameValue"
+                    class="app-input"
+                    data-testid="script-basic-package-name"
+                    maxlength="80"
+                    placeholder="com.example.app"
+                  />
                 </label>
 
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">版本名称</span>
-                  <input v-model.trim="form.data.verName" class="app-input" maxlength="20" placeholder="0.1.0" />
+                  <input
+                    v-model.trim="form.data.verName"
+                    class="app-input"
+                    data-testid="script-basic-version-name"
+                    maxlength="20"
+                    placeholder="0.1.0"
+                  />
                 </label>
 
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">版本号</span>
-                  <input v-model.number="form.data.verNum" class="app-input" min="1" type="number" />
+                  <input
+                    v-model.number="form.data.verNum"
+                    class="app-input"
+                    data-testid="script-basic-version-num"
+                    min="1"
+                    type="number"
+                  />
                 </label>
               </div>
             </SurfacePanel>
@@ -108,7 +134,13 @@
                 </div>
 
                 <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
-                  <input v-model="form.data.allowClone" type="checkbox" class="h-4 w-4" style="accent-color: var(--app-accent)" />
+                  <input
+                    v-model="form.data.allowClone"
+                    type="checkbox"
+                    class="h-4 w-4"
+                    data-testid="script-basic-allow-clone"
+                    style="accent-color: var(--app-accent)"
+                  />
                   <span>
                     <span class="block text-sm font-medium text-[var(--app-text-strong)]">允许克隆</span>
                     <span class="block text-xs text-[var(--app-text-faint)]">关闭后，其他用户只能查看脚本信息，不能直接复制到本地。</span>
@@ -126,30 +158,70 @@
                 <p class="text-sm font-semibold text-[var(--app-text-strong)]">图像检测模型</p>
                 <p class="text-xs text-[var(--app-text-faint)]">用于图像目标识别。</p>
               </div>
-              <AppSelect :model-value="imgDetKind" :options="detectorOptions" @update:model-value="setDetectorKind('imgDetModel', $event)" />
+              <AppSelect
+                :model-value="imgDetKind"
+                :options="detectorOptions"
+                test-id="script-models-img-det-kind"
+                @update:model-value="setDetectorKind('imgDetModel', $event)"
+              />
               <template v-if="imgDetKind === 'Yolo11' && form.data.imgDetModel && 'Yolo11' in form.data.imgDetModel">
-                <ModelBaseFields :model="form.data.imgDetModel.Yolo11.baseModel" path-placeholder="例如：D:\\models\\img-det.onnx" />
+                <ModelBaseFields
+                  :model="form.data.imgDetModel.Yolo11.baseModel"
+                  path-placeholder="例如：D:\\models\\img-det.onnx"
+                  test-id-prefix="script-models-img-det-base"
+                />
                 <div class="grid gap-4 md:grid-cols-2">
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">类别数量</span>
-                    <input v-model.number="form.data.imgDetModel.Yolo11.classCount" class="app-input" min="1" type="number" />
+                    <input
+                      v-model.number="form.data.imgDetModel.Yolo11.classCount"
+                      class="app-input"
+                      data-testid="script-models-img-det-class-count"
+                      min="1"
+                      type="number"
+                    />
                   </label>
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">标签路径</span>
-                    <input v-model.trim="labelPathImg" class="app-input" placeholder="例如：D:\\models\\labels.yaml" />
+                    <input
+                      v-model.trim="labelPathImg"
+                      class="app-input"
+                      data-testid="script-models-img-det-label-path"
+                      placeholder="例如：D:\\models\\labels.yaml"
+                    />
                   </label>
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">置信度阈值</span>
-                    <input v-model.number="form.data.imgDetModel.Yolo11.confidenceThresh" class="app-input" max="1" min="0" step="0.01" type="number" />
+                    <input
+                      v-model.number="form.data.imgDetModel.Yolo11.confidenceThresh"
+                      class="app-input"
+                      data-testid="script-models-img-det-confidence"
+                      max="1"
+                      min="0"
+                      step="0.01"
+                      type="number"
+                    />
                   </label>
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">IOU 阈值</span>
-                    <input v-model.number="form.data.imgDetModel.Yolo11.iouThresh" class="app-input" max="1" min="0" step="0.01" type="number" />
+                    <input
+                      v-model.number="form.data.imgDetModel.Yolo11.iouThresh"
+                      class="app-input"
+                      data-testid="script-models-img-det-iou"
+                      max="1"
+                      min="0"
+                      step="0.01"
+                      type="number"
+                    />
                   </label>
                 </div>
               </template>
               <template v-else-if="imgDetKind === 'PaddleDbNet' && form.data.imgDetModel && 'PaddleDbNet' in form.data.imgDetModel">
-                <ModelBaseFields :model="form.data.imgDetModel.PaddleDbNet.baseModel" path-placeholder="例如：D:\\models\\dbnet.onnx" />
+                <ModelBaseFields
+                  :model="form.data.imgDetModel.PaddleDbNet.baseModel"
+                  path-placeholder="例如：D:\\models\\dbnet.onnx"
+                  test-id-prefix="script-models-img-det-base"
+                />
                 <div class="grid gap-4 md:grid-cols-2">
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">二值化阈值</span>
@@ -193,9 +265,18 @@
                 <p class="text-sm font-semibold text-[var(--app-text-strong)]">文本检测模型</p>
                 <p class="text-xs text-[var(--app-text-faint)]">用于 OCR 前的文本区域定位。</p>
               </div>
-              <AppSelect :model-value="txtDetKind" :options="detectorOptions" @update:model-value="setDetectorKind('txtDetModel', $event)" />
+              <AppSelect
+                :model-value="txtDetKind"
+                :options="detectorOptions"
+                test-id="script-models-txt-det-kind"
+                @update:model-value="setDetectorKind('txtDetModel', $event)"
+              />
               <template v-if="txtDetKind === 'Yolo11' && form.data.txtDetModel && 'Yolo11' in form.data.txtDetModel">
-                <ModelBaseFields :model="form.data.txtDetModel.Yolo11.baseModel" path-placeholder="例如：D:\\models\\txt-det.onnx" />
+                <ModelBaseFields
+                  :model="form.data.txtDetModel.Yolo11.baseModel"
+                  path-placeholder="例如：D:\\models\\txt-det.onnx"
+                  test-id-prefix="script-models-txt-det-base"
+                />
                 <div class="grid gap-4 md:grid-cols-2">
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">类别数量</span>
@@ -220,22 +301,55 @@
                 </div>
               </template>
               <template v-else-if="txtDetKind === 'PaddleDbNet' && form.data.txtDetModel && 'PaddleDbNet' in form.data.txtDetModel">
-                <ModelBaseFields :model="form.data.txtDetModel.PaddleDbNet.baseModel" path-placeholder="例如：D:\\models\\ocr-dbnet.onnx" />
+                <ModelBaseFields
+                  :model="form.data.txtDetModel.PaddleDbNet.baseModel"
+                  path-placeholder="例如：D:\\models\\ocr-dbnet.onnx"
+                  test-id-prefix="script-models-txt-det-base"
+                />
                 <div class="grid gap-4 md:grid-cols-2">
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">二值化阈值</span>
-                    <input v-model.number="form.data.txtDetModel.PaddleDbNet.dbThresh" class="app-input" max="1" min="0" step="0.01" type="number" />
+                    <input
+                      v-model.number="form.data.txtDetModel.PaddleDbNet.dbThresh"
+                      class="app-input"
+                      data-testid="script-models-txt-det-db-thresh"
+                      max="1"
+                      min="0"
+                      step="0.01"
+                      type="number"
+                    />
                   </label>
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">框阈值</span>
-                    <input v-model.number="form.data.txtDetModel.PaddleDbNet.dbBoxThresh" class="app-input" max="1" min="0" step="0.01" type="number" />
+                    <input
+                      v-model.number="form.data.txtDetModel.PaddleDbNet.dbBoxThresh"
+                      class="app-input"
+                      data-testid="script-models-txt-det-db-box-thresh"
+                      max="1"
+                      min="0"
+                      step="0.01"
+                      type="number"
+                    />
                   </label>
                   <label class="space-y-2">
                     <span class="text-sm font-medium text-[var(--app-text-strong)]">扩张比例</span>
-                    <input v-model.number="form.data.txtDetModel.PaddleDbNet.unclipRatio" class="app-input" min="0" step="0.1" type="number" />
+                    <input
+                      v-model.number="form.data.txtDetModel.PaddleDbNet.unclipRatio"
+                      class="app-input"
+                      data-testid="script-models-txt-det-unclip-ratio"
+                      min="0"
+                      step="0.1"
+                      type="number"
+                    />
                   </label>
                   <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
-                    <input v-model="form.data.txtDetModel.PaddleDbNet.useDilation" type="checkbox" class="h-4 w-4" style="accent-color: var(--app-accent)" />
+                    <input
+                      v-model="form.data.txtDetModel.PaddleDbNet.useDilation"
+                      type="checkbox"
+                      class="h-4 w-4"
+                      data-testid="script-models-txt-det-use-dilation"
+                      style="accent-color: var(--app-accent)"
+                    />
                     <span>
                       <span class="block text-sm font-medium text-[var(--app-text-strong)]">启用膨胀</span>
                       <span class="block text-xs text-[var(--app-text-faint)]">对弱文本边缘更友好，但可能带来额外噪点。</span>
@@ -264,12 +378,26 @@
                 <p class="text-sm font-semibold text-[var(--app-text-strong)]">文本识别模型</p>
                 <p class="text-xs text-[var(--app-text-faint)]">用于 OCR 的字符识别阶段。</p>
               </div>
-              <AppSelect :model-value="txtRecKind" :options="recognizerOptions" @update:model-value="setRecognizerKind($event)" />
+              <AppSelect
+                :model-value="txtRecKind"
+                :options="recognizerOptions"
+                test-id="script-models-txt-rec-kind"
+                @update:model-value="setRecognizerKind($event)"
+              />
               <template v-if="txtRecKind === 'PaddleCrnn' && form.data.txtRecModel && 'PaddleCrnn' in form.data.txtRecModel">
-                <ModelBaseFields :model="form.data.txtRecModel.PaddleCrnn.baseModel" path-placeholder="例如：D:\\models\\ocr-rec.onnx" />
+                <ModelBaseFields
+                  :model="form.data.txtRecModel.PaddleCrnn.baseModel"
+                  path-placeholder="例如：D:\\models\\ocr-rec.onnx"
+                  test-id-prefix="script-models-txt-rec-base"
+                />
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">字典路径</span>
-                  <input v-model.trim="dictPathValue" class="app-input" placeholder="例如：D:\\models\\keys.txt" />
+                  <input
+                    v-model.trim="dictPathValue"
+                    class="app-input"
+                    data-testid="script-models-txt-rec-dict-path"
+                    placeholder="例如：D:\\models\\keys.txt"
+                  />
                 </label>
               </template>
             </SurfacePanel>
@@ -291,12 +419,24 @@
               <div class="grid gap-4 md:grid-cols-2">
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">联系方式</span>
-                  <input v-model.trim="contactInfoValue" class="app-input" maxlength="80" placeholder="QQ / Telegram / Email" />
+                  <input
+                    v-model.trim="contactInfoValue"
+                    class="app-input"
+                    data-testid="script-support-contact-info"
+                    maxlength="80"
+                    placeholder="QQ / Telegram / Email"
+                  />
                 </label>
 
                 <label class="space-y-2">
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">赞助链接</span>
-                  <input v-model.trim="sponsorshipUrlValue" class="app-input" maxlength="160" placeholder="https://..." />
+                  <input
+                    v-model.trim="sponsorshipUrlValue"
+                    class="app-input"
+                    data-testid="script-support-sponsorship-url"
+                    maxlength="160"
+                    placeholder="https://..."
+                  />
                 </label>
               </div>
             </SurfacePanel>
@@ -316,15 +456,20 @@
                 <p class="text-xs text-[var(--app-text-faint)]">赞助链接预览</p>
                 <p class="mt-1 break-all text-[var(--app-text-strong)]">{{ sponsorshipUrlValue || '未设置' }}</p>
               </div>
-
-              <SponsorshipQrField v-model="sponsorshipQrValue" />
+              <SponsorshipQrField
+                v-model="sponsorshipQrValue"
+                clear-button-test-id="script-support-sponsorship-qr-clear"
+                input-test-id="script-support-sponsorship-qr-input"
+                preview-test-id="script-support-sponsorship-qr-preview"
+                source-test-id="script-support-sponsorship-qr-source"
+              />
             </SurfacePanel>
           </div>
         </template>
 
         <div class="flex justify-end gap-3">
           <button class="app-button app-button-ghost" type="button" @click="$emit('close')">取消</button>
-          <button class="app-button app-button-primary" type="submit" :disabled="!canSubmit">
+          <button class="app-button app-button-primary" data-testid="script-submit" type="submit" :disabled="!canSubmit">
             {{ mode === 'edit' ? '保存信息' : '创建脚本' }}
           </button>
         </div>

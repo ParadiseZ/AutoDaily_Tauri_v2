@@ -12,6 +12,7 @@
         <button
           class="app-button app-button-ghost app-toolbar-button"
           type="button"
+          :data-testid="clearButtonTestId"
           :disabled="!modelValue"
           @click="$emit('update:modelValue', null)"
         >
@@ -22,7 +23,14 @@
 
     <label class="space-y-2">
       <span class="text-sm font-medium text-[var(--app-text-strong)]">图片地址</span>
-      <input :value="modelValue || ''" class="app-input" maxlength="240" placeholder="data URL / 本地路径 / 远程地址" @input="handleInput" />
+      <input
+        :value="modelValue || ''"
+        class="app-input"
+        :data-testid="inputTestId"
+        maxlength="240"
+        placeholder="data URL / 本地路径 / 远程地址"
+        @input="handleInput"
+      />
     </label>
 
     <div class="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
@@ -32,6 +40,7 @@
           :src="previewSrc"
           alt="赞助二维码预览"
           class="h-full w-full object-contain p-4"
+          :data-testid="previewTestId"
           @error="previewFailed = true"
         />
         <div v-else class="px-5 text-center text-xs leading-6 text-[var(--app-text-faint)]">
@@ -46,7 +55,7 @@
       </div>
 
       <div class="space-y-3">
-        <div class="rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm">
+        <div class="rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm" :data-testid="sourceTestId">
           <p class="text-xs text-[var(--app-text-faint)]">当前来源</p>
           <p class="mt-1 break-all text-[var(--app-text-strong)]">{{ sourceLabel }}</p>
         </div>
@@ -67,6 +76,10 @@ import { showToast } from '@/utils/toast';
 
 const props = defineProps<{
   modelValue: string | null;
+  inputTestId?: string;
+  sourceTestId?: string;
+  clearButtonTestId?: string;
+  previewTestId?: string;
 }>();
 
 const emit = defineEmits<{

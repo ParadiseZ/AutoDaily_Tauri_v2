@@ -2,7 +2,7 @@
   <Teleport to="body">
     <transition name="dialog-fade">
       <div v-if="open" class="app-dialog-backdrop" @click.self="$emit('close')">
-        <div class="app-dialog" :class="widthClass">
+        <div class="app-dialog" :class="widthClass" aria-modal="true" :aria-label="title" role="dialog">
           <header class="mb-5 flex items-start justify-between gap-4">
             <div class="space-y-1">
               <h2 class="text-lg font-semibold text-[var(--app-text-strong)]">{{ title }}</h2>

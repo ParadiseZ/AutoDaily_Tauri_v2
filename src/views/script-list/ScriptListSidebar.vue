@@ -5,7 +5,7 @@
         <p class="text-sm font-semibold text-[var(--app-text-strong)]">本地脚本</p>
         <p class="text-xs text-[var(--app-text-faint)]">最近修改的脚本会优先排在上面。</p>
       </div>
-      <button class="app-button app-button-primary app-toolbar-button" type="button" @click="$emit('create')">
+      <button class="app-button app-button-primary app-toolbar-button" data-testid="script-list-create-button" type="button" @click="$emit('create')">
         <Plus class="h-4 w-4" />
         新建
       </button>

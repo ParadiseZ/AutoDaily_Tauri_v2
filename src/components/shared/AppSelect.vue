@@ -5,6 +5,7 @@
       class="app-select app-select-trigger"
       :class="{ 'opacity-60': disabled }"
       type="button"
+      :data-testid="testId"
       :disabled="disabled"
       @click="toggleOpen"
     >
@@ -14,13 +15,20 @@
 
     <Teleport to="body">
       <transition name="select-fade">
-        <div v-if="isOpen" ref="menu" class="app-select-menu app-select-menu-floating" :style="menuStyle">
+        <div
+          v-if="isOpen"
+          ref="menu"
+          class="app-select-menu app-select-menu-floating"
+          :data-testid="testId ? `${testId}-menu` : undefined"
+          :style="menuStyle"
+        >
           <button
             v-for="option in options"
             :key="String(option.value)"
             class="app-select-option"
             :class="{ 'app-select-option-active': isSelected(option.value), 'opacity-50': option.disabled }"
             type="button"
+            :data-testid="testId ? `${testId}-option-${String(option.value)}` : undefined"
             :disabled="option.disabled"
             @click="selectOption(option.value)"
           >
@@ -54,12 +62,14 @@ const props = withDefaults(
     disabled?: boolean;
     align?: 'left' | 'right';
     showDescription?: boolean;
+    testId?: string;
   }>(),
   {
     placeholder: '请选择',
     disabled: false,
     align: 'left',
     showDescription: false,
+    testId: undefined,
   },
 );
 
