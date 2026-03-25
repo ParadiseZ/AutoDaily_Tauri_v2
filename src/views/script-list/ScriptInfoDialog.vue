@@ -3,10 +3,10 @@
     :open="open"
     :title="mode === 'edit' ? '编辑脚本' : '新建脚本'"
     description="按信息分组编辑，避免长表单混在一列。"
-    width-class="max-w-6xl"
+    :width-class="dialogWidthClass"
     @close="$emit('close')"
   >
-    <form v-if="form" class="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]" @submit.prevent="submit">
+    <form v-if="form" class="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]" :class="formClass" @submit.prevent="submit">
       <aside class="space-y-2">
         <button
           v-for="tab in tabs"
@@ -298,18 +298,13 @@
                   <span class="text-sm font-medium text-[var(--app-text-strong)]">赞助链接</span>
                   <input v-model.trim="sponsorshipUrlValue" class="app-input" maxlength="160" placeholder="https://..." />
                 </label>
-
-                <label class="space-y-2 md:col-span-2">
-                  <span class="text-sm font-medium text-[var(--app-text-strong)]">赞助二维码</span>
-                  <input v-model.trim="sponsorshipQrValue" class="app-input" maxlength="240" placeholder="data URL / 本地路径 / 资源标识" />
-                </label>
               </div>
             </SurfacePanel>
 
-            <SurfacePanel tone="muted" padding="sm" class="space-y-3">
+            <SurfacePanel tone="muted" padding="sm" class="space-y-4">
               <div>
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">展示建议</p>
-                <p class="text-xs text-[var(--app-text-faint)]">这部分决定脚本详情页里用户看到的支持信息。</p>
+                <p class="text-sm font-semibold text-[var(--app-text-strong)]">二维码与展示</p>
+                <p class="text-xs text-[var(--app-text-faint)]">把二维码预览和赞助信息放在同一视野里，减少来回切换。</p>
               </div>
 
               <div class="rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm">
@@ -322,9 +317,7 @@
                 <p class="mt-1 break-all text-[var(--app-text-strong)]">{{ sponsorshipUrlValue || '未设置' }}</p>
               </div>
 
-              <div class="rounded-[16px] border border-dashed border-[var(--app-border-strong)] px-4 py-3 text-xs text-[var(--app-text-faint)]">
-                下一步把二维码从纯文本升级成文件选择和预览，这里会直接显示图像。
-              </div>
+              <SponsorshipQrField v-model="sponsorshipQrValue" />
             </SurfacePanel>
           </div>
         </template>
@@ -353,6 +346,7 @@ import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { ScriptTableRecord } from '@/types/app/domain';
 import type { YoloDet } from '@/types/bindings/YoloDet';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
+import SponsorshipQrField from '@/views/script-list/script-info/SponsorshipQrField.vue';
 
 type DialogTab = 'basic' | 'models' | 'support';
 type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
@@ -513,6 +507,12 @@ const scriptTypeLabel = computed(() => (form.value?.data.scriptType === 'publish
 const runtimeLabel = computed(() => runtimeOptions.find((item) => item.value === form.value?.data.runtimeType)?.label || '-');
 const hasPreviewOnlyModel = computed(() => imgDetKind.value === 'Yolo26' || txtDetKind.value === 'Yolo26');
 const canSubmit = computed(() => Boolean(form.value?.data.name.trim()) && !hasPreviewOnlyModel.value);
+const dialogWidthClass = computed(() =>
+  props.mode === 'create' ? 'max-w-6xl min-h-[80vh] max-h-[calc(100vh-3rem)] flex flex-col' : 'max-w-6xl',
+);
+const formClass = computed(() =>
+  props.mode === 'create' ? 'min-h-0 flex-1 overflow-y-auto pr-1' : '',
+);
 
 const descriptionValue = computed({
   get: () => form.value?.data.description || '',

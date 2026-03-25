@@ -31,7 +31,8 @@ const layout = computed(() => {
 onMounted(async () => {
   await settingsStore.loadPreferences();
   await initTheme(appThemeKey);
-  await Promise.all([userStore.checkProfile(), deviceStore.refreshAll()]);
+  await Promise.all([userStore.hydrateAuthSession(), deviceStore.refreshAll()]);
+  void userStore.checkProfile();
   await Promise.all([deviceStore.initIpcListeners(), logsStore.initListener()]);
 });
 </script>

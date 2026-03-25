@@ -51,6 +51,7 @@ import { useRouter } from 'vue-router';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import { createScriptName } from '@/services/scriptService';
+import { taskService } from '@/services/taskService';
 import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import ScriptListSidebar from '@/views/script-list/ScriptListSidebar.vue';
@@ -98,10 +99,30 @@ const openCreateDialog = async () => {
   try {
     dialogMode.value = 'create';
     dialogScript.value = await scriptStore.prepareScript(
-      userStore.userProfile,
+      {
+        userId: userStore.userProfile?.id,
+        userName: userStore.authSession?.username || userStore.userProfile?.username || 'Guest',
+      },
       createScriptName(scriptStore.scripts.length + 1),
     );
     scriptInfoDialogOpen.value = true;
+
+    if (userStore.authSession && !userStore.userProfile?.id) {
+      void userStore.checkProfile().then((profile) => {
+        if (!profile || !dialogScript.value || dialogMode.value !== 'create') {
+          return;
+        }
+
+        dialogScript.value = {
+          ...dialogScript.value,
+          data: {
+            ...dialogScript.value.data,
+            userId: profile.id,
+            userName: profile.username,
+          },
+        };
+      });
+    }
   } catch (error) {
     showToast(error instanceof Error ? error.message : '初始化脚本失败', 'error');
   }
@@ -119,9 +140,39 @@ const closeInfoDialog = () => {
   dialogScript.value = null;
 };
 
+const fallbackGuestScript = async (script: ScriptTableRecord): Promise<ScriptTableRecord> => ({
+  ...script,
+  data: {
+    ...script.data,
+    userId: script.data.userId?.trim() || (await taskService.requestUuid()),
+    userName: 'Guest',
+  },
+});
+
+const ensureScriptAuthorForSave = async (script: ScriptTableRecord): Promise<ScriptTableRecord> => {
+  if (!userStore.authSession) {
+    return fallbackGuestScript(script);
+  }
+
+  const profile = userStore.userProfile ?? (await userStore.checkProfile());
+  if (profile) {
+    return {
+      ...script,
+      data: {
+        ...script.data,
+        userId: profile.id,
+        userName: profile.username,
+      },
+    };
+  }
+
+  return fallbackGuestScript(script);
+};
+
 const handleSaveScriptInfo = async (script: ScriptTableRecord) => {
   try {
-    await scriptStore.saveScript(script);
+    const scriptToSave = await ensureScriptAuthorForSave(script);
+    await scriptStore.saveScript(scriptToSave);
     showToast(dialogMode.value === 'edit' ? '脚本信息已更新' : '已创建本地脚本', 'success');
     closeInfoDialog();
   } catch (error) {
@@ -135,11 +186,6 @@ const openEditor = (scriptId: string) => {
 };
 
 const handleUpload = async (scriptId: string) => {
-  if (!userStore.isLoggedIn) {
-    userStore.openAuthModal();
-    return;
-  }
-
   try {
     const result = await scriptStore.uploadScript(scriptId);
     if (!result.success) {

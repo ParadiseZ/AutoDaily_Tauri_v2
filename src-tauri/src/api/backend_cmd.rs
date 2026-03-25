@@ -1,9 +1,18 @@
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_dto::*;
 use crate::app::app_error::AppResult;
+use crate::constant::table_name::SCRIPT_TABLE;
 use crate::infrastructure::http_client::HttpClient;
+use crate::infrastructure::db::DbRepo;
 use tauri::{command, AppHandle};
 use crate::infrastructure::core::Serialize;
+use crate::infrastructure::core::UserId;
+
+#[derive(Debug)]
+struct UploadAuthor {
+    id: UserId,
+    username: String,
+}
 
 #[command]
 pub async fn backend_send_verification_code(
@@ -47,9 +56,15 @@ pub async fn backend_login(
 }
 
 #[command]
+pub async fn backend_get_auth_session(app_handle: AppHandle) -> ApiResponse<AuthRes> {
+    let client = HttpClient::new(app_handle);
+    ApiResponse::success(client.get_auth_session(), None)
+}
+
+#[command]
 pub async fn backend_logout(app_handle: AppHandle) -> ApiResponse<()> {
     let client = HttpClient::new(app_handle);
-    let _ = client.clear_jwt_token();
+    let _ = client.clear_auth_session();
     ApiResponse::success(None, Some("登出成功".to_string()))
 }
 
@@ -234,7 +249,7 @@ pub async fn backend_upload_script(
         .await
         .unwrap_or(None);
         
-    let script = match script {
+    let mut script = match script {
         Some(s) => s,
         None => return ApiResponse::error(Some("脚本不存在".to_string())),
     };
@@ -242,6 +257,31 @@ pub async fn backend_upload_script(
     // 校验 ScriptType
     if script.data.script_type != ScriptType::Dev {
         return ApiResponse::error(Some("只有开发中 (Dev) 的脚本才能被上传".to_string()));
+    }
+
+    let client = HttpClient::new(app_handle.clone());
+    let auth_session = match client.get_auth_session() {
+        Some(session) => session,
+        None => return ApiResponse::error(Some("上传前请先登录".to_string())),
+    };
+
+    if auth_session.username.trim().is_empty() {
+        return ApiResponse::error(Some("当前登录态缺少用户名，请重新登录".to_string()));
+    }
+
+    let script_user_name = script.data.user_name.as_deref().unwrap_or("").trim();
+    if auth_session.username == "Guest" || script_user_name.is_empty() || script_user_name == "Guest" {
+        let author = match fetch_upload_author(&client).await {
+            Ok(author) => author,
+            Err(error) => return ApiResponse::error(Some(error)),
+        };
+
+        script.data.user_id = author.id;
+        script.data.user_name = Some(author.username);
+
+        if let Err(error) = DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await {
+            return ApiResponse::error(Some(format!("更新本地脚本作者信息失败: {}", error)));
+        }
     }
 
     // 2. 收集关联数据
@@ -279,7 +319,6 @@ pub async fn backend_upload_script(
         set_groups,
     };
 
-    let client = HttpClient::new(app_handle.clone());
     let res: AppResult<BackendApiRes<serde_json::Value>> = client.post("/scripts/upload", &upload_req).await;
     
     match res {
@@ -370,8 +409,7 @@ fn trans_api_res_token(client: HttpClient,api_res: AppResult<BackendApiRes<AuthR
         Ok(api_res) => {
             if api_res.code == 200 {
                 if let Some(auth_data) = &api_res.data {
-                    // Save JWT locally via Store
-                    let _ = client.set_jwt_token(&auth_data.access_token);
+                    let _ = client.set_auth_session(auth_data);
                 }
                 ApiResponse::success(api_res.data, Some(api_res.message))
             } else {
@@ -380,4 +418,30 @@ fn trans_api_res_token(client: HttpClient,api_res: AppResult<BackendApiRes<AuthR
         }
         Err(e) => ApiResponse::error(Some(e.to_string())),
     }
+}
+
+async fn fetch_upload_author(client: &HttpClient) -> Result<UploadAuthor, String> {
+    let res: AppResult<BackendApiRes<serde_json::Value>> = client.get("/user/profile").await;
+    let api_res = res.map_err(|e| e.to_string())?;
+
+    if api_res.code != 200 {
+        return Err(api_res.message);
+    }
+
+    let payload = api_res.data.ok_or_else(|| "用户资料为空".to_string())?;
+    let id = payload
+        .get("id")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "用户资料缺少 id".to_string())?;
+    let username = payload
+        .get("username")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "用户资料缺少 username".to_string())?;
+
+    let uuid = uuid::Uuid::parse_str(id).map_err(|e| format!("用户 id 非法: {}", e))?;
+
+    Ok(UploadAuthor {
+        id: UserId::from(uuid),
+        username: username.to_string(),
+    })
 }

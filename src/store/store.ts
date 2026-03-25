@@ -7,7 +7,6 @@ export const appThemeKey = 'appTheme';
 export const systemPreferencesKey = 'systemPreferences';
 
 export const deviceKey = 'editorDevice';
-export const adbServerConfigKey = 'adbServerConfig';
 export async function getFromStore<T>(key: string): Promise<T | null | undefined> {
     return await store.get<T>(key);
 }

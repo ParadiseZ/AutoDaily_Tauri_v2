@@ -19,7 +19,7 @@ pub mod sys_conf_path {
     pub const LOG_CONFIG_KEY: &str = "log_config";
     pub const SCRIPTS_CONFIG_KEY: &str = "scripts_config";
     pub const EMAIL_CONFIG_KEY: &str = "email_config";
-    pub const JWT_TOKEN_KEY: &str = "jwt_token";
+    pub const AUTH_SESSION_KEY: &str = "auth_session";
 }
 
 pub mod scripts_files {

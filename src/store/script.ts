@@ -6,9 +6,9 @@ import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type {
     MarketPage,
     MarketScriptRecord,
+    ScriptAuthorSeed,
     ScriptSearchInput,
     ScriptTableRecord,
-    UserProfile,
 } from '@/types/app/domain';
 
 const defaultMarketQuery = (): ScriptSearchInput => ({
@@ -70,8 +70,8 @@ export const useScriptStore = defineStore('script', () => {
         selectScript(script.id);
     };
 
-    const prepareScript = (userProfile: UserProfile | null, name: string) =>
-        createEditableScript(taskService.requestUuid, userProfile, name);
+    const prepareScript = (author: ScriptAuthorSeed, name: string) =>
+        createEditableScript(taskService.requestUuid, author, name);
 
     const loadScriptTasks = async (scriptId: string) => {
         taskLoading.value = {

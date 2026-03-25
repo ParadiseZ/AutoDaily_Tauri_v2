@@ -61,6 +61,18 @@ export interface UserProfile {
     sponsorUntil?: string | null;
 }
 
+export interface AuthSession {
+    accessToken: string;
+    refreshToken: string;
+    username: string;
+    message?: string | null;
+}
+
+export interface ScriptAuthorSeed {
+    userId?: string | null;
+    userName?: string | null;
+}
+
 export interface ScriptInfoRecord {
     name: string;
     description: string | null;

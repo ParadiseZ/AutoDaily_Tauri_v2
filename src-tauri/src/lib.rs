@@ -40,7 +40,7 @@ use crate::app::init_start::init_at_start;
 use tauri::{App, Emitter, Manager};
 use crate::api::backend_cmd::{
     backend_send_verification_code, backend_register, backend_login, backend_logout,
-    backend_get_profile, backend_search_scripts, backend_redeem_sponsor_code,
+    backend_get_auth_session, backend_get_profile, backend_search_scripts, backend_redeem_sponsor_code,
     backend_check_update, backend_download_script, backend_upload_model, backend_download_model,
     backend_reset_password, backend_update_username, backend_upload_script,
 };
@@ -149,6 +149,7 @@ pub fn run() {
             backend_send_verification_code,
             backend_register,
             backend_login,
+            backend_get_auth_session,
             backend_logout,
             backend_get_profile,
             backend_search_scripts,

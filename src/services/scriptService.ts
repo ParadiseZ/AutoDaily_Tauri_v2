@@ -3,11 +3,11 @@ import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { ScriptTable } from '@/types/bindings/ScriptTable';
 import type { ScriptType } from '@/types/bindings/ScriptType';
 import type {
+    ScriptAuthorSeed,
     MarketPage,
     MarketScriptRecord,
     ScriptSearchInput,
     ScriptTableRecord,
-    UserProfile,
 } from '@/types/app/domain';
 
 type RawScriptTable = ScriptTable & {
@@ -69,13 +69,17 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
     };
 };
 
-export const createBlankScript = (name: string, userProfile: UserProfile | null, id: string): ScriptTableRecord => ({
+export const createBlankScript = (
+    name: string,
+    author: { userId: string; userName: string },
+    id: string,
+): ScriptTableRecord => ({
     id,
     data: {
         name,
         description: '',
-        userId: userProfile?.id ?? '',
-        userName: userProfile?.username ?? 'Local User',
+        userId: author.userId,
+        userName: author.userName,
         runtimeType: 'rhai',
         sponsorshipQr: null,
         sponsorshipUrl: null,
@@ -111,9 +115,17 @@ export const createScriptName = (index: number) => `未命名脚本 ${index}`;
 
 export const createEditableScript = async (
     requestUuid: () => Promise<string>,
-    userProfile: UserProfile | null,
+    author: ScriptAuthorSeed,
     name: string,
-): Promise<ScriptTableRecord> => createBlankScript(name, userProfile, await requestUuid());
+): Promise<ScriptTableRecord> =>
+    createBlankScript(
+        name,
+        {
+            userId: author.userId?.trim() || (await requestUuid()),
+            userName: author.userName?.trim() || 'Guest',
+        },
+        await requestUuid(),
+    );
 
 export const scriptService = {
     listLocal: async (): Promise<ScriptTableRecord[]> => {
@@ -142,6 +154,10 @@ export const scriptService = {
         }
 
         return response.data;
+    },
+    convertLocalImageToDataUrl: async (imagePath: string): Promise<string> => {
+        const base64 = (await invoke('convert_img_to_base64_cmd', { imgPath: imagePath })) as string;
+        return `data:image/png;base64,${base64}`;
     },
     downloadMarketScript: async (scriptId: string, currentUserId: string | null) =>
         (await invoke('backend_download_script', { scriptId, currentUserId })) as ApiEnvelope<string>,
