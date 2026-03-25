@@ -1,218 +1,492 @@
-# 子进程管理与日志系统 — 工作记录
+# 子进程管理与日志系统 — 工作记录（已更新）
 
-> 会话日期: 2026-03-03 ~ 2026-03-05
-> 状态: 第二阶段主体完成，编译通过
+> 首轮实现日期: 2026-03-03 ~ 2026-03-05
+> 本次更新目的: 补充分包拆解后的实际归属，修正文档中过时路径与“前端未接入”描述
+> 当前状态: 子进程基础设施、日志链路、前端接入已完成主链路；执行器闭环仍未完成
 
 ---
 
-## 第一阶段：日志系统优化 ✅（已完成）
+## 1. 当前结论
 
-### 完成内容
+这部分能力已经不是单体 `src-tauri/src/*` 结构了，当前真实状态是：
 
-- **动态日志级别**：主进程（Settings页设置）和子进程（DeviceList/Logs页设置）均支持运行时切换
-- **日志文件管理**：按 `{app_name}_{YYMMDD}.log`（主进程）/`{设备名}_{YYMMDD}.log`（子进程）命名
-- **日志目录可配置**：Settings页设置，持久化到 `tauri-plugin-store`
-- **自动清理**：启动 + 每6h扫描超期 `.log` 文件，保留天数可在 Logs 页设置
-- **logToFile**：`DeviceConfig` 新增 `log_to_file: bool` 字段，禁用时仅 emit 到前端
-- **Log::init_logger 修复**：确保自定义 `Log::info()` 等方法正确输出
-- **设置持久化**：日志级别/目录/保留天数写入 `tauri-plugin-store`，子进程日志级别写入数据库
+- `src-tauri/` 主 crate 负责：
+  - Tauri 应用入口
+  - `invoke_handler` 命令注册
+  - 将部分 `domain/infrastructure` 重新导出给旧路径使用
+- `src-tauri/crates/runtime_engine/` 负责：
+  - 主进程运行时基础设施
+  - SQLite
+  - HTTP client
+  - 主进程 IPC 处理
+  - 设备/脚本/调度等核心 domain
+- `src-tauri/crates/child_support/` 负责：
+  - 子进程运行时
+  - 子进程 IPC 处理
+  - 子进程日志
+  - 子进程调度器 / 执行器
+  - 子进程上下文初始化
+- `src-tauri/crates/runtime_common/` 负责：
+  - core / ipc / logging 通用定义
+- `src-tauri/crates/vision_core/` 负责：
+  - 视觉/OCR/ORT 相关能力
 
-### 涉及文件
+也就是说，这份文档里凡是提到旧的 `src-tauri/src/infrastructure/...` 路径，都应优先理解为：
 
-- `src-tauri/src/infrastructure/logging/` — config.rs, log_trait.rs, child_log.rs, main_process_log_handler.rs
+- 主进程实现多半在 `runtime_engine`
+- 子进程实现多半在 `child_support`
+- `src-tauri/src/*` 很多只是 re-export 或命令入口
+
+---
+
+## 2. 分包后的实际结构
+
+### 2.1 Workspace
+
+`src-tauri/Cargo.toml` 当前 workspace 成员：
+
+- `.`
+- `crates/child_support`
+- `crates/runtime_common`
+- `crates/vision_core`
+- `crates/runtime_engine`
+
+并且保留了独立子进程二进制：
+
+- `[[bin]] name = "child"`
+- `path = "src/main_child.rs"`
+- `required-features = ["child-bin"]`
+
+### 2.2 主 crate 与 re-export 关系
+
+主 crate 真实职责现在偏薄：
+
+- `src-tauri/src/lib.rs`
+  - 注册 Tauri 插件
+  - 注册全部 `invoke_handler`
+  - 启动时调用 `init_at_start`
+- `src-tauri/src/main.rs`
+  - 启动主应用
+- `src-tauri/src/main_child.rs`
+  - 启动子进程
+  - 直接依赖 `child_support`
+
+几个关键 re-export：
+
+- `src-tauri/src/infrastructure.rs`
+  - 导出 `runtime_engine::infrastructure::*`
+- `src-tauri/src/infrastructure/context.rs`
+  - 导出 `runtime_engine::infrastructure::context::*`
+- `src-tauri/src/domain.rs`
+  - 导出主 domain 模块
+
+因此：
+
+- “从旧路径还能访问”不代表“实现还在旧路径”
+- 查问题时，优先去 `runtime_engine` / `child_support` 看真实代码
+
+---
+
+## 3. 已完成能力
+
+## 3.1 第一阶段：日志系统优化
+
+已完成：
+
+- 主进程日志级别动态更新
+- 子进程日志级别动态更新
+- 日志目录可配置
+- 日志保留天数可配置
+- 启动时 + 定时自动清理日志
+- `log_to_file` 支持
+- 前端 console/unhandled error 可桥接到 Rust 侧
+
+当前代码归属：
+
+- 主进程日志：
+  - `src-tauri/crates/runtime_engine/src/infrastructure/logging/`
+- 子进程日志：
+  - `src-tauri/crates/child_support/src/infrastructure/logging/`
+- 命令入口：
+  - `src-tauri/src/api/infrastructure/config/log_api.rs`
+- 前端页面：
+  - `src/views/Settings.vue`
+  - `src/views/Logs.vue`
+
+## 3.2 第二阶段：子进程基础设施
+
+已完成：
+
+- IPC 消息模型收敛
+- 主进程 IPC server
+- 子进程 IPC client
+- 子进程管理器
+- 子进程启动/关闭/状态同步
+- 主进程向前端转发状态和日志事件
+- 前端任务页和日志页已接主链路
+
+### IPC 消息类型
+
+当前核心消息负载仍然是这几类：
+
+| Payload | 用途 |
+| --- | --- |
+| `ProcessControl` | `Start / Stop / Pause / Shutdown` |
+| `ScriptTask` | `Add / Remove / Execute` |
+| `ConfigUpdate` | 日志级别、ADB 相关配置更新 |
+| `StatusReport` | 子进程状态上报 |
+| `Logger` | 子进程日志回传 |
+| `Heartbeat` | 心跳 |
+| `Error` | 异常上报 |
+
+实际实现分布：
+
+- 公共消息定义：
+  - `src-tauri/crates/runtime_common/src/ipc/`
+  - 或经 `runtime_engine / child_support` 再导出
+
+### 主进程消息处理
+
+实际文件：
+
+- `src-tauri/crates/runtime_engine/src/infrastructure/ipc/msg_handler_main.rs`
+
+当前行为：
+
+- `Logger`
+  - 写主进程接收器
+  - emit 前端事件 `child-log`
+- `StatusReport`
+  - emit 前端事件 `device-status`
+- `Error`
+  - emit 前端事件 `device-error`
+
+注意：
+
+- 不是旧文档里写的 `child-log-{deviceId}`
+- 当前前端统一监听的是 `child-log`
+
+### 子进程消息处理
+
+实际文件：
+
+- `src-tauri/crates/child_support/src/infrastructure/ipc/msg_handler_child.rs`
+
+当前行为：
+
+- `ProcessControl`
+  - `Start` -> 状态切到 `Running`
+  - `Stop` -> 状态切到 `Idle`
+  - `Pause` -> 状态切到 `Paused`
+  - `Shutdown` -> 状态切到 `Stopping` 并触发取消
+- `ScriptTask`
+  - `Add` -> 加入调度队列
+  - `Remove` -> 从调度队列移除
+  - `Execute` -> 调试执行
+- `ConfigUpdate`
+  - 已接日志级别
+  - 已接 ADB 路径 / 服务地址热更新
+
+### 子进程管理器
+
+实际文件：
+
+- `src-tauri/crates/runtime_engine/src/infrastructure/context/child_process_manager.rs`
+
+当前功能：
+
+- `spawn_child(init_data)`
+- `stop_child(device_id)`
+- `restart_child`
+- `is_running`
+- `get_running_device_ids`
+- `stop_all`
+
+当前实现方式：
+
+- 使用 `std::env::current_exe()` 拉起当前二进制
+- 通过 `--child` + 环境变量 `CHILD_CONTEXT_DATA` 区分子进程模式
+
+### 子进程入口
+
+实际文件：
+
+- `src-tauri/src/main_child.rs`
+
+当前逻辑：
+
+1. 读取 `CHILD_CONTEXT_DATA`
+2. 反序列化 `ChildProcessInitData`
+3. 调 `child_support::...::init_environment`
+4. 初始化 `CancellationToken`
+5. 初始化 `ScriptScheduler`
+6. 进入主循环
+
+这部分已经不再是旧文档里的“单体 crate 内部逻辑”，而是显式依赖 `child_support`。
+
+### 子进程调度器
+
+实际文件：
+
+- `src-tauri/crates/child_support/src/infrastructure/scripts/scheduler.rs`
+
+当前已完成：
+
+- 队列管理
+  - `add_script`
+  - `remove_script`
+  - `clear_queue`
+- 运行时查询
+  - `current_script`
+  - `queue_len`
+- 主循环调度
+  - `tick`
+- 调试入口
+  - `debug_execute`
+
+当前未完成：
+
+- `execute_script()` 仍是占位逻辑
+- `debug_execute()` 仍未接真实目标加载
+
+---
+
+## 4. 前端接入现状
+
+旧文档这里已经过时，当前前端不是“尚未调用”，而是已经接入主流程了。
+
+### 4.1 已接入页面
+
+#### `src/views/TaskManagement.vue`
+
+已接：
+
+- `cmd_spawn_device`
+- `cmd_device_start`
+- `cmd_device_pause`
+- `cmd_device_stop`
+- `cmd_add_script_to_device`
+- `cmd_remove_script_from_device`
+- `cmd_get_running_devices`
+
+通过 `deviceStore` 和 `taskStore` 完成：
+
+- 设备启动/暂停/停止
+- 设备队列增删
+- 在线状态同步
+
+#### `src/views/Logs.vue`
+
+已接：
+
+- `child-log` 实时日志事件
+- `update_child_log_level_cmd`
+
+#### `src/App.vue`
+
+已接：
+
+- `deviceStore.initIpcListeners()`
+- `logsStore.initListener()`
+
+#### `src/store/device.ts`
+
+已监听：
+
+- `device-status`
+- `device-error`
+
+#### `src/store/logs.ts`
+
+已监听：
+
+- `child-log`
+
+### 4.2 仍未接完的前端部分
+
+- `DeviceList.vue` 没有直接暴露“启动/关闭子进程”按钮
+- assignment 重排 UI 没接
+- 时间模板管理 UI 没接
+- 编辑器页没接真实任务图编辑和保存
+
+---
+
+## 5. 本次分包拆解带来的实际变化
+
+这次拆包之后，最大的收益和影响如下。
+
+### 5.1 收益
+
+- 主应用 crate 变薄，Tauri 入口和运行时实现分离更清楚
+- 子进程逻辑集中在 `child_support`，不再与主进程逻辑混杂
+- 公共定义下沉到 `runtime_common`
+- 视觉/OCR 能力独立到 `vision_core`
+
+### 5.2 对阅读代码的影响
+
+后续排查时建议按这个顺序找：
+
+1. 前端页面 / store / service
+2. `src-tauri/src/api/*` 命令入口
+3. `runtime_engine` 看主进程真实实现
+4. `child_support` 看子进程真实实现
+5. `runtime_common` 看共享结构
+
+不要再只盯着 `src-tauri/src/infrastructure/*`，很多地方只是转发。
+
+### 5.3 当前模块职责
+
+#### `runtime_engine`
+
+更偏主进程和共享主逻辑：
+
+- app 启动初始化
+- SQLite
+- HTTP client
+- 主进程日志
+- 主进程 IPC
+- 子进程管理器
+- 设备/脚本/调度 domain
+
+#### `child_support`
+
+更偏子进程执行期：
+
+- 子进程上下文
+- 子进程日志
+- 子进程 IPC 处理
+- ADB 执行上下文
+- 调度器
+- 执行器
+
+#### `runtime_common`
+
+更偏通用基础结构：
+
+- core
+- ipc
+- logging
+
+#### `vision_core`
+
+更偏视觉与模型：
+
+- 图片处理
+- OCR
+- detection
+- ORT 封装
+
+---
+
+## 6. 仍未完成的工作（当前真实版本）
+
+## 6.1 脚本执行闭环
+
+位置：
+
+- `src-tauri/crates/child_support/src/infrastructure/scripts/scheduler.rs`
+
+当前问题：
+
+- `execute_script()` 还没有从数据库真正加载 `script_tasks`
+- 没有把 `nodes/edges` 转换成真实 `Step` 执行序列
+- 没有把脚本变量加载进运行时
+
+建议继续看：
+
+- `src-tauri/crates/runtime_engine/src/domain/scripts/`
+- `src-tauri/crates/child_support/src/infrastructure/scripts/executor.rs`
+
+## 6.2 调试执行目标未落地
+
+位置：
+
+- `debug_execute()`
+
+当前问题：
+
+- `ExecuteTarget::FullScript / Task / PolicyGroup / PolicySet` 都还没真正加载对应步骤
+
+## 6.3 运行时持久化还没做
+
+位置：
+
+- `src-tauri/crates/child_support/src/infrastructure/ipc/msg_handler_child.rs`
+
+当前问题：
+
+- `Stop`
+- `Shutdown`
+
+这两个分支还只有：
+
+- 改状态
+- 触发取消
+
+但没有：
+
+- 保存当前运行进度
+- 保存运行时变量
+- 补完整调度结果
+
+## 6.4 子进程打包策略仍需最终验证
+
+当前现状：
+
+- workspace 中有独立 `child` bin
+- `ChildProcessManager` 实际仍使用 `current_exe()` + `--child`
+
+这代表当前模式是“逻辑上保留独立 child bin，运行上先沿用同一可执行入口区分子模式”。
+
+需要继续确认：
+
+- 打包产物里是否真的需要独立 child 可执行文件
+- `--child` 模式是否已经在主二进制入口完整支持
+- `child-bin` feature 在开发/打包链路中的真实使用方式
+
+---
+
+## 7. 当前相关文件速查
+
+### 7.1 主入口
+
+- `src-tauri/src/lib.rs`
+- `src-tauri/src/main.rs`
+- `src-tauri/src/main_child.rs`
+
+### 7.2 命令入口
+
+- `src-tauri/src/api/infrastructure/process_api.rs`
 - `src-tauri/src/api/infrastructure/config/log_api.rs`
-- `src/views/Settings.vue`, `src/views/Logs.vue`, `src/views/DeviceList.vue`
+
+### 7.3 主进程真实实现
+
+- `src-tauri/crates/runtime_engine/src/infrastructure/context/child_process_manager.rs`
+- `src-tauri/crates/runtime_engine/src/infrastructure/ipc/msg_handler_main.rs`
+- `src-tauri/crates/runtime_engine/src/infrastructure/db.rs`
+- `src-tauri/crates/runtime_engine/src/infrastructure/http_client.rs`
+
+### 7.4 子进程真实实现
+
+- `src-tauri/crates/child_support/src/infrastructure/context/child_process.rs`
+- `src-tauri/crates/child_support/src/infrastructure/context/child_process_sec.rs`
+- `src-tauri/crates/child_support/src/infrastructure/ipc/msg_handler_child.rs`
+- `src-tauri/crates/child_support/src/infrastructure/scripts/scheduler.rs`
+- `src-tauri/crates/child_support/src/infrastructure/scripts/executor.rs`
+
+### 7.5 前端接入
+
+- `src/store/device.ts`
+- `src/store/logs.ts`
+- `src/views/TaskManagement.vue`
+- `src/views/Logs.vue`
 
 ---
 
-## 第二阶段：子进程功能实现 ✅（主体完成）
+## 8. 对下个 AI 的提醒
 
-### 1. IPC 消息精简
-
-**文件**: `src-tauri/src/infrastructure/ipc/message.rs`
-
-从 ~278 行精简至 ~200 行，移除未使用类型。保留 6 个核心 MessagePayload：
-
-| Payload          | 用途                      |
-| ---------------- | ------------------------- |
-| `ProcessControl` | Start/Stop/Pause/Shutdown |
-| `ScriptTask`     | Add/Remove/Execute        |
-| `ConfigUpdate`   | LogLevel/LogToFile        |
-| `StatusReport`   | 子进程状态上报            |
-| `Logger`         | 子进程日志转发            |
-| `Heartbeat`      | 心跳                      |
-
-新增类型：`ConfigUpdateType`（LogLevel+LogToFile）、`ChildProcessStatus`枚举、`ScriptTaskAction::Execute`（开发者调试）
-
-### 2. 消息处理器
-
-| 文件                       | 功能                                                                        |
-| -------------------------- | --------------------------------------------------------------------------- |
-| `ipc/msg_handler_child.rs` | 子进程端：分发 ProcessControl/ScriptTask/ConfigUpdate，连接 ScriptScheduler |
-| `ipc/msg_handler_main.rs`  | 主进程端：Logger→文件+前端事件、StatusReport→前端事件、Error→前端事件       |
-| `ipc/chanel_server.rs`     | `handle_msg` 委托 `msg_handler_main`，`send_to_client` 公开                 |
-| `ipc/chanel_client.rs`     | `handle_msg` 委托 `msg_handler_child`                                       |
-
-### 3. 子进程管理器（主进程端）
-
-**文件**: `src-tauri/src/infrastructure/context/child_process_manager.rs`
-
-- `spawn_child(init_data)` — 通过 `tokio::process::Command` 启动子进程，env 传 `CHILD_CONTEXT_DATA`
-- `stop_child(device_id)` — IPC 发 Shutdown → 5s超时 kill
-- `restart_child`, `is_running`, `get_running_device_ids`, `stop_all`
-- 全局单例 `OnceLock`，在 `init_at_start` 中初始化
-
-### 4. 子进程主循环 + CancellationToken 优雅停止
-
-**文件**: `src-tauri/src/main_child.rs`
-
-```
-启动流程:
-env CHILD_CONTEXT_DATA → 反序列化 ChildProcessInitData
-→ init_environment() (CPU亲和性/日志/数据库/IPC/ADB/运行时上下文)
-→ init_scheduler(cancel_token)
-→ set_running_status(Idle)
-→ run_main_loop()
-```
-
-状态机:
-
-- `Idle/Paused` → 500ms 轮询等待命令
-- `Running` → `scheduler.tick()` 执行脚本队列，队列空回到 Idle
-- `Stopping/Stopped/Error` → 退出主循环
-- Ctrl+C / `ProcessAction::Shutdown` → `trigger_cancel()` 立即退出
-
-**全局 CancellationToken**: `src-tauri/src/infrastructure/context/child_process_sec.rs`
-
-- `init_cancel_token()` / `get_cancel_token()` / `trigger_cancel()`
-
-### 5. 脚本调度器
-
-**文件**: `src-tauri/src/infrastructure/scripts/scheduler.rs`
-
-- `add_script(id)` / `remove_script(id)` / `clear_queue()` — 队列管理
-- `tick()` — 取出下一个脚本执行，返回 false 表示队列空
-- `debug_execute(script_id, target)` — 开发者调试，不走队列直接执行
-- `current_script()` / `queue_len()` — 查询
-- 全局单例 `OnceLock`
-
-### 6. 前端 API
-
-**文件**: `src-tauri/src/api/infrastructure/process_api.rs`
-
-| 命令                                                  | 功能                                 |
-| ----------------------------------------------------- | ------------------------------------ |
-| `cmd_spawn_device(app_handle, device_id)`             | 从DB加载配置→构造InitData→启动子进程 |
-| `cmd_device_start(device_id)`                         | 发送 Start 命令                      |
-| `cmd_device_stop(device_id)`                          | 发送 Stop（回到Idle）                |
-| `cmd_device_pause(device_id)`                         | 发送 Pause                           |
-| `cmd_device_shutdown(device_id)`                      | 关闭子进程                           |
-| `cmd_add_script_to_device(device_id, script_id)`      | 添加脚本到队列                       |
-| `cmd_remove_script_from_device(device_id, script_id)` | 移除脚本                             |
-| `cmd_get_running_devices()`                           | 查询全部运行设备                     |
-| `cmd_is_device_running(device_id)`                    | 查询单设备状态                       |
-
-已在 `lib.rs` `invoke_handler` 中注册。
-
-### 7. 其他关键修改
-
-| 文件                           | 修改                                                                    |
-| ------------------------------ | ----------------------------------------------------------------------- |
-| `Cargo.toml`                   | 添加 `tokio-util` 依赖                                                  |
-| `context/child_process.rs`     | 移除旧 `ChildProcessCtx`，仅保留 `ChildProcessInitData`                 |
-| `context/child_process_sec.rs` | 添加 `Stopping` 状态、`get_ipc_client` 返回 `Option`、CancellationToken |
-| `scripts.rs` (mod)             | 添加 `pub mod scheduler`，`script_runtime` 改为 `pub`                   |
-| `app/init_start.rs`            | IPC Server 启动后初始化 `ProcessManager`                                |
-| `logging/child_log.rs`         | 修复 `get_ipc_client()` 返回 `Option` 后的解包                          |
-
----
-
-## 未完成的工作（TODO）
-
-### 1. 脚本实际加载逻辑
-
-**位置**: `scheduler.rs` 的 `execute_script()` 方法
-
-当前状态：只有占位逻辑，需要实现：
-
-- 从数据库 `script_tasks` 表加载 `ScriptTaskTable`（nodes+edges）
-- 将 VueFlow 的 nodes/edges 解析为 `Vec<Step>` 执行序列
-- 加载脚本参数（`ScriptTask.variables`）到 `ScriptRuntime`
-- 调用 `ScriptExecutor.execute(steps)` 执行
-
-相关数据结构：
-
-- `domain/scripts/script_task.rs` — `ScriptTaskTable`（id, script_id, nodes, edges, data）
-- `domain/scripts/script_decision.rs` — `Step`/`StepKind` 定义
-- `infrastructure/scripts/executor.rs` — `ScriptExecutor.execute(steps)`
-- `infrastructure/scripts/script_runtime.rs` — `ScriptRuntime`（decision, back_decision, global_decision）
-
-### 2. 开发者调试执行
-
-**位置**: `scheduler.rs` 的 `debug_execute()` 方法
-
-当前状态：只有占位逻辑，需要根据 `ExecuteTarget` 加载对应的步骤：
-
-- `FullScript` → 加载所有 Main 类型任务
-- `Task(task_id)` → 加载指定任务
-- `PolicyGroup(pg_id)` → 加载指定策略组
-- `PolicySet(ps_id)` → 加载指定策略集
-
-### 3. 运行时数据持久化
-
-**位置**: `msg_handler_child.rs` 的 `ProcessAction::Stop` 和 `ProcessAction::Shutdown` 分支
-
-当前状态：已标记 `// TODO: 持久化运行时数据`
-需要实现：
-
-- 保存当前脚本执行进度到数据库
-- 保存 ScriptRuntime 中的变量状态
-- 停止时通知主进程当前执行状态
-
-### 4. 前端界面接入
-
-目前 9 个 Tauri 命令已注册可用，但前端页面尚未调用：
-
-- `TaskManagement.vue` — 需接入 spawn/start/stop/pause/shutdown
-- `DeviceList.vue` — 需接入启动/停止按钮
-- `Logs.vue` — 子进程日志通过事件 `child-log-{deviceId}` emit，需订阅
-
-### 5. 子进程二进制分离（可选）
-
-当前 `child_process_manager.rs` 中 `spawn_child` 使用 `std::env::current_exe()` 获取路径并传 `--child` 参数，但 `main_child.rs` 同时也是独立的 `[[bin]]` target（当前名为 `child`，默认不参与构建，需要显式启用 `child-bin` feature）。需要验证：
-
-- Tauri 打包后是否正确包含 `child` 二进制
-- 开发模式下 `current_exe()` 路径是否正确指向 child binary
-- 可能需要改为显式指定 child binary 路径
-
----
-
-## 前端调用示例（TypeScript）
-
-```typescript
-import { invoke } from '@tauri-apps/api/core';
-
-// 启动设备子进程
-await invoke('cmd_spawn_device', { deviceId: 'uuid...' });
-
-// 添加脚本到队列
-await invoke('cmd_add_script_to_device', { deviceId: 'uuid...', scriptId: 'uuid...' });
-
-// 开始执行
-await invoke('cmd_device_start', { deviceId: 'uuid...' });
-
-// 停止执行
-await invoke('cmd_device_stop', { deviceId: 'uuid...' });
-
-// 关闭子进程
-await invoke('cmd_device_shutdown', { deviceId: 'uuid...' });
-
-// 查询运行中的设备
-const devices = await invoke('cmd_get_running_devices');
-```
-
----
-
-## 编译验证
-
-- ✅ `cargo build` 全部编译通过 (exit code 0, 53 warnings均为unused)
+- 先接受一个事实：这块代码已经拆包了，不能再按旧文档把所有实现都理解成在 `src-tauri/src/*`。
+- 如果要继续做子进程/执行链路，优先看 `child_support`。
+- 如果要继续做命令、DB、主进程事件转发，优先看 `runtime_engine`。
+- 旧文档里“前端未接入”的说法已经不成立，任务页和日志页都已接主链路。
+- 现在最值得继续投入的点，不是再整理框架，而是把 `scheduler -> script_tasks -> executor` 真正打通。

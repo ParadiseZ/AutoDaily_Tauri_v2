@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "tauri": "cd src-tauri && cargo test export_bindings && cd ../ &&tauri",
     "gen:types": "cd src-tauri && cargo test export_bindings",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.4",
@@ -35,6 +37,7 @@
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/vite": "^4.1.17",
     "@tauri-apps/cli": "^2.7.1",
     "@types/node": "^25.2.3",

@@ -30,7 +30,6 @@ docs/*
 target/*
 
 doc_old/*
-doc/*
 src_bak/*
 src_bak_sec/*
 .trae/*
@@ -39,3 +38,10 @@ src_bak_sec/*
 .shared/*
 
 src/types/bindings/*
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
