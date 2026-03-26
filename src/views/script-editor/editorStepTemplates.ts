@@ -1,0 +1,567 @@
+import type { Step } from '@/types/bindings';
+
+export interface EditorStepTemplate {
+  id: string;
+  label: string;
+  description: string;
+  group: string;
+  create: () => Step;
+}
+
+const castStep = (value: unknown) => value as Step;
+
+const createBaseStep = (partial: Record<string, unknown>) =>
+  castStep({
+    id: null,
+    source_id: null,
+    target_id: null,
+    label: null,
+    skip_flag: false,
+    exec_cur: 0,
+    exec_max: 1,
+    ...partial,
+  });
+
+export const editorStepTemplates: EditorStepTemplate[] = [
+  {
+    id: 'capture',
+    label: '截图',
+    description: '将当前画面写入变量，常用于后续视觉识别。',
+    group: '动作',
+    create: () =>
+      castStep({
+        id: null,
+        source_id: null,
+        target_id: null,
+        label: '截图',
+        skip_flag: false,
+        exec_cur: 0,
+        exec_max: 1,
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'capture',
+          output_var: 'latest_capture',
+        },
+      }),
+  },
+  {
+    id: 'launch-app',
+    label: '启动应用',
+    description: '启动目标包名，适合作为任务开头。',
+    group: '动作',
+    create: () =>
+      castStep({
+        id: null,
+        source_id: null,
+        target_id: null,
+        label: '启动应用',
+        skip_flag: false,
+        exec_cur: 0,
+        exec_max: 1,
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'launchApp',
+          pkg_name: '',
+        },
+      }),
+  },
+  {
+    id: 'stop-app',
+    label: '停止应用',
+    description: '主动停止目标包名，适合切换账号或重置状态。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '停止应用',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'stopApp',
+          pkg_name: '',
+        },
+      }),
+  },
+  {
+    id: 'click-point',
+    label: '点击坐标',
+    description: '按绝对坐标点击，适合固定布局。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '点击坐标',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'click',
+          mode: 'point',
+          p: { x: 640, y: 360 },
+        },
+      }),
+  },
+  {
+    id: 'click-percent',
+    label: '点击百分比',
+    description: '按相对坐标点击，适合多分辨率脚本。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '点击百分比',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'click',
+          mode: 'percent',
+          p: { x: 0.5, y: 0.5 },
+        },
+      }),
+  },
+  {
+    id: 'click-text',
+    label: '点击文字',
+    description: '搜索 OCR 文本后点击对应区域。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '点击文字',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'click',
+          mode: 'txt',
+          txt: '开始',
+        },
+      }),
+  },
+  {
+    id: 'click-label',
+    label: '点击标签',
+    description: '根据视觉标签索引点击对应目标。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '点击标签',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'click',
+          mode: 'labelIdx',
+          idx: 0,
+        },
+      }),
+  },
+  {
+    id: 'swipe-point',
+    label: '滑动坐标',
+    description: '按绝对坐标执行滑动。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '滑动坐标',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'swipe',
+          mode: 'point',
+          duration: 300,
+          from: { x: 640, y: 560 },
+          to: { x: 640, y: 180 },
+        },
+      }),
+  },
+  {
+    id: 'swipe-percent',
+    label: '滑动百分比',
+    description: '按相对坐标执行滑动。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '滑动百分比',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'swipe',
+          mode: 'percent',
+          duration: 300,
+          from: { x: 0.5, y: 0.75 },
+          to: { x: 0.5, y: 0.25 },
+        },
+      }),
+  },
+  {
+    id: 'swipe-text',
+    label: '滑动文字',
+    description: '按 OCR 文字起止点执行滑动。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '滑动文字',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'swipe',
+          mode: 'txt',
+          duration: 300,
+          from: '开始',
+          to: '结束',
+        },
+      }),
+  },
+  {
+    id: 'swipe-label',
+    label: '滑动标签',
+    description: '按视觉标签索引起止点执行滑动。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '滑动标签',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'swipe',
+          mode: 'labelIdx',
+          duration: 300,
+          from: 0,
+          to: 1,
+        },
+      }),
+  },
+  {
+    id: 'reboot',
+    label: '重启设备',
+    description: '执行设备重启动作。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '重启设备',
+        op: 'action',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          ac: 'reboot',
+        },
+      }),
+  },
+  {
+    id: 'wait',
+    label: '等待',
+    description: '在关键跳转后留出稳定时间。',
+    group: '流程',
+    create: () =>
+      castStep({
+        id: null,
+        source_id: null,
+        target_id: null,
+        label: '等待',
+        skip_flag: false,
+        exec_cur: 0,
+        exec_max: 1,
+        op: 'flowControl',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: 'waitMs',
+          ms: 1000,
+        },
+      }),
+  },
+  {
+    id: 'if',
+    label: '条件分支',
+    description: '创建一段最小化的条件判断骨架。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '条件分支',
+        op: 'flowControl',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: 'if',
+          con: {
+            type: 'rawExpr',
+            expr: 'true',
+          },
+          then: [],
+          else_steps: null,
+        },
+      }),
+  },
+  {
+    id: 'while',
+    label: '循环条件',
+    description: '根据 ConditionNode 条件循环执行子步骤。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '循环条件',
+        op: 'flowControl',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: 'while',
+          con: {
+            type: 'rawExpr',
+            expr: 'true',
+          },
+          flow: [],
+        },
+      }),
+  },
+  {
+    id: 'for',
+    label: '遍历循环',
+    description: '根据 ConditionNode 条件执行 for 流程。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '遍历循环',
+        op: 'flowControl',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: 'for',
+          con: {
+            type: 'rawExpr',
+            expr: 'true',
+          },
+          flow: [],
+        },
+      }),
+  },
+  {
+    id: 'continue',
+    label: '继续循环',
+    description: '在循环内部跳过后续步骤并继续下一轮。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '继续循环',
+        op: 'flowControl',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: 'continue',
+        },
+      }),
+  },
+  {
+    id: 'break',
+    label: '跳出循环',
+    description: '在循环内部立即结束当前循环。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '跳出循环',
+        op: 'flowControl',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: 'break',
+        },
+      }),
+  },
+  {
+    id: 'set-var',
+    label: '设置变量',
+    description: '向任务上下文写入一个变量。',
+    group: '数据',
+    create: () =>
+      castStep({
+        id: null,
+        source_id: null,
+        target_id: null,
+        label: '设置变量',
+        skip_flag: false,
+        exec_cur: 0,
+        exec_max: 1,
+        op: 'dataHanding',
+        a: {
+          type: 'setVar',
+          name: 'counter',
+          val: 1,
+          expr: null,
+        },
+      }),
+  },
+  {
+    id: 'get-var',
+    label: '读取变量',
+    description: '从上下文读取变量并写回当前步骤使用。',
+    group: '数据',
+    create: () =>
+      createBaseStep({
+        label: '读取变量',
+        op: 'dataHanding',
+        a: {
+          type: 'getVar',
+          name: 'counter',
+          default_val: null,
+        },
+      }),
+  },
+  {
+    id: 'vision-search',
+    label: '视觉搜索',
+    description: '基于 OCR / YOLO 规则搜索目标并输出结果变量。',
+    group: '视觉',
+    create: () =>
+      castStep({
+        id: null,
+        source_id: null,
+        target_id: null,
+        label: '视觉搜索',
+        skip_flag: false,
+        exec_cur: 0,
+        exec_max: 1,
+        op: 'vision',
+        a: {
+          type: 'visionSearch',
+          rule: {
+            type: 'group',
+            op: 'And',
+            scope: 'Global',
+            items: [],
+          },
+          out_var: 'vision_hit',
+          then_steps: [],
+        },
+      }),
+  },
+  {
+    id: 'link-task',
+    label: '跳转任务',
+    description: '将执行流切换到另一个任务。',
+    group: '流程',
+    create: () =>
+      castStep({
+        id: null,
+        source_id: null,
+        target_id: null,
+        label: '跳转任务',
+        skip_flag: false,
+        exec_cur: 0,
+        exec_max: 1,
+        op: 'flowControl',
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: 'link',
+          target: '',
+        },
+      }),
+  },
+  {
+    id: 'sequence',
+    label: '子序列',
+    description: '在当前任务内嵌套一段顺序步骤。',
+    group: '容器',
+    create: () =>
+      castStep({
+        id: null,
+        source_id: null,
+        target_id: null,
+        label: '子序列',
+        skip_flag: false,
+        exec_cur: 0,
+        exec_max: 1,
+        op: 'sequence',
+        steps: [],
+        reverse: false,
+      }),
+  },
+];
+
+export const createStepFromTemplate = (templateId: string) =>
+  editorStepTemplates.find((template) => template.id === templateId)?.create() ?? null;
+
+export const describeStep = (step: Step) => {
+  const stepLabel = step.label?.trim();
+  if (stepLabel) {
+    return stepLabel;
+  }
+
+  if (step.op === 'sequence') {
+    return `顺序容器 · ${step.steps.length} 个子步骤`;
+  }
+
+  if (step.op === 'action') {
+    if (step.a.ac === 'capture') {
+      return `截图写入 ${step.a.output_var}`;
+    }
+    if (step.a.ac === 'launchApp') {
+      return `启动 ${step.a.pkg_name || '未指定包名'}`;
+    }
+    if (step.a.ac === 'stopApp') {
+      return `停止 ${step.a.pkg_name || '未指定包名'}`;
+    }
+    if (step.a.ac === 'reboot') {
+      return '重启设备';
+    }
+    if (step.a.ac === 'click') {
+      return `点击 · ${step.a.mode}`;
+    }
+    if (step.a.ac === 'swipe') {
+      return `滑动 · ${step.a.mode}`;
+    }
+    return '动作';
+  }
+
+  if (step.op === 'flowControl') {
+    switch (step.a.type) {
+      case 'if':
+        return `条件分支 · then ${step.a.then.length} 步`;
+      case 'while':
+        return `循环 · ${step.a.flow.length} 步`;
+      case 'for':
+        return `遍历 · ${step.a.flow.length} 步`;
+      case 'waitMs':
+        return `等待 ${String(step.a.ms)} ms`;
+      case 'link':
+        return `跳转到 ${step.a.target || '未指定任务'}`;
+      case 'continue':
+        return '继续下一轮循环';
+      case 'break':
+        return '跳出当前循环';
+      case 'handlePolicySet':
+        return `处理 ${step.a.target.length} 个策略集`;
+      case 'addPolicies':
+        return `追加策略 ${step.a.source || '未命名'} -> ${step.a.target || '未命名'}`;
+      default:
+        return '流程控制';
+    }
+  }
+
+  if (step.op === 'dataHanding') {
+    switch (step.a.type) {
+      case 'setVar':
+        return `写入变量 ${step.a.name || '未命名变量'}`;
+      case 'getVar':
+        return `读取变量 ${step.a.name || '未命名变量'}`;
+      default:
+        return `数据处理 · ${step.a.type}`;
+    }
+  }
+
+  if (step.op === 'vision') {
+    return `视觉搜索 -> ${step.a.out_var || '未命名输出'}`;
+  }
+
+  if (step.op === 'taskControl') {
+    return `任务状态 · ${step.a.type}`;
+  }
+
+  return '未识别步骤';
+};

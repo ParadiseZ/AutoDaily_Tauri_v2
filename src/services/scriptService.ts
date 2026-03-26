@@ -133,6 +133,8 @@ export const scriptService = {
         return scripts.map(normalizeScriptTable);
     },
     listTasks: (scriptId: string) => invoke('get_script_tasks_cmd', { scriptId }) as Promise<ScriptTaskTable[]>,
+    saveTasks: (scriptId: string, tasks: ScriptTaskTable[]) =>
+        invoke('save_script_tasks_cmd', { scriptId, tasks }) as Promise<void>,
     saveLocal: async (script: ScriptTableRecord): Promise<void> => {
         await invoke('save_script_cmd', { script: serializeScriptTable(script) });
     },

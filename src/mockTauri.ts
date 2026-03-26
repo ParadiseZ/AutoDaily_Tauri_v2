@@ -230,6 +230,15 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           const state = readState();
           return state.scriptTasks[String(args.scriptId)] ?? [];
         }
+        case 'save_script_tasks_cmd':
+          updateState((current) => ({
+            ...current,
+            scriptTasks: {
+              ...current.scriptTasks,
+              [String(args.scriptId)]: Array.isArray(args.tasks) ? (args.tasks as ScriptTaskTable[]) : [],
+            },
+          }));
+          return null;
         case 'save_script_cmd':
           updateState((current) => ({
             ...current,

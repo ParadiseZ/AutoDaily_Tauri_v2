@@ -121,12 +121,15 @@ pub async fn batch_insert_script_related(
         }
     }
 
-    // 7. Batch insert script_tasks (7 bind params each, max ~140 per chunk fits SQLite limit)
+    // 7. Batch insert script_tasks
     if !tasks.is_empty() {
         for chunk in tasks.chunks(50) {
-            let placeholders: Vec<String> = chunk.iter().map(|_| "(?, ?, ?, ?, ?, ?, ?)".to_string()).collect();
+            let placeholders: Vec<String> = chunk
+                .iter()
+                .map(|_| "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string())
+                .collect();
             let sql = format!(
-                "INSERT INTO script_tasks (id, script_id, name, is_hidden, nodes, edges, `data`) VALUES {}",
+                "INSERT INTO script_tasks (id, script_id, name, is_hidden, task_type, nodes, edges, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES {}",
                 placeholders.join(", ")
             );
             let mut query = sqlx::query(&sql);
@@ -136,7 +139,15 @@ pub async fn batch_insert_script_related(
                     .bind(t.script_id.to_string())
                     .bind(&t.name)
                     .bind(t.is_hidden)
-                    .bind(&t.data);
+                    .bind(t.task_type.clone())
+                    .bind("[]")
+                    .bind("[]")
+                    .bind(&t.data)
+                    .bind(t.created_at)
+                    .bind(t.updated_at)
+                    .bind(t.deleted_at)
+                    .bind(t.is_deleted)
+                    .bind(t.index as i64);
             }
             query.execute(&mut **tx).await.map_err(|e| format!("批量写入 script_tasks 失败: {}", e))?;
         }

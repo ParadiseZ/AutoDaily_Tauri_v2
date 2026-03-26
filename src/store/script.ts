@@ -26,6 +26,15 @@ const emptyMarketPage = (): MarketPage<MarketScriptRecord> => ({
     current: 1,
 });
 
+const normalizeScriptTasks = (tasks: ScriptTaskTable[]) =>
+    [...tasks].sort((left, right) => {
+        if (left.index !== right.index) {
+            return left.index - right.index;
+        }
+
+        return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+    });
+
 export const useScriptStore = defineStore('script', () => {
     const scripts = ref<ScriptTableRecord[]>([]);
     const selectedScriptId = ref<string | null>(null);
@@ -79,7 +88,7 @@ export const useScriptStore = defineStore('script', () => {
             [scriptId]: true,
         };
         try {
-            const tasks = await scriptService.listTasks(scriptId);
+            const tasks = normalizeScriptTasks(await scriptService.listTasks(scriptId));
             tasksByScriptId.value = {
                 ...tasksByScriptId.value,
                 [scriptId]: tasks,
@@ -91,6 +100,15 @@ export const useScriptStore = defineStore('script', () => {
                 [scriptId]: false,
             };
         }
+    };
+
+    const saveScriptTasks = async (scriptId: string, tasks: ScriptTaskTable[]) => {
+        const normalized = normalizeScriptTasks(tasks);
+        await scriptService.saveTasks(scriptId, normalized);
+        tasksByScriptId.value = {
+            ...tasksByScriptId.value,
+            [scriptId]: normalized,
+        };
     };
 
     const deleteScript = async (scriptId: string) => {
@@ -134,6 +152,7 @@ export const useScriptStore = defineStore('script', () => {
         marketQuery,
         prepareScript,
         saveScript,
+        saveScriptTasks,
         scripts,
         searchMarket,
         selectedScript,

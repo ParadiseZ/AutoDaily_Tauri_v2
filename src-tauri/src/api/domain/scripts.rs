@@ -35,7 +35,10 @@ pub async fn delete_script_cmd(script_id: ScriptId) -> Result<(), String> {
 #[command]
 pub async fn get_script_tasks_cmd(script_id: ScriptId) -> Result<Vec<ScriptTaskTable>, String> {
     let pool = get_pool();
-    let query = format!("SELECT * FROM {} WHERE script_id = ?", SCRIPT_TASK_TABLE);
+    let query = format!(
+        "SELECT * FROM {} WHERE script_id = ? ORDER BY `index` ASC, created_at ASC",
+        SCRIPT_TASK_TABLE
+    );
     let rows: Vec<ScriptTaskTable> = sqlx::query_as(&query)
         .bind(script_id.to_string())
         .fetch_all(pool)
@@ -62,15 +65,23 @@ pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTab
     // 插入新任务
     for task in tasks {
         let insert_query = format!(
-            "INSERT INTO {} (id, script_id, name, is_hidden, nodes, edges, `data`) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO {} (id, script_id, name, is_hidden, task_type, nodes, edges, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             SCRIPT_TASK_TABLE
         );
         sqlx::query(&insert_query)
             .bind(task.id.to_string())
             .bind(script_id.to_string())
-            .bind(task.name)
+            .bind(&task.name)
             .bind(task.is_hidden)
-            .bind(task.data)
+            .bind(task.task_type)
+            .bind("[]")
+            .bind("[]")
+            .bind(&task.data)
+            .bind(task.created_at)
+            .bind(task.updated_at)
+            .bind(task.deleted_at)
+            .bind(task.is_deleted)
+            .bind(task.index as i64)
             .execute(&mut *tx)
             .await
             .map_err(|e| e.to_string())?;
