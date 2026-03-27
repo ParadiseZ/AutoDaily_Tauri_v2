@@ -100,7 +100,8 @@
           :task="currentTask"
           :active-panel="activePanel"
           :steps="parsedSteps"
-          :selected-step-index="selectedStepIndex"
+          :selected-step-path="selectedStepPath"
+          :active-branch-path="activeBranchPath"
           :ui-schema="uiSchema"
           :selected-ui-field-id="selectedUiFieldId"
           :input-entries="inputEntries"
@@ -109,7 +110,8 @@
           @select-ui-field="selectedUiFieldId = $event"
           @update-ui-field="updateUiField"
           @remove-ui-field="removeUiField"
-          @select-step="selectedStepIndex = $event"
+          @select-step="selectStep"
+          @navigate-branch="navigateBranch"
           @reorder-step="reorderSteps"
           @duplicate-step="duplicateStep"
           @remove-step="removeStep"
@@ -158,6 +160,18 @@ import EditorTaskSidebar from '@/views/script-editor/EditorTaskSidebar.vue';
 import EditorTaskWorkspace from '@/views/script-editor/EditorTaskWorkspace.vue';
 import { createStepFromTemplate } from '@/views/script-editor/editorStepTemplates';
 import {
+  buildStepPath,
+  cloneStepPath,
+  createSiblingSelection,
+  getBranchSteps,
+  getStepByPath,
+  ROOT_BRANCH_PATH,
+  type StepBranchPath,
+  type StepPath,
+  updateBranchSteps,
+  updateStepByPath,
+} from '@/views/script-editor/editorStepTree';
+import {
   buildInputJson,
   buildUiData,
   cloneJson,
@@ -191,7 +205,8 @@ const rawDialogError = ref<string | null>(null);
 
 const activePanel = ref<EditorPanelId>('basic');
 const selectedTaskId = ref<string | null>(null);
-const selectedStepIndex = ref<number | null>(null);
+const selectedStepPath = ref<StepPath | null>(null);
+const activeBranchPath = ref<StepBranchPath>(ROOT_BRANCH_PATH);
 const selectedUiFieldId = ref<string | null>(null);
 
 const draftTasks = ref<ScriptTaskTable[]>([]);
@@ -223,6 +238,7 @@ const currentTask = computed<ScriptTaskTable | null>(() => {
 });
 
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
+const currentBranchSteps = computed<Step[]>(() => getBranchSteps(parsedSteps.value, activeBranchPath.value));
 
 const hasValidationErrors = computed(() => Boolean(inputError.value));
 
@@ -333,7 +349,8 @@ const hydrateTaskEditors = () => {
     inputEntries.value = [];
     inputError.value = null;
     uiSchema.value = createUiSchema();
-    selectedStepIndex.value = null;
+    selectedStepPath.value = null;
+    activeBranchPath.value = ROOT_BRANCH_PATH;
     selectedUiFieldId.value = null;
   } else {
     taskName.value = currentTask.value.name;
@@ -342,7 +359,13 @@ const hydrateTaskEditors = () => {
     inputEntries.value = parseInputEntries(currentTask.value.data.variables ?? {});
     inputError.value = null;
     uiSchema.value = parseUiSchema(currentTask.value.data.uiData ?? {});
-    selectedStepIndex.value = currentTask.value.data.steps.length ? Math.min(selectedStepIndex.value ?? 0, currentTask.value.data.steps.length - 1) : null;
+    if (!currentTask.value.data.steps.length) {
+      selectedStepPath.value = null;
+      activeBranchPath.value = ROOT_BRANCH_PATH;
+    } else if (!selectedStepPath.value || !getStepByPath(currentTask.value.data.steps, selectedStepPath.value)) {
+      selectedStepPath.value = buildStepPath(ROOT_BRANCH_PATH, 0);
+      activeBranchPath.value = ROOT_BRANCH_PATH;
+    }
     selectedUiFieldId.value =
       uiSchema.value.fields.find((field) => field.id === selectedUiFieldId.value)?.id ?? uiSchema.value.fields[0]?.id ?? null;
   }
@@ -364,9 +387,8 @@ const setCurrentTaskSteps = (steps: Step[]) => {
   });
 
   if (!steps.length) {
-    selectedStepIndex.value = null;
-  } else if (selectedStepIndex.value === null || selectedStepIndex.value >= steps.length) {
-    selectedStepIndex.value = steps.length - 1;
+    selectedStepPath.value = null;
+    activeBranchPath.value = ROOT_BRANCH_PATH;
   }
 };
 
@@ -520,9 +542,9 @@ const appendTemplateStep = (templateId: string) => {
     return;
   }
 
-  const nextSteps = [...parsedSteps.value, step];
+  const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => [...steps, step]);
   setCurrentTaskSteps(nextSteps);
-  selectedStepIndex.value = nextSteps.length - 1;
+  selectedStepPath.value = buildStepPath(activeBranchPath.value, getBranchSteps(nextSteps, activeBranchPath.value).length - 1);
   activePanel.value = 'steps';
 };
 
@@ -531,32 +553,49 @@ const reorderSteps = (fromIndex: number, toIndex: number) => {
     return;
   }
 
-  setCurrentTaskSteps(reorderCollection(parsedSteps.value, fromIndex, toIndex));
-  selectedStepIndex.value = toIndex;
+  const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => reorderCollection(steps, fromIndex, toIndex));
+  setCurrentTaskSteps(nextSteps);
+  selectedStepPath.value = buildStepPath(activeBranchPath.value, toIndex);
 };
 
 const duplicateStep = (index: number) => {
-  const source = parsedSteps.value[index];
+  const source = currentBranchSteps.value[index];
   if (!source) {
     return;
   }
 
-  const nextSteps = [...parsedSteps.value];
-  nextSteps.splice(index + 1, 0, cloneJson(source));
+  const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => {
+    const next = [...steps];
+    next.splice(index + 1, 0, cloneJson(source));
+    return next;
+  });
   setCurrentTaskSteps(nextSteps);
-  selectedStepIndex.value = index + 1;
+  selectedStepPath.value = buildStepPath(activeBranchPath.value, index + 1);
 };
 
 const removeStep = (index: number) => {
-  const nextSteps = [...parsedSteps.value];
-  nextSteps.splice(index, 1);
+  const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => steps.filter((_, stepIndex) => stepIndex !== index));
   setCurrentTaskSteps(nextSteps);
+  selectedStepPath.value = createSiblingSelection(activeBranchPath.value, getBranchSteps(nextSteps, activeBranchPath.value).length, index);
 };
 
 const updateStep = (index: number, nextStep: Step) => {
-  const nextSteps = parsedSteps.value.map((step, stepIndex) => (stepIndex === index ? nextStep : step));
+  const nextSteps = updateStepByPath(parsedSteps.value, buildStepPath(activeBranchPath.value, index), () => nextStep);
   setCurrentTaskSteps(nextSteps);
-  selectedStepIndex.value = index;
+  selectedStepPath.value = buildStepPath(activeBranchPath.value, index);
+};
+
+const selectStep = (index: number) => {
+  selectedStepPath.value = buildStepPath(activeBranchPath.value, index);
+};
+
+const navigateBranch = (branchPath: StepBranchPath) => {
+  activeBranchPath.value = {
+    branch: branchPath.branch,
+    parentStepPath: cloneStepPath(branchPath.parentStepPath),
+  };
+  const steps = getBranchSteps(parsedSteps.value, activeBranchPath.value);
+  selectedStepPath.value = steps.length ? buildStepPath(activeBranchPath.value, 0) : null;
 };
 
 const openRawEditor = (section: RawEditorSection) => {
@@ -706,6 +745,7 @@ const loadEditor = async () => {
     }
 
     selectedTaskId.value = draftTasks.value[0]?.id ?? null;
+    activeBranchPath.value = ROOT_BRANCH_PATH;
     saveTime.value = sourceScript.data.updateTime || null;
     hydrateTaskEditors();
   } catch (error) {

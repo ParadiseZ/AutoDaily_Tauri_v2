@@ -135,3 +135,142 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await page.getByTestId('editor-tab-steps').click();
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
+
+test('persists flow conditions and action forms from step workspace', async ({ page }) => {
+  const scriptId = 'script-editor-conditions';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '条件步骤脚本',
+      description: '验证条件节点和动作步骤表单保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.condition',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-if').click();
+  await page.getByTestId('editor-condition-raw-expr').fill('input.activitySweepCount > 0');
+
+  await page.getByTestId('editor-step-template-click-point').click();
+  await page.getByTestId('editor-step-card-1').click();
+  await page.getByLabel('X').fill('128');
+  await page.getByLabel('Y').fill('256');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps).toHaveLength(2);
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'if',
+      con: {
+        type: 'rawExpr',
+        expr: 'input.activitySweepCount > 0',
+      },
+    },
+  });
+  expect(task.data.steps[1]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'click',
+      mode: 'point',
+      p: {
+        x: 128,
+        y: 256,
+      },
+    },
+  });
+});
+
+test('persists varCompare conditions and nested branch steps', async ({ page }) => {
+  const scriptId = 'script-editor-nested';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '嵌套分支脚本',
+      description: '验证 varCompare 和嵌套步骤保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.nested',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-if').click();
+
+  await selectOptionByValue(page, 'editor-condition-type', 'varCompare');
+  await page.getByLabel('变量名').fill('runtime.ocr_text');
+  await page.getByLabel('比较值').fill('已完成');
+  await page.getByTestId('editor-branch-then').click();
+  await page.getByTestId('editor-step-template-wait').click();
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+  await expect(page.getByTestId('editor-step-card-0')).toBeVisible();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByTestId('editor-branch-then').click();
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'if',
+      con: {
+        type: 'varCompare',
+        var_name: 'runtime.ocr_text',
+        value: '已完成',
+      },
+      then: [
+        {
+          op: 'flowControl',
+          a: {
+            type: 'waitMs',
+          },
+        },
+      ],
+    },
+  });
+});

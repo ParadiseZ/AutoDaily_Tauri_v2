@@ -290,13 +290,34 @@
 
       <div v-else-if="activePanel === 'steps'" class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,480px)_minmax(360px,1fr)]">
         <div class="min-h-0 max-w-[480px] space-y-3 overflow-y-auto pr-1 custom-scrollbar">
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              v-for="(item, index) in breadcrumbItems"
+              :key="`${item.label}-${index}`"
+              class="editor-breadcrumb"
+              :class="{ 'editor-breadcrumb-active': index === breadcrumbItems.length - 1 }"
+              type="button"
+              :disabled="index === breadcrumbItems.length - 1"
+              @click="$emit('navigate-branch', item.path)"
+            >
+              {{ item.label }}
+            </button>
+          </div>
+
+          <div
+            v-if="activeBranchPath.branch !== 'root'"
+            class="rounded-[16px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)]"
+          >
+            中间的步骤模板会直接插入到当前层级。
+          </div>
+
           <article
-            v-for="(step, index) in steps"
+            v-for="(step, index) in currentContainerSteps"
             :key="step.id ?? `${step.op}-${index}`"
             class="app-list-item space-y-3"
             :class="{
-              'border-[var(--app-state-active-border)] bg-[var(--app-state-active-bg)]': selectedStepIndex === index,
-              'bg-[var(--app-panel-muted)]': selectedStepIndex !== index,
+              'border-[var(--app-state-active-border)] bg-[var(--app-state-active-bg)]': currentSelectedIndex === index,
+              'bg-[var(--app-panel-muted)]': currentSelectedIndex !== index,
               'editor-step-drop-target': overStepIndex === index && draggingStepIndex !== index,
             }"
             :data-testid="`editor-step-card-${index}`"
@@ -327,22 +348,14 @@
             </div>
 
             <div class="mt-4 flex flex-wrap gap-2">
-              <button
-                class="app-button app-button-ghost app-toolbar-button"
-                type="button"
-                :data-testid="`editor-step-duplicate-${index}`"
-                @click="$emit('duplicate-step', index)"
-              >
-                复制
-              </button>
               <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove-step', index)">删除</button>
             </div>
           </article>
 
           <EmptyState
-            v-if="!steps.length"
+            v-if="!currentContainerSteps.length"
             title="还没有步骤"
-            description="先从中间插入模板，右侧再针对选中步骤查看和微调。"
+            description="先从中间选择一个模板，它会直接插入到当前层级。"
           />
         </div>
 
@@ -380,6 +393,127 @@
                   </label>
                 </template>
 
+                <template v-else-if="selectedStep.op === 'action' && selectedAction?.ac === 'click'">
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">点击方式</span>
+                    <AppSelect
+                      :model-value="String(selectedAction.mode || 'point')"
+                      :options="clickModeOptions"
+                      placeholder="点击方式"
+                      @update:model-value="updateActionMode(String($event || 'point'))"
+                    />
+                  </label>
+
+                  <div v-if="selectedAction.mode === 'point' || selectedAction.mode === 'percent'" class="grid gap-3 md:grid-cols-2">
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">X</span>
+                      <input
+                        :value="String((selectedAction.p as { x?: number })?.x ?? '')"
+                        class="app-input"
+                        type="number"
+                        @input="updateActionPointField('p', 'x', ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">Y</span>
+                      <input
+                        :value="String((selectedAction.p as { y?: number })?.y ?? '')"
+                        class="app-input"
+                        type="number"
+                        @input="updateActionPointField('p', 'y', ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                  </div>
+
+                  <label v-else-if="selectedAction.mode === 'txt'" class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标文字</span>
+                    <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="updateActionTextField('txt', ($event.target as HTMLInputElement).value)" />
+                  </label>
+
+                  <label v-else class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签索引</span>
+                    <input :value="String(selectedAction.idx ?? 0)" class="app-input" type="number" @input="updateActionNumberField('idx', ($event.target as HTMLInputElement).value)" />
+                  </label>
+                </template>
+
+                <template v-else-if="selectedStep.op === 'action' && selectedAction?.ac === 'swipe'">
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">滑动方式</span>
+                    <AppSelect
+                      :model-value="String(selectedAction.mode || 'point')"
+                      :options="swipeModeOptions"
+                      placeholder="滑动方式"
+                      @update:model-value="updateActionMode(String($event || 'point'))"
+                    />
+                  </label>
+
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">持续时间 (ms)</span>
+                    <input :value="String(selectedAction.duration ?? 300)" class="app-input" type="number" @input="updateActionNumberField('duration', ($event.target as HTMLInputElement).value)" />
+                  </label>
+
+                  <div v-if="selectedAction.mode === 'point' || selectedAction.mode === 'percent'" class="grid gap-3 md:grid-cols-2">
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点 X</span>
+                      <input
+                        :value="String((selectedAction.from as { x?: number })?.x ?? '')"
+                        class="app-input"
+                        type="number"
+                        @input="updateActionPointField('from', 'x', ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点 Y</span>
+                      <input
+                        :value="String((selectedAction.from as { y?: number })?.y ?? '')"
+                        class="app-input"
+                        type="number"
+                        @input="updateActionPointField('from', 'y', ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点 X</span>
+                      <input
+                        :value="String((selectedAction.to as { x?: number })?.x ?? '')"
+                        class="app-input"
+                        type="number"
+                        @input="updateActionPointField('to', 'x', ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点 Y</span>
+                      <input
+                        :value="String((selectedAction.to as { y?: number })?.y ?? '')"
+                        class="app-input"
+                        type="number"
+                        @input="updateActionPointField('to', 'y', ($event.target as HTMLInputElement).value)"
+                      />
+                    </label>
+                  </div>
+
+                  <div v-else-if="selectedAction.mode === 'txt'" class="grid gap-3 md:grid-cols-2">
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点文字</span>
+                      <input :value="String(selectedAction.from ?? '')" class="app-input" @input="updateActionTextField('from', ($event.target as HTMLInputElement).value)" />
+                    </label>
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点文字</span>
+                      <input :value="String(selectedAction.to ?? '')" class="app-input" @input="updateActionTextField('to', ($event.target as HTMLInputElement).value)" />
+                    </label>
+                  </div>
+
+                  <div v-else class="grid gap-3 md:grid-cols-2">
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点标签</span>
+                      <input :value="String(selectedAction.from ?? 0)" class="app-input" type="number" @input="updateActionNumberField('from', ($event.target as HTMLInputElement).value)" />
+                    </label>
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点标签</span>
+                      <input :value="String(selectedAction.to ?? 1)" class="app-input" type="number" @input="updateActionNumberField('to', ($event.target as HTMLInputElement).value)" />
+                    </label>
+                  </div>
+                </template>
+
                 <template v-else-if="selectedStep.op === 'flowControl' && selectedFlow?.type === 'waitMs'">
                   <label class="space-y-2">
                     <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">等待毫秒</span>
@@ -395,13 +529,36 @@
                 </template>
 
                 <template v-else-if="selectedStep.op === 'flowControl' && flowWithCondition">
-                  <label v-if="flowWithCondition.con.type === 'rawExpr'" class="space-y-2">
-                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">条件表达式</span>
-                    <input :value="String(flowWithCondition.con.expr || '')" class="app-input" @input="updateConditionExpr(($event.target as HTMLInputElement).value)" />
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">流程类型</span>
+                    <AppSelect
+                      :model-value="flowWithCondition.type"
+                      :options="flowTypeOptions"
+                      placeholder="流程类型"
+                      @update:model-value="updateFlowType(String($event || 'if'))"
+                    />
                   </label>
-                  <div v-else class="rounded-[14px] border border-[var(--app-border)] bg-white/30 px-3 py-3 text-sm text-[var(--app-text-soft)]">
-                    当前条件节点为 `{{ flowWithCondition.con.type }}`，后续继续补专用 ConditionNode 编辑器。
+
+                  <div class="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
+                    <span class="text-sm text-[var(--app-text-soft)]">
+                      {{ flowWithCondition.type === 'if' ? `Then ${(((selectedFlow as { then?: unknown[] } | null)?.then)?.length ?? 0)} 步` : `循环 ${(((selectedFlow as { flow?: unknown[] } | null)?.flow)?.length ?? 0)} 步` }}
+                    </span>
+                    <button
+                      v-if="flowWithCondition.type === 'if'"
+                      class="app-button app-button-ghost app-toolbar-button"
+                      type="button"
+                      @click="toggleElseBranch"
+                    >
+                      {{ hasElseBranch ? '移除 Else 分支' : '添加 Else 分支' }}
+                    </button>
                   </div>
+
+                  <EditorConditionBuilder
+                    v-if="flowCondition"
+                    :model-value="flowCondition"
+                    test-id-prefix="editor-condition"
+                    @update:model-value="updateFlowCondition"
+                  />
                 </template>
 
                 <template v-else-if="selectedStep.op === 'dataHanding' && selectedData?.type === 'setVar'">
@@ -435,28 +592,26 @@
               </div>
             </div>
 
-            <div v-if="selectedNestedGroups.length" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-              <p class="text-sm font-semibold text-[var(--app-text-strong)]">嵌套结构</p>
-              <div class="mt-3 space-y-3">
-                <div
-                  v-for="group in selectedNestedGroups"
-                  :key="group.label"
-                  class="rounded-[14px] border border-[var(--app-border)] bg-white/30 px-3 py-3"
+            <div v-if="branchTargets.length" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+              <p class="text-sm font-semibold text-[var(--app-text-strong)]">可进入层级</p>
+              <div class="mt-3 grid gap-3">
+                <button
+                  v-for="target in branchTargets"
+                  :key="target.key"
+                  class="app-list-item"
+                  :class="{ 'app-list-item-active': isSameBranchPath(activeBranchPath, target.path) }"
+                  type="button"
+                  :data-testid="`editor-branch-${target.key}`"
+                  @click="$emit('navigate-branch', target.path)"
                 >
                   <div class="flex items-center justify-between gap-3">
-                    <span class="text-sm font-medium text-[var(--app-text-strong)]">{{ group.label }}</span>
-                    <span class="text-xs text-[var(--app-text-faint)]">{{ group.steps.length }} 项</span>
-                  </div>
-                  <div class="mt-3 space-y-2">
-                    <div
-                      v-for="(nestedStep, nestedIndex) in group.steps"
-                      :key="nestedStep.id ?? `${group.label}-${nestedIndex}`"
-                      class="rounded-[12px] border border-[var(--app-border)] bg-white/50 px-3 py-2 text-sm text-[var(--app-text-soft)]"
-                    >
-                      {{ nestedIndex + 1 }}. {{ nestedStep.label?.trim() || describeStep(nestedStep) }}
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ target.label }}</p>
+                      <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ target.count }} 个步骤</p>
                     </div>
+                    <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] text-[var(--app-text-soft)]">进入</span>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
           </div>
@@ -487,9 +642,22 @@ import { computed, ref } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
+import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { Step } from '@/types/bindings/Step';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
+import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder.vue';
+import { createConditionNode } from '@/views/script-editor/editorCondition';
 import { describeStep } from '@/views/script-editor/editorStepTemplates';
+import {
+  getBranchSteps,
+  getParentBranchPath,
+  getStepByPath,
+  isSameBranchPath,
+  ROOT_BRANCH_PATH,
+  type StepBranchKind,
+  type StepBranchPath,
+  type StepPath,
+} from '@/views/script-editor/editorStepTree';
 import {
   buildInputJson,
   cloneJson,
@@ -505,7 +673,8 @@ const props = defineProps<{
   task: ScriptTaskTable | null;
   activePanel: EditorPanelId;
   steps: Step[];
-  selectedStepIndex: number | null;
+  selectedStepPath: StepPath | null;
+  activeBranchPath: StepBranchPath;
   uiSchema: EditorUiSchema;
   selectedUiFieldId: string | null;
   inputEntries: EditorInputEntry[];
@@ -518,6 +687,7 @@ const emit = defineEmits<{
   'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'inputKey' | 'description' | 'placeholder' | 'optionsText', value: string];
   'remove-ui-field': [fieldId: string];
   'select-step': [index: number];
+  'navigate-branch': [branchPath: StepBranchPath];
   'reorder-step': [from: number, to: number];
   'duplicate-step': [index: number];
   'remove-step': [index: number];
@@ -546,6 +716,31 @@ const inputTypeOptions = [
   { label: '布尔', value: 'boolean', description: '开关状态。' },
   { label: 'JSON', value: 'json', description: '复杂结构。' },
 ];
+const clickModeOptions = [
+  { label: '坐标', value: 'point', description: '绝对坐标点击。' },
+  { label: '百分比', value: 'percent', description: '相对坐标点击。' },
+  { label: '文字', value: 'txt', description: '按 OCR 文本点击。' },
+  { label: '标签', value: 'labelIdx', description: '按视觉标签点击。' },
+];
+const swipeModeOptions = [
+  { label: '坐标', value: 'point', description: '绝对坐标滑动。' },
+  { label: '百分比', value: 'percent', description: '相对坐标滑动。' },
+  { label: '文字', value: 'txt', description: '按 OCR 文本滑动。' },
+  { label: '标签', value: 'labelIdx', description: '按视觉标签滑动。' },
+];
+const flowTypeOptions = [
+  { label: '条件分支', value: 'if', description: 'Then / Else 分支。' },
+  { label: 'While', value: 'while', description: '满足条件时循环。' },
+  { label: 'For', value: 'for', description: '条件控制的遍历循环。' },
+];
+const branchLabelMap: Record<StepBranchKind, string> = {
+  root: '顶层步骤',
+  sequence: '顺序步骤',
+  then: 'Then',
+  else: 'Else',
+  flow: '循环体',
+  visionThen: '命中后执行',
+};
 
 const selectedUiField = computed(() => props.uiSchema.fields.find((field) => field.id === props.selectedUiFieldId) ?? null);
 const selectedUiFieldIndex = computed(() =>
@@ -576,9 +771,13 @@ const firstOption = (field: EditorUiField) =>
     .map((item) => item.trim())
     .find(Boolean) ?? '';
 
-const selectedStep = computed(() => {
-  if (props.selectedStepIndex === null) return null;
-  return props.steps[props.selectedStepIndex] ?? null;
+const currentContainerSteps = computed(() => getBranchSteps(props.steps, props.activeBranchPath));
+const selectedStep = computed(() => getStepByPath(props.steps, props.selectedStepPath));
+const currentSelectedIndex = computed(() => {
+  if (!props.selectedStepPath?.length) return null;
+  const branchPath = getParentBranchPath(props.selectedStepPath);
+  if (!isSameBranchPath(branchPath, props.activeBranchPath)) return null;
+  return props.selectedStepPath[props.selectedStepPath.length - 1]?.index ?? null;
 });
 
 const selectedAction = computed<Record<string, unknown> | null>(() =>
@@ -605,34 +804,76 @@ const flowWithCondition = computed(() => {
   }
   return null;
 });
+const flowCondition = computed<ConditionNode | null>(() => (flowWithCondition.value?.con as ConditionNode | undefined) ?? null);
+const hasElseBranch = computed(() => Boolean(selectedStep.value?.op === 'flowControl' && selectedStep.value.a.type === 'if' && selectedStep.value.a.else_steps));
 
-const selectedNestedGroups = computed<Array<{ label: string; steps: Step[] }>>(() => {
-  if (!selectedStep.value) return [];
+type NestedGroupKey = 'sequence' | 'then' | 'else' | 'flow' | 'visionThen';
+
+const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count: number; path: StepBranchPath }>>(() => {
+  if (!selectedStep.value || !props.selectedStepPath) return [];
+
   if (selectedStep.value.op === 'sequence') {
-    return [{ label: '顺序步骤', steps: selectedStep.value.steps }];
+    return [{ key: 'sequence', label: '顺序步骤', count: selectedStep.value.steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'sequence' } }];
   }
+
   if (selectedStep.value.op === 'flowControl') {
     if (selectedStep.value.a.type === 'if') {
-      return [
-        { label: 'Then', steps: selectedStep.value.a.then },
-        { label: 'Else', steps: selectedStep.value.a.else_steps ?? [] },
-      ].filter((group) => group.steps.length);
+      const targets: Array<{ key: NestedGroupKey; label: string; count: number; path: StepBranchPath }> = [
+        { key: 'then', label: 'Then', count: selectedStep.value.a.then.length, path: { parentStepPath: props.selectedStepPath, branch: 'then' } },
+      ];
+      if (selectedStep.value.a.else_steps) {
+        targets.push({ key: 'else', label: 'Else', count: selectedStep.value.a.else_steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'else' } });
+      }
+      return targets;
     }
     if (selectedStep.value.a.type === 'while' || selectedStep.value.a.type === 'for') {
-      return [{ label: '循环步骤', steps: selectedStep.value.a.flow }];
+      return [{ key: 'flow', label: '循环体', count: selectedStep.value.a.flow.length, path: { parentStepPath: props.selectedStepPath, branch: 'flow' } }];
     }
   }
+
   if (selectedStep.value.op === 'vision' && selectedStep.value.a.type === 'visionSearch') {
-    return [{ label: '命中后执行', steps: selectedStep.value.a.then_steps }];
+    return [{ key: 'visionThen', label: '命中后执行', count: selectedStep.value.a.then_steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'visionThen' } }];
   }
+
   return [];
 });
 
+const breadcrumbItems = computed<Array<{ label: string; path: StepBranchPath }>>(() => {
+  const items: Array<{ label: string; path: StepBranchPath }> = [
+    { label: branchLabelMap.root, path: ROOT_BRANCH_PATH },
+  ];
+
+  if (!props.activeBranchPath.parentStepPath?.length) {
+    return items;
+  }
+
+  props.activeBranchPath.parentStepPath.forEach((segment, index) => {
+    const stepPath = props.activeBranchPath.parentStepPath?.slice(0, index + 1) ?? [];
+    const step = getStepByPath(props.steps, stepPath);
+    if (step) {
+      items.push({
+        label: step.label?.trim() || `步骤 ${segment.index + 1}`,
+        path: {
+          parentStepPath: stepPath.slice(0, -1),
+          branch: segment.branch,
+        },
+      });
+    }
+  });
+
+  items.push({
+    label: branchLabelMap[props.activeBranchPath.branch],
+    path: props.activeBranchPath,
+  });
+
+  return items;
+});
+
 const updateSelectedStep = (mutator: (step: Step & { a?: Record<string, unknown> }) => void) => {
-  if (props.selectedStepIndex === null || !selectedStep.value) return;
+  if (currentSelectedIndex.value === null || !selectedStep.value) return;
   const nextStep = cloneJson(selectedStep.value) as Step & { a?: Record<string, unknown> };
   mutator(nextStep);
-  emit('update-step', props.selectedStepIndex, nextStep);
+  emit('update-step', currentSelectedIndex.value, nextStep);
 };
 
 const updateStepLabel = (value: string) => {
@@ -644,6 +885,103 @@ const updateStepLabel = (value: string) => {
 const updateActionField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     step.a = { ...(step.a ?? {}), [field]: value };
+  });
+};
+
+const createClickAction = (mode: string) => {
+  switch (mode) {
+    case 'percent':
+      return { ac: 'click', mode: 'percent', p: { x: 0.5, y: 0.5 } };
+    case 'txt':
+      return { ac: 'click', mode: 'txt', txt: '开始' };
+    case 'labelIdx':
+      return { ac: 'click', mode: 'labelIdx', idx: 0 };
+    default:
+      return { ac: 'click', mode: 'point', p: { x: 640, y: 360 } };
+  }
+};
+
+const createSwipeAction = (mode: string) => {
+  switch (mode) {
+    case 'percent':
+      return {
+        ac: 'swipe',
+        mode: 'percent',
+        duration: 300,
+        from: { x: 0.5, y: 0.75 },
+        to: { x: 0.5, y: 0.25 },
+      };
+    case 'txt':
+      return {
+        ac: 'swipe',
+        mode: 'txt',
+        duration: 300,
+        from: '开始',
+        to: '结束',
+      };
+    case 'labelIdx':
+      return {
+        ac: 'swipe',
+        mode: 'labelIdx',
+        duration: 300,
+        from: 0,
+        to: 1,
+      };
+    default:
+      return {
+        ac: 'swipe',
+        mode: 'point',
+        duration: 300,
+        from: { x: 640, y: 560 },
+        to: { x: 640, y: 180 },
+      };
+  }
+};
+
+const updateActionModel = (value: Record<string, unknown>) => {
+  updateSelectedStep((step) => {
+    if (step.op !== 'action') return;
+    step.a = value as Step & { a: never }['a'];
+  });
+};
+
+const updateActionMode = (mode: string) => {
+  if (!selectedAction.value) return;
+  if (selectedAction.value.ac === 'click') {
+    updateActionModel(createClickAction(mode));
+    return;
+  }
+  if (selectedAction.value.ac === 'swipe') {
+    updateActionModel(createSwipeAction(mode));
+  }
+};
+
+const toNumber = (value: string) => {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : 0;
+};
+
+const updateActionPointField = (field: 'p' | 'from' | 'to', axis: 'x' | 'y', value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== 'action') return;
+    const action = step.a as Record<string, unknown>;
+    const point = { ...((action[field] as Record<string, number> | undefined) ?? { x: 0, y: 0 }) };
+    point[axis] = toNumber(value);
+    step.a = { ...action, [field]: point } as Step & { a: never }['a'];
+  });
+};
+
+const updateActionNumberField = (field: string, value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== 'action') return;
+    step.a = { ...(step.a as Record<string, unknown>), [field]: toNumber(value) } as Step & { a: never }['a'];
+  });
+};
+
+const updateActionTextField = (field: string, value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== 'action') return;
+    step.a = { ...(step.a as Record<string, unknown>), [field]: value } as Step & { a: never }['a'];
   });
 };
 
@@ -671,12 +1009,44 @@ const updateNumberField = (field: string, value: string) => {
   });
 };
 
-const updateConditionExpr = (value: string) => {
+const updateFlowCondition = (condition: ConditionNode) => {
   updateSelectedStep((step) => {
     if (step.op !== 'flowControl') return;
-    if ((step.a.type === 'if' || step.a.type === 'while' || step.a.type === 'for') && step.a.con.type === 'rawExpr') {
-      step.a.con.expr = value;
+    if (step.a.type === 'if' || step.a.type === 'while' || step.a.type === 'for') {
+      step.a.con = condition;
     }
+  });
+};
+
+const updateFlowType = (type: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== 'flowControl') return;
+    const currentCondition = (flowCondition.value ?? createConditionNode('rawExpr')) as ConditionNode;
+    if (type === 'if') {
+      const flowSteps = (step.a.type === 'while' || step.a.type === 'for') ? step.a.flow : [];
+      step.a = {
+        type: 'if',
+        con: currentCondition,
+        then: flowSteps,
+        else_steps: null,
+      } as Step & { a: never }['a'];
+      return;
+    }
+    if (type === 'while' || type === 'for') {
+      const branchSteps = step.a.type === 'if' ? step.a.then : step.a.flow;
+      step.a = {
+        type,
+        con: currentCondition,
+        flow: branchSteps,
+      } as Step & { a: never }['a'];
+    }
+  });
+};
+
+const toggleElseBranch = () => {
+  updateSelectedStep((step) => {
+    if (step.op !== 'flowControl' || step.a.type !== 'if') return;
+    step.a.else_steps = step.a.else_steps ? null : [];
   });
 };
 
@@ -809,5 +1179,26 @@ const nestedSummary = (step: Step) => {
 
 .editor-step-drop-target {
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.22);
+}
+
+.editor-breadcrumb {
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.38rem 0.78rem;
+  font-size: 0.78rem;
+  color: var(--app-text-soft);
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.editor-breadcrumb:hover:enabled {
+  border-color: var(--app-state-hover-border);
+  background: var(--app-state-hover-bg);
+}
+
+.editor-breadcrumb-active {
+  border-color: var(--app-state-active-border);
+  background: var(--app-state-active-bg);
+  color: var(--app-text-strong);
 }
 </style>
