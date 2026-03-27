@@ -1,4 +1,5 @@
 import type { Step } from '@/types/bindings/Step';
+import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
 
 export type StepBranchKind = 'root' | 'sequence' | 'then' | 'else' | 'flow' | 'visionThen';
 
@@ -102,15 +103,15 @@ export const getParentBranchPath = (path: StepPath | null): StepBranchPath => {
 const getBranchStepsFromStep = (step: Step, branch: StepBranchKind): Step[] => {
   switch (branch) {
     case 'sequence':
-      return step.op === 'sequence' ? step.steps : [];
+      return step.op === STEP_OP.sequence ? step.steps : [];
     case 'then':
-      return step.op === 'flowControl' && step.a.type === 'if' ? step.a.then : [];
+      return step.op === STEP_OP.flowControl && step.a.type === FLOW_TYPE.if ? step.a.then : [];
     case 'else':
-      return step.op === 'flowControl' && step.a.type === 'if' ? (step.a.else_steps ?? []) : [];
+      return step.op === STEP_OP.flowControl && step.a.type === FLOW_TYPE.if ? (step.a.else_steps ?? []) : [];
     case 'flow':
-      return step.op === 'flowControl' && (step.a.type === 'while' || step.a.type === 'for') ? step.a.flow : [];
+      return step.op === STEP_OP.flowControl && (step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.for) ? step.a.flow : [];
     case 'visionThen':
-      return step.op === 'vision' && step.a.type === 'visionSearch' ? step.a.then_steps : [];
+      return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? step.a.then_steps : [];
     default:
       return [];
   }
@@ -119,17 +120,17 @@ const getBranchStepsFromStep = (step: Step, branch: StepBranchKind): Step[] => {
 const setBranchStepsOnStep = (step: Step, branch: StepBranchKind, steps: Step[]): Step => {
   switch (branch) {
     case 'sequence':
-      return step.op === 'sequence' ? { ...step, steps } : step;
+      return step.op === STEP_OP.sequence ? { ...step, steps } : step;
     case 'then':
-      return step.op === 'flowControl' && step.a.type === 'if' ? { ...step, a: { ...step.a, then: steps } } : step;
+      return step.op === STEP_OP.flowControl && step.a.type === FLOW_TYPE.if ? { ...step, a: { ...step.a, then: steps } } : step;
     case 'else':
-      return step.op === 'flowControl' && step.a.type === 'if' ? { ...step, a: { ...step.a, else_steps: steps } } : step;
+      return step.op === STEP_OP.flowControl && step.a.type === FLOW_TYPE.if ? { ...step, a: { ...step.a, else_steps: steps } } : step;
     case 'flow':
-      return step.op === 'flowControl' && (step.a.type === 'while' || step.a.type === 'for')
+      return step.op === STEP_OP.flowControl && (step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.for)
         ? { ...step, a: { ...step.a, flow: steps } }
         : step;
     case 'visionThen':
-      return step.op === 'vision' && step.a.type === 'visionSearch' ? { ...step, a: { ...step.a, then_steps: steps } } : step;
+      return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? { ...step, a: { ...step.a, then_steps: steps } } : step;
     default:
       return step;
   }

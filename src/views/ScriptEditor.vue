@@ -110,10 +110,9 @@
           @select-ui-field="selectedUiFieldId = $event"
           @update-ui-field="updateUiField"
           @remove-ui-field="removeUiField"
-          @select-step="selectStep"
+          @select-step-path="selectStepPath"
           @navigate-branch="navigateBranch"
           @reorder-step="reorderSteps"
-          @duplicate-step="duplicateStep"
           @remove-step="removeStep"
           @update-step="updateStep"
           @open-raw="openRawEditor"
@@ -164,7 +163,9 @@ import {
   cloneStepPath,
   createSiblingSelection,
   getBranchSteps,
+  getParentBranchPath,
   getStepByPath,
+  isSameBranchPath,
   ROOT_BRANCH_PATH,
   type StepBranchPath,
   type StepPath,
@@ -238,8 +239,6 @@ const currentTask = computed<ScriptTaskTable | null>(() => {
 });
 
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
-const currentBranchSteps = computed<Step[]>(() => getBranchSteps(parsedSteps.value, activeBranchPath.value));
-
 const hasValidationErrors = computed(() => Boolean(inputError.value));
 
 const dirty = computed(() => {
@@ -558,21 +557,6 @@ const reorderSteps = (fromIndex: number, toIndex: number) => {
   selectedStepPath.value = buildStepPath(activeBranchPath.value, toIndex);
 };
 
-const duplicateStep = (index: number) => {
-  const source = currentBranchSteps.value[index];
-  if (!source) {
-    return;
-  }
-
-  const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => {
-    const next = [...steps];
-    next.splice(index + 1, 0, cloneJson(source));
-    return next;
-  });
-  setCurrentTaskSteps(nextSteps);
-  selectedStepPath.value = buildStepPath(activeBranchPath.value, index + 1);
-};
-
 const removeStep = (index: number) => {
   const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => steps.filter((_, stepIndex) => stepIndex !== index));
   setCurrentTaskSteps(nextSteps);
@@ -585,8 +569,9 @@ const updateStep = (index: number, nextStep: Step) => {
   selectedStepPath.value = buildStepPath(activeBranchPath.value, index);
 };
 
-const selectStep = (index: number) => {
-  selectedStepPath.value = buildStepPath(activeBranchPath.value, index);
+const selectStepPath = (path: StepPath) => {
+  selectedStepPath.value = cloneStepPath(path);
+  activeBranchPath.value = getParentBranchPath(path);
 };
 
 const navigateBranch = (branchPath: StepBranchPath) => {
@@ -594,6 +579,11 @@ const navigateBranch = (branchPath: StepBranchPath) => {
     branch: branchPath.branch,
     parentStepPath: cloneStepPath(branchPath.parentStepPath),
   };
+
+  if (selectedStepPath.value && isSameBranchPath(getParentBranchPath(selectedStepPath.value), activeBranchPath.value)) {
+    return;
+  }
+
   const steps = getBranchSteps(parsedSteps.value, activeBranchPath.value);
   selectedStepPath.value = steps.length ? buildStepPath(activeBranchPath.value, 0) : null;
 };

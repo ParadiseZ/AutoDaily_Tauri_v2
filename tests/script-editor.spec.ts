@@ -46,6 +46,22 @@ const selectOptionByValue = async (page: Page, testId: string, value: string) =>
   await page.getByTestId(`${testId}-option-${value}`).click();
 };
 
+const dragStepByHandle = async (page: Page, fromIndex: number, toIndex: number) => {
+  const handle = page.getByTestId(`editor-step-drag-${fromIndex}`);
+  const target = page.getByTestId(`editor-step-card-${toIndex}`);
+  const handleBox = await handle.boundingBox();
+  const targetBox = await target.boundingBox();
+
+  if (!handleBox || !targetBox) {
+    throw new Error('step drag target is not visible');
+  }
+
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
+  await page.mouse.up();
+};
+
 test('edits script tasks with visual task editor and persists payload', async ({ page }) => {
   const scriptId = 'script-editor-1';
   const script: StoredScriptTable = {
@@ -101,7 +117,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
 
   await expect(page.getByTestId('editor-step-card-0')).toBeVisible();
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
-  await page.getByTestId('editor-step-card-1').dragTo(page.getByTestId('editor-step-card-0'));
+  await dragStepByHandle(page, 1, 0);
 
   await page.getByTestId('editor-save').click();
 
