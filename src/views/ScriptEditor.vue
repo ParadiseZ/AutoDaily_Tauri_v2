@@ -541,7 +541,11 @@ const appendTemplateStep = (templateId: string) => {
     return;
   }
 
-  const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => [...steps, step]);
+  const nextSteps = updateBranchSteps(
+    parsedSteps.value,
+    activeBranchPath.value,
+    (steps) => [...steps, step],
+  );
   setCurrentTaskSteps(nextSteps);
   selectedStepPath.value = buildStepPath(activeBranchPath.value, getBranchSteps(nextSteps, activeBranchPath.value).length - 1);
   activePanel.value = 'steps';

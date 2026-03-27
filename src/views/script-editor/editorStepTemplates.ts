@@ -1,5 +1,16 @@
 import type { Step } from '@/types/bindings';
-import { ACTION_MODE, ACTION_TYPE, DATA_TYPE, FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
+import {
+  ACTION_MODE,
+  ACTION_TYPE,
+  DATA_TYPE,
+  FILTER_MODE_TYPE,
+  FLOW_TYPE,
+  STATE_STATUS_TYPE,
+  STATE_TARGET_TYPE,
+  STEP_OP,
+  TASK_CONTROL_TYPE,
+  VISION_TYPE,
+} from '@/views/script-editor/editorStepKinds';
 
 export interface EditorStepTemplate {
   id: string;
@@ -390,6 +401,38 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'filter-var',
+    label: '过滤变量',
+    description: '对输入变量执行过滤或映射逻辑。',
+    group: '数据',
+    create: () =>
+      createBaseStep({
+        label: '过滤变量',
+        op: STEP_OP.dataHanding,
+        a: {
+          type: DATA_TYPE.filter,
+          input_var: 'items',
+          out_name: 'filtered_items',
+          mode: {
+            type: FILTER_MODE_TYPE.filter,
+          },
+          logic_expr: 'true',
+          then_steps: [
+            createBaseStep({
+              label: '过滤命中',
+              op: STEP_OP.flowControl,
+              cur_exec_num: 0,
+              max_exec_num: 1,
+              a: {
+                type: FLOW_TYPE.waitMs,
+                ms: 1000,
+              },
+            }),
+          ],
+        },
+      }),
+  },
+  {
     id: 'vision-search',
     label: '视觉搜索',
     description: '基于 OCR / YOLO 规则搜索目标并输出结果变量。',
@@ -408,6 +451,50 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           },
           out_var: 'vision_hit',
           then_steps: [],
+        },
+      }),
+  },
+  {
+    id: 'set-task-state',
+    label: '设置状态',
+    description: '设置任务或策略的 skip/done 状态。',
+    group: '状态',
+    create: () =>
+      createBaseStep({
+        label: '设置状态',
+        op: STEP_OP.taskControl,
+        a: {
+          type: TASK_CONTROL_TYPE.setState,
+          target: {
+            type: STATE_TARGET_TYPE.task,
+            id: '',
+          },
+          status: {
+            type: STATE_STATUS_TYPE.done,
+            value: true,
+          },
+        },
+      }),
+  },
+  {
+    id: 'get-task-state',
+    label: '读取状态',
+    description: '读取任务或策略的状态。',
+    group: '状态',
+    create: () =>
+      createBaseStep({
+        label: '读取状态',
+        op: STEP_OP.taskControl,
+        a: {
+          type: TASK_CONTROL_TYPE.getState,
+          target: {
+            type: STATE_TARGET_TYPE.task,
+            id: '',
+          },
+          status: {
+            type: STATE_STATUS_TYPE.done,
+            value: true,
+          },
         },
       }),
   },
@@ -497,8 +584,10 @@ export const describeStep = (step: Step) => {
         return `写入变量 ${step.a.name || '未命名变量'}`;
       case DATA_TYPE.getVar:
         return `读取变量 ${step.a.name || '未命名变量'}`;
+      case DATA_TYPE.filter:
+        return `过滤 ${step.a.input_var || '未命名输入'} -> ${step.a.out_name || '未命名输出'}`;
       default:
-        return `数据处理 · ${step.a.type}`;
+        return '数据处理';
     }
   }
 
@@ -507,7 +596,7 @@ export const describeStep = (step: Step) => {
   }
 
   if (step.op === STEP_OP.taskControl) {
-    return `任务状态 · ${step.a.type}`;
+    return `${step.a.type === TASK_CONTROL_TYPE.setState ? '设置' : '读取'}状态 · ${step.a.target.type}:${step.a.target.id || '未指定'}`;
   }
 
   return '未识别步骤';

@@ -15,6 +15,7 @@
     >
       <div class="flex items-start gap-3">
         <button
+          v-if="allowReorder"
           class="editor-step-card-handle"
           :class="{ 'editor-step-card-handle-active': draggingIndex === index }"
           :data-testid="`editor-step-drag-${index}`"
@@ -41,7 +42,12 @@
           </div>
         </button>
 
-        <button class="app-button app-button-danger app-toolbar-button shrink-0" type="button" @click.stop="$emit('remove', index)">
+        <button
+          v-if="allowRemove"
+          class="app-button app-button-danger app-toolbar-button shrink-0"
+          type="button"
+          @click.stop="$emit('remove', index)"
+        >
           删除
         </button>
       </div>
@@ -55,10 +61,15 @@ import type { Step } from '@/types/bindings/Step';
 import { describeStep } from '@/views/script-editor/editorStepTemplates';
 import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
 
-defineProps<{
+const props = withDefaults(defineProps<{
   steps: Step[];
   selectedIndex: number | null;
-}>();
+  allowRemove?: boolean;
+  allowReorder?: boolean;
+}>(), {
+  allowRemove: true,
+  allowReorder: true,
+});
 
 const emit = defineEmits<{
   select: [index: number];
@@ -75,16 +86,19 @@ const resetDragState = () => {
 };
 
 const startDrag = (index: number) => {
+  if (!props.allowReorder) return;
   draggingIndex.value = index;
   overIndex.value = index;
 };
 
 const handleMouseEnter = (index: number) => {
+  if (!props.allowReorder) return;
   if (draggingIndex.value === null) return;
   overIndex.value = index;
 };
 
 const handleMouseUp = (index: number) => {
+  if (!props.allowReorder) return;
   if (draggingIndex.value === null) return;
   if (draggingIndex.value !== index) {
     emit('reorder', draggingIndex.value, index);

@@ -290,3 +290,122 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
     },
   });
 });
+
+test('persists sequence, vision rule, and task state forms', async ({ page }) => {
+  const scriptId = 'script-editor-leaf-forms';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '叶子表单脚本',
+      description: '验证 sequence、vision、taskControl 表单保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.leaf',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+
+  await page.getByTestId('editor-step-template-sequence').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByLabel('倒序执行子步骤').check();
+
+  await page.getByTestId('editor-step-template-vision-search').click();
+  await page.getByTestId('editor-step-card-1').click();
+  await page.getByLabel('输出变量').fill('runtime.hit');
+  await selectOptionByValue(page, 'editor-search-rule-type', 'keyword');
+  await page.getByTestId('editor-search-rule-keyword').fill('领取');
+
+  await page.getByTestId('editor-step-template-set-task-state').click();
+  await page.getByTestId('editor-step-card-2').click();
+  await page.getByLabel('目标 ID').fill('daily_task');
+  await page.getByLabel('状态值为真').uncheck();
+
+  await page.getByTestId('editor-step-template-filter-var').click();
+  await page.getByTestId('editor-step-card-3').click();
+  await page.getByTestId('editor-branch-filterThen').click();
+  await page.getByTestId('editor-step-template-click-text').click();
+  await page.getByLabel('目标文字').fill('命中');
+  await page.getByTestId('editor-step-template-wait').click();
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'sequence',
+    reverse: true,
+  });
+  expect(task.data.steps[1]).toMatchObject({
+    op: 'vision',
+    a: {
+      type: 'visionSearch',
+      out_var: 'runtime.hit',
+      rule: {
+        type: 'keyword',
+        pattern: '领取',
+      },
+    },
+  });
+  expect(task.data.steps[2]).toMatchObject({
+    op: 'taskControl',
+    a: {
+      type: 'setState',
+      target: {
+        type: 'task',
+        id: 'daily_task',
+      },
+      status: {
+        type: 'done',
+        value: false,
+      },
+    },
+  });
+  expect(task.data.steps[3]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'filter',
+      then_steps: [
+        {
+          op: 'flowControl',
+          a: {
+            type: 'waitMs',
+          },
+        },
+        {
+          op: 'action',
+          a: {
+            ac: 'click',
+            mode: 'txt',
+            txt: '命中',
+          },
+        },
+        {
+          op: 'flowControl',
+          a: {
+            type: 'waitMs',
+          },
+        },
+      ],
+    },
+  });
+});

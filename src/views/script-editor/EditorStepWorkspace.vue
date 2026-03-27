@@ -207,6 +207,12 @@
                 </label>
               </template>
 
+              <template v-else-if="selectedStep.op === STEP_OP.flowControl && (selectedFlow?.type === FLOW_TYPE.continue || selectedFlow?.type === FLOW_TYPE.break)">
+                <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]">
+                  {{ selectedFlow.type === FLOW_TYPE.continue ? '该步骤会立即开始下一轮循环。' : '该步骤会立即跳出当前循环。' }}
+                </div>
+              </template>
+
               <template v-else-if="selectedStep.op === STEP_OP.flowControl && flowWithCondition">
                 <label class="space-y-2">
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">流程类型</span>
@@ -251,7 +257,11 @@
                 </label>
                 <label class="space-y-2">
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
-                  <input :value="String(selectedData.val ?? '')" class="app-input" @input="updateDataField('val', ($event.target as HTMLInputElement).value)" />
+                  <input :value="String(selectedData.val ?? '')" class="app-input" @input="updateSetVarValue(($event.target as HTMLInputElement).value)" />
+                </label>
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">表达式</span>
+                  <input :value="selectedData.expr ?? ''" class="app-input" @input="updateDataNullableField('expr', ($event.target as HTMLInputElement).value)" />
                 </label>
               </template>
 
@@ -260,6 +270,93 @@
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量名</span>
                   <input :value="selectedData.name || ''" class="app-input" @input="updateDataField('name', ($event.target as HTMLInputElement).value)" />
                 </label>
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
+                  <input :value="String(selectedData.default_val ?? '')" class="app-input" @input="updateGetVarDefaultValue(($event.target as HTMLInputElement).value)" />
+                </label>
+              </template>
+
+              <template v-else-if="selectedStep.op === STEP_OP.dataHanding && selectedData?.type === DATA_TYPE.filter">
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入变量</span>
+                  <input :value="selectedData.input_var" class="app-input" @input="updateDataField('input_var', ($event.target as HTMLInputElement).value)" />
+                </label>
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
+                  <input :value="selectedData.out_name" class="app-input" @input="updateDataField('out_name', ($event.target as HTMLInputElement).value)" />
+                </label>
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">过滤模式</span>
+                  <AppSelect
+                    :model-value="selectedData.mode.type"
+                    :options="filterModeOptions"
+                    placeholder="过滤模式"
+                    @update:model-value="updateFilterMode(String($event || FILTER_MODE_TYPE.filter))"
+                  />
+                </label>
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">逻辑表达式</span>
+                  <input :value="selectedData.logic_expr" class="app-input" @input="updateDataField('logic_expr', ($event.target as HTMLInputElement).value)" />
+                </label>
+              </template>
+
+              <template v-else-if="selectedStep.op === STEP_OP.sequence">
+                <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+                  <input
+                    :checked="selectedStep.reverse"
+                    type="checkbox"
+                    class="h-4 w-4"
+                    style="accent-color: var(--app-accent)"
+                    @change="updateSequenceReverse(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="text-sm text-[var(--app-text-soft)]">倒序执行子步骤</span>
+                </label>
+              </template>
+
+              <template v-else-if="selectedStep.op === STEP_OP.taskControl && selectedTaskControl">
+                <div class="grid gap-3 md:grid-cols-2">
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">动作类型</span>
+                    <AppSelect
+                      :model-value="selectedTaskControl.type"
+                      :options="taskControlTypeOptions"
+                      placeholder="动作类型"
+                      @update:model-value="updateTaskControlType(String($event || TASK_CONTROL_TYPE.setState))"
+                    />
+                  </label>
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标类型</span>
+                    <AppSelect
+                      :model-value="selectedTaskControl.target.type"
+                      :options="stateTargetTypeOptions"
+                      placeholder="目标类型"
+                      @update:model-value="updateTaskControlTargetType(String($event || STATE_TARGET_TYPE.task))"
+                    />
+                  </label>
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标 ID</span>
+                    <input :value="selectedTaskControl.target.id" class="app-input" @input="updateTaskControlTargetId(($event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态类型</span>
+                    <AppSelect
+                      :model-value="selectedTaskControl.status.type"
+                      :options="stateStatusTypeOptions"
+                      placeholder="状态类型"
+                      @update:model-value="updateTaskControlStatusType(String($event || STATE_STATUS_TYPE.done))"
+                    />
+                  </label>
+                </div>
+                <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+                  <input
+                    :checked="Boolean(selectedTaskControl.status.value)"
+                    type="checkbox"
+                    class="h-4 w-4"
+                    style="accent-color: var(--app-accent)"
+                    @change="updateTaskControlStatusValue(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="text-sm text-[var(--app-text-soft)]">状态值为真</span>
+                </label>
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.vision && selectedVision?.type === VISION_TYPE.visionSearch">
@@ -267,6 +364,11 @@
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
                   <input :value="selectedVision.out_var || ''" class="app-input" @input="updateVisionField('out_var', ($event.target as HTMLInputElement).value)" />
                 </label>
+                <EditorSearchRuleBuilder
+                  :model-value="selectedVision.rule"
+                  test-id-prefix="editor-search-rule"
+                  @update:model-value="updateVisionRule"
+                />
               </template>
 
               <p v-else class="text-sm leading-6 text-[var(--app-text-soft)]">
@@ -316,14 +418,30 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import type { Action } from '@/types/bindings/Action';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { DataHanding } from '@/types/bindings/DataHanding';
+import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { FlowControl } from '@/types/bindings/FlowControl';
+import type { TaskControl } from '@/types/bindings/TaskControl';
 import type { Step } from '@/types/bindings/Step';
 import type { VisionNode } from '@/types/bindings/VisionNode';
 import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder.vue';
+import EditorSearchRuleBuilder from '@/views/script-editor/EditorSearchRuleBuilder.vue';
 import EditorStepBreadcrumb from '@/views/script-editor/EditorStepBreadcrumb.vue';
 import EditorStepList from '@/views/script-editor/EditorStepList.vue';
 import { createConditionNode } from '@/views/script-editor/editorCondition';
-import { ACTION_MODE, ACTION_TYPE, DATA_TYPE, FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
+import {
+  ACTION_MODE,
+  ACTION_TYPE,
+  DATA_TYPE,
+  FILTER_MODE_TYPE,
+  FLOW_TYPE,
+  SEARCH_RULE_TYPE,
+  STATE_STATUS_TYPE,
+  STATE_TARGET_TYPE,
+  STEP_OP,
+  TASK_CONTROL_TYPE,
+  VISION_TYPE,
+} from '@/views/script-editor/editorStepKinds';
+import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import { describeStep } from '@/views/script-editor/editorStepTemplates';
 import {
   buildStepPath,
@@ -336,7 +454,7 @@ import {
 } from '@/views/script-editor/editorStepTree';
 import { cloneJson } from '@/views/script-editor/editorSchema';
 
-type NestedGroupKey = 'sequence' | 'then' | 'else' | 'flow' | 'visionThen';
+type NestedGroupKey = 'sequence' | 'then' | 'else' | 'flow' | 'visionThen' | 'filterThen';
 
 const props = defineProps<{
   steps: Step[];
@@ -372,6 +490,26 @@ const flowTypeOptions = [
   { label: 'For', value: FLOW_TYPE.for, description: '条件控制的遍历循环。' },
 ];
 
+const filterModeOptions = [
+  { label: '过滤', value: FILTER_MODE_TYPE.filter, description: '保留符合条件的元素。' },
+  { label: '映射', value: FILTER_MODE_TYPE.map, description: '将输入映射为新结果。' },
+];
+
+const taskControlTypeOptions = [
+  { label: '设置状态', value: TASK_CONTROL_TYPE.setState, description: '写入目标状态。' },
+  { label: '读取状态', value: TASK_CONTROL_TYPE.getState, description: '读取目标状态。' },
+];
+
+const stateTargetTypeOptions = [
+  { label: '任务', value: STATE_TARGET_TYPE.task, description: '针对任务状态。' },
+  { label: '策略', value: STATE_TARGET_TYPE.policy, description: '针对策略状态。' },
+];
+
+const stateStatusTypeOptions = [
+  { label: '完成', value: STATE_STATUS_TYPE.done, description: 'done 状态。' },
+  { label: '跳过', value: STATE_STATUS_TYPE.skip, description: 'skip 状态。' },
+];
+
 const currentContainerSteps = computed(() => getBranchSteps(props.steps, props.activeBranchPath));
 const selectedStep = computed(() => getStepByPath(props.steps, props.selectedStepPath));
 const currentSelectedIndex = computed(() => {
@@ -384,6 +522,7 @@ const currentSelectedIndex = computed(() => {
 const selectedAction = computed<Action | null>(() => (selectedStep.value?.op === STEP_OP.action ? selectedStep.value.a : null));
 const selectedFlow = computed<FlowControl | null>(() => (selectedStep.value?.op === STEP_OP.flowControl ? selectedStep.value.a : null));
 const selectedData = computed<DataHanding | null>(() => (selectedStep.value?.op === STEP_OP.dataHanding ? selectedStep.value.a : null));
+const selectedTaskControl = computed<TaskControl | null>(() => (selectedStep.value?.op === STEP_OP.taskControl ? selectedStep.value.a : null));
 const selectedVision = computed<VisionNode | null>(() => (selectedStep.value?.op === STEP_OP.vision ? selectedStep.value.a : null));
 
 const flowWithCondition = computed(() => {
@@ -424,6 +563,10 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
 
   if (selectedVision.value?.type === VISION_TYPE.visionSearch) {
     return [{ key: 'visionThen', label: '命中后执行', count: selectedVision.value.then_steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'visionThen' } }];
+  }
+
+  if (selectedData.value?.type === DATA_TYPE.filter) {
+    return [{ key: 'filterThen', label: '过滤命中后', count: selectedData.value.then_steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'filterThen' } }];
   }
 
   return [];
@@ -568,10 +711,139 @@ const updateDataField = (field: string, value: string) => {
   });
 };
 
+const updateDataNullableField = (field: string, value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding) return;
+    step.a = { ...(step.a ?? {}), [field]: value.trim() ? value : null } as DataHanding;
+  });
+};
+
+const inferVarValue = (value: string) => {
+  if (value === 'true' || value === 'false') {
+    return value === 'true';
+  }
+  const nextNumber = Number(value);
+  if (value.trim() !== '' && Number.isFinite(nextNumber)) {
+    return nextNumber;
+  }
+  return value;
+};
+
+const updateSetVarValue = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
+    step.a = {
+      ...step.a,
+      val: inferVarValue(value) as never,
+    };
+  });
+};
+
+const updateGetVarDefaultValue = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.getVar) return;
+    step.a = {
+      ...step.a,
+      default_val: value.trim() ? (inferVarValue(value) as never) : null,
+    };
+  });
+};
+
+const updateFilterMode = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.filter) return;
+    step.a = {
+      ...step.a,
+      mode: {
+        type: value as typeof FILTER_MODE_TYPE.filter | typeof FILTER_MODE_TYPE.map,
+      },
+    };
+  });
+};
+
+const updateSequenceReverse = (value: boolean) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.sequence) return;
+    step.reverse = value;
+  });
+};
+
+const updateTaskControlType = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.taskControl) return;
+    step.a = {
+      ...step.a,
+      type: value as typeof TASK_CONTROL_TYPE.setState | typeof TASK_CONTROL_TYPE.getState,
+    };
+  });
+};
+
+const updateTaskControlTargetType = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.taskControl) return;
+    step.a = {
+      ...step.a,
+      target: {
+        ...step.a.target,
+        type: value as typeof STATE_TARGET_TYPE.task | typeof STATE_TARGET_TYPE.policy,
+      },
+    };
+  });
+};
+
+const updateTaskControlTargetId = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.taskControl) return;
+    step.a = {
+      ...step.a,
+      target: {
+        ...step.a.target,
+        id: value,
+      },
+    };
+  });
+};
+
+const updateTaskControlStatusType = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.taskControl) return;
+    step.a = {
+      ...step.a,
+      status: {
+        ...step.a.status,
+        type: value as typeof STATE_STATUS_TYPE.done | typeof STATE_STATUS_TYPE.skip,
+      },
+    };
+  });
+};
+
+const updateTaskControlStatusValue = (value: boolean) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.taskControl) return;
+    step.a = {
+      ...step.a,
+      status: {
+        ...step.a.status,
+        value,
+      },
+    };
+  });
+};
+
 const updateVisionField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.vision) return;
     step.a = { ...(step.a ?? {}), [field]: value } as VisionNode;
+  });
+};
+
+const updateVisionRule = (rule: SearchRule) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.vision || step.a.type !== VISION_TYPE.visionSearch) return;
+    step.a = {
+      ...step.a,
+      rule,
+    };
   });
 };
 

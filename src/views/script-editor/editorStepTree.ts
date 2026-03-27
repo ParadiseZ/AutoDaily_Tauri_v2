@@ -1,7 +1,7 @@
 import type { Step } from '@/types/bindings/Step';
-import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
+import { DATA_TYPE, FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
 
-export type StepBranchKind = 'root' | 'sequence' | 'then' | 'else' | 'flow' | 'visionThen';
+export type StepBranchKind = 'root' | 'sequence' | 'then' | 'else' | 'flow' | 'visionThen' | 'filterThen';
 
 export interface StepPathSegment {
   branch: StepBranchKind;
@@ -112,6 +112,8 @@ const getBranchStepsFromStep = (step: Step, branch: StepBranchKind): Step[] => {
       return step.op === STEP_OP.flowControl && (step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.for) ? step.a.flow : [];
     case 'visionThen':
       return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? step.a.then_steps : [];
+    case 'filterThen':
+      return step.op === STEP_OP.dataHanding && step.a.type === DATA_TYPE.filter ? step.a.then_steps : [];
     default:
       return [];
   }
@@ -131,6 +133,10 @@ const setBranchStepsOnStep = (step: Step, branch: StepBranchKind, steps: Step[])
         : step;
     case 'visionThen':
       return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? { ...step, a: { ...step.a, then_steps: steps } } : step;
+    case 'filterThen':
+      return step.op === STEP_OP.dataHanding && step.a.type === DATA_TYPE.filter
+        ? { ...step, a: { ...step.a, then_steps: steps } }
+        : step;
     default:
       return step;
   }

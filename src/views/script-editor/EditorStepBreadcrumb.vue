@@ -55,6 +55,7 @@ const branchLabelMap: Record<StepBranchKind, string> = {
   else: 'Else',
   flow: '循环体',
   visionThen: '命中后执行',
+  filterThen: '过滤命中后',
 };
 
 const stepLabel = (path: StepPath) => {

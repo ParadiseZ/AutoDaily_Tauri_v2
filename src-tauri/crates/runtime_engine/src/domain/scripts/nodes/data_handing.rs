@@ -19,7 +19,7 @@ pub enum DataHanding{
         out_name: String, 
         mode: FilterMode,     // Filter 或是 Map 模式
         logic_expr: String, 
-        then_steps: Box<Step>,
+        then_steps: Vec<Step>,
     }
 }
 

@@ -50,3 +50,48 @@ export const VISION_TYPES = ['visionSearch'] as const;
 export const VISION_TYPE = {
   visionSearch: VISION_TYPES[0],
 } as const;
+
+export const TASK_CONTROL_TYPES = ['setState', 'getState'] as const;
+export const TASK_CONTROL_TYPE = {
+  setState: TASK_CONTROL_TYPES[0],
+  getState: TASK_CONTROL_TYPES[1],
+} as const;
+
+export const STATE_TARGET_TYPES = ['policy', 'task'] as const;
+export const STATE_TARGET_TYPE = {
+  policy: STATE_TARGET_TYPES[0],
+  task: STATE_TARGET_TYPES[1],
+} as const;
+
+export const STATE_STATUS_TYPES = ['skip', 'done'] as const;
+export const STATE_STATUS_TYPE = {
+  skip: STATE_STATUS_TYPES[0],
+  done: STATE_STATUS_TYPES[1],
+} as const;
+
+export const FILTER_MODE_TYPES = ['filter', 'map'] as const;
+export const FILTER_MODE_TYPE = {
+  filter: FILTER_MODE_TYPES[0],
+  map: FILTER_MODE_TYPES[1],
+} as const;
+
+export const SEARCH_RULE_TYPES = ['keyword', 'yoloIdx', 'regex', 'group'] as const;
+export const SEARCH_RULE_TYPE = {
+  keyword: SEARCH_RULE_TYPES[0],
+  yoloIdx: SEARCH_RULE_TYPES[1],
+  regex: SEARCH_RULE_TYPES[2],
+  group: SEARCH_RULE_TYPES[3],
+} as const;
+
+export const LOGIC_OPS = ['And', 'Or', 'Not'] as const;
+export const LOGIC_OP = {
+  And: LOGIC_OPS[0],
+  Or: LOGIC_OPS[1],
+  Not: LOGIC_OPS[2],
+} as const;
+
+export const SEARCH_SCOPES = ['Global', 'Item'] as const;
+export const SEARCH_SCOPE = {
+  Global: SEARCH_SCOPES[0],
+  Item: SEARCH_SCOPES[1],
+} as const;
