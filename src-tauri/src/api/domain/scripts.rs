@@ -65,7 +65,7 @@ pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTab
     // 插入新任务
     for task in tasks {
         let insert_query = format!(
-            "INSERT INTO {} (id, script_id, name, is_hidden, task_type, nodes, edges, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO {} (id, script_id, name, is_hidden, task_type, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             SCRIPT_TASK_TABLE
         );
         sqlx::query(&insert_query)
@@ -74,8 +74,6 @@ pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTab
             .bind(&task.name)
             .bind(task.is_hidden)
             .bind(task.task_type)
-            .bind("[]")
-            .bind("[]")
             .bind(&task.data)
             .bind(task.created_at)
             .bind(task.updated_at)

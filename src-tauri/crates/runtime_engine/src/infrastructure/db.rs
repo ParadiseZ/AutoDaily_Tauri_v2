@@ -1,6 +1,7 @@
 use crate::infrastructure::path_resolve::model_path::PathUtil;
 use serde::Serialize;
 use sqlx::types::Json;
+use sqlx::Row;
 use sqlx::{sqlite::SqliteConnectOptions, FromRow, Pool, Sqlite, SqlitePool};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -135,22 +136,27 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
-    // 8. 脚本任务逻辑表 (Nodes, Edges, Custom Data)
+    // 8. 脚本任务逻辑表
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS script_tasks (
             id TEXT PRIMARY KEY,
             script_id TEXT NOT NULL,
             `name` TEXT NOT NULL,
             is_hidden BOOLEAN NOT NULL DEFAULT 0,
-            nodes JSON NOT NULL,
-            edges JSON NOT NULL,
+            task_type TEXT NOT NULL DEFAULT 'main',
             `data` JSON NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TEXT,
+            is_deleted BOOLEAN NOT NULL DEFAULT 0,
+            `index` INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
         )",
     )
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
+    ensure_script_tasks_columns(pool).await?;
 
     // 9. 设备脚本分配表（队列定义）
     sqlx::query(
@@ -202,6 +208,138 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> {
+    let rows = sqlx::query("PRAGMA table_info(script_tasks)")
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let column_names: Vec<String> = rows
+        .iter()
+        .filter_map(|row| row.try_get::<String, _>("name").ok())
+        .collect();
+
+    let ensure_column = |name: &str| column_names.iter().any(|column| column == name);
+
+    if !ensure_column("task_type") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'main'")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("created_at") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN created_at TEXT")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE script_tasks SET created_at = COALESCE(created_at, CURRENT_TIMESTAMP)")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("updated_at") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN updated_at TEXT")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+        sqlx::query("UPDATE script_tasks SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("deleted_at") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN deleted_at TEXT")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("is_deleted") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("index") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN `index` INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if ensure_column("nodes") || ensure_column("edges") {
+        rebuild_script_tasks_table(pool).await?;
+    }
+
+    Ok(())
+}
+
+async fn rebuild_script_tasks_table(pool: &Pool<Sqlite>) -> Result<(), String> {
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
+    sqlx::query("DROP TABLE IF EXISTS script_tasks_v2")
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query(
+        "CREATE TABLE script_tasks_v2 (
+            id TEXT PRIMARY KEY,
+            script_id TEXT NOT NULL,
+            `name` TEXT NOT NULL,
+            is_hidden BOOLEAN NOT NULL DEFAULT 0,
+            task_type TEXT NOT NULL DEFAULT 'main',
+            `data` JSON NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            deleted_at TEXT,
+            is_deleted BOOLEAN NOT NULL DEFAULT 0,
+            `index` INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
+        )",
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    sqlx::query(
+        "INSERT INTO script_tasks_v2 (id, script_id, `name`, is_hidden, task_type, `data`, created_at, updated_at, deleted_at, is_deleted, `index`)
+         SELECT
+            id,
+            script_id,
+            `name`,
+            COALESCE(is_hidden, 0),
+            COALESCE(task_type, 'main'),
+            `data`,
+            COALESCE(created_at, CURRENT_TIMESTAMP),
+            COALESCE(updated_at, CURRENT_TIMESTAMP),
+            deleted_at,
+            COALESCE(is_deleted, 0),
+            COALESCE(`index`, 0)
+         FROM script_tasks",
+    )
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    sqlx::query("DROP TABLE script_tasks")
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query("ALTER TABLE script_tasks_v2 RENAME TO script_tasks")
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    tx.commit().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 

@@ -126,10 +126,10 @@ pub async fn batch_insert_script_related(
         for chunk in tasks.chunks(50) {
             let placeholders: Vec<String> = chunk
                 .iter()
-                .map(|_| "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string())
+                .map(|_| "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string())
                 .collect();
             let sql = format!(
-                "INSERT INTO script_tasks (id, script_id, name, is_hidden, task_type, nodes, edges, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES {}",
+                "INSERT INTO script_tasks (id, script_id, name, is_hidden, task_type, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES {}",
                 placeholders.join(", ")
             );
             let mut query = sqlx::query(&sql);
@@ -140,8 +140,6 @@ pub async fn batch_insert_script_related(
                     .bind(&t.name)
                     .bind(t.is_hidden)
                     .bind(t.task_type.clone())
-                    .bind("[]")
-                    .bind("[]")
                     .bind(&t.data)
                     .bind(t.created_at)
                     .bind(t.updated_at)

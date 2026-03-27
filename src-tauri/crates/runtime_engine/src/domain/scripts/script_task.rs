@@ -1,7 +1,7 @@
 use crate::infrastructure::core::{Deserialize, Serialize, TaskId, ScriptId};
+use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::FromRow;
-use serde_json::Value;
 use crate::domain::scripts::script_decision::Step;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
@@ -25,7 +25,6 @@ pub struct ScriptTaskTable {
     pub name: String,
     pub is_hidden: bool,
     pub task_type: TaskType,
-    ///直接指定（原 #[ts(as = "serde_json::Value")]）
 /*    #[ts(type = "Array<import('@vue-flow/core').Node>")]
     pub nodes: Json<Value>,
     #[ts(type = "import('@vue-flow/core').Edge[]")]
