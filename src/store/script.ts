@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, shallowRef } from 'vue';
 import { createEditableScript, normalizeScriptTable, scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
@@ -36,7 +36,7 @@ const normalizeScriptTasks = (tasks: ScriptTaskTable[]) =>
     });
 
 export const useScriptStore = defineStore('script', () => {
-    const scripts = ref<ScriptTableRecord[]>([]);
+    const scripts = shallowRef<ScriptTableRecord[]>([]);
     const selectedScriptId = ref<string | null>(null);
     const loading = ref(false);
     const marketLoading = ref(false);
@@ -45,11 +45,23 @@ export const useScriptStore = defineStore('script', () => {
     const marketPage = ref<MarketPage<MarketScriptRecord>>(emptyMarketPage());
     const tasksByScriptId = ref<Record<string, ScriptTaskTable[]>>({});
 
-    const selectedScript = computed(
-        () => scripts.value.find((script) => script.id === selectedScriptId.value) ?? null,
+    const selectedScript = computed<ScriptTableRecord | null>(
+        () => {
+            if (!selectedScriptId.value) {
+                return null;
+            }
+
+            for (const script of scripts.value) {
+                if (script.id === selectedScriptId.value) {
+                    return script;
+                }
+            }
+
+            return null;
+        },
     );
 
-    const sortedScripts = computed(() =>
+    const sortedScripts = computed<ScriptTableRecord[]>(() =>
         [...scripts.value].sort((left, right) => {
             const leftTime = left.data.updateTime ? new Date(left.data.updateTime).getTime() : 0;
             const rightTime = right.data.updateTime ? new Date(right.data.updateTime).getTime() : 0;

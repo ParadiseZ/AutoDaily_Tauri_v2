@@ -9,6 +9,11 @@ type StoredScriptTable = Omit<ScriptTable, 'data'> & {
   };
 };
 
+const emptyVariableCatalog = {
+  version: 1,
+  variables: [],
+} as const;
+
 declare global {
   interface Window {
     __AUTODAILY_MOCK__?: {
@@ -123,6 +128,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
   expect(script.data.verName).toBe('2.0.0');
   expect(script.data.verNum).toBe(7);
   expect(script.data.allowClone).toBe(false);
+  expect(script.data.variableCatalog).toEqual(emptyVariableCatalog);
 
   expect(script.data.imgDetModel).toEqual({
     Yolo11: expect.objectContaining({

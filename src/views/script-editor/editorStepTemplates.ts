@@ -417,18 +417,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
             type: FILTER_MODE_TYPE.filter,
           },
           logic_expr: 'true',
-          then_steps: [
-            createBaseStep({
-              label: '过滤命中',
-              op: STEP_OP.flowControl,
-              cur_exec_num: 0,
-              max_exec_num: 1,
-              a: {
-                type: FLOW_TYPE.waitMs,
-                ms: 1000,
-              },
-            }),
-          ],
+          then_steps: [],
         },
       }),
   },

@@ -10,13 +10,6 @@
 
     <div class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
-        <div
-          v-if="activeBranchPath.branch !== 'root'"
-          class="mb-3 rounded-[16px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)]"
-        >
-          中间的步骤模板会直接插入到当前层级。
-        </div>
-
         <EditorStepList
           v-if="currentContainerSteps.length"
           :steps="currentContainerSteps"
@@ -29,7 +22,7 @@
         <EmptyState
           v-else
           title="还没有步骤"
-          description="先从中间选择一个模板，它会直接插入到当前层级。"
+          description="当前层级还是空的。"
         />
       </div>
 
@@ -256,12 +249,56 @@
                   <input :value="selectedData.name || ''" class="app-input" @input="updateDataField('name', ($event.target as HTMLInputElement).value)" />
                 </label>
                 <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
-                  <input :value="String(selectedData.val ?? '')" class="app-input" @input="updateSetVarValue(($event.target as HTMLInputElement).value)" />
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">赋值模式</span>
+                  <AppSelect
+                    :model-value="setVarMode"
+                    :options="setVarModeOptions"
+                    placeholder="赋值模式"
+                    test-id="editor-set-var-mode"
+                    @update:model-value="updateSetVarMode(String($event || 'value'))"
+                  />
                 </label>
+                <template v-if="setVarMode === 'value'">
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">值类型</span>
+                    <AppSelect
+                      :model-value="setVarDraft.kind"
+                      :options="varValueTypeOptions"
+                      placeholder="值类型"
+                      test-id="editor-set-var-type"
+                      @update:model-value="updateSetVarType(String($event || 'string'))"
+                    />
+                  </label>
+                  <label v-if="setVarDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+                    <input
+                      :checked="setVarDraft.boolValue"
+                      type="checkbox"
+                      class="h-4 w-4"
+                      data-testid="editor-set-var-bool"
+                      style="accent-color: var(--app-accent)"
+                      @change="updateSetVarBool(($event.target as HTMLInputElement).checked)"
+                    />
+                    <span class="text-sm text-[var(--app-text-soft)]">值为真</span>
+                  </label>
+                  <label v-else class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">值</span>
+                    <input
+                      :value="setVarDraft.textValue"
+                      class="app-input"
+                      :type="setVarDraft.kind === 'string' ? 'text' : 'number'"
+                      data-testid="editor-set-var-value"
+                      @input="updateSetVarText(($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                </template>
                 <label class="space-y-2">
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">表达式</span>
-                  <input :value="selectedData.expr ?? ''" class="app-input" @input="updateDataNullableField('expr', ($event.target as HTMLInputElement).value)" />
+                  <input
+                    :value="selectedData.expr ?? ''"
+                    class="app-input"
+                    :disabled="setVarMode !== 'expr'"
+                    @input="updateDataNullableField('expr', ($event.target as HTMLInputElement).value)"
+                  />
                 </label>
               </template>
 
@@ -270,10 +307,49 @@
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量名</span>
                   <input :value="selectedData.name || ''" class="app-input" @input="updateDataField('name', ($event.target as HTMLInputElement).value)" />
                 </label>
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
-                  <input :value="String(selectedData.default_val ?? '')" class="app-input" @input="updateGetVarDefaultValue(($event.target as HTMLInputElement).value)" />
+                <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+                  <input
+                    :checked="getVarHasDefault"
+                    type="checkbox"
+                    class="h-4 w-4"
+                    style="accent-color: var(--app-accent)"
+                    @change="toggleGetVarDefault(($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="text-sm text-[var(--app-text-soft)]">启用默认值</span>
                 </label>
+                <template v-if="getVarHasDefault">
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值类型</span>
+                    <AppSelect
+                      :model-value="getVarDraft.kind"
+                      :options="varValueTypeOptions"
+                      placeholder="默认值类型"
+                      test-id="editor-get-var-type"
+                      @update:model-value="updateGetVarType(String($event || 'string'))"
+                    />
+                  </label>
+                  <label v-if="getVarDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+                    <input
+                      :checked="getVarDraft.boolValue"
+                      type="checkbox"
+                      class="h-4 w-4"
+                      data-testid="editor-get-var-bool"
+                      style="accent-color: var(--app-accent)"
+                      @change="updateGetVarBool(($event.target as HTMLInputElement).checked)"
+                    />
+                    <span class="text-sm text-[var(--app-text-soft)]">默认值为真</span>
+                  </label>
+                  <label v-else class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
+                    <input
+                      :value="getVarDraft.textValue"
+                      class="app-input"
+                      :type="getVarDraft.kind === 'string' ? 'text' : 'number'"
+                      data-testid="editor-get-var-value"
+                      @input="updateGetVarText(($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                </template>
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.dataHanding && selectedData?.type === DATA_TYPE.filter">
@@ -412,7 +488,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { Action } from '@/types/bindings/Action';
@@ -434,15 +510,19 @@ import {
   DATA_TYPE,
   FILTER_MODE_TYPE,
   FLOW_TYPE,
-  SEARCH_RULE_TYPE,
   STATE_STATUS_TYPE,
   STATE_TARGET_TYPE,
   STEP_OP,
   TASK_CONTROL_TYPE,
   VISION_TYPE,
 } from '@/views/script-editor/editorStepKinds';
-import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import { describeStep } from '@/views/script-editor/editorStepTemplates';
+import {
+  buildVarValue,
+  parseVarValueDraft,
+  varValueTypeOptions,
+  type VarValueKind,
+} from '@/views/script-editor/editorVarValue';
 import {
   buildStepPath,
   getBranchSteps,
@@ -494,6 +574,10 @@ const filterModeOptions = [
   { label: '过滤', value: FILTER_MODE_TYPE.filter, description: '保留符合条件的元素。' },
   { label: '映射', value: FILTER_MODE_TYPE.map, description: '将输入映射为新结果。' },
 ];
+const setVarModeOptions = [
+  { label: '静态值', value: 'value', description: '直接写入 VarValue。' },
+  { label: '表达式', value: 'expr', description: '通过表达式计算值。' },
+];
 
 const taskControlTypeOptions = [
   { label: '设置状态', value: TASK_CONTROL_TYPE.setState, description: '写入目标状态。' },
@@ -524,6 +608,31 @@ const selectedFlow = computed<FlowControl | null>(() => (selectedStep.value?.op 
 const selectedData = computed<DataHanding | null>(() => (selectedStep.value?.op === STEP_OP.dataHanding ? selectedStep.value.a : null));
 const selectedTaskControl = computed<TaskControl | null>(() => (selectedStep.value?.op === STEP_OP.taskControl ? selectedStep.value.a : null));
 const selectedVision = computed<VisionNode | null>(() => (selectedStep.value?.op === STEP_OP.vision ? selectedStep.value.a : null));
+const setVarKindPreference = ref<VarValueKind | null>(null);
+const getVarKindPreference = ref<VarValueKind | null>(null);
+const setVarMode = computed<'value' | 'expr'>(() =>
+  selectedData.value?.type === DATA_TYPE.setVar && selectedData.value.expr ? 'expr' : 'value',
+);
+const setVarDraft = computed(() =>
+  selectedData.value?.type === DATA_TYPE.setVar
+    ? parseVarValueDraft(selectedData.value.val, setVarKindPreference.value ?? undefined)
+    : parseVarValueDraft(''),
+);
+const getVarHasDefault = computed(() => Boolean(selectedData.value?.type === DATA_TYPE.getVar && selectedData.value.default_val !== null));
+const getVarDraft = computed(() =>
+  selectedData.value?.type === DATA_TYPE.getVar
+    ? parseVarValueDraft(selectedData.value.default_val, getVarKindPreference.value ?? undefined)
+    : parseVarValueDraft(''),
+);
+
+watch(
+  () => props.selectedStepPath?.map((segment) => `${segment.branch}:${segment.index}`).join('/') ?? '',
+  () => {
+    setVarKindPreference.value = null;
+    getVarKindPreference.value = null;
+  },
+  { immediate: true },
+);
 
 const flowWithCondition = computed(() => {
   if (!selectedFlow.value) return null;
@@ -718,33 +827,114 @@ const updateDataNullableField = (field: string, value: string) => {
   });
 };
 
-const inferVarValue = (value: string) => {
-  if (value === 'true' || value === 'false') {
-    return value === 'true';
-  }
-  const nextNumber = Number(value);
-  if (value.trim() !== '' && Number.isFinite(nextNumber)) {
-    return nextNumber;
-  }
-  return value;
-};
-
-const updateSetVarValue = (value: string) => {
+const updateSetVarMode = (mode: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
     step.a = {
       ...step.a,
-      val: inferVarValue(value) as never,
+      val: mode === 'expr' ? null : buildVarValue(setVarDraft.value),
+      expr: mode === 'expr' ? (step.a.expr || 'true') : null,
     };
   });
 };
 
-const updateGetVarDefaultValue = (value: string) => {
+const updateSetVarType = (kind: string) => {
+  setVarKindPreference.value = kind as VarValueKind;
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
+    step.a = {
+      ...step.a,
+      val: buildVarValue({
+        kind: kind as 'int' | 'float' | 'bool' | 'string',
+        textValue: kind === 'string' ? '' : '0',
+        boolValue: false,
+      }),
+      expr: null,
+    };
+  });
+};
+
+const updateSetVarText = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
+    step.a = {
+      ...step.a,
+      val: buildVarValue({
+        ...setVarDraft.value,
+        textValue: value,
+      }),
+      expr: null,
+    };
+  });
+};
+
+const updateSetVarBool = (value: boolean) => {
+  setVarKindPreference.value = 'bool';
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
+    step.a = {
+      ...step.a,
+      val: buildVarValue({
+        ...setVarDraft.value,
+        kind: 'bool',
+        boolValue: value,
+        textValue: value ? 'true' : 'false',
+      }),
+      expr: null,
+    };
+  });
+};
+
+const toggleGetVarDefault = (enabled: boolean) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.getVar) return;
     step.a = {
       ...step.a,
-      default_val: value.trim() ? (inferVarValue(value) as never) : null,
+      default_val: enabled ? buildVarValue(getVarDraft.value) : null,
+    };
+  });
+};
+
+const updateGetVarType = (kind: string) => {
+  getVarKindPreference.value = kind as VarValueKind;
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.getVar) return;
+    step.a = {
+      ...step.a,
+      default_val: buildVarValue({
+        kind: kind as 'int' | 'float' | 'bool' | 'string',
+        textValue: kind === 'string' ? '' : '0',
+        boolValue: false,
+      }),
+    };
+  });
+};
+
+const updateGetVarText = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.getVar) return;
+    step.a = {
+      ...step.a,
+      default_val: buildVarValue({
+        ...getVarDraft.value,
+        textValue: value,
+      }),
+    };
+  });
+};
+
+const updateGetVarBool = (value: boolean) => {
+  getVarKindPreference.value = 'bool';
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.getVar) return;
+    step.a = {
+      ...step.a,
+      default_val: buildVarValue({
+        ...getVarDraft.value,
+        kind: 'bool',
+        boolValue: value,
+        textValue: value ? 'true' : 'false',
+      }),
     };
   });
 };

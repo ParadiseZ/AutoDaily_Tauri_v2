@@ -2,6 +2,13 @@ import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { LogicOp } from '@/types/bindings/LogicOp';
 import type { CompareOp } from '@/types/bindings/CompareOp';
 import type { VarValue } from '@/types/bindings/VarValue';
+import {
+  buildVarValue,
+  parseVarValueDraft,
+  varValueTypeOptions,
+  type VarValueDraft,
+  type VarValueKind,
+} from '@/views/script-editor/editorVarValue';
 
 const castCondition = (value: unknown) => value as ConditionNode;
 const castVarValue = (value: unknown) => value as VarValue;
@@ -46,19 +53,6 @@ export const compareOpOptions = [
   { label: '包含', value: 'contains', description: '字符串包含目标值。' },
   { label: '不包含', value: 'notContains', description: '字符串不包含目标值。' },
 ];
-
-export const varValueTypeOptions = [
-  { label: '整数', value: 'int', description: '整数比较。' },
-  { label: '浮点', value: 'float', description: '浮点数比较。' },
-  { label: '布尔', value: 'bool', description: '真假值比较。' },
-  { label: '文本', value: 'string', description: '字符串比较。' },
-];
-
-export interface VarValueDraft {
-  kind: 'int' | 'float' | 'bool' | 'string';
-  textValue: string;
-  boolValue: boolean;
-}
 
 export const createConditionNode = (type: string = 'rawExpr'): ConditionNode => {
   switch (type) {
@@ -134,40 +128,5 @@ export const describeConditionNode = (node: ConditionNode) => {
   }
 };
 
-export const parseVarValueDraft = (value: unknown): VarValueDraft => {
-  if (typeof value === 'boolean') {
-    return {
-      kind: 'bool',
-      textValue: value ? 'true' : 'false',
-      boolValue: value,
-    };
-  }
-
-  if (typeof value === 'number') {
-    const hasDecimal = !Number.isInteger(value);
-    return {
-      kind: hasDecimal ? 'float' : 'int',
-      textValue: String(value),
-      boolValue: value !== 0,
-    };
-  }
-
-  return {
-    kind: 'string',
-    textValue: typeof value === 'string' ? value : '',
-    boolValue: false,
-  };
-};
-
-export const buildVarValue = (draft: VarValueDraft): VarValue => {
-  switch (draft.kind) {
-    case 'bool':
-      return castVarValue(Boolean(draft.boolValue));
-    case 'float':
-      return castVarValue(Number(draft.textValue || '0'));
-    case 'int':
-      return castVarValue(Math.trunc(Number(draft.textValue || '0')));
-    default:
-      return castVarValue(draft.textValue);
-  }
-};
+export { buildVarValue, parseVarValueDraft, varValueTypeOptions };
+export type { VarValueDraft, VarValueKind };

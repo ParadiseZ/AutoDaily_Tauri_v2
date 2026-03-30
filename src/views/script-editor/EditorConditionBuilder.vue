@@ -255,7 +255,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
@@ -272,6 +272,7 @@ import {
   taskControlTypeOptions,
   varValueTypeOptions,
 } from '@/views/script-editor/editorCondition';
+import type { VarValueKind } from '@/views/script-editor/editorCondition';
 
 defineOptions({ name: 'EditorConditionBuilder' });
 
@@ -295,8 +296,21 @@ const emit = defineEmits<{
 }>();
 
 const addableConditionTypes = computed(() => conditionTypeOptions.filter((option) => option.value !== 'group' || props.depth < 2));
+const varCompareKindPreference = ref<VarValueKind | null>(null);
 const currentVarValueDraft = computed(() =>
-  props.modelValue.type === 'varCompare' ? parseVarValueDraft(props.modelValue.value) : parseVarValueDraft(''),
+  props.modelValue.type === 'varCompare'
+    ? parseVarValueDraft(props.modelValue.value, varCompareKindPreference.value ?? undefined)
+    : parseVarValueDraft(''),
+);
+
+watch(
+  () => props.modelValue.type,
+  (type) => {
+    if (type !== 'varCompare') {
+      varCompareKindPreference.value = null;
+    }
+  },
+  { immediate: true },
 );
 
 const rootTestId = (suffix: string) => (props.testIdPrefix ? `${props.testIdPrefix}-${suffix}` : undefined);
@@ -440,6 +454,7 @@ const updateVarCompareField = (field: 'var_name' | 'op', value: string) => {
 
 const updateVarCompareValueKind = (kind: string) => {
   if (props.modelValue.type !== 'varCompare') return;
+  varCompareKindPreference.value = kind as VarValueKind;
   replaceNode({
     ...props.modelValue,
     value: buildVarValue({
@@ -463,6 +478,7 @@ const updateVarCompareText = (value: string) => {
 
 const updateVarCompareBool = (value: boolean) => {
   if (props.modelValue.type !== 'varCompare') return;
+  varCompareKindPreference.value = 'bool';
   replaceNode({
     ...props.modelValue,
     value: buildVarValue({

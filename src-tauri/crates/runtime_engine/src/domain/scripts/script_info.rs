@@ -1,6 +1,7 @@
 use crate::infrastructure::core::{Deserialize, ScriptId, Serialize, UserId};
 use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::rec::RecognizerType;
+use crate::domain::scripts::script_variable::ScriptVariableCatalog;
 use sqlx::types::Json;
 use sqlx::FromRow;
 
@@ -80,6 +81,8 @@ pub struct ScriptInfo {
     pub script_type: ScriptType,
     pub is_valid: bool,
     pub allow_clone: bool,
+    /// 脚本变量目录，统一描述 input / runtime / system 三类变量定义。
+    pub variable_catalog: ScriptVariableCatalog,
     
     /// 云端脚本 ID (仅 Dev 类型有此字段)
     /// - None: 从未上传过
@@ -114,6 +117,7 @@ impl Default for ScriptInfo {
             script_type: ScriptType::Dev,
             is_valid: false,
             allow_clone: true,
+            variable_catalog: ScriptVariableCatalog::default(),
             cloud_id: None,
             //template_time: None,
         }

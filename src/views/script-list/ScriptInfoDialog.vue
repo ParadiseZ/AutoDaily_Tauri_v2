@@ -513,10 +513,7 @@ const props = defineProps<{
   script: ScriptTableRecord | null;
 }>();
 
-const emit = defineEmits<{
-  close: [];
-  save: [script: ScriptTableRecord];
-}>();
+const emit = defineEmits(['close', 'save']);
 
 const tabs = [
   { id: 'basic' as const, label: '基本信息', description: '名称、描述、运行时、版本。' },
@@ -722,7 +719,7 @@ const dictPathValue = computed({
   },
 });
 
-function cloneScriptRecord(script: ScriptTableRecord): ScriptTableRecord {
+function cloneScriptRecord(script: unknown): ScriptTableRecord {
   return JSON.parse(JSON.stringify(toRaw(script))) as ScriptTableRecord;
 }
 
@@ -731,7 +728,8 @@ function submit() {
   form.value.data.name = form.value.data.name.trim();
   form.value.data.verName = form.value.data.verName.trim() || '0.1.0';
   form.value.data.updateTime = new Date().toISOString();
-  emit('save', cloneScriptRecord(form.value));
+  const nextScript = cloneScriptRecord(form.value);
+  emit('save', nextScript);
 }
 
 watch(

@@ -9,6 +9,11 @@ type StoredScriptTable = Omit<ScriptTable, 'data'> & {
   };
 };
 
+const emptyVariableCatalog = {
+  version: 1,
+  variables: [],
+} as const;
+
 declare global {
   interface Window {
     __AUTODAILY_MOCK__?: {
@@ -88,6 +93,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
+      variableCatalog: emptyVariableCatalog,
       cloudId: null,
     },
   };
@@ -178,6 +184,7 @@ test('persists flow conditions and action forms from step workspace', async ({ p
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
+      variableCatalog: emptyVariableCatalog,
       cloudId: null,
     },
   };
@@ -247,6 +254,7 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
+      variableCatalog: emptyVariableCatalog,
       cloudId: null,
     },
   };
@@ -317,6 +325,7 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
+      variableCatalog: emptyVariableCatalog,
       cloudId: null,
     },
   };
@@ -340,8 +349,21 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
   await page.getByLabel('目标 ID').fill('daily_task');
   await page.getByLabel('状态值为真').uncheck();
 
-  await page.getByTestId('editor-step-template-filter-var').click();
+  await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-3').click();
+  await page.getByLabel('变量名').fill('input.sweepLimit');
+  await selectOptionByValue(page, 'editor-set-var-type', 'float');
+  await page.getByTestId('editor-set-var-value').fill('1.5');
+
+  await page.getByTestId('editor-step-template-get-var').click();
+  await page.getByTestId('editor-step-card-4').click();
+  await page.getByLabel('变量名').fill('runtime.retryCount');
+  await page.getByLabel('启用默认值').check();
+  await selectOptionByValue(page, 'editor-get-var-type', 'int');
+  await page.getByTestId('editor-get-var-value').fill('3');
+
+  await page.getByTestId('editor-step-template-filter-var').click();
+  await page.getByTestId('editor-step-card-5').click();
   await page.getByTestId('editor-branch-filterThen').click();
   await page.getByTestId('editor-step-template-click-text').click();
   await page.getByLabel('目标文字').fill('命中');
@@ -383,14 +405,25 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
   expect(task.data.steps[3]).toMatchObject({
     op: 'dataHanding',
     a: {
+      type: 'setVar',
+      name: 'input.sweepLimit',
+      val: 1.5,
+      expr: null,
+    },
+  });
+  expect(task.data.steps[4]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'getVar',
+      name: 'runtime.retryCount',
+      default_val: 3,
+    },
+  });
+  expect(task.data.steps[5]).toMatchObject({
+    op: 'dataHanding',
+    a: {
       type: 'filter',
       then_steps: [
-        {
-          op: 'flowControl',
-          a: {
-            type: 'waitMs',
-          },
-        },
         {
           op: 'action',
           a: {

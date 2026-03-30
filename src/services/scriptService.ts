@@ -2,6 +2,7 @@ import { invoke } from '@/utils/api';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { ScriptTable } from '@/types/bindings/ScriptTable';
 import type { ScriptType } from '@/types/bindings/ScriptType';
+import type { ScriptVariableCatalog } from '@/types/bindings/ScriptVariableCatalog';
 import type {
     ScriptAuthorSeed,
     MarketPage,
@@ -38,6 +39,11 @@ const emptyMarketPage = (query: ScriptSearchInput): MarketPage<MarketScriptRecor
     current: query.page,
 });
 
+const createEmptyVariableCatalog = (): ScriptVariableCatalog => ({
+    version: 1,
+    variables: [],
+});
+
 const toSafeNumber = (value: bigint | number | string | null | undefined, fallback = 0) => {
     if (typeof value === 'number' && Number.isFinite(value)) {
         return value;
@@ -62,6 +68,7 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
         data: {
             ...raw.data,
             scriptType: raw.data.scriptType ?? 'dev',
+            variableCatalog: raw.data.variableCatalog ?? createEmptyVariableCatalog(),
             verNum: toSafeNumber(raw.data.verNum, 1),
             latestVer: toSafeNumber(raw.data.latestVer, 1),
             downloadCount: toSafeNumber(raw.data.downloadCount, 0),
@@ -97,6 +104,7 @@ export const createBlankScript = (
         scriptType: 'dev',
         isValid: true,
         allowClone: true,
+        variableCatalog: createEmptyVariableCatalog(),
         cloudId: null,
     },
 });

@@ -3,6 +3,7 @@ import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { RuntimeType } from '@/types/bindings/RuntimeType';
+import type { ScriptVariableCatalog } from '@/types/bindings/ScriptVariableCatalog';
 import type { ScriptType } from '@/types/bindings/ScriptType';
 import type { JsonValue as StoreJsonValue } from '@/types/bindings/serde_json/JsonValue';
 
@@ -95,6 +96,7 @@ export interface ScriptInfoRecord {
     downloadCount: number;
     isValid: boolean;
     allowClone: boolean;
+    variableCatalog: ScriptVariableCatalog;
     cloudId: string | null;
 }
 
