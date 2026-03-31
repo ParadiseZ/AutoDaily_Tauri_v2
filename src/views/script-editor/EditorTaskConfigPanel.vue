@@ -100,7 +100,12 @@
                   </div>
                   <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ entry.key || '未设置键' }} · {{ getInputTypeLabel(entry.type) }}</p>
                 </div>
-                <button class="app-button app-button-danger app-toolbar-button shrink-0" type="button" @click.stop="$emit('remove-input', entry.id)">
+                <button
+                  class="app-button app-button-danger app-toolbar-button shrink-0"
+                  type="button"
+                  :data-testid="`editor-input-remove-${index}`"
+                  @click.stop="$emit('remove-input', entry.id)"
+                >
                   删除
                 </button>
               </div>

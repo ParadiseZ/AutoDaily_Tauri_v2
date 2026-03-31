@@ -90,6 +90,7 @@
           @update:task-hidden="taskHidden = $event"
           @add-input="addInput"
           @select-input="selectedInputId = $event"
+          @remove-input="removeInput"
           @update-ui-layout="updateUiLayout"
           @add-ui-field="addUiField"
           @select-ui-field="selectedUiFieldId = $event"

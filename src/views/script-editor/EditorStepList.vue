@@ -13,7 +13,7 @@
       @mouseenter="handleMouseEnter(index)"
       @mouseup="handleMouseUp(index)"
     >
-      <div class="grid grid-cols-[68px_minmax(0,1fr)_auto] items-start gap-3">
+      <div class="grid grid-cols-[52px_44px_minmax(0,1fr)_auto] items-start gap-3">
         <button
           v-if="allowReorder"
           class="editor-step-card-handle"
@@ -26,9 +26,8 @@
           拖动
         </button>
 
-        <button class="editor-step-order text-left" type="button" @click="$emit('select', index)">
-          <span class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步骤</span>
-          <span class="mt-1 block text-base font-semibold text-[var(--app-text-strong)]">{{ index + 1 }}</span>
+        <button class="editor-step-order" type="button" @click="$emit('select', index)">
+          {{ index + 1 }}
         </button>
 
         <button class="min-w-0 text-left" type="button" @click="$emit('select', index)">
@@ -172,12 +171,13 @@ onBeforeUnmount(() => {
 }
 
 .editor-step-order {
-  width: 100%;
-  min-width: 0;
-  align-self: stretch;
+  width: 44px;
+  height: 44px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.34);
-  padding: 0.75rem 0.7rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--app-text-strong);
 }
 </style>

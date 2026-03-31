@@ -378,8 +378,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         op: STEP_OP.dataHanding,
         a: {
           type: DATA_TYPE.setVar,
-          name: 'counter',
-          val: 1,
+          name: '',
+          val: null,
           expr: null,
         },
       }),
@@ -395,7 +395,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         op: STEP_OP.dataHanding,
         a: {
           type: DATA_TYPE.getVar,
-          name: 'counter',
+          name: '',
           default_val: null,
         },
       }),

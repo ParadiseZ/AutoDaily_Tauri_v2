@@ -254,41 +254,43 @@
                     <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标变量</span>
                     <AppSelect
                       :model-value="selectedData.name || null"
-                      :options="includeCurrentVariableOption(writableCatalogVariableOptions, selectedData.name)"
-                      placeholder="优先从变量目录里选择"
+                      :options="writableCatalogVariableOptions"
+                      placeholder="从变量列表中选择"
                       test-id="editor-set-var-name"
                       @update:model-value="updateSetVarTarget(String($event || ''))"
                     />
                   </label>
 
-                  <label v-if="setVarUsesCustomKey" class="space-y-2">
-                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量键</span>
-                    <input
-                      :value="selectedData.name || ''"
-                      :list="variableDatalistId"
-                      class="app-input"
-                      data-testid="editor-set-var-name-input"
-                      @input="updateDataField('name', ($event.target as HTMLInputElement).value)"
-                    />
-                  </label>
+                  <div v-if="selectedSetVarTarget" class="space-y-3 rounded-[14px] border border-[var(--app-border)] bg-white/45 px-4 py-3">
+                    <div class="flex flex-wrap gap-2">
+                      <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                        {{ selectedSetVarTarget.namespace }}
+                      </span>
+                      <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                        {{ selectedSetVarTarget.valueType }}
+                      </span>
+                    </div>
 
-                  <div v-if="selectedSetVarTarget" class="flex flex-wrap gap-2">
-                    <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-3 py-1 text-xs text-[var(--app-text-soft)]">
-                      {{ selectedSetVarTarget.namespace }}
-                    </span>
-                    <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-3 py-1 text-xs text-[var(--app-text-soft)]">
-                      {{ selectedSetVarTarget.valueType }}
-                    </span>
+                    <div class="grid gap-2 text-sm">
+                      <div class="grid gap-1">
+                        <span class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">键</span>
+                        <span class="text-[var(--app-text-strong)]">{{ selectedSetVarTarget.key }}</span>
+                      </div>
+                      <div class="grid gap-1">
+                        <span class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">备注</span>
+                        <span class="text-[var(--app-text-soft)]">{{ selectedSetVarTarget.description || '无' }}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div v-if="setVarCanSwitchMode" class="flex justify-end">
+                <div v-if="selectedSetVarTarget && setVarCanSwitchMode" class="flex justify-end">
                   <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="updateSetVarMode(setVarUsesExpression ? 'value' : 'expr')">
                     {{ setVarUsesExpression ? '改为直接值' : '改用表达式' }}
                   </button>
                 </div>
 
-                <template v-if="!setVarUsesExpression">
+                <template v-if="selectedSetVarTarget && !setVarUsesExpression">
                   <label v-if="!selectedSetVarKind" class="space-y-2">
                     <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">值类型</span>
                     <AppSelect
@@ -330,7 +332,7 @@
                   当前变量类型不适合直接写固定值，请使用表达式。
                 </div>
 
-                <label v-if="setVarUsesExpression" class="space-y-2">
+                <label v-if="selectedSetVarTarget && setVarUsesExpression" class="space-y-2">
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">表达式</span>
                   <input
                     :value="selectedData.expr ?? ''"
@@ -770,9 +772,6 @@ const selectedSetVarTarget = computed(() =>
   currentSetVarName.value ? props.catalogVariableOptions.find((item) => item.key === currentSetVarName.value) ?? null : null,
 );
 const selectedSetVarKind = computed(() => (selectedSetVarTarget.value ? mapVariableTypeToVarKind(selectedSetVarTarget.value.valueType) : null));
-const setVarUsesCustomKey = computed(() =>
-  Boolean(selectedData.value?.type === DATA_TYPE.setVar && currentSetVarName.value.trim() && !selectedSetVarTarget.value),
-);
 const setVarUsesExpression = computed(() => {
   if (selectedData.value?.type !== DATA_TYPE.setVar) {
     return false;
@@ -785,7 +784,7 @@ const setVarUsesExpression = computed(() => {
   return Boolean(selectedData.value.expr);
 });
 const effectiveSetVarKind = computed<VarValueKind>(() => selectedSetVarKind.value ?? setVarDraft.value.kind);
-const setVarCanSwitchMode = computed(() => !selectedSetVarTarget.value || Boolean(selectedSetVarKind.value));
+const setVarCanSwitchMode = computed(() => Boolean(selectedSetVarTarget.value && selectedSetVarKind.value));
 
 watch(
   () => props.selectedStepPath?.map((segment) => `${segment.branch}:${segment.index}`).join('/') ?? '',

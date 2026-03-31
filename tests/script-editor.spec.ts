@@ -111,6 +111,8 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await page.getByTestId('editor-input-add').click();
   await page.getByTestId('editor-input-key-0').fill('activitySweepCount');
   await page.getByTestId('editor-input-value-0').fill('5');
+  await page.getByTestId('editor-input-add').click();
+  await page.getByTestId('editor-input-remove-1').click();
 
   await page.getByTestId('editor-tab-ui').click();
   await page.getByTestId('editor-ui-template-number').click();
@@ -346,6 +348,13 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await seedEditorState(page, script);
 
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-add').click();
+  await page.getByTestId('editor-input-key-0').fill('sweepLimit');
+  await selectOptionByValue(page, 'editor-input-type-0', 'float');
+  await page.getByTestId('editor-input-add').click();
+  await page.getByLabel('键').fill('retryCount');
+
   await page.getByTestId('editor-tab-steps').click();
 
   await page.getByTestId('editor-step-template-sequence').click();
@@ -365,13 +374,14 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-3').click();
-  await page.getByTestId('editor-set-var-name-input').fill('input.sweepLimit');
-  await selectOptionByValue(page, 'editor-set-var-type', 'float');
+  await page.getByTestId('editor-set-var-name').click();
+  await page.getByTestId('editor-set-var-name-menu').getByText('sweepLimit').click();
   await page.getByTestId('editor-set-var-value').fill('1.5');
 
   await page.getByTestId('editor-step-template-get-var').click();
   await page.getByTestId('editor-step-card-4').click();
-  await page.getByTestId('editor-get-var-name-input').fill('runtime.retryCount');
+  await page.getByTestId('editor-get-var-name').click();
+  await page.getByTestId('editor-get-var-name-menu').getByText('retryCount').click();
   await page.getByLabel('启用默认值').check();
   await selectOptionByValue(page, 'editor-get-var-type', 'int');
   await page.getByTestId('editor-get-var-value').fill('3');
@@ -436,7 +446,7 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
     op: 'dataHanding',
     a: {
       type: 'getVar',
-      name: 'runtime.retryCount',
+      name: 'input.retryCount',
       default_val: 3,
     },
   });
