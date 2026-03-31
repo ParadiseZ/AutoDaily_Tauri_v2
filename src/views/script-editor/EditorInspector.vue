@@ -114,7 +114,7 @@
 import { computed } from 'vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import { formatDateTime, formatRuntimeLabel } from '@/utils/presenters';
-import { describeStep } from '@/views/script-editor/editorStepTemplates';
+import { describeStep } from '@/views/script-editor/editor-step/editorStepTemplates';
 import type { Step } from '@/types/bindings/Step';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 

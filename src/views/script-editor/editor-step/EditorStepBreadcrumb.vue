@@ -27,7 +27,7 @@ import {
   type StepBranchKind,
   type StepBranchPath,
   type StepPath,
-} from '@/views/script-editor/editorStepTree';
+} from '@/views/script-editor/editor-step/editorStepTree';
 
 interface StepBreadcrumbItem {
   key: string;

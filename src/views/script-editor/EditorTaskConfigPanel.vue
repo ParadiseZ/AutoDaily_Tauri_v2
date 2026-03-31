@@ -241,7 +241,7 @@ import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
-import { editorStepTemplates } from '@/views/script-editor/editorStepTemplates';
+import { editorStepTemplates } from '@/views/script-editor/editor-step/editorStepTemplates';
 import { getUiControlLabel, uiFieldTemplates } from '@/views/script-editor/editorSchema';
 import type { EditorPanelId, EditorUiSchema, UiFieldControl } from '@/views/script-editor/editorSchema';
 import { getInputTypeLabel, type EditorInputEntry } from '@/views/script-editor/editorVariables';

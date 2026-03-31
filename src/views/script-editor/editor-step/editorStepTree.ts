@@ -1,5 +1,5 @@
 import type { Step } from '@/types/bindings/Step';
-import { DATA_TYPE, FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
+import { DATA_TYPE, FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 
 export type StepBranchKind = 'root' | 'sequence' | 'then' | 'else' | 'flow' | 'visionThen' | 'filterThen';
 

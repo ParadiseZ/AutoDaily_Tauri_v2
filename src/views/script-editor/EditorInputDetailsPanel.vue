@@ -1,0 +1,142 @@
+<template>
+  <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+    <div v-if="selectedInputEntry" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="text-sm font-semibold text-[var(--app-text-strong)]">变量详情</p>
+          <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ selectedInputEntry.key || '未设置键' }}</p>
+        </div>
+        <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove-input', selectedInputEntry.id)">
+          删除变量
+        </button>
+      </div>
+
+      <div class="mt-4 grid gap-3">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">名称</span>
+          <input
+            :value="selectedInputEntry.name"
+            class="app-input"
+            placeholder="例如：扫荡次数"
+            @input="$emit('update-input', selectedInputEntry.id, 'name', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">键</span>
+          <input
+            :value="selectedInputEntry.key"
+            class="app-input"
+            placeholder="例如：activitySweepCount"
+            :data-testid="selectedInputIndex === 0 ? 'editor-input-key-0' : undefined"
+            @input="$emit('update-input', selectedInputEntry.id, 'key', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <div class="grid gap-3 md:grid-cols-2">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">类型</span>
+            <AppSelect
+              :model-value="selectedInputEntry.type"
+              :options="inputTypeOptions"
+              placeholder="选择类型"
+              :test-id="selectedInputIndex === 0 ? 'editor-input-type-0' : undefined"
+              @update:model-value="$emit('update-input', selectedInputEntry.id, 'type', String($event))"
+            />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">作用域</span>
+            <AppSelect
+              :model-value="selectedInputEntry.namespace"
+              :options="scopeOptions"
+              placeholder="选择作用域"
+              @update:model-value="$emit('update-input', selectedInputEntry.id, 'namespace', String($event))"
+            />
+          </label>
+        </div>
+
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">备注</span>
+          <input
+            :value="selectedInputEntry.description"
+            class="app-input"
+            placeholder="用于后续检索、绑定和变量引用"
+            @input="$emit('update-input', selectedInputEntry.id, 'description', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <template v-if="selectedInputEntry.namespace === 'input'">
+          <label v-if="selectedInputEntry.type === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+            <input
+              :checked="selectedInputEntry.booleanValue"
+              type="checkbox"
+              class="h-4 w-4"
+              :data-testid="selectedInputIndex === 0 ? 'editor-input-bool-0' : undefined"
+              style="accent-color: var(--app-accent)"
+              @change="$emit('update-input', selectedInputEntry.id, 'booleanValue', ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="text-sm text-[var(--app-text-soft)]">默认启用</span>
+          </label>
+
+          <label v-else class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
+            <textarea
+              v-if="selectedInputEntry.type === 'json'"
+              :value="selectedInputEntry.stringValue"
+              class="app-textarea min-h-[120px]"
+              spellcheck="false"
+              @input="$emit('update-input', selectedInputEntry.id, 'stringValue', ($event.target as HTMLTextAreaElement).value)"
+            />
+            <input
+              v-else
+              :value="selectedInputEntry.stringValue"
+              class="app-input"
+              :type="selectedInputEntry.type === 'string' ? 'text' : 'number'"
+              :data-testid="selectedInputIndex === 0 ? 'editor-input-value-0' : undefined"
+              @input="$emit('update-input', selectedInputEntry.id, 'stringValue', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </template>
+
+        <div
+          v-else
+          class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
+        >
+          {{ selectedInputEntry.namespace === 'runtime' ? 'Runtime 变量只定义结构和来源，不在这里设置默认值。' : 'System 变量由运行时注入，只在这里保留元数据。' }}
+        </div>
+      </div>
+    </div>
+
+    <EmptyState
+      v-else
+      title="选择一个变量"
+      description="中间列表选中变量后，右侧才会显示名称、键、类型、作用域和值。"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import AppSelect from '@/components/shared/AppSelect.vue';
+import EmptyState from '@/components/shared/EmptyState.vue';
+import { editorInputTypeOptions, type EditorInputEntry } from '@/views/script-editor/editorVariables';
+
+defineOptions({ name: 'EditorInputDetailsPanel' });
+
+const props = defineProps<{
+  selectedInputEntry: EditorInputEntry | null;
+  selectedInputIndex: number;
+}>();
+
+defineEmits<{
+  'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
+  'remove-input': [entryId: string];
+}>();
+
+const inputTypeOptions = editorInputTypeOptions;
+const scopeOptions = [
+  { label: 'Input', value: 'input', description: '用户可配置并持久化的输入变量。' },
+  { label: 'Runtime', value: 'runtime', description: '步骤执行过程中的运行时变量。' },
+  { label: 'System', value: 'system', description: '运行时注入的只读系统变量。' },
+];
+</script>

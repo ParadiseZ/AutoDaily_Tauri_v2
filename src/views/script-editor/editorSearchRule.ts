@@ -1,5 +1,5 @@
 import type { SearchRule } from '@/types/bindings/SearchRule';
-import { LOGIC_OP, SEARCH_RULE_TYPE, SEARCH_SCOPE } from '@/views/script-editor/editorStepKinds';
+import { LOGIC_OP, SEARCH_RULE_TYPE, SEARCH_SCOPE } from '@/views/script-editor/editor-step/editorStepKinds';
 
 export const searchRuleTypeOptions = [
   { label: '关键字', value: SEARCH_RULE_TYPE.keyword, description: '按 OCR 文本关键字匹配。' },

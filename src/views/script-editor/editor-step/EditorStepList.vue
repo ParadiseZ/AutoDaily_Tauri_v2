@@ -62,8 +62,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Step } from '@/types/bindings/Step';
-import { describeStep, describeStepMeta } from '@/views/script-editor/editorStepTemplates';
-import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
+import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
+import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 
 const props = withDefaults(defineProps<{
   steps: Step[];

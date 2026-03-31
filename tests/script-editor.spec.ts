@@ -119,6 +119,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await page.getByTestId('editor-ui-field-label-0').fill('扫荡活动');
   await page.getByTestId('editor-ui-field-bind-0').click();
   await page.getByTestId('editor-ui-field-bind-0-menu').getByText('activitySweepCount').click();
+  await page.getByTestId('editor-ui-preview-control-0').fill('8');
 
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-capture').click();
@@ -138,7 +139,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
   expect(task.name).toBe('日常主流程');
   expect(task.taskType).toBe('child');
   expect(task.isHidden).toBe(true);
-  expect(task.data.variables).toEqual({ activitySweepCount: 5 });
+  expect(task.data.variables).toEqual({ activitySweepCount: 8 });
   expect(savedScript?.data.variableCatalog.variables).toHaveLength(1);
   expect(savedScript?.data.variableCatalog.variables[0]).toMatchObject({
     key: 'input.activitySweepCount',
@@ -148,7 +149,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
     ownerTaskId: task.id,
     persisted: true,
     uiBindable: true,
-    defaultValue: 5,
+    defaultValue: 8,
   });
   expect(task.data.uiData).toEqual({
     layout: 'horizontal',

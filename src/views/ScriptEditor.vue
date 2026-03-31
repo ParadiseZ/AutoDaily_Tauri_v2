@@ -164,7 +164,7 @@ import EditorJsonDialog from '@/views/script-editor/EditorJsonDialog.vue';
 import EditorTaskConfigPanel from '@/views/script-editor/EditorTaskConfigPanel.vue';
 import EditorTaskSidebar from '@/views/script-editor/EditorTaskSidebar.vue';
 import EditorTaskWorkspace from '@/views/script-editor/EditorTaskWorkspace.vue';
-import { createStepFromTemplate } from '@/views/script-editor/editorStepTemplates';
+import { createStepFromTemplate } from '@/views/script-editor/editor-step/editorStepTemplates';
 import {
   buildStepPath,
   cloneStepPath,
@@ -178,7 +178,7 @@ import {
   type StepPath,
   updateBranchSteps,
   updateStepByPath,
-} from '@/views/script-editor/editorStepTree';
+} from '@/views/script-editor/editor-step/editorStepTree';
 import {
   buildUiData,
   cloneJson,
@@ -547,8 +547,8 @@ const addUiField = (control: UiFieldControl) => {
 
 const updateUiField = (
   fieldId: string,
-  key: 'label' | 'key' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText',
-  value: string,
+  key: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText',
+  value: string | boolean,
 ) => {
   uiSchema.value = {
     ...uiSchema.value,

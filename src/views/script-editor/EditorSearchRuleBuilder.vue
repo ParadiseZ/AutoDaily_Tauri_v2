@@ -122,7 +122,7 @@ import { computed } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { SearchRule } from '@/types/bindings/SearchRule';
-import { LOGIC_OP, SEARCH_RULE_TYPE, SEARCH_SCOPE } from '@/views/script-editor/editorStepKinds';
+import { LOGIC_OP, SEARCH_RULE_TYPE, SEARCH_SCOPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import {
   createSearchRule,
   describeSearchRule,

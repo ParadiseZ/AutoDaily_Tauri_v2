@@ -10,7 +10,7 @@ import {
   STEP_OP,
   TASK_CONTROL_TYPE,
   VISION_TYPE,
-} from '@/views/script-editor/editorStepKinds';
+} from '@/views/script-editor/editor-step/editorStepKinds';
 
 export interface EditorStepTemplate {
   id: string;

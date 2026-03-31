@@ -9,6 +9,8 @@ export interface EditorUiField {
   key: string;
   label: string;
   control: UiFieldControl;
+  editable: boolean;
+  checkboxStyle: 'checkbox' | 'switch';
   variableId: string;
   inputKey: string;
   description: string;
@@ -68,6 +70,8 @@ export const createUiField = (control: UiFieldControl): EditorUiField => ({
             ? '新数字输入'
             : '新文本输入',
   control,
+  editable: control !== 'text',
+  checkboxStyle: 'checkbox',
   variableId: '',
   inputKey: '',
   description: '',
@@ -106,6 +110,8 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       key,
       label,
       control,
+      editable,
+      checkboxStyle,
       variableId,
       inputKey,
       description,
@@ -121,6 +127,8 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       control: ['checkbox', 'radio', 'select', 'number', 'text'].includes(String(control))
         ? (control as UiFieldControl)
         : 'text',
+      editable: typeof editable === 'boolean' ? editable : control === 'text' ? false : true,
+      checkboxStyle: checkboxStyle === 'switch' ? 'switch' : 'checkbox',
       variableId: typeof variableId === 'string' ? variableId : '',
       inputKey: typeof inputKey === 'string' ? inputKey : '',
       description: typeof description === 'string' ? description : '',
@@ -156,6 +164,8 @@ export const buildUiData = (schema: EditorUiSchema): Record<string, JsonValue> =
         key: field.key.trim() || field.inputKey.trim() || field.label.trim(),
         label: field.label.trim() || field.key.trim(),
         control: field.control,
+        ...(field.control === 'text' ? { editable: field.editable } : {}),
+        ...(field.control === 'checkbox' ? { checkboxStyle: field.checkboxStyle } : {}),
         ...(field.variableId.trim() ? { variableId: field.variableId.trim() } : {}),
         inputKey: field.inputKey.trim(),
         ...(field.description.trim() ? { description: field.description.trim() } : {}),
