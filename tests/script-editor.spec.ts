@@ -115,7 +115,8 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await page.getByTestId('editor-tab-ui').click();
   await page.getByTestId('editor-ui-template-number').click();
   await page.getByTestId('editor-ui-field-label-0').fill('扫荡活动');
-  await selectOptionByValue(page, 'editor-ui-field-bind-0', 'activitySweepCount');
+  await page.getByTestId('editor-ui-field-bind-0').click();
+  await page.getByTestId('editor-ui-field-bind-0-menu').getByText('activitySweepCount').click();
 
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-capture').click();
@@ -131,10 +132,22 @@ test('edits script tasks with visual task editor and persists payload', async ({
   expect(state?.scriptTasks[scriptId]).toHaveLength(1);
 
   const [task] = state!.scriptTasks[scriptId];
+  const savedScript = state!.scripts.find((item) => item.id === scriptId);
   expect(task.name).toBe('日常主流程');
   expect(task.taskType).toBe('child');
   expect(task.isHidden).toBe(true);
   expect(task.data.variables).toEqual({ activitySweepCount: 5 });
+  expect(savedScript?.data.variableCatalog.variables).toHaveLength(1);
+  expect(savedScript?.data.variableCatalog.variables[0]).toMatchObject({
+    key: 'input.activitySweepCount',
+    name: 'activitySweepCount',
+    namespace: 'input',
+    valueType: 'int',
+    ownerTaskId: task.id,
+    persisted: true,
+    uiBindable: true,
+    defaultValue: 5,
+  });
   expect(task.data.uiData).toEqual({
     layout: 'horizontal',
     fields: [
@@ -142,6 +155,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
         key: 'activitySweepCount',
         label: '扫荡活动',
         control: 'number',
+        variableId: savedScript?.data.variableCatalog.variables[0]?.id,
         inputKey: 'activitySweepCount',
       },
     ],
@@ -341,8 +355,8 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
   await page.getByTestId('editor-step-template-vision-search').click();
   await page.getByTestId('editor-step-card-1').click();
   await page.getByLabel('输出变量').fill('runtime.hit');
-  await selectOptionByValue(page, 'editor-search-rule-type', 'keyword');
-  await page.getByTestId('editor-search-rule-keyword').fill('领取');
+  await page.getByRole('button', { name: '添加关键字' }).click();
+  await page.getByTestId('editor-search-rule-item-0-keyword').fill('领取');
 
   await page.getByTestId('editor-step-template-set-task-state').click();
   await page.getByTestId('editor-step-card-2').click();
@@ -351,13 +365,13 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-3').click();
-  await page.getByLabel('变量名').fill('input.sweepLimit');
+  await page.getByTestId('editor-set-var-name-input').fill('input.sweepLimit');
   await selectOptionByValue(page, 'editor-set-var-type', 'float');
   await page.getByTestId('editor-set-var-value').fill('1.5');
 
   await page.getByTestId('editor-step-template-get-var').click();
   await page.getByTestId('editor-step-card-4').click();
-  await page.getByLabel('变量名').fill('runtime.retryCount');
+  await page.getByTestId('editor-get-var-name-input').fill('runtime.retryCount');
   await page.getByLabel('启用默认值').check();
   await selectOptionByValue(page, 'editor-get-var-type', 'int');
   await page.getByTestId('editor-get-var-value').fill('3');
@@ -383,8 +397,15 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
       type: 'visionSearch',
       out_var: 'runtime.hit',
       rule: {
-        type: 'keyword',
-        pattern: '领取',
+        type: 'group',
+        op: 'And',
+        scope: 'Global',
+        items: [
+          {
+            type: 'keyword',
+            pattern: '领取',
+          },
+        ],
       },
     },
   });

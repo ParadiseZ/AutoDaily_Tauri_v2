@@ -37,6 +37,19 @@ export const createSearchRule = (type: string): SearchRule => {
   }
 };
 
+export const ensureRootGroupRule = (rule: SearchRule): SearchRule => {
+  if (rule.type === SEARCH_RULE_TYPE.group) {
+    return rule;
+  }
+
+  return {
+    type: SEARCH_RULE_TYPE.group,
+    op: LOGIC_OP.And,
+    scope: SEARCH_SCOPE.Global,
+    items: [rule],
+  };
+};
+
 export const describeSearchRule = (rule: SearchRule): string => {
   switch (rule.type) {
     case SEARCH_RULE_TYPE.keyword:

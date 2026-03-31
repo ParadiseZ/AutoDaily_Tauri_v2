@@ -13,7 +13,7 @@
       @mouseenter="handleMouseEnter(index)"
       @mouseup="handleMouseUp(index)"
     >
-      <div class="flex items-start gap-3">
+      <div class="grid grid-cols-[68px_minmax(0,1fr)_auto] items-start gap-3">
         <button
           v-if="allowReorder"
           class="editor-step-card-handle"
@@ -26,19 +26,23 @@
           拖动
         </button>
 
-        <button class="min-w-0 flex-1 text-left" type="button" @click="$emit('select', index)">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
+        <button class="editor-step-order text-left" type="button" @click="$emit('select', index)">
+          <span class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步骤</span>
+          <span class="mt-1 block text-base font-semibold text-[var(--app-text-strong)]">{{ index + 1 }}</span>
+        </button>
+
+        <button class="min-w-0 text-left" type="button" @click="$emit('select', index)">
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
               <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">
                 {{ step.label?.trim() || `步骤 ${index + 1}` }}
               </p>
-              <p class="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{{ describeStep(step) }}</p>
-              <p v-if="nestedSummary(step)" class="mt-2 text-xs text-[var(--app-text-faint)]">{{ nestedSummary(step) }}</p>
+              <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] font-medium text-[var(--app-text-soft)]">
+                {{ step.op }}
+              </span>
             </div>
-
-            <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] font-medium text-[var(--app-text-soft)]">
-              {{ step.op }}
-            </span>
+            <p class="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{{ describeStepMeta(step) }}</p>
+            <p v-if="nestedSummary(step)" class="mt-2 text-xs text-[var(--app-text-faint)]">{{ nestedSummary(step) }}</p>
           </div>
         </button>
 
@@ -58,7 +62,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Step } from '@/types/bindings/Step';
-import { describeStep } from '@/views/script-editor/editorStepTemplates';
+import { describeStepMeta } from '@/views/script-editor/editorStepTemplates';
 import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
 
 const props = withDefaults(defineProps<{
@@ -165,5 +169,15 @@ onBeforeUnmount(() => {
   border-color: var(--app-state-active-border);
   background: var(--app-state-active-bg);
   color: var(--app-text-strong);
+}
+
+.editor-step-order {
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.34);
+  padding: 0.75rem 0.7rem;
 }
 </style>

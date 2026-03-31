@@ -94,6 +94,6 @@ pub struct ScriptVariableDef {
     pub ui_bindable: bool,
     /// 变量默认值。输入变量常用，运行时和系统变量通常为空。
     pub default_value: Option<Value>,
-    /// 变量用途说明，帮助脚本作者理解该变量的业务含义。
+    /// 变量备注，用于开发阶段检索、绑定和理解变量用途。
     pub description: String,
 }

@@ -82,12 +82,14 @@
           :input-entries="inputEntries"
           :input-error="inputError"
           :ui-schema="uiSchema"
+          :selected-input-id="selectedInputId"
           :selected-ui-field-id="selectedUiFieldId"
           @update:active-panel="activePanel = $event"
           @update:task-name="taskName = $event"
           @update:task-type="taskType = $event"
           @update:task-hidden="taskHidden = $event"
           @add-input="addInput"
+          @select-input="selectedInputId = $event"
           @update-ui-layout="updateUiLayout"
           @add-ui-field="addUiField"
           @select-ui-field="selectedUiFieldId = $event"
@@ -105,8 +107,12 @@
           :ui-schema="uiSchema"
           :selected-ui-field-id="selectedUiFieldId"
           :input-entries="inputEntries"
+          :variable-options="variableOptions"
+          :catalog-variable-options="catalogVariableOptions"
+          :selected-input-id="selectedInputId"
           @update-input="updateInput"
           @remove-input="removeInput"
+          @select-input="selectedInputId = $event"
           @select-ui-field="selectedUiFieldId = $event"
           @update-ui-field="updateUiField"
           @remove-ui-field="removeUiField"
@@ -173,21 +179,25 @@ import {
   updateStepByPath,
 } from '@/views/script-editor/editorStepTree';
 import {
-  buildInputJson,
   buildUiData,
   cloneJson,
-  createInputEntry,
   createUiField,
   createUiSchema,
-  parseInputEntries,
   parseUiSchema,
   stableStringify,
-  type EditorInputEntry,
   type EditorPanelId,
   type EditorUiSchema,
   type RawEditorSection,
   type UiFieldControl,
 } from '@/views/script-editor/editorSchema';
+import {
+  buildInputJson,
+  createInputEntry,
+  listVariableOptions,
+  parseInputEntries,
+  syncInputVariableCatalog,
+  type EditorInputEntry,
+} from '@/views/script-editor/editorVariables';
 
 const route = useRoute();
 const router = useRouter();
@@ -206,6 +216,7 @@ const rawDialogError = ref<string | null>(null);
 
 const activePanel = ref<EditorPanelId>('basic');
 const selectedTaskId = ref<string | null>(null);
+const selectedInputId = ref<string | null>(null);
 const selectedStepPath = ref<StepPath | null>(null);
 const activeBranchPath = ref<StepBranchPath>(ROOT_BRANCH_PATH);
 const selectedUiFieldId = ref<string | null>(null);
@@ -237,6 +248,13 @@ const currentTask = computed<ScriptTaskTable | null>(() => {
   const matched = tasks.find((task) => task.id === selected) ?? null;
   return matched ?? tasks[0] ?? null;
 });
+
+const variableOptions = computed(() =>
+  listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value),
+);
+const catalogVariableOptions = computed(() =>
+  listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value, 'read', false),
+);
 
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
 const hasValidationErrors = computed(() => Boolean(inputError.value));
@@ -347,6 +365,7 @@ const hydrateTaskEditors = () => {
     taskHidden.value = false;
     inputEntries.value = [];
     inputError.value = null;
+    selectedInputId.value = null;
     uiSchema.value = createUiSchema();
     selectedStepPath.value = null;
     activeBranchPath.value = ROOT_BRANCH_PATH;
@@ -355,8 +374,9 @@ const hydrateTaskEditors = () => {
     taskName.value = currentTask.value.name;
     taskType.value = currentTask.value.taskType;
     taskHidden.value = currentTask.value.isHidden;
-    inputEntries.value = parseInputEntries(currentTask.value.data.variables ?? {});
+    inputEntries.value = parseInputEntries(draftScript.value?.data.variableCatalog, currentTask.value.id, currentTask.value.data.variables ?? {});
     inputError.value = null;
+    selectedInputId.value = inputEntries.value.find((entry) => entry.id === selectedInputId.value)?.id ?? inputEntries.value[0]?.id ?? null;
     uiSchema.value = parseUiSchema(currentTask.value.data.uiData ?? {});
     if (!currentTask.value.data.steps.length) {
       selectedStepPath.value = null;
@@ -463,12 +483,14 @@ const reorderTasks = (draggedTaskId: string, targetTaskId: string) => {
 };
 
 const addInput = () => {
-  inputEntries.value = [...inputEntries.value, createInputEntry('number')];
+  const nextEntry = createInputEntry('int');
+  inputEntries.value = [...inputEntries.value, nextEntry];
+  selectedInputId.value = nextEntry.id;
 };
 
 const updateInput = (
   entryId: string,
-  field: 'key' | 'type' | 'stringValue' | 'booleanValue',
+  field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue',
   value: string | boolean,
 ) => {
   inputEntries.value = inputEntries.value.map((entry) => {
@@ -479,8 +501,13 @@ const updateInput = (
     const next = { ...entry };
     if (field === 'type') {
       next.type = value as EditorInputEntry['type'];
-      next.stringValue = next.type === 'number' ? '0' : next.type === 'json' ? '{}' : '';
+      next.stringValue = next.type === 'string' ? '' : next.type === 'json' ? '{}' : '0';
       next.booleanValue = false;
+      return next;
+    }
+
+    if (field === 'namespace') {
+      next.namespace = String(value) as EditorInputEntry['namespace'];
       return next;
     }
 
@@ -496,6 +523,9 @@ const updateInput = (
 
 const removeInput = (entryId: string) => {
   inputEntries.value = inputEntries.value.filter((entry) => entry.id !== entryId);
+  if (selectedInputId.value === entryId) {
+    selectedInputId.value = inputEntries.value[0]?.id ?? null;
+  }
 };
 
 const updateUiLayout = (value: 'horizontal' | 'vertical') => {
@@ -516,7 +546,7 @@ const addUiField = (control: UiFieldControl) => {
 
 const updateUiField = (
   fieldId: string,
-  key: 'label' | 'key' | 'inputKey' | 'description' | 'placeholder' | 'optionsText',
+  key: 'label' | 'key' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText',
   value: string,
 ) => {
   uiSchema.value = {
@@ -813,11 +843,21 @@ watch(
 
     try {
       const nextVariables = buildInputJson(entries);
+      const nextCatalog = syncInputVariableCatalog(draftScript.value?.data.variableCatalog, currentTask.value.id, entries);
       inputError.value = null;
       replaceTask(currentTask.value.id, (task) => {
         task.data.variables = nextVariables;
         return task;
       });
+      if (draftScript.value) {
+        draftScript.value = {
+          ...draftScript.value,
+          data: {
+            ...draftScript.value.data,
+            variableCatalog: nextCatalog,
+          },
+        };
+      }
     } catch (error) {
       inputError.value = error instanceof Error ? error.message : '输入变量结构无效';
     }

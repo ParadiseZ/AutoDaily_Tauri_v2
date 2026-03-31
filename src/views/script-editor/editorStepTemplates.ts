@@ -388,7 +388,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
     id: 'get-var',
     label: '读取变量',
     description: '从上下文读取变量并写回当前步骤使用。',
-    group: '数据',
+    group: '兼容',
     create: () =>
       createBaseStep({
         label: '读取变量',
@@ -522,12 +522,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
 export const createStepFromTemplate = (templateId: string) =>
   editorStepTemplates.find((template) => template.id === templateId)?.create() ?? null;
 
-export const describeStep = (step: Step) => {
-  const stepLabel = step.label?.trim();
-  if (stepLabel) {
-    return stepLabel;
-  }
-
+export const describeStepMeta = (step: Step) => {
   if (step.op === STEP_OP.sequence) {
     return `顺序容器 · ${step.steps.length} 个子步骤`;
   }
@@ -590,3 +585,5 @@ export const describeStep = (step: Step) => {
 
   return '未识别步骤';
 };
+
+export const describeStep = (step: Step) => step.label?.trim() || describeStepMeta(step);

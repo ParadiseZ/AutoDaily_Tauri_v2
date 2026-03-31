@@ -71,10 +71,6 @@
 
         <div v-else-if="activePanel === 'inputs'" class="space-y-4">
           <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-[var(--app-text-strong)]">输入变量</p>
-              <p class="text-xs text-[var(--app-text-faint)]">点击后在右侧直接编辑，UI 和步骤都绑定这里的值。</p>
-            </div>
             <div class="flex gap-2">
               <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', 'inputs')">
                 JSON
@@ -85,24 +81,37 @@
             </div>
           </div>
 
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">当前输入</p>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <span
-                v-for="entry in inputEntries"
-                :key="entry.id"
-                class="rounded-full border border-[var(--app-border)] bg-white/40 px-3 py-1 text-xs text-[var(--app-text-soft)]"
-              >
-                {{ entry.key || '未命名输入' }}
-              </span>
-              <span
-                v-if="!inputEntries.length"
-                class="rounded-full border border-dashed border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-faint)]"
-              >
-                暂无输入
-              </span>
-            </div>
+          <div v-if="inputEntries.length" class="space-y-2">
+            <article
+              v-for="(entry, index) in inputEntries"
+              :key="entry.id"
+              class="app-list-item cursor-pointer"
+              :class="{ 'app-list-item-active': selectedInputId === entry.id }"
+              :data-testid="`editor-input-item-${index}`"
+              @click="$emit('select-input', entry.id)"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ entry.name || entry.key || '未命名变量' }}</p>
+                    <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] text-[var(--app-text-faint)]">
+                      {{ getScopeLabel(entry.namespace) }}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ entry.key || '未设置键' }} · {{ getInputTypeLabel(entry.type) }}</p>
+                </div>
+                <button class="app-button app-button-danger app-toolbar-button shrink-0" type="button" @click.stop="$emit('remove-input', entry.id)">
+                  删除
+                </button>
+              </div>
+            </article>
           </div>
+
+          <EmptyState
+            v-else
+            title="还没有变量"
+            description="先添加变量，再在右侧编辑名称、键、类型、作用域和值。"
+          />
 
           <p v-if="inputError" class="text-sm text-red-700">{{ inputError }}</p>
         </div>
@@ -228,8 +237,9 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import { editorStepTemplates } from '@/views/script-editor/editorStepTemplates';
-import type { EditorInputEntry, EditorPanelId, EditorUiSchema, UiFieldControl } from '@/views/script-editor/editorSchema';
 import { getUiControlLabel, uiFieldTemplates } from '@/views/script-editor/editorSchema';
+import type { EditorPanelId, EditorUiSchema, UiFieldControl } from '@/views/script-editor/editorSchema';
+import { getInputTypeLabel, type EditorInputEntry } from '@/views/script-editor/editorVariables';
 
 defineProps<{
   task: ScriptTaskTable | null;
@@ -240,6 +250,7 @@ defineProps<{
   inputEntries: EditorInputEntry[];
   inputError: string | null;
   uiSchema: EditorUiSchema;
+  selectedInputId: string | null;
   selectedUiFieldId: string | null;
 }>();
 
@@ -249,6 +260,8 @@ defineEmits<{
   'update:task-type': [value: 'main' | 'child'];
   'update:task-hidden': [value: boolean];
   'add-input': [];
+  'select-input': [entryId: string];
+  'remove-input': [entryId: string];
   'update-ui-layout': [value: 'horizontal' | 'vertical'];
   'add-ui-field': [control: UiFieldControl];
   'select-ui-field': [fieldId: string];
@@ -274,6 +287,12 @@ const layoutOptions = [
   { label: '垂直', value: 'vertical', description: '适合字段较多的情况。' },
 ];
 
+const getScopeLabel = (scope: EditorInputEntry['namespace']) => {
+  if (scope === 'runtime') return 'Runtime';
+  if (scope === 'system') return 'System';
+  return 'Input';
+};
+
 const templateGroups = computed(() => {
   const grouped = new Map<string, typeof editorStepTemplates>();
   for (const template of editorStepTemplates) {
@@ -282,7 +301,15 @@ const templateGroups = computed(() => {
     grouped.set(template.group, bucket);
   }
 
-  return Array.from(grouped.entries()).map(([name, items]) => ({ name, items }));
+  const groupOrder = ['动作', '流程', '数据', '视觉', '状态', '容器', '兼容'];
+
+  return Array.from(grouped.entries())
+    .sort(([left], [right]) => {
+      const leftIndex = groupOrder.indexOf(left);
+      const rightIndex = groupOrder.indexOf(right);
+      return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
+    })
+    .map(([name, items]) => ({ name, items }));
 });
 </script>
 

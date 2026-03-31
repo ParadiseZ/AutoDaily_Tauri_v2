@@ -118,6 +118,10 @@ const handleClick = (item: StepBreadcrumbItem) => {
   }
 
   if (item.branchPath) {
+    if (isSameBranchPath(item.branchPath, props.activeBranchPath) && item.branchPath.parentStepPath?.length) {
+      emit('select-step-path', item.branchPath.parentStepPath);
+      return;
+    }
     emit('navigate-branch', item.branchPath);
   }
 };

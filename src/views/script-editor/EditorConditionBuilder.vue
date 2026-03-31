@@ -67,6 +67,7 @@
             :model-value="item"
             :depth="depth + 1"
             removable
+            :variable-datalist-id="variableDatalistId"
             @update:model-value="updateGroupItem(index, $event)"
             @remove="removeGroupItem(index)"
           />
@@ -160,11 +161,12 @@
         <div class="grid gap-3 md:grid-cols-2">
           <label class="space-y-2 md:col-span-2">
             <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量名</span>
-            <input
-              :value="modelValue.var_name"
-              class="app-input"
-              @input="updateVarCompareField('var_name', ($event.target as HTMLInputElement).value)"
-            />
+          <input
+            :value="modelValue.var_name"
+            :list="variableDatalistId || undefined"
+            class="app-input"
+            @input="updateVarCompareField('var_name', ($event.target as HTMLInputElement).value)"
+          />
           </label>
 
           <label class="space-y-2">
@@ -282,11 +284,13 @@ const props = withDefaults(
     depth?: number;
     removable?: boolean;
     testIdPrefix?: string | null;
+    variableDatalistId?: string | null;
   }>(),
   {
     depth: 0,
     removable: false,
     testIdPrefix: null,
+    variableDatalistId: null,
   },
 );
 

@@ -11,105 +11,120 @@
         </button>
       </div>
 
-      <div v-if="activePanel === 'inputs'" class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <div class="min-h-0 space-y-3 overflow-y-auto pr-1 custom-scrollbar">
-          <article
-            v-for="(entry, index) in inputEntries"
-            :key="entry.id"
-            class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4"
-          >
-            <div class="grid gap-3">
-              <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量键</span>
-                  <input
-                    :value="entry.key"
-                    class="app-input"
-                    placeholder="activitySweepCount"
-                    :data-testid="index === 0 ? 'editor-input-key-0' : undefined"
-                    @input="$emit('update-input', entry.id, 'key', ($event.target as HTMLInputElement).value)"
-                  />
-                </label>
+      <div v-if="activePanel === 'inputs'" class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+          <div v-if="selectedInputEntry" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-sm font-semibold text-[var(--app-text-strong)]">变量详情</p>
+                <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ selectedInputEntry.key || '未设置键' }}</p>
+              </div>
+              <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove-input', selectedInputEntry.id)">
+                删除变量
+              </button>
+            </div>
 
+            <div class="mt-4 grid gap-3">
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">名称</span>
+                <input
+                  :value="selectedInputEntry.name"
+                  class="app-input"
+                  placeholder="例如：扫荡次数"
+                  @input="$emit('update-input', selectedInputEntry.id, 'name', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">键</span>
+                <input
+                  :value="selectedInputEntry.key"
+                  class="app-input"
+                  placeholder="例如：activitySweepCount"
+                  :data-testid="selectedInputIndex === 0 ? 'editor-input-key-0' : undefined"
+                  @input="$emit('update-input', selectedInputEntry.id, 'key', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+
+              <div class="grid gap-3 md:grid-cols-2">
                 <label class="space-y-2">
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">类型</span>
                   <AppSelect
-                    :model-value="entry.type"
+                    :model-value="selectedInputEntry.type"
                     :options="inputTypeOptions"
                     placeholder="选择类型"
-                    :test-id="index === 0 ? 'editor-input-type-0' : undefined"
-                    @update:model-value="$emit('update-input', entry.id, 'type', String($event))"
+                    :test-id="selectedInputIndex === 0 ? 'editor-input-type-0' : undefined"
+                    @update:model-value="$emit('update-input', selectedInputEntry.id, 'type', String($event))"
+                  />
+                </label>
+
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">作用域</span>
+                  <AppSelect
+                    :model-value="selectedInputEntry.namespace"
+                    :options="scopeOptions"
+                    placeholder="选择作用域"
+                    @update:model-value="$emit('update-input', selectedInputEntry.id, 'namespace', String($event))"
                   />
                 </label>
               </div>
 
-              <label v-if="entry.type === 'boolean'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">备注</span>
                 <input
-                  :checked="entry.booleanValue"
-                  type="checkbox"
-                  class="h-4 w-4"
-                  :data-testid="index === 0 ? 'editor-input-bool-0' : undefined"
-                  style="accent-color: var(--app-accent)"
-                  @change="$emit('update-input', entry.id, 'booleanValue', ($event.target as HTMLInputElement).checked)"
-                />
-                <span class="text-sm text-[var(--app-text-soft)]">默认启用</span>
-              </label>
-
-              <label v-else class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
-                <textarea
-                  v-if="entry.type === 'json'"
-                  :value="entry.stringValue"
-                  class="app-textarea min-h-[120px]"
-                  spellcheck="false"
-                  @input="$emit('update-input', entry.id, 'stringValue', ($event.target as HTMLTextAreaElement).value)"
-                />
-                <input
-                  v-else
-                  :value="entry.stringValue"
+                  :value="selectedInputEntry.description"
                   class="app-input"
-                  :type="entry.type === 'number' ? 'number' : 'text'"
-                  :data-testid="index === 0 ? 'editor-input-value-0' : undefined"
-                  @input="$emit('update-input', entry.id, 'stringValue', ($event.target as HTMLInputElement).value)"
+                  placeholder="用于后续检索、绑定和变量引用"
+                  @input="$emit('update-input', selectedInputEntry.id, 'description', ($event.target as HTMLInputElement).value)"
                 />
               </label>
-            </div>
 
-            <div class="mt-3 flex justify-end">
-              <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove-input', entry.id)">
-                删除
-              </button>
-            </div>
-          </article>
+              <template v-if="selectedInputEntry.namespace === 'input'">
+                <label v-if="selectedInputEntry.type === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+                  <input
+                    :checked="selectedInputEntry.booleanValue"
+                    type="checkbox"
+                    class="h-4 w-4"
+                    :data-testid="selectedInputIndex === 0 ? 'editor-input-bool-0' : undefined"
+                    style="accent-color: var(--app-accent)"
+                    @change="$emit('update-input', selectedInputEntry.id, 'booleanValue', ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span class="text-sm text-[var(--app-text-soft)]">默认启用</span>
+                </label>
 
-          <EmptyState
-            v-if="!inputEntries.length"
-            title="还没有输入变量"
-            description="中间点“添加输入”后，这里会直接显示可编辑的持久化变量。"
-          />
-        </div>
+                <label v-else class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
+                  <textarea
+                    v-if="selectedInputEntry.type === 'json'"
+                    :value="selectedInputEntry.stringValue"
+                    class="app-textarea min-h-[120px]"
+                    spellcheck="false"
+                    @input="$emit('update-input', selectedInputEntry.id, 'stringValue', ($event.target as HTMLTextAreaElement).value)"
+                  />
+                  <input
+                    v-else
+                    :value="selectedInputEntry.stringValue"
+                    class="app-input"
+                    :type="selectedInputEntry.type === 'string' ? 'text' : 'number'"
+                    :data-testid="selectedInputIndex === 0 ? 'editor-input-value-0' : undefined"
+                    @input="$emit('update-input', selectedInputEntry.id, 'stringValue', ($event.target as HTMLInputElement).value)"
+                  />
+                </label>
+              </template>
 
-        <div class="space-y-3">
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">当前输入</p>
-            <div class="mt-3 space-y-3">
               <div
-                v-for="entry in inputEntries"
-                :key="entry.id"
-                class="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--app-border)] bg-white/30 px-3 py-3"
+                v-else
+                class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
               >
-                <span class="truncate text-[var(--app-text-strong)]">{{ entry.key || '未命名输入' }}</span>
-                <span class="text-[var(--app-text-faint)]">{{ getInputTypeLabel(entry.type) }}</span>
+                {{ selectedInputEntry.namespace === 'runtime' ? 'Runtime 变量只定义结构和来源，不在这里设置默认值。' : 'System 变量由运行时注入，只在这里保留元数据。' }}
               </div>
             </div>
-
-            <EmptyState
-              v-if="!inputEntries.length"
-              title="还没有输入变量"
-              description="先定义 input.*，UI 和步骤才能绑定到稳定的持久化值。"
-            />
           </div>
-        </div>
+
+          <EmptyState
+            v-else
+            title="选择一个变量"
+            description="中间列表选中变量后，右侧才会显示名称、键、类型、作用域和值。"
+          />
       </div>
 
       <div v-else-if="activePanel === 'ui'" class="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
@@ -177,7 +192,7 @@
                 </template>
 
                 <template v-else>
-                  <span v-if="field.inputKey" class="editor-ui-inline-value">{{ String((resolvePreviewValue(field) ?? field.placeholder) || '') }}</span>
+                  <span v-if="field.variableId || field.inputKey" class="editor-ui-inline-value">{{ String((resolvePreviewValue(field) ?? field.placeholder) || '') }}</span>
                   <span v-else class="text-[var(--app-text-soft)]">{{ field.label || field.placeholder || '说明文本' }}</span>
                 </template>
               </button>
@@ -227,11 +242,11 @@
                 <label class="space-y-2">
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">绑定输入</span>
                   <AppSelect
-                    :model-value="selectedUiField.inputKey || null"
+                    :model-value="selectedUiField.variableId || null"
                     :options="bindOptions"
                     placeholder="未绑定"
                     :test-id="selectedUiFieldIndex === 0 ? 'editor-ui-field-bind-0' : undefined"
-                    @update:model-value="$emit('update-ui-field', selectedUiField.id, 'inputKey', String($event ?? ''))"
+                    @update:model-value="selectUiBinding(selectedUiField.id, String($event ?? ''))"
                   />
                 </label>
 
@@ -281,7 +296,7 @@
                 class="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--app-border)] bg-white/30 px-3 py-3"
               >
                 <span class="truncate text-[var(--app-text-strong)]">{{ field.label || field.key || '未命名字段' }}</span>
-                <span class="truncate text-right text-[var(--app-text-faint)]">{{ field.inputKey || '未绑定' }}</span>
+                <span class="truncate text-right text-[var(--app-text-faint)]">{{ resolveBindingLabel(field) }}</span>
               </div>
             </div>
           </div>
@@ -293,6 +308,8 @@
         :steps="steps"
         :selected-step-path="selectedStepPath"
         :active-branch-path="activeBranchPath"
+        :variable-options="variableOptions"
+        :catalog-variable-options="catalogVariableOptions"
         @select-step-path="$emit('select-step-path', $event)"
         @navigate-branch="$emit('navigate-branch', $event)"
         @reorder-step="(from, to) => $emit('reorder-step', from, to)"
@@ -322,14 +339,17 @@ import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
 import EditorStepWorkspace from '@/views/script-editor/EditorStepWorkspace.vue';
 import {
-  buildInputJson,
-  getInputTypeLabel,
   getUiControlLabel,
-  type EditorInputEntry,
   type EditorPanelId,
   type EditorUiField,
   type EditorUiSchema,
 } from '@/views/script-editor/editorSchema';
+import {
+  buildInputJson,
+  editorInputTypeOptions,
+  type EditorInputEntry,
+  type EditorVariableOption,
+} from '@/views/script-editor/editorVariables';
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editorStepTree';
 
 const props = defineProps<{
@@ -341,13 +361,18 @@ const props = defineProps<{
   uiSchema: EditorUiSchema;
   selectedUiFieldId: string | null;
   inputEntries: EditorInputEntry[];
+  variableOptions: EditorVariableOption[];
+  catalogVariableOptions: EditorVariableOption[];
+  selectedInputId: string | null;
 }>();
 
-defineEmits<{
-  'update-input': [entryId: string, field: 'key' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
+const uiPreviewExpanded = ref(true);
+const emit = defineEmits<{
+  'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
   'remove-input': [entryId: string];
+  'select-input': [entryId: string];
   'select-ui-field': [fieldId: string];
-  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'inputKey' | 'description' | 'placeholder' | 'optionsText', value: string];
+  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText', value: string];
   'remove-ui-field': [fieldId: string];
   'select-step-path': [path: StepPath];
   'navigate-branch': [branchPath: StepBranchPath];
@@ -356,8 +381,6 @@ defineEmits<{
   'update-step': [index: number, step: Step];
   'open-raw': [section: 'inputs' | 'ui' | 'steps'];
 }>();
-
-const uiPreviewExpanded = ref(true);
 
 const workspaceTitle = computed(() => {
   if (props.activePanel === 'steps') return '步骤概览';
@@ -372,12 +395,16 @@ const rawSection = computed(() => {
   return 'inputs';
 });
 
-const inputTypeOptions = [
-  { label: '文本', value: 'string', description: '普通字符串。' },
-  { label: '数字', value: 'number', description: '次数、阈值、索引。' },
-  { label: '布尔', value: 'boolean', description: '开关状态。' },
-  { label: 'JSON', value: 'json', description: '复杂结构。' },
+const inputTypeOptions = editorInputTypeOptions;
+const scopeOptions = [
+  { label: 'Input', value: 'input', description: '用户可配置并持久化的输入变量。' },
+  { label: 'Runtime', value: 'runtime', description: '步骤执行过程中的运行时变量。' },
+  { label: 'System', value: 'system', description: '运行时注入的只读系统变量。' },
 ];
+const selectedInputEntry = computed(() => props.inputEntries.find((entry) => entry.id === props.selectedInputId) ?? null);
+const selectedInputIndex = computed(() =>
+  selectedInputEntry.value ? props.inputEntries.findIndex((entry) => entry.id === selectedInputEntry.value?.id) : -1,
+);
 
 const selectedUiField = computed(() => props.uiSchema.fields.find((field) => field.id === props.selectedUiFieldId) ?? null);
 const selectedUiFieldIndex = computed(() =>
@@ -386,17 +413,42 @@ const selectedUiFieldIndex = computed(() =>
 
 const bindOptions = computed(() => [
   { label: '未绑定', value: null, description: '纯展示字段或说明文本。' },
-  ...props.inputEntries.map((entry) => ({
-    label: entry.key || '未命名输入',
-    value: entry.key || null,
-    description: getInputTypeLabel(entry.type),
-  })),
+  ...props.variableOptions
+    .filter((entry) => entry.uiBindable)
+    .map((entry) => ({
+      label: entry.label || entry.key || '未命名输入',
+      value: entry.id,
+      description: `${entry.key} · ${entry.namespace} · ${entry.valueType}`,
+    })),
 ]);
+
+const resolveBindingLabel = (field: EditorUiField) => {
+  const matched = props.variableOptions.find((item) => item.id === field.variableId);
+  return matched?.key || field.inputKey || '未绑定';
+};
+
+const selectUiBinding = (fieldId: string, variableId: string) => {
+  const matched = props.variableOptions.find((item) => item.id === variableId) ?? null;
+  emit('update-ui-field', fieldId, 'variableId', variableId);
+  emit('update-ui-field', fieldId, 'inputKey', matched?.key.startsWith('input.') ? matched.key.slice('input.'.length) : '');
+};
+
+const findBoundInputEntry = (field: EditorUiField) => {
+  if (field.variableId) {
+    const byId = props.inputEntries.find((entry) => entry.id === field.variableId);
+    if (byId) {
+      return byId;
+    }
+  }
+
+  return props.inputEntries.find((entry) => entry.key === field.inputKey) ?? null;
+};
 
 const resolvePreviewValue = (field: EditorUiField) => {
   try {
     const inputs = buildInputJson(props.inputEntries);
-    return field.inputKey ? inputs[field.inputKey] ?? null : null;
+    const entry = findBoundInputEntry(field);
+    return entry ? inputs[entry.key] ?? null : null;
   } catch {
     return null;
   }
@@ -476,4 +528,5 @@ const firstOption = (field: EditorUiField) =>
   background: var(--app-state-active-bg);
   color: var(--app-text-strong);
 }
+
 </style>

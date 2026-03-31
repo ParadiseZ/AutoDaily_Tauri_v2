@@ -1,23 +1,15 @@
 import type { JsonValue } from '@/types/app/domain';
 
-export type EditorInputType = 'string' | 'number' | 'boolean' | 'json';
 export type EditorPanelId = 'basic' | 'inputs' | 'ui' | 'steps';
 export type RawEditorSection = 'inputs' | 'ui' | 'steps';
 export type UiFieldControl = 'checkbox' | 'radio' | 'select' | 'number' | 'text';
-
-export interface EditorInputEntry {
-  id: string;
-  key: string;
-  type: EditorInputType;
-  stringValue: string;
-  booleanValue: boolean;
-}
 
 export interface EditorUiField {
   id: string;
   key: string;
   label: string;
   control: UiFieldControl;
+  variableId: string;
   inputKey: string;
   description: string;
   placeholder: string;
@@ -40,98 +32,6 @@ export const stableStringify = (value: unknown) =>
   JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? Number(item) : item), 2);
 
 export const cloneJson = <T>(value: T): T => JSON.parse(stableStringify(value)) as T;
-
-const inferInputType = (value: JsonValue): EditorInputType => {
-  if (typeof value === 'boolean') {
-    return 'boolean';
-  }
-
-  if (typeof value === 'number') {
-    return 'number';
-  }
-
-  if (typeof value === 'string') {
-    return 'string';
-  }
-
-  return 'json';
-};
-
-const stringifyInputValue = (value: JsonValue, type: EditorInputType) => {
-  if (type === 'string') {
-    return typeof value === 'string' ? value : '';
-  }
-
-  if (type === 'number') {
-    return typeof value === 'number' ? String(value) : '0';
-  }
-
-  if (type === 'boolean') {
-    return '';
-  }
-
-  return stableStringify(value);
-};
-
-export const createInputEntry = (type: EditorInputType = 'string'): EditorInputEntry => ({
-  id: createEditorId('input'),
-  key: '',
-  type,
-  stringValue: type === 'number' ? '0' : '',
-  booleanValue: false,
-});
-
-export const parseInputEntries = (value: JsonValue): EditorInputEntry[] => {
-  if (!isRecord(value)) {
-    return [];
-  }
-
-  return Object.entries(value).map(([key, item]) => {
-    const type = inferInputType(item);
-    return {
-      id: createEditorId('input'),
-      key,
-      type,
-      stringValue: stringifyInputValue(item, type),
-      booleanValue: typeof item === 'boolean' ? item : false,
-    };
-  });
-};
-
-const parseInputValue = (entry: EditorInputEntry): JsonValue => {
-  if (entry.type === 'boolean') {
-    return entry.booleanValue;
-  }
-
-  if (entry.type === 'number') {
-    const parsed = Number(entry.stringValue);
-    if (!Number.isFinite(parsed)) {
-      throw new Error(`输入变量 ${entry.key || '未命名'} 的数字值无效。`);
-    }
-    return parsed;
-  }
-
-  if (entry.type === 'json') {
-    return JSON.parse(entry.stringValue) as JsonValue;
-  }
-
-  return entry.stringValue;
-};
-
-export const buildInputJson = (entries: EditorInputEntry[]): Record<string, JsonValue> => {
-  const result: Record<string, JsonValue> = {};
-
-  for (const entry of entries) {
-    const key = entry.key.trim();
-    if (!key) {
-      continue;
-    }
-
-    result[key] = parseInputValue(entry);
-  }
-
-  return result;
-};
 
 const normalizeOptionsText = (value: unknown) => {
   if (!Array.isArray(value)) {
@@ -168,6 +68,7 @@ export const createUiField = (control: UiFieldControl): EditorUiField => ({
             ? '新数字输入'
             : '新文本输入',
   control,
+  variableId: '',
   inputKey: '',
   description: '',
   placeholder: control === 'text' ? '请输入内容' : '',
@@ -205,6 +106,7 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       key,
       label,
       control,
+      variableId,
       inputKey,
       description,
       placeholder,
@@ -219,6 +121,7 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       control: ['checkbox', 'radio', 'select', 'number', 'text'].includes(String(control))
         ? (control as UiFieldControl)
         : 'text',
+      variableId: typeof variableId === 'string' ? variableId : '',
       inputKey: typeof inputKey === 'string' ? inputKey : '',
       description: typeof description === 'string' ? description : '',
       placeholder: typeof placeholder === 'string' ? placeholder : '',
@@ -253,6 +156,7 @@ export const buildUiData = (schema: EditorUiSchema): Record<string, JsonValue> =
         key: field.key.trim() || field.inputKey.trim() || field.label.trim(),
         label: field.label.trim() || field.key.trim(),
         control: field.control,
+        ...(field.variableId.trim() ? { variableId: field.variableId.trim() } : {}),
         inputKey: field.inputKey.trim(),
         ...(field.description.trim() ? { description: field.description.trim() } : {}),
         ...(field.placeholder.trim() ? { placeholder: field.placeholder.trim() } : {}),
@@ -262,19 +166,6 @@ export const buildUiData = (schema: EditorUiSchema): Record<string, JsonValue> =
   }
 
   return result;
-};
-
-export const getInputTypeLabel = (type: EditorInputType) => {
-  switch (type) {
-    case 'boolean':
-      return '布尔';
-    case 'number':
-      return '数字';
-    case 'json':
-      return 'JSON';
-    default:
-      return '文本';
-  }
 };
 
 export const getUiControlLabel = (control: UiFieldControl) => {
