@@ -277,11 +277,16 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
 
   await seedEditorState(page, script);
 
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-add').click();
+  await page.getByTestId('editor-input-key-0').fill('pkgName');
+  await selectOptionByValue(page, 'editor-input-type-0', 'string');
+
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-if').click();
 
   await selectOptionByValue(page, 'editor-condition-type', 'varCompare');
-  await page.getByLabel('变量名').fill('runtime.ocr_text');
+  await selectOptionByValue(page, 'editor-condition-var-name', 'input.pkgName');
   await page.getByLabel('比较值').fill('已完成');
   await page.getByTestId('editor-branch-then').click();
   await page.getByTestId('editor-step-template-wait').click();
@@ -300,7 +305,7 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
       type: 'if',
       con: {
         type: 'varCompare',
-        var_name: 'runtime.ocr_text',
+        var_name: 'input.pkgName',
         value: '已完成',
       },
       then: [

@@ -13,17 +13,18 @@
       @mouseenter="handleMouseEnter(index)"
       @mouseup="handleMouseUp(index)"
     >
-      <div class="grid grid-cols-[52px_44px_minmax(0,1fr)_auto] items-start gap-3">
+      <div class="grid grid-cols-[34px_36px_minmax(0,1fr)_auto] items-start gap-2">
         <button
           v-if="allowReorder"
           class="editor-step-card-handle"
           :class="{ 'editor-step-card-handle-active': draggingIndex === index }"
           :data-testid="`editor-step-drag-${index}`"
           type="button"
+          aria-label="拖动排序"
           @mousedown.prevent="startDrag(index)"
           @click.stop
         >
-          拖动
+          ::
         </button>
 
         <button class="editor-step-order" type="button" @click="$emit('select', index)">
@@ -34,13 +35,13 @@
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
               <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">
-                {{ step.label?.trim() || `步骤 ${index + 1}` }}
+                {{ describeStep(step) }}
               </p>
               <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] font-medium text-[var(--app-text-soft)]">
                 {{ step.op }}
               </span>
             </div>
-            <p class="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{{ describeStepMeta(step) }}</p>
+            <p v-if="describeStepMeta(step) !== describeStep(step)" class="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{{ describeStepMeta(step) }}</p>
             <p v-if="nestedSummary(step)" class="mt-2 text-xs text-[var(--app-text-faint)]">{{ nestedSummary(step) }}</p>
           </div>
         </button>
@@ -61,7 +62,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import type { Step } from '@/types/bindings/Step';
-import { describeStepMeta } from '@/views/script-editor/editorStepTemplates';
+import { describeStep, describeStepMeta } from '@/views/script-editor/editorStepTemplates';
 import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editorStepKinds';
 
 const props = withDefaults(defineProps<{
@@ -150,12 +151,18 @@ onBeforeUnmount(() => {
 
 .editor-step-card-handle {
   align-self: center;
-  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border-radius: 12px;
   border: 1px dashed var(--app-border);
   background: rgba(255, 255, 255, 0.55);
-  padding: 0.28rem 0.65rem;
+  padding: 0.25rem 0.2rem;
   color: var(--app-text-faint);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: -0.08em;
   cursor: grab;
 }
 
@@ -171,12 +178,12 @@ onBeforeUnmount(() => {
 }
 
 .editor-step-order {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(255, 255, 255, 0.34);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--app-text-strong);
 }

@@ -67,7 +67,7 @@
             :model-value="item"
             :depth="depth + 1"
             removable
-            :variable-datalist-id="variableDatalistId"
+            :variable-options="variableOptions"
             @update:model-value="updateGroupItem(index, $event)"
             @remove="removeGroupItem(index)"
           />
@@ -161,12 +161,13 @@
         <div class="grid gap-3 md:grid-cols-2">
           <label class="space-y-2 md:col-span-2">
             <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量名</span>
-          <input
-            :value="modelValue.var_name"
-            :list="variableDatalistId || undefined"
-            class="app-input"
-            @input="updateVarCompareField('var_name', ($event.target as HTMLInputElement).value)"
-          />
+            <AppSelect
+              :model-value="modelValue.var_name || null"
+              :options="variableOptions"
+              placeholder="从变量列表中选择"
+              :test-id="rootTestId('var-name')"
+              @update:model-value="updateVarCompareField('var_name', String($event || ''))"
+            />
           </label>
 
           <label class="space-y-2">
@@ -284,13 +285,17 @@ const props = withDefaults(
     depth?: number;
     removable?: boolean;
     testIdPrefix?: string | null;
-    variableDatalistId?: string | null;
+    variableOptions?: Array<{
+      label: string;
+      value: string;
+      description?: string;
+    }>;
   }>(),
   {
     depth: 0,
     removable: false,
     testIdPrefix: null,
-    variableDatalistId: null,
+    variableOptions: () => [],
   },
 );
 

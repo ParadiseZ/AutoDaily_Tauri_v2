@@ -208,6 +208,24 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .await
     .map_err(|e| e.to_string())?;
 
+    // 12. 脚本时间模板变量值表
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS script_time_template_values (
+            id TEXT PRIMARY KEY,
+            script_id TEXT NOT NULL,
+            time_template_id TEXT NOT NULL,
+            values_json JSON NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (script_id, time_template_id),
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE,
+            FOREIGN KEY (time_template_id) REFERENCES time_templates(id) ON DELETE CASCADE
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 

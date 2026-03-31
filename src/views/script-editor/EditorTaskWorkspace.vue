@@ -155,33 +155,34 @@
               <button
                 v-for="field in uiSchema.fields"
                 :key="field.id"
-                class="editor-ui-chip"
-                :class="{ 'editor-ui-chip-active': selectedUiFieldId === field.id, 'editor-ui-chip-vertical': uiSchema.layout === 'vertical' }"
+                class="editor-ui-preview-item"
+                :class="{ 'editor-ui-preview-item-active': selectedUiFieldId === field.id, 'editor-ui-preview-item-vertical': uiSchema.layout === 'vertical' }"
                 type="button"
                 @click="$emit('select-ui-field', field.id)"
               >
                 <template v-if="field.control === 'checkbox'">
                   <input type="checkbox" :checked="Boolean(resolvePreviewValue(field))" disabled />
-                  <span>{{ field.label || '未命名字段' }}</span>
+                  <span class="editor-ui-preview-text">{{ field.label || '未命名字段' }}</span>
                 </template>
 
                 <template v-else-if="field.control === 'number'">
-                  <span v-if="field.label" class="text-[var(--app-text-soft)]">{{ field.label }}</span>
-                  <span class="editor-ui-inline-value">{{ String(resolvePreviewValue(field) ?? 0) }}</span>
-                  <span v-if="field.description" class="text-[var(--app-text-soft)]">{{ field.description }}</span>
+                  <span v-if="field.label" class="editor-ui-preview-text">{{ field.label }}</span>
+                  <span class="editor-ui-inline-value">{{ resolveNumberPreview(field) }}</span>
                 </template>
 
                 <template v-else-if="field.control === 'select'">
-                  <span v-if="field.label" class="text-[var(--app-text-soft)]">{{ field.label }}</span>
-                  <span class="editor-ui-inline-value">{{ resolvePreviewValue(field) || firstOption(field) || '请选择' }}</span>
-                  <span v-if="field.description" class="text-[var(--app-text-soft)]">{{ field.description }}</span>
+                  <span v-if="field.label" class="editor-ui-preview-text">{{ field.label }}</span>
+                  <span class="editor-ui-inline-value editor-ui-inline-select">
+                    <span>{{ resolveSelectPreview(field) }}</span>
+                    <span class="editor-ui-inline-caret">v</span>
+                  </span>
                 </template>
 
                 <template v-else-if="field.control === 'radio'">
-                  <span v-if="field.label" class="text-[var(--app-text-soft)]">{{ field.label }}</span>
+                  <span v-if="field.label" class="editor-ui-preview-text">{{ field.label }}</span>
                   <span class="editor-ui-inline-options">
                     <span
-                      v-for="option in field.optionsText.split('\n').map((item) => item.trim()).filter(Boolean)"
+                      v-for="option in parseFieldOptions(field)"
                       :key="option"
                       class="editor-ui-inline-pill"
                       :class="{ 'editor-ui-inline-pill-active': resolvePreviewValue(field) === option }"
@@ -192,8 +193,7 @@
                 </template>
 
                 <template v-else>
-                  <span v-if="field.variableId || field.inputKey" class="editor-ui-inline-value">{{ String((resolvePreviewValue(field) ?? field.placeholder) || '') }}</span>
-                  <span v-else class="text-[var(--app-text-soft)]">{{ field.label || field.placeholder || '说明文本' }}</span>
+                  <span class="editor-ui-inline-value">{{ resolveTextPreview(field) }}</span>
                 </template>
               </button>
             </div>
@@ -206,8 +206,7 @@
           />
         </div>
 
-        <div class="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
+        <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
             <div v-if="selectedUiField" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
               <div class="flex items-start justify-between gap-3">
                 <div>
@@ -227,15 +226,6 @@
                     class="app-input"
                     :data-testid="selectedUiFieldIndex === 0 ? 'editor-ui-field-label-0' : undefined"
                     @input="$emit('update-ui-field', selectedUiField.id, 'label', ($event.target as HTMLInputElement).value)"
-                  />
-                </label>
-
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">字段键</span>
-                  <input
-                    :value="selectedUiField.key"
-                    class="app-input"
-                    @input="$emit('update-ui-field', selectedUiField.id, 'key', ($event.target as HTMLInputElement).value)"
                   />
                 </label>
 
@@ -285,21 +275,6 @@
               title="选择一个字段"
               description="点击中间字段列表或上方预览项，下面会切换到当前字段的可编辑内容。"
             />
-          </div>
-
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">绑定关系</p>
-            <div class="mt-3 space-y-3">
-              <div
-                v-for="field in uiSchema.fields"
-                :key="field.id"
-                class="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--app-border)] bg-white/30 px-3 py-3"
-              >
-                <span class="truncate text-[var(--app-text-strong)]">{{ field.label || field.key || '未命名字段' }}</span>
-                <span class="truncate text-right text-[var(--app-text-faint)]">{{ resolveBindingLabel(field) }}</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -422,11 +397,6 @@ const bindOptions = computed(() => [
     })),
 ]);
 
-const resolveBindingLabel = (field: EditorUiField) => {
-  const matched = props.variableOptions.find((item) => item.id === field.variableId);
-  return matched?.key || field.inputKey || '未绑定';
-};
-
 const selectUiBinding = (fieldId: string, variableId: string) => {
   const matched = props.variableOptions.find((item) => item.id === variableId) ?? null;
   emit('update-ui-field', fieldId, 'variableId', variableId);
@@ -454,11 +424,33 @@ const resolvePreviewValue = (field: EditorUiField) => {
   }
 };
 
-const firstOption = (field: EditorUiField) =>
+const parseFieldOptions = (field: EditorUiField) =>
   field.optionsText
     .split('\n')
     .map((item) => item.trim())
-    .find(Boolean) ?? '';
+    .filter(Boolean);
+
+const resolveNumberPreview = (field: EditorUiField) => {
+  const value = resolvePreviewValue(field);
+  return value === null || value === undefined || value === '' ? '0' : String(value);
+};
+
+const resolveSelectPreview = (field: EditorUiField) => {
+  const options = parseFieldOptions(field);
+  const value = resolvePreviewValue(field);
+  if (value !== null && value !== undefined && String(value).trim()) {
+    return String(value);
+  }
+  return options[0] ?? '请选择';
+};
+
+const resolveTextPreview = (field: EditorUiField) => {
+  const value = resolvePreviewValue(field);
+  if (value !== null && value !== undefined && String(value).trim()) {
+    return String(value);
+  }
+  return field.label || field.placeholder || field.description || '文本';
+};
 </script>
 
 <style scoped>
@@ -487,14 +479,43 @@ const firstOption = (field: EditorUiField) =>
   background: rgba(255, 255, 255, 0.84);
 }
 
-.editor-ui-chip-vertical {
+.editor-ui-task-name {
+  color: var(--app-text-strong);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.editor-ui-preview-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-height: 44px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 0.2rem 0.25rem;
+  text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.editor-ui-preview-item:hover {
+  border-color: rgba(70, 110, 255, 0.16);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.editor-ui-preview-item-active {
+  border-color: var(--app-state-active-border);
+  background: var(--app-state-active-bg);
+}
+
+.editor-ui-preview-item-vertical {
   justify-content: flex-start;
   width: 100%;
 }
 
-.editor-ui-task-name {
+.editor-ui-preview-text {
   color: var(--app-text-strong);
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-weight: 600;
 }
 
@@ -506,6 +527,19 @@ const firstOption = (field: EditorUiField) =>
   padding: 0.45rem 0.75rem;
   text-align: center;
   color: var(--app-text-strong);
+}
+
+.editor-ui-inline-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 120px;
+}
+
+.editor-ui-inline-caret {
+  color: var(--app-text-faint);
+  font-size: 0.78rem;
 }
 
 .editor-ui-inline-options {

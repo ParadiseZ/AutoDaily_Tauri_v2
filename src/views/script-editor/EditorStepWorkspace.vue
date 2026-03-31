@@ -33,23 +33,26 @@
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         <div v-if="selectedStep" class="space-y-4">
           <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">步骤详情</p>
-                <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ describeStepMeta(selectedStep) }}</p>
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ describeStep(selectedStep) }}</p>
+                  <span class="rounded-full bg-white/50 px-3 py-1 text-xs text-[var(--app-text-soft)]">{{ selectedStep.op }}</span>
+                </div>
+                <p v-if="describeStepMeta(selectedStep) !== describeStep(selectedStep)" class="mt-2 text-xs text-[var(--app-text-faint)]">
+                  {{ describeStepMeta(selectedStep) }}
+                </p>
               </div>
-              <span class="rounded-full bg-white/50 px-3 py-1 text-xs text-[var(--app-text-soft)]">{{ selectedStep.op }}</span>
-            </div>
 
-            <label class="mt-4 block space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步骤标题</span>
-              <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
-            </label>
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步骤标题</span>
+                <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
+              </label>
+            </div>
           </div>
 
           <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">关键字段</p>
-            <div class="mt-3 space-y-3">
+            <div class="space-y-3">
               <template v-if="selectedStep.op === STEP_OP.action && selectedAction?.ac === ACTION_TYPE.capture">
                 <label class="space-y-2">
                   <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
@@ -211,41 +214,49 @@
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.flowControl && flowWithCondition">
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">流程类型</span>
-                  <AppSelect
-                    :model-value="flowWithCondition.type"
-                    :options="flowTypeOptions"
-                    placeholder="流程类型"
-                    @update:model-value="updateFlowType(String($event || FLOW_TYPE.if))"
-                  />
-                </label>
+                <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">流程类型</span>
+                    <AppSelect
+                      :model-value="flowWithCondition.type"
+                      :options="flowTypeOptions"
+                      placeholder="流程类型"
+                      @update:model-value="updateFlowType(String($event || FLOW_TYPE.if))"
+                    />
+                  </label>
 
-                <div class="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
-                  <span class="text-sm text-[var(--app-text-soft)]">
-                    {{
-                      flowWithCondition.type === FLOW_TYPE.if
-                        ? `Then ${(((selectedFlow as { then?: unknown[] } | null)?.then)?.length ?? 0)} 步`
-                        : `循环 ${(((selectedFlow as { flow?: unknown[] } | null)?.flow)?.length ?? 0)} 步`
-                    }}
-                  </span>
-                  <button
-                    v-if="flowWithCondition.type === FLOW_TYPE.if"
-                    class="app-button app-button-ghost app-toolbar-button"
-                    type="button"
-                    @click="toggleElseBranch"
-                  >
-                    {{ hasElseBranch ? '移除 Else 分支' : '添加 Else 分支' }}
-                  </button>
+                  <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">分支概览</p>
+                    <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+                      <span class="text-sm text-[var(--app-text-soft)]">
+                        {{
+                          flowWithCondition.type === FLOW_TYPE.if
+                            ? `Then ${(((selectedFlow as { then?: unknown[] } | null)?.then)?.length ?? 0)} · Else ${(((selectedFlow as { else_steps?: unknown[] } | null)?.else_steps)?.length ?? 0)}`
+                            : `循环 ${(((selectedFlow as { flow?: unknown[] } | null)?.flow)?.length ?? 0)} 步`
+                        }}
+                      </span>
+                      <button
+                        v-if="flowWithCondition.type === FLOW_TYPE.if"
+                        class="app-button app-button-ghost app-toolbar-button"
+                        type="button"
+                        @click="toggleElseBranch"
+                      >
+                        {{ hasElseBranch ? '移除 Else' : '添加 Else' }}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <EditorConditionBuilder
-                  v-if="flowCondition"
-                  :model-value="flowCondition"
-                  :variable-datalist-id="variableDatalistId"
-                  test-id-prefix="editor-condition"
-                  @update:model-value="updateFlowCondition"
-                />
+                <div class="space-y-2">
+                  <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">条件</p>
+                  <EditorConditionBuilder
+                    v-if="flowCondition"
+                    :model-value="flowCondition"
+                    :variable-options="readableCatalogVariableOptions"
+                    test-id-prefix="editor-condition"
+                    @update:model-value="updateFlowCondition"
+                  />
+                </div>
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.dataHanding && selectedData?.type === DATA_TYPE.setVar">
@@ -261,27 +272,7 @@
                     />
                   </label>
 
-                  <div v-if="selectedSetVarTarget" class="space-y-3 rounded-[14px] border border-[var(--app-border)] bg-white/45 px-4 py-3">
-                    <div class="flex flex-wrap gap-2">
-                      <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-3 py-1 text-xs text-[var(--app-text-soft)]">
-                        {{ selectedSetVarTarget.namespace }}
-                      </span>
-                      <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-3 py-1 text-xs text-[var(--app-text-soft)]">
-                        {{ selectedSetVarTarget.valueType }}
-                      </span>
-                    </div>
-
-                    <div class="grid gap-2 text-sm">
-                      <div class="grid gap-1">
-                        <span class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">键</span>
-                        <span class="text-[var(--app-text-strong)]">{{ selectedSetVarTarget.key }}</span>
-                      </div>
-                      <div class="grid gap-1">
-                        <span class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">备注</span>
-                        <span class="text-[var(--app-text-soft)]">{{ selectedSetVarTarget.description || '无' }}</span>
-                      </div>
-                    </div>
-                  </div>
+                  <EditorVariableMetaCard v-if="selectedSetVarTarget" :variable="selectedSetVarTarget" />
                 </div>
 
                 <div v-if="selectedSetVarTarget && setVarCanSwitchMode" class="flex justify-end">
@@ -348,22 +339,14 @@
                     <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">读取变量</span>
                     <AppSelect
                       :model-value="selectedData.name || null"
-                      :options="includeCurrentVariableOption(readableCatalogVariableOptions, selectedData.name)"
-                      placeholder="优先从变量目录里选择"
+                      :options="readableCatalogVariableOptions"
+                      placeholder="从变量列表中选择"
                       test-id="editor-get-var-name"
                       @update:model-value="updateDataField('name', String($event || ''))"
                     />
                   </label>
-                  <label class="space-y-2">
-                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量键</span>
-                    <input
-                      :value="selectedData.name || ''"
-                      :list="variableDatalistId"
-                      class="app-input"
-                      data-testid="editor-get-var-name-input"
-                      @input="updateDataField('name', ($event.target as HTMLInputElement).value)"
-                    />
-                  </label>
+
+                  <EditorVariableMetaCard v-if="selectedGetVarTarget" :variable="selectedGetVarTarget" />
                 </div>
                 <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
                   <input
@@ -411,27 +394,43 @@
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.dataHanding && selectedData?.type === DATA_TYPE.filter">
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入变量</span>
-                  <input :value="selectedData.input_var" :list="variableDatalistId" class="app-input" @input="updateDataField('input_var', ($event.target as HTMLInputElement).value)" />
-                </label>
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
-                  <input :value="selectedData.out_name" :list="variableDatalistId" class="app-input" @input="updateDataField('out_name', ($event.target as HTMLInputElement).value)" />
-                </label>
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">过滤模式</span>
-                  <AppSelect
-                    :model-value="selectedData.mode.type"
-                    :options="filterModeOptions"
-                    placeholder="过滤模式"
-                    @update:model-value="updateFilterMode(String($event || FILTER_MODE_TYPE.filter))"
-                  />
-                </label>
-                <label class="space-y-2">
-                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">逻辑表达式</span>
-                  <input :value="selectedData.logic_expr" class="app-input" @input="updateDataField('logic_expr', ($event.target as HTMLInputElement).value)" />
-                </label>
+                <div class="grid gap-3 md:grid-cols-2">
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入变量</span>
+                    <input :value="selectedData.input_var" :list="variableDatalistId" class="app-input" @input="updateDataField('input_var', ($event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
+                    <input :value="selectedData.out_name" :list="variableDatalistId" class="app-input" @input="updateDataField('out_name', ($event.target as HTMLInputElement).value)" />
+                  </label>
+                  <label class="space-y-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">过滤模式</span>
+                    <AppSelect
+                      :model-value="selectedData.mode.type"
+                      :options="filterModeOptions"
+                      placeholder="过滤模式"
+                      @update:model-value="updateFilterMode(String($event || FILTER_MODE_TYPE.filter))"
+                    />
+                  </label>
+                  <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
+                    <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">命中后行为</p>
+                    <div class="mt-2 flex items-center justify-between gap-3">
+                      <span class="text-sm text-[var(--app-text-soft)]">{{ filterBranchTarget?.count ?? 0 }} 个步骤</span>
+                      <button
+                        v-if="filterBranchTarget"
+                        class="app-button app-button-ghost app-toolbar-button"
+                        type="button"
+                        @click="$emit('navigate-branch', filterBranchTarget.path)"
+                      >
+                        进入步骤
+                      </button>
+                    </div>
+                  </div>
+                  <label class="space-y-2 md:col-span-2">
+                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">逻辑表达式</span>
+                    <input :value="selectedData.logic_expr" class="app-input" @input="updateDataField('logic_expr', ($event.target as HTMLInputElement).value)" />
+                  </label>
+                </div>
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.sequence">
@@ -448,64 +447,90 @@
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.taskControl && selectedTaskControl">
-                <div class="grid gap-3 md:grid-cols-2">
-                  <label class="space-y-2">
-                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">动作类型</span>
-                    <AppSelect
-                      :model-value="selectedTaskControl.type"
-                      :options="taskControlTypeOptions"
-                      placeholder="动作类型"
-                      @update:model-value="updateTaskControlType(String($event || TASK_CONTROL_TYPE.setState))"
-                    />
-                  </label>
-                  <label class="space-y-2">
-                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标类型</span>
-                    <AppSelect
-                      :model-value="selectedTaskControl.target.type"
-                      :options="stateTargetTypeOptions"
-                      placeholder="目标类型"
-                      @update:model-value="updateTaskControlTargetType(String($event || STATE_TARGET_TYPE.task))"
-                    />
-                  </label>
-                  <label class="space-y-2">
-                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标 ID</span>
-                    <input :value="selectedTaskControl.target.id" class="app-input" @input="updateTaskControlTargetId(($event.target as HTMLInputElement).value)" />
-                  </label>
-                  <label class="space-y-2">
-                    <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态类型</span>
-                    <AppSelect
-                      :model-value="selectedTaskControl.status.type"
-                      :options="stateStatusTypeOptions"
-                      placeholder="状态类型"
-                      @update:model-value="updateTaskControlStatusType(String($event || STATE_STATUS_TYPE.done))"
-                    />
-                  </label>
+                <div class="grid gap-3 xl:grid-cols-2">
+                  <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+                    <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标</p>
+                    <div class="grid gap-3">
+                      <label class="space-y-2">
+                        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">动作类型</span>
+                        <AppSelect
+                          :model-value="selectedTaskControl.type"
+                          :options="taskControlTypeOptions"
+                          placeholder="动作类型"
+                          @update:model-value="updateTaskControlType(String($event || TASK_CONTROL_TYPE.setState))"
+                        />
+                      </label>
+                      <div class="grid gap-3 md:grid-cols-2">
+                        <label class="space-y-2">
+                          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标类型</span>
+                          <AppSelect
+                            :model-value="selectedTaskControl.target.type"
+                            :options="stateTargetTypeOptions"
+                            placeholder="目标类型"
+                            @update:model-value="updateTaskControlTargetType(String($event || STATE_TARGET_TYPE.task))"
+                          />
+                        </label>
+                        <label class="space-y-2">
+                          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标 ID</span>
+                          <input :value="selectedTaskControl.target.id" class="app-input" @input="updateTaskControlTargetId(($event.target as HTMLInputElement).value)" />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+                    <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态</p>
+                    <label class="space-y-2">
+                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态类型</span>
+                      <AppSelect
+                        :model-value="selectedTaskControl.status.type"
+                        :options="stateStatusTypeOptions"
+                        placeholder="状态类型"
+                        @update:model-value="updateTaskControlStatusType(String($event || STATE_STATUS_TYPE.done))"
+                      />
+                    </label>
+                    <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-white/45 px-4 py-3">
+                      <input
+                        :checked="Boolean(selectedTaskControl.status.value)"
+                        type="checkbox"
+                        class="h-4 w-4"
+                        style="accent-color: var(--app-accent)"
+                        @change="updateTaskControlStatusValue(($event.target as HTMLInputElement).checked)"
+                      />
+                      <span class="text-sm text-[var(--app-text-soft)]">状态值为真</span>
+                    </label>
+                  </div>
                 </div>
-                <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
-                  <input
-                    :checked="Boolean(selectedTaskControl.status.value)"
-                    type="checkbox"
-                    class="h-4 w-4"
-                    style="accent-color: var(--app-accent)"
-                    @change="updateTaskControlStatusValue(($event.target as HTMLInputElement).checked)"
-                  />
-                  <span class="text-sm text-[var(--app-text-soft)]">状态值为真</span>
-                </label>
               </template>
 
               <template v-else-if="selectedStep.op === STEP_OP.vision && selectedVision?.type === VISION_TYPE.visionSearch">
                 <div class="space-y-4">
-                  <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
-                    <p class="text-sm font-semibold text-[var(--app-text-strong)]">基础信息</p>
-                    <label class="mt-3 space-y-2">
-                      <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
-                      <input :value="selectedVision.out_var || ''" :list="variableDatalistId" class="app-input" @input="updateVisionField('out_var', ($event.target as HTMLInputElement).value)" />
-                    </label>
+                  <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
+                    <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
+                      <label class="space-y-2">
+                        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
+                        <input :value="selectedVision.out_var || ''" :list="variableDatalistId" class="app-input" @input="updateVisionField('out_var', ($event.target as HTMLInputElement).value)" />
+                      </label>
+                    </div>
+
+                    <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
+                      <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">命中后行为</p>
+                      <div class="mt-2 flex items-center justify-between gap-3">
+                        <span class="text-sm text-[var(--app-text-soft)]">{{ visionBranchTarget?.count ?? 0 }} 个步骤</span>
+                        <button
+                          v-if="visionBranchTarget"
+                          class="app-button app-button-ghost app-toolbar-button"
+                          type="button"
+                          @click="$emit('navigate-branch', visionBranchTarget.path)"
+                        >
+                          进入步骤
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
                     <p class="text-sm font-semibold text-[var(--app-text-strong)]">搜索规则</p>
-                    <p class="mt-1 text-xs text-[var(--app-text-faint)]">根层固定为逻辑组，在组内继续添加规则或子组。</p>
                     <div class="mt-3">
                       <EditorSearchRuleBuilder
                         :model-value="selectedVision.rule"
@@ -514,24 +539,6 @@
                         @update:model-value="updateVisionRule"
                       />
                     </div>
-                  </div>
-
-                  <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
-                    <div class="flex items-center justify-between gap-3">
-                      <div>
-                        <p class="text-sm font-semibold text-[var(--app-text-strong)]">命中后行为</p>
-                        <p class="mt-1 text-xs text-[var(--app-text-faint)]">命中后继续进入步骤层级维护后续动作。</p>
-                      </div>
-                      <button
-                        v-if="visionBranchTarget"
-                        class="app-button app-button-ghost app-toolbar-button"
-                        type="button"
-                        @click="$emit('navigate-branch', visionBranchTarget.path)"
-                      >
-                        进入步骤
-                      </button>
-                    </div>
-                    <p class="mt-3 text-sm text-[var(--app-text-soft)]">{{ visionBranchTarget?.count ?? 0 }} 个步骤</p>
                   </div>
                 </div>
               </template>
@@ -592,6 +599,7 @@ import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder
 import EditorSearchRuleBuilder from '@/views/script-editor/EditorSearchRuleBuilder.vue';
 import EditorStepBreadcrumb from '@/views/script-editor/EditorStepBreadcrumb.vue';
 import EditorStepList from '@/views/script-editor/EditorStepList.vue';
+import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import { createConditionNode } from '@/views/script-editor/editorCondition';
 import {
   ACTION_MODE,
@@ -605,7 +613,7 @@ import {
   TASK_CONTROL_TYPE,
   VISION_TYPE,
 } from '@/views/script-editor/editorStepKinds';
-import { describeStepMeta } from '@/views/script-editor/editorStepTemplates';
+import { describeStep, describeStepMeta } from '@/views/script-editor/editorStepTemplates';
 import {
   buildVarValue,
   parseVarValueDraft,
@@ -664,24 +672,6 @@ const writableCatalogVariableOptions = computed(() =>
       description: `${item.namespace} · ${item.valueType}`,
     })),
 );
-const includeCurrentVariableOption = (
-  options: Array<{ label: string; value: string; description: string }>,
-  currentValue: string | null | undefined,
-) => {
-  const trimmed = currentValue?.trim();
-  if (!trimmed || options.some((item) => item.value === trimmed)) {
-    return options;
-  }
-
-  return [
-    {
-      label: `${trimmed} (当前)`,
-      value: trimmed,
-      description: '当前值尚未登记到变量目录',
-    },
-    ...options,
-  ];
-};
 
 const clickModeOptions = [
   { label: '坐标', value: ACTION_MODE.point, description: '绝对坐标点击。' },
@@ -768,8 +758,14 @@ const createDefaultVarValueDraft = (kind: VarValueKind) =>
 const currentSetVarName = computed(() =>
   selectedData.value?.type === DATA_TYPE.setVar ? selectedData.value.name : '',
 );
+const currentGetVarName = computed(() =>
+  selectedData.value?.type === DATA_TYPE.getVar ? selectedData.value.name : '',
+);
 const selectedSetVarTarget = computed(() =>
   currentSetVarName.value ? props.catalogVariableOptions.find((item) => item.key === currentSetVarName.value) ?? null : null,
+);
+const selectedGetVarTarget = computed(() =>
+  currentGetVarName.value ? props.catalogVariableOptions.find((item) => item.key === currentGetVarName.value) ?? null : null,
 );
 const selectedSetVarKind = computed(() => (selectedSetVarTarget.value ? mapVariableTypeToVarKind(selectedSetVarTarget.value.valueType) : null));
 const setVarUsesExpression = computed(() => {
@@ -842,6 +838,7 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
   return [];
 });
 const visionBranchTarget = computed(() => branchTargets.value.find((target) => target.key === 'visionThen') ?? null);
+const filterBranchTarget = computed(() => branchTargets.value.find((target) => target.key === 'filterThen') ?? null);
 
 const selectCurrentBranchStep = (index: number) => {
   emit('select-step-path', buildStepPath(props.activeBranchPath, index));

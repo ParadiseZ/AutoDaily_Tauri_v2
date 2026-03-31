@@ -522,6 +522,63 @@ export const editorStepTemplates: EditorStepTemplate[] = [
 export const createStepFromTemplate = (templateId: string) =>
   editorStepTemplates.find((template) => template.id === templateId)?.create() ?? null;
 
+export const describeStepTitle = (step: Step) => {
+  if (step.op === STEP_OP.sequence) {
+    return '顺序步骤';
+  }
+
+  if (step.op === STEP_OP.action) {
+    if (step.a.ac === ACTION_TYPE.capture) return '截图';
+    if (step.a.ac === ACTION_TYPE.launchApp) return '启动应用';
+    if (step.a.ac === ACTION_TYPE.stopApp) return '停止应用';
+    if (step.a.ac === ACTION_TYPE.reboot) return '重启设备';
+    if (step.a.ac === ACTION_TYPE.click) {
+      if (step.a.mode === ACTION_MODE.percent) return '点击百分比';
+      if (step.a.mode === ACTION_MODE.txt) return '点击文字';
+      if (step.a.mode === ACTION_MODE.labelIdx) return '点击标签';
+      return '点击坐标';
+    }
+    if (step.a.ac === ACTION_TYPE.swipe) {
+      if (step.a.mode === ACTION_MODE.percent) return '滑动百分比';
+      if (step.a.mode === ACTION_MODE.txt) return '滑动文字';
+      if (step.a.mode === ACTION_MODE.labelIdx) return '滑动标签';
+      return '滑动坐标';
+    }
+    return '动作';
+  }
+
+  if (step.op === STEP_OP.flowControl) {
+    if (step.a.type === FLOW_TYPE.waitMs) return '等待';
+    if (step.a.type === FLOW_TYPE.link) return '跳转任务';
+    if (step.a.type === FLOW_TYPE.if) return '条件分支';
+    if (step.a.type === FLOW_TYPE.while) return 'While';
+    if (step.a.type === FLOW_TYPE.for) return 'For';
+    if (step.a.type === FLOW_TYPE.continue) return '继续循环';
+    if (step.a.type === FLOW_TYPE.break) return '跳出循环';
+    return '流程控制';
+  }
+
+  if (step.op === STEP_OP.dataHanding) {
+    if (step.a.type === DATA_TYPE.setVar) return '设置变量';
+    if (step.a.type === DATA_TYPE.getVar) return '读取变量';
+    if (step.a.type === DATA_TYPE.filter) return '过滤变量';
+    return '数据处理';
+  }
+
+  if (step.op === STEP_OP.taskControl) {
+    if (step.a.type === TASK_CONTROL_TYPE.setState) return '设置状态';
+    if (step.a.type === TASK_CONTROL_TYPE.getState) return '读取状态';
+    return '状态控制';
+  }
+
+  if (step.op === STEP_OP.vision) {
+    if (step.a.type === VISION_TYPE.visionSearch) return '视觉搜索';
+    return '视觉步骤';
+  }
+
+  return '步骤';
+};
+
 export const describeStepMeta = (step: Step) => {
   if (step.op === STEP_OP.sequence) {
     return `顺序容器 · ${step.steps.length} 个子步骤`;
@@ -586,4 +643,4 @@ export const describeStepMeta = (step: Step) => {
   return '未识别步骤';
 };
 
-export const describeStep = (step: Step) => step.label?.trim() || describeStepMeta(step);
+export const describeStep = (step: Step) => step.label?.trim() || describeStepTitle(step);

@@ -215,7 +215,20 @@ const removeGroupItem = (index: number) => {
 }
 
 .editor-search-rule-nested {
+  position: relative;
+  margin-left: 0.4rem;
   background: rgba(255, 255, 255, 0.56);
+}
+
+.editor-search-rule-nested::before {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: -10px;
+  width: 2px;
+  border-radius: 999px;
+  background: rgba(70, 110, 255, 0.18);
 }
 
 .editor-search-rule-root {

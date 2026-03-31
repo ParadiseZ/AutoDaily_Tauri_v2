@@ -157,6 +157,7 @@
 - 右侧步骤详情要尽量覆盖常用叶子结构，不要让用户频繁退回 JSON
 - 第一优先级包括：`sequence.reverse`、`continue / break`、`taskControl`、`visionSearch.rule`、`setVar / getVar` 的补充字段、`filter` 的主要字段
 - `setVar / getVar / varCompare` 里的值编辑必须显式选择 `Int / Float / Bool / String`
+- `if / while / for` 里的 `varCompare.var_name` 不能手填，必须从变量目录里选择
 - 不允许只靠当前值内容反推类型，例如 `0` 不能自动把用户刚选的 `Float` 又退回成 `Int`
 - 条件规则、搜索规则这类递归结构，要抽成独立子编辑器，不要硬塞回主详情组件
 - 新增叶子表单后，必须补对应的保存回归测试
@@ -203,6 +204,7 @@
 - `setVar / getVar / varCompare` 的值类型编辑必须显式选择 `Int / Float / Bool / String`
 - 变量选择应接入变量目录，并根据 `readable / writable / valueType / namespace` 做过滤
 - `setVar` 的目标变量优先从变量列表对应的变量目录里选择，不再把“手填变量键”当主流程
+- `varCompare` 的变量名也要走变量目录选择，不再保留自由输入框
 - 当 `setVar` 的目标变量已在变量目录中登记时，界面优先收敛成“目标变量 + 值”
 - 目标变量如果是 `int / float / bool / string` 这类标量类型，固定值编辑器直接跟随变量类型生成，不再重复让用户先选值类型
 - 目标变量如果是复杂类型，或当前数据仍是兼容旧结构，则退回表达式输入或兼容输入框
@@ -226,3 +228,18 @@
 - 每个逻辑组都应有独立卡片、缩进或层级背景，保证规则增多时仍能分辨归属
 - 逻辑组需要明确展示 `逻辑运算`、`搜索作用域`、收起展开和删除等控制项
 - 搜索规则区域的视觉分组要明显区分：基础信息、搜索规则、命中后行为，避免所有字段挤成一整块
+
+### 6.17 UI 与时间模板值
+
+- 脚本编辑器里的 `uiData` 只负责描述变量怎么给用户配置，不负责存某个用户最终选了什么值
+- UI 字段绑定的是变量定义，运行时真正读取的是变量，而不是 UI 字段本身
+- 时间模板只表示普通用户定义的时间段，不包含脚本变量值
+- “某个脚本在某个时间模板下的一整套变量值”必须单独存储，不要塞回 `uiData`
+- 这层值的归属是 `script_id + time_template_id` 的组合，不是 `time_template` 单体，也不是 `script` 单体
+- 变量值建议按 `variableCatalog` 里的稳定 `variableId` 持久化，不按 UI 字段 key 持久化
+- `device_script_assignments.time_template_id` 只负责表明设备当前使用哪个时间模板，不承担模板变量值的存储职责
+- `account_data` 继续保留作设备或账号扩展数据，本轮不占用
+- 当前脚本编辑器只负责“变量定义层”和“UI 绑定层”，不负责模板值保存
+- 当前 UI 预览的目标应更接近最终设置界面，而不是展示编辑器内部字段结构
+- 关于这层数据的完整说明见：
+  [script-time-template-values-design.md](/D:/Database/Project/VisualStudioCode/AutoDaily/doc/script-time-template-values-design.md)

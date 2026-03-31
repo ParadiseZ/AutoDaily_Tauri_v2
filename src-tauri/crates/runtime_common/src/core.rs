@@ -26,6 +26,7 @@ pub type StepId = UuidV7;
 pub type MessageId = UuidV7;
 pub type ScheduleId = UuidV7;
 pub type TemplateId = UuidV7;
+pub type ScriptTemplateValueId = UuidV7;
 
 #[derive(Encode, Decode, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UuidV7(pub u128);
