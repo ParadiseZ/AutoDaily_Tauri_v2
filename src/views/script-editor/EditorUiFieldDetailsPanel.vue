@@ -132,6 +132,37 @@
                 @input="$emit('update-ui-field', selectedUiField.id, 'optionsText', ($event.target as HTMLTextAreaElement).value)"
               />
             </label>
+
+            <div v-if="selectedUiField.control === 'slider'" class="grid gap-3 md:grid-cols-3">
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最小值</span>
+                <input
+                  :value="String(selectedUiField.min)"
+                  class="app-input"
+                  type="number"
+                  @input="$emit('update-ui-field', selectedUiField.id, 'min', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最大值</span>
+                <input
+                  :value="String(selectedUiField.max)"
+                  class="app-input"
+                  type="number"
+                  @input="$emit('update-ui-field', selectedUiField.id, 'max', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步长</span>
+                <input
+                  :value="String(selectedUiField.step)"
+                  class="app-input"
+                  type="number"
+                  step="0.01"
+                  @input="$emit('update-ui-field', selectedUiField.id, 'step', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+            </div>
           </div>
         </section>
       </div>
@@ -162,7 +193,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText', value: string | boolean];
+  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step', value: string | boolean];
   'remove-ui-field': [fieldId: string];
 }>();
 

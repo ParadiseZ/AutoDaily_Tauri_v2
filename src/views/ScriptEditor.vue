@@ -547,12 +547,26 @@ const addUiField = (control: UiFieldControl) => {
 
 const updateUiField = (
   fieldId: string,
-  key: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText',
+  key: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step',
   value: string | boolean,
 ) => {
   uiSchema.value = {
     ...uiSchema.value,
-    fields: uiSchema.value.fields.map((field) => (field.id === fieldId ? { ...field, [key]: value } : field)),
+    fields: uiSchema.value.fields.map((field) => {
+      if (field.id !== fieldId) {
+        return field;
+      }
+
+      if (key === 'min' || key === 'max' || key === 'step') {
+        const parsed = Number(value);
+        return {
+          ...field,
+          [key]: Number.isFinite(parsed) ? parsed : key === 'step' ? 1 : 0,
+        };
+      }
+
+      return { ...field, [key]: value };
+    }),
   };
 };
 

@@ -21,7 +21,7 @@
           @click="$emit('select-ui-field', field.id)"
         >
           <template v-if="field.control === 'checkbox'">
-            <label v-if="field.checkboxStyle === 'switch'" class="editor-ui-switch" :class="{ 'editor-ui-switch-disabled': !isInteractive(field) }">
+            <label v-if="field.checkboxStyle === 'switch'" class="editor-ui-switch" :class="{ 'editor-ui-switch-disabled': !isInteractive(field) }" @click.stop>
               <input
                 type="checkbox"
                 class="sr-only"
@@ -40,6 +40,7 @@
               :checked="Boolean(resolveFieldPreviewValue(field))"
               :disabled="!isInteractive(field)"
               :data-testid="`editor-ui-preview-control-${index}`"
+              @click.stop
               @change="updatePreviewBoolean(field, ($event.target as HTMLInputElement).checked)"
             />
           </template>
@@ -47,26 +48,44 @@
           <template v-else-if="field.control === 'number'">
             <input
               :value="resolveNumberPreviewValue(field)"
-              class="editor-ui-inline-control"
+              class="editor-ui-inline-control editor-ui-inline-control-number"
               type="number"
               :disabled="!isInteractive(field)"
               :data-testid="`editor-ui-preview-control-${index}`"
+              @click.stop
               @focus="$emit('select-ui-field', field.id)"
               @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
             />
           </template>
 
           <template v-else-if="field.control === 'select'">
-            <select
-              class="editor-ui-inline-control editor-ui-inline-control-select"
-              :disabled="!isInteractive(field)"
-              :value="resolveSelectPreviewValue(field)"
-              :data-testid="`editor-ui-preview-control-${index}`"
-              @focus="$emit('select-ui-field', field.id)"
-              @change="updatePreviewText(field, ($event.target as HTMLSelectElement).value)"
-            >
-              <option v-for="option in getPreviewOptionsForField(field)" :key="option" :value="option">{{ option }}</option>
-            </select>
+            <div class="editor-ui-inline-select-shell" @click.stop>
+              <AppSelect
+                :model-value="resolveSelectPreviewValue(field)"
+                :options="getPreviewOptionsForField(field)"
+                placeholder="请选择"
+                :disabled="!isInteractive(field)"
+                :test-id="`editor-ui-preview-control-${index}`"
+                @update:model-value="updatePreviewText(field, String($event ?? ''))"
+              />
+            </div>
+          </template>
+
+          <template v-else-if="field.control === 'slider'">
+            <div class="editor-ui-slider-shell" @click.stop>
+              <input
+                :value="resolveNumberPreviewValue(field)"
+                class="editor-ui-slider"
+                type="range"
+                :min="field.min"
+                :max="field.max"
+                :step="field.step"
+                :disabled="!isInteractive(field)"
+                :data-testid="`editor-ui-preview-control-${index}`"
+                @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
+              />
+              <span class="editor-ui-slider-value">{{ resolveNumberPreviewValue(field) }}</span>
+            </div>
           </template>
 
           <template v-else-if="field.control === 'radio'">
@@ -75,7 +94,8 @@
                 v-for="option in parseFieldOptions(field)"
                 :key="option"
                 class="editor-ui-inline-pill editor-ui-inline-radio"
-                :class="{ 'editor-ui-inline-pill-active': resolvePreviewValue(field, inputEntries) === option }"
+                :class="{ 'editor-ui-inline-pill-active': resolveFieldPreviewValue(field) === option }"
+                @click.stop
               >
                 <input
                   type="radio"
@@ -96,10 +116,11 @@
             <input
               v-if="field.editable"
               :value="resolveTextPreviewValue(field)"
-              class="editor-ui-inline-control"
+              class="editor-ui-inline-control editor-ui-inline-control-text"
               type="text"
               :disabled="!isInteractive(field)"
               :data-testid="`editor-ui-preview-control-${index}`"
+              @click.stop
               @focus="$emit('select-ui-field', field.id)"
               @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
             />
@@ -137,7 +158,7 @@
             @click="$emit('select-ui-field', field.id)"
           >
             <template v-if="field.control === 'checkbox'">
-              <label v-if="field.checkboxStyle === 'switch'" class="editor-ui-switch" :class="{ 'editor-ui-switch-disabled': !isInteractive(field) }">
+              <label v-if="field.checkboxStyle === 'switch'" class="editor-ui-switch" :class="{ 'editor-ui-switch-disabled': !isInteractive(field) }" @click.stop>
                 <input
                   type="checkbox"
                   class="sr-only"
@@ -156,6 +177,7 @@
                 :checked="Boolean(resolveFieldPreviewValue(field))"
                 :disabled="!isInteractive(field)"
                 :data-testid="`editor-ui-preview-control-${index}`"
+                @click.stop
                 @change="updatePreviewBoolean(field, ($event.target as HTMLInputElement).checked)"
               />
             </template>
@@ -163,26 +185,44 @@
             <template v-else-if="field.control === 'number'">
               <input
                 :value="resolveNumberPreviewValue(field)"
-                class="editor-ui-inline-control"
+                class="editor-ui-inline-control editor-ui-inline-control-number"
                 type="number"
                 :disabled="!isInteractive(field)"
                 :data-testid="`editor-ui-preview-control-${index}`"
+                @click.stop
                 @focus="$emit('select-ui-field', field.id)"
                 @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
               />
             </template>
 
             <template v-else-if="field.control === 'select'">
-              <select
-                class="editor-ui-inline-control editor-ui-inline-control-select"
-                :disabled="!isInteractive(field)"
-                :value="resolveSelectPreviewValue(field)"
-                :data-testid="`editor-ui-preview-control-${index}`"
-                @focus="$emit('select-ui-field', field.id)"
-                @change="updatePreviewText(field, ($event.target as HTMLSelectElement).value)"
-              >
-                <option v-for="option in getPreviewOptionsForField(field)" :key="option" :value="option">{{ option }}</option>
-              </select>
+              <div class="editor-ui-inline-select-shell" @click.stop>
+                <AppSelect
+                  :model-value="resolveSelectPreviewValue(field)"
+                  :options="getPreviewOptionsForField(field)"
+                  placeholder="请选择"
+                  :disabled="!isInteractive(field)"
+                  :test-id="`editor-ui-preview-control-${index}`"
+                  @update:model-value="updatePreviewText(field, String($event ?? ''))"
+                />
+              </div>
+            </template>
+
+            <template v-else-if="field.control === 'slider'">
+              <div class="editor-ui-slider-shell" @click.stop>
+                <input
+                  :value="resolveNumberPreviewValue(field)"
+                  class="editor-ui-slider"
+                  type="range"
+                  :min="field.min"
+                  :max="field.max"
+                  :step="field.step"
+                  :disabled="!isInteractive(field)"
+                  :data-testid="`editor-ui-preview-control-${index}`"
+                  @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
+                />
+                <span class="editor-ui-slider-value">{{ resolveNumberPreviewValue(field) }}</span>
+              </div>
             </template>
 
             <template v-else-if="field.control === 'radio'">
@@ -191,7 +231,8 @@
                   v-for="option in parseFieldOptions(field)"
                   :key="option"
                   class="editor-ui-inline-pill editor-ui-inline-radio"
-                  :class="{ 'editor-ui-inline-pill-active': resolvePreviewValue(field, inputEntries) === option }"
+                  :class="{ 'editor-ui-inline-pill-active': resolveFieldPreviewValue(field) === option }"
+                  @click.stop
                 >
                   <input
                     type="radio"
@@ -212,10 +253,11 @@
               <input
                 v-if="field.editable"
                 :value="resolveTextPreviewValue(field)"
-                class="editor-ui-inline-control"
+                class="editor-ui-inline-control editor-ui-inline-control-text"
                 type="text"
                 :disabled="!isInteractive(field)"
                 :data-testid="`editor-ui-preview-control-${index}`"
+                @click.stop
                 @focus="$emit('select-ui-field', field.id)"
                 @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
               />
@@ -236,6 +278,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { EditorUiSchema, EditorUiField } from '@/views/script-editor/editorSchema';
 import type { EditorInputEntry } from '@/views/script-editor/editorVariables';
@@ -275,13 +318,16 @@ const resolveFieldPreviewValue = (field: EditorUiField) => {
 };
 
 const getPreviewOptionsForField = (field: EditorUiField) => {
-  const options = parseFieldOptions(field);
+  const options = parseFieldOptions(field).map((option) => ({
+    label: option,
+    value: option,
+  }));
   if (options.length) {
     return options;
   }
 
   const preview = resolveSelectPreviewValue(field);
-  return preview ? [preview] : ['请选择'];
+  return [{ label: preview || '请选择', value: preview || '请选择' }];
 };
 
 const resolveNumberPreviewValue = (field: EditorUiField) => {
@@ -303,7 +349,7 @@ const resolveTextPreviewValue = (field: EditorUiField) => {
   if (value !== null && value !== undefined && String(value).trim()) {
     return String(value);
   }
-  return field.label || field.placeholder || field.description || '文本';
+  return field.placeholder || field.description || '';
 };
 
 const isInteractive = (field: EditorUiField) => (field.control === 'text' ? field.editable : true);
@@ -409,17 +455,25 @@ const updatePreviewBoolean = (field: EditorUiField, value: boolean) => {
   color: var(--app-text-soft);
 }
 
-.editor-ui-inline-control-select {
-  min-width: 120px;
-  padding-right: 2rem;
-  background-image:
-    linear-gradient(45deg, transparent 50%, var(--app-text-faint) 50%),
-    linear-gradient(135deg, var(--app-text-faint) 50%, transparent 50%);
-  background-position:
-    calc(100% - 14px) calc(50% - 1px),
-    calc(100% - 9px) calc(50% - 1px);
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
+.editor-ui-inline-control-number {
+  width: 92px;
+  min-width: 92px;
+}
+
+.editor-ui-inline-control-text {
+  width: 132px;
+  min-width: 132px;
+}
+
+.editor-ui-inline-select-shell {
+  min-width: 132px;
+}
+
+.editor-ui-inline-select-shell :deep(.app-select-trigger) {
+  min-width: 132px;
+  height: 42px;
+  border-radius: 12px;
+  padding-inline: 0.75rem;
 }
 
 .editor-ui-inline-options {
@@ -435,6 +489,7 @@ const updatePreviewBoolean = (field: EditorUiField, value: boolean) => {
   padding: 0.3rem 0.7rem;
   font-size: 0.75rem;
   color: var(--app-text-soft);
+  cursor: pointer;
 }
 
 .editor-ui-inline-radio {
@@ -499,6 +554,26 @@ const updatePreviewBoolean = (field: EditorUiField, value: boolean) => {
 
 .editor-ui-switch-disabled {
   opacity: 0.62;
+}
+
+.editor-ui-slider-shell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 200px;
+}
+
+.editor-ui-slider {
+  width: 148px;
+  accent-color: var(--app-accent);
+}
+
+.editor-ui-slider-value {
+  min-width: 2.75rem;
+  color: var(--app-text-strong);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 .editor-ui-static-text {

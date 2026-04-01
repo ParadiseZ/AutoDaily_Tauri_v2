@@ -2,7 +2,7 @@ import type { JsonValue } from '@/types/app/domain';
 
 export type EditorPanelId = 'basic' | 'inputs' | 'ui' | 'steps';
 export type RawEditorSection = 'inputs' | 'ui' | 'steps';
-export type UiFieldControl = 'checkbox' | 'radio' | 'select' | 'number' | 'text';
+export type UiFieldControl = 'checkbox' | 'radio' | 'select' | 'number' | 'slider' | 'text';
 
 export interface EditorUiField {
   id: string;
@@ -16,6 +16,9 @@ export interface EditorUiField {
   description: string;
   placeholder: string;
   optionsText: string;
+  min: number;
+  max: number;
+  step: number;
   extra: Record<string, JsonValue>;
 }
 
@@ -61,13 +64,15 @@ export const createUiField = (control: UiFieldControl): EditorUiField => ({
   key: '',
   label:
     control === 'checkbox'
-      ? '新开关'
+      ? '新复选'
       : control === 'radio'
         ? '新单选'
         : control === 'select'
           ? '新选择项'
           : control === 'number'
             ? '新数字输入'
+            : control === 'slider'
+              ? '新滑块'
             : '新文本输入',
   control,
   editable: control !== 'text',
@@ -75,8 +80,11 @@ export const createUiField = (control: UiFieldControl): EditorUiField => ({
   variableId: '',
   inputKey: '',
   description: '',
-  placeholder: control === 'text' ? '请输入内容' : '',
+  placeholder: control === 'text' ? '请绑定变量' : '',
   optionsText: control === 'radio' || control === 'select' ? '选项 1\n选项 2' : '',
+  min: 0,
+  max: 100,
+  step: control === 'slider' ? 1 : 1,
   extra: {},
 });
 
@@ -85,6 +93,7 @@ export const uiFieldTemplates: Array<{ id: UiFieldControl; label: string; descri
   { id: 'radio', label: 'Radio', description: '适合少量互斥选项。' },
   { id: 'select', label: 'Select', description: '适合较长选项列表。' },
   { id: 'number', label: 'Number', description: '适合次数、阈值和索引。' },
+  { id: 'slider', label: 'Slider', description: '适合范围值和阈值滑动调节。' },
   { id: 'text', label: 'Text', description: '适合字符串输入。' },
 ];
 
@@ -117,6 +126,9 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       description,
       placeholder,
       options,
+      min,
+      max,
+      step,
       ...rest
     } = record;
 
@@ -124,7 +136,7 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       id: createEditorId('ui-field'),
       key: typeof key === 'string' ? key : '',
       label: typeof label === 'string' ? label : '',
-      control: ['checkbox', 'radio', 'select', 'number', 'text'].includes(String(control))
+      control: ['checkbox', 'radio', 'select', 'number', 'slider', 'text'].includes(String(control))
         ? (control as UiFieldControl)
         : 'text',
       editable: typeof editable === 'boolean' ? editable : control === 'text' ? false : true,
@@ -134,6 +146,9 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       description: typeof description === 'string' ? description : '',
       placeholder: typeof placeholder === 'string' ? placeholder : '',
       optionsText: normalizeOptionsText(options),
+      min: typeof min === 'number' ? min : 0,
+      max: typeof max === 'number' ? max : 100,
+      step: typeof step === 'number' && step > 0 ? step : 1,
       extra: rest,
     } satisfies EditorUiField;
   });
@@ -170,6 +185,7 @@ export const buildUiData = (schema: EditorUiSchema): Record<string, JsonValue> =
         inputKey: field.inputKey.trim(),
         ...(field.description.trim() ? { description: field.description.trim() } : {}),
         ...(field.placeholder.trim() ? { placeholder: field.placeholder.trim() } : {}),
+        ...(field.control === 'slider' ? { min: field.min, max: field.max, step: field.step } : {}),
         ...(options.length ? { options } : {}),
       };
     });
@@ -188,6 +204,8 @@ export const getUiControlLabel = (control: UiFieldControl) => {
       return 'Select';
     case 'number':
       return 'Number';
+    case 'slider':
+      return 'Slider';
     default:
       return 'Text';
   }
