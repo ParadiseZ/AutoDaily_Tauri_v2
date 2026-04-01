@@ -51,6 +51,7 @@
               />
               <span class="text-sm text-[var(--app-text-soft)]">文本变量允许用户在设置页直接编辑</span>
             </label>
+
           </div>
         </section>
 
@@ -133,35 +134,57 @@
               />
             </label>
 
-            <div v-if="selectedUiField.control === 'slider'" class="grid gap-3 md:grid-cols-3">
-              <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最小值</span>
-                <input
-                  :value="String(selectedUiField.min)"
-                  class="app-input"
-                  type="number"
-                  @input="$emit('update-ui-field', selectedUiField.id, 'min', ($event.target as HTMLInputElement).value)"
-                />
-              </label>
-              <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最大值</span>
-                <input
-                  :value="String(selectedUiField.max)"
-                  class="app-input"
-                  type="number"
-                  @input="$emit('update-ui-field', selectedUiField.id, 'max', ($event.target as HTMLInputElement).value)"
-                />
-              </label>
-              <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步长</span>
-                <input
-                  :value="String(selectedUiField.step)"
-                  class="app-input"
-                  type="number"
-                  step="0.01"
-                  @input="$emit('update-ui-field', selectedUiField.id, 'step', ($event.target as HTMLInputElement).value)"
-                />
-              </label>
+            <div
+              v-if="selectedUiField.control === 'slider' && sliderValueType"
+              class="rounded-[14px] border border-[var(--app-border)] bg-white/45 px-4 py-4"
+            >
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">滑块范围</p>
+                <span class="text-xs text-[var(--app-text-soft)]">{{ sliderValueType === 'float' ? '浮点变量' : '整数变量' }}</span>
+              </div>
+
+              <div class="grid gap-3 md:grid-cols-3">
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最小值</span>
+                  <input
+                    :value="sliderDraft.min"
+                    class="app-input"
+                    type="number"
+                    :step="sliderInputStep"
+                    @input="updateSliderDraft('min', ($event.target as HTMLInputElement).value)"
+                    @blur="commitSliderDraft('min')"
+                  />
+                </label>
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最大值</span>
+                  <input
+                    :value="sliderDraft.max"
+                    class="app-input"
+                    type="number"
+                    :step="sliderInputStep"
+                    @input="updateSliderDraft('max', ($event.target as HTMLInputElement).value)"
+                    @blur="commitSliderDraft('max')"
+                  />
+                </label>
+                <label class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步长</span>
+                  <input
+                    :value="sliderDraft.step"
+                    class="app-input"
+                    type="number"
+                    :step="sliderInputStep"
+                    @input="updateSliderDraft('step', ($event.target as HTMLInputElement).value)"
+                    @blur="commitSliderDraft('step')"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div
+              v-else-if="selectedUiField.control === 'slider'"
+              class="rounded-[14px] border border-dashed border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
+            >
+              请绑定变量。滑块只支持绑定整数或浮点变量，绑定后再设置最小值、最大值和步长。
             </div>
           </div>
         </section>
@@ -177,7 +200,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import { getUiControlLabel, type EditorUiField } from '@/views/script-editor/editorSchema';
@@ -193,7 +216,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step', value: string | boolean];
+  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step' | 'numericMode', value: string | boolean];
   'remove-ui-field': [fieldId: string];
 }>();
 
@@ -202,7 +225,12 @@ const checkboxStyleOptions = [
   { label: 'Switch', value: 'switch', description: '开关样式。' },
 ];
 
-const bindOptions = computed(() => buildUiBindOptions(props.variableOptions));
+const bindOptions = computed(() => {
+  const options = props.selectedUiField?.control === 'slider'
+    ? props.variableOptions.filter((item) => item.valueType === 'int' || item.valueType === 'float')
+    : props.variableOptions;
+  return buildUiBindOptions(options);
+});
 const selectedBoundUiVariable = computed(() => {
   if (!props.selectedUiField?.variableId) {
     return null;
@@ -210,6 +238,52 @@ const selectedBoundUiVariable = computed(() => {
 
   return props.variableOptions.find((item) => item.id === props.selectedUiField?.variableId) ?? null;
 });
+const sliderValueType = computed(() => {
+  if (props.selectedUiField?.control !== 'slider') {
+    return null;
+  }
+
+  if (selectedBoundUiVariable.value?.valueType === 'float') {
+    return 'float' as const;
+  }
+
+  if (selectedBoundUiVariable.value?.valueType === 'int') {
+    return 'int' as const;
+  }
+
+  return null;
+});
+const sliderInputStep = computed(() => (sliderValueType.value === 'float' ? '0.01' : '1'));
+
+const sliderDraft = reactive({
+  min: '',
+  max: '',
+  step: '',
+});
+
+watch(
+  () =>
+    props.selectedUiField
+      ? `${props.selectedUiField.id}:${sliderValueType.value}:${props.selectedUiField.min}:${props.selectedUiField.max}:${props.selectedUiField.step}`
+      : '',
+  () => {
+    sliderDraft.min = props.selectedUiField ? String(props.selectedUiField.min) : '';
+    sliderDraft.max = props.selectedUiField ? String(props.selectedUiField.max) : '';
+    sliderDraft.step = props.selectedUiField ? String(props.selectedUiField.step) : '';
+  },
+  { immediate: true },
+);
+
+const updateSliderDraft = (field: 'min' | 'max' | 'step', value: string) => {
+  sliderDraft[field] = value;
+};
+
+const commitSliderDraft = (field: 'min' | 'max' | 'step') => {
+  if (!props.selectedUiField) {
+    return;
+  }
+  emit('update-ui-field', props.selectedUiField.id, field, sliderDraft[field]);
+};
 
 const selectUiBinding = (fieldId: string, variableId: string) => {
   const matched = props.variableOptions.find((item) => item.id === variableId) ?? null;

@@ -77,12 +77,12 @@
                 :value="resolveNumberPreviewValue(field)"
                 class="editor-ui-slider"
                 type="range"
-                :min="field.min"
-                :max="field.max"
-                :step="field.step"
+                :min="getSliderMin(field)"
+                :max="getSliderMax(field)"
+                :step="getSliderStep(field)"
                 :disabled="!isInteractive(field)"
                 :data-testid="`editor-ui-preview-control-${index}`"
-                @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
+                @input="updateSliderValue(field, ($event.target as HTMLInputElement).value)"
               />
               <span class="editor-ui-slider-value">{{ resolveNumberPreviewValue(field) }}</span>
             </div>
@@ -214,12 +214,12 @@
                   :value="resolveNumberPreviewValue(field)"
                   class="editor-ui-slider"
                   type="range"
-                  :min="field.min"
-                  :max="field.max"
-                  :step="field.step"
+                  :min="getSliderMin(field)"
+                  :max="getSliderMax(field)"
+                  :step="getSliderStep(field)"
                   :disabled="!isInteractive(field)"
                   :data-testid="`editor-ui-preview-control-${index}`"
-                  @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
+                  @input="updateSliderValue(field, ($event.target as HTMLInputElement).value)"
                 />
                 <span class="editor-ui-slider-value">{{ resolveNumberPreviewValue(field) }}</span>
               </div>
@@ -335,6 +335,37 @@ const resolveNumberPreviewValue = (field: EditorUiField) => {
   return value === null || value === undefined || value === '' ? '0' : String(value);
 };
 
+const resolveSliderMode = (field: EditorUiField) => {
+  const entry = findPreviewEntry(field);
+  if (entry?.type === 'float') {
+    return 'float' as const;
+  }
+  if (entry?.type === 'int') {
+    return 'int' as const;
+  }
+
+  if (!Number.isInteger(field.min) || !Number.isInteger(field.max) || !Number.isInteger(field.step)) {
+    return 'float' as const;
+  }
+
+  return 'int' as const;
+};
+
+const getSliderMin = (field: EditorUiField) => (resolveSliderMode(field) === 'float' ? field.min : Math.round(field.min));
+const getSliderMax = (field: EditorUiField) => (resolveSliderMode(field) === 'float' ? field.max : Math.round(field.max));
+const getSliderStep = (field: EditorUiField) =>
+  resolveSliderMode(field) === 'float' ? field.step || 0.01 : Math.max(1, Math.round(field.step || 1));
+
+const normalizeSliderValue = (field: EditorUiField, rawValue: string) => {
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed)) {
+    return resolveSliderMode(field) === 'float' ? String(getSliderMin(field)) : String(Math.round(getSliderMin(field)));
+  }
+
+  const clamped = Math.min(getSliderMax(field), Math.max(getSliderMin(field), parsed));
+  return resolveSliderMode(field) === 'float' ? String(clamped) : String(Math.round(clamped));
+};
+
 const resolveSelectPreviewValue = (field: EditorUiField) => {
   const value = resolveFieldPreviewValue(field);
   const options = parseFieldOptions(field);
@@ -380,6 +411,11 @@ const updatePreviewBoolean = (field: EditorUiField, value: boolean) => {
 
   emit('select-ui-field', field.id);
   emit('update-input', entry.id, 'booleanValue', value);
+};
+
+const updateSliderValue = (field: EditorUiField, value: string) => {
+  const normalized = normalizeSliderValue(field, value);
+  updatePreviewText(field, normalized);
 };
 </script>
 

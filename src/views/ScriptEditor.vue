@@ -547,7 +547,7 @@ const addUiField = (control: UiFieldControl) => {
 
 const updateUiField = (
   fieldId: string,
-  key: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step',
+  key: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step' | 'numericMode',
   value: string | boolean,
 ) => {
   uiSchema.value = {

@@ -19,6 +19,7 @@ export interface EditorUiField {
   min: number;
   max: number;
   step: number;
+  numericMode: 'int' | 'float';
   extra: Record<string, JsonValue>;
 }
 
@@ -85,6 +86,7 @@ export const createUiField = (control: UiFieldControl): EditorUiField => ({
   min: 0,
   max: 100,
   step: control === 'slider' ? 1 : 1,
+  numericMode: 'int',
   extra: {},
 });
 
@@ -129,6 +131,7 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       min,
       max,
       step,
+      numericMode,
       ...rest
     } = record;
 
@@ -149,6 +152,7 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       min: typeof min === 'number' ? min : 0,
       max: typeof max === 'number' ? max : 100,
       step: typeof step === 'number' && step > 0 ? step : 1,
+      numericMode: numericMode === 'float' ? 'float' : 'int',
       extra: rest,
     } satisfies EditorUiField;
   });
@@ -185,7 +189,7 @@ export const buildUiData = (schema: EditorUiSchema): Record<string, JsonValue> =
         inputKey: field.inputKey.trim(),
         ...(field.description.trim() ? { description: field.description.trim() } : {}),
         ...(field.placeholder.trim() ? { placeholder: field.placeholder.trim() } : {}),
-        ...(field.control === 'slider' ? { min: field.min, max: field.max, step: field.step } : {}),
+        ...(field.control === 'slider' ? { min: field.min, max: field.max, step: field.step, numericMode: field.numericMode } : {}),
         ...(options.length ? { options } : {}),
       };
     });

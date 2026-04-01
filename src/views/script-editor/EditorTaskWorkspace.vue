@@ -100,7 +100,7 @@ const emit = defineEmits<{
   'remove-input': [entryId: string];
   'select-input': [entryId: string];
   'select-ui-field': [fieldId: string];
-  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step', value: string | boolean];
+  'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step' | 'numericMode', value: string | boolean];
   'remove-ui-field': [fieldId: string];
   'select-step-path': [path: StepPath];
   'navigate-branch': [branchPath: StepBranchPath];
@@ -143,7 +143,7 @@ const forwardUpdateInput = (
 
 const forwardUpdateUiField = (
   fieldId: string,
-  field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step',
+  field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step' | 'numericMode',
   value: string | boolean,
 ) => {
   emit('update-ui-field', fieldId, field, value);
