@@ -1,11 +1,13 @@
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import type { LogConfig } from '@/types/app/domain';
-import type { ScriptTable, ScriptTaskTable } from '@/types/bindings';
+import type { PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
 
 type StoreData = Record<string, unknown>;
 type AssignmentMap = Record<string, unknown[]>;
 type ScheduleMap = Record<string, unknown[]>;
 type ScriptTaskMap = Record<string, ScriptTaskTable[]>;
+type GroupPolicyMap = Record<string, string[]>;
+type SetGroupMap = Record<string, string[]>;
 type StoredScriptTable = Omit<ScriptTable, 'data'> & {
   data: Omit<ScriptTable['data'], 'downloadCount' | 'latestVer' | 'verNum'> & {
     downloadCount: number;
@@ -18,6 +20,11 @@ interface MockState {
   store: StoreData;
   scripts: StoredScriptTable[];
   scriptTasks: ScriptTaskMap;
+  policies: PolicyTable[];
+  policyGroups: PolicyGroupTable[];
+  policySets: PolicySetTable[];
+  groupPolicies: GroupPolicyMap;
+  setGroups: SetGroupMap;
   assignmentsByDevice: AssignmentMap;
   schedulesByDevice: ScheduleMap;
   devices: unknown[];
@@ -48,6 +55,11 @@ const createDefaultState = (): MockState => ({
   store: {},
   scripts: [],
   scriptTasks: {},
+  policies: [],
+  policyGroups: [],
+  policySets: [],
+  groupPolicies: {},
+  setGroups: {},
   assignmentsByDevice: {},
   schedulesByDevice: {},
   devices: [],
@@ -74,6 +86,11 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         store: parsed.store ?? {},
         scripts: parsed.scripts ?? [],
         scriptTasks: parsed.scriptTasks ?? {},
+        policies: parsed.policies ?? [],
+        policyGroups: parsed.policyGroups ?? [],
+        policySets: parsed.policySets ?? [],
+        groupPolicies: parsed.groupPolicies ?? {},
+        setGroups: parsed.setGroups ?? {},
         assignmentsByDevice: parsed.assignmentsByDevice ?? {},
         schedulesByDevice: parsed.schedulesByDevice ?? {},
         devices: parsed.devices ?? [],
@@ -101,6 +118,11 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       store: partial.store ?? current.store,
       scripts: partial.scripts ?? current.scripts,
       scriptTasks: partial.scriptTasks ?? current.scriptTasks,
+      policies: partial.policies ?? current.policies,
+      policyGroups: partial.policyGroups ?? current.policyGroups,
+      policySets: partial.policySets ?? current.policySets,
+      groupPolicies: partial.groupPolicies ?? current.groupPolicies,
+      setGroups: partial.setGroups ?? current.setGroups,
       assignmentsByDevice: partial.assignmentsByDevice ?? current.assignmentsByDevice,
       schedulesByDevice: partial.schedulesByDevice ?? current.schedulesByDevice,
       devices: partial.devices ?? current.devices,
@@ -121,6 +143,17 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       const rightTime = right.data.updateTime ? new Date(right.data.updateTime).getTime() : 0;
       return rightTime - leftTime;
     });
+  };
+
+  const upsertById = <T extends { id: string }>(items: T[], nextItem: T) => {
+    const next = [...items];
+    const index = next.findIndex((item) => item.id === nextItem.id);
+    if (index >= 0) {
+      next[index] = nextItem;
+    } else {
+      next.push(nextItem);
+    }
+    return next;
   };
 
   const readStoreValue = (state: MockState, key: string) => {
@@ -230,6 +263,102 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           const state = readState();
           return state.scriptTasks[String(args.scriptId)] ?? [];
         }
+        case 'get_all_policies_cmd': {
+          const state = readState();
+          return state.policies
+            .filter((policy) => policy.scriptId === String(args.scriptId))
+            .sort((left, right) => left.orderIndex - right.orderIndex);
+        }
+        case 'save_policy_cmd':
+          updateState((current) => ({
+            ...current,
+            policies: upsertById(current.policies, args.policy as PolicyTable).sort((left, right) => left.orderIndex - right.orderIndex),
+          }));
+          return null;
+        case 'delete_policy_cmd':
+          updateState((current) => ({
+            ...current,
+            policies: current.policies.filter((policy) => policy.id !== args.id),
+            groupPolicies: Object.fromEntries(
+              Object.entries(current.groupPolicies).map(([groupId, policyIds]) => [groupId, policyIds.filter((policyId) => policyId !== args.id)]),
+            ),
+          }));
+          return null;
+        case 'get_all_policy_groups_cmd': {
+          const state = readState();
+          return state.policyGroups
+            .filter((group) => group.scriptId === String(args.scriptId))
+            .sort((left, right) => left.orderIndex - right.orderIndex);
+        }
+        case 'save_policy_group_cmd':
+          updateState((current) => ({
+            ...current,
+            policyGroups: upsertById(current.policyGroups, args.group as PolicyGroupTable).sort((left, right) => left.orderIndex - right.orderIndex),
+          }));
+          return null;
+        case 'delete_policy_group_cmd':
+          updateState((current) => {
+            const nextGroupPolicies = { ...current.groupPolicies };
+            delete nextGroupPolicies[String(args.id)];
+            return {
+              ...current,
+              policyGroups: current.policyGroups.filter((group) => group.id !== args.id),
+              groupPolicies: nextGroupPolicies,
+              setGroups: Object.fromEntries(
+                Object.entries(current.setGroups).map(([setId, groupIds]) => [setId, groupIds.filter((groupId) => groupId !== args.id)]),
+              ),
+            };
+          });
+          return null;
+        case 'get_group_policies_cmd': {
+          const state = readState();
+          return state.groupPolicies[String(args.groupId)] ?? [];
+        }
+        case 'update_group_policies_cmd':
+          updateState((current) => ({
+            ...current,
+            groupPolicies: {
+              ...current.groupPolicies,
+              [String(args.groupId)]: Array.isArray(args.policyIds) ? (args.policyIds as string[]) : [],
+            },
+          }));
+          return null;
+        case 'get_all_policy_sets_cmd': {
+          const state = readState();
+          return state.policySets
+            .filter((set) => set.scriptId === String(args.scriptId))
+            .sort((left, right) => left.orderIndex - right.orderIndex);
+        }
+        case 'save_policy_set_cmd':
+          updateState((current) => ({
+            ...current,
+            policySets: upsertById(current.policySets, args.set as PolicySetTable).sort((left, right) => left.orderIndex - right.orderIndex),
+          }));
+          return null;
+        case 'delete_policy_set_cmd':
+          updateState((current) => {
+            const nextSetGroups = { ...current.setGroups };
+            delete nextSetGroups[String(args.id)];
+            return {
+              ...current,
+              policySets: current.policySets.filter((set) => set.id !== args.id),
+              setGroups: nextSetGroups,
+            };
+          });
+          return null;
+        case 'get_set_groups_cmd': {
+          const state = readState();
+          return state.setGroups[String(args.setId)] ?? [];
+        }
+        case 'update_set_groups_cmd':
+          updateState((current) => ({
+            ...current,
+            setGroups: {
+              ...current.setGroups,
+              [String(args.setId)]: Array.isArray(args.groupIds) ? (args.groupIds as string[]) : [],
+            },
+          }));
+          return null;
         case 'save_script_tasks_cmd':
           updateState((current) => ({
             ...current,
@@ -252,6 +381,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             scriptTasks: Object.fromEntries(
               Object.entries(current.scriptTasks).filter(([scriptId]) => scriptId !== args.scriptId),
             ),
+            policies: current.policies.filter((policy) => policy.scriptId !== args.scriptId),
+            policyGroups: current.policyGroups.filter((group) => group.scriptId !== args.scriptId),
+            policySets: current.policySets.filter((set) => set.scriptId !== args.scriptId),
           }));
           return null;
         case 'clear_schedules_by_script_cmd':

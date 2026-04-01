@@ -1,6 +1,8 @@
 <template>
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <div class="space-y-4">
+      <slot name="mode-switch" />
+
       <div class="flex items-start justify-between gap-3">
         <div class="space-y-1">
           <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Task Mode</p>

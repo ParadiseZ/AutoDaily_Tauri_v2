@@ -368,26 +368,11 @@ export const syncInputVariableCatalog = (
 const isVariableVisibleForTask = (variable: ScriptVariableDef, ownerTaskId: string | null) =>
   variable.ownerTaskId === null || variable.ownerTaskId === ownerTaskId;
 
-export const listVariableOptions = (
-  catalog: ScriptVariableCatalog | null | undefined,
-  ownerTaskId: string | null,
-  steps: Step[] = [],
-  capability: 'read' | 'write' | 'ui' = 'read',
-  includeDerivedRuntime = true,
-): EditorVariableOption[] => {
-  const currentCatalog = catalog ?? createEmptyCatalog();
-  const derivedRuntime = new Map<string, ScriptVariableDef>();
-  if (includeDerivedRuntime) {
-    collectDerivedRuntimeVariables(steps, ownerTaskId, derivedRuntime);
-  }
-  const catalogKeys = new Set(currentCatalog.variables.map((item) => item.key));
-  const combined = [
-    ...currentCatalog.variables,
-    ...Array.from(derivedRuntime.values()).filter((item) => !catalogKeys.has(item.key)),
-  ];
-
-  return combined
-    .filter((item) => isVariableVisibleForTask(item, ownerTaskId))
+const createVariableOptions = (
+  variables: ScriptVariableDef[],
+  capability: 'read' | 'write' | 'ui',
+) =>
+  variables
     .filter((item) => {
       if (capability === 'write') return item.writable;
       if (capability === 'ui') return item.uiBindable;
@@ -406,6 +391,50 @@ export const listVariableOptions = (
       uiBindable: item.uiBindable,
       description: item.description,
     }));
+
+export const listVariableOptions = (
+  catalog: ScriptVariableCatalog | null | undefined,
+  ownerTaskId: string | null,
+  steps: Step[] = [],
+  capability: 'read' | 'write' | 'ui' = 'read',
+  includeDerivedRuntime = true,
+): EditorVariableOption[] => {
+  const currentCatalog = catalog ?? createEmptyCatalog();
+  const derivedRuntime = new Map<string, ScriptVariableDef>();
+  if (includeDerivedRuntime) {
+    collectDerivedRuntimeVariables(steps, ownerTaskId, derivedRuntime);
+  }
+  const catalogKeys = new Set(currentCatalog.variables.map((item) => item.key));
+  const combined = [
+    ...currentCatalog.variables,
+    ...Array.from(derivedRuntime.values()).filter((item) => !catalogKeys.has(item.key)),
+  ];
+
+  return createVariableOptions(
+    combined.filter((item) => isVariableVisibleForTask(item, ownerTaskId)),
+    capability,
+  );
+};
+
+export const listAllVariableOptions = (
+  catalog: ScriptVariableCatalog | null | undefined,
+  steps: Step[] = [],
+  capability: 'read' | 'write' | 'ui' = 'read',
+  includeDerivedRuntime = true,
+): EditorVariableOption[] => {
+  const currentCatalog = catalog ?? createEmptyCatalog();
+  const derivedRuntime = new Map<string, ScriptVariableDef>();
+  if (includeDerivedRuntime) {
+    collectDerivedRuntimeVariables(steps, null, derivedRuntime);
+  }
+  const catalogKeys = new Set(currentCatalog.variables.map((item) => item.key));
+  return createVariableOptions(
+    [
+      ...currentCatalog.variables,
+      ...Array.from(derivedRuntime.values()).filter((item) => !catalogKeys.has(item.key)),
+    ],
+    capability,
+  );
 };
 
 export const getInputTypeLabel = (type: EditorInputType) => {

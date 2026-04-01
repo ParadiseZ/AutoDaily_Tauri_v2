@@ -1,4 +1,7 @@
 import { invoke } from '@/utils/api';
+import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
+import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
+import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { ScriptTable } from '@/types/bindings/ScriptTable';
 import type { ScriptType } from '@/types/bindings/ScriptType';
@@ -143,6 +146,21 @@ export const scriptService = {
     listTasks: (scriptId: string) => invoke('get_script_tasks_cmd', { scriptId }) as Promise<ScriptTaskTable[]>,
     saveTasks: (scriptId: string, tasks: ScriptTaskTable[]) =>
         invoke('save_script_tasks_cmd', { scriptId, tasks }) as Promise<void>,
+    listPolicies: (scriptId: string) => invoke('get_all_policies_cmd', { scriptId }) as Promise<PolicyTable[]>,
+    savePolicy: (policy: PolicyTable) => invoke('save_policy_cmd', { policy }) as Promise<void>,
+    removePolicy: (id: string) => invoke('delete_policy_cmd', { id }) as Promise<void>,
+    listPolicyGroups: (scriptId: string) => invoke('get_all_policy_groups_cmd', { scriptId }) as Promise<PolicyGroupTable[]>,
+    savePolicyGroup: (group: PolicyGroupTable) => invoke('save_policy_group_cmd', { group }) as Promise<void>,
+    removePolicyGroup: (id: string) => invoke('delete_policy_group_cmd', { id }) as Promise<void>,
+    getGroupPolicies: (groupId: string) => invoke('get_group_policies_cmd', { groupId }) as Promise<string[]>,
+    updateGroupPolicies: (groupId: string, policyIds: string[]) =>
+        invoke('update_group_policies_cmd', { groupId, policyIds }) as Promise<void>,
+    listPolicySets: (scriptId: string) => invoke('get_all_policy_sets_cmd', { scriptId }) as Promise<PolicySetTable[]>,
+    savePolicySet: (set: PolicySetTable) => invoke('save_policy_set_cmd', { set }) as Promise<void>,
+    removePolicySet: (id: string) => invoke('delete_policy_set_cmd', { id }) as Promise<void>,
+    getSetGroups: (setId: string) => invoke('get_set_groups_cmd', { setId }) as Promise<string[]>,
+    updateSetGroups: (setId: string, groupIds: string[]) =>
+        invoke('update_set_groups_cmd', { setId, groupIds }) as Promise<void>,
     saveLocal: async (script: ScriptTableRecord): Promise<void> => {
         await invoke('save_script_cmd', { script: serializeScriptTable(script) });
     },

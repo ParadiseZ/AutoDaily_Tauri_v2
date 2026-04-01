@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import type { ScriptTable, ScriptTaskTable } from '../src/types/bindings';
+import type { PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '../src/types/bindings';
 
 type StoredScriptTable = Omit<ScriptTable, 'data'> & {
   data: Omit<ScriptTable['data'], 'downloadCount' | 'latestVer' | 'verNum'> & {
@@ -20,11 +20,21 @@ declare global {
       getState: () => {
         scripts: StoredScriptTable[];
         scriptTasks: Record<string, ScriptTaskTable[]>;
+        policies: PolicyTable[];
+        policyGroups: PolicyGroupTable[];
+        policySets: PolicySetTable[];
+        groupPolicies: Record<string, string[]>;
+        setGroups: Record<string, string[]>;
       };
       reset: () => unknown;
       seed: (partial: {
         scripts?: StoredScriptTable[];
         scriptTasks?: Record<string, ScriptTaskTable[]>;
+        policies?: PolicyTable[];
+        policyGroups?: PolicyGroupTable[];
+        policySets?: PolicySetTable[];
+        groupPolicies?: Record<string, string[]>;
+        setGroups?: Record<string, string[]>;
       }) => unknown;
     };
   }
@@ -65,6 +75,12 @@ const dragStepByHandle = async (page: Page, fromIndex: number, toIndex: number) 
   await page.mouse.down();
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
   await page.mouse.up();
+};
+
+const dragRelationByHandle = async (page: Page, fromIndex: number, toIndex: number) => {
+  const handle = page.getByTestId(`editor-relation-drag-${fromIndex}`);
+  const target = page.getByTestId(`editor-relation-assigned-${toIndex === 0 ? 'policy-a' : 'policy-b'}`);
+  await handle.dragTo(target);
 };
 
 test('edits script tasks with visual task editor and persists payload', async ({ page }) => {
@@ -478,4 +494,200 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
       ],
     },
   });
+});
+
+test('creates policies and persists search rule with before and after actions', async ({ page }) => {
+  const scriptId = 'script-editor-policy';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略编辑脚本',
+      description: '验证策略编辑链路保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.policy',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-mode-policy').click();
+  await page.getByTestId('editor-policy-create').click();
+  await page.getByTestId('editor-policy-name').fill('领奖策略');
+
+  await page.getByTestId('editor-policy-tab-condition').click();
+  await page.getByRole('button', { name: '添加关键字' }).click();
+  await page.getByTestId('editor-policy-condition-item-0-keyword').fill('领取');
+
+  await page.getByTestId('editor-policy-tab-before').click();
+  await page.getByTestId('editor-policy-step-template-wait').click();
+
+  await page.getByTestId('editor-policy-tab-after').click();
+  await page.getByTestId('editor-policy-step-template-click-text').click();
+  await page.getByLabel('目标文字').fill('领取');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.policies).toHaveLength(1);
+  expect(state?.policies[0]).toMatchObject({
+    scriptId,
+    orderIndex: 0,
+    data: {
+      name: '领奖策略',
+      beforeAction: [
+        {
+          op: 'flowControl',
+          a: {
+            type: 'waitMs',
+          },
+        },
+      ],
+      cond: {
+        type: 'group',
+        op: 'And',
+        scope: 'Global',
+        items: [
+          {
+            type: 'keyword',
+            pattern: '领取',
+          },
+        ],
+      },
+      afterAction: [
+        {
+          op: 'action',
+          a: {
+            ac: 'click',
+            mode: 'txt',
+            txt: '领取',
+          },
+        },
+      ],
+    },
+  });
+});
+
+test('reorders assigned policies inside policy group workspace', async ({ page }) => {
+  const scriptId = 'script-editor-policy-group';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略组排序脚本',
+      description: '验证策略组关联排序',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.policy.group',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await page.goto(`/editor?scriptId=${script.id}`);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    window.__AUTODAILY_MOCK__.reset();
+    window.__AUTODAILY_MOCK__.seed({
+      scripts: [seedScript],
+      scriptTasks: {},
+      policies: [
+        {
+          id: 'policy-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '登录',
+            note: '测试备注A',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+        {
+          id: 'policy-b',
+          scriptId: seedScript.id,
+          orderIndex: 1,
+          data: {
+            name: '领奖',
+            note: '测试备注B',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+      ],
+      policyGroups: [
+        {
+          id: 'group-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '基础策略组',
+            note: '测试策略组',
+          },
+        },
+      ],
+      policySets: [],
+      groupPolicies: {
+        'group-a': ['policy-a', 'policy-b'],
+      },
+      setGroups: {},
+    });
+  }, script);
+  await page.reload();
+
+  await page.getByTestId('editor-mode-policyGroup').click();
+  await dragRelationByHandle(page, 1, 0);
+  await expect(page.getByTestId('editor-relation-assigned-policy-b')).toContainText('1');
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.groupPolicies['group-a']).toEqual(['policy-b', 'policy-a']);
 });

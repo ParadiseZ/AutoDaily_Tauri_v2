@@ -61,8 +61,11 @@
         正在读取脚本和任务结构...
       </div>
 
-      <div v-else class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[280px_360px_minmax(720px,1fr)]">
+      <div v-else class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[72px_280px_360px_minmax(720px,1fr)]">
+        <EditorModeRail v-model="activeMode" />
+
         <EditorTaskSidebar
+          v-if="activeMode === 'task'"
           :tasks="draftTasks"
           :selected-task-id="selectedTaskId"
           @create="createTask"
@@ -73,7 +76,65 @@
           @reorder="reorderTasks"
         />
 
+        <EditorCollectionSidebar
+          v-else-if="activeMode === 'policy'"
+          eyebrow="Policy Mode"
+          title="策略列表"
+          create-label="新建策略"
+          count-label="策略数"
+          search-placeholder="按名称检索策略"
+          :items="policyItems"
+          :selected-id="selectedPolicyId"
+          empty-title="没有可显示的策略"
+          empty-description="先创建策略，再配置命中条件和行为。"
+          create-test-id="editor-policy-create"
+          item-test-id-prefix="editor-policy-item"
+          @create="createPolicy"
+          @select="selectedPolicyId = $event"
+          @remove="removePolicy"
+          @reorder="reorderPolicies"
+        />
+
+        <EditorCollectionSidebar
+          v-else-if="activeMode === 'policyGroup'"
+          eyebrow="Policy Group Mode"
+          title="策略组列表"
+          create-label="新建策略组"
+          count-label="策略组数"
+          search-placeholder="按名称检索策略组"
+          :items="policyGroupItems"
+          :selected-id="selectedPolicyGroupId"
+          empty-title="没有可显示的策略组"
+          empty-description="先创建策略组，再关联策略。"
+          create-test-id="editor-policy-group-create"
+          item-test-id-prefix="editor-policy-group-item"
+          @create="createPolicyGroup"
+          @select="selectedPolicyGroupId = $event"
+          @remove="removePolicyGroup"
+          @reorder="reorderPolicyGroups"
+        />
+
+        <EditorCollectionSidebar
+          v-else
+          eyebrow="Policy Set Mode"
+          title="策略集列表"
+          create-label="新建策略集"
+          count-label="策略集数"
+          search-placeholder="按名称检索策略集"
+          :items="policySetItems"
+          :selected-id="selectedPolicySetId"
+          empty-title="没有可显示的策略集"
+          empty-description="先创建策略集，再关联策略组。"
+          create-test-id="editor-policy-set-create"
+          item-test-id-prefix="editor-policy-set-item"
+          @create="createPolicySet"
+          @select="selectedPolicySetId = $event"
+          @remove="removePolicySet"
+          @reorder="reorderPolicySets"
+        />
+
         <EditorTaskConfigPanel
+          v-if="activeMode === 'task'"
           :task="currentTask"
           :active-panel="activePanel"
           :task-name="taskName"
@@ -99,7 +160,44 @@
           @open-raw="openRawEditor"
         />
 
+        <EditorPolicyConfigPanel
+          v-else-if="activeMode === 'policy'"
+          :policy="currentPolicy"
+          :active-panel="activePolicyPanel"
+          :policy-name="currentPolicy?.data.name || ''"
+          :policy-note="currentPolicy?.data.note || ''"
+          :policy-log-print="currentPolicy?.data.logPrint ?? null"
+          @update:active-panel="activePolicyPanel = $event"
+          @update:policy-name="updatePolicyTextField('name', $event)"
+          @update:policy-note="updatePolicyTextField('note', $event)"
+          @update:policy-log-print="updatePolicyTextField('logPrint', $event)"
+          @update:number-field="updatePolicyNumberField"
+          @update:boolean-field="updatePolicyBooleanField"
+          @append-template-step="appendPolicyTemplateStep"
+        />
+
+        <EditorRelationConfigPanel
+          v-else-if="activeMode === 'policyGroup'"
+          :item="currentPolicyGroup"
+          name-label="策略组名称"
+          relation-title="策略组关联"
+          relation-description="策略组只负责对策略分组，右侧上半区是已关联策略，下半区是未关联策略。"
+          @update:name="updateRelationName('policyGroup', $event)"
+          @update:note="updateRelationNote('policyGroup', $event)"
+        />
+
+        <EditorRelationConfigPanel
+          v-else
+          :item="currentPolicySet"
+          name-label="策略集名称"
+          relation-title="策略集关联"
+          relation-description="策略集负责收拢多个策略组，右侧上半区是已关联策略组，下半区是未关联策略组。"
+          @update:name="updateRelationName('policySet', $event)"
+          @update:note="updateRelationNote('policySet', $event)"
+        />
+
         <EditorTaskWorkspace
+          v-if="activeMode === 'task'"
           :task="currentTask"
           :active-panel="activePanel"
           :steps="parsedSteps"
@@ -123,6 +221,51 @@
           @remove-step="removeStep"
           @update-step="updateStep"
           @open-raw="openRawEditor"
+        />
+
+        <EditorPolicyWorkspace
+          v-else-if="activeMode === 'policy'"
+          :policy="currentPolicy"
+          :active-panel="activePolicyPanel"
+          :steps="currentPolicySteps"
+          :selected-step-path="selectedPolicyStepPath"
+          :active-branch-path="activePolicyBranchPath"
+          :variable-options="policyVariableOptions"
+          :catalog-variable-options="policyCatalogVariableOptions"
+          @update:number-field="updatePolicyNumberField"
+          @update:boolean-field="updatePolicyBooleanField"
+          @update:condition="updatePolicyCondition"
+          @select-step-path="selectPolicyStepPath"
+          @navigate-branch="navigatePolicyBranch"
+          @reorder-step="reorderPolicySteps"
+          @remove-step="removePolicyStep"
+          @update-step="updatePolicyStep"
+        />
+
+        <EditorRelationWorkspace
+          v-else-if="activeMode === 'policyGroup'"
+          title="策略组关联"
+          :selected-title="currentPolicyGroup?.data.name || null"
+          assigned-title="已关联策略"
+          unassigned-title="未关联策略"
+          :assigned-items="assignedPolicies"
+          :unassigned-items="unassignedPolicies"
+          @link="linkPolicyToGroup"
+          @unlink="unlinkPolicyFromGroup"
+          @reorder="reorderGroupPolicies"
+        />
+
+        <EditorRelationWorkspace
+          v-else
+          title="策略集关联"
+          :selected-title="currentPolicySet?.data.name || null"
+          assigned-title="已关联策略组"
+          unassigned-title="未关联策略组"
+          :assigned-items="assignedGroups"
+          :unassigned-items="unassignedGroups"
+          @link="linkGroupToSet"
+          @unlink="unlinkGroupFromSet"
+          @reorder="reorderSetGroups"
         />
       </div>
     </div>
@@ -154,16 +297,38 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ArrowLeft, RefreshCcw, Save } from 'lucide-vue-next';
 import { useScriptStore } from '@/store/script';
+import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import type { JsonValue, ScriptTableRecord } from '@/types/app/domain';
+import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
+import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
+import type { PolicyTable } from '@/types/bindings/PolicyTable';
+import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { Step } from '@/types/bindings/Step';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import { showToast } from '@/utils/toast';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
+import EditorModeRail from '@/views/script-editor/EditorModeRail.vue';
 import EditorJsonDialog from '@/views/script-editor/EditorJsonDialog.vue';
 import EditorTaskConfigPanel from '@/views/script-editor/EditorTaskConfigPanel.vue';
 import EditorTaskSidebar from '@/views/script-editor/EditorTaskSidebar.vue';
 import EditorTaskWorkspace from '@/views/script-editor/EditorTaskWorkspace.vue';
+import EditorCollectionSidebar from '@/views/script-editor/editor-policy/EditorCollectionSidebar.vue';
+import EditorPolicyConfigPanel from '@/views/script-editor/editor-policy/EditorPolicyConfigPanel.vue';
+import EditorPolicyWorkspace from '@/views/script-editor/editor-policy/EditorPolicyWorkspace.vue';
+import EditorRelationConfigPanel from '@/views/script-editor/editor-policy/EditorRelationConfigPanel.vue';
+import EditorRelationWorkspace from '@/views/script-editor/editor-policy/EditorRelationWorkspace.vue';
+import {
+  createEmptyRelationMap,
+  normalizePolicy,
+  normalizePolicyGroup,
+  normalizePolicySet,
+  reorderCollection,
+  type EditorModeId,
+  type EditorNamedItem,
+  type PolicyEditorPanelId,
+  type RelationEditorPanelId,
+} from '@/views/script-editor/editor-policy/editorPolicy';
 import { createStepFromTemplate } from '@/views/script-editor/editor-step/editorStepTemplates';
 import {
   buildStepPath,
@@ -191,9 +356,11 @@ import {
   type RawEditorSection,
   type UiFieldControl,
 } from '@/views/script-editor/editorSchema';
+import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import {
   buildInputJson,
   createInputEntry,
+  listAllVariableOptions,
   listVariableOptions,
   parseInputEntries,
   syncInputVariableCatalog,
@@ -215,17 +382,38 @@ const rawDialogSection = ref<RawEditorSection>('steps');
 const rawDialogText = ref('');
 const rawDialogError = ref<string | null>(null);
 
+const activeMode = ref<EditorModeId>('task');
 const activePanel = ref<EditorPanelId>('basic');
+const activePolicyPanel = ref<PolicyEditorPanelId>('basic');
+const activePolicyGroupPanel = ref<RelationEditorPanelId>('basic');
+const activePolicySetPanel = ref<RelationEditorPanelId>('basic');
 const selectedTaskId = ref<string | null>(null);
 const selectedInputId = ref<string | null>(null);
 const selectedStepPath = ref<StepPath | null>(null);
 const activeBranchPath = ref<StepBranchPath>(ROOT_BRANCH_PATH);
 const selectedUiFieldId = ref<string | null>(null);
+const selectedPolicyId = ref<string | null>(null);
+const selectedPolicyGroupId = ref<string | null>(null);
+const selectedPolicySetId = ref<string | null>(null);
+const selectedPolicyStepPathBefore = ref<StepPath | null>(null);
+const activePolicyBranchPathBefore = ref<StepBranchPath>(ROOT_BRANCH_PATH);
+const selectedPolicyStepPathAfter = ref<StepPath | null>(null);
+const activePolicyBranchPathAfter = ref<StepBranchPath>(ROOT_BRANCH_PATH);
 
 const draftTasks = ref<ScriptTaskTable[]>([]);
 const draftScript = ref<ScriptTableRecord | null>(null);
+const draftPolicies = ref<PolicyTable[]>([]);
+const draftPolicyGroups = ref<PolicyGroupTable[]>([]);
+const draftPolicySets = ref<PolicySetTable[]>([]);
+const groupPolicyIdsByGroupId = ref<Record<string, string[]>>(createEmptyRelationMap<string>());
+const setGroupIdsBySetId = ref<Record<string, string[]>>(createEmptyRelationMap<string>());
 const sourceTasksSnapshot = ref('');
 const sourceScriptSnapshot = ref('');
+const sourcePoliciesSnapshot = ref('');
+const sourcePolicyGroupsSnapshot = ref('');
+const sourcePolicySetsSnapshot = ref('');
+const sourceGroupPoliciesSnapshot = ref('');
+const sourceSetGroupsSnapshot = ref('');
 
 const taskName = ref('');
 const taskType = ref<'main' | 'child'>('main');
@@ -250,22 +438,139 @@ const currentTask = computed<ScriptTaskTable | null>(() => {
   return matched ?? tasks[0] ?? null;
 });
 
+const currentPolicy = computed<PolicyTable | null>(() => {
+  const selected = selectedPolicyId.value;
+  if (!selected) {
+    return draftPolicies.value[0] ?? null;
+  }
+  return draftPolicies.value.find((item) => item.id === selected) ?? draftPolicies.value[0] ?? null;
+});
+
+const currentPolicyGroup = computed<PolicyGroupTable | null>(() => {
+  const selected = selectedPolicyGroupId.value;
+  if (!selected) {
+    return draftPolicyGroups.value[0] ?? null;
+  }
+  return draftPolicyGroups.value.find((item) => item.id === selected) ?? draftPolicyGroups.value[0] ?? null;
+});
+
+const currentPolicySet = computed<PolicySetTable | null>(() => {
+  const selected = selectedPolicySetId.value;
+  if (!selected) {
+    return draftPolicySets.value[0] ?? null;
+  }
+  return draftPolicySets.value.find((item) => item.id === selected) ?? draftPolicySets.value[0] ?? null;
+});
+
 const variableOptions = computed(() =>
   listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value),
 );
 const catalogVariableOptions = computed(() =>
   listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value, 'read', false),
 );
+const currentPolicyStepTarget = computed<'before' | 'after'>(() => (activePolicyPanel.value === 'before' ? 'before' : 'after'));
+const currentPolicySteps = computed<Step[]>(() => {
+  if (!currentPolicy.value) {
+    return [];
+  }
+  return currentPolicyStepTarget.value === 'before' ? currentPolicy.value.data.beforeAction : currentPolicy.value.data.afterAction;
+});
+const selectedPolicyStepPath = computed<StepPath | null>(() =>
+  currentPolicyStepTarget.value === 'before' ? selectedPolicyStepPathBefore.value : selectedPolicyStepPathAfter.value,
+);
+const activePolicyBranchPath = computed<StepBranchPath>(() =>
+  currentPolicyStepTarget.value === 'before' ? activePolicyBranchPathBefore.value : activePolicyBranchPathAfter.value,
+);
+const policyVariableOptions = computed(() =>
+  listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicySteps.value),
+);
+const policyCatalogVariableOptions = computed(() =>
+  listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicySteps.value, 'read', false),
+);
 
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
 const hasValidationErrors = computed(() => Boolean(inputError.value));
+const policyItems = computed<EditorNamedItem[]>(() =>
+  draftPolicies.value.map((policy) => ({
+    id: policy.id,
+    title: policy.data.name,
+    subtitle: `${policy.data.afterAction.length} 个命中步骤 · ${policy.data.beforeAction.length} 个全局步骤`,
+    badge: String(policy.orderIndex + 1),
+  })),
+);
+const policyGroupItems = computed<EditorNamedItem[]>(() =>
+  draftPolicyGroups.value.map((group) => ({
+    id: group.id,
+    title: group.data.name,
+    subtitle: `${(groupPolicyIdsByGroupId.value[group.id] ?? []).length} 个策略`,
+    badge: String(group.orderIndex + 1),
+  })),
+);
+const policySetItems = computed<EditorNamedItem[]>(() =>
+  draftPolicySets.value.map((set) => ({
+    id: set.id,
+    title: set.data.name,
+    subtitle: `${(setGroupIdsBySetId.value[set.id] ?? []).length} 个策略组`,
+    badge: String(set.orderIndex + 1),
+  })),
+);
+const assignedPolicies = computed<EditorNamedItem[]>(() => {
+  const assignedIds = currentPolicyGroup.value ? groupPolicyIdsByGroupId.value[currentPolicyGroup.value.id] ?? [] : [];
+  return assignedIds
+    .map((id) => draftPolicies.value.find((item) => item.id === id))
+    .filter((item): item is PolicyTable => Boolean(item))
+    .map((item) => ({
+      id: item.id,
+      title: item.data.name,
+      subtitle: item.data.note || '未填写备注',
+    }));
+});
+const unassignedPolicies = computed<EditorNamedItem[]>(() => {
+  const assigned = new Set(currentPolicyGroup.value ? groupPolicyIdsByGroupId.value[currentPolicyGroup.value.id] ?? [] : []);
+  return draftPolicies.value
+    .filter((item) => !assigned.has(item.id))
+    .map((item) => ({
+      id: item.id,
+      title: item.data.name,
+      subtitle: item.data.note || '未填写备注',
+    }));
+});
+const assignedGroups = computed<EditorNamedItem[]>(() => {
+  const assignedIds = currentPolicySet.value ? setGroupIdsBySetId.value[currentPolicySet.value.id] ?? [] : [];
+  return assignedIds
+    .map((id) => draftPolicyGroups.value.find((item) => item.id === id))
+    .filter((item): item is PolicyGroupTable => Boolean(item))
+    .map((item) => ({
+      id: item.id,
+      title: item.data.name,
+      subtitle: item.data.note || '未填写备注',
+    }));
+});
+const unassignedGroups = computed<EditorNamedItem[]>(() => {
+  const assigned = new Set(currentPolicySet.value ? setGroupIdsBySetId.value[currentPolicySet.value.id] ?? [] : []);
+  return draftPolicyGroups.value
+    .filter((item) => !assigned.has(item.id))
+    .map((item) => ({
+      id: item.id,
+      title: item.data.name,
+      subtitle: item.data.note || '未填写备注',
+    }));
+});
 
 const dirty = computed(() => {
   if (!draftScript.value) {
     return false;
   }
 
-  return stableStringify(draftScript.value) !== sourceScriptSnapshot.value || stableStringify(draftTasks.value) !== sourceTasksSnapshot.value;
+  return (
+    stableStringify(draftScript.value) !== sourceScriptSnapshot.value ||
+    stableStringify(draftTasks.value) !== sourceTasksSnapshot.value ||
+    stableStringify(draftPolicies.value) !== sourcePoliciesSnapshot.value ||
+    stableStringify(draftPolicyGroups.value) !== sourcePolicyGroupsSnapshot.value ||
+    stableStringify(draftPolicySets.value) !== sourcePolicySetsSnapshot.value ||
+    stableStringify(groupPolicyIdsByGroupId.value) !== sourceGroupPoliciesSnapshot.value ||
+    stableStringify(setGroupIdsBySetId.value) !== sourceSetGroupsSnapshot.value
+  );
 });
 
 const formattedSaveTime = computed(() => {
@@ -412,11 +717,106 @@ const setCurrentTaskSteps = (steps: Step[]) => {
   }
 };
 
-const reorderCollection = <T,>(items: T[], fromIndex: number, toIndex: number) => {
-  const next = [...items];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
+const replacePolicy = (policyId: string, updater: (policy: PolicyTable) => PolicyTable) => {
+  draftPolicies.value = draftPolicies.value.map((policy, index) => {
+    if (policy.id !== policyId) {
+      return normalizePolicy(policy, index);
+    }
+    return normalizePolicy(updater(cloneJson(policy)), index);
+  });
+};
+
+const replacePolicyGroup = (groupId: string, updater: (group: PolicyGroupTable) => PolicyGroupTable) => {
+  draftPolicyGroups.value = draftPolicyGroups.value.map((group, index) => {
+    if (group.id !== groupId) {
+      return normalizePolicyGroup(group, index);
+    }
+    return normalizePolicyGroup(updater(cloneJson(group)), index);
+  });
+};
+
+const replacePolicySet = (setId: string, updater: (set: PolicySetTable) => PolicySetTable) => {
+  draftPolicySets.value = draftPolicySets.value.map((item, index) => {
+    if (item.id !== setId) {
+      return normalizePolicySet(item, index);
+    }
+    return normalizePolicySet(updater(cloneJson(item)), index);
+  });
+};
+
+const buildPolicyDraft = async (name?: string): Promise<PolicyTable> =>
+  normalizePolicy(
+    {
+      id: await taskService.requestUuid(),
+      scriptId: scriptId.value,
+      orderIndex: draftPolicies.value.length,
+      data: {
+        name: name || `策略 ${draftPolicies.value.length + 1}`,
+        note: '',
+        logPrint: null,
+        curPos: 0,
+        skipFlag: false,
+        execCur: 0,
+        execMax: 1,
+        beforeAction: [],
+        cond: createSearchRule('group'),
+        afterAction: [],
+      },
+    },
+    draftPolicies.value.length,
+  );
+
+const buildPolicyGroupDraft = async (name?: string): Promise<PolicyGroupTable> =>
+  normalizePolicyGroup(
+    {
+      id: await taskService.requestUuid(),
+      scriptId: scriptId.value,
+      orderIndex: draftPolicyGroups.value.length,
+      data: {
+        name: name || `策略组 ${draftPolicyGroups.value.length + 1}`,
+        note: '',
+      },
+    },
+    draftPolicyGroups.value.length,
+  );
+
+const buildPolicySetDraft = async (name?: string): Promise<PolicySetTable> =>
+  normalizePolicySet(
+    {
+      id: await taskService.requestUuid(),
+      scriptId: scriptId.value,
+      orderIndex: draftPolicySets.value.length,
+      data: {
+        name: name || `策略集 ${draftPolicySets.value.length + 1}`,
+        note: '',
+      },
+    },
+    draftPolicySets.value.length,
+  );
+
+const setCurrentPolicySteps = (steps: Step[]) => {
+  if (!currentPolicy.value) {
+    return;
+  }
+
+  replacePolicy(currentPolicy.value.id, (policy) => {
+    if (currentPolicyStepTarget.value === 'before') {
+      policy.data.beforeAction = steps;
+    } else {
+      policy.data.afterAction = steps;
+    }
+    return policy;
+  });
+
+  if (!steps.length) {
+    if (currentPolicyStepTarget.value === 'before') {
+      selectedPolicyStepPathBefore.value = null;
+      activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
+    } else {
+      selectedPolicyStepPathAfter.value = null;
+      activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
+    }
+  }
 };
 
 const createTask = async () => {
@@ -481,6 +881,218 @@ const reorderTasks = (draggedTaskId: string, targetTaskId: string) => {
   }
 
   draftTasks.value = reorderCollection(draftTasks.value, fromIndex, toIndex).map((task, index) => normalizeTask(task, index));
+};
+
+const createPolicy = async () => {
+  const nextPolicy = await buildPolicyDraft();
+  draftPolicies.value = [...draftPolicies.value, nextPolicy].map((policy, index) => normalizePolicy(policy, index));
+  selectedPolicyId.value = nextPolicy.id;
+  activeMode.value = 'policy';
+  activePolicyPanel.value = 'basic';
+};
+
+const createPolicyGroup = async () => {
+  const nextGroup = await buildPolicyGroupDraft();
+  draftPolicyGroups.value = [...draftPolicyGroups.value, nextGroup].map((group, index) => normalizePolicyGroup(group, index));
+  selectedPolicyGroupId.value = nextGroup.id;
+  activeMode.value = 'policyGroup';
+  activePolicyGroupPanel.value = 'basic';
+};
+
+const createPolicySet = async () => {
+  const nextSet = await buildPolicySetDraft();
+  draftPolicySets.value = [...draftPolicySets.value, nextSet].map((set, index) => normalizePolicySet(set, index));
+  selectedPolicySetId.value = nextSet.id;
+  activeMode.value = 'policySet';
+  activePolicySetPanel.value = 'basic';
+};
+
+const removePolicy = (policyId: string) => {
+  draftPolicies.value = draftPolicies.value.filter((item) => item.id !== policyId).map((item, index) => normalizePolicy(item, index));
+  groupPolicyIdsByGroupId.value = Object.fromEntries(
+    Object.entries(groupPolicyIdsByGroupId.value).map(([groupId, policyIds]) => [groupId, policyIds.filter((id) => id !== policyId)]),
+  );
+  if (selectedPolicyId.value === policyId) {
+    selectedPolicyId.value = draftPolicies.value[0]?.id ?? null;
+  }
+};
+
+const removePolicyGroup = (groupId: string) => {
+  draftPolicyGroups.value = draftPolicyGroups.value.filter((item) => item.id !== groupId).map((item, index) => normalizePolicyGroup(item, index));
+  const nextGroupPolicies = { ...groupPolicyIdsByGroupId.value };
+  delete nextGroupPolicies[groupId];
+  groupPolicyIdsByGroupId.value = nextGroupPolicies;
+  setGroupIdsBySetId.value = Object.fromEntries(
+    Object.entries(setGroupIdsBySetId.value).map(([setId, groupIds]) => [setId, groupIds.filter((id) => id !== groupId)]),
+  );
+  if (selectedPolicyGroupId.value === groupId) {
+    selectedPolicyGroupId.value = draftPolicyGroups.value[0]?.id ?? null;
+  }
+};
+
+const removePolicySet = (setId: string) => {
+  draftPolicySets.value = draftPolicySets.value.filter((item) => item.id !== setId).map((item, index) => normalizePolicySet(item, index));
+  const nextSetGroups = { ...setGroupIdsBySetId.value };
+  delete nextSetGroups[setId];
+  setGroupIdsBySetId.value = nextSetGroups;
+  if (selectedPolicySetId.value === setId) {
+    selectedPolicySetId.value = draftPolicySets.value[0]?.id ?? null;
+  }
+};
+
+const reorderPolicies = (draggedId: string, targetId: string) => {
+  const fromIndex = draftPolicies.value.findIndex((item) => item.id === draggedId);
+  const toIndex = draftPolicies.value.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+  draftPolicies.value = reorderCollection(draftPolicies.value, fromIndex, toIndex).map((item, index) => normalizePolicy(item, index));
+};
+
+const reorderPolicyGroups = (draggedId: string, targetId: string) => {
+  const fromIndex = draftPolicyGroups.value.findIndex((item) => item.id === draggedId);
+  const toIndex = draftPolicyGroups.value.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+  draftPolicyGroups.value = reorderCollection(draftPolicyGroups.value, fromIndex, toIndex).map((item, index) => normalizePolicyGroup(item, index));
+};
+
+const reorderPolicySets = (draggedId: string, targetId: string) => {
+  const fromIndex = draftPolicySets.value.findIndex((item) => item.id === draggedId);
+  const toIndex = draftPolicySets.value.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+  draftPolicySets.value = reorderCollection(draftPolicySets.value, fromIndex, toIndex).map((item, index) => normalizePolicySet(item, index));
+};
+
+const updatePolicyTextField = (field: 'name' | 'note' | 'logPrint', value: string) => {
+  if (!currentPolicy.value) return;
+  replacePolicy(currentPolicy.value.id, (policy) => {
+    if (field === 'logPrint') {
+      policy.data.logPrint = value.trim() ? value : null;
+    } else if (field === 'note') {
+      policy.data.note = value;
+    } else {
+      policy.data.name = value;
+    }
+    return policy;
+  });
+};
+
+const updatePolicyNumberField = (field: 'curPos' | 'execCur' | 'execMax', value: string) => {
+  if (!currentPolicy.value) return;
+  replacePolicy(currentPolicy.value.id, (policy) => {
+    policy.data[field] = Math.max(0, Number(value) || 0);
+    return policy;
+  });
+};
+
+const updatePolicyBooleanField = (field: 'skipFlag', value: boolean) => {
+  if (!currentPolicy.value) return;
+  replacePolicy(currentPolicy.value.id, (policy) => {
+    policy.data[field] = value;
+    return policy;
+  });
+};
+
+const updatePolicyCondition = (value: SearchRule) => {
+  if (!currentPolicy.value) return;
+  replacePolicy(currentPolicy.value.id, (policy) => {
+    policy.data.cond = cloneJson(value);
+    return policy;
+  });
+};
+
+const updateRelationName = (mode: 'policyGroup' | 'policySet', value: string) => {
+  if (mode === 'policyGroup' && currentPolicyGroup.value) {
+    replacePolicyGroup(currentPolicyGroup.value.id, (group) => {
+      group.data.name = value;
+      return group;
+    });
+  }
+  if (mode === 'policySet' && currentPolicySet.value) {
+    replacePolicySet(currentPolicySet.value.id, (set) => {
+      set.data.name = value;
+      return set;
+    });
+  }
+};
+
+const updateRelationNote = (mode: 'policyGroup' | 'policySet', value: string) => {
+  if (mode === 'policyGroup' && currentPolicyGroup.value) {
+    replacePolicyGroup(currentPolicyGroup.value.id, (group) => {
+      group.data.note = value;
+      return group;
+    });
+  }
+  if (mode === 'policySet' && currentPolicySet.value) {
+    replacePolicySet(currentPolicySet.value.id, (set) => {
+      set.data.note = value;
+      return set;
+    });
+  }
+};
+
+const linkPolicyToGroup = (policyId: string) => {
+  if (!currentPolicyGroup.value) return;
+  const groupId = currentPolicyGroup.value.id;
+  const assigned = groupPolicyIdsByGroupId.value[groupId] ?? [];
+  if (assigned.includes(policyId)) return;
+  groupPolicyIdsByGroupId.value = {
+    ...groupPolicyIdsByGroupId.value,
+    [groupId]: [...assigned, policyId],
+  };
+};
+
+const unlinkPolicyFromGroup = (policyId: string) => {
+  if (!currentPolicyGroup.value) return;
+  const groupId = currentPolicyGroup.value.id;
+  groupPolicyIdsByGroupId.value = {
+    ...groupPolicyIdsByGroupId.value,
+    [groupId]: (groupPolicyIdsByGroupId.value[groupId] ?? []).filter((id) => id !== policyId),
+  };
+};
+
+const reorderGroupPolicies = (draggedId: string, targetId: string) => {
+  if (!currentPolicyGroup.value) return;
+  const groupId = currentPolicyGroup.value.id;
+  const currentIds = groupPolicyIdsByGroupId.value[groupId] ?? [];
+  const fromIndex = currentIds.indexOf(draggedId);
+  const toIndex = currentIds.indexOf(targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+  groupPolicyIdsByGroupId.value = {
+    ...groupPolicyIdsByGroupId.value,
+    [groupId]: reorderCollection(currentIds, fromIndex, toIndex),
+  };
+};
+
+const linkGroupToSet = (groupId: string) => {
+  if (!currentPolicySet.value) return;
+  const setId = currentPolicySet.value.id;
+  const assigned = setGroupIdsBySetId.value[setId] ?? [];
+  if (assigned.includes(groupId)) return;
+  setGroupIdsBySetId.value = {
+    ...setGroupIdsBySetId.value,
+    [setId]: [...assigned, groupId],
+  };
+};
+
+const unlinkGroupFromSet = (groupId: string) => {
+  if (!currentPolicySet.value) return;
+  const setId = currentPolicySet.value.id;
+  setGroupIdsBySetId.value = {
+    ...setGroupIdsBySetId.value,
+    [setId]: (setGroupIdsBySetId.value[setId] ?? []).filter((id) => id !== groupId),
+  };
+};
+
+const reorderSetGroups = (draggedId: string, targetId: string) => {
+  if (!currentPolicySet.value) return;
+  const setId = currentPolicySet.value.id;
+  const currentIds = setGroupIdsBySetId.value[setId] ?? [];
+  const fromIndex = currentIds.indexOf(draggedId);
+  const toIndex = currentIds.indexOf(targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+  setGroupIdsBySetId.value = {
+    ...setGroupIdsBySetId.value,
+    [setId]: reorderCollection(currentIds, fromIndex, toIndex),
+  };
 };
 
 const addInput = () => {
@@ -618,6 +1230,94 @@ const updateStep = (index: number, nextStep: Step) => {
   selectedStepPath.value = buildStepPath(activeBranchPath.value, index);
 };
 
+const appendPolicyTemplateStep = (templateId: string) => {
+  const step = createStepFromTemplate(templateId);
+  if (!step) {
+    return;
+  }
+  const nextSteps = updateBranchSteps(currentPolicySteps.value, activePolicyBranchPath.value, (steps) => [...steps, step]);
+  setCurrentPolicySteps(nextSteps);
+  const nextPath = buildStepPath(activePolicyBranchPath.value, getBranchSteps(nextSteps, activePolicyBranchPath.value).length - 1);
+  if (currentPolicyStepTarget.value === 'before') {
+    selectedPolicyStepPathBefore.value = nextPath;
+  } else {
+    selectedPolicyStepPathAfter.value = nextPath;
+  }
+};
+
+const selectPolicyStepPath = (path: StepPath) => {
+  if (currentPolicyStepTarget.value === 'before') {
+    selectedPolicyStepPathBefore.value = cloneStepPath(path);
+    activePolicyBranchPathBefore.value = getParentBranchPath(path);
+    return;
+  }
+  selectedPolicyStepPathAfter.value = cloneStepPath(path);
+  activePolicyBranchPathAfter.value = getParentBranchPath(path);
+};
+
+const navigatePolicyBranch = (branchPath: StepBranchPath) => {
+  const nextBranch = {
+    branch: branchPath.branch,
+    parentStepPath: cloneStepPath(branchPath.parentStepPath),
+  };
+  if (currentPolicyStepTarget.value === 'before') {
+    activePolicyBranchPathBefore.value = nextBranch;
+    if (
+      selectedPolicyStepPathBefore.value &&
+      isSameBranchPath(getParentBranchPath(selectedPolicyStepPathBefore.value), activePolicyBranchPathBefore.value)
+    ) {
+      return;
+    }
+    const steps = getBranchSteps(currentPolicySteps.value, activePolicyBranchPathBefore.value);
+    selectedPolicyStepPathBefore.value = steps.length ? buildStepPath(activePolicyBranchPathBefore.value, 0) : null;
+    return;
+  }
+
+  activePolicyBranchPathAfter.value = nextBranch;
+  if (
+    selectedPolicyStepPathAfter.value &&
+    isSameBranchPath(getParentBranchPath(selectedPolicyStepPathAfter.value), activePolicyBranchPathAfter.value)
+  ) {
+    return;
+  }
+  const steps = getBranchSteps(currentPolicySteps.value, activePolicyBranchPathAfter.value);
+  selectedPolicyStepPathAfter.value = steps.length ? buildStepPath(activePolicyBranchPathAfter.value, 0) : null;
+};
+
+const reorderPolicySteps = (fromIndex: number, toIndex: number) => {
+  if (fromIndex === toIndex) return;
+  const nextSteps = updateBranchSteps(currentPolicySteps.value, activePolicyBranchPath.value, (steps) => reorderCollection(steps, fromIndex, toIndex));
+  setCurrentPolicySteps(nextSteps);
+  const nextPath = buildStepPath(activePolicyBranchPath.value, toIndex);
+  if (currentPolicyStepTarget.value === 'before') {
+    selectedPolicyStepPathBefore.value = nextPath;
+  } else {
+    selectedPolicyStepPathAfter.value = nextPath;
+  }
+};
+
+const removePolicyStep = (index: number) => {
+  const nextSteps = updateBranchSteps(currentPolicySteps.value, activePolicyBranchPath.value, (steps) => steps.filter((_, stepIndex) => stepIndex !== index));
+  setCurrentPolicySteps(nextSteps);
+  const nextSelection = createSiblingSelection(activePolicyBranchPath.value, getBranchSteps(nextSteps, activePolicyBranchPath.value).length, index);
+  if (currentPolicyStepTarget.value === 'before') {
+    selectedPolicyStepPathBefore.value = nextSelection;
+  } else {
+    selectedPolicyStepPathAfter.value = nextSelection;
+  }
+};
+
+const updatePolicyStep = (index: number, nextStep: Step) => {
+  const nextSteps = updateStepByPath(currentPolicySteps.value, buildStepPath(activePolicyBranchPath.value, index), () => nextStep);
+  setCurrentPolicySteps(nextSteps);
+  const nextPath = buildStepPath(activePolicyBranchPath.value, index);
+  if (currentPolicyStepTarget.value === 'before') {
+    selectedPolicyStepPathBefore.value = nextPath;
+  } else {
+    selectedPolicyStepPathAfter.value = nextPath;
+  }
+};
+
 const selectStepPath = (path: StepPath) => {
   selectedStepPath.value = cloneStepPath(path);
   activeBranchPath.value = getParentBranchPath(path);
@@ -710,6 +1410,39 @@ const buildSavePayload = () =>
     ),
   );
 
+const buildPolicyPayload = () =>
+  draftPolicies.value.map((policy, index) =>
+    normalizePolicy(
+      {
+        ...policy,
+        scriptId: scriptId.value,
+      },
+      index,
+    ),
+  );
+
+const buildPolicyGroupPayload = () =>
+  draftPolicyGroups.value.map((group, index) =>
+    normalizePolicyGroup(
+      {
+        ...group,
+        scriptId: scriptId.value,
+      },
+      index,
+    ),
+  );
+
+const buildPolicySetPayload = () =>
+  draftPolicySets.value.map((set, index) =>
+    normalizePolicySet(
+      {
+        ...set,
+        scriptId: scriptId.value,
+      },
+      index,
+    ),
+  );
+
 const saveEditor = async () => {
   if (!draftScript.value) {
     return;
@@ -728,6 +1461,9 @@ const saveEditor = async () => {
       ...task,
       updatedAt: nextSaveTime,
     }));
+    const policies = buildPolicyPayload();
+    const policyGroups = buildPolicyGroupPayload();
+    const policySets = buildPolicySetPayload();
     const script = {
       ...draftScript.value,
       data: {
@@ -735,13 +1471,46 @@ const saveEditor = async () => {
         updateTime: nextSaveTime,
       },
     };
+    const sourcePolicyIds = new Set(((JSON.parse(sourcePoliciesSnapshot.value || '[]') as PolicyTable[]) ?? []).map((item) => item.id));
+    const sourcePolicyGroupIds = new Set(
+      ((JSON.parse(sourcePolicyGroupsSnapshot.value || '[]') as PolicyGroupTable[]) ?? []).map((item) => item.id),
+    );
+    const sourcePolicySetIds = new Set(((JSON.parse(sourcePolicySetsSnapshot.value || '[]') as PolicySetTable[]) ?? []).map((item) => item.id));
+    const nextPolicyIds = new Set(policies.map((item) => item.id));
+    const nextPolicyGroupIds = new Set(policyGroups.map((item) => item.id));
+    const nextPolicySetIds = new Set(policySets.map((item) => item.id));
 
-    await scriptStore.saveScriptTasks(script.id, tasks);
+    await Promise.all([
+      scriptStore.saveScriptTasks(script.id, tasks),
+      ...policies.map((policy) => scriptService.savePolicy(policy)),
+      ...policyGroups.map((group) => scriptService.savePolicyGroup(group)),
+      ...policySets.map((set) => scriptService.savePolicySet(set)),
+    ]);
+
+    await Promise.all([
+      ...Array.from(sourcePolicyIds).filter((id) => !nextPolicyIds.has(id)).map((id) => scriptService.removePolicy(id)),
+      ...Array.from(sourcePolicyGroupIds).filter((id) => !nextPolicyGroupIds.has(id)).map((id) => scriptService.removePolicyGroup(id)),
+      ...Array.from(sourcePolicySetIds).filter((id) => !nextPolicySetIds.has(id)).map((id) => scriptService.removePolicySet(id)),
+    ]);
+
+    await Promise.all([
+      ...policyGroups.map((group) => scriptService.updateGroupPolicies(group.id, groupPolicyIdsByGroupId.value[group.id] ?? [])),
+      ...policySets.map((set) => scriptService.updateSetGroups(set.id, setGroupIdsBySetId.value[set.id] ?? [])),
+    ]);
+
     await scriptStore.saveScript(script);
 
     draftTasks.value = tasks;
+    draftPolicies.value = policies;
+    draftPolicyGroups.value = policyGroups;
+    draftPolicySets.value = policySets;
     draftScript.value = script;
     sourceTasksSnapshot.value = stableStringify(tasks);
+    sourcePoliciesSnapshot.value = stableStringify(policies);
+    sourcePolicyGroupsSnapshot.value = stableStringify(policyGroups);
+    sourcePolicySetsSnapshot.value = stableStringify(policySets);
+    sourceGroupPoliciesSnapshot.value = stableStringify(groupPolicyIdsByGroupId.value);
+    sourceSetGroupsSnapshot.value = stableStringify(setGroupIdsBySetId.value);
     sourceScriptSnapshot.value = stableStringify(script);
     saveTime.value = nextSaveTime;
     showToast('脚本编辑结果已保存', 'success');
@@ -774,7 +1543,12 @@ const loadEditor = async () => {
     draftScript.value = cloneJson(sourceScript);
     sourceScriptSnapshot.value = stableStringify(draftScript.value);
 
-    const loadedTasks = await scriptStore.loadScriptTasks(sourceScript.id);
+    const [loadedTasks, loadedPolicies, loadedPolicyGroups, loadedPolicySets] = await Promise.all([
+      scriptStore.loadScriptTasks(sourceScript.id),
+      scriptService.listPolicies(sourceScript.id),
+      scriptService.listPolicyGroups(sourceScript.id),
+      scriptService.listPolicySets(sourceScript.id),
+    ]);
     if (loadedTasks.length) {
       draftTasks.value = loadedTasks.map((task, index) => normalizeTask(task, index));
       sourceTasksSnapshot.value = stableStringify(draftTasks.value);
@@ -783,8 +1557,33 @@ const loadEditor = async () => {
       sourceTasksSnapshot.value = stableStringify([]);
     }
 
+    draftPolicies.value = loadedPolicies.map((policy, index) => normalizePolicy(policy, index));
+    draftPolicyGroups.value = loadedPolicyGroups.map((group, index) => normalizePolicyGroup(group, index));
+    draftPolicySets.value = loadedPolicySets.map((set, index) => normalizePolicySet(set, index));
+
+    const [groupRelations, setRelations] = await Promise.all([
+      Promise.all(
+        draftPolicyGroups.value.map(async (group) => [group.id, await scriptService.getGroupPolicies(group.id)] as const),
+      ),
+      Promise.all(
+        draftPolicySets.value.map(async (set) => [set.id, await scriptService.getSetGroups(set.id)] as const),
+      ),
+    ]);
+    groupPolicyIdsByGroupId.value = Object.fromEntries(groupRelations);
+    setGroupIdsBySetId.value = Object.fromEntries(setRelations);
+    sourcePoliciesSnapshot.value = stableStringify(draftPolicies.value);
+    sourcePolicyGroupsSnapshot.value = stableStringify(draftPolicyGroups.value);
+    sourcePolicySetsSnapshot.value = stableStringify(draftPolicySets.value);
+    sourceGroupPoliciesSnapshot.value = stableStringify(groupPolicyIdsByGroupId.value);
+    sourceSetGroupsSnapshot.value = stableStringify(setGroupIdsBySetId.value);
+
     selectedTaskId.value = draftTasks.value[0]?.id ?? null;
+    selectedPolicyId.value = draftPolicies.value[0]?.id ?? null;
+    selectedPolicyGroupId.value = draftPolicyGroups.value[0]?.id ?? null;
+    selectedPolicySetId.value = draftPolicySets.value[0]?.id ?? null;
     activeBranchPath.value = ROOT_BRANCH_PATH;
+    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
+    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
     saveTime.value = sourceScript.data.updateTime || null;
     hydrateTaskEditors();
   } catch (error) {
@@ -808,6 +1607,38 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 };
 
+const hydratePolicyStepEditors = () => {
+  if (!currentPolicy.value) {
+    selectedPolicyStepPathBefore.value = null;
+    selectedPolicyStepPathAfter.value = null;
+    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
+    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
+    return;
+  }
+
+  if (!currentPolicy.value.data.beforeAction.length) {
+    selectedPolicyStepPathBefore.value = null;
+    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
+  } else if (
+    !selectedPolicyStepPathBefore.value ||
+    !getStepByPath(currentPolicy.value.data.beforeAction, selectedPolicyStepPathBefore.value)
+  ) {
+    selectedPolicyStepPathBefore.value = buildStepPath(ROOT_BRANCH_PATH, 0);
+    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
+  }
+
+  if (!currentPolicy.value.data.afterAction.length) {
+    selectedPolicyStepPathAfter.value = null;
+    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
+  } else if (
+    !selectedPolicyStepPathAfter.value ||
+    !getStepByPath(currentPolicy.value.data.afterAction, selectedPolicyStepPathAfter.value)
+  ) {
+    selectedPolicyStepPathAfter.value = buildStepPath(ROOT_BRANCH_PATH, 0);
+    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
+  }
+};
+
 watch(
   () => currentTask.value?.id,
   () => {
@@ -815,6 +1646,30 @@ watch(
   },
   { immediate: true },
 );
+
+watch(
+  () => currentPolicy.value?.id,
+  () => {
+    hydratePolicyStepEditors();
+  },
+  { immediate: true },
+);
+
+watch(activeMode, (value) => {
+  if (value === 'task') {
+    activePanel.value = activePanel.value || 'basic';
+    return;
+  }
+  if (value === 'policy') {
+    selectedPolicyId.value = selectedPolicyId.value ?? draftPolicies.value[0]?.id ?? null;
+    return;
+  }
+  if (value === 'policyGroup') {
+    selectedPolicyGroupId.value = selectedPolicyGroupId.value ?? draftPolicyGroups.value[0]?.id ?? null;
+    return;
+  }
+  selectedPolicySetId.value = selectedPolicySetId.value ?? draftPolicySets.value[0]?.id ?? null;
+});
 
 watch(taskName, (value) => {
   if (!currentTask.value || hydratingTaskMeta.value) {
