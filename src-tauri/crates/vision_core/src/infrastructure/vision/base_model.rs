@@ -193,14 +193,16 @@ impl BaseModel {
         Ok(())
     }
 
-    /// 通用的推理方法 - 消除推理代码重复 🆕
-    /// 正确使用ORT线程设置和Rayon线程池配合
-    pub fn inference_base(
+    pub fn inference_with_output_view<R, F>(
         &self,
         input: ArrayViewD<'_, f32>,
         input_node_name: &str,
         output_node_name: &str,
-    ) -> VisionResult<ArrayD<f32>> {
+        process_output: F,
+    ) -> VisionResult<R>
+    where
+        F: for<'a> FnOnce(ArrayViewD<'a, f32>) -> VisionResult<R>,
+    {
         if let Some(session_mutex) = self.session.as_ref() {
             let standard_input = (!input.is_standard_layout()).then(|| {
                 Log::debug("推理输入不是标准连续布局，复制为标准布局后再送入ORT");
@@ -239,16 +241,29 @@ impl BaseModel {
             let view = outputs[output_node_name]
                 .try_extract_array::<f32>()
                 .map_err(|e| VisionError::DataProcessingErr {
-                    method: "inference_base".to_string(),
+                    method: "inference_with_output_view".to_string(),
                     e: e.to_string(),
                 })?;
             Log::debug(&format!("模型输出维度: {}", view.ndim()));
-            Ok(view.to_owned())
+            process_output(view)
         } else {
             Err(VisionError::IoError {
                 path: "[推理阶段]".to_string(),
                 e: "模型未加载".to_string(),
             })
         }
+    }
+
+    /// 通用的推理方法 - 消除推理代码重复 🆕
+    /// 正确使用ORT线程设置和Rayon线程池配合
+    pub fn inference_base(
+        &self,
+        input: ArrayViewD<'_, f32>,
+        input_node_name: &str,
+        output_node_name: &str,
+    ) -> VisionResult<ArrayD<f32>> {
+        self.inference_with_output_view(input, input_node_name, output_node_name, |view| {
+            Ok(view.to_owned())
+        })
     }
 }

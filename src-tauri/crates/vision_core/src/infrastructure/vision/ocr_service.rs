@@ -294,7 +294,7 @@ mod tests {
                 cfg.base_model.inter_spinning,
                 cfg.base_model.execution_provider.name(),
                 cfg.get_target_width(),
-                cfg.get_target_height()
+                cfg.get_target_height(),
             ),
             DetectorType::PaddleDbNet(ref cfg) => (
                 cfg.base_model.intra_thread_num,
@@ -303,7 +303,7 @@ mod tests {
                 cfg.base_model.inter_spinning,
                 cfg.base_model.execution_provider.name(),
                 cfg.get_target_width(),
-                cfg.get_target_height()
+                cfg.get_target_height(),
             ),
             _ => {
                 panic!("unsupported detector type")
@@ -317,7 +317,7 @@ mod tests {
                 cfg.base_model.inter_spinning,
                 cfg.base_model.execution_provider.name(),
                 cfg.get_target_width(),
-                cfg.get_target_height()
+                cfg.get_target_height(),
             ),
         };
 
@@ -348,11 +348,9 @@ mod tests {
                  det_results.len(),
                  ocr_results.len()
         );
-        if config.print_res{
+        if config.print_res {
             for (idx, item) in det_results.iter().enumerate() {
-                println!(
-                    "#{idx},{}", item
-                );
+                println!("#{idx},{}", item);
             }
             println!("================批处理===============");
             for (idx, item) in ocr_results_batch.iter().enumerate() {
@@ -380,8 +378,6 @@ mod tests {
                     item.bounding_box.y2
                 );
             }
-
         }
-
     }
 }

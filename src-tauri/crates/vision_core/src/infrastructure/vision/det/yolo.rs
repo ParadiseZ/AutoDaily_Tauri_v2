@@ -2,10 +2,11 @@ use crate::domain::vision::result::{BoundingBox, DetResult};
 use crate::infrastructure::core::{Deserialize, HashMap, Serialize};
 use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
+use crate::infrastructure::vision::tensor_view::squeeze_singleton_axes_to_2d;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
-use ndarray::{Array4, ArrayD, ArrayView2, ArrayViewD, Axis, Ix2};
+use ndarray::{Array4, ArrayD, ArrayView2, ArrayViewD, Axis};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tokio::fs::read_to_string;
@@ -51,6 +52,15 @@ enum YoloOutputLayout {
     EndToEndRows,
     EndToEndCols,
 }
+
+#[derive(Debug, Clone)]
+struct YoloCandidate {
+    bounding_box: BoundingBox,
+    class_id: usize,
+    score: f32,
+}
+
+const MAX_NMS_CANDIDATES_PER_CLASS: usize = 512;
 
 impl YoloDet {
     pub fn refresh_runtime_config(&mut self) {
@@ -104,22 +114,8 @@ impl YoloDet {
         }
     }
 
-    fn squeeze_output<'a>(
-        &self,
-        mut output: ArrayViewD<'a, f32>,
-    ) -> VisionResult<ArrayView2<'a, f32>> {
-        for axis in (0..output.ndim()).rev() {
-            if output.ndim() > 2 && output.shape()[axis] == 1 {
-                output = output.index_axis_move(Axis(axis), 0);
-            }
-        }
-
-        output
-            .into_dimensionality::<Ix2>()
-            .map_err(|e| VisionError::DataProcessingErr {
-                method: "yolo_squeeze_output".to_string(),
-                e: format!("模型输出维度不符合预期: {}", e),
-            })
+    fn squeeze_output<'a>(&self, output: ArrayViewD<'a, f32>) -> VisionResult<ArrayView2<'a, f32>> {
+        squeeze_singleton_axes_to_2d(output, "yolo_squeeze_output")
     }
 
     fn detect_output_layout(&self, matrix: ArrayView2<'_, f32>) -> YoloOutputLayout {
@@ -166,6 +162,21 @@ impl YoloDet {
             .get(&(class_id as u16))
             .cloned()
             .unwrap_or_else(|| format!("class_{}", class_id))
+    }
+
+    fn finalize_candidates(&self, candidates: Vec<YoloCandidate>) -> Vec<DetResult> {
+        candidates
+            .into_iter()
+            .map(|candidate| DetResult {
+                id: 0,
+                pre_id: 0,
+                next_id: 0,
+                bounding_box: candidate.bounding_box,
+                index: candidate.class_id as i32,
+                label: self.resolve_label(candidate.class_id),
+                score: candidate.score,
+            })
+            .collect()
     }
 
     fn allow_class(&self, class_id: usize) -> bool {
@@ -239,6 +250,19 @@ impl YoloDet {
             return None;
         }
 
+        if let Some(target_class_id) = self.txt_idx.map(|idx| idx as usize) {
+            if target_class_id >= self.class_count {
+                return None;
+            }
+
+            let target_index = class_offset + target_class_id;
+            if target_index >= len {
+                return None;
+            }
+
+            return Some((target_class_id, objectness * value_at(target_index)));
+        }
+
         let mut class_id = 0usize;
         let mut class_prob = f32::MIN;
         for idx in class_offset..len {
@@ -258,9 +282,15 @@ impl YoloDet {
         scale_factor: [f32; 2],
         origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
+        // Yolo11/8 这条链路走 raw head: 先筛候选框，再做本地 NMS，最后再生成完整 DetResult。
         let matrix = self.squeeze_output(output)?;
         let layout = self.resolve_output_layout(matrix);
-        let mut boxes: Vec<DetResult> = Vec::new();
+        let candidate_capacity = match layout {
+            YoloOutputLayout::LegacyCandidatesRows => matrix.nrows(),
+            YoloOutputLayout::LegacyCandidatesCols => matrix.ncols(),
+            _ => 0,
+        };
+        let mut candidates = Vec::with_capacity(candidate_capacity);
 
         match layout {
             YoloOutputLayout::LegacyCandidatesRows => {
@@ -278,10 +308,7 @@ impl YoloDet {
                         continue;
                     }
 
-                    boxes.push(DetResult {
-                        id: 0,
-                        pre_id: 0,
-                        next_id: 0,
+                    candidates.push(YoloCandidate {
                         bounding_box: self.build_xywh_box(
                             row[0],
                             row[1],
@@ -290,8 +317,7 @@ impl YoloDet {
                             scale_factor,
                             origin_shape,
                         ),
-                        index: class_id as i32,
-                        label: self.resolve_label(class_id),
+                        class_id,
                         score: prob,
                     });
                 }
@@ -311,10 +337,7 @@ impl YoloDet {
                         continue;
                     }
 
-                    boxes.push(DetResult {
-                        id: 0,
-                        pre_id: 0,
-                        next_id: 0,
+                    candidates.push(YoloCandidate {
                         bounding_box: self.build_xywh_box(
                             col[0],
                             col[1],
@@ -323,8 +346,7 @@ impl YoloDet {
                             scale_factor,
                             origin_shape,
                         ),
-                        index: class_id as i32,
-                        label: self.resolve_label(class_id),
+                        class_id,
                         score: prob,
                     });
                 }
@@ -337,7 +359,7 @@ impl YoloDet {
             }
         }
 
-        apply_nms(boxes, self.iou_thresh)
+        Ok(self.finalize_candidates(apply_nms(candidates, self.iou_thresh)))
     }
 
     fn postprocess_end_to_end(
@@ -348,7 +370,12 @@ impl YoloDet {
     ) -> VisionResult<Vec<DetResult>> {
         let matrix = self.squeeze_output(output)?;
         let layout = self.resolve_output_layout(matrix);
-        let mut boxes = Vec::new();
+        let candidate_capacity = match layout {
+            YoloOutputLayout::EndToEndRows => matrix.nrows(),
+            YoloOutputLayout::EndToEndCols => matrix.ncols(),
+            _ => 0,
+        };
+        let mut candidates = Vec::with_capacity(candidate_capacity);
 
         match layout {
             YoloOutputLayout::EndToEndRows => {
@@ -367,10 +394,7 @@ impl YoloDet {
                         continue;
                     }
 
-                    boxes.push(DetResult {
-                        id: 0,
-                        pre_id: 0,
-                        next_id: 0,
+                    candidates.push(YoloCandidate {
                         bounding_box: self.build_xyxy_box(
                             row[0],
                             row[1],
@@ -379,8 +403,7 @@ impl YoloDet {
                             scale_factor,
                             origin_shape,
                         ),
-                        index: class_id as i32,
-                        label: self.resolve_label(class_id),
+                        class_id,
                         score,
                     });
                 }
@@ -401,10 +424,7 @@ impl YoloDet {
                         continue;
                     }
 
-                    boxes.push(DetResult {
-                        id: 0,
-                        pre_id: 0,
-                        next_id: 0,
+                    candidates.push(YoloCandidate {
                         bounding_box: self.build_xyxy_box(
                             col[0],
                             col[1],
@@ -413,8 +433,7 @@ impl YoloDet {
                             scale_factor,
                             origin_shape,
                         ),
-                        index: class_id as i32,
-                        label: self.resolve_label(class_id),
+                        class_id,
                         score,
                     });
                 }
@@ -427,13 +446,13 @@ impl YoloDet {
             }
         }
 
-        boxes.sort_by(|a, b| {
+        candidates.sort_by(|a, b| {
             b.score
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        Ok(boxes)
+        Ok(self.finalize_candidates(candidates))
     }
 }
 
@@ -505,6 +524,17 @@ impl ModelHandler for YoloDet {
 }
 
 impl TextDetector for YoloDet {
+    fn detect(&self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
+        // 检测主链路：预处理 -> ORT 推理 -> 直接消费输出 view 做后处理，避免整块输出复制。
+        let (preprocessed, scale_factor, origin_shape) = self.preprocess(image)?;
+        self.base_model.inference_with_output_view(
+            preprocessed.view(),
+            self.get_input_node_name(),
+            self.get_output_node_name(),
+            |output| self.postprocess(output, scale_factor, origin_shape),
+        )
+    }
+
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,
@@ -545,33 +575,31 @@ fn calculate_iou(box1: &BoundingBox, box2: &BoundingBox) -> f32 {
     intersection_area / union_area
 }
 
-fn apply_nms(boxes: Vec<DetResult>, iou_thresh: f32) -> VisionResult<Vec<DetResult>> {
+fn apply_nms(mut boxes: Vec<YoloCandidate>, iou_thresh: f32) -> Vec<YoloCandidate> {
     if boxes.is_empty() {
-        return Ok(boxes);
+        return boxes;
     }
 
-    // 按类别分组
-    use std::collections::HashMap;
-    let mut boxes_by_class: HashMap<i32, Vec<DetResult>> = HashMap::new();
-
-    for detection in boxes {
-        boxes_by_class
-            .entry(detection.index)
-            .or_insert_with(Vec::new)
-            .push(detection);
-    }
-
-    let mut final_results = Vec::new();
-
-    // 对每个类别分别进行 NMS
-    for (_class_id, mut class_boxes) in boxes_by_class {
-        // 按置信度降序排序
-        class_boxes.sort_by(|a, b| {
+    boxes.sort_by(|a, b| {
+        a.class_id.cmp(&b.class_id).then_with(|| {
             b.score
                 .partial_cmp(&a.score)
                 .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        })
+    });
 
+    let mut final_results = Vec::with_capacity(boxes.len());
+    let mut start = 0;
+    while start < boxes.len() {
+        let class_id = boxes[start].class_id;
+        let mut end = start + 1;
+        while end < boxes.len() && boxes[end].class_id == class_id {
+            end += 1;
+        }
+
+        // 这里先截断低分尾部，避免 O(n^2) NMS 被海量低置信度候选框拖慢。
+        let class_end = (start + MAX_NMS_CANDIDATES_PER_CLASS).min(end);
+        let class_boxes = &boxes[start..class_end];
         let mut keep = Vec::new();
         let mut suppress = vec![false; class_boxes.len()];
 
@@ -596,9 +624,10 @@ fn apply_nms(boxes: Vec<DetResult>, iou_thresh: f32) -> VisionResult<Vec<DetResu
         }
 
         final_results.extend(keep);
+        start = end;
     }
 
-    Ok(final_results)
+    final_results
 }
 
 #[cfg(test)]

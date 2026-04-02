@@ -42,9 +42,12 @@ pub struct ColorAnalyzer;
 impl ColorAnalyzer {
     /// 分析给定区域的主导背景色和前景色
     /// 这里采用简化方案：采样区域像素并映射到 HSV 区间
-    pub fn analyze_box(image: &RgbaImage, bbox: &BoundingBox) -> VisionResult<(ColorTag, ColorTag)> {
+    pub fn analyze_box(
+        image: &RgbaImage,
+        bbox: &BoundingBox,
+    ) -> VisionResult<(ColorTag, ColorTag)> {
         let (img_w, img_h) = image.dimensions();
-        
+
         // 边界限制
         let x1 = bbox.x1.max(0) as u32;
         let y1 = bbox.y1.max(0) as u32;
@@ -78,10 +81,10 @@ impl ColorAnalyzer {
         // 简化模型：计算平均亮度/颜色或通过直方图找主导色
         // 这里我们找“最频繁”出现的颜色区间作为背景
         let tags: Vec<ColorTag> = colors.iter().map(|p| Self::rgb_to_tag(p)).collect();
-        
+
         // 简单统计
         let bg_tag = Self::most_frequent(&tags);
-        
+
         // 前景色逻辑：找一个逻辑上与背景差异最大的颜色，或者简单取第二频繁
         let fg_candidates: Vec<ColorTag> = tags.iter().cloned().filter(|t| t != &bg_tag).collect();
         let fg_tag = if fg_candidates.is_empty() {
@@ -107,9 +110,15 @@ impl ColorAnalyzer {
         // 黑白灰判定 (基于亮度 L 和 饱和度 S)
         let s = if max == 0.0 { 0.0 } else { delta / max };
 
-        if l < 0.15 { return ColorTag::Black; }
-        if l > 0.85 && s < 0.1 { return ColorTag::White; }
-        if s < 0.1 { return ColorTag::Gray; }
+        if l < 0.15 {
+            return ColorTag::Black;
+        }
+        if l > 0.85 && s < 0.1 {
+            return ColorTag::White;
+        }
+        if s < 0.1 {
+            return ColorTag::Gray;
+        }
 
         // 色相 H
         let mut h = if delta == 0.0 {
@@ -123,16 +132,27 @@ impl ColorAnalyzer {
         };
 
         h *= 60.0;
-        if h < 0.0 { h += 360.0; }
+        if h < 0.0 {
+            h += 360.0;
+        }
 
-        if h < 20.0 || h >= 330.0 { ColorTag::Red }
-        else if h < 45.0 { ColorTag::Orange }
-        else if h < 75.0 { ColorTag::Yellow }
-        else if h < 150.0 { ColorTag::Green }
-        else if h < 200.0 { ColorTag::Cyan }
-        else if h < 260.0 { ColorTag::Blue }
-        else if h < 300.0 { ColorTag::Purple }
-        else { ColorTag::Pink }
+        if h < 20.0 || h >= 330.0 {
+            ColorTag::Red
+        } else if h < 45.0 {
+            ColorTag::Orange
+        } else if h < 75.0 {
+            ColorTag::Yellow
+        } else if h < 150.0 {
+            ColorTag::Green
+        } else if h < 200.0 {
+            ColorTag::Cyan
+        } else if h < 260.0 {
+            ColorTag::Blue
+        } else if h < 300.0 {
+            ColorTag::Purple
+        } else {
+            ColorTag::Pink
+        }
     }
 
     fn most_frequent(tags: &[ColorTag]) -> ColorTag {
@@ -141,7 +161,8 @@ impl ColorAnalyzer {
         for t in tags {
             *counts.entry(t).or_insert(0) += 1;
         }
-        counts.into_iter()
+        counts
+            .into_iter()
             .max_by_key(|&(_, count)| count)
             .map(|(t, _)| t.clone())
             .unwrap_or(ColorTag::Other)

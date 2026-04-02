@@ -51,6 +51,74 @@ pub trait TextDetector: ModelHandler {
 
 /// 文本识别器trait - 继承ModelHandler并添加识别特有的方法  
 pub trait TextRecognizer: ModelHandler {
+    fn recognize_preprocessed_inputs(
+        &self,
+        preprocessed_inputs: Vec<(usize, ArrayD<f32>)>,
+        det_results: &[DetResult],
+    ) -> VisionResult<Vec<OcrResult>> {
+        if preprocessed_inputs.len() != det_results.len() {
+            Log::warn(
+                format!(
+                    "文字识别-预处理：部分图像预处理失败！(总数: {}, 成功: {})",
+                    det_results.len(),
+                    preprocessed_inputs.len()
+                )
+                .as_str(),
+            );
+        }
+
+        let mut inference_outputs: Vec<(usize, ArrayD<f32>)> =
+            Vec::with_capacity(preprocessed_inputs.len());
+
+        for (idx, input) in preprocessed_inputs {
+            match self.inference(input.view()) {
+                Ok(output) => inference_outputs.push((idx, output)),
+                Err(e) => {
+                    Log::warn(format!("文字识别-推理：第 {} 项推理失败: {:?}", idx, e).as_str());
+                }
+            }
+        }
+
+        if inference_outputs.len() != det_results.len() {
+            Log::warn(
+                format!(
+                    "文字识别-推理：部分图像推理失败！(总数: {}, 成功: {})",
+                    det_results.len(),
+                    inference_outputs.len()
+                )
+                .as_str(),
+            );
+        }
+
+        let mut ocr_res: Vec<(usize, OcrResult)> = inference_outputs
+            .par_iter()
+            .filter_map(|(idx, output)| {
+                if let Some(det_res) = det_results.get(*idx) {
+                    self.postprocess(output.view(), det_res, 0)
+                        .ok()
+                        .map(|ocr| (*idx, ocr))
+                } else {
+                    Log::warn(format!("文字识别-后处理：索引 {} 越界", *idx).as_str());
+                    None
+                }
+            })
+            .collect();
+
+        if ocr_res.len() != det_results.len() {
+            Log::warn(
+                format!(
+                    "文字识别-后处理：部分结果处理失败！(总数: {}, 成功: {})",
+                    det_results.len(),
+                    ocr_res.len()
+                )
+                .as_str(),
+            );
+        }
+
+        ocr_res.sort_by_key(|(idx, _)| *idx);
+        Ok(ocr_res.into_iter().map(|(_, item)| item).collect())
+    }
+
     /// 识别文本内容
     fn recognize(
         &self,
@@ -66,72 +134,11 @@ pub trait TextRecognizer: ModelHandler {
             .filter_map(|(idx, det_res)| {
                 get_crop_image(image, det_res)
                     .ok()
-                    .and_then(|img| {
-                        self.preprocess(&img).ok()
-                    })
+                    .and_then(|img| self.preprocess(&img).ok())
                     .and_then(|input| Some((idx, input.0))) // input.0 is Array4<f32> based on preprocess signature
             })
             .collect();
-
-        if preprocessed_inputs.len() != det_results.len() {
-            Log::warn(format!(
-                "文字识别-预处理：部分图像预处理失败！(总数: {}, 成功: {})",
-                det_results.len(),
-                preprocessed_inputs.len()
-            )
-            .as_str());
-        }
-
-        // 2. 推理阶段
-        // 依次执行推理，保留原始索引：(original_index, inference_output)
-        // 注意：这里为了配合ort调度，我们使用串行await，或者可以使用futures::stream::FuturesOrdered如果需要并发
-        let mut inference_outputs: Vec<(usize, ArrayD<f32>)> =
-            Vec::with_capacity(preprocessed_inputs.len());
-
-
-        for (idx, input) in preprocessed_inputs {
-            match self.inference(input.view()) {
-                Ok(output) => inference_outputs.push((idx, output)),
-                Err(e) => {
-                    Log::warn(format!("文字识别-推理：第 {} 项推理失败: {:?}", idx, e).as_str());
-                }
-            }
-        }
-
-        if inference_outputs.len() != det_results.len() {
-            Log::warn(format!(
-                "文字识别-推理：部分图像推理失败！(总数: {}, 成功: {})",
-                det_results.len(),
-                inference_outputs.len()
-            )
-            .as_str());
-        }
-
-        // 3. 后处理阶段
-        // 使用原始索引找回对应的 det_result
-        let ocr_res: Vec<OcrResult> = inference_outputs
-            .par_iter()
-            .filter_map(|(idx, output)| {
-                // 使用原始索引获取对应的检测结果
-                if let Some(det_res) = det_results.get(*idx) {
-                    self.postprocess(output.view(), det_res, 0).ok()
-                } else {
-                    Log::warn(format!("文字识别-后处理：索引 {} 越界", *idx).as_str());
-                    None
-                }
-            })
-            .collect();
-
-        if ocr_res.len() != det_results.len() {
-            Log::warn(format!(
-                "文字识别-后处理：部分结果处理失败！(总数: {}, 成功: {})",
-                det_results.len(),
-                ocr_res.len()
-            )
-            .as_str());
-        }
-
-        Ok(ocr_res)
+        self.recognize_preprocessed_inputs(preprocessed_inputs, det_results)
     }
     fn recognize_batch(
         &self,

@@ -11,3 +11,4 @@ pub mod rec;
 pub mod vision_error;
 
 mod base_model;
+mod tensor_view;

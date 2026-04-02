@@ -1,7 +1,7 @@
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum VisionError {
     #[error("读取模型文件{path}失败: {e}")]
-    OpenModelFailed{path: String, e:String},
+    OpenModelFailed { path: String, e: String },
 
     #[error(transparent)]
     LoadModelErr(#[from] OrtError),
@@ -43,7 +43,7 @@ pub enum VisionError {
     RecognizeNotInit,
 
     #[error("映射文件{path}失败:{e}")]
-    MappingErr { path: String,e: String },
+    MappingErr { path: String, e: String },
 }
 
 pub type VisionResult<T> = Result<T, VisionError>;

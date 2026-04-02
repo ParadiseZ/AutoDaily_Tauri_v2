@@ -4,6 +4,7 @@ use crate::infrastructure::image::crop_image::get_crop_image;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::base_model::BaseModel;
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
+use crate::infrastructure::vision::tensor_view::select_batch_and_squeeze_to_2d;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
 use image::DynamicImage;
@@ -11,7 +12,7 @@ use imageproc::drawing::Canvas;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use ndarray::{Array3, Array4, ArrayD, ArrayView2, ArrayViewD, ArrayViewMut3, Axis, Ix2};
+use ndarray::{Array3, Array4, ArrayD, ArrayView2, ArrayViewD, ArrayViewMut3, Axis};
 use rayon::prelude::*;
 use tokio::fs::read_to_string;
 
@@ -162,6 +163,7 @@ impl PaddleRecCrnn {
         samples: &[RecSample],
         det_results: &[DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
+        // Single 模式走“裁剪 -> 单张预处理 -> 串行推理 -> 原索引回填”。
         let preprocessed_inputs: Vec<(usize, ArrayD<f32>)> = samples
             .par_iter()
             .filter_map(|sample| {
@@ -171,29 +173,7 @@ impl PaddleRecCrnn {
             })
             .collect();
 
-        let mut inference_outputs: Vec<(usize, ArrayD<f32>)> =
-            Vec::with_capacity(preprocessed_inputs.len());
-
-        for (idx, input) in preprocessed_inputs {
-            match self.inference(input.view()) {
-                Ok(output) => inference_outputs.push((idx, output)),
-                Err(e) => {
-                    Log::warn(format!("文字识别-推理：第 {} 项推理失败: {:?}", idx, e).as_str());
-                }
-            }
-        }
-
-        let mut ocr_res: Vec<(usize, OcrResult)> = inference_outputs
-            .par_iter()
-            .filter_map(|(idx, output)| {
-                det_results
-                    .get(*idx)
-                    .and_then(|det_res| self.postprocess(output.view(), det_res, 0).ok())
-                    .map(|ocr| (*idx, ocr))
-            })
-            .collect();
-        ocr_res.sort_by_key(|(idx, _)| *idx);
-        Ok(ocr_res.into_iter().map(|(_, item)| item).collect())
+        self.recognize_preprocessed_inputs(preprocessed_inputs, det_results)
     }
 
     fn preprocess_sample_batch(
@@ -241,6 +221,7 @@ impl PaddleRecCrnn {
         samples: Vec<RecSample>,
         det_results: &[DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
+        // Micro-batch 模式先按宽度分桶，再在桶内做小批次推理，避免被极宽文本拖慢整批。
         let mut buckets: BTreeMap<u32, Vec<RecSample>> = BTreeMap::new();
         for sample in samples {
             buckets
@@ -286,41 +267,7 @@ impl PaddleRecCrnn {
         output: ArrayViewD<'a, f32>,
         batch_index: usize,
     ) -> VisionResult<ArrayView2<'a, f32>> {
-        let output_shape = output.shape().to_vec();
-        let mut sample = match output.ndim() {
-            0 | 1 => {
-                return Err(VisionError::DataProcessingErr {
-                    method: "rec_extract_sequence_view".to_string(),
-                    e: format!("REC输出维度过低: {:?}", output_shape),
-                });
-            }
-            2 => output,
-            _ => {
-                if batch_index >= output_shape[0] {
-                    return Err(VisionError::BatchMatchDetSizeFailed {
-                        batch: output_shape[0],
-                        det_num: batch_index + 1,
-                    });
-                }
-                output.clone().index_axis_move(Axis(0), batch_index)
-            }
-        };
-
-        for axis in (0..sample.ndim()).rev() {
-            if sample.ndim() > 2 && sample.shape()[axis] == 1 {
-                sample = sample.index_axis_move(Axis(axis), 0);
-            }
-        }
-
-        sample
-            .into_dimensionality::<Ix2>()
-            .map_err(|e| VisionError::DataProcessingErr {
-                method: "rec_extract_sequence_view".to_string(),
-                e: format!(
-                    "REC输出布局不符合预期: shape={:?}, error={}",
-                    output_shape, e
-                ),
-            })
+        select_batch_and_squeeze_to_2d(output, batch_index, "rec_extract_sequence_view")
     }
 
     pub async fn load_dict(&mut self) -> VisionResult<()> {
@@ -461,6 +408,7 @@ impl TextRecognizer for PaddleRecCrnn {
         det_result: &DetResult,
         batch_size: usize,
     ) -> VisionResult<OcrResult> {
+        // 识别后处理只关心 [T, C]，上面先把 [B, T, C] / [B, 1, T, C] 等布局规整成 2D。
         let sequence = self.extract_sequence_view(output, batch_size)?;
         let seq_len = sequence.shape()[0];
         let class_num = sequence.shape()[1];

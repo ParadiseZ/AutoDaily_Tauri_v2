@@ -4,7 +4,7 @@
       "baseModel": {
         "intraThreadNum": 4,
         "intraSpinning": false,
-        "interThreadNum": 4,
+        "interThreadNum": 1,
         "interSpinning": false,
         "executionProvider": "DirectML",
         "inputWidth": 640,
@@ -23,10 +23,10 @@
   "recognizer": {
     "PaddleCrnn": {
       "baseModel": {
-        "intraThreadNum": 2,
-        "intraSpinning": false,
-        "interThreadNum": 1,
-        "interSpinning": false,
+        "intraThreadNum": 4,
+        "intraSpinning": true,
+        "interThreadNum": 4,
+        "interSpinning": true,
         "executionProvider": "CPU",
         "inputWidth": 320,
         "inputHeight": 48,

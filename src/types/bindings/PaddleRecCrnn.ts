@@ -3,11 +3,4 @@ import type { BaseModel } from "./BaseModel";
 import type { RecProcessingMode } from "./RecProcessingMode";
 import type { RecResizeFilter } from "./RecResizeFilter";
 
-export type PaddleRecCrnn = {
-  baseModel: BaseModel,
-  dictPath: string | null,
-  resizeFilter: RecResizeFilter,
-  processingMode: RecProcessingMode,
-  microBatchSize: number,
-  widthBucketStep: number,
-};
+export type PaddleRecCrnn = { baseModel: BaseModel, dictPath: string | null, resizeFilter: RecResizeFilter, processingMode: RecProcessingMode, microBatchSize: number, widthBucketStep: number, };
