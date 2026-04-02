@@ -1,0 +1,46 @@
+{
+  "detector": {
+    "Yolo11": {
+      "baseModel": {
+        "intraThreadNum": 4,
+        "intraSpinning": false,
+        "interThreadNum": 4,
+        "interSpinning": false,
+        "executionProvider": "DirectML",
+        "inputWidth": 640,
+        "inputHeight": 640,
+        "modelSource": "Custom",
+        "modelPath": "D:\\Database\\Project\\YOLO\\train_res_model\\tkfm_25062201_10_100_v11s_640_31\\best.onnx",
+        "modelType": "Yolo11"
+      },
+      "classCount": 31,
+      "confidenceThresh": 0.25,
+      "iouThresh": 0.45,
+      "labelPath": "D:\\Database\\Project\\YOLO\\AutoDailyTKFM\\config\\coco8.yaml",
+      "txtIdx": 0
+    }
+  },
+  "recognizer": {
+    "PaddleCrnn": {
+      "baseModel": {
+        "intraThreadNum": 2,
+        "intraSpinning": false,
+        "interThreadNum": 1,
+        "interSpinning": false,
+        "executionProvider": "CPU",
+        "inputWidth": 320,
+        "inputHeight": 48,
+        "modelSource": "Custom",
+        "modelPath": "D:\\Database\\Project\\PP-OCRv5_mobile_rec_infer\\inference.onnx",
+        "modelType": "PaddleCrnn5"
+      },
+      "dictPath": "D:\\Database\\Project\\PaddleOCR-release-3.1\\ppocr\\utils\\dict\\ppocrv5_dict.txt",
+      "resizeFilter": "Triangle",
+      "processingMode": "MicroBatch",
+      "microBatchSize": 4,
+      "widthBucketStep": 32
+    }
+  },
+  "imagePath": "D:\\Database\\Project\\YOLO\\AutoDailyTKFM\\all_images\\0003.jpg",
+  "printRes":false
+}

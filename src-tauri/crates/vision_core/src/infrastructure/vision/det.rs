@@ -9,5 +9,6 @@ pub mod yolo;
 #[ts(export)]
 pub enum DetectorType {
     Yolo11(YoloDet),
+    Yolo26(YoloDet),
     PaddleDbNet(PaddleDetDbNet),
 }

@@ -19,3 +19,4 @@ rayon = { workspace = true }
 aho-corasick = { workspace = true }
 regex = { workspace = true }
 ts-rs = { workspace = true }
+serde_json = { workspace = true }

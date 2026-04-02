@@ -18,7 +18,7 @@ impl fmt::Display for DetResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "id: {}, pre_id: {}, next_id: {}, bounding_box: {:?}, index: {}, label: {}, score: {}",
+            "id: {}, pre_id: {}, next_id: {}, bounding_box: {:?}, index: {}, label: {}, score: {:.4}",
             self.id,
             self.pre_id,
             self.next_id,

@@ -7,7 +7,7 @@ use image::{DynamicImage, GenericImageView, ImageBuffer};
 use imageproc::contours::find_contours;
 use imageproc::point::Point;
 
-use ndarray::{s, Array3, ArrayD, ArrayViewD, Axis};
+use ndarray::{s, Array3, ArrayD, ArrayView2, ArrayViewD, Axis};
 
 /// dbNet通常值
 const MIN_AREA: f32 = 3.0;
@@ -27,8 +27,7 @@ pub struct PaddleDetDbNet {
 
 impl ModelHandler for PaddleDetDbNet {
     fn load_model(&mut self) -> VisionResult<()> {
-        self.base_model
-            .load_model_base::<Self>("paddle_det_dbnet")
+        self.base_model.load_model_base::<Self>("paddle_det_dbnet")
     }
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
@@ -94,7 +93,11 @@ impl ModelHandler for PaddleDetDbNet {
 
     fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
-        self.base_model.inference_base(input, self.get_input_node_name(), self.get_output_node_name())
+        self.base_model.inference_base(
+            input,
+            self.get_input_node_name(),
+            self.get_output_node_name(),
+        )
     }
 
     fn get_input_node_name(&self) -> &'static str {
@@ -189,8 +192,7 @@ impl TextDetector for PaddleDetDbNet {
             }
 
             // --- 步骤 2: 计算得分并过滤 ---
-            let score =
-                box_score_fast(&prob_map.into_owned().into_dyn(), &contour.points, &min_box);
+            let score = box_score_fast(prob_map.view(), &contour.points, &min_box);
 
             if score < self.db_box_thresh {
                 continue;
@@ -281,7 +283,7 @@ fn get_bounding_rect(points: &[Point<i32>]) -> (Vec<Point<i32>>, f32) {
 
 // 快速计算轮廓内概率图的平均分
 fn box_score_fast(
-    prob_map: &ArrayD<f32>,
+    prob_map: ArrayView2<'_, f32>,
     points: &[Point<i32>],
     rect: &[Point<i32>],
 ) -> f32 {

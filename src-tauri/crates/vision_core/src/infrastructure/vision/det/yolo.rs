@@ -1,13 +1,13 @@
 use crate::domain::vision::result::{BoundingBox, DetResult};
 use crate::infrastructure::core::{Deserialize, HashMap, Serialize};
-use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::base_model::BaseModel;
+use crate::infrastructure::vision::base_model::{BaseModel, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
-use ndarray::{s, Array, ArrayD, ArrayViewD, Axis};
+use ndarray::{Array4, ArrayD, ArrayView2, ArrayViewD, Axis, Ix2};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use tokio::fs::read_to_string;
 
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -18,53 +18,430 @@ pub struct YoloDet {
     pub class_count: usize,
     #[serde(skip)]
     #[ts(skip)]
-    pub class_labels: HashMap<u16,String>,
+    pub class_labels: HashMap<u16, String>,
     pub confidence_thresh: f32,
     pub iou_thresh: f32,
     #[ts(as = "Option<String>")]
-    pub label_path : Option<PathBuf>,
-    pub txt_idx: Option<u16>
+    pub label_path: Option<PathBuf>,
+    pub txt_idx: Option<u16>,
+    #[serde(skip, default)]
+    #[ts(skip)]
+    postprocess_kind: YoloPostprocessKind,
+    #[serde(skip, default)]
+    #[ts(skip)]
+    output_layout: OnceLock<YoloOutputLayout>,
 }
 
-impl YoloDet{
-    pub async fn load_labels(&mut self) ->VisionResult<()>{
-        if self.label_path.is_none(){
-            return Err(VisionError::IoError {
-                path: "".to_string(),
-                e: "Yolo标签路径为空".to_string(),
-            })
-        }
-        let content = read_to_string(self.label_path.clone().unwrap()).await.map_err(|e| VisionError::IoError {
-            path: self.label_path.clone().unwrap().to_string_lossy().to_string(),
-            e: e.to_string(),
-        })?;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum YoloPostprocessKind {
+    LegacyNms,
+    EndToEnd,
+}
 
-        let values: serde_yaml::Value = serde_yaml::from_str(&content)
-            .map_err(|_e|VisionError::IoError {
-                path: self.label_path.clone().unwrap().to_string_lossy().to_string(),
+impl Default for YoloPostprocessKind {
+    fn default() -> Self {
+        Self::LegacyNms
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum YoloOutputLayout {
+    LegacyCandidatesRows,
+    LegacyCandidatesCols,
+    EndToEndRows,
+    EndToEndCols,
+}
+
+impl YoloDet {
+    pub fn refresh_runtime_config(&mut self) {
+        self.postprocess_kind = match self.base_model.model_type {
+            ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
+            _ => YoloPostprocessKind::LegacyNms,
+        };
+        self.output_layout = OnceLock::new();
+    }
+
+    pub async fn load_labels(&mut self) -> VisionResult<()> {
+        let Some(label_path) = self.label_path.clone() else {
+            self.class_labels.clear();
+            return Ok(());
+        };
+
+        let content = read_to_string(&label_path)
+            .await
+            .map_err(|e| VisionError::IoError {
+                path: label_path.to_string_lossy().to_string(),
+                e: e.to_string(),
+            })?;
+
+        let values: serde_yaml::Value =
+            serde_yaml::from_str(&content).map_err(|_e| VisionError::IoError {
+                path: label_path.to_string_lossy().to_string(),
                 e: "反序列化Yolo标签文件失败".to_string(),
             })?;
         match values.get("names") {
             Some(val) => {
-                self.class_labels = serde_yaml::from_value(val.clone()).map_err(|e| VisionError::IoError {
-                    path: self.label_path.clone().as_ref().map(|p| p.to_string_lossy().to_string()).unwrap_or_default(),
-                    e: format!("解析标签names失败: {}", e),
-                })?;
+                self.class_labels =
+                    serde_yaml::from_value(val.clone()).map_err(|e| VisionError::IoError {
+                        path: label_path.to_string_lossy().to_string(),
+                        e: format!("解析标签names失败: {}", e),
+                    })?;
             }
-            None =>{
+            None => {
                 return Err(VisionError::IoError {
-                    path: "".to_string(),
+                    path: label_path.to_string_lossy().to_string(),
                     e: "Yolo标签读取names属性值失败！".to_string(),
                 })
             }
         }
         Ok(())
     }
+
+    fn model_file_stem(&self) -> &'static str {
+        match self.base_model.model_type {
+            ModelType::Yolo26 => "det_yolo26",
+            _ => "det_yolo",
+        }
+    }
+
+    fn squeeze_output<'a>(
+        &self,
+        mut output: ArrayViewD<'a, f32>,
+    ) -> VisionResult<ArrayView2<'a, f32>> {
+        for axis in (0..output.ndim()).rev() {
+            if output.ndim() > 2 && output.shape()[axis] == 1 {
+                output = output.index_axis_move(Axis(axis), 0);
+            }
+        }
+
+        output
+            .into_dimensionality::<Ix2>()
+            .map_err(|e| VisionError::DataProcessingErr {
+                method: "yolo_squeeze_output".to_string(),
+                e: format!("模型输出维度不符合预期: {}", e),
+            })
+    }
+
+    fn detect_output_layout(&self, matrix: ArrayView2<'_, f32>) -> YoloOutputLayout {
+        let shape = matrix.shape();
+        let rows = shape[0];
+        let cols = shape[1];
+
+        match self.postprocess_kind {
+            YoloPostprocessKind::LegacyNms => {
+                let expected_attr_count = self.class_count + 4;
+                let expected_with_objectness = self.class_count + 5;
+                if cols == expected_attr_count || cols == expected_with_objectness {
+                    YoloOutputLayout::LegacyCandidatesRows
+                } else if rows == expected_attr_count || rows == expected_with_objectness {
+                    YoloOutputLayout::LegacyCandidatesCols
+                } else if rows > cols {
+                    YoloOutputLayout::LegacyCandidatesRows
+                } else {
+                    YoloOutputLayout::LegacyCandidatesCols
+                }
+            }
+            YoloPostprocessKind::EndToEnd => {
+                if cols == 6 {
+                    YoloOutputLayout::EndToEndRows
+                } else if rows == 6 {
+                    YoloOutputLayout::EndToEndCols
+                } else if rows >= cols {
+                    YoloOutputLayout::EndToEndRows
+                } else {
+                    YoloOutputLayout::EndToEndCols
+                }
+            }
+        }
+    }
+
+    fn resolve_output_layout(&self, matrix: ArrayView2<'_, f32>) -> YoloOutputLayout {
+        *self
+            .output_layout
+            .get_or_init(|| self.detect_output_layout(matrix))
+    }
+
+    fn resolve_label(&self, class_id: usize) -> String {
+        self.class_labels
+            .get(&(class_id as u16))
+            .cloned()
+            .unwrap_or_else(|| format!("class_{}", class_id))
+    }
+
+    fn allow_class(&self, class_id: usize) -> bool {
+        self.txt_idx
+            .map(|idx| idx as usize == class_id)
+            .unwrap_or(true)
+    }
+
+    fn clamp_x(&self, value: f32, origin_shape: [u32; 2]) -> i32 {
+        value.clamp(0.0, origin_shape[1] as f32).round() as i32
+    }
+
+    fn clamp_y(&self, value: f32, origin_shape: [u32; 2]) -> i32 {
+        value.clamp(0.0, origin_shape[0] as f32).round() as i32
+    }
+
+    fn build_xywh_box(
+        &self,
+        xc: f32,
+        yc: f32,
+        w: f32,
+        h: f32,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> BoundingBox {
+        let xc = xc * scale_factor[0];
+        let yc = yc * scale_factor[1];
+        let w = w * scale_factor[0];
+        let h = h * scale_factor[1];
+
+        BoundingBox::new(
+            self.clamp_x(xc - w / 2.0, origin_shape),
+            self.clamp_y(yc - h / 2.0, origin_shape),
+            self.clamp_x(xc + w / 2.0, origin_shape),
+            self.clamp_y(yc + h / 2.0, origin_shape),
+        )
+    }
+
+    fn build_xyxy_box(
+        &self,
+        x1: f32,
+        y1: f32,
+        x2: f32,
+        y2: f32,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> BoundingBox {
+        BoundingBox::new(
+            self.clamp_x(x1 * scale_factor[0], origin_shape),
+            self.clamp_y(y1 * scale_factor[1], origin_shape),
+            self.clamp_x(x2 * scale_factor[0], origin_shape),
+            self.clamp_y(y2 * scale_factor[1], origin_shape),
+        )
+    }
+
+    fn legacy_score_and_class<F>(&self, len: usize, mut value_at: F) -> Option<(usize, f32)>
+    where
+        F: FnMut(usize) -> f32,
+    {
+        if len <= 4 {
+            return None;
+        }
+
+        let (class_offset, objectness) = if len >= self.class_count + 5 {
+            (5, value_at(4))
+        } else {
+            (4, 1.0)
+        };
+
+        if class_offset >= len {
+            return None;
+        }
+
+        let mut class_id = 0usize;
+        let mut class_prob = f32::MIN;
+        for idx in class_offset..len {
+            let score = value_at(idx);
+            if score > class_prob {
+                class_prob = score;
+                class_id = idx - class_offset;
+            }
+        }
+
+        Some((class_id, objectness * class_prob))
+    }
+
+    fn postprocess_legacy(
+        &self,
+        output: ArrayViewD<f32>,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> VisionResult<Vec<DetResult>> {
+        let matrix = self.squeeze_output(output)?;
+        let layout = self.resolve_output_layout(matrix);
+        let mut boxes: Vec<DetResult> = Vec::new();
+
+        match layout {
+            YoloOutputLayout::LegacyCandidatesRows => {
+                for row in matrix.axis_iter(Axis(0)) {
+                    let Some((class_id, prob)) =
+                        self.legacy_score_and_class(row.len(), |idx| row[idx])
+                    else {
+                        continue;
+                    };
+
+                    if prob < self.confidence_thresh
+                        || class_id >= self.class_count
+                        || !self.allow_class(class_id)
+                    {
+                        continue;
+                    }
+
+                    boxes.push(DetResult {
+                        id: 0,
+                        pre_id: 0,
+                        next_id: 0,
+                        bounding_box: self.build_xywh_box(
+                            row[0],
+                            row[1],
+                            row[2],
+                            row[3],
+                            scale_factor,
+                            origin_shape,
+                        ),
+                        index: class_id as i32,
+                        label: self.resolve_label(class_id),
+                        score: prob,
+                    });
+                }
+            }
+            YoloOutputLayout::LegacyCandidatesCols => {
+                for col in matrix.axis_iter(Axis(1)) {
+                    let Some((class_id, prob)) =
+                        self.legacy_score_and_class(col.len(), |idx| col[idx])
+                    else {
+                        continue;
+                    };
+
+                    if prob < self.confidence_thresh
+                        || class_id >= self.class_count
+                        || !self.allow_class(class_id)
+                    {
+                        continue;
+                    }
+
+                    boxes.push(DetResult {
+                        id: 0,
+                        pre_id: 0,
+                        next_id: 0,
+                        bounding_box: self.build_xywh_box(
+                            col[0],
+                            col[1],
+                            col[2],
+                            col[3],
+                            scale_factor,
+                            origin_shape,
+                        ),
+                        index: class_id as i32,
+                        label: self.resolve_label(class_id),
+                        score: prob,
+                    });
+                }
+            }
+            _ => {
+                return Err(VisionError::DataProcessingErr {
+                    method: "yolo_postprocess_legacy".to_string(),
+                    e: "YOLO raw 输出布局与后处理策略不匹配".to_string(),
+                });
+            }
+        }
+
+        apply_nms(boxes, self.iou_thresh)
+    }
+
+    fn postprocess_end_to_end(
+        &self,
+        output: ArrayViewD<f32>,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> VisionResult<Vec<DetResult>> {
+        let matrix = self.squeeze_output(output)?;
+        let layout = self.resolve_output_layout(matrix);
+        let mut boxes = Vec::new();
+
+        match layout {
+            YoloOutputLayout::EndToEndRows => {
+                for row in matrix.axis_iter(Axis(0)) {
+                    if row.len() < 6 {
+                        continue;
+                    }
+
+                    let class_id = row[5].round().max(0.0) as usize;
+                    let score = row[4];
+
+                    if score < self.confidence_thresh
+                        || class_id >= self.class_count
+                        || !self.allow_class(class_id)
+                    {
+                        continue;
+                    }
+
+                    boxes.push(DetResult {
+                        id: 0,
+                        pre_id: 0,
+                        next_id: 0,
+                        bounding_box: self.build_xyxy_box(
+                            row[0],
+                            row[1],
+                            row[2],
+                            row[3],
+                            scale_factor,
+                            origin_shape,
+                        ),
+                        index: class_id as i32,
+                        label: self.resolve_label(class_id),
+                        score,
+                    });
+                }
+            }
+            YoloOutputLayout::EndToEndCols => {
+                for col in matrix.axis_iter(Axis(1)) {
+                    if col.len() < 6 {
+                        continue;
+                    }
+
+                    let class_id = col[5].round().max(0.0) as usize;
+                    let score = col[4];
+
+                    if score < self.confidence_thresh
+                        || class_id >= self.class_count
+                        || !self.allow_class(class_id)
+                    {
+                        continue;
+                    }
+
+                    boxes.push(DetResult {
+                        id: 0,
+                        pre_id: 0,
+                        next_id: 0,
+                        bounding_box: self.build_xyxy_box(
+                            col[0],
+                            col[1],
+                            col[2],
+                            col[3],
+                            scale_factor,
+                            origin_shape,
+                        ),
+                        index: class_id as i32,
+                        label: self.resolve_label(class_id),
+                        score,
+                    });
+                }
+            }
+            _ => {
+                return Err(VisionError::DataProcessingErr {
+                    method: "yolo_postprocess_end_to_end".to_string(),
+                    e: "YOLO end-to-end 输出布局与后处理策略不匹配".to_string(),
+                });
+            }
+        }
+
+        boxes.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        Ok(boxes)
+    }
 }
 
 impl ModelHandler for YoloDet {
     fn load_model(&mut self) -> VisionResult<()> {
-        self.base_model.load_model_base::<Self>("det_yolo")
+        self.refresh_runtime_config();
+        self.base_model
+            .load_model_base::<Self>(self.model_file_stem())
     }
 
     fn get_input_size(&self) -> (u32, u32) {
@@ -79,31 +456,35 @@ impl ModelHandler for YoloDet {
         // 4. 通道顺序调整 (HWC -> CHW)
         let (w, h) = self.get_input_size();
         let (origin_w, origin_h) = image.dimensions();
-        let scale = origin_w.max(origin_h) as f32 / w as f32;
+        let scale_x = origin_w as f32 / w as f32;
+        let scale_y = origin_h as f32 / h as f32;
 
-        let img = image.resize(w, h, FilterType::Triangle);
+        let img = image.resize_exact(w, h, FilterType::Triangle);
         let (width, height) = img.dimensions();
         let img_buffer = img.to_rgb8();
         let raw_pixels = img_buffer.into_raw();
+        let width_usize = width as usize;
+        let height_usize = height as usize;
+        let mut input = Array4::<f32>::zeros((1, 3, height_usize, width_usize));
 
-        let img_array = Array::from_shape_vec((height as usize, width as usize, 3), raw_pixels)
-            .map_err(|e| VisionError::DataProcessingErr {
-                method: "preprocess".to_string(),
-                e: e.to_string(),
-            })?;
+        for (pixel_index, pixel) in raw_pixels.chunks_exact(3).enumerate() {
+            let y = pixel_index / width_usize;
+            let x = pixel_index % width_usize;
+            input[[0, 0, y, x]] = pixel[0] as f32 / 255.0;
+            input[[0, 1, y, x]] = pixel[1] as f32 / 255.0;
+            input[[0, 2, y, x]] = pixel[2] as f32 / 255.0;
+        }
 
-        // (H, W, C) -> (C, H, W)
-        let img_array = img_array.permuted_axes([2, 0, 1]);
-
-        // Normalize and add batch dimension
-        let input = img_array.mapv(|x| x as f32 / 255.0).insert_axis(Axis(0));
-
-        Ok((input.into_dyn(), [scale, scale], [origin_h, origin_w]))
+        Ok((input.into_dyn(), [scale_x, scale_y], [origin_h, origin_w]))
     }
 
     fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
         // 使用通用推理方法，消除代码重复
-        self.base_model.inference_base(input, self.get_input_node_name(), self.get_output_node_name())
+        self.base_model.inference_base(
+            input,
+            self.get_input_node_name(),
+            self.get_output_node_name(),
+        )
     }
 
     fn get_input_node_name(&self) -> &'static str {
@@ -123,75 +504,22 @@ impl ModelHandler for YoloDet {
     }
 }
 
-    impl TextDetector for YoloDet {
+impl TextDetector for YoloDet {
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,
         scale_factor: [f32; 2],
-        _origin_shape: [u32; 2],
+        origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
-        // 实现YOLO后处理逻辑
-        // 1. NMS (非极大值抑制)
-        // 2. 置信度过滤
-        // 3. 坐标转换
-
-        let mut boxes: Vec<DetResult> = Vec::new();
-        let output = output.slice(s![0, .., .., 0]);
-        // let scale = origin_w.max(origin_h) as f32 / target_width as f32;
-        let scale = scale_factor[0];
-        for row in output.axis_iter(Axis(0)) {
-            let row: Vec<_> = row.iter().copied().collect();
-            let (class_id, prob) = row
-                .iter()
-                .skip(4) // 跳过边界框坐标
-                .enumerate()
-                .map(|(index, value)| (index, *value))
-                .reduce(|accum, row| if row.1 > accum.1 { row } else { accum })
-                .unwrap_or((0, 0.0));
-
-            if prob < self.confidence_thresh {
-                continue;
+        match self.postprocess_kind {
+            YoloPostprocessKind::LegacyNms => {
+                self.postprocess_legacy(output, scale_factor, origin_shape)
             }
-
-            // 确保类别ID在有效范围内
-            if class_id >= self.class_count {
-                Log::warn(&format!("[ yolo ]无效类别ID: {}", class_id));
-                continue;
+            YoloPostprocessKind::EndToEnd => {
+                self.postprocess_end_to_end(output, scale_factor, origin_shape)
             }
-            //let (w,h) = self.get_input_size();
-            let label: &String = &self.class_labels[&(class_id as u16)];
-
-
-            let xc = row[0] * scale;
-            let yc = row[1] * scale;
-            let w = row[2] * scale;
-            let h = row[3] * scale;
-
-            boxes.push(DetResult {
-                id: 0,
-                pre_id: 0,
-                next_id: 0,
-                bounding_box: BoundingBox::new(
-                    (xc - w / 2.) as i32,
-                    (yc - h / 2.) as i32,
-                    (xc + w / 2.) as i32,
-                    (yc + h / 2.) as i32,
-                ),
-                index: class_id as i32,
-                label: label.clone(),
-                score: prob,
-            });
         }
-
-        // 应用非极大值抑制(NMS)
-        // 过滤掉IoU高于阈值的框
-
-        // 应用非极大值抑制(NMS)
-        let result = apply_nms(boxes, self.iou_thresh)?;
-
-        Ok(result)
     }
-
 }
 
 // 计算IoU的辅助函数
@@ -271,4 +599,103 @@ fn apply_nms(boxes: Vec<DetResult>, iou_thresh: f32) -> VisionResult<Vec<DetResu
     }
 
     Ok(final_results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::ort::execution_provider_mgr::InferenceBackend;
+    use crate::infrastructure::vision::base_model::ModelSource;
+    use ndarray::arr2;
+
+    fn build_detector(model_type: ModelType, txt_idx: Option<u16>) -> YoloDet {
+        let mut class_labels = HashMap::new();
+        class_labels.insert(0, "button".to_string());
+        class_labels.insert(1, "text".to_string());
+
+        YoloDet {
+            base_model: BaseModel::new(
+                640,
+                640,
+                ModelSource::Custom,
+                PathBuf::new(),
+                InferenceBackend::CPU,
+                1,
+                false,
+                1,
+                false,
+                model_type,
+            ),
+            class_count: 2,
+            class_labels,
+            confidence_thresh: 0.25,
+            iou_thresh: 0.45,
+            label_path: None,
+            txt_idx,
+            postprocess_kind: match model_type {
+                ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
+                _ => YoloPostprocessKind::LegacyNms,
+            },
+            output_layout: OnceLock::new(),
+        }
+    }
+
+    #[test]
+    fn parses_yolo11_raw_head_output() {
+        let detector = build_detector(ModelType::Yolo11, None);
+        let output = arr2(&[
+            [320.0, 120.0],
+            [300.0, 100.0],
+            [100.0, 80.0],
+            [60.0, 40.0],
+            [0.90, 0.10],
+            [0.05, 0.85],
+        ])
+        .into_dyn();
+
+        let mut results = detector
+            .postprocess(output.view(), [1.0, 1.0], [640, 640])
+            .unwrap();
+        results.sort_by_key(|item| item.index);
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].index, 0);
+        assert_eq!(results[0].label, "button");
+        assert_eq!(results[1].index, 1);
+        assert_eq!(results[1].label, "text");
+    }
+
+    #[test]
+    fn parses_yolo26_end_to_end_output_without_nms() {
+        let detector = build_detector(ModelType::Yolo26, None);
+        let output = arr2(&[
+            [10.0, 20.0, 110.0, 120.0, 0.80, 1.0],
+            [20.0, 30.0, 40.0, 50.0, 0.10, 0.0],
+        ])
+        .into_dyn();
+
+        let results = detector
+            .postprocess(output.view(), [1.0, 1.0], [640, 640])
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].index, 1);
+        assert_eq!(results[0].label, "text");
+        assert_eq!(results[0].bounding_box, BoundingBox::new(10, 20, 110, 120));
+    }
+
+    #[test]
+    fn filters_by_txt_idx_for_text_detection() {
+        let detector = build_detector(ModelType::Yolo26, Some(1));
+        let output = arr2(&[
+            [10.0, 20.0, 110.0, 120.0, 0.80, 0.0],
+            [12.0, 22.0, 112.0, 122.0, 0.75, 1.0],
+        ])
+        .into_dyn();
+
+        let results = detector
+            .postprocess(output.view(), [1.0, 1.0], [640, 640])
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].index, 1);
+        assert_eq!(results[0].label, "text");
+    }
 }

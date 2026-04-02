@@ -23,7 +23,7 @@ pub enum ModelSource {
     /// 内置模型 - 从 resources/models/ 加载
     /// 路径由程序自动解析，无需用户指定
     BuiltIn,
-    
+
     /// 自定义模型
     /// - Dev 脚本: 使用 model_path 中的绝对路径
     /// - Published 脚本: 从 scripts/{id}/models/ 加载
@@ -60,7 +60,7 @@ pub struct BaseModel {
     pub model_type: ModelType,
 }
 
-impl std::fmt::Debug for BaseModel{
+impl std::fmt::Debug for BaseModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -80,10 +80,11 @@ impl std::fmt::Debug for BaseModel{
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 pub enum ModelType {
     Yolo11,
+    Yolo26,
     PaddleDet5,
     PaddleCrnn5,
 }
@@ -117,29 +118,31 @@ impl BaseModel {
     }
 
     /// 通用的模型加载方法 - 消除重复代码
-    pub fn load_model_base<T: ModelHandler>(
-        &mut self,
-        model_type_name: &str,
-    ) -> VisionResult<()> {
+    pub fn load_model_base<T: ModelHandler>(&mut self, model_type_name: &str) -> VisionResult<()> {
         // 1. 解析模型路径
         let final_path = match self.model_source {
             ModelSource::BuiltIn => {
                 // TODO: 在生产环境中可能需要使用 Tauri 的 PathResolver 获取资源路径
                 // 目前假设 resources/models 位于当前工作目录或包内
-                std::path::PathBuf::from("resources/models").join(format!("{}.onnx", model_type_name))
+                std::path::PathBuf::from("resources/models")
+                    .join(format!("{}.onnx", model_type_name))
             }
             ModelSource::Custom => self.model_path.clone(),
         };
 
-        Log::info(&format!("加载{}模型, 路径: {:?}", model_type_name, final_path));
+        Log::debug(&format!(
+            "加载{}模型, 路径: {:?}",
+            model_type_name, final_path
+        ));
 
         // 2. 创建session builder
-        let result = configure_or_switch_provider(None, "cuda").map_err(|e| {
-            VisionError::SessionConfigFailed {
-                method: "load_model_base".to_string(),
-                e: e.to_string(),
-            }
-        })?;
+        let result =
+            configure_or_switch_provider(None, self.execution_provider.name()).map_err(|e| {
+                VisionError::SessionConfigFailed {
+                    method: "load_model_base".to_string(),
+                    e: e.to_string(),
+                }
+            })?;
 
         let session_builder = result.builder;
         Log::info(&format!("当前使用执行器: {}", result.active_backend.name()));
@@ -182,10 +185,9 @@ impl BaseModel {
                 e: e.to_string(),
             })?;
 
-
         // 5. 更新状态
-    self.session = Some(Mutex::new(session));
-    self.is_loaded = true;
+        self.session = Some(Mutex::new(session));
+        self.is_loaded = true;
 
         Log::debug(&format!("{}模型加载成功", model_type_name));
         Ok(())
@@ -200,18 +202,30 @@ impl BaseModel {
         output_node_name: &str,
     ) -> VisionResult<ArrayD<f32>> {
         if let Some(session_mutex) = self.session.as_ref() {
+            let standard_input = (!input.is_standard_layout()).then(|| {
+                Log::debug("推理输入不是标准连续布局，复制为标准布局后再送入ORT");
+                input.to_owned()
+            });
+            let input_view = standard_input
+                .as_ref()
+                .map(|array| array.view())
+                .unwrap_or(input);
+
             // 创建输入张量
-            let input_tensor =
-                TensorRef::from_array_view(input).map_err(|e| VisionError::DataProcessingErr {
+            let input_tensor = TensorRef::from_array_view(input_view).map_err(|e| {
+                VisionError::DataProcessingErr {
                     method: "inference_base".to_string(),
                     e: e.to_string(),
-                })?;
+                }
+            })?;
 
             // 获取锁
-            let mut session = session_mutex.lock().map_err(|_| VisionError::InferenceErr {
-                method: "inference_base".to_string(),
-                e: "获取Session锁失败".to_string(),
-            })?;
+            let mut session = session_mutex
+                .lock()
+                .map_err(|_| VisionError::InferenceErr {
+                    method: "inference_base".to_string(),
+                    e: "获取Session锁失败".to_string(),
+                })?;
 
             // 执行推理
             let outputs = session
@@ -229,16 +243,7 @@ impl BaseModel {
                     e: e.to_string(),
                 })?;
             Log::debug(&format!("模型输出维度: {}", view.ndim()));
-            // 处理不同的输出格式
-            let output = match self.model_type {
-                // YOLO需要转置
-                ModelType::Yolo11 => view.t().to_owned(),
-                ModelType::PaddleCrnn5 => view.to_owned(),
-                ModelType::PaddleDet5 => view.to_owned(),
-            };
-
-            // 直接返回 ArrayDyn，由调用者处理具体的维度逻辑
-            Ok(output)
+            Ok(view.to_owned())
         } else {
             Err(VisionError::IoError {
                 path: "[推理阶段]".to_string(),

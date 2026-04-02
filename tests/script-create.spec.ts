@@ -109,6 +109,10 @@ test('creates a local script with basic, model, and sponsorship settings', async
   await selectOptionByValue(page, 'script-models-txt-rec-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-txt-rec-base-model-path').fill('D:\\models\\txt-rec.onnx');
   await dialog.getByTestId('script-models-txt-rec-dict-path').fill('D:\\models\\keys.txt');
+  await selectOptionByValue(page, 'script-models-txt-rec-resize-filter', 'Triangle');
+  await selectOptionByValue(page, 'script-models-txt-rec-processing-mode', 'MicroBatch');
+  await dialog.getByTestId('script-models-txt-rec-micro-batch-size').fill('3');
+  await dialog.getByTestId('script-models-txt-rec-width-bucket-step').fill('24');
 
   await dialog.getByTestId('script-dialog-tab-support').click();
   await dialog.getByTestId('script-support-contact-info').fill('tester@example.com');
@@ -160,6 +164,10 @@ test('creates a local script with basic, model, and sponsorship settings', async
   expect(script.data.txtRecModel).toEqual({
     PaddleCrnn: expect.objectContaining({
       dictPath: 'D:\\models\\keys.txt',
+      resizeFilter: 'Triangle',
+      processingMode: 'MicroBatch',
+      microBatchSize: 3,
+      widthBucketStep: 24,
       baseModel: expect.objectContaining({
         modelSource: 'Custom',
         modelPath: 'D:\\models\\txt-rec.onnx',
@@ -173,4 +181,59 @@ test('creates a local script with basic, model, and sponsorship settings', async
 
   await page.reload();
   await expect(page.getByRole('heading', { name: scriptName })).toBeVisible();
+});
+
+test('creates a local script with yolo26 detector settings', async ({ page }) => {
+  const scriptName = `YOLO26 检测 ${Date.now()}`;
+
+  await page.getByTestId('script-list-create-button').click();
+
+  const dialog = page.getByRole('dialog', { name: '新建脚本' });
+  await dialog.getByTestId('script-basic-name').fill(scriptName);
+  await dialog.getByTestId('script-dialog-tab-models').click();
+
+  await selectOptionByValue(page, 'script-models-img-det-kind', 'Yolo26');
+  await selectOptionByValue(page, 'script-models-img-det-base-model-source', 'Custom');
+  await dialog.getByTestId('script-models-img-det-base-model-path').fill('D:\\models\\img-det-yolo26.onnx');
+  await dialog.getByTestId('script-models-img-det-class-count').fill('5');
+  await dialog.getByTestId('script-models-img-det-label-path').fill('D:\\models\\img-det-yolo26.labels.yaml');
+  await dialog.getByTestId('script-models-img-det-confidence').fill('0.4');
+  await dialog.getByTestId('script-models-img-det-iou').fill('0.2');
+
+  await selectOptionByValue(page, 'script-models-txt-det-kind', 'Yolo26');
+  await selectOptionByValue(page, 'script-models-txt-det-base-model-source', 'Custom');
+  await dialog.getByTestId('script-models-txt-det-base-model-path').fill('D:\\models\\txt-det-yolo26.onnx');
+  await dialog.getByTestId('script-models-txt-det-class-count').fill('2');
+  await dialog.getByTestId('script-models-txt-det-confidence').fill('0.35');
+  await dialog.getByTestId('script-models-txt-det-iou').fill('0.15');
+
+  await dialog.getByTestId('script-submit').click();
+  await expect(dialog).not.toBeVisible();
+
+  const script = await getStoredScript(page);
+  expect(script.data.imgDetModel).toEqual({
+    Yolo26: expect.objectContaining({
+      classCount: 5,
+      confidenceThresh: 0.4,
+      iouThresh: 0.2,
+      labelPath: 'D:\\models\\img-det-yolo26.labels.yaml',
+      baseModel: expect.objectContaining({
+        modelPath: 'D:\\models\\img-det-yolo26.onnx',
+        modelType: 'Yolo26',
+      }),
+    }),
+  });
+
+  expect(script.data.txtDetModel).toEqual({
+    Yolo26: expect.objectContaining({
+      classCount: 2,
+      confidenceThresh: 0.35,
+      iouThresh: 0.15,
+      txtIdx: 0,
+      baseModel: expect.objectContaining({
+        modelPath: 'D:\\models\\txt-det-yolo26.onnx',
+        modelType: 'Yolo26',
+      }),
+    }),
+  });
 });
