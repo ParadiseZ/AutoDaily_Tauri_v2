@@ -6,9 +6,9 @@ use crate::infrastructure::vision::tensor_view::squeeze_singleton_axes_to_2d;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView};
-use ndarray::{Array4, ArrayD, ArrayView2, ArrayViewD, Axis};
+use ndarray::{Array4, ArrayD, ArrayView2, ArrayView4, ArrayViewD, Axis};
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use tokio::fs::read_to_string;
 
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -31,6 +31,9 @@ pub struct YoloDet {
     #[serde(skip, default)]
     #[ts(skip)]
     output_layout: OnceLock<YoloOutputLayout>,
+    #[serde(skip, default = "YoloDet::default_preprocess_buffer")]
+    #[ts(skip)]
+    preprocess_buffer: Mutex<Vec<f32>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,14 +58,28 @@ enum YoloOutputLayout {
 
 #[derive(Debug, Clone)]
 struct YoloCandidate {
-    bounding_box: BoundingBox,
+    coords: [f32; 4],
+    box_format: YoloBoxFormat,
     class_id: usize,
     score: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum YoloBoxFormat {
+    Xywh,
+    Xyxy,
+}
+
 const MAX_NMS_CANDIDATES_PER_CLASS: usize = 512;
+const INV_255: f32 = 1.0 / 255.0;
 
 impl YoloDet {
+    /// 创建 YOLO 检测器内部使用的预处理缓存。
+    fn default_preprocess_buffer() -> Mutex<Vec<f32>> {
+        Mutex::new(Vec::new())
+    }
+
+    /// 根据模型类型初始化一次运行期策略，避免每次推理都判断后处理分支。
     pub fn refresh_runtime_config(&mut self) {
         self.postprocess_kind = match self.base_model.model_type {
             ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
@@ -71,6 +88,7 @@ impl YoloDet {
         self.output_layout = OnceLock::new();
     }
 
+    /// 加载 YOLO 标签文件；未提供标签时保持为空并回退为 `class_x` 标签。
     pub async fn load_labels(&mut self) -> VisionResult<()> {
         let Some(label_path) = self.label_path.clone() else {
             self.class_labels.clear();
@@ -114,6 +132,7 @@ impl YoloDet {
         }
     }
 
+    /// 去掉输出张量中的单维度，并统一为二维矩阵视图供后处理消费。
     fn squeeze_output<'a>(&self, output: ArrayViewD<'a, f32>) -> VisionResult<ArrayView2<'a, f32>> {
         squeeze_singleton_axes_to_2d(output, "yolo_squeeze_output")
     }
@@ -164,19 +183,79 @@ impl YoloDet {
             .unwrap_or_else(|| format!("class_{}", class_id))
     }
 
-    fn finalize_candidates(&self, candidates: Vec<YoloCandidate>) -> Vec<DetResult> {
+    /// 将 RGB 像素连续写入 CHW 缓冲区，避免 4D 下标逐点赋值的额外开销。
+    fn fill_chw_buffer(raw_pixels: &[u8], input_buffer: &mut [f32], plane_len: usize) {
+        let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
+        let (g_plane, b_plane) = rest.split_at_mut(plane_len);
+
+        for (pixel_index, pixel) in raw_pixels.chunks_exact(3).enumerate() {
+            r_plane[pixel_index] = pixel[0] as f32 * INV_255;
+            g_plane[pixel_index] = pixel[1] as f32 * INV_255;
+            b_plane[pixel_index] = pixel[2] as f32 * INV_255;
+        }
+    }
+
+    /// 将 NMS 之后的轻量候选框转成最终业务结果，并在这里完成坐标恢复与标签解析。
+    fn finalize_candidates(
+        &self,
+        candidates: Vec<YoloCandidate>,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> Vec<DetResult> {
         candidates
             .into_iter()
             .map(|candidate| DetResult {
                 id: 0,
                 pre_id: 0,
                 next_id: 0,
-                bounding_box: candidate.bounding_box,
+                bounding_box: self.candidate_to_bounding_box(
+                    &candidate,
+                    scale_factor,
+                    origin_shape,
+                ),
                 index: candidate.class_id as i32,
                 label: self.resolve_label(candidate.class_id),
                 score: candidate.score,
             })
             .collect()
+    }
+
+    /// 在模型坐标系下读取候选框的 XYXY 形式，供 NMS 计算 IoU 使用。
+    fn candidate_xyxy(candidate: &YoloCandidate) -> [f32; 4] {
+        match candidate.box_format {
+            YoloBoxFormat::Xywh => {
+                let [xc, yc, w, h] = candidate.coords;
+                [xc - w / 2.0, yc - h / 2.0, xc + w / 2.0, yc + h / 2.0]
+            }
+            YoloBoxFormat::Xyxy => candidate.coords,
+        }
+    }
+
+    /// 将模型坐标中的候选框转换回原图坐标，并做边界裁剪。
+    fn candidate_to_bounding_box(
+        &self,
+        candidate: &YoloCandidate,
+        scale_factor: [f32; 2],
+        origin_shape: [u32; 2],
+    ) -> BoundingBox {
+        match candidate.box_format {
+            YoloBoxFormat::Xywh => self.build_xywh_box(
+                candidate.coords[0],
+                candidate.coords[1],
+                candidate.coords[2],
+                candidate.coords[3],
+                scale_factor,
+                origin_shape,
+            ),
+            YoloBoxFormat::Xyxy => self.build_xyxy_box(
+                candidate.coords[0],
+                candidate.coords[1],
+                candidate.coords[2],
+                candidate.coords[3],
+                scale_factor,
+                origin_shape,
+            ),
+        }
     }
 
     fn allow_class(&self, class_id: usize) -> bool {
@@ -276,6 +355,14 @@ impl YoloDet {
         Some((class_id, objectness * class_prob))
     }
 
+    /// 解析 Yolo11/Yolo8 这类 raw head 输出。
+    ///
+    /// 执行顺序：
+    /// 1. 规整输出布局到 2D
+    /// 2. 逐候选框计算置信度
+    /// 3. 收集轻量候选框
+    /// 4. 本地 NMS
+    /// 5. 对保留下来的候选框恢复原图坐标并生成 `DetResult`
     fn postprocess_legacy(
         &self,
         output: ArrayViewD<f32>,
@@ -309,14 +396,8 @@ impl YoloDet {
                     }
 
                     candidates.push(YoloCandidate {
-                        bounding_box: self.build_xywh_box(
-                            row[0],
-                            row[1],
-                            row[2],
-                            row[3],
-                            scale_factor,
-                            origin_shape,
-                        ),
+                        coords: [row[0], row[1], row[2], row[3]],
+                        box_format: YoloBoxFormat::Xywh,
                         class_id,
                         score: prob,
                     });
@@ -338,14 +419,8 @@ impl YoloDet {
                     }
 
                     candidates.push(YoloCandidate {
-                        bounding_box: self.build_xywh_box(
-                            col[0],
-                            col[1],
-                            col[2],
-                            col[3],
-                            scale_factor,
-                            origin_shape,
-                        ),
+                        coords: [col[0], col[1], col[2], col[3]],
+                        box_format: YoloBoxFormat::Xywh,
                         class_id,
                         score: prob,
                     });
@@ -359,9 +434,16 @@ impl YoloDet {
             }
         }
 
-        Ok(self.finalize_candidates(apply_nms(candidates, self.iou_thresh)))
+        Ok(self.finalize_candidates(
+            apply_nms(candidates, self.iou_thresh),
+            scale_factor,
+            origin_shape,
+        ))
     }
 
+    /// 解析 Yolo26 这类 end-to-end 输出。
+    ///
+    /// 这条链路假设模型已经完成 NMS，因此这里只做阈值过滤和坐标恢复。
     fn postprocess_end_to_end(
         &self,
         output: ArrayViewD<f32>,
@@ -395,14 +477,8 @@ impl YoloDet {
                     }
 
                     candidates.push(YoloCandidate {
-                        bounding_box: self.build_xyxy_box(
-                            row[0],
-                            row[1],
-                            row[2],
-                            row[3],
-                            scale_factor,
-                            origin_shape,
-                        ),
+                        coords: [row[0], row[1], row[2], row[3]],
+                        box_format: YoloBoxFormat::Xyxy,
                         class_id,
                         score,
                     });
@@ -425,14 +501,8 @@ impl YoloDet {
                     }
 
                     candidates.push(YoloCandidate {
-                        bounding_box: self.build_xyxy_box(
-                            col[0],
-                            col[1],
-                            col[2],
-                            col[3],
-                            scale_factor,
-                            origin_shape,
-                        ),
+                        coords: [col[0], col[1], col[2], col[3]],
+                        box_format: YoloBoxFormat::Xyxy,
                         class_id,
                         score,
                     });
@@ -452,7 +522,7 @@ impl YoloDet {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        Ok(self.finalize_candidates(candidates))
+        Ok(self.finalize_candidates(candidates, scale_factor, origin_shape))
     }
 }
 
@@ -468,11 +538,7 @@ impl ModelHandler for YoloDet {
     }
 
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
-        // 实现YOLO特有的预处理逻辑
-        // 1. 图像解码
-        // 2. 尺寸调整为模型输入尺寸
-        // 3. 归一化 (0-255 -> 0-1)
-        // 4. 通道顺序调整 (HWC -> CHW)
+        // 兼容通用调用路径，仍然返回拥有所有权的输入张量。
         let (w, h) = self.get_input_size();
         let (origin_w, origin_h) = image.dimensions();
         let scale_x = origin_w as f32 / w as f32;
@@ -485,13 +551,15 @@ impl ModelHandler for YoloDet {
         let width_usize = width as usize;
         let height_usize = height as usize;
         let mut input = Array4::<f32>::zeros((1, 3, height_usize, width_usize));
+        let plane_len = width_usize * height_usize;
 
-        for (pixel_index, pixel) in raw_pixels.chunks_exact(3).enumerate() {
-            let y = pixel_index / width_usize;
-            let x = pixel_index % width_usize;
-            input[[0, 0, y, x]] = pixel[0] as f32 / 255.0;
-            input[[0, 1, y, x]] = pixel[1] as f32 / 255.0;
-            input[[0, 2, y, x]] = pixel[2] as f32 / 255.0;
+        if let Some(buffer) = input.as_slice_mut() {
+            Self::fill_chw_buffer(&raw_pixels, buffer, plane_len);
+        } else {
+            return Err(VisionError::DataProcessingErr {
+                method: "yolo_preprocess".to_string(),
+                e: "输入张量不是连续内存".to_string(),
+            });
         }
 
         Ok((input.into_dyn(), [scale_x, scale_y], [origin_h, origin_w]))
@@ -524,11 +592,45 @@ impl ModelHandler for YoloDet {
 }
 
 impl TextDetector for YoloDet {
+    /// 执行 YOLO 检测主链路。
+    ///
+    /// 这条实现会复用预处理缓冲区，并直接消费 ORT 输出 view，
+    /// 避免通用 `inference_base` 的输出整块复制。
     fn detect(&self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
         // 检测主链路：预处理 -> ORT 推理 -> 直接消费输出 view 做后处理，避免整块输出复制。
-        let (preprocessed, scale_factor, origin_shape) = self.preprocess(image)?;
+        let (w, h) = self.get_input_size();
+        let (origin_w, origin_h) = image.dimensions();
+        let scale_factor = [origin_w as f32 / w as f32, origin_h as f32 / h as f32];
+        let origin_shape = [origin_h, origin_w];
+
+        let img = image.resize_exact(w, h, FilterType::Triangle);
+        let img_buffer = img.to_rgb8();
+        let raw_pixels = img_buffer.as_raw();
+        let width_usize = w as usize;
+        let height_usize = h as usize;
+        let plane_len = width_usize * height_usize;
+        let input_len = plane_len * 3;
+
+        let mut input_buffer =
+            self.preprocess_buffer
+                .lock()
+                .map_err(|_| VisionError::DataProcessingErr {
+                    method: "yolo_detect".to_string(),
+                    e: "获取YOLO预处理缓存失败".to_string(),
+                })?;
+        if input_buffer.len() != input_len {
+            input_buffer.resize(input_len, 0.0);
+        }
+        Self::fill_chw_buffer(raw_pixels, input_buffer.as_mut_slice(), plane_len);
+        let input_view =
+            ArrayView4::from_shape((1, 3, height_usize, width_usize), input_buffer.as_slice())
+                .map_err(|e| VisionError::DataProcessingErr {
+                    method: "yolo_detect".to_string(),
+                    e: e.to_string(),
+                })?;
+
         self.base_model.inference_with_output_view(
-            preprocessed.view(),
+            input_view.into_dyn(),
             self.get_input_node_name(),
             self.get_output_node_name(),
             |output| self.postprocess(output, scale_factor, origin_shape),
@@ -552,21 +654,26 @@ impl TextDetector for YoloDet {
     }
 }
 
-// 计算IoU的辅助函数
-fn intersection(box1: &BoundingBox, box2: &BoundingBox) -> i32 {
-    (box1.x2.min(box2.x2) - box1.x1.max(box2.x1)).max(0)
-        * (box1.y2.min(box2.y2) - box1.y1.max(box2.y1)).max(0)
+fn intersection(box1: &YoloCandidate, box2: &YoloCandidate) -> f32 {
+    let [x1_a, y1_a, x2_a, y2_a] = YoloDet::candidate_xyxy(box1);
+    let [x1_b, y1_b, x2_b, y2_b] = YoloDet::candidate_xyxy(box2);
+
+    (x2_a.min(x2_b) - x1_a.max(x1_b)).max(0.0) * (y2_a.min(y2_b) - y1_a.max(y1_b)).max(0.0)
 }
 
-fn union(box1: &BoundingBox, box2: &BoundingBox) -> i32 {
-    ((box1.x2 - box1.x1) * (box1.y2 - box1.y1)) + ((box2.x2 - box2.x1) * (box2.y2 - box2.y1))
+fn union(box1: &YoloCandidate, box2: &YoloCandidate) -> f32 {
+    let [x1_a, y1_a, x2_a, y2_a] = YoloDet::candidate_xyxy(box1);
+    let [x1_b, y1_b, x2_b, y2_b] = YoloDet::candidate_xyxy(box2);
+
+    ((x2_a - x1_a).max(0.0) * (y2_a - y1_a).max(0.0))
+        + ((x2_b - x1_b).max(0.0) * (y2_b - y1_b).max(0.0))
         - intersection(box1, box2)
 }
 
-/// 计算两个边界框的 IoU (Intersection over Union)
-fn calculate_iou(box1: &BoundingBox, box2: &BoundingBox) -> f32 {
-    let intersection_area = intersection(box1, box2) as f32;
-    let union_area = union(box1, box2) as f32;
+/// 计算两个模型坐标候选框的 IoU。
+fn calculate_iou(box1: &YoloCandidate, box2: &YoloCandidate) -> f32 {
+    let intersection_area = intersection(box1, box2);
+    let union_area = union(box1, box2);
 
     if union_area <= 0.0 {
         return 0.0;
@@ -575,6 +682,10 @@ fn calculate_iou(box1: &BoundingBox, box2: &BoundingBox) -> f32 {
     intersection_area / union_area
 }
 
+/// 对候选框执行按类别分段的本地 NMS。
+///
+/// 进入 NMS 前会先按分数排序，并截断每类尾部低分候选框，
+/// 避免大量低质量框拖慢 O(n^2) 比较。
 fn apply_nms(mut boxes: Vec<YoloCandidate>, iou_thresh: f32) -> Vec<YoloCandidate> {
     if boxes.is_empty() {
         return boxes;
@@ -616,7 +727,7 @@ fn apply_nms(mut boxes: Vec<YoloCandidate>, iou_thresh: f32) -> Vec<YoloCandidat
                     continue;
                 }
 
-                let iou = calculate_iou(&class_boxes[i].bounding_box, &class_boxes[j].bounding_box);
+                let iou = calculate_iou(&class_boxes[i], &class_boxes[j]);
                 if iou > iou_thresh {
                     suppress[j] = true;
                 }
@@ -666,6 +777,7 @@ mod tests {
                 _ => YoloPostprocessKind::LegacyNms,
             },
             output_layout: OnceLock::new(),
+            preprocess_buffer: YoloDet::default_preprocess_buffer(),
         }
     }
 

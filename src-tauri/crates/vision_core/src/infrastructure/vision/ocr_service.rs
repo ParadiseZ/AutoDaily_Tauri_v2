@@ -58,7 +58,9 @@ impl OcrService {
         Ok(())
     }
 
-    /// 使用配置初始化识别器
+    /// 使用配置初始化识别器。
+    ///
+    /// 初始化顺序固定为：加载字典 -> 加载 ONNX 模型 -> 缓存 trait 对象实例。
     pub async fn init_recognizer(&mut self, config: RecognizerType) -> VisionResult<()> {
         Log::info("初始化文字识别模型...");
         let recognizer: Arc<dyn TextRecognizer + Send + Sync> = match config {
@@ -85,7 +87,7 @@ impl OcrService {
         self.recognizer = Some(recognizer);
     }
 
-    /// 执行文本检测
+    /// 只执行文本检测，不做识别。
     pub fn detect(&mut self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
         if let Some(ref mut detector) = self.detector {
             Ok(detector.detect(image)?)
@@ -94,7 +96,7 @@ impl OcrService {
         }
     }
 
-    /// 执行文本识别
+    /// 对给定检测框执行逐框识别。
     pub fn recognize(
         &mut self,
         image: &DynamicImage,
@@ -107,7 +109,9 @@ impl OcrService {
         }
     }
 
-    /// 执行批量文本识别
+    /// 对给定检测框执行批量识别。
+    ///
+    /// 是否真正走 micro-batch 由具体识别器配置决定。
     pub fn recognize_batch(
         &mut self,
         image: &DynamicImage,
@@ -120,7 +124,7 @@ impl OcrService {
         }
     }
 
-    /// 执行完整的OCR流程 (检测 + 识别)
+    /// 执行完整 OCR 流程：检测后走逐框识别链路。
     pub fn ocr(&mut self, image: &DynamicImage) -> VisionResult<Vec<OcrResult>> {
         // 1. 首先进行文本检测
         let mut det_result = self.detect(image)?;
@@ -141,6 +145,7 @@ impl OcrService {
 
         Ok(ocr_results)
     }
+    /// 执行完整 OCR 流程：检测后走批量识别链路。
     pub fn ocr_batch(&mut self, image: &DynamicImage) -> VisionResult<Vec<OcrResult>> {
         // 1. 首先进行文本检测
         let mut det_result = self.detect(image)?;

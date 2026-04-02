@@ -73,10 +73,12 @@ pub struct PaddleRecCrnn {
 }
 
 impl PaddleRecCrnn {
+    /// 默认 micro-batch 大小。
     pub const fn default_micro_batch_size() -> usize {
         4
     }
 
+    /// 默认宽度分桶步长。
     pub const fn default_width_bucket_step() -> u32 {
         32
     }
@@ -141,6 +143,7 @@ impl PaddleRecCrnn {
         }
     }
 
+    /// 根据检测框裁出文本图，并提前计算每个样本的目标宽度。
     fn collect_samples(&self, image: &DynamicImage, det_results: &[DetResult]) -> Vec<RecSample> {
         let mut samples: Vec<_> = det_results
             .par_iter()
@@ -158,6 +161,9 @@ impl PaddleRecCrnn {
         samples
     }
 
+    /// 执行单张识别链路。
+    ///
+    /// 这条路径会保留原始检测框索引，按“预处理 -> 串行推理 -> 原索引回填后处理”执行。
     fn recognize_single_samples(
         &self,
         samples: &[RecSample],
@@ -176,6 +182,7 @@ impl PaddleRecCrnn {
         self.recognize_preprocessed_inputs(preprocessed_inputs, det_results)
     }
 
+    /// 将一个 micro-batch 的样本拼成统一宽度的批量输入张量。
     fn preprocess_sample_batch(
         &self,
         samples: &[RecSample],
@@ -216,6 +223,9 @@ impl PaddleRecCrnn {
         Ok(batch_data.into_dyn())
     }
 
+    /// 执行按宽度分桶的 micro-batch 识别链路。
+    ///
+    /// 这条路径用于减少“极宽文本拖慢整批”的问题。
     fn recognize_micro_batches(
         &self,
         samples: Vec<RecSample>,
@@ -262,6 +272,7 @@ impl PaddleRecCrnn {
         Ok(results.into_iter().map(|(_, item)| item).collect())
     }
 
+    /// 从识别模型输出中取出单个样本的 `[T, C]` 序列视图。
     fn extract_sequence_view<'a>(
         &self,
         output: ArrayViewD<'a, f32>,
@@ -270,6 +281,9 @@ impl PaddleRecCrnn {
         select_batch_and_squeeze_to_2d(output, batch_index, "rec_extract_sequence_view")
     }
 
+    /// 加载识别字典。
+    ///
+    /// 会保留原始行内容，只在首行移除 BOM，避免把空格字符误删。
     pub async fn load_dict(&mut self) -> VisionResult<()> {
         if self.dict_path.is_none() {
             return Err(VisionError::IoError {

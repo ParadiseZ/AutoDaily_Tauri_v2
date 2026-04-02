@@ -117,7 +117,12 @@ impl BaseModel {
         }
     }
 
-    /// 通用的模型加载方法 - 消除重复代码
+    /// 加载 ONNX 模型并创建会话。
+    ///
+    /// 这里统一处理：
+    /// - 内置/自定义模型路径解析
+    /// - 执行器切换
+    /// - ORT 线程与图优化配置
     pub fn load_model_base<T: ModelHandler>(&mut self, model_type_name: &str) -> VisionResult<()> {
         // 1. 解析模型路径
         let final_path = match self.model_source {
@@ -193,6 +198,9 @@ impl BaseModel {
         Ok(())
     }
 
+    /// 执行一次推理，并在 ORT 输出 view 仍然有效时直接消费输出。
+    ///
+    /// 这个入口主要给检测链路使用，用来绕开“先拷贝整块输出再后处理”的额外开销。
     pub fn inference_with_output_view<R, F>(
         &self,
         input: ArrayViewD<'_, f32>,
@@ -254,8 +262,9 @@ impl BaseModel {
         }
     }
 
-    /// 通用的推理方法 - 消除推理代码重复 🆕
-    /// 正确使用ORT线程设置和Rayon线程池配合
+    /// 执行一次通用推理，并返回拥有所有权的输出张量。
+    ///
+    /// 识别模型和其他仍然需要持有输出数据的链路继续走这个入口。
     pub fn inference_base(
         &self,
         input: ArrayViewD<'_, f32>,
