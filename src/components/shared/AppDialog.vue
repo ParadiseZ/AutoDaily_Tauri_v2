@@ -8,7 +8,7 @@
               <h2 class="text-lg font-semibold text-[var(--app-text-strong)]">{{ title }}</h2>
               <p v-if="description" class="text-sm text-[var(--app-text-soft)]">{{ description }}</p>
             </div>
-            <button class="app-icon-button" type="button" @click="$emit('close')">
+            <button class="app-icon-button app-dialog-close-button" type="button" @click="$emit('close')">
               <span class="text-lg leading-none">×</span>
             </button>
           </header>
@@ -46,5 +46,21 @@ defineEmits<{
 .dialog-fade-enter-from,
 .dialog-fade-leave-to {
   opacity: 0;
+}
+
+.app-dialog-close-button {
+  transition:
+    transform 0.16s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.app-dialog-close-button:hover {
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(220, 38, 38, 0.34));
+  border-color: rgba(220, 38, 38, 0.32);
+  color: rgb(185, 28, 28);
+  box-shadow: 0 10px 22px rgba(220, 38, 38, 0.12);
 }
 </style>

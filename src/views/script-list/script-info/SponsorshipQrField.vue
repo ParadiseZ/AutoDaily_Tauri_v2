@@ -1,11 +1,8 @@
 <template>
   <div class="space-y-4">
-    <div class="flex items-start justify-between gap-3">
-      <div>
-        <p class="text-sm font-medium text-[var(--app-text-strong)]">赞助二维码</p>
-        <p class="mt-1 text-xs text-[var(--app-text-faint)]">支持本地图片路径、远程链接和 data URL。优先推荐本地图片文件。</p>
-      </div>
-      <div class="flex items-center gap-2">
+    <div class="support-qr-row">
+      <span class="support-qr-label">二维码</span>
+      <div class="flex flex-wrap items-center gap-2">
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="pickImage">
           选择图片
         </button>
@@ -21,8 +18,8 @@
       </div>
     </div>
 
-    <label class="space-y-2">
-      <span class="text-sm font-medium text-[var(--app-text-strong)]">图片地址</span>
+    <label class="support-qr-row">
+      <span class="support-qr-label">图片地址</span>
       <input
         :value="modelValue || ''"
         class="app-input"
@@ -33,8 +30,10 @@
       />
     </label>
 
-    <div class="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
-      <div class="flex min-h-[180px] items-center justify-center overflow-hidden rounded-[20px] border border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-panel-muted)_92%,transparent)]">
+    <div class="support-qr-row items-start">
+      <span class="support-qr-label pt-3">二维码预览</span>
+      <div class="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
+        <div class="flex min-h-[180px] items-center justify-center overflow-hidden rounded-[20px] border border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-panel-muted)_92%,transparent)]">
         <img
           v-if="previewSrc && !previewFailed"
           :src="previewSrc"
@@ -52,16 +51,13 @@
                 : '选择二维码图片后，这里显示预览。'
           }}
         </div>
-      </div>
-
-      <div class="space-y-3">
-        <div class="rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm" :data-testid="sourceTestId">
-          <p class="text-xs text-[var(--app-text-faint)]">当前来源</p>
-          <p class="mt-1 break-all text-[var(--app-text-strong)]">{{ sourceLabel }}</p>
         </div>
 
-        <div class="rounded-[16px] border border-dashed border-[var(--app-border-strong)] px-4 py-3 text-xs leading-6 text-[var(--app-text-faint)]">
-          本地路径会原样保存到脚本信息里，预览时通过 Tauri 命令转换成 base64。这样不会依赖 `asset.localhost`，也不会把图片内容直接写回脚本记录。
+        <div class="space-y-3">
+          <div class="rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm" :data-testid="sourceTestId">
+            <p class="text-xs text-[var(--app-text-faint)]">当前来源</p>
+            <p class="mt-1 break-all text-[var(--app-text-strong)]">{{ sourceLabel }}</p>
+          </div>
         </div>
       </div>
     </div>
@@ -163,3 +159,23 @@ watch(
   { immediate: true },
 );
 </script>
+
+<style scoped>
+.support-qr-row {
+  display: grid;
+  gap: 0.9rem;
+  align-items: center;
+}
+
+.support-qr-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--app-text-strong);
+}
+
+@media (min-width: 768px) {
+  .support-qr-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+}
+</style>
