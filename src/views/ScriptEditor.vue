@@ -224,6 +224,7 @@
         <EditorTaskWorkspace
           v-if="activeMode === 'task'"
           :task="currentTask"
+          :tasks="draftTasks"
           :active-panel="activePanel"
           :steps="parsedSteps"
           :selected-step-path="selectedStepPath"
@@ -237,6 +238,7 @@
           @update-input="updateInput"
           @remove-input="removeInput"
           @select-input="selectedInputId = $event"
+          @select-task="selectTask"
           @select-ui-field="selectedUiFieldId = $event"
           @update-ui-field="updateUiField"
           @remove-ui-field="removeUiField"

@@ -19,8 +19,11 @@
         @remove-input="$emit('remove-input', $event)"
       />
 
-      <div v-else-if="activePanel === 'ui'" class="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
+      <div v-else-if="activePanel === 'ui'" class="grid min-h-0 gap-4 xl:grid-rows-[auto_auto_minmax(0,1fr)]">
+        <EditorTaskTablePreview :tasks="tasks" :selected-task-id="task.id" @select-task="$emit('select-task', $event)" />
+
         <EditorUiPreviewPanel
+          v-if="task.rowType === 'task'"
           :task-name="task.name"
           :default-task-cycle="task.defaultTaskCycle"
           :show-enabled-toggle="task.showEnabledToggle"
@@ -33,13 +36,28 @@
           @update-input="forwardUpdateInput"
         />
 
+        <div
+          v-else
+          class="rounded-[18px] border border-dashed border-[var(--app-border)] bg-[var(--app-panel-muted)] px-5 py-5 text-sm text-[var(--app-text-soft)]"
+        >
+          标题行只用于整表分块显示，不包含单任务 UI 字段预览。
+        </div>
+
         <EditorUiFieldDetailsPanel
+          v-if="task.rowType === 'task'"
           :selected-ui-field="selectedUiField"
           :selected-ui-field-index="selectedUiFieldIndex"
           :variable-options="variableOptions"
           @update-ui-field="forwardUpdateUiField"
           @remove-ui-field="$emit('remove-ui-field', $event)"
         />
+
+        <div
+          v-else
+          class="rounded-[18px] border border-dashed border-[var(--app-border)] bg-[var(--app-panel-muted)] px-5 py-5 text-sm text-[var(--app-text-soft)]"
+        >
+          选择普通任务后，这里会显示当前任务的字段详情。
+        </div>
       </div>
 
       <EditorStepWorkspace
@@ -77,6 +95,7 @@ import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
 import EditorInputDetailsPanel from '@/views/script-editor/EditorInputDetailsPanel.vue';
 import EditorStepWorkspace from '@/views/script-editor/editor-step/EditorStepWorkspace.vue';
+import EditorTaskTablePreview from '@/views/script-editor/EditorTaskTablePreview.vue';
 import EditorUiFieldDetailsPanel from '@/views/script-editor/EditorUiFieldDetailsPanel.vue';
 import EditorUiPreviewPanel from '@/views/script-editor/EditorUiPreviewPanel.vue';
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editor-step/editorStepTree';
@@ -87,6 +106,7 @@ defineOptions({ name: 'EditorTaskWorkspace' });
 
 const props = defineProps<{
   task: ScriptTaskTable | null;
+  tasks: ScriptTaskTable[];
   activePanel: EditorPanelId;
   steps: Step[];
   selectedStepPath: StepPath | null;
@@ -104,6 +124,7 @@ const emit = defineEmits<{
   'remove-input': [entryId: string];
   'select-input': [entryId: string];
   'select-ui-field': [fieldId: string];
+  'select-task': [taskId: string];
   'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step' | 'numericMode', value: string | boolean];
   'remove-ui-field': [fieldId: string];
   'select-step-path': [path: StepPath];

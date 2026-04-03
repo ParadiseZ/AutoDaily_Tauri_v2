@@ -268,6 +268,148 @@ test('persists flow conditions and action forms from step workspace', async ({ p
   });
 });
 
+test('renders script-level task preview with title groups and task metadata', async ({ page }) => {
+  const scriptId = 'script-editor-preview';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '任务整表预览脚本',
+      description: '验证标题行、分组和任务元数据预览',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.preview',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const previewTitleId = 'task-title-daily';
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: previewTitleId,
+        scriptId: currentScriptId,
+        name: '每日任务',
+        rowType: 'title',
+        triggerMode: 'rootOnly',
+        recordSchedule: false,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: false,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+      {
+        id: 'task-daily-sign',
+        scriptId: currentScriptId,
+        name: '签到',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: previewTitleId,
+        indentLevel: 1,
+        defaultTaskCycle: 'daily',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'warning',
+        isHidden: false,
+        data: {
+          uiData: {
+            layout: 'horizontal',
+            fields: [
+              {
+                key: 'signCount',
+                label: '签到次数',
+                control: 'number',
+                inputKey: 'signCount',
+              },
+            ],
+          },
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 1,
+      },
+      {
+        id: 'task-loose-reward',
+        scriptId: currentScriptId,
+        name: '奖励领取',
+        rowType: 'task',
+        triggerMode: 'rootAndLink',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'weekly',
+        showEnabledToggle: true,
+        defaultEnabled: false,
+        taskTone: 'danger',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 2,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await page.getByTestId('editor-task-item-task-daily-sign').getByRole('button').first().click();
+  await page.getByTestId('editor-tab-ui').click();
+
+  await expect(page.getByText('整表任务预览')).toBeVisible();
+  await expect(page.getByText('每日任务').first()).toBeVisible();
+  await expect(page.getByText('签到').first()).toBeVisible();
+  await expect(page.getByText('奖励领取').first()).toBeVisible();
+  await expect(page.getByText('未分组任务')).toBeVisible();
+  await expect(page.getByText('每日').first()).toBeVisible();
+  await expect(page.getByText('一级 + 跳转').first()).toBeVisible();
+});
+
 test('persists varCompare conditions and nested branch steps', async ({ page }) => {
   const scriptId = 'script-editor-nested';
   const script: StoredScriptTable = {
