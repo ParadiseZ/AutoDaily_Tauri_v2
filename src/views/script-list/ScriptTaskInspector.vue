@@ -28,10 +28,22 @@
           <div v-for="task in tasks" :key="task.id" class="rounded-[18px] border border-[var(--app-border)] px-4 py-4">
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ task.name }}</p>
-              <StatusBadge :label="task.taskType === 'main' ? '主任务' : '子任务'" :tone="task.taskType === 'main' ? 'info' : 'neutral'" />
+              <StatusBadge :label="formatTaskRowTypeLabel(task.rowType)" :tone="task.rowType === 'title' ? 'neutral' : 'info'" />
             </div>
 
             <div class="mt-3 space-y-2">
+              <div class="flex flex-wrap gap-2">
+                <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                  {{ formatTaskTriggerModeLabel(task.triggerMode) }}
+                </span>
+                <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                  {{ formatTaskCycleLabel(task.defaultTaskCycle) }}
+                </span>
+                <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                  {{ formatTaskToneLabel(task.taskTone) }}
+                </span>
+              </div>
+
               <div v-if="extractVariables(task.data.variables).length">
                 <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">变量字段</p>
                 <div class="mt-2 flex flex-wrap gap-2">
@@ -87,7 +99,13 @@ import type { AssignmentRecord, JsonValue, ScriptTableRecord } from '@/types/app
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
-import { formatTemplateWindow } from '@/utils/presenters';
+import {
+  formatTaskCycleLabel,
+  formatTaskRowTypeLabel,
+  formatTaskToneLabel,
+  formatTaskTriggerModeLabel,
+  formatTemplateWindow,
+} from '@/utils/presenters';
 
 const props = defineProps<{
   script: ScriptTableRecord | null;

@@ -65,15 +65,23 @@ pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTab
     // 插入新任务
     for task in tasks {
         let insert_query = format!(
-            "INSERT INTO {} (id, script_id, name, is_hidden, task_type, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO {} (id, script_id, name, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             SCRIPT_TASK_TABLE
         );
         sqlx::query(&insert_query)
             .bind(task.id.to_string())
             .bind(script_id.to_string())
             .bind(&task.name)
+            .bind(task.row_type)
+            .bind(task.trigger_mode)
+            .bind(task.record_schedule)
+            .bind(task.section_id.map(|value| value.to_string()))
+            .bind(task.indent_level as i64)
+            .bind(&task.default_task_cycle)
+            .bind(task.show_enabled_toggle)
+            .bind(task.default_enabled)
+            .bind(task.task_tone)
             .bind(task.is_hidden)
-            .bind(task.task_type)
             .bind(&task.data)
             .bind(task.created_at)
             .bind(task.updated_at)

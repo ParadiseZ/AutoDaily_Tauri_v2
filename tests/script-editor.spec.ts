@@ -120,8 +120,11 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-task-name')).toHaveValue('主任务 1');
 
   await page.getByTestId('editor-task-name').fill('日常主流程');
-  await selectOptionByValue(page, 'editor-task-type', 'child');
+  await selectOptionByValue(page, 'editor-task-trigger-mode', 'rootAndLink');
+  await selectOptionByValue(page, 'editor-task-tone', 'warning');
+  await selectOptionByValue(page, 'editor-task-cycle', 'daily');
   await page.getByTestId('editor-task-hidden').check();
+  await page.getByTestId('editor-task-default-enabled').uncheck();
 
   await page.getByTestId('editor-tab-inputs').click();
   await page.getByTestId('editor-input-add').click();
@@ -153,7 +156,11 @@ test('edits script tasks with visual task editor and persists payload', async ({
   const [task] = state!.scriptTasks[scriptId];
   const savedScript = state!.scripts.find((item) => item.id === scriptId);
   expect(task.name).toBe('日常主流程');
-  expect(task.taskType).toBe('child');
+  expect(task.rowType).toBe('task');
+  expect(task.triggerMode).toBe('rootAndLink');
+  expect(task.defaultTaskCycle).toBe('daily');
+  expect(task.taskTone).toBe('warning');
+  expect(task.defaultEnabled).toBe(false);
   expect(task.isHidden).toBe(true);
   expect(task.data.variables).toEqual({ activitySweepCount: 8 });
   expect(savedScript?.data.variableCatalog.variables).toHaveLength(1);

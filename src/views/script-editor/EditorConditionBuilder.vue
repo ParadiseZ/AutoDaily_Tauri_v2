@@ -138,7 +138,7 @@
             <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态类型</span>
             <AppSelect
               :model-value="modelValue.a.status.type"
-              :options="stateStatusTypeOptions"
+              :options="filteredStateStatusTypeOptions"
               placeholder="状态类型"
               @update:model-value="updateTaskStatusType(String($event || 'done'))"
             />
@@ -306,6 +306,11 @@ const emit = defineEmits<{
 
 const addableConditionTypes = computed(() => conditionTypeOptions.filter((option) => option.value !== 'group' || props.depth < 2));
 const varCompareKindPreference = ref<VarValueKind | null>(null);
+const filteredStateStatusTypeOptions = computed(() =>
+  props.modelValue.type === 'taskStatus' && props.modelValue.a.target.type !== 'task'
+    ? stateStatusTypeOptions.filter((option) => option.value !== 'enabled')
+    : stateStatusTypeOptions,
+);
 const currentVarValueDraft = computed(() =>
   props.modelValue.type === 'varCompare'
     ? parseVarValueDraft(props.modelValue.value, varCompareKindPreference.value ?? undefined)

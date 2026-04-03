@@ -126,10 +126,10 @@ pub async fn batch_insert_script_related(
         for chunk in tasks.chunks(50) {
             let placeholders: Vec<String> = chunk
                 .iter()
-                .map(|_| "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string())
+                .map(|_| "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string())
                 .collect();
             let sql = format!(
-                "INSERT INTO script_tasks (id, script_id, name, is_hidden, task_type, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES {}",
+                "INSERT INTO script_tasks (id, script_id, name, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES {}",
                 placeholders.join(", ")
             );
             let mut query = sqlx::query(&sql);
@@ -138,8 +138,16 @@ pub async fn batch_insert_script_related(
                     .bind(t.id.to_string())
                     .bind(t.script_id.to_string())
                     .bind(&t.name)
+                    .bind(t.row_type.clone())
+                    .bind(t.trigger_mode.clone())
+                    .bind(t.record_schedule)
+                    .bind(t.section_id.as_ref().map(|value| value.to_string()))
+                    .bind(t.indent_level as i64)
+                    .bind(&t.default_task_cycle)
+                    .bind(t.show_enabled_toggle)
+                    .bind(t.default_enabled)
+                    .bind(t.task_tone.clone())
                     .bind(t.is_hidden)
-                    .bind(t.task_type.clone())
                     .bind(&t.data)
                     .bind(t.created_at)
                     .bind(t.updated_at)

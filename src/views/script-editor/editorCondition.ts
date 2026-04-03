@@ -39,6 +39,7 @@ export const taskControlTypeOptions = [
 ];
 
 export const stateStatusTypeOptions = [
+  { label: '启用', value: 'enabled', description: '启用 / 禁用状态。' },
   { label: '完成', value: 'done', description: '完成状态。' },
   { label: '跳过', value: 'skip', description: '跳过状态。' },
 ];

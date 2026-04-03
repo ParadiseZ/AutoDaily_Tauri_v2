@@ -27,6 +27,7 @@ pub enum StateTarget {
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum StateStatus {
+    Enabled { value: bool },
     Skip { value: bool },
     Done { value: bool },
 }

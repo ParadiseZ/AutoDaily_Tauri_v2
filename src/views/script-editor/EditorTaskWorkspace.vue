@@ -22,6 +22,10 @@
       <div v-else-if="activePanel === 'ui'" class="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
         <EditorUiPreviewPanel
           :task-name="task.name"
+          :default-task-cycle="task.defaultTaskCycle"
+          :show-enabled-toggle="task.showEnabledToggle"
+          :default-enabled="task.defaultEnabled"
+          :task-tone="task.taskTone"
           :ui-schema="uiSchema"
           :selected-ui-field-id="selectedUiFieldId"
           :input-entries="inputEntries"

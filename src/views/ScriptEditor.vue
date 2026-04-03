@@ -138,8 +138,19 @@
           :task="currentTask"
           :active-panel="activePanel"
           :task-name="taskName"
-          :task-type="taskType"
+          :task-row-type="taskRowType"
+          :task-trigger-mode="taskTriggerMode"
           :task-hidden="taskHidden"
+          :record-schedule="recordSchedule"
+          :section-id="sectionId"
+          :indent-level="indentLevel"
+          :default-task-cycle-value="defaultTaskCycleValue"
+          :default-task-cycle-mode="defaultTaskCycleMode"
+          :default-task-cycle-day="defaultTaskCycleDay"
+          :show-enabled-toggle="showEnabledToggle"
+          :default-enabled="defaultEnabled"
+          :task-tone="taskTone"
+          :title-options="titleTaskOptions"
           :input-entries="inputEntries"
           :input-error="inputError"
           :ui-schema="uiSchema"
@@ -147,8 +158,22 @@
           :selected-ui-field-id="selectedUiFieldId"
           @update:active-panel="activePanel = $event"
           @update:task-name="taskName = $event"
-          @update:task-type="taskType = $event"
+          @update:task-row-type="taskRowType = $event"
+          @update:task-trigger-mode="taskTriggerMode = $event"
           @update:task-hidden="taskHidden = $event"
+          @update:record-schedule="recordSchedule = $event"
+          @update:section-id="sectionId = $event"
+          @update:indent-level="indentLevel = $event"
+          @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
+          @update:default-task-cycle-day="
+            defaultTaskCycle =
+              defaultTaskCycleMode === 'weekDay'
+                ? { weekDay: Math.max(1, Math.min(7, $event)) }
+                : { monthDay: Math.max(1, Math.min(31, $event)) }
+          "
+          @update:show-enabled-toggle="showEnabledToggle = $event"
+          @update:default-enabled="defaultEnabled = $event"
+          @update:task-tone="taskTone = $event"
           @add-input="addInput"
           @select-input="selectedInputId = $event"
           @remove-input="removeInput"
@@ -304,8 +329,12 @@ import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
 import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import type { SearchRule } from '@/types/bindings/SearchRule';
-import type { Step } from '@/types/bindings/Step';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
+import type { Step } from '@/types/bindings/Step';
+import type { TaskCycle } from '@/types/bindings/TaskCycle';
+import type { TaskRowType } from '@/types/bindings/TaskRowType';
+import type { TaskTone } from '@/types/bindings/TaskTone';
+import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 import { showToast } from '@/utils/toast';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import EditorModeRail from '@/views/script-editor/EditorModeRail.vue';
@@ -356,6 +385,7 @@ import {
   type RawEditorSection,
   type UiFieldControl,
 } from '@/views/script-editor/editorSchema';
+import { parseTaskCycleValue } from '@/views/script-editor/editorTaskMeta';
 import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import {
   buildInputJson,
@@ -416,8 +446,16 @@ const sourceGroupPoliciesSnapshot = ref('');
 const sourceSetGroupsSnapshot = ref('');
 
 const taskName = ref('');
-const taskType = ref<'main' | 'child'>('main');
+const taskRowType = ref<TaskRowType>('task');
+const taskTriggerMode = ref<TaskTriggerMode>('rootOnly');
 const taskHidden = ref(false);
+const recordSchedule = ref(true);
+const sectionId = ref<string | null>(null);
+const indentLevel = ref(0);
+const defaultTaskCycle = ref<TaskCycle>('everyRun');
+const showEnabledToggle = ref(true);
+const defaultEnabled = ref(true);
+const taskTone = ref<TaskTone>('normal');
 const inputEntries = ref<EditorInputEntry[]>([]);
 const inputError = ref<string | null>(null);
 const uiSchema = ref<EditorUiSchema>(createUiSchema());
@@ -468,6 +506,38 @@ const variableOptions = computed(() =>
 const catalogVariableOptions = computed(() =>
   listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value, 'read', false),
 );
+const titleTaskOptions = computed(() => [
+  {
+    label: '未分组',
+    value: null,
+    description: '直接显示在顶层，不归属到任何标题行。',
+  },
+  ...draftTasks.value
+    .filter((task) => task.rowType === 'title' && task.id !== currentTask.value?.id)
+    .map((task) => ({
+      label: task.name || '未命名标题',
+      value: task.id,
+      description: `标题行 · ${task.index + 1}`,
+    })),
+]);
+const defaultTaskCycleValue = computed(() => {
+  if (typeof defaultTaskCycle.value === 'string') {
+    return defaultTaskCycle.value;
+  }
+  return 'weekDay' in defaultTaskCycle.value ? 'weekDay' : 'monthDay';
+});
+const defaultTaskCycleMode = computed<'named' | 'weekDay' | 'monthDay'>(() => {
+  if (typeof defaultTaskCycle.value === 'string') {
+    return 'named';
+  }
+  return 'weekDay' in defaultTaskCycle.value ? 'weekDay' : 'monthDay';
+});
+const defaultTaskCycleDay = computed(() => {
+  if (typeof defaultTaskCycle.value === 'string') {
+    return 1;
+  }
+  return 'weekDay' in defaultTaskCycle.value ? defaultTaskCycle.value.weekDay : defaultTaskCycle.value.monthDay;
+});
 const currentPolicyStepTarget = computed<'before' | 'after'>(() => (activePolicyPanel.value === 'before' ? 'before' : 'after'));
 const currentPolicySteps = computed<Step[]>(() => {
   if (!currentPolicy.value) {
@@ -609,23 +679,36 @@ const rawDialogDescription = computed(() => {
   }
 });
 
-const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable => ({
-  ...task,
-  scriptId: task.scriptId || scriptId.value,
-  name: task.name || `任务 ${index + 1}`,
-  taskType: task.taskType ?? 'main',
-  isHidden: Boolean(task.isHidden),
-  index,
-  createdAt: task.createdAt || new Date().toISOString(),
-  updatedAt: task.updatedAt || new Date().toISOString(),
-  deletedAt: task.deletedAt ?? null,
-  isDeleted: Boolean(task.isDeleted),
-  data: {
-    uiData: task.data?.uiData ?? {},
-    variables: task.data?.variables ?? {},
-    steps: Array.isArray(task.data?.steps) ? task.data.steps : [],
-  },
-});
+const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable => {
+  const legacyTaskType = (task as ScriptTaskTable & { taskType?: 'main' | 'child' }).taskType;
+  const rowType = task.rowType ?? 'task';
+  const isTitle = rowType === 'title';
+  return {
+    ...task,
+    scriptId: task.scriptId || scriptId.value,
+    name: task.name || `任务 ${index + 1}`,
+    rowType,
+    triggerMode: task.triggerMode ?? (legacyTaskType === 'child' ? 'linkOnly' : 'rootOnly'),
+    recordSchedule: isTitle ? false : task.recordSchedule ?? true,
+    sectionId: isTitle ? null : task.sectionId ?? null,
+    indentLevel: isTitle ? 0 : Math.max(0, Math.min(8, Number(task.indentLevel ?? 0))),
+    defaultTaskCycle: task.defaultTaskCycle ?? 'everyRun',
+    showEnabledToggle: isTitle ? false : task.showEnabledToggle ?? true,
+    defaultEnabled: task.defaultEnabled ?? true,
+    taskTone: isTitle ? 'normal' : task.taskTone ?? 'normal',
+    isHidden: Boolean(task.isHidden),
+    index,
+    createdAt: task.createdAt || new Date().toISOString(),
+    updatedAt: task.updatedAt || new Date().toISOString(),
+    deletedAt: task.deletedAt ?? null,
+    isDeleted: Boolean(task.isDeleted),
+    data: {
+      uiData: task.data?.uiData ?? {},
+      variables: task.data?.variables ?? {},
+      steps: Array.isArray(task.data?.steps) ? task.data.steps : [],
+    },
+  };
+};
 
 const buildTaskDraft = async (name?: string): Promise<ScriptTaskTable> => {
   const index = draftTasks.value.length;
@@ -634,8 +717,16 @@ const buildTaskDraft = async (name?: string): Promise<ScriptTaskTable> => {
       id: await taskService.requestUuid(),
       scriptId: scriptId.value,
       name: name || `新任务 ${index + 1}`,
+      rowType: 'task',
+      triggerMode: 'rootOnly',
+      recordSchedule: true,
+      sectionId: draftTasks.value.filter((task) => task.rowType === 'title').at(-1)?.id ?? null,
+      indentLevel: 0,
+      defaultTaskCycle: 'everyRun',
+      showEnabledToggle: true,
+      defaultEnabled: true,
+      taskTone: 'normal',
       isHidden: false,
-      taskType: 'main',
       data: {
         uiData: {},
         variables: {},
@@ -667,8 +758,16 @@ const hydrateTaskEditors = () => {
 
   if (!currentTask.value) {
     taskName.value = '';
-    taskType.value = 'main';
+    taskRowType.value = 'task';
+    taskTriggerMode.value = 'rootOnly';
     taskHidden.value = false;
+    recordSchedule.value = true;
+    sectionId.value = null;
+    indentLevel.value = 0;
+    defaultTaskCycle.value = 'everyRun';
+    showEnabledToggle.value = true;
+    defaultEnabled.value = true;
+    taskTone.value = 'normal';
     inputEntries.value = [];
     inputError.value = null;
     selectedInputId.value = null;
@@ -678,12 +777,23 @@ const hydrateTaskEditors = () => {
     selectedUiFieldId.value = null;
   } else {
     taskName.value = currentTask.value.name;
-    taskType.value = currentTask.value.taskType;
+    taskRowType.value = currentTask.value.rowType;
+    taskTriggerMode.value = currentTask.value.triggerMode;
     taskHidden.value = currentTask.value.isHidden;
+    recordSchedule.value = currentTask.value.recordSchedule;
+    sectionId.value = currentTask.value.sectionId;
+    indentLevel.value = currentTask.value.indentLevel;
+    defaultTaskCycle.value = currentTask.value.defaultTaskCycle;
+    showEnabledToggle.value = currentTask.value.showEnabledToggle;
+    defaultEnabled.value = currentTask.value.defaultEnabled;
+    taskTone.value = currentTask.value.taskTone;
     inputEntries.value = parseInputEntries(draftScript.value?.data.variableCatalog, currentTask.value.id, currentTask.value.data.variables ?? {});
     inputError.value = null;
     selectedInputId.value = inputEntries.value.find((entry) => entry.id === selectedInputId.value)?.id ?? inputEntries.value[0]?.id ?? null;
     uiSchema.value = parseUiSchema(currentTask.value.data.uiData ?? {});
+    if (currentTask.value.rowType === 'title') {
+      activePanel.value = 'basic';
+    }
     if (!currentTask.value.data.steps.length) {
       selectedStepPath.value = null;
       activeBranchPath.value = ROOT_BRANCH_PATH;
@@ -1682,13 +1792,32 @@ watch(taskName, (value) => {
   });
 });
 
-watch(taskType, (value) => {
+watch(taskRowType, (value) => {
   if (!currentTask.value || hydratingTaskMeta.value) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.taskType = value;
+    task.rowType = value;
+    if (value === 'title') {
+      activePanel.value = 'basic';
+      task.recordSchedule = false;
+      task.sectionId = null;
+      task.indentLevel = 0;
+      task.showEnabledToggle = false;
+      task.taskTone = 'normal';
+    }
+    return task;
+  });
+});
+
+watch(taskTriggerMode, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.triggerMode = value;
     return task;
   });
 });
@@ -1700,6 +1829,83 @@ watch(taskHidden, (value) => {
 
   replaceTask(currentTask.value.id, (task) => {
     task.isHidden = value;
+    return task;
+  });
+});
+
+watch(recordSchedule, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.recordSchedule = value;
+    return task;
+  });
+});
+
+watch(sectionId, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.sectionId = value;
+    return task;
+  });
+});
+
+watch(indentLevel, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.indentLevel = Math.max(0, Math.min(8, Number(value || 0)));
+    return task;
+  });
+});
+
+watch(defaultTaskCycle, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.defaultTaskCycle = value;
+    return task;
+  });
+});
+
+watch(showEnabledToggle, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.showEnabledToggle = value;
+    return task;
+  });
+});
+
+watch(defaultEnabled, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.defaultEnabled = value;
+    return task;
+  });
+});
+
+watch(taskTone, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.taskTone = value;
     return task;
   });
 });

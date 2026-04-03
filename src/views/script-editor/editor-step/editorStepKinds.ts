@@ -63,10 +63,11 @@ export const STATE_TARGET_TYPE = {
   task: STATE_TARGET_TYPES[1],
 } as const;
 
-export const STATE_STATUS_TYPES = ['skip', 'done'] as const;
+export const STATE_STATUS_TYPES = ['enabled', 'skip', 'done'] as const;
 export const STATE_STATUS_TYPE = {
-  skip: STATE_STATUS_TYPES[0],
-  done: STATE_STATUS_TYPES[1],
+  enabled: STATE_STATUS_TYPES[0],
+  skip: STATE_STATUS_TYPES[1],
+  done: STATE_STATUS_TYPES[2],
 } as const;
 
 export const FILTER_MODE_TYPES = ['filter', 'map'] as const;

@@ -2,6 +2,10 @@ import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { CapMethod } from '@/types/bindings/CapMethod';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 import type { DeviceRuntimeStatus, ScriptTableRecord } from '@/types/app/domain';
+import type { TaskCycle } from '@/types/bindings/TaskCycle';
+import type { TaskRowType } from '@/types/bindings/TaskRowType';
+import type { TaskTone } from '@/types/bindings/TaskTone';
+import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
 
 export const formatDateTime = (value?: string | null) => {
@@ -128,4 +132,29 @@ export const formatTemplateWindow = (template: TimeTemplate | null | undefined) 
     }
 
     return template.name;
+};
+
+export const formatTaskCycleLabel = (value: TaskCycle) => {
+    if (value === 'everyRun') return '每次';
+    if (value === 'daily') return '每日';
+    if (value === 'weekly') return '每周';
+    if (value === 'monthly') return '每月';
+    if ('weekDay' in value) {
+        return `周${['一', '二', '三', '四', '五', '六', '日'][Math.max(0, Math.min(6, value.weekDay - 1))]}`;
+    }
+    return `${value.monthDay} 日`;
+};
+
+export const formatTaskRowTypeLabel = (value: TaskRowType) => (value === 'title' ? '标题行' : '任务行');
+
+export const formatTaskTriggerModeLabel = (value: TaskTriggerMode) => {
+    if (value === 'rootOnly') return '一级循环';
+    if (value === 'linkOnly') return '仅跳转';
+    return '一级 + 跳转';
+};
+
+export const formatTaskToneLabel = (value: TaskTone) => {
+    if (value === 'warning') return '警告';
+    if (value === 'danger') return '严重';
+    return '普通';
 };

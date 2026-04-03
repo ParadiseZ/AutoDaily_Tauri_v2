@@ -142,8 +142,16 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
             id TEXT PRIMARY KEY,
             script_id TEXT NOT NULL,
             `name` TEXT NOT NULL,
+            row_type TEXT NOT NULL DEFAULT 'task',
+            trigger_mode TEXT NOT NULL DEFAULT 'rootOnly',
+            record_schedule BOOLEAN NOT NULL DEFAULT 1,
+            section_id TEXT,
+            indent_level INTEGER NOT NULL DEFAULT 0,
+            default_task_cycle JSON NOT NULL DEFAULT '\"everyRun\"',
+            show_enabled_toggle BOOLEAN NOT NULL DEFAULT 1,
+            default_enabled BOOLEAN NOT NULL DEFAULT 1,
+            task_tone TEXT NOT NULL DEFAULT 'normal',
             is_hidden BOOLEAN NOT NULL DEFAULT 0,
-            task_type TEXT NOT NULL DEFAULT 'main',
             `data` JSON NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -242,8 +250,64 @@ async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> 
 
     let ensure_column = |name: &str| column_names.iter().any(|column| column == name);
 
-    if !ensure_column("task_type") {
-        sqlx::query("ALTER TABLE script_tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'main'")
+    if !ensure_column("row_type") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN row_type TEXT NOT NULL DEFAULT 'task'")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("trigger_mode") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN trigger_mode TEXT NOT NULL DEFAULT 'rootOnly'")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("record_schedule") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN record_schedule BOOLEAN NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("section_id") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN section_id TEXT")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("indent_level") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN indent_level INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("default_task_cycle") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN default_task_cycle JSON NOT NULL DEFAULT '\"everyRun\"'")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("show_enabled_toggle") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN show_enabled_toggle BOOLEAN NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("default_enabled") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN default_enabled BOOLEAN NOT NULL DEFAULT 1")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("task_tone") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN task_tone TEXT NOT NULL DEFAULT 'normal'")
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -292,7 +356,7 @@ async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> 
             .map_err(|e| e.to_string())?;
     }
 
-    if ensure_column("nodes") || ensure_column("edges") {
+    if ensure_column("task_type") || ensure_column("nodes") || ensure_column("edges") {
         rebuild_script_tasks_table(pool).await?;
     }
 
@@ -312,8 +376,16 @@ async fn rebuild_script_tasks_table(pool: &Pool<Sqlite>) -> Result<(), String> {
             id TEXT PRIMARY KEY,
             script_id TEXT NOT NULL,
             `name` TEXT NOT NULL,
+            row_type TEXT NOT NULL DEFAULT 'task',
+            trigger_mode TEXT NOT NULL DEFAULT 'rootOnly',
+            record_schedule BOOLEAN NOT NULL DEFAULT 1,
+            section_id TEXT,
+            indent_level INTEGER NOT NULL DEFAULT 0,
+            default_task_cycle JSON NOT NULL DEFAULT '\"everyRun\"',
+            show_enabled_toggle BOOLEAN NOT NULL DEFAULT 1,
+            default_enabled BOOLEAN NOT NULL DEFAULT 1,
+            task_tone TEXT NOT NULL DEFAULT 'normal',
             is_hidden BOOLEAN NOT NULL DEFAULT 0,
-            task_type TEXT NOT NULL DEFAULT 'main',
             `data` JSON NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -328,13 +400,25 @@ async fn rebuild_script_tasks_table(pool: &Pool<Sqlite>) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     sqlx::query(
-        "INSERT INTO script_tasks_v2 (id, script_id, `name`, is_hidden, task_type, `data`, created_at, updated_at, deleted_at, is_deleted, `index`)
+        "INSERT INTO script_tasks_v2 (id, script_id, `name`, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`)
          SELECT
             id,
             script_id,
             `name`,
+            COALESCE(NULLIF(row_type, ''), 'task'),
+            CASE
+                WHEN trigger_mode IN ('rootOnly', 'linkOnly', 'rootAndLink') THEN trigger_mode
+                WHEN task_type = 'child' THEN 'linkOnly'
+                ELSE 'rootOnly'
+            END,
+            COALESCE(record_schedule, 1),
+            section_id,
+            COALESCE(indent_level, 0),
+            COALESCE(default_task_cycle, '\"everyRun\"'),
+            COALESCE(show_enabled_toggle, 1),
+            COALESCE(default_enabled, 1),
+            COALESCE(NULLIF(task_tone, ''), 'normal'),
             COALESCE(is_hidden, 0),
-            COALESCE(task_type, 'main'),
             `data`,
             COALESCE(created_at, CURRENT_TIMESTAMP),
             COALESCE(updated_at, CURRENT_TIMESTAMP),

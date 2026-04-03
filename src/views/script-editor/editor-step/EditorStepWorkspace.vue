@@ -125,7 +125,7 @@
                 :selected-task-control="selectedTaskControl"
                 :task-control-type-options="taskControlTypeOptions"
                 :state-target-type-options="stateTargetTypeOptions"
-                :state-status-type-options="stateStatusTypeOptions"
+                :state-status-type-options="filteredStateStatusTypeOptions"
                 @update-type="updateTaskControlType"
                 @update-target-type="updateTaskControlTargetType"
                 @update-target-id="updateTaskControlTargetId"
@@ -309,6 +309,7 @@ const stateTargetTypeOptions = [
 ];
 
 const stateStatusTypeOptions = [
+  { label: '启用', value: STATE_STATUS_TYPE.enabled, description: 'enabled 状态。' },
   { label: '完成', value: STATE_STATUS_TYPE.done, description: 'done 状态。' },
   { label: '跳过', value: STATE_STATUS_TYPE.skip, description: 'skip 状态。' },
 ];
@@ -327,6 +328,11 @@ const selectedFlow = computed<FlowControl | null>(() => (selectedStep.value?.op 
 const selectedData = computed<DataHanding | null>(() => (selectedStep.value?.op === STEP_OP.dataHanding ? selectedStep.value.a : null));
 const selectedTaskControl = computed<TaskControl | null>(() => (selectedStep.value?.op === STEP_OP.taskControl ? selectedStep.value.a : null));
 const selectedVision = computed<VisionNode | null>(() => (selectedStep.value?.op === STEP_OP.vision ? selectedStep.value.a : null));
+const filteredStateStatusTypeOptions = computed(() =>
+  selectedTaskControl.value?.target.type !== STATE_TARGET_TYPE.task
+    ? stateStatusTypeOptions.filter((option) => option.value !== STATE_STATUS_TYPE.enabled)
+    : stateStatusTypeOptions,
+);
 const setVarKindPreference = ref<VarValueKind | null>(null);
 const getVarKindPreference = ref<VarValueKind | null>(null);
 const setVarDraft = computed(() =>
@@ -787,7 +793,7 @@ const updateTaskControlStatusType = (value: string) => {
       ...step.a,
       status: {
         ...step.a.status,
-        type: value as typeof STATE_STATUS_TYPE.done | typeof STATE_STATUS_TYPE.skip,
+        type: value as typeof STATE_STATUS_TYPE.enabled | typeof STATE_STATUS_TYPE.done | typeof STATE_STATUS_TYPE.skip,
       },
     };
   });

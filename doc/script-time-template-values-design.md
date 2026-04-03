@@ -78,22 +78,51 @@ CREATE TABLE IF NOT EXISTS script_time_template_values (
 
 ## 5. values_json 的建议形态
 
-`values_json` 建议按变量目录里的稳定 `variableId` 存，不按 UI 字段存。
-
-示例：
+`values_json` 建议拆成“变量值”和“任务级覆盖值”两部分：
 
 ```json
 {
-  "var_pkg_name_id": "官服",
-  "var_sweep_count_id": 5
+  "variables": {
+    "var_pkg_name_id": "官服",
+    "var_sweep_count_id": 5
+  },
+  "taskSettings": {
+    "task_sign_in": {
+      "enabled": true,
+      "taskCycle": "daily"
+    },
+    "task_weekly_reward": {
+      "enabled": false,
+      "taskCycle": {
+        "weekDay": 1
+      }
+    }
+  }
 }
 ```
 
+其中：
+
+- `variables`
+  - 按变量目录里的稳定 `variableId` 存，不按 UI 字段存
+- `taskSettings`
+  - 存模板对任务默认值的覆盖
+  - 第一阶段仅覆盖：
+    - `enabled`
+    - `taskCycle`
+
 原因：
 
-- UI 字段可能改名、删改、换控件。
-- 变量定义才是运行时真正依赖的对象。
-- 变量 `id` 稳定后，重命名变量 key 或字段 label 都更容易迁移。
+- UI 字段可能改名、删改、换控件
+- 变量定义才是运行时真正依赖的对象
+- 任务启用状态和任务周期属于“任务定义默认值”的模板覆盖，不属于变量值本身
+
+脚本定义层提供默认值：
+
+- `defaultEnabled`
+- `defaultTaskCycle`
+
+时间模板层只负责覆盖这些默认值，而不回写脚本定义。
 
 ## 6. 运行时读取方式
 
@@ -103,7 +132,7 @@ CREATE TABLE IF NOT EXISTS script_time_template_values (
 
 1. 根据当前设备的 `device_script_assignments.time_template_id` 确定使用哪个时间模板。
 2. 读取当前 `script_id + time_template_id` 对应的 `values_json`。
-3. 结合 `variableCatalog` 把值装载进运行时 `scope`。
+3. 先把 `taskSettings` 合并到任务默认配置，再把 `variables` 结合 `variableCatalog` 装载进运行时 `scope`。
 4. `if / while / for / setVar(expr)` 等表达式都只从 `scope` 取值。
 
 因此：
@@ -111,6 +140,12 @@ CREATE TABLE IF NOT EXISTS script_time_template_values (
 - `values_json` 是持久化层
 - `scope` 是运行时上下文
 - Rhai 负责在 `scope` 上执行表达式
+
+额外约束：
+
+- 模板值层不应直接修改 `ScriptTaskTable`
+- 模板值层只保存“覆盖项”
+- 如果普通用户没有改某个任务的启用状态或周期，运行时应回退到脚本定义层的默认值
 
 ## 7. 表达式命名建议
 
@@ -141,6 +176,11 @@ input.var_pkg_name == "官服"
 - 编辑变量定义
 - 编辑 UI 绑定关系
 
+以及补充：
+
+- 编辑任务默认值（如 `defaultEnabled`、`defaultTaskCycle`）
+- 编辑任务展示元数据（如标题行、分组、缩进、风险等级）
+
 当前不应该在脚本编辑器里承担：
 
 - 时间模板变量值的保存
@@ -148,6 +188,13 @@ input.var_pkg_name == "官服"
 - 模板值运行前装载调试
 
 也就是说，脚本编辑器现在主要是“定义层”，不是“用户配置值层”。
+
+其中需要明确：
+
+- `defaultEnabled`
+- `defaultTaskCycle`
+
+属于脚本定义层默认值，目的是减少普通用户在时间模板里逐个任务重复设置的成本。
 
 对应要求：
 

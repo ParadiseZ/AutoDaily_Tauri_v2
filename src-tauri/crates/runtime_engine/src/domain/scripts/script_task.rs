@@ -1,4 +1,5 @@
-use crate::infrastructure::core::{Deserialize, Serialize, TaskId, ScriptId};
+use crate::domain::devices::device_schedule::TaskCycle;
+use crate::infrastructure::core::{Deserialize, ScriptId, Serialize, TaskId};
 use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::FromRow;
@@ -23,8 +24,17 @@ pub struct ScriptTaskTable {
     pub id: TaskId,
     pub script_id: ScriptId,
     pub name: String,
+    pub row_type: TaskRowType,
+    pub trigger_mode: TaskTriggerMode,
+    pub record_schedule: bool,
+    pub section_id: Option<TaskId>,
+    pub indent_level: u32,
+    #[ts(as = "TaskCycle")]
+    pub default_task_cycle: Json<TaskCycle>,
+    pub show_enabled_toggle: bool,
+    pub default_enabled: bool,
+    pub task_tone: TaskTone,
     pub is_hidden: bool,
-    pub task_type: TaskType,
 /*    #[ts(type = "Array<import('@vue-flow/core').Node>")]
     pub nodes: Json<Value>,
     #[ts(type = "import('@vue-flow/core').Edge[]")]
@@ -45,7 +55,27 @@ pub struct ScriptTaskTable {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 #[sqlx(rename_all = "camelCase")]
-pub enum TaskType{
-    Main,// 执行的任务（主循环执行）
-    Child// 子任务（通过节点的链接功能执行）
+pub enum TaskRowType {
+    Task,
+    Title,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+#[sqlx(rename_all = "camelCase")]
+pub enum TaskTriggerMode {
+    RootOnly,
+    LinkOnly,
+    RootAndLink,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+#[sqlx(rename_all = "camelCase")]
+pub enum TaskTone {
+    Normal,
+    Warning,
+    Danger,
 }

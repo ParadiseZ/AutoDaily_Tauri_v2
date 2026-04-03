@@ -4,7 +4,7 @@
   >
     <div class="space-y-3">
       <div v-if="uiSchema.layout === 'horizontal'" class="editor-ui-preview-flow">
-        <label class="editor-ui-toggle-chip">
+        <label v-if="showEnabledToggle" class="editor-ui-toggle-chip">
           <input
             type="checkbox"
             :checked="taskEnabledPreview"
@@ -12,7 +12,8 @@
             @change="taskEnabledPreview = ($event.target as HTMLInputElement).checked"
           />
         </label>
-        <span class="editor-ui-task-name">{{ taskName }}</span>
+        <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
+        <span class="editor-ui-task-cycle">{{ taskCycleLabel }}</span>
         <div
           v-for="(field, index) in uiSchema.fields"
           :key="field.id"
@@ -131,7 +132,7 @@
 
       <template v-else>
         <div class="flex flex-wrap items-center gap-3">
-          <label class="editor-ui-toggle-chip">
+          <label v-if="showEnabledToggle" class="editor-ui-toggle-chip">
             <input
               type="checkbox"
               :checked="taskEnabledPreview"
@@ -139,7 +140,8 @@
               @change="taskEnabledPreview = ($event.target as HTMLInputElement).checked"
             />
           </label>
-          <span class="editor-ui-task-name">{{ taskName }}</span>
+          <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
+          <span class="editor-ui-task-cycle">{{ taskCycleLabel }}</span>
           <button
             class="app-button app-button-ghost app-toolbar-button"
             type="button"
@@ -277,9 +279,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
+import type { TaskCycle } from '@/types/bindings/TaskCycle';
+import type { TaskTone } from '@/types/bindings/TaskTone';
+import { formatTaskCycleLabel } from '@/utils/presenters';
 import type { EditorUiSchema, EditorUiField } from '@/views/script-editor/editorSchema';
 import type { EditorInputEntry } from '@/views/script-editor/editorVariables';
 import {
@@ -292,6 +297,10 @@ defineOptions({ name: 'EditorUiPreviewPanel' });
 
 const props = defineProps<{
   taskName: string;
+  defaultTaskCycle: TaskCycle;
+  showEnabledToggle: boolean;
+  defaultEnabled: boolean;
+  taskTone: TaskTone;
   uiSchema: EditorUiSchema;
   selectedUiFieldId: string | null;
   inputEntries: EditorInputEntry[];
@@ -303,8 +312,14 @@ const emit = defineEmits<{
 }>();
 
 const uiPreviewExpanded = ref(true);
-const taskEnabledPreview = ref(true);
+const taskEnabledPreview = ref(props.defaultEnabled);
 const localPreviewValues = ref<Record<string, string | boolean>>({});
+const taskCycleLabel = computed(() => formatTaskCycleLabel(props.defaultTaskCycle));
+const taskToneClass = computed(() => {
+  if (props.taskTone === 'warning') return 'editor-ui-task-name-warning';
+  if (props.taskTone === 'danger') return 'editor-ui-task-name-danger';
+  return '';
+});
 
 const findPreviewEntry = (field: EditorUiField) => findBoundInputEntry(field, props.inputEntries);
 
@@ -417,9 +432,35 @@ const updateSliderValue = (field: EditorUiField, value: string) => {
   const normalized = normalizeSliderValue(field, value);
   updatePreviewText(field, normalized);
 };
+
+watch(
+  () => props.defaultEnabled,
+  (value) => {
+    taskEnabledPreview.value = value;
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
+.editor-ui-task-cycle {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.22rem 0.55rem;
+  font-size: 0.72rem;
+  color: var(--app-text-faint);
+}
+
+.editor-ui-task-name-warning {
+  color: #a16207;
+}
+
+.editor-ui-task-name-danger {
+  color: #b91c1c;
+}
 .editor-ui-preview-flow {
   display: flex;
   flex-wrap: wrap;

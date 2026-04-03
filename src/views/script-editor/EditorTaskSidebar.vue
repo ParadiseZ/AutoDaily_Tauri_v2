@@ -61,7 +61,12 @@
           @drop.prevent="handleDrop(task.id)"
         >
           <div class="flex items-start justify-between gap-3">
-            <button class="min-w-0 flex-1 text-left" type="button" @click="$emit('select', task.id)">
+            <button
+              class="min-w-0 flex-1 text-left"
+              type="button"
+              :style="task.rowType === 'title' ? undefined : { paddingLeft: `${task.indentLevel * 0.85}rem` }"
+              @click="$emit('select', task.id)"
+            >
               <div class="flex items-center gap-2">
                 <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] text-[var(--app-text-faint)]">
                   {{ task.index + 1 }}
@@ -71,7 +76,8 @@
                 </p>
               </div>
               <p class="mt-2 text-xs text-[var(--app-text-faint)]">
-                {{ task.taskType === 'main' ? '主任务' : '子任务' }} · {{ task.data.steps.length }} 个步骤
+                <template v-if="task.rowType === 'title'">标题行 · 分组标题</template>
+                <template v-else>{{ formatTriggerModeLabel(task.triggerMode) }} · {{ task.data.steps.length }} 个步骤</template>
               </p>
             </button>
 
@@ -123,6 +129,7 @@ import { computed, ref } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
+import { formatTaskTriggerModeLabel } from '@/utils/presenters';
 
 const props = defineProps<{
   tasks: ScriptTaskTable[];
@@ -152,6 +159,7 @@ const filteredTasks = computed(() => {
 });
 
 const hiddenCount = computed(() => props.tasks.filter((task) => task.isHidden).length);
+const formatTriggerModeLabel = (value: ScriptTaskTable['triggerMode']) => formatTaskTriggerModeLabel(value);
 
 const resetDrag = () => {
   draggingTaskId.value = null;
