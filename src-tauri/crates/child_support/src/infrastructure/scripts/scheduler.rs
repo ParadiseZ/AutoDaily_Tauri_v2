@@ -2,7 +2,10 @@
 // 管理子进程中的脚本执行队列，按顺序执行脚本
 
 use crate::infrastructure::context::runtime_context::get_runtime_ctx;
+use crate::constant::table_name::SCRIPT_TABLE;
+use crate::domain::scripts::script_info::ScriptTable;
 use crate::infrastructure::core::ScriptId;
+use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::message::ExecuteTarget;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::executor::ScriptExecutor;
@@ -117,12 +120,27 @@ impl ScriptScheduler {
     /// 执行单个脚本
     async fn execute_script(&self, script_id: ScriptId) -> Result<(), String> {
         let runtime_ctx = get_runtime_ctx();
+        let script_table: ScriptTable = DbRepo::get_by_id(SCRIPT_TABLE, &script_id.to_string())
+            .await?
+            .ok_or_else(|| format!("脚本[{}]不存在", script_id))?;
+        let script_info = script_table.data.0;
+        let script_name = script_info.name.clone();
 
         // 更新运行时上下文的 script_id
         {
             let mut ctx = runtime_ctx.write().await;
             ctx.script_id = script_id;
             ctx.target = ExecuteTarget::FullScript;
+            ctx.script_info = Some(script_info);
+            ctx.current_task = None;
+            ctx.last_snapshot = None;
+            ctx.last_hits.clear();
+            if let Err(error) = ctx.vision_text_cache.load_for_script(script_id, &script_name) {
+                Log::warn(&format!(
+                    "[ scheduler ] 脚本[{}]加载 OCR 文字缓存失败，已忽略: {}",
+                    script_id, error
+                ));
+            }
         }
 
         // 创建执行器
@@ -140,6 +158,15 @@ impl ScriptScheduler {
         // 占位：执行空步骤列表（后续接入实际加载逻辑）
         // let steps = load_script_steps(script_id).await?;
         // executor.execute(&steps).await.map_err(|e| e.to_string())?;
+        {
+            let mut ctx = runtime_ctx.write().await;
+            if let Err(error) = ctx.vision_text_cache.flush_current_script() {
+                Log::warn(&format!(
+                    "[ scheduler ] 脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
+                    script_id, error
+                ));
+            }
+        }
 
         Ok(())
     }
@@ -156,10 +183,25 @@ impl ScriptScheduler {
         ));
 
         let runtime_ctx = get_runtime_ctx();
+        let script_table: ScriptTable = DbRepo::get_by_id(SCRIPT_TABLE, &script_id.to_string())
+            .await?
+            .ok_or_else(|| format!("脚本[{}]不存在", script_id))?;
+        let script_info = script_table.data.0;
+        let script_name = script_info.name.clone();
         {
             let mut ctx = runtime_ctx.write().await;
             ctx.script_id = script_id;
             ctx.target = target;
+            ctx.script_info = Some(script_info);
+            ctx.current_task = None;
+            ctx.last_snapshot = None;
+            ctx.last_hits.clear();
+            if let Err(error) = ctx.vision_text_cache.load_for_script(script_id, &script_name) {
+                Log::warn(&format!(
+                    "[ scheduler ] 调试执行脚本[{}]加载 OCR 文字缓存失败，已忽略: {}",
+                    script_id, error
+                ));
+            }
         }
 
         let _executor = ScriptExecutor::new(runtime_ctx.clone());
@@ -176,6 +218,16 @@ impl ScriptScheduler {
             "[ scheduler ] 调试执行脚本[{}]完成 (TODO: 实际执行逻辑)",
             script_id
         ));
+
+        {
+            let mut ctx = runtime_ctx.write().await;
+            if let Err(error) = ctx.vision_text_cache.flush_current_script() {
+                Log::warn(&format!(
+                    "[ scheduler ] 调试执行脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
+                    script_id, error
+                ));
+            }
+        }
 
         Ok(())
     }

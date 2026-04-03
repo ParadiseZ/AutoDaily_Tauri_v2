@@ -33,6 +33,8 @@ export interface SystemPreferences {
     adbPath: string;
     adbServerHost: string;
     adbServerPort: number;
+    ocrTextCacheEnabled: boolean;
+    ocrTextCacheDir: string;
     shortcut: ShortCutConfig;
 }
 
@@ -50,6 +52,11 @@ export interface LogConfig {
     logLevel: LogLevel;
     logDir: string;
     retentionDays: number;
+}
+
+export interface VisionTextCacheConfig {
+    enabled: boolean;
+    dir: string;
 }
 
 export interface UserProfile {
@@ -225,6 +232,8 @@ export const DEFAULT_SYSTEM_PREFERENCES: SystemPreferences = {
     adbPath: '',
     adbServerHost: '127.0.0.1',
     adbServerPort: 5037,
+    ocrTextCacheEnabled: false,
+    ocrTextCacheDir: '',
     shortcut: DEFAULT_SHORTCUTS,
 };
 

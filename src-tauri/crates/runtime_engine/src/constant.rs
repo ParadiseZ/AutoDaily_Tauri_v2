@@ -20,6 +20,7 @@ pub mod sys_conf_path {
     pub const SCRIPTS_CONFIG_KEY: &str = "scripts_config";
     pub const EMAIL_CONFIG_KEY: &str = "email_config";
     pub const AUTH_SESSION_KEY: &str = "auth_session";
+    pub const VISION_TEXT_CACHE_CONFIG_KEY: &str = "vision_text_cache_config";
 }
 
 pub mod scripts_files {

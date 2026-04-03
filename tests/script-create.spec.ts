@@ -43,6 +43,10 @@ const selectOptionByValue = async (page: Page, testId: string, value: string) =>
   await page.getByTestId(`${testId}-option-${value}`).click();
 };
 
+const openModelTab = async (page: Page, tabId: 'imgDet' | 'txtDet' | 'txtRec') => {
+  await page.getByTestId(`script-models-tab-${tabId}`).click();
+};
+
 const getStoredScript = async (page: Page) => {
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   expect(state?.scripts).toHaveLength(1);
@@ -88,6 +92,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
 
   await dialog.getByTestId('script-dialog-tab-models').click();
 
+  await openModelTab(page, 'imgDet');
   await selectOptionByValue(page, 'script-models-img-det-kind', 'Yolo11');
   await selectOptionByValue(page, 'script-models-img-det-base-model-source', 'Custom');
   await selectOptionByValue(page, 'script-models-img-det-base-execution-provider', 'DirectML');
@@ -97,6 +102,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
   await dialog.getByTestId('script-models-img-det-confidence').fill('0.55');
   await dialog.getByTestId('script-models-img-det-iou').fill('0.35');
 
+  await openModelTab(page, 'txtDet');
   await selectOptionByValue(page, 'script-models-txt-det-kind', 'PaddleDbNet');
   await selectOptionByValue(page, 'script-models-txt-det-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-txt-det-base-model-path').fill('D:\\models\\txt-det.onnx');
@@ -105,6 +111,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
   await dialog.getByTestId('script-models-txt-det-unclip-ratio').fill('2.4');
   await dialog.getByTestId('script-models-txt-det-use-dilation').check();
 
+  await openModelTab(page, 'txtRec');
   await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn');
   await selectOptionByValue(page, 'script-models-txt-rec-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-txt-rec-base-model-path').fill('D:\\models\\txt-rec.onnx');
@@ -192,6 +199,7 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   await dialog.getByTestId('script-basic-name').fill(scriptName);
   await dialog.getByTestId('script-dialog-tab-models').click();
 
+  await openModelTab(page, 'imgDet');
   await selectOptionByValue(page, 'script-models-img-det-kind', 'Yolo26');
   await selectOptionByValue(page, 'script-models-img-det-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-img-det-base-model-path').fill('D:\\models\\img-det-yolo26.onnx');
@@ -200,6 +208,7 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   await dialog.getByTestId('script-models-img-det-confidence').fill('0.4');
   await dialog.getByTestId('script-models-img-det-iou').fill('0.2');
 
+  await openModelTab(page, 'txtDet');
   await selectOptionByValue(page, 'script-models-txt-det-kind', 'Yolo26');
   await selectOptionByValue(page, 'script-models-txt-det-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-txt-det-base-model-path').fill('D:\\models\\txt-det-yolo26.onnx');

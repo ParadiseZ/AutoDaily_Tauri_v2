@@ -1,10 +1,12 @@
 use crate::domain::scripts::script_info::ScriptInfo;
 use crate::domain::scripts::script_task::ScriptTaskTable;
+use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{HashMap, PolicyId, ScriptId, TaskId};
 use crate::infrastructure::ipc::message::ExecuteTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
+use crate::infrastructure::vision::text_rec_cache::ScriptTextRecCacheRuntime;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
@@ -59,13 +61,17 @@ pub struct RuntimeContext {
 
     /// 设备相关属性
     pub screen_size: (u32, u32),
+
+    /// OCR 文字缓存运行时
+    pub vision_text_cache: ScriptTextRecCacheRuntime,
 }
 
 impl RuntimeContext {
     pub fn new(
         script_id: ScriptId,
         target: ExecuteTarget,
-        ocr_service: Arc<OcrService>
+        ocr_service: Arc<OcrService>,
+        vision_text_cache_config: VisionTextCacheRuntimeConfig,
         //adb_executor: Arc<RwLock<ADBExecutor>>,
     ) -> Self {
         Self {
@@ -81,6 +87,7 @@ impl RuntimeContext {
             last_snapshot: None,
             last_hits: Vec::new(),
             screen_size: (0, 0),
+            vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
         }
     }
 }

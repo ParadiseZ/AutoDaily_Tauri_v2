@@ -1,5 +1,7 @@
 // 子进程管理 API — 供前端调用
 use crate::constant::table_name::DEVICE_TABLE;
+use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
+use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
@@ -13,6 +15,28 @@ use crate::infrastructure::ipc::message::{
 };
 use tauri::command;
 use tauri::Manager;
+use tauri_plugin_store::StoreExt;
+
+fn load_vision_text_cache_runtime_config(
+    app_handle: &tauri::AppHandle,
+) -> Result<crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig, String> {
+    let store = app_handle
+        .store(APP_STORE)
+        .map_err(|e| format!("读取 OCR 缓存配置失败: {}", e))?;
+
+    let persisted = store
+        .get(VISION_TEXT_CACHE_CONFIG_KEY)
+        .and_then(|value| serde_json::from_value::<VisionTextCacheConfig>(value.clone()).ok())
+        .unwrap_or_default();
+
+    let fallback_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取 OCR 缓存默认目录失败: {}", e))?
+        .join("ocr-text-cache");
+
+    Ok(persisted.to_runtime_config(fallback_dir))
+}
 
 /// 向已运行的子进程发送 Start 命令（开始执行脚本队列）
 #[command]
@@ -153,6 +177,7 @@ pub async fn cmd_spawn_device(
         log_level: device_config.log_level.clone(),
         cpu_cores: device_config.cores.iter().map(|c| *c as usize).collect(),
         db_path,
+        vision_text_cache_config: load_vision_text_cache_runtime_config(&app_handle)?,
     };
 
     // 5. 获取进程管理器并启动子进程

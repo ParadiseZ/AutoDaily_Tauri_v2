@@ -18,6 +18,9 @@ use crate::api::infrastructure::config::log_api::{
     get_log_config_cmd, clean_logs_now_cmd, update_child_log_level_cmd,
 };
 use crate::api::infrastructure::config::sys_conf::{set_system_settings_cmd};
+use crate::api::infrastructure::config::vision_cache::{
+    get_vision_text_cache_config_cmd, set_vision_text_cache_config_cmd,
+};
 use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::frontend_debug::frontend_debug_log_cmd;
 use crate::api::infrastructure::get_uuid_v7;
@@ -83,6 +86,8 @@ pub fn run() {
             get_log_config_cmd,
             clean_logs_now_cmd,
             update_child_log_level_cmd,
+            get_vision_text_cache_config_cmd,
+            set_vision_text_cache_config_cmd,
             //性能设置
             //get_performance_cmd,set_performance_cmd,get_cpu_cores_cmd,
             //uuid

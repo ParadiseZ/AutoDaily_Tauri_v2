@@ -116,6 +116,32 @@
             <button class="app-button app-button-primary" type="button" @click="saveEnvironmentPreferences">保存环境配置</button>
           </div>
         </SettingsSection>
+
+        <SettingsSection title="OCR 文字缓存" description="启用后按脚本名称读写 JSON 缓存文件，目录留空时回退到应用数据目录下的默认缓存文件夹。">
+          <div class="grid gap-3 md:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
+            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
+              <span class="text-sm text-[var(--app-text-strong)]">启用缓存文字检测结果</span>
+              <input v-model="settingsStore.preferences.ocrTextCacheEnabled" type="checkbox" class="toggle toggle-sm" />
+            </label>
+            <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+              仅在脚本运行时加载和写入缓存，缓存内容按脚本名称分文件保存。
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-[1fr_auto]">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">缓存目录</span>
+              <input
+                v-model.trim="settingsStore.preferences.ocrTextCacheDir"
+                class="app-input"
+                placeholder="留空时使用应用默认缓存目录"
+              />
+            </label>
+            <button class="app-button app-button-ghost self-end" type="button" @click="pickOcrTextCacheDir">选择目录</button>
+          </div>
+          <div class="flex justify-end">
+            <button class="app-button app-button-primary" type="button" @click="saveVisionCachePreferences">保存缓存设置</button>
+          </div>
+        </SettingsSection>
       </div>
 
       <div class="space-y-4">
@@ -177,9 +203,11 @@ import SettingsSection from '@/views/settings/SettingsSection.vue';
 import { useSettingsStore } from '@/store/settings';
 import { useUserStore } from '@/store/user';
 import { useThemeManager } from '@/composables/useThemeManager';
+import { settingsService } from '@/services/settingsService';
 import { appThemeKey } from '@/store/store';
 import { showToast } from '@/utils/toast';
 import { formatDate } from '@/utils/presenters';
+import type { VisionTextCacheConfig } from '@/types/app/domain';
 
 const settingsStore = useSettingsStore();
 const userStore = useUserStore();
@@ -251,6 +279,24 @@ const saveEnvironmentPreferences = async () => {
   showToast('环境配置已保存到本地', 'success');
 };
 
+const saveVisionCachePreferences = async () => {
+  const config: VisionTextCacheConfig = {
+    enabled: settingsStore.preferences.ocrTextCacheEnabled,
+    dir: settingsStore.preferences.ocrTextCacheDir,
+  };
+
+  try {
+    await settingsService.updateVisionTextCacheConfig(config);
+    await settingsStore.updatePreferences({
+      ocrTextCacheEnabled: config.enabled,
+      ocrTextCacheDir: config.dir,
+    });
+    showToast('OCR 缓存设置已保存', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : 'OCR 缓存设置保存失败', 'error');
+  }
+};
+
 const saveLogSettings = async () => {
   try {
     await settingsStore.updateLogSettings({
@@ -284,6 +330,13 @@ const pickLogDir = async () => {
   const value = await open({ directory: true, multiple: false });
   if (typeof value === 'string') {
     settingsStore.logConfig.logDir = value;
+  }
+};
+
+const pickOcrTextCacheDir = async () => {
+  const value = await open({ directory: true, multiple: false });
+  if (typeof value === 'string') {
+    settingsStore.preferences.ocrTextCacheDir = value;
   }
 };
 

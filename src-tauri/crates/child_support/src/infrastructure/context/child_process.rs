@@ -46,6 +46,7 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
         init_data.device_id,
         ExecuteTarget::FullScript,
         ocr_service,
+        init_data.vision_text_cache_config.clone(),
     )));
     init_runtime_ctx(runtime_ctx)?;
 

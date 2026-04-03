@@ -1,8 +1,9 @@
 use std::sync::Arc;
 use crate::app::config::short_cut::register_short_cut_by_config;
 use crate::constant::project::MAIN_WINDOW;
-use crate::constant::sys_conf_path::{APP_STORE, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY};
+use crate::constant::sys_conf_path::{APP_STORE, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::domain::config::sys_conf::{StartMode, SystemConfig};
+use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use crate::infrastructure::app_handle::{init_app_handle};
 use crate::infrastructure::logging::log_trait::Log;
 use tauri::path::BaseDirectory;
@@ -175,6 +176,7 @@ pub fn init_start_model(app_handel: &AppHandle, sys_conf: &SystemConfig) {
 
 pub fn init_conf_async(store: Arc<Store<Wry>>) {
     tokio::spawn(async move {
+        let mut changed = false;
         // 设备设置
         /*if !store.has(DEVICES_CONFIG_KEY){
             store.set(DEVICES_CONFIG_KEY, serde_json::to_value(&HashMap::<DeviceId, DeviceConfig>::default()).unwrap_or_default());
@@ -182,10 +184,26 @@ pub fn init_conf_async(store: Arc<Store<Wry>>) {
         // 脚本设置
         if !store.has(SCRIPTS_CONFIG_KEY){
             store.set(SCRIPTS_CONFIG_KEY, serde_json::to_value(&ScriptsConfig::default()).unwrap_or_default());
+            changed = true;
         };
         // 通知设置
         if !store.has(EMAIL_CONFIG_KEY){
             store.set(EMAIL_CONFIG_KEY, serde_json::to_value(&EmailConfig::default()).unwrap_or_default());
+            changed = true;
+        };
+        // OCR 文字缓存设置
+        if !store.has(VISION_TEXT_CACHE_CONFIG_KEY){
+            store.set(
+                VISION_TEXT_CACHE_CONFIG_KEY,
+                serde_json::to_value(&VisionTextCacheConfig::default()).unwrap_or_default(),
+            );
+            changed = true;
+        };
+
+        if changed {
+            if let Err(e) = store.save() {
+                Log::error(&format!("初始化配置文件失败: {}", e));
+            }
         };
     });
 }

@@ -152,10 +152,26 @@
         </template>
 
         <template v-else-if="activeTab === 'models'">
-          <div class="grid gap-4 xl:grid-cols-3">
-            <SurfacePanel tone="muted" padding="sm" class="space-y-4">
+          <div class="space-y-4">
+            <div class="overflow-x-auto">
+              <div class="dialog-panel-tabs min-w-max">
+                <button
+                  v-for="tab in modelTabs"
+                  :key="tab.id"
+                  type="button"
+                  class="dialog-panel-tab"
+                  :class="{ 'dialog-panel-tab-active': activeModelTab === tab.id }"
+                  :data-testid="`script-models-tab-${tab.id}`"
+                  @click="activeModelTab = tab.id"
+                >
+                  {{ tab.label }}
+                </button>
+              </div>
+            </div>
+
+            <SurfacePanel v-if="activeModelTab === 'imgDet'" tone="muted" padding="sm" class="space-y-4">
               <div class="space-y-1">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">图像检测模型</p>
+                <p class="text-sm font-semibold text-[var(--app-text-strong)]">目标检测</p>
                 <p class="text-xs text-[var(--app-text-faint)]">用于图像目标识别。</p>
               </div>
               <AppSelect
@@ -246,9 +262,9 @@
               </template>
             </SurfacePanel>
 
-            <SurfacePanel tone="muted" padding="sm" class="space-y-4">
+            <SurfacePanel v-else-if="activeModelTab === 'txtDet'" tone="muted" padding="sm" class="space-y-4">
               <div class="space-y-1">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">文本检测模型</p>
+                <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字检测</p>
                 <p class="text-xs text-[var(--app-text-faint)]">用于 OCR 前的文本区域定位。</p>
               </div>
               <AppSelect
@@ -345,9 +361,9 @@
               </template>
             </SurfacePanel>
 
-            <SurfacePanel tone="muted" padding="sm" class="space-y-4">
+            <SurfacePanel v-else tone="muted" padding="sm" class="space-y-4">
               <div class="space-y-1">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">文本识别模型</p>
+                <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字识别</p>
                 <p class="text-xs text-[var(--app-text-faint)]">用于 OCR 的字符识别阶段。</p>
               </div>
               <AppSelect
@@ -414,7 +430,6 @@
               </template>
             </SurfacePanel>
           </div>
-
         </template>
 
         <template v-else>
@@ -503,6 +518,7 @@ import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue
 import SponsorshipQrField from '@/views/script-list/script-info/SponsorshipQrField.vue';
 
 type DialogTab = 'basic' | 'models' | 'support';
+type ModelTab = 'imgDet' | 'txtDet' | 'txtRec';
 type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
 type RecognizerKind = 'none' | 'PaddleCrnn';
 type EditableDetectorField = 'imgDetModel' | 'txtDetModel';
@@ -519,6 +535,11 @@ const tabs = [
   { id: 'basic' as const, label: '基本信息', description: '名称、描述、运行时、版本。' },
   { id: 'models' as const, label: '模型信息', description: '图像检测、文本检测、文本识别。' },
   { id: 'support' as const, label: '赞助信息', description: '联系方式、赞助链接、二维码。' },
+];
+const modelTabs = [
+  { id: 'imgDet' as const, label: '目标检测' },
+  { id: 'txtDet' as const, label: '文字检测' },
+  { id: 'txtRec' as const, label: '文字识别' },
 ];
 
 const runtimeOptions = [
@@ -555,6 +576,7 @@ const recProcessingModeOptions = [
 ];
 
 const activeTab = ref<DialogTab>('basic');
+const activeModelTab = ref<ModelTab>('imgDet');
 const form = ref<ScriptTableRecord | null>(null);
 const imgDetKind = ref<DetectorKind>('none');
 const txtDetKind = ref<DetectorKind>('none');
@@ -786,8 +808,47 @@ watch(
     if (!open || !props.script) return;
     form.value = cloneScriptRecord(props.script);
     activeTab.value = 'basic';
+    activeModelTab.value = 'imgDet';
     syncKinds();
   },
   { immediate: true },
 );
 </script>
+
+<style scoped>
+.dialog-panel-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--app-panel) 70%, transparent);
+}
+
+.dialog-panel-tab {
+  border: none;
+  border-radius: 999px;
+  padding: 0.62rem 1rem;
+  background: transparent;
+  color: var(--app-text-soft);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dialog-panel-tab:hover {
+  color: var(--app-text-strong);
+}
+
+.dialog-panel-tab-active {
+  background: color-mix(in srgb, var(--app-accent) 18%, var(--app-panel) 82%);
+  color: var(--app-text-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 34%, transparent);
+}
+</style>

@@ -1,4 +1,5 @@
 use crate::domain::devices::device_conf::DeviceConfig;
+use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::logging::LogLevel;
 use serde::{Deserialize, Serialize};
@@ -13,6 +14,7 @@ pub struct ChildProcessInitData {
     pub log_level: LogLevel,
     pub cpu_cores: Vec<usize>,
     pub db_path: PathBuf,
+    pub vision_text_cache_config: VisionTextCacheRuntimeConfig,
 }
 
 impl ChildProcessInitData {

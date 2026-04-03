@@ -8,6 +8,7 @@ import type {
     LogConfig,
     SystemConfigPayload,
     SystemPreferences,
+    VisionTextCacheConfig,
     UpdateInfo,
 } from '@/types/app/domain';
 import {
@@ -55,10 +56,23 @@ export const useSettingsStore = defineStore('settings', () => {
             };
 
             try {
+                const [loadedLogConfig, loadedVisionCacheConfig] = await Promise.all([
+                    settingsService.getLogConfig(),
+                    settingsService.getVisionTextCacheConfig().catch(() => null as VisionTextCacheConfig | null),
+                ]);
+
                 logConfig.value = {
                     ...DEFAULT_LOG_CONFIG,
-                    ...(await settingsService.getLogConfig()),
+                    ...loadedLogConfig,
                 };
+
+                if (loadedVisionCacheConfig) {
+                    preferences.value = {
+                        ...preferences.value,
+                        ocrTextCacheEnabled: loadedVisionCacheConfig.enabled,
+                        ocrTextCacheDir: loadedVisionCacheConfig.dir,
+                    };
+                }
             } catch {
                 logConfig.value = DEFAULT_LOG_CONFIG;
             }
