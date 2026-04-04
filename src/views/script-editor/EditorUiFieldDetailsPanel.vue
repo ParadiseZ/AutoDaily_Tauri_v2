@@ -17,7 +17,7 @@
             <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">字段本体</p>
           </div>
 
-          <div class="grid gap-3">
+          <div class="grid gap-3 md:grid-cols-2">
             <label class="space-y-2">
               <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">字段名</span>
               <input
@@ -28,19 +28,21 @@
               />
             </label>
 
-            <label v-if="selectedUiField.control === 'checkbox'" class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">显示样式</span>
-              <AppSelect
-                :model-value="selectedUiField.checkboxStyle"
-                :options="checkboxStyleOptions"
-                placeholder="选择样式"
-                @update:model-value="$emit('update-ui-field', selectedUiField.id, 'checkboxStyle', String($event))"
-              />
-            </label>
+            <div v-if="selectedUiField.control === 'checkbox'" class="editor-inline-grid md:col-span-2">
+              <div class="editor-inline-label">显示样式</div>
+              <div class="editor-inline-content md:col-span-3">
+                <EditorSelectField
+                  :model-value="selectedUiField.checkboxStyle"
+                  :options="checkboxStyleOptions"
+                  placeholder="选择样式"
+                  @update:model-value="$emit('update-ui-field', selectedUiField.id, 'checkboxStyle', String($event))"
+                />
+              </div>
+            </div>
 
             <label
               v-if="selectedUiField.control === 'text'"
-              class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3"
+              class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3 md:col-span-2"
             >
               <input
                 :checked="selectedUiField.editable"
@@ -60,35 +62,31 @@
             <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量绑定</p>
           </div>
 
-          <div class="grid gap-3">
-            <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">绑定变量</span>
-              <AppSelect
-                :model-value="selectedUiField.variableId || null"
-                :options="bindOptions"
-                placeholder="未绑定"
-                :test-id="selectedUiFieldIndex === 0 ? 'editor-ui-field-bind-0' : undefined"
-                @update:model-value="selectUiBinding(selectedUiField.id, String($event ?? ''))"
-              />
-            </label>
+          <div class="grid gap-3 md:grid-cols-2">
+            <div class="editor-inline-grid md:col-span-2">
+              <div class="editor-inline-label">绑定变量</div>
+              <div class="editor-inline-content md:col-span-3">
+                <EditorSelectField
+                  :model-value="selectedUiField.variableId || null"
+                  :options="bindOptions"
+                  placeholder="未绑定"
+                  :test-id="selectedUiFieldIndex === 0 ? 'editor-ui-field-bind-0' : undefined"
+                  @update:model-value="selectUiBinding(selectedUiField.id, String($event ?? ''))"
+                />
+              </div>
+            </div>
 
             <div
               v-if="selectedBoundUiVariable"
-              class="rounded-[14px] border border-[var(--app-border)] bg-white/50 px-4 py-4"
+              class="rounded-[14px] border border-[var(--app-border)] bg-white/50 px-4 py-4 md:col-span-2"
             >
-              <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div class="space-y-1">
-                  <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">作用域</p>
-                  <p class="text-sm font-medium text-[var(--app-text-strong)]">{{ selectedBoundUiVariable.namespace }}</p>
-                </div>
-                <div class="space-y-1">
-                  <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">类型</p>
-                  <p class="text-sm font-medium text-[var(--app-text-strong)]">{{ selectedBoundUiVariable.valueType }}</p>
-                </div>
-                <div class="space-y-1 md:col-span-2">
-                  <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量键</p>
-                  <p class="text-sm font-medium text-[var(--app-text-strong)] break-all">{{ selectedBoundUiVariable.key }}</p>
-                </div>
+              <div class="editor-inline-grid">
+                <div class="editor-inline-label">作用域</div>
+                <div class="editor-inline-value">{{ selectedBoundUiVariable.namespace }}</div>
+                <div class="editor-inline-label">类型</div>
+                <div class="editor-inline-value">{{ selectedBoundUiVariable.valueType }}</div>
+                <div class="editor-inline-label">变量键</div>
+                <div class="editor-inline-value md:col-span-3 break-all">{{ selectedBoundUiVariable.key }}</div>
               </div>
               <p
                 v-if="selectedBoundUiVariable.description"
@@ -105,7 +103,7 @@
             <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">展示内容</p>
           </div>
 
-          <div class="grid gap-3">
+          <div class="grid gap-3 md:grid-cols-2">
             <label class="space-y-2">
               <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">说明</span>
               <input
@@ -124,7 +122,7 @@
               />
             </label>
 
-            <label v-if="selectedUiField.control === 'radio' || selectedUiField.control === 'select'" class="space-y-2">
+            <label v-if="selectedUiField.control === 'radio' || selectedUiField.control === 'select'" class="space-y-2 md:col-span-2">
               <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">选项</span>
               <textarea
                 :value="selectedUiField.optionsText"
@@ -136,7 +134,7 @@
 
             <div
               v-if="selectedUiField.control === 'slider' && sliderValueType"
-              class="rounded-[14px] border border-[var(--app-border)] bg-white/45 px-4 py-4"
+              class="rounded-[14px] border border-[var(--app-border)] bg-white/45 px-4 py-4 md:col-span-2"
             >
               <div class="mb-3 flex items-center justify-between gap-3">
                 <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">滑块范围</p>
@@ -182,7 +180,7 @@
 
             <div
               v-else-if="selectedUiField.control === 'slider'"
-              class="rounded-[14px] border border-dashed border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
+              class="rounded-[14px] border border-dashed border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)] md:col-span-2"
             >
               请绑定变量。滑块只支持绑定整数或浮点变量，绑定后再设置最小值、最大值和步长。
             </div>
@@ -201,8 +199,8 @@
 
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue';
-import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import { getUiControlLabel, type EditorUiField } from '@/views/script-editor/editorSchema';
 import type { EditorVariableOption } from '@/views/script-editor/editorVariables';
 import { buildUiBindOptions } from '@/views/script-editor/editorUiPreview';
@@ -291,3 +289,41 @@ const selectUiBinding = (fieldId: string, variableId: string) => {
   emit('update-ui-field', fieldId, 'inputKey', matched?.key.startsWith('input.') ? matched.key.slice('input.'.length) : '');
 };
 </script>
+
+<style scoped>
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .editor-inline-grid {
+    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content,
+.editor-inline-value {
+  min-height: 44px;
+}
+
+.editor-inline-value {
+  display: flex;
+  align-items: center;
+  color: var(--app-text-strong);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+</style>

@@ -2,16 +2,18 @@
   <div class="space-y-3">
     <template v-if="selectedData.type === DATA_TYPE.setVar">
       <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标变量</span>
-          <AppSelect
-            :model-value="selectedData.name || null"
-            :options="writableCatalogVariableOptions"
-            placeholder="从变量列表中选择"
-            test-id="editor-set-var-name"
-            @update:model-value="$emit('update-set-var-target', String($event || ''))"
-          />
-        </label>
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">目标变量</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="selectedData.name || null"
+              :options="writableCatalogVariableOptions"
+              placeholder="从变量列表中选择"
+              test-id="editor-set-var-name"
+              @update:model-value="$emit('update-set-var-target', String($event || ''))"
+            />
+          </div>
+        </div>
 
         <EditorVariableMetaCard v-if="selectedSetVarTarget" :variable="selectedSetVarTarget" />
       </div>
@@ -23,16 +25,18 @@
       </div>
 
       <template v-if="selectedSetVarTarget && !setVarUsesExpression">
-        <label v-if="!selectedSetVarKind" class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">值类型</span>
-          <AppSelect
-            :model-value="effectiveSetVarKind"
-            :options="varValueTypeOptions"
-            placeholder="值类型"
-            test-id="editor-set-var-type"
-            @update:model-value="$emit('update-set-var-type', String($event || 'string'))"
-          />
-        </label>
+        <div v-if="!selectedSetVarKind" class="editor-inline-grid">
+          <div class="editor-inline-label">值类型</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="effectiveSetVarKind"
+              :options="varValueTypeOptions"
+              placeholder="值类型"
+              test-id="editor-set-var-type"
+              @update:model-value="$emit('update-set-var-type', String($event || 'string'))"
+            />
+          </div>
+        </div>
 
         <label v-if="effectiveSetVarKind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
           <input
@@ -76,16 +80,18 @@
 
     <template v-else-if="selectedData.type === DATA_TYPE.getVar">
       <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">读取变量</span>
-          <AppSelect
-            :model-value="selectedData.name || null"
-            :options="readableCatalogVariableOptions"
-            placeholder="从变量列表中选择"
-            test-id="editor-get-var-name"
-            @update:model-value="$emit('update-data-field', 'name', String($event || ''))"
-          />
-        </label>
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">读取变量</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="selectedData.name || null"
+              :options="readableCatalogVariableOptions"
+              placeholder="从变量列表中选择"
+              test-id="editor-get-var-name"
+              @update:model-value="$emit('update-data-field', 'name', String($event || ''))"
+            />
+          </div>
+        </div>
 
         <EditorVariableMetaCard v-if="selectedGetVarTarget" :variable="selectedGetVarTarget" />
       </div>
@@ -100,16 +106,18 @@
         <span class="text-sm text-[var(--app-text-soft)]">启用默认值</span>
       </label>
       <template v-if="getVarHasDefault">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值类型</span>
-          <AppSelect
-            :model-value="getVarDraft.kind"
-            :options="varValueTypeOptions"
-            placeholder="默认值类型"
-            test-id="editor-get-var-type"
-            @update:model-value="$emit('update-get-var-type', String($event || 'string'))"
-          />
-        </label>
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">默认值类型</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="getVarDraft.kind"
+              :options="varValueTypeOptions"
+              placeholder="默认值类型"
+              test-id="editor-get-var-type"
+              @update:model-value="$emit('update-get-var-type', String($event || 'string'))"
+            />
+          </div>
+        </div>
         <label v-if="getVarDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
           <input
             :checked="getVarDraft.boolValue"
@@ -144,15 +152,17 @@
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
           <input :value="selectedData.out_name" :list="variableDatalistId" class="app-input" @input="$emit('update-data-field', 'out_name', ($event.target as HTMLInputElement).value)" />
         </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">过滤模式</span>
-          <AppSelect
-            :model-value="selectedData.mode.type"
-            :options="filterModeOptions"
-            placeholder="过滤模式"
-            @update:model-value="$emit('update-filter-mode', String($event || FILTER_MODE_TYPE.filter))"
-          />
-        </label>
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">过滤模式</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
+              :model-value="selectedData.mode.type"
+              :options="filterModeOptions"
+              placeholder="过滤模式"
+              @update:model-value="$emit('update-filter-mode', String($event || FILTER_MODE_TYPE.filter))"
+            />
+          </div>
+        </div>
         <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
           <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">命中后行为</p>
           <div class="mt-2 flex items-center justify-between gap-3">
@@ -177,7 +187,7 @@
 </template>
 
 <script setup lang="ts">
-import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
 import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
@@ -221,3 +231,32 @@ defineEmits<{
   'navigate-branch': [branchPath: StepBranchPath];
 }>();
 </script>
+
+<style scoped>
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .editor-inline-grid {
+    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content {
+  min-height: 44px;
+}
+</style>

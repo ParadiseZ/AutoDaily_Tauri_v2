@@ -2,7 +2,7 @@
   <div class="editor-condition-card" :class="{ 'editor-condition-nested': depth > 0 }">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-        <AppSelect
+      <EditorSelectField
           :model-value="modelValue.type"
           :options="conditionTypeOptions"
           placeholder="条件类型"
@@ -39,7 +39,7 @@
       <template v-else-if="modelValue.type === 'group'">
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">组合逻辑</span>
-          <AppSelect
+          <EditorSelectField
             :model-value="modelValue.op"
             :options="logicOpOptions"
             placeholder="组合逻辑"
@@ -81,68 +81,68 @@
       </template>
 
       <template v-else-if="modelValue.type === 'execNumCompare'">
-        <div class="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标类型</span>
-            <AppSelect
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">目标类型</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="modelValue.a.type"
               :options="stateTargetTypeOptions"
               placeholder="目标类型"
               @update:model-value="updateExecTargetType(String($event || 'task'))"
             />
-          </label>
+          </div>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标 ID</span>
+          <div class="editor-inline-label">目标 ID</div>
+          <div class="editor-inline-content">
             <input
               :value="modelValue.a.id"
               class="app-input"
               @input="updateExecTargetId(($event.target as HTMLInputElement).value)"
             />
-          </label>
+          </div>
         </div>
       </template>
 
       <template v-else-if="modelValue.type === 'taskStatus'">
-        <div class="grid gap-3 md:grid-cols-2">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态动作</span>
-            <AppSelect
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">状态动作</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="modelValue.a.type"
               :options="taskControlTypeOptions"
               placeholder="状态动作"
               @update:model-value="updateTaskStatusField('type', String($event || 'getState'))"
             />
-          </label>
+          </div>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标类型</span>
-            <AppSelect
+          <div class="editor-inline-label">目标类型</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="modelValue.a.target.type"
               :options="stateTargetTypeOptions"
               placeholder="目标类型"
               @update:model-value="updateTaskTargetType(String($event || 'task'))"
             />
-          </label>
+          </div>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标 ID</span>
+          <div class="editor-inline-label">目标 ID</div>
+          <div class="editor-inline-content">
             <input
               :value="modelValue.a.target.id"
               class="app-input"
               @input="updateTaskTargetId(($event.target as HTMLInputElement).value)"
             />
-          </label>
+          </div>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态类型</span>
-            <AppSelect
+          <div class="editor-inline-label">状态类型</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="modelValue.a.status.type"
               :options="filteredStateStatusTypeOptions"
               placeholder="状态类型"
               @update:model-value="updateTaskStatusType(String($event || 'done'))"
             />
-          </label>
+          </div>
         </div>
 
         <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
@@ -158,37 +158,37 @@
       </template>
 
       <template v-else-if="modelValue.type === 'varCompare'">
-        <div class="grid gap-3 md:grid-cols-2">
-          <label class="space-y-2 md:col-span-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">变量名</span>
-            <AppSelect
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">变量名</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
               :model-value="modelValue.var_name || null"
               :options="variableOptions"
               placeholder="从变量列表中选择"
               :test-id="rootTestId('var-name')"
               @update:model-value="updateVarCompareField('var_name', String($event || ''))"
             />
-          </label>
+          </div>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">比较方式</span>
-            <AppSelect
+          <div class="editor-inline-label">比较方式</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="modelValue.op"
               :options="compareOpOptions"
               placeholder="比较方式"
               @update:model-value="updateVarCompareField('op', String($event || 'eq'))"
             />
-          </label>
+          </div>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">值类型</span>
-            <AppSelect
+          <div class="editor-inline-label">值类型</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="currentVarValueDraft.kind"
               :options="varValueTypeOptions"
               placeholder="值类型"
               @update:model-value="updateVarCompareValueKind(String($event || 'string'))"
             />
-          </label>
+          </div>
         </div>
 
         <label v-if="currentVarValueDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
@@ -259,7 +259,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import {
@@ -531,5 +531,32 @@ const updateColorNumber = (field: 'r' | 'g' | 'b', value: string) => {
 
 .editor-condition-nested {
   background: rgba(255, 255, 255, 0.56);
+}
+
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .editor-inline-grid {
+    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content {
+  min-height: 44px;
 }
 </style>

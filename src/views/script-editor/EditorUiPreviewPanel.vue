@@ -1,28 +1,42 @@
 <template>
   <div
-    class="rounded-[22px] border border-[var(--app-border)] bg-[linear-gradient(160deg,rgba(255,255,255,0.92),rgba(243,247,255,0.9))] px-5 py-5 shadow-[var(--app-shadow-soft)]"
+    class="editor-ui-preview-shell"
+    :class="{
+      'editor-ui-preview-shell-embedded': embedded,
+      'editor-ui-preview-shell-active': active,
+      'editor-ui-preview-shell-readonly': readonly,
+    }"
   >
-    <div class="space-y-3">
-      <div v-if="uiSchema.layout === 'horizontal'" class="editor-ui-preview-flow">
-        <label v-if="showEnabledToggle" class="editor-ui-toggle-chip">
-          <input
-            type="checkbox"
-            :checked="taskEnabledPreview"
-            data-testid="editor-ui-preview-task-enabled"
-            @change="taskEnabledPreview = ($event.target as HTMLInputElement).checked"
-          />
-        </label>
-        <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
-        <span class="editor-ui-task-cycle">{{ taskCycleLabel }}</span>
+    <div class="editor-ui-preview-flow" :style="{ paddingLeft: `${Math.max(0, indentLevel ?? 0) * 1.05}rem` }">
+      <span class="editor-ui-tone-bar" :class="toneBarClass" />
+
+      <label v-if="showEnabledToggle" class="editor-ui-toggle-chip" @click.stop>
+        <input
+          type="checkbox"
+          :checked="taskEnabledPreview"
+          :disabled="readonly"
+          data-testid="editor-ui-preview-task-enabled"
+          @change="updateTaskEnabled(($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+
+      <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
+
+      <div class="editor-ui-preview-fields">
         <div
           v-for="(field, index) in uiSchema.fields"
           :key="field.id"
           class="editor-ui-preview-item"
-          :class="{ 'editor-ui-preview-item-active': selectedUiFieldId === field.id }"
-          @click="$emit('select-ui-field', field.id)"
+          :class="{ 'editor-ui-preview-item-active': !readonly && selectedUiFieldId === field.id }"
+          @click="handleSelectField(field.id)"
         >
           <template v-if="field.control === 'checkbox'">
-            <label v-if="field.checkboxStyle === 'switch'" class="editor-ui-switch" :class="{ 'editor-ui-switch-disabled': !isInteractive(field) }" @click.stop>
+            <label
+              v-if="field.checkboxStyle === 'switch'"
+              class="editor-ui-switch"
+              :class="{ 'editor-ui-switch-disabled': !isInteractive(field) }"
+              @click.stop
+            >
               <input
                 type="checkbox"
                 class="sr-only"
@@ -54,14 +68,14 @@
               :disabled="!isInteractive(field)"
               :data-testid="`editor-ui-preview-control-${index}`"
               @click.stop
-              @focus="$emit('select-ui-field', field.id)"
+              @focus="handleSelectField(field.id)"
               @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
             />
           </template>
 
           <template v-else-if="field.control === 'select'">
             <div class="editor-ui-inline-select-shell" @click.stop>
-              <AppSelect
+              <EditorSelectField
                 :model-value="resolveSelectPreviewValue(field)"
                 :options="getPreviewOptionsForField(field)"
                 placeholder="请选择"
@@ -104,7 +118,7 @@
                   :checked="resolveFieldPreviewValue(field) === option"
                   :disabled="!isInteractive(field)"
                   :data-testid="`editor-ui-preview-control-${index}`"
-                  @focus="$emit('select-ui-field', field.id)"
+                  @focus="handleSelectField(field.id)"
                   @change="updatePreviewText(field, option)"
                 />
                 <span class="editor-ui-radio-dot" />
@@ -122,185 +136,66 @@
               :disabled="!isInteractive(field)"
               :data-testid="`editor-ui-preview-control-${index}`"
               @click.stop
-              @focus="$emit('select-ui-field', field.id)"
+              @focus="handleSelectField(field.id)"
               @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
             />
             <span v-else class="editor-ui-static-text">{{ resolveTextPreviewValue(field) }}</span>
           </template>
         </div>
+
       </div>
 
-      <template v-else>
-        <div class="flex flex-wrap items-center gap-3">
-          <label v-if="showEnabledToggle" class="editor-ui-toggle-chip">
-            <input
-              type="checkbox"
-              :checked="taskEnabledPreview"
-              data-testid="editor-ui-preview-task-enabled"
-              @change="taskEnabledPreview = ($event.target as HTMLInputElement).checked"
-            />
-          </label>
-          <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
-          <span class="editor-ui-task-cycle">{{ taskCycleLabel }}</span>
-          <button
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            @click="uiPreviewExpanded = !uiPreviewExpanded"
-          >
-            {{ uiPreviewExpanded ? '收起' : '展开' }}
-          </button>
-        </div>
-
-        <div v-if="uiPreviewExpanded" class="grid gap-3">
-          <div
-            v-for="(field, index) in uiSchema.fields"
-            :key="field.id"
-            class="editor-ui-preview-item"
-            :class="{ 'editor-ui-preview-item-active': selectedUiFieldId === field.id, 'editor-ui-preview-item-vertical': true }"
-            @click="$emit('select-ui-field', field.id)"
-          >
-            <template v-if="field.control === 'checkbox'">
-              <label v-if="field.checkboxStyle === 'switch'" class="editor-ui-switch" :class="{ 'editor-ui-switch-disabled': !isInteractive(field) }" @click.stop>
-                <input
-                  type="checkbox"
-                  class="sr-only"
-                  :checked="Boolean(resolveFieldPreviewValue(field))"
-                  :disabled="!isInteractive(field)"
-                  :data-testid="`editor-ui-preview-control-${index}`"
-                  @change="updatePreviewBoolean(field, ($event.target as HTMLInputElement).checked)"
-                />
-                <span class="editor-ui-switch-track">
-                  <span class="editor-ui-switch-thumb" />
-                </span>
-              </label>
-              <input
-                v-else
-                type="checkbox"
-                :checked="Boolean(resolveFieldPreviewValue(field))"
-                :disabled="!isInteractive(field)"
-                :data-testid="`editor-ui-preview-control-${index}`"
-                @click.stop
-                @change="updatePreviewBoolean(field, ($event.target as HTMLInputElement).checked)"
-              />
-            </template>
-
-            <template v-else-if="field.control === 'number'">
-              <input
-                :value="resolveNumberPreviewValue(field)"
-                class="editor-ui-inline-control editor-ui-inline-control-number"
-                type="number"
-                :disabled="!isInteractive(field)"
-                :data-testid="`editor-ui-preview-control-${index}`"
-                @click.stop
-                @focus="$emit('select-ui-field', field.id)"
-                @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
-              />
-            </template>
-
-            <template v-else-if="field.control === 'select'">
-              <div class="editor-ui-inline-select-shell" @click.stop>
-                <AppSelect
-                  :model-value="resolveSelectPreviewValue(field)"
-                  :options="getPreviewOptionsForField(field)"
-                  placeholder="请选择"
-                  :disabled="!isInteractive(field)"
-                  :test-id="`editor-ui-preview-control-${index}`"
-                  @update:model-value="updatePreviewText(field, String($event ?? ''))"
-                />
-              </div>
-            </template>
-
-            <template v-else-if="field.control === 'slider'">
-              <div class="editor-ui-slider-shell" @click.stop>
-                <input
-                  :value="resolveNumberPreviewValue(field)"
-                  class="editor-ui-slider"
-                  type="range"
-                  :min="getSliderMin(field)"
-                  :max="getSliderMax(field)"
-                  :step="getSliderStep(field)"
-                  :disabled="!isInteractive(field)"
-                  :data-testid="`editor-ui-preview-control-${index}`"
-                  @input="updateSliderValue(field, ($event.target as HTMLInputElement).value)"
-                />
-                <span class="editor-ui-slider-value">{{ resolveNumberPreviewValue(field) }}</span>
-              </div>
-            </template>
-
-            <template v-else-if="field.control === 'radio'">
-              <span class="editor-ui-inline-options">
-                <label
-                  v-for="option in parseFieldOptions(field)"
-                  :key="option"
-                  class="editor-ui-inline-pill editor-ui-inline-radio"
-                  :class="{ 'editor-ui-inline-pill-active': resolveFieldPreviewValue(field) === option }"
-                  @click.stop
-                >
-                  <input
-                    type="radio"
-                    class="sr-only"
-                    :checked="resolveFieldPreviewValue(field) === option"
-                    :disabled="!isInteractive(field)"
-                    :data-testid="`editor-ui-preview-control-${index}`"
-                    @focus="$emit('select-ui-field', field.id)"
-                    @change="updatePreviewText(field, option)"
-                  />
-                  <span class="editor-ui-radio-dot" />
-                  {{ option }}
-                </label>
-              </span>
-            </template>
-
-            <template v-else>
-              <input
-                v-if="field.editable"
-                :value="resolveTextPreviewValue(field)"
-                class="editor-ui-inline-control editor-ui-inline-control-text"
-                type="text"
-                :disabled="!isInteractive(field)"
-                :data-testid="`editor-ui-preview-control-${index}`"
-                @click.stop
-                @focus="$emit('select-ui-field', field.id)"
-                @input="updatePreviewText(field, ($event.target as HTMLInputElement).value)"
-              />
-              <span v-else class="editor-ui-static-text">{{ resolveTextPreviewValue(field) }}</span>
-            </template>
-          </div>
-        </div>
-      </template>
+      <div class="editor-ui-task-cycle-shell" @click.stop>
+        <EditorSelectField
+          v-if="editableCycle"
+          :model-value="selectedTaskCycleValue"
+          :options="taskCycleOptions"
+          placeholder="选择默认周期"
+          test-id="editor-ui-preview-task-cycle"
+          @update:model-value="$emit('update:default-task-cycle-value', String($event || 'everyRun'))"
+        />
+        <span v-else class="editor-ui-task-cycle">{{ taskCycleLabel }}</span>
+        <input
+          v-if="editableCycle && (defaultTaskCycleMode === 'weekDay' || defaultTaskCycleMode === 'monthDay')"
+          :value="defaultTaskCycleDay"
+          class="editor-ui-cycle-day-input"
+          type="number"
+          :min="1"
+          :max="defaultTaskCycleMode === 'weekDay' ? 7 : 31"
+          @input="$emit('update:default-task-cycle-day', Number(($event.target as HTMLInputElement).value || 1))"
+        />
+      </div>
     </div>
-
-    <EmptyState
-      v-if="!uiSchema.fields.length"
-      title="还没有可预览的字段"
-      description="在中间插入 checkbox、radio、number 等模板后，这里会按排布方向实时预览。"
-    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import AppSelect from '@/components/shared/AppSelect.vue';
-import EmptyState from '@/components/shared/EmptyState.vue';
 import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { TaskTone } from '@/types/bindings/TaskTone';
 import { formatTaskCycleLabel } from '@/utils/presenters';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { EditorUiSchema, EditorUiField } from '@/views/script-editor/editorSchema';
+import { taskCycleOptions } from '@/views/script-editor/editorTaskMeta';
 import type { EditorInputEntry } from '@/views/script-editor/editorVariables';
-import {
-  parseFieldOptions,
-  resolvePreviewValue,
-  findBoundInputEntry,
-} from '@/views/script-editor/editorUiPreview';
+import { findBoundInputEntry, parseFieldOptions, resolvePreviewValue } from '@/views/script-editor/editorUiPreview';
 
 defineOptions({ name: 'EditorUiPreviewPanel' });
 
 const props = defineProps<{
   taskName: string;
   defaultTaskCycle: TaskCycle;
+  defaultTaskCycleValue?: string;
+  defaultTaskCycleMode?: 'named' | 'weekDay' | 'monthDay';
+  defaultTaskCycleDay?: number;
+  editableCycle?: boolean;
   showEnabledToggle: boolean;
   defaultEnabled: boolean;
   taskTone: TaskTone;
+  embedded?: boolean;
+  readonly?: boolean;
+  active?: boolean;
+  indentLevel?: number;
   uiSchema: EditorUiSchema;
   selectedUiFieldId: string | null;
   inputEntries: EditorInputEntry[];
@@ -309,19 +204,34 @@ const props = defineProps<{
 const emit = defineEmits<{
   'select-ui-field': [fieldId: string];
   'update-input': [entryId: string, field: 'stringValue' | 'booleanValue', value: string | boolean];
+  'update:default-enabled': [value: boolean];
+  'update:default-task-cycle-value': [value: string];
+  'update:default-task-cycle-day': [value: number];
 }>();
 
-const uiPreviewExpanded = ref(true);
 const taskEnabledPreview = ref(props.defaultEnabled);
 const localPreviewValues = ref<Record<string, string | boolean>>({});
 const taskCycleLabel = computed(() => formatTaskCycleLabel(props.defaultTaskCycle));
+const selectedTaskCycleValue = computed(() => props.defaultTaskCycleValue ?? 'everyRun');
 const taskToneClass = computed(() => {
   if (props.taskTone === 'warning') return 'editor-ui-task-name-warning';
   if (props.taskTone === 'danger') return 'editor-ui-task-name-danger';
   return '';
 });
+const toneBarClass = computed(() => {
+  if (props.taskTone === 'warning') return 'editor-ui-tone-bar-warning';
+  if (props.taskTone === 'danger') return 'editor-ui-tone-bar-danger';
+  return 'editor-ui-tone-bar-normal';
+});
 
 const findPreviewEntry = (field: EditorUiField) => findBoundInputEntry(field, props.inputEntries);
+
+const handleSelectField = (fieldId: string) => {
+  if (props.readonly) {
+    return;
+  }
+  emit('select-ui-field', fieldId);
+};
 
 const resolveFieldPreviewValue = (field: EditorUiField) => {
   const entry = findPreviewEntry(field);
@@ -398,9 +308,13 @@ const resolveTextPreviewValue = (field: EditorUiField) => {
   return field.placeholder || field.description || '';
 };
 
-const isInteractive = (field: EditorUiField) => (field.control === 'text' ? field.editable : true);
+const isInteractive = (field: EditorUiField) => !props.readonly && (field.control === 'text' ? field.editable : true);
 
 const updatePreviewText = (field: EditorUiField, value: string) => {
+  if (props.readonly) {
+    return;
+  }
+
   const entry = findPreviewEntry(field);
   if (!entry || entry.namespace !== 'input') {
     localPreviewValues.value = {
@@ -415,6 +329,10 @@ const updatePreviewText = (field: EditorUiField, value: string) => {
 };
 
 const updatePreviewBoolean = (field: EditorUiField, value: boolean) => {
+  if (props.readonly) {
+    return;
+  }
+
   const entry = findPreviewEntry(field);
   if (!entry || entry.namespace !== 'input') {
     localPreviewValues.value = {
@@ -433,6 +351,14 @@ const updateSliderValue = (field: EditorUiField, value: string) => {
   updatePreviewText(field, normalized);
 };
 
+const updateTaskEnabled = (value: boolean) => {
+  if (props.readonly) {
+    return;
+  }
+  taskEnabledPreview.value = value;
+  emit('update:default-enabled', value);
+};
+
 watch(
   () => props.defaultEnabled,
   (value) => {
@@ -443,15 +369,70 @@ watch(
 </script>
 
 <style scoped>
-.editor-ui-task-cycle {
+.editor-ui-preview-shell {
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.82rem 1rem;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.editor-ui-preview-shell-active {
+  border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.editor-ui-preview-shell-readonly:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.editor-ui-preview-shell-embedded {
+  width: 100%;
+}
+
+.editor-ui-preview-flow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.editor-ui-tone-bar {
+  width: 0.28rem;
+  flex: 0 0 0.28rem;
+  align-self: stretch;
+  border-radius: 999px;
+}
+
+.editor-ui-tone-bar-normal {
+  background: rgba(148, 163, 184, 0.42);
+}
+
+.editor-ui-tone-bar-warning {
+  background: rgba(245, 158, 11, 0.9);
+}
+
+.editor-ui-tone-bar-danger {
+  background: rgba(239, 68, 68, 0.92);
+}
+
+.editor-ui-toggle-chip {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 14px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.7);
-  padding: 0.22rem 0.55rem;
-  font-size: 0.72rem;
-  color: var(--app-text-faint);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.editor-ui-task-name {
+  flex: 0 0 auto;
+  color: var(--app-text-strong);
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .editor-ui-task-name-warning {
@@ -461,57 +442,32 @@ watch(
 .editor-ui-task-name-danger {
   color: #b91c1c;
 }
-.editor-ui-preview-flow {
+
+.editor-ui-preview-fields {
   display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.85rem;
-}
-
-.editor-ui-toggle-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.88);
-}
-
-.editor-ui-task-name {
-  color: var(--app-text-strong);
-  font-size: 1.08rem;
-  font-weight: 700;
+  gap: 0.55rem;
 }
 
 .editor-ui-preview-item {
   display: inline-flex;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.55rem;
   min-height: 42px;
-  border-radius: 16px;
+  min-width: 0;
+  border-radius: 14px;
   border: 1px solid transparent;
   background: transparent;
-  padding: 0.18rem 0.3rem;
-  text-align: left;
+  padding: 0.16rem 0.28rem;
   transition: border-color 0.16s ease, background 0.16s ease;
-  cursor: pointer;
-}
-
-.editor-ui-preview-item:hover {
-  border-color: rgba(70, 110, 255, 0.16);
-  background: rgba(255, 255, 255, 0.4);
 }
 
 .editor-ui-preview-item-active {
   border-color: var(--app-state-active-border);
   background: var(--app-state-active-bg);
-}
-
-.editor-ui-preview-item-vertical {
-  justify-content: flex-start;
-  width: 100%;
 }
 
 .editor-ui-inline-control {
@@ -520,7 +476,6 @@ watch(
   border: 1px solid var(--app-border);
   background: white;
   padding: 0.45rem 0.75rem;
-  text-align: left;
   color: var(--app-text-strong);
   appearance: none;
   outline: none;
@@ -544,13 +499,6 @@ watch(
 
 .editor-ui-inline-select-shell {
   min-width: 132px;
-}
-
-.editor-ui-inline-select-shell :deep(.app-select-trigger) {
-  min-width: 132px;
-  height: 42px;
-  border-radius: 12px;
-  padding-inline: 0.75rem;
 }
 
 .editor-ui-inline-options {
@@ -655,8 +603,35 @@ watch(
 
 .editor-ui-static-text {
   color: var(--app-text-strong);
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.editor-ui-task-cycle-shell {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.editor-ui-task-cycle {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.22rem 0.55rem;
+  font-size: 0.72rem;
+  color: var(--app-text-faint);
+}
+
+.editor-ui-cycle-day-input {
+  width: 74px;
+  border-radius: 12px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.84);
+  padding: 0.55rem 0.65rem;
+  color: var(--app-text-strong);
 }
 </style>

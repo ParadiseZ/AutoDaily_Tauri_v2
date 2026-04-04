@@ -11,26 +11,39 @@
     </div>
 
     <div class="mt-4 min-h-0 space-y-4 overflow-y-auto pr-1 custom-scrollbar">
-      <div v-if="ungroupedTasks.length && titleRows.length" class="space-y-2">
+      <div v-if="ungroupedTasks.length" class="space-y-2">
         <p class="text-[11px] uppercase tracking-[0.14em] text-[var(--app-text-faint)]">未分组任务</p>
-        <button
-          v-for="task in ungroupedTasks"
-          :key="task.id"
-          type="button"
-          class="preview-task-row"
-          :class="{ 'preview-task-row-active': selectedTaskId === task.id }"
-          :style="{ paddingLeft: `${1.2 + task.indentLevel * 1.1}rem` }"
-          @click="$emit('select-task', task.id)"
-        >
-          <span class="preview-task-tone" :class="toneClass(task.taskTone)" />
-          <label v-if="task.showEnabledToggle" class="preview-task-toggle" @click.stop>
-            <input type="checkbox" :checked="resolveEnabled(task.id, task.defaultEnabled)" @change="setEnabled(task.id, ($event.target as HTMLInputElement).checked)" />
-          </label>
-          <span class="preview-task-name" :class="nameClass(task.taskTone)">{{ task.name }}</span>
-          <span class="preview-task-cycle">{{ formatTaskCycleLabel(task.defaultTaskCycle) }}</span>
-          <span class="preview-task-trigger">{{ formatTaskTriggerModeLabel(task.triggerMode) }}</span>
-          <span v-if="previewFieldSummary(task).length" class="preview-task-fields">{{ previewFieldSummary(task) }}</span>
-        </button>
+        <template v-for="task in ungroupedTasks" :key="task.id">
+          <div
+            class="preview-task-wrap"
+            :class="{ 'preview-task-wrap-clickable': selectedTaskId !== task.id }"
+            @click="selectedTaskId !== task.id && $emit('select-task', task.id)"
+          >
+            <EditorUiPreviewPanel
+              :task-name="task.name"
+              :default-task-cycle="task.defaultTaskCycle"
+              :default-task-cycle-value="selectedTaskId === task.id ? selectedTaskCycleValue : undefined"
+              :default-task-cycle-mode="selectedTaskId === task.id ? selectedTaskCycleMode : 'named'"
+              :default-task-cycle-day="selectedTaskId === task.id ? selectedTaskCycleDay : 1"
+              :editable-cycle="selectedTaskId === task.id"
+              :show-enabled-toggle="task.showEnabledToggle"
+              :default-enabled="task.defaultEnabled"
+              :task-tone="task.taskTone"
+              :embedded="true"
+              :readonly="selectedTaskId !== task.id"
+              :active="selectedTaskId === task.id"
+              :indent-level="task.indentLevel"
+              :ui-schema="selectedTaskId === task.id ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
+              :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
+              :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : []"
+              @select-ui-field="$emit('select-ui-field', $event)"
+              @update-input="forwardUpdateInput"
+              @update:default-enabled="$emit('update:default-enabled', $event)"
+              @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
+              @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
+            />
+          </div>
+        </template>
       </div>
 
       <div v-for="title in titleRows" :key="title.id" class="space-y-2">
@@ -45,24 +58,37 @@
         </button>
 
         <div v-if="groupedTasksByTitle[title.id]?.length" class="space-y-2">
-          <button
-            v-for="task in groupedTasksByTitle[title.id]"
-            :key="task.id"
-            type="button"
-            class="preview-task-row"
-            :class="{ 'preview-task-row-active': selectedTaskId === task.id }"
-            :style="{ paddingLeft: `${1.2 + task.indentLevel * 1.1}rem` }"
-            @click="$emit('select-task', task.id)"
-          >
-            <span class="preview-task-tone" :class="toneClass(task.taskTone)" />
-            <label v-if="task.showEnabledToggle" class="preview-task-toggle" @click.stop>
-              <input type="checkbox" :checked="resolveEnabled(task.id, task.defaultEnabled)" @change="setEnabled(task.id, ($event.target as HTMLInputElement).checked)" />
-            </label>
-            <span class="preview-task-name" :class="nameClass(task.taskTone)">{{ task.name }}</span>
-            <span class="preview-task-cycle">{{ formatTaskCycleLabel(task.defaultTaskCycle) }}</span>
-            <span class="preview-task-trigger">{{ formatTaskTriggerModeLabel(task.triggerMode) }}</span>
-            <span v-if="previewFieldSummary(task).length" class="preview-task-fields">{{ previewFieldSummary(task) }}</span>
-          </button>
+          <template v-for="task in groupedTasksByTitle[title.id]" :key="task.id">
+            <div
+              class="preview-task-wrap"
+              :class="{ 'preview-task-wrap-clickable': selectedTaskId !== task.id }"
+              @click="selectedTaskId !== task.id && $emit('select-task', task.id)"
+            >
+              <EditorUiPreviewPanel
+                :task-name="task.name"
+                :default-task-cycle="task.defaultTaskCycle"
+                :default-task-cycle-value="selectedTaskId === task.id ? selectedTaskCycleValue : undefined"
+                :default-task-cycle-mode="selectedTaskId === task.id ? selectedTaskCycleMode : 'named'"
+                :default-task-cycle-day="selectedTaskId === task.id ? selectedTaskCycleDay : 1"
+                :editable-cycle="selectedTaskId === task.id"
+                :show-enabled-toggle="task.showEnabledToggle"
+                :default-enabled="task.defaultEnabled"
+                :task-tone="task.taskTone"
+                :embedded="true"
+                :readonly="selectedTaskId !== task.id"
+                :active="selectedTaskId === task.id"
+                :indent-level="task.indentLevel"
+                :ui-schema="selectedTaskId === task.id ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
+                :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
+                :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : []"
+                @select-ui-field="$emit('select-ui-field', $event)"
+                @update-input="forwardUpdateInput"
+                @update:default-enabled="$emit('update:default-enabled', $event)"
+                @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
+                @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
+              />
+            </div>
+          </template>
         </div>
 
         <div v-else class="rounded-[16px] border border-dashed border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
@@ -78,23 +104,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
-import { formatTaskCycleLabel, formatTaskTriggerModeLabel } from '@/utils/presenters';
-import { parseUiSchema } from '@/views/script-editor/editorSchema';
+import { parseUiSchema, type EditorUiSchema } from '@/views/script-editor/editorSchema';
+import type { EditorInputEntry } from '@/views/script-editor/editorVariables';
+import EditorUiPreviewPanel from '@/views/script-editor/EditorUiPreviewPanel.vue';
 
 defineOptions({ name: 'EditorTaskTablePreview' });
 
 const props = defineProps<{
   tasks: ScriptTaskTable[];
   selectedTaskId: string | null;
+  selectedTaskUiSchema: EditorUiSchema;
+  selectedTaskInputEntries: EditorInputEntry[];
+  selectedUiFieldId: string | null;
+  selectedTaskCycleValue: string;
+  selectedTaskCycleMode: 'named' | 'weekDay' | 'monthDay';
+  selectedTaskCycleDay: number;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'select-task': [taskId: string];
+  'select-ui-field': [fieldId: string];
+  'update-input': [entryId: string, field: 'stringValue' | 'booleanValue', value: string | boolean];
+  'update:default-enabled': [value: boolean];
+  'update:default-task-cycle-value': [value: string];
+  'update:default-task-cycle-day': [value: number];
 }>();
-
-const enabledState = ref<Record<string, boolean>>({});
 
 const sortedTasks = computed(() => [...props.tasks].sort((left, right) => left.index - right.index));
 const titleRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'title'));
@@ -112,47 +148,18 @@ const ungroupedTasks = computed(() =>
 );
 const taskCount = computed(() => props.tasks.length);
 
-const resolveEnabled = (taskId: string, fallback: boolean) => enabledState.value[taskId] ?? fallback;
-
-const setEnabled = (taskId: string, value: boolean) => {
-  enabledState.value = {
-    ...enabledState.value,
-    [taskId]: value,
-  };
+const forwardUpdateInput = (
+  entryId: string,
+  field: 'stringValue' | 'booleanValue',
+  value: string | boolean,
+) => {
+  emit('update-input', entryId, field, value);
 };
 
-const previewFieldSummary = (task: ScriptTaskTable) =>
-  parseUiSchema(task.data.uiData ?? {})
-    .fields
-    .map((field) => field.label || field.inputKey || field.key)
-    .filter(Boolean)
-    .slice(0, 3)
-    .join(' / ');
-
-const toneClass = (tone: ScriptTaskTable['taskTone']) => {
-  if (tone === 'warning') return 'preview-task-tone-warning';
-  if (tone === 'danger') return 'preview-task-tone-danger';
-  return 'preview-task-tone-normal';
-};
-
-const nameClass = (tone: ScriptTaskTable['taskTone']) => {
-  if (tone === 'warning') return 'preview-task-name-warning';
-  if (tone === 'danger') return 'preview-task-name-danger';
-  return '';
-};
-
-watch(
-  () => props.tasks.map((task) => `${task.id}:${task.defaultEnabled}`).join('|'),
-  () => {
-    enabledState.value = Object.fromEntries(props.tasks.map((task) => [task.id, task.defaultEnabled]));
-  },
-  { immediate: true },
-);
 </script>
 
 <style scoped>
-.preview-title-row,
-.preview-task-row {
+.preview-title-row {
   display: flex;
   width: 100%;
   align-items: center;
@@ -165,8 +172,7 @@ watch(
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
 
-.preview-title-row-active,
-.preview-task-row-active {
+.preview-title-row-active {
   border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 18%, transparent);
 }
@@ -185,61 +191,7 @@ watch(
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 14%, transparent);
 }
 
-.preview-task-tone {
-  width: 0.28rem;
-  align-self: stretch;
-  border-radius: 999px;
-}
-
-.preview-task-tone-normal {
-  background: rgba(148, 163, 184, 0.42);
-}
-
-.preview-task-tone-warning {
-  background: rgba(245, 158, 11, 0.9);
-}
-
-.preview-task-tone-danger {
-  background: rgba(239, 68, 68, 0.92);
-}
-
-.preview-task-toggle input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--app-accent);
-}
-
-.preview-task-name {
-  min-width: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--app-text-strong);
-}
-
-.preview-task-name-warning {
-  color: #a16207;
-}
-
-.preview-task-name-danger {
-  color: #b91c1c;
-}
-
-.preview-task-cycle,
-.preview-task-trigger,
-.preview-task-fields {
-  border-radius: 999px;
-  border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.84);
-  padding: 0.22rem 0.55rem;
-  font-size: 0.72rem;
-  color: var(--app-text-faint);
-}
-
-.preview-task-fields {
-  min-width: 0;
-  max-width: min(40%, 420px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.preview-task-wrap-clickable {
+  cursor: pointer;
 }
 </style>

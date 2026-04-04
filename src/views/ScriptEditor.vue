@@ -177,7 +177,6 @@
           @add-input="addInput"
           @select-input="selectedInputId = $event"
           @remove-input="removeInput"
-          @update-ui-layout="updateUiLayout"
           @add-ui-field="addUiField"
           @select-ui-field="selectedUiFieldId = $event"
           @remove-ui-field="removeUiField"
@@ -226,6 +225,17 @@
           :task="currentTask"
           :tasks="draftTasks"
           :active-panel="activePanel"
+          :task-trigger-mode="taskTriggerMode"
+          :record-schedule="recordSchedule"
+          :section-id="sectionId"
+          :indent-level="indentLevel"
+          :default-task-cycle-value="defaultTaskCycleValue"
+          :default-task-cycle-mode="defaultTaskCycleMode"
+          :default-task-cycle-day="defaultTaskCycleDay"
+          :show-enabled-toggle="showEnabledToggle"
+          :default-enabled="defaultEnabled"
+          :task-tone="taskTone"
+          :title-options="titleTaskOptions"
           :steps="parsedSteps"
           :selected-step-path="selectedStepPath"
           :active-branch-path="activeBranchPath"
@@ -235,10 +245,25 @@
           :variable-options="variableOptions"
           :catalog-variable-options="catalogVariableOptions"
           :selected-input-id="selectedInputId"
+          @update:task-name="taskName = $event"
           @update-input="updateInput"
           @remove-input="removeInput"
           @select-input="selectedInputId = $event"
           @select-task="selectTask"
+          @update:task-trigger-mode="taskTriggerMode = $event"
+          @update:record-schedule="recordSchedule = $event"
+          @update:section-id="sectionId = $event"
+          @update:indent-level="indentLevel = $event"
+          @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
+          @update:default-task-cycle-day="
+            defaultTaskCycle =
+              defaultTaskCycleMode === 'weekDay'
+                ? { weekDay: Math.max(1, Math.min(7, $event)) }
+                : { monthDay: Math.max(1, Math.min(31, $event)) }
+          "
+          @update:show-enabled-toggle="showEnabledToggle = $event"
+          @update:default-enabled="defaultEnabled = $event"
+          @update:task-tone="taskTone = $event"
           @select-ui-field="selectedUiFieldId = $event"
           @update-ui-field="updateUiField"
           @remove-ui-field="removeUiField"
@@ -453,7 +478,7 @@ const taskTriggerMode = ref<TaskTriggerMode>('rootOnly');
 const taskHidden = ref(false);
 const recordSchedule = ref(true);
 const sectionId = ref<string | null>(null);
-const indentLevel = ref(0);
+const indentLevel = ref(1);
 const defaultTaskCycle = ref<TaskCycle>('everyRun');
 const showEnabledToggle = ref(true);
 const defaultEnabled = ref(true);
@@ -693,7 +718,7 @@ const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable =>
     triggerMode: task.triggerMode ?? (legacyTaskType === 'child' ? 'linkOnly' : 'rootOnly'),
     recordSchedule: isTitle ? false : task.recordSchedule ?? true,
     sectionId: isTitle ? null : task.sectionId ?? null,
-    indentLevel: isTitle ? 0 : Math.max(0, Math.min(8, Number(task.indentLevel ?? 0))),
+    indentLevel: isTitle ? 0 : Math.max(0, Math.min(8, Number(task.indentLevel ?? 1))),
     defaultTaskCycle: task.defaultTaskCycle ?? 'everyRun',
     showEnabledToggle: isTitle ? false : task.showEnabledToggle ?? true,
     defaultEnabled: task.defaultEnabled ?? true,
@@ -723,7 +748,7 @@ const buildTaskDraft = async (name?: string): Promise<ScriptTaskTable> => {
       triggerMode: 'rootOnly',
       recordSchedule: true,
       sectionId: draftTasks.value.filter((task) => task.rowType === 'title').at(-1)?.id ?? null,
-      indentLevel: 0,
+      indentLevel: 1,
       defaultTaskCycle: 'everyRun',
       showEnabledToggle: true,
       defaultEnabled: true,
@@ -765,7 +790,7 @@ const hydrateTaskEditors = () => {
     taskHidden.value = false;
     recordSchedule.value = true;
     sectionId.value = null;
-    indentLevel.value = 0;
+    indentLevel.value = 1;
     defaultTaskCycle.value = 'everyRun';
     showEnabledToggle.value = true;
     defaultEnabled.value = true;
@@ -966,6 +991,10 @@ const duplicateTask = async (taskId: string) => {
 const removeTask = (taskId: string) => {
   if (draftTasks.value.length <= 1) {
     showToast('至少保留一个任务，避免脚本变成空壳。', 'warning');
+    return;
+  }
+
+  if (!window.confirm('确认要删除此任务吗？这将删除该任务下的所有数据')) {
     return;
   }
 
@@ -1251,13 +1280,6 @@ const removeInput = (entryId: string) => {
   if (selectedInputId.value === entryId) {
     selectedInputId.value = inputEntries.value[0]?.id ?? null;
   }
-};
-
-const updateUiLayout = (value: 'horizontal' | 'vertical') => {
-  uiSchema.value = {
-    ...uiSchema.value,
-    layout: value,
-  };
 };
 
 const addUiField = (control: UiFieldControl) => {

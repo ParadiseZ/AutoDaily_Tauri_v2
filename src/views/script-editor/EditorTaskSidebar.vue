@@ -3,34 +3,12 @@
     <div class="space-y-4">
       <slot name="mode-switch" />
 
-      <div class="flex items-start justify-between gap-3">
-        <div class="space-y-1">
-          <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Task Mode</p>
-          <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">任务列表</h2>
-        </div>
-        <button
-          class="app-button app-button-primary app-toolbar-button"
-          type="button"
-          data-testid="editor-task-create"
-          @click="$emit('create')"
-        >
-          新建任务
-        </button>
+      <div class="space-y-1">
+        <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Task Mode</p>
+        <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">任务列表</h2>
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-          <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">任务数</p>
-          <p class="mt-1 text-2xl font-semibold text-[var(--app-text-strong)]">{{ tasks.length }}</p>
-        </div>
-        <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-          <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">隐藏</p>
-          <p class="mt-1 text-2xl font-semibold text-[var(--app-text-strong)]">{{ hiddenCount }}</p>
-        </div>
-      </div>
-
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">搜索</span>
+      <div class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
         <input
           v-model="search"
           class="app-input"
@@ -38,7 +16,23 @@
           placeholder="按名称检索任务"
           data-testid="editor-task-search"
         />
-      </label>
+        <button
+          class="app-button app-button-primary app-toolbar-button justify-center"
+          type="button"
+          data-testid="editor-task-create"
+          aria-label="新建任务"
+          @click="$emit('create')"
+        >
+          <Plus class="h-4 w-4" />
+        </button>
+      </div>
+
+      <div class="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-3 gap-y-2 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
+        <span class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">任务</span>
+        <span class="text-xl font-semibold text-[var(--app-text-strong)]">{{ tasks.length }}</span>
+        <span class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">隐藏</span>
+        <span class="text-xl font-semibold text-[var(--app-text-strong)]">{{ hiddenCount }}</span>
+      </div>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
@@ -49,18 +43,26 @@
           class="app-list-item space-y-3 transition-colors"
           :class="{
             'app-list-item-active': selectedTaskId === task.id,
-            'editor-task-drop-target': overTaskId === task.id && draggingTaskId !== task.id,
+            'editor-task-drop-target': overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id,
+            'editor-task-card-dragging': draggingTaskId === task.id,
           }"
           :data-testid="`editor-task-item-${task.id}`"
-          draggable="true"
-          @dragenter.prevent="overTaskId = task.id"
-          @dragover.prevent="handleDragOver($event, task.id)"
-          @dragleave="handleDragLeave(task.id)"
-          @dragstart="handleDragStart($event, task.id)"
-          @dragend="resetDrag"
-          @drop.prevent="handleDrop(task.id)"
+          @mouseenter="handleMouseEnter(task.id)"
+          @mouseup="handleMouseUp(task.id)"
         >
-          <div class="flex items-start justify-between gap-3">
+          <div class="grid grid-cols-[34px_minmax(0,1fr)_auto] items-start gap-2">
+            <button
+              class="editor-task-card-handle"
+              :class="{ 'editor-task-card-handle-active': draggingTaskId === task.id }"
+              :data-testid="`editor-task-drag-${task.id}`"
+              type="button"
+              aria-label="拖动排序"
+              @mousedown.prevent="startDrag(task.id)"
+              @click.stop
+            >
+              <GripVertical class="h-4 w-4" />
+            </button>
+
             <button
               class="min-w-0 flex-1 text-left"
               type="button"
@@ -92,24 +94,32 @@
               >
                 {{ task.isHidden ? '已隐藏' : '可见' }}
               </span>
-              <span class="text-[11px] uppercase tracking-[0.18em] text-[var(--app-text-faint)]">拖动排序</span>
             </div>
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click.stop="$emit('duplicate', task.id)">
-              复制
+            <button class="app-button app-button-ghost app-toolbar-button" type="button" aria-label="复制任务" title="复制任务" @click.stop="$emit('duplicate', task.id)">
+              <Copy class="h-4 w-4" />
             </button>
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click.stop="$emit('toggle-hidden', task.id)">
-              {{ task.isHidden ? '显示' : '隐藏' }}
+            <button
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              :aria-label="task.isHidden ? '显示任务' : '隐藏任务'"
+              :title="task.isHidden ? '显示任务' : '隐藏任务'"
+              @click.stop="$emit('toggle-hidden', task.id)"
+            >
+              <Eye v-if="task.isHidden" class="h-4 w-4" />
+              <EyeOff v-else class="h-4 w-4" />
             </button>
             <button
               class="app-button app-button-danger app-toolbar-button"
               type="button"
               :disabled="tasks.length <= 1"
+              aria-label="删除任务"
+              title="删除任务"
               @click.stop="$emit('remove', task.id)"
             >
-              删除
+              <Trash2 class="h-4 w-4" />
             </button>
           </div>
         </article>
@@ -125,7 +135,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { Copy, Eye, EyeOff, GripVertical, Plus, Trash2 } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
@@ -166,28 +177,19 @@ const resetDrag = () => {
   overTaskId.value = null;
 };
 
-const handleDragLeave = (taskId: string) => {
-  if (overTaskId.value === taskId) {
-    overTaskId.value = null;
-  }
-};
-
-const handleDragStart = (event: DragEvent, taskId: string) => {
+const startDrag = (taskId: string) => {
   draggingTaskId.value = taskId;
-  event.dataTransfer?.setData('text/plain', taskId);
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-  }
-};
-
-const handleDragOver = (event: DragEvent, taskId: string) => {
   overTaskId.value = taskId;
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move';
-  }
 };
 
-const handleDrop = (targetTaskId: string) => {
+const handleMouseEnter = (taskId: string) => {
+  if (!draggingTaskId.value) {
+    return;
+  }
+  overTaskId.value = taskId;
+};
+
+const handleMouseUp = (targetTaskId: string) => {
   if (!draggingTaskId.value || draggingTaskId.value === targetTaskId) {
     resetDrag();
     return;
@@ -196,11 +198,48 @@ const handleDrop = (targetTaskId: string) => {
   emit('reorder', draggingTaskId.value, targetTaskId);
   resetDrag();
 };
+
+const handleWindowMouseUp = () => {
+  resetDrag();
+};
+
+onMounted(() => {
+  window.addEventListener('mouseup', handleWindowMouseUp);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mouseup', handleWindowMouseUp);
+});
 </script>
 
 <style scoped>
 .editor-task-drop-target {
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.22);
   background: color-mix(in srgb, var(--app-state-active-bg) 84%, white);
+}
+
+.editor-task-card-dragging {
+  border-color: rgba(70, 110, 255, 0.24);
+  background: rgba(70, 110, 255, 0.08);
+}
+
+.editor-task-card-handle {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  border-radius: 12px;
+  border: 1px dashed var(--app-border);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--app-text-faint);
+  cursor: grab;
+}
+
+.editor-task-card-handle-active {
+  border-color: var(--app-state-active-border);
+  background: var(--app-state-active-bg);
+  color: var(--app-text-strong);
+  cursor: grabbing;
 }
 </style>

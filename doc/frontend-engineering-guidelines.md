@@ -155,6 +155,29 @@
 - 用户从嵌套层点击面包屑父级返回时，对应步骤应保持 active
 - 拖动排序必须是实际可用的交互，不能出现鼠标拖动无效或禁止态
 
+### 6.10.1 脚本编辑器拖动实现登记
+
+- `editor-step/EditorStepList.vue`
+- 使用“拖动句柄 + `mousedown` 开始 + 列表项 `mouseenter` 更新目标 + `mouseup` 提交”的指针式排序
+- 句柄元素是唯一允许启动排序的入口，不把整卡片设成浏览器原生 `draggable`
+- `window.mouseup` 负责兜底清理拖动态，避免鼠标移出容器后状态残留
+
+- `EditorTaskSidebar.vue`
+- 任务列表和步骤列表保持同一套拖动实现：句柄启动、进入目标项更新、松开提交
+- 排序结果落回 `ScriptEditor.vue` 的 `reorderTasks`，再统一重建 `index`，保证整表 UI 预览立即跟随变化
+
+- `editor-policy/EditorCollectionSidebar.vue`
+- 当前仍使用浏览器原生 HTML5 `dragstart / dragenter / dragover / drop`
+- 适用于普通列表重排，但交互反馈和稳定性低于句柄式排序，后续如继续扩展脚本编辑器内部列表，优先向句柄式排序收敛
+
+- `editor-policy/EditorRelationWorkspace.vue`
+- 当前是混合方案：句柄提供视觉入口，同时依赖原生 HTML5 drag/drop 完成已关联列表重排
+- 这类“左右分栏关联”场景暂保留原生拖放，因为同时存在跨区移动和区内排序
+
+- 结论
+- 脚本编辑器内部的纯列表重排，优先统一到“句柄 + 指针事件”的实现
+- 只有在确实需要跨区拖放时，才保留原生 HTML5 drag/drop
+
 ### 6.11 叶子步骤表单覆盖目标
 
 - 右侧步骤详情要尽量覆盖常用叶子结构，不要让用户频繁退回 JSON

@@ -15,7 +15,7 @@
         </div>
 
         <div v-if="!isRootGroup" class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-          <AppSelect
+          <EditorSelectField
             :model-value="currentRule.type"
             :options="searchRuleTypeOptions"
             placeholder="规则类型"
@@ -61,28 +61,28 @@
 
       <template v-else-if="currentRule.type === SEARCH_RULE_TYPE.group">
         <div class="rounded-[16px] border border-[var(--app-border)] bg-white/45 px-4 py-4">
-          <div class="grid gap-3 md:grid-cols-2">
-            <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">组合逻辑</span>
-              <AppSelect
+          <div class="editor-inline-grid">
+            <div class="editor-inline-label">组合逻辑</div>
+            <div class="editor-inline-content">
+              <EditorSelectField
                 :model-value="currentRule.op"
                 :options="logicOpOptions"
                 placeholder="组合逻辑"
                 :test-id="rootTestId('logic-op')"
                 @update:model-value="updateGroupField('op', String($event || LOGIC_OP.And))"
               />
-            </label>
+            </div>
 
-            <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">作用域</span>
-              <AppSelect
+            <div class="editor-inline-label">作用域</div>
+            <div class="editor-inline-content">
+              <EditorSelectField
                 :model-value="currentRule.scope"
                 :options="searchScopeOptions"
                 placeholder="作用域"
                 :test-id="rootTestId('scope')"
                 @update:model-value="updateGroupField('scope', String($event || SEARCH_SCOPE.Global))"
               />
-            </label>
+            </div>
           </div>
 
           <div class="mt-4 flex flex-wrap gap-2">
@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import { LOGIC_OP, SEARCH_RULE_TYPE, SEARCH_SCOPE } from '@/views/script-editor/editor-step/editorStepKinds';
@@ -253,5 +253,32 @@ const removeGroupItem = (index: number) => {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--app-text-soft);
+}
+
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .editor-inline-grid {
+    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content {
+  min-height: 44px;
 }
 </style>

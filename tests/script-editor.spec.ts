@@ -57,8 +57,25 @@ const seedEditorState = async (page: Page, script: StoredScriptTable) => {
 };
 
 const selectOptionByValue = async (page: Page, testId: string, value: string) => {
+  const directOption = page.getByTestId(`${testId}-option-${value}`);
+  if (await directOption.count()) {
+    await directOption.first().click();
+    return;
+  }
+
   await page.getByTestId(testId).click();
   await page.getByTestId(`${testId}-option-${value}`).click();
+};
+
+const selectOptionByLabel = async (page: Page, testId: string, label: string) => {
+  const directOption = page.locator(`[data-testid^="${testId}-option-"]`).filter({ hasText: label });
+  if (await directOption.count()) {
+    await directOption.first().click();
+    return;
+  }
+
+  await page.getByTestId(testId).click();
+  await page.getByTestId(`${testId}-menu`).getByText(label).click();
 };
 
 const dragStepByHandle = async (page: Page, fromIndex: number, toIndex: number) => {
@@ -136,8 +153,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await page.getByTestId('editor-tab-ui').click();
   await page.getByTestId('editor-ui-template-number').click();
   await page.getByTestId('editor-ui-field-label-0').fill('扫荡活动');
-  await page.getByTestId('editor-ui-field-bind-0').click();
-  await page.getByTestId('editor-ui-field-bind-0-menu').getByText('activitySweepCount').click();
+  await selectOptionByLabel(page, 'editor-ui-field-bind-0', 'activitySweepCount');
   await page.getByTestId('editor-ui-preview-control-0').fill('8');
 
   await page.getByTestId('editor-tab-steps').click();
@@ -398,7 +414,7 @@ test('renders script-level task preview with title groups and task metadata', as
   }, scriptId);
   await page.reload();
 
-  await page.getByTestId('editor-task-item-task-daily-sign').getByRole('button').first().click();
+  await page.getByTestId('editor-task-item-task-daily-sign').getByRole('button', { name: /签到/ }).click();
   await page.getByTestId('editor-tab-ui').click();
 
   await expect(page.getByText('整表任务预览')).toBeVisible();
@@ -407,7 +423,7 @@ test('renders script-level task preview with title groups and task metadata', as
   await expect(page.getByText('奖励领取').first()).toBeVisible();
   await expect(page.getByText('未分组任务')).toBeVisible();
   await expect(page.getByText('每日').first()).toBeVisible();
-  await expect(page.getByText('一级 + 跳转').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'UI 预览/签到' })).toBeVisible();
 });
 
 test('persists varCompare conditions and nested branch steps', async ({ page }) => {
@@ -545,14 +561,12 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-3').click();
-  await page.getByTestId('editor-set-var-name').click();
-  await page.getByTestId('editor-set-var-name-menu').getByText('sweepLimit').click();
+  await selectOptionByLabel(page, 'editor-set-var-name', 'sweepLimit');
   await page.getByTestId('editor-set-var-value').fill('1.5');
 
   await page.getByTestId('editor-step-template-get-var').click();
   await page.getByTestId('editor-step-card-4').click();
-  await page.getByTestId('editor-get-var-name').click();
-  await page.getByTestId('editor-get-var-name-menu').getByText('retryCount').click();
+  await selectOptionByLabel(page, 'editor-get-var-name', 'retryCount');
   await page.getByLabel('启用默认值').check();
   await selectOptionByValue(page, 'editor-get-var-type', 'int');
   await page.getByTestId('editor-get-var-value').fill('3');

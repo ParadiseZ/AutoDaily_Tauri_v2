@@ -15,35 +15,39 @@
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.click">
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">点击方式</span>
-        <AppSelect
-          :model-value="String(selectedAction.mode || ACTION_MODE.point)"
-          :options="clickModeOptions"
-          placeholder="点击方式"
-          @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
-        />
-      </label>
+      <div class="editor-inline-grid">
+        <div class="editor-inline-label">点击方式</div>
+        <div class="editor-inline-content">
+          <EditorSelectField
+            :model-value="String(selectedAction.mode || ACTION_MODE.point)"
+            :options="clickModeOptions"
+            placeholder="点击方式"
+            @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
+          />
+        </div>
+      </div>
 
-      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="grid gap-3 md:grid-cols-2">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">X</span>
+      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-inline-grid">
+        <div class="editor-inline-label">X</div>
+        <div class="editor-inline-content">
           <input
             :value="String((selectedAction.p as { x?: number })?.x ?? '')"
+            aria-label="X"
             class="app-input"
             type="number"
             @input="$emit('update-point-field', 'p', 'x', ($event.target as HTMLInputElement).value)"
           />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">Y</span>
+        </div>
+        <div class="editor-inline-label">Y</div>
+        <div class="editor-inline-content">
           <input
             :value="String((selectedAction.p as { y?: number })?.y ?? '')"
+            aria-label="Y"
             class="app-input"
             type="number"
             @input="$emit('update-point-field', 'p', 'y', ($event.target as HTMLInputElement).value)"
           />
-        </label>
+        </div>
       </div>
 
       <label v-else-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-2">
@@ -58,58 +62,63 @@
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.swipe">
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">滑动方式</span>
-        <AppSelect
-          :model-value="String(selectedAction.mode || ACTION_MODE.point)"
-          :options="swipeModeOptions"
-          placeholder="滑动方式"
-          @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
-        />
-      </label>
+      <div class="editor-inline-grid">
+        <div class="editor-inline-label">滑动方式</div>
+        <div class="editor-inline-content">
+          <EditorSelectField
+            :model-value="String(selectedAction.mode || ACTION_MODE.point)"
+            :options="swipeModeOptions"
+            placeholder="滑动方式"
+            @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
+          />
+        </div>
+        <div class="editor-inline-label">持续时间</div>
+        <div class="editor-inline-content">
+          <input :value="String(selectedAction.duration ?? 300)" class="app-input" type="number" @input="$emit('update-number-field', 'duration', ($event.target as HTMLInputElement).value)" />
+        </div>
+      </div>
 
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">持续时间 (ms)</span>
-        <input :value="String(selectedAction.duration ?? 300)" class="app-input" type="number" @input="$emit('update-number-field', 'duration', ($event.target as HTMLInputElement).value)" />
-      </label>
-
-      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="grid gap-3 md:grid-cols-2">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点 X</span>
+      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-inline-grid">
+        <div class="editor-inline-label">起点 X</div>
+        <div class="editor-inline-content">
           <input
             :value="String((selectedAction.from as { x?: number })?.x ?? '')"
+            aria-label="起点 X"
             class="app-input"
             type="number"
             @input="$emit('update-point-field', 'from', 'x', ($event.target as HTMLInputElement).value)"
           />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点 Y</span>
+        </div>
+        <div class="editor-inline-label">起点 Y</div>
+        <div class="editor-inline-content">
           <input
             :value="String((selectedAction.from as { y?: number })?.y ?? '')"
+            aria-label="起点 Y"
             class="app-input"
             type="number"
             @input="$emit('update-point-field', 'from', 'y', ($event.target as HTMLInputElement).value)"
           />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点 X</span>
+        </div>
+        <div class="editor-inline-label">终点 X</div>
+        <div class="editor-inline-content">
           <input
             :value="String((selectedAction.to as { x?: number })?.x ?? '')"
+            aria-label="终点 X"
             class="app-input"
             type="number"
             @input="$emit('update-point-field', 'to', 'x', ($event.target as HTMLInputElement).value)"
           />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点 Y</span>
+        </div>
+        <div class="editor-inline-label">终点 Y</div>
+        <div class="editor-inline-content">
           <input
             :value="String((selectedAction.to as { y?: number })?.y ?? '')"
+            aria-label="终点 Y"
             class="app-input"
             type="number"
             @input="$emit('update-point-field', 'to', 'y', ($event.target as HTMLInputElement).value)"
           />
-        </label>
+        </div>
       </div>
 
       <div v-else-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
@@ -138,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { Action } from '@/types/bindings/Action';
 import { ACTION_MODE, ACTION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 
@@ -159,3 +168,32 @@ defineEmits<{
   'update-text-field': [field: string, value: string];
 }>();
 </script>
+
+<style scoped>
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .editor-inline-grid {
+    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content {
+  min-height: 44px;
+}
+</style>

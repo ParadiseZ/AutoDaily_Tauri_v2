@@ -19,29 +19,23 @@
         @remove-input="$emit('remove-input', $event)"
       />
 
-      <div v-else-if="activePanel === 'ui'" class="grid min-h-0 gap-4 xl:grid-rows-[auto_auto_minmax(0,1fr)]">
-        <EditorTaskTablePreview :tasks="tasks" :selected-task-id="task.id" @select-task="$emit('select-task', $event)" />
-
-        <EditorUiPreviewPanel
-          v-if="task.rowType === 'task'"
-          :task-name="task.name"
-          :default-task-cycle="task.defaultTaskCycle"
-          :show-enabled-toggle="task.showEnabledToggle"
-          :default-enabled="task.defaultEnabled"
-          :task-tone="task.taskTone"
-          :ui-schema="uiSchema"
+      <div v-else-if="activePanel === 'ui'" class="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
+        <EditorTaskTablePreview
+          :tasks="tasks"
+          :selected-task-id="task.id"
+          :selected-task-ui-schema="uiSchema"
+          :selected-task-input-entries="inputEntries"
           :selected-ui-field-id="selectedUiFieldId"
-          :input-entries="inputEntries"
+          :selected-task-cycle-value="defaultTaskCycleValue"
+          :selected-task-cycle-mode="defaultTaskCycleMode"
+          :selected-task-cycle-day="defaultTaskCycleDay"
+          @select-task="$emit('select-task', $event)"
           @select-ui-field="$emit('select-ui-field', $event)"
           @update-input="forwardUpdateInput"
+          @update:default-enabled="$emit('update:default-enabled', $event)"
+          @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
+          @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
         />
-
-        <div
-          v-else
-          class="rounded-[18px] border border-dashed border-[var(--app-border)] bg-[var(--app-panel-muted)] px-5 py-5 text-sm text-[var(--app-text-soft)]"
-        >
-          标题行只用于整表分块显示，不包含单任务 UI 字段预览。
-        </div>
 
         <EditorUiFieldDetailsPanel
           v-if="task.rowType === 'task'"
@@ -74,9 +68,32 @@
         @update-step="(index, step) => $emit('update-step', index, step)"
       />
 
-      <div v-else class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-5 py-5">
-        <p class="text-sm font-semibold text-[var(--app-text-strong)]">任务概览</p>
-      </div>
+      <EditorTaskOverviewPanel
+        v-else
+        :task="task"
+        :task-name="task.name"
+        :task-trigger-mode="taskTriggerMode"
+        :record-schedule="recordSchedule"
+        :section-id="sectionId"
+        :indent-level="indentLevel"
+        :default-task-cycle-value="defaultTaskCycleValue"
+        :default-task-cycle-mode="defaultTaskCycleMode"
+        :default-task-cycle-day="defaultTaskCycleDay"
+        :show-enabled-toggle="showEnabledToggle"
+        :default-enabled="defaultEnabled"
+        :task-tone="taskTone"
+        :title-options="titleOptions"
+        @update:task-name="$emit('update:task-name', $event)"
+        @update:task-trigger-mode="$emit('update:task-trigger-mode', $event)"
+        @update:record-schedule="$emit('update:record-schedule', $event)"
+        @update:section-id="$emit('update:section-id', $event)"
+        @update:indent-level="$emit('update:indent-level', $event)"
+        @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
+        @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
+        @update:show-enabled-toggle="$emit('update:show-enabled-toggle', $event)"
+        @update:default-enabled="$emit('update:default-enabled', $event)"
+        @update:task-tone="$emit('update:task-tone', $event)"
+      />
     </template>
 
     <EmptyState
@@ -94,13 +111,15 @@ import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
 import EditorInputDetailsPanel from '@/views/script-editor/EditorInputDetailsPanel.vue';
+import EditorTaskOverviewPanel from '@/views/script-editor/EditorTaskOverviewPanel.vue';
 import EditorStepWorkspace from '@/views/script-editor/editor-step/EditorStepWorkspace.vue';
 import EditorTaskTablePreview from '@/views/script-editor/EditorTaskTablePreview.vue';
 import EditorUiFieldDetailsPanel from '@/views/script-editor/EditorUiFieldDetailsPanel.vue';
-import EditorUiPreviewPanel from '@/views/script-editor/EditorUiPreviewPanel.vue';
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editor-step/editorStepTree';
 import type { EditorPanelId, EditorUiSchema } from '@/views/script-editor/editorSchema';
 import type { EditorInputEntry, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { TaskTone } from '@/types/bindings/TaskTone';
+import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 
 defineOptions({ name: 'EditorTaskWorkspace' });
 
@@ -108,6 +127,17 @@ const props = defineProps<{
   task: ScriptTaskTable | null;
   tasks: ScriptTaskTable[];
   activePanel: EditorPanelId;
+  taskTriggerMode: TaskTriggerMode;
+  recordSchedule: boolean;
+  sectionId: string | null;
+  indentLevel: number;
+  defaultTaskCycleValue: string;
+  defaultTaskCycleMode: 'named' | 'weekDay' | 'monthDay';
+  defaultTaskCycleDay: number;
+  showEnabledToggle: boolean;
+  defaultEnabled: boolean;
+  taskTone: TaskTone;
+  titleOptions: Array<{ label: string; value: string | null; description?: string; disabled?: boolean }>;
   steps: Step[];
   selectedStepPath: StepPath | null;
   activeBranchPath: StepBranchPath;
@@ -122,9 +152,19 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
   'remove-input': [entryId: string];
+  'update:task-name': [value: string];
   'select-input': [entryId: string];
   'select-ui-field': [fieldId: string];
   'select-task': [taskId: string];
+  'update:task-trigger-mode': [value: TaskTriggerMode];
+  'update:record-schedule': [value: boolean];
+  'update:section-id': [value: string | null];
+  'update:indent-level': [value: number];
+  'update:default-task-cycle-value': [value: string];
+  'update:default-task-cycle-day': [value: number];
+  'update:show-enabled-toggle': [value: boolean];
+  'update:default-enabled': [value: boolean];
+  'update:task-tone': [value: TaskTone];
   'update-ui-field': [fieldId: string, field: 'label' | 'key' | 'editable' | 'checkboxStyle' | 'variableId' | 'inputKey' | 'description' | 'placeholder' | 'optionsText' | 'min' | 'max' | 'step' | 'numericMode', value: string | boolean];
   'remove-ui-field': [fieldId: string];
   'select-step-path': [path: StepPath];
@@ -137,7 +177,7 @@ const emit = defineEmits<{
 
 const workspaceTitle = computed(() => {
   if (props.activePanel === 'steps') return '步骤概览';
-  if (props.activePanel === 'ui') return 'UI 预览';
+  if (props.activePanel === 'ui') return `UI 预览/${props.task?.name || '未命名任务'}`;
   if (props.activePanel === 'inputs') return '输入设置';
   return '任务概览';
 });

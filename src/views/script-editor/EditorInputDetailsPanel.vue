@@ -33,27 +33,27 @@
           />
         </label>
 
-        <div class="grid gap-3 md:grid-cols-2">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">类型</span>
-            <AppSelect
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">类型</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="selectedInputEntry.type"
               :options="inputTypeOptions"
               placeholder="选择类型"
               :test-id="selectedInputIndex === 0 ? 'editor-input-type-0' : undefined"
               @update:model-value="$emit('update-input', selectedInputEntry.id, 'type', String($event))"
             />
-          </label>
+          </div>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">作用域</span>
-            <AppSelect
+          <div class="editor-inline-label">作用域</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
               :model-value="selectedInputEntry.namespace"
               :options="scopeOptions"
               placeholder="选择作用域"
               @update:model-value="$emit('update-input', selectedInputEntry.id, 'namespace', String($event))"
             />
-          </label>
+          </div>
         </div>
 
         <label class="space-y-2">
@@ -117,8 +117,8 @@
 </template>
 
 <script setup lang="ts">
-import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import { editorInputTypeOptions, type EditorInputEntry } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorInputDetailsPanel' });
@@ -140,3 +140,32 @@ const scopeOptions = [
   { label: 'System', value: 'system', description: '运行时注入的只读系统变量。' },
 ];
 </script>
+
+<style scoped>
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .editor-inline-grid {
+    grid-template-columns: 72px minmax(0, 1fr) 72px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content {
+  min-height: 44px;
+}
+</style>

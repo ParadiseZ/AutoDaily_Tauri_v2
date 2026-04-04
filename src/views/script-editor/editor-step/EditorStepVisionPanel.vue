@@ -9,17 +9,19 @@
       </div>
 
       <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
-        <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">命中后行为</p>
-        <div class="mt-2 flex items-center justify-between gap-3">
-          <span class="text-sm text-[var(--app-text-soft)]">{{ visionBranchTarget?.count ?? 0 }} 个步骤</span>
-          <button
-            v-if="visionBranchTarget"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            @click="$emit('navigate-branch', visionBranchTarget.path)"
-          >
-            进入步骤
-          </button>
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">命中后</div>
+          <div class="editor-inline-content flex items-center justify-between gap-3">
+            <span class="text-sm text-[var(--app-text-soft)]">{{ visionBranchTarget?.count ?? 0 }} 个步骤</span>
+            <button
+              v-if="visionBranchTarget"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              @click="$emit('navigate-branch', visionBranchTarget.path)"
+            >
+              进入步骤
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -58,3 +60,32 @@ defineEmits<{
   'navigate-branch': [branchPath: StepBranchPath];
 }>();
 </script>
+
+<style scoped>
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .editor-inline-grid {
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content {
+  min-height: 44px;
+}
+</style>

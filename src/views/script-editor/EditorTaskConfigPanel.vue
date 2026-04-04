@@ -18,146 +18,23 @@
 
     <template v-if="task">
       <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-        <div v-if="activePanel === 'basic'" class="space-y-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">任务名称</span>
-            <input
-              :value="taskName"
-              class="app-input"
-              type="text"
-              placeholder="为当前任务命名"
-              data-testid="editor-task-name"
-              @input="$emit('update:task-name', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
-
-          <label class="space-y-2">
+        <div v-if="activePanel === 'basic'" class="grid gap-3 md:grid-cols-2">
+          <div class="grid gap-3 md:col-span-2 md:grid-cols-[72px_minmax(0,1fr)] md:items-center">
             <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">行类型</span>
-            <AppSelect
+            <EditorSelectField
               :model-value="taskRowType"
               :options="taskRowTypeOptions"
               placeholder="选择行类型"
               test-id="editor-task-row-type"
               @update:model-value="$emit('update:task-row-type', $event as 'task' | 'title')"
             />
-          </label>
-
-          <template v-if="taskRowType === 'task'">
-            <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">进入方式</span>
-              <AppSelect
-                :model-value="taskTriggerMode"
-                :options="taskTriggerModeOptions"
-                placeholder="选择进入方式"
-                test-id="editor-task-trigger-mode"
-                @update:model-value="$emit('update:task-trigger-mode', $event as 'rootOnly' | 'linkOnly' | 'rootAndLink')"
-              />
-            </label>
-
-            <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">所属分组</span>
-              <AppSelect
-                :model-value="sectionId"
-                :options="titleOptions"
-                placeholder="未分组"
-                test-id="editor-task-section"
-                @update:model-value="$emit('update:section-id', ($event as string | null) ?? null)"
-              />
-            </label>
-
-            <div class="grid gap-3 sm:grid-cols-2">
-              <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">缩进量</span>
-                <input
-                  :value="indentLevel"
-                  class="app-input"
-                  type="number"
-                  min="0"
-                  max="8"
-                  data-testid="editor-task-indent-level"
-                  @input="$emit('update:indent-level', Number(($event.target as HTMLInputElement).value || 0))"
-                />
-              </label>
-
-              <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">任务提醒</span>
-                <AppSelect
-                  :model-value="taskTone"
-                  :options="taskToneOptions"
-                  placeholder="选择提醒等级"
-                  test-id="editor-task-tone"
-                  @update:model-value="$emit('update:task-tone', $event as 'normal' | 'warning' | 'danger')"
-                />
-              </label>
-            </div>
-
-            <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">默认周期</span>
-              <AppSelect
-                :model-value="defaultTaskCycleValue"
-                :options="taskCycleOptions"
-                placeholder="选择默认周期"
-                test-id="editor-task-cycle"
-                @update:model-value="$emit('update:default-task-cycle-value', String($event || 'everyRun'))"
-              />
-            </label>
-
-            <div v-if="defaultTaskCycleMode === 'weekDay' || defaultTaskCycleMode === 'monthDay'" class="grid gap-3 sm:grid-cols-2">
-              <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">
-                  {{ defaultTaskCycleMode === 'weekDay' ? '周几' : '日期' }}
-                </span>
-                <input
-                  :value="defaultTaskCycleDay"
-                  class="app-input"
-                  type="number"
-                  :min="defaultTaskCycleMode === 'weekDay' ? 1 : 1"
-                  :max="defaultTaskCycleMode === 'weekDay' ? 7 : 31"
-                  data-testid="editor-task-cycle-day"
-                  @input="$emit('update:default-task-cycle-day', Number(($event.target as HTMLInputElement).value || 1))"
-                />
-              </label>
-            </div>
-
-            <label class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
-              <input
-                :checked="recordSchedule"
-                class="h-4 w-4 accent-[var(--app-accent)]"
-                type="checkbox"
-                data-testid="editor-task-record-schedule"
-                @change="$emit('update:record-schedule', ($event.target as HTMLInputElement).checked)"
-              />
-              <span>执行或调度后记录调度记录</span>
-            </label>
-
-            <label class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
-              <input
-                :checked="showEnabledToggle"
-                class="h-4 w-4 accent-[var(--app-accent)]"
-                type="checkbox"
-                data-testid="editor-task-show-enabled-toggle"
-                @change="$emit('update:show-enabled-toggle', ($event.target as HTMLInputElement).checked)"
-              />
-              <span>普通用户预览中显示启用开关</span>
-            </label>
-
-            <label class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
-              <input
-                :checked="defaultEnabled"
-                class="h-4 w-4 accent-[var(--app-accent)]"
-                type="checkbox"
-                data-testid="editor-task-default-enabled"
-                @change="$emit('update:default-enabled', ($event.target as HTMLInputElement).checked)"
-              />
-              <span>默认启用该任务</span>
-            </label>
-          </template>
-
-          <div v-else class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)]">
-            标题行只参与任务预览分块和列表结构，不直接执行，也不会显示任务开关、周期或调度记录设置。
           </div>
 
-          <label class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+          <div class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)] md:col-span-2">
+            任务行专属设置已移动到右侧“任务概览”工作区，方便结合整表预览一起调整。
+          </div>
+
+          <label class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)] md:col-span-2">
             <input
               :checked="taskHidden"
               class="h-4 w-4 accent-[var(--app-accent)]"
@@ -167,21 +44,6 @@
             />
             <span>在工作台中隐藏当前任务</span>
           </label>
-
-          <div class="grid gap-3">
-            <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-              <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入变量</p>
-              <p class="mt-1 text-xl font-semibold text-[var(--app-text-strong)]">{{ inputEntries.length }}</p>
-            </div>
-            <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-              <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">UI 字段</p>
-              <p class="mt-1 text-xl font-semibold text-[var(--app-text-strong)]">{{ uiSchema.fields.length }}</p>
-            </div>
-            <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-              <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步骤数</p>
-              <p class="mt-1 text-xl font-semibold text-[var(--app-text-strong)]">{{ task.data.steps.length }}</p>
-            </div>
-          </div>
         </div>
 
         <div v-else-if="activePanel === 'inputs'" class="space-y-4">
@@ -238,24 +100,11 @@
 
         <div v-else-if="activePanel === 'ui'" class="space-y-4">
           <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-[var(--app-text-strong)]">界面字段</p>
-            </div>
+            <p class="text-sm font-semibold text-[var(--app-text-strong)]">界面字段</p>
             <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', 'ui')">
               JSON
             </button>
           </div>
-
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">排布方向</span>
-            <AppSelect
-              :model-value="uiSchema.layout"
-              :options="layoutOptions"
-              placeholder="选择排布"
-              test-id="editor-ui-layout"
-              @update:model-value="$emit('update-ui-layout', $event as 'horizontal' | 'vertical')"
-            />
-          </label>
 
           <div class="flex flex-wrap gap-2">
             <button
@@ -352,17 +201,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { TaskRowType } from '@/types/bindings/TaskRowType';
 import type { TaskTone } from '@/types/bindings/TaskTone';
 import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import { editorStepTemplates } from '@/views/script-editor/editor-step/editorStepTemplates';
 import { getUiControlLabel, uiFieldTemplates } from '@/views/script-editor/editorSchema';
 import type { EditorPanelId, EditorUiSchema, UiFieldControl } from '@/views/script-editor/editorSchema';
-import { taskCycleOptions, taskRowTypeOptions, taskToneOptions, taskTriggerModeOptions } from '@/views/script-editor/editorTaskMeta';
+import { taskRowTypeOptions } from '@/views/script-editor/editorTaskMeta';
 import { getInputTypeLabel, type EditorInputEntry } from '@/views/script-editor/editorVariables';
 
 const props = defineProps<{
@@ -421,16 +270,11 @@ const tabs = computed<Array<{ id: EditorPanelId; label: string }>>(() => {
 
   return [
     { id: 'basic', label: '基本' },
-    { id: 'inputs', label: '输入' },
-    { id: 'ui', label: '界面' },
-    { id: 'steps', label: '步骤' },
+    { id: 'inputs', label: `输入 ${props.inputEntries.length}` },
+    { id: 'ui', label: `界面 ${props.uiSchema.fields.length}` },
+    { id: 'steps', label: `步骤 ${props.task?.data.steps.length ?? 0}` },
   ];
 });
-
-const layoutOptions = [
-  { label: '水平', value: 'horizontal', description: '适合单行参数设置。' },
-  { label: '垂直', value: 'vertical', description: '适合字段较多的情况。' },
-];
 
 const getScopeLabel = (scope: EditorInputEntry['namespace']) => {
   if (scope === 'runtime') return 'Runtime';

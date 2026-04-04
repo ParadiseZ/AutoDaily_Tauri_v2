@@ -22,15 +22,17 @@
 
     <template v-else-if="flowWithCondition && flowCondition">
       <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">流程类型</span>
-          <AppSelect
-            :model-value="flowWithCondition.type"
-            :options="flowTypeOptions"
-            placeholder="流程类型"
-            @update:model-value="$emit('update-flow-type', String($event || FLOW_TYPE.if))"
-          />
-        </label>
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">流程类型</div>
+          <div class="editor-inline-content xl:col-span-3">
+            <EditorSelectField
+              :model-value="flowWithCondition.type"
+              :options="flowTypeOptions"
+              placeholder="流程类型"
+              @update:model-value="$emit('update-flow-type', String($event || FLOW_TYPE.if))"
+            />
+          </div>
+        </div>
 
         <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
           <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">分支概览</p>
@@ -62,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { FlowControl } from '@/types/bindings/FlowControl';
 import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder.vue';
@@ -88,3 +90,32 @@ defineEmits<{
   'toggle-else-branch': [];
 }>();
 </script>
+
+<style scoped>
+.editor-inline-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 1280px) {
+  .editor-inline-grid {
+    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
+    align-items: center;
+  }
+}
+
+.editor-inline-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.editor-inline-content {
+  min-height: 44px;
+}
+</style>
