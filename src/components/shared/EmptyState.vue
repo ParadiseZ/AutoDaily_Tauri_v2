@@ -1,7 +1,7 @@
 <template>
   <div class="app-empty-state">
     <div v-if="icon" class="app-empty-icon">
-      <component :is="icon" class="h-5 w-5" />
+      <AppIcon :name="icon" :size="20" />
     </div>
     <div class="space-y-1 text-center">
       <h3 class="text-sm font-semibold text-[var(--app-text-strong)]">{{ title }}</h3>
@@ -14,11 +14,11 @@
 </template>
 
 <script setup lang="ts">
-import type { Component } from 'vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 
 defineProps<{
   title: string;
   description: string;
-  icon?: Component;
+  icon?: string;
 }>();
 </script>

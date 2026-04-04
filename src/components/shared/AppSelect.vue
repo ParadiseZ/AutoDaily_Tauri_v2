@@ -10,7 +10,7 @@
       @click="toggleOpen"
     >
       <span class="truncate">{{ selectedOption?.label || placeholder }}</span>
-      <ChevronDown class="h-4 w-4 shrink-0 text-[var(--app-text-faint)]" />
+      <AppIcon name="chevron-down" :size="16" class="shrink-0 text-[var(--app-text-faint)]" />
     </button>
 
     <Teleport to="body">
@@ -43,7 +43,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ChevronDown } from 'lucide-vue-next';
+import AppIcon from '@/components/shared/AppIcon.vue';
 
 type SelectValue = string | number | null;
 

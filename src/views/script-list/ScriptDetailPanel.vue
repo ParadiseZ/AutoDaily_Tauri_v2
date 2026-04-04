@@ -11,29 +11,29 @@
         </p>
       </div>
 
-      <div class="flex flex-wrap gap-2">
-        <button class="app-button app-button-primary app-toolbar-button" type="button" @click="$emit('open-editor', script.id)">
-          <SquarePen class="h-4 w-4" />
+      <div class="flex flex-wrap gap-2 pt-2">
+        <button class="app-button app-button-primary shadow-lg shadow-blue-500/20" type="button" @click="$emit('open-editor', script.id)">
+          <AppIcon name="square-pen" :size="16" />
           打开编辑器
         </button>
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('edit-info', script.id)">
-          <PencilLine class="h-4 w-4" />
+        <button class="app-button app-button-ghost group" type="button" @click="$emit('edit-info', script.id)">
+          <AppIcon name="pencil-line" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
           编辑信息
         </button>
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('upload', script.id)">
-          <CloudUpload class="h-4 w-4" />
+        <button class="app-button app-button-ghost group" type="button" @click="$emit('upload', script.id)">
+          <AppIcon name="cloud-upload" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-vibrant-purple)] transition-colors" />
           上传云端
         </button>
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('clone', script.id)">
-          <Copy class="h-4 w-4" />
+        <button class="app-button app-button-ghost group" type="button" @click="$emit('clone', script.id)">
+          <AppIcon name="copy" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-vibrant-emerald)] transition-colors" />
           克隆副本
         </button>
-        <button class="app-button app-button-warning app-toolbar-button" type="button" @click="$emit('clear-logs', script.id)">
-          <Eraser class="h-4 w-4" />
+        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" @click="$emit('clear-logs', script.id)">
+          <AppIcon name="eraser" :size="16" />
           清理记录
         </button>
-        <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('delete', script.id)">
-          <Trash2 class="h-4 w-4" />
+        <button class="app-button app-button-danger px-4" type="button" @click="$emit('delete', script.id)">
+          <AppIcon name="trash-2" :size="16" />
           删除
         </button>
       </div>
@@ -98,7 +98,7 @@
 </template>
 
 <script setup lang="ts">
-import { CloudUpload, Copy, Eraser, PencilLine, SquarePen, Trash2 } from 'lucide-vue-next';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';

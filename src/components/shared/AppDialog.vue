@@ -9,7 +9,7 @@
               <p v-if="description" class="text-sm text-[var(--app-text-soft)]">{{ description }}</p>
             </div>
             <button class="app-icon-button app-dialog-close-button" type="button" @click="$emit('close')">
-              <span class="text-lg leading-none">×</span>
+              <AppIcon name="x" :size="18" />
             </button>
           </header>
           <slot />
@@ -20,6 +20,8 @@
 </template>
 
 <script setup lang="ts">
+import AppIcon from '@/components/shared/AppIcon.vue';
+
 withDefaults(
   defineProps<{
     open: boolean;

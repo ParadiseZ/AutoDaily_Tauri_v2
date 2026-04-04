@@ -5,8 +5,8 @@
         <p class="text-sm font-semibold text-[var(--app-text-strong)]">本地脚本</p>
         <p class="text-xs text-[var(--app-text-faint)]">最近修改的脚本会优先排在上面。</p>
       </div>
-      <button class="app-button app-button-primary app-toolbar-button" data-testid="script-list-create-button" type="button" @click="$emit('create')">
-        <Plus class="h-4 w-4" />
+      <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" data-testid="script-list-create-button" type="button" @click="$emit('create')">
+        <AppIcon name="plus" :size="16" />
         新建
       </button>
     </div>
@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { Plus } from 'lucide-vue-next';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTableRecord } from '@/types/app/domain';
 

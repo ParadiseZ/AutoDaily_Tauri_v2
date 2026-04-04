@@ -4,8 +4,8 @@
       <header class="editor-toolbar rounded-[28px] border border-[var(--app-border)] px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-3">
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="router.push('/scripts')">
-              <ArrowLeft class="h-4 w-4" />
+            <button class="app-button app-button-ghost group" type="button" @click="router.push('/scripts')">
+              <AppIcon name="arrow-left" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
               返回
             </button>
 
@@ -28,21 +28,22 @@
               {{ hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步' }}
             </span>
             <span v-if="formattedSaveTime" class="text-xs text-[var(--app-text-faint)]">最近保存 {{ formattedSaveTime }}</span>
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" data-testid="editor-script-info" @click="infoDialogOpen = true">
+            <button class="app-button app-button-ghost group" type="button" data-testid="editor-script-info" @click="infoDialogOpen = true">
+              <AppIcon name="file-text" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
               编辑脚本信息
             </button>
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="reloadEditor">
-              <RefreshCcw class="h-4 w-4" />
+            <button class="app-button app-button-ghost group" type="button" @click="reloadEditor">
+              <AppIcon name="refresh-ccw" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
               重新载入
             </button>
             <button
-              class="app-button app-button-primary"
+              class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]"
               type="button"
               data-testid="editor-save"
               :disabled="!draftScript || isSaving || hasValidationErrors"
               @click="saveEditor"
             >
-              <Save class="h-4 w-4" />
+              <AppIcon name="save" :size="16" />
               {{ isSaving ? '保存中...' : '保存脚本结构' }}
             </button>
           </div>
@@ -347,7 +348,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ArrowLeft, RefreshCcw, Save } from 'lucide-vue-next';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import { useScriptStore } from '@/store/script';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';

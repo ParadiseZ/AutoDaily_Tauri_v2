@@ -31,9 +31,12 @@
             :key="`${entry.deviceId}-${entry.time}-${entry.message}`"
             class="grid gap-1 border-b border-white/5 pb-2 md:grid-cols-[160px_90px_1fr]"
           >
-            <span class="text-slate-500">{{ entry.time }} · {{ resolveDeviceName(entry.deviceId) }}</span>
-            <span :class="levelClass(entry.level)">[{{ entry.level }}]</span>
-            <span class="whitespace-pre-wrap break-all text-slate-100">{{ entry.message }}</span>
+            <span class="text-slate-500 font-sans tracking-wide pt-[1px]">{{ entry.time }} · {{ resolveDeviceName(entry.deviceId) }}</span>
+            <div class="flex items-start gap-1.5 pt-[1px]" :class="levelClass(entry.level)">
+              <AppIcon :name="levelIcon(entry.level)" :size="14" class="shrink-0 translate-y-[2px]" />
+              <span class="text-xs font-semibold tracking-wider font-sans uppercase">{{ entry.level }}</span>
+            </div>
+            <span class="whitespace-pre-wrap break-all text-slate-100/90 leading-6">{{ entry.message }}</span>
           </div>
         </div>
       </div>
@@ -43,6 +46,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
@@ -101,6 +105,13 @@ const levelClass = (level: string) => {
   if (level === 'Warn') return 'text-amber-300';
   if (level === 'Info') return 'text-sky-300';
   return 'text-slate-400';
+};
+
+const levelIcon = (level: string) => {
+  if (level === 'Error') return 'hexagon'; // x-octagon alternative if not available, wait 'hexagon' has no 'x' usually but let's use 'alert-triangle'
+  if (level === 'Warn') return 'triangle-alert';
+  if (level === 'Debug') return 'bug';
+  return 'info';
 };
 
 const updateDeviceLogLevel = async () => {

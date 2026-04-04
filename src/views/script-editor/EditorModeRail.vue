@@ -11,14 +11,14 @@
       :data-testid="`editor-mode-${option.id}`"
       @click="$emit('update:modelValue', option.id)"
     >
-      <component :is="option.icon" class="h-4 w-4" />
+      <AppIcon :name="option.icon" :size="20" />
       <span class="editor-mode-tooltip">{{ option.label }}</span>
     </button>
   </SurfacePanel>
 </template>
 
 <script setup lang="ts">
-import { Boxes, FolderTree, Shield, ListTodo } from 'lucide-vue-next';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorModeId } from '@/views/script-editor/editor-policy/editorPolicy';
 
@@ -30,11 +30,11 @@ defineEmits<{
   'update:modelValue': [value: EditorModeId];
 }>();
 
-const modeRailOptions: Array<{ id: EditorModeId; label: string; icon: typeof ListTodo }> = [
-  { id: 'task', label: '任务', icon: ListTodo },
-  { id: 'policy', label: '策略', icon: Shield },
-  { id: 'policyGroup', label: '策略组', icon: FolderTree },
-  { id: 'policySet', label: '策略集', icon: Boxes },
+const modeRailOptions: Array<{ id: EditorModeId; label: string; icon: string }> = [
+  { id: 'task', label: '任务', icon: 'list-todo' },
+  { id: 'policy', label: '策略', icon: 'shield' },
+  { id: 'policyGroup', label: '策略组', icon: 'folder-tree' },
+  { id: 'policySet', label: '策略集', icon: 'boxes' },
 ];
 </script>
 

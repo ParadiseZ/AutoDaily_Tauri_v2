@@ -57,6 +57,13 @@
   --app-state-active-hover-bg: linear-gradient(180deg, rgba(70, 110, 255, 0.2), rgba(70, 110, 255, 0.14));
   --app-state-active-border: rgba(70, 110, 255, 0.28);
   --app-state-active-hover-border: rgba(70, 110, 255, 0.34);
+
+  /* Vibrant Colors */
+  --app-vibrant-blue: rgba(70, 110, 255, 0.94);
+  --app-vibrant-emerald: rgba(16, 185, 129, 0.94);
+  --app-vibrant-amber: rgba(245, 158, 11, 0.94);
+  --app-vibrant-rose: rgba(244, 63, 94, 0.94);
+  --app-vibrant-purple: rgba(139, 92, 246, 0.94);
 }
 
 [data-theme='dark'] {
@@ -96,6 +103,13 @@
   --app-state-active-hover-bg: linear-gradient(180deg, rgba(129, 170, 255, 0.26), rgba(129, 170, 255, 0.2));
   --app-state-active-border: rgba(129, 170, 255, 0.3);
   --app-state-active-hover-border: rgba(129, 170, 255, 0.36);
+
+  /* Vibrant Colors */
+  --app-vibrant-blue: rgba(96, 165, 250, 0.94);
+  --app-vibrant-emerald: rgba(52, 211, 153, 0.94);
+  --app-vibrant-amber: rgba(251, 191, 36, 0.94);
+  --app-vibrant-rose: rgba(251, 113, 133, 0.94);
+  --app-vibrant-purple: rgba(167, 139, 250, 0.94);
 }
 
 html,
@@ -108,9 +122,11 @@ body {
   margin: 0;
   color: var(--app-text);
   background:
-    radial-gradient(circle at top left, rgba(121, 167, 255, 0.14), transparent 26%),
-    radial-gradient(circle at bottom right, rgba(129, 211, 248, 0.12), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 35%),
+    radial-gradient(circle at top left, rgba(121, 167, 255, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(139, 92, 246, 0.08), transparent 25%),
+    radial-gradient(circle at bottom right, rgba(129, 211, 248, 0.15), transparent 30%),
+    radial-gradient(circle at bottom left, rgba(244, 63, 94, 0.05), transparent 20%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent 40%),
     var(--app-bg);
   background-attachment: fixed;
 }

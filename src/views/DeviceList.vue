@@ -6,7 +6,8 @@
       description="设备配置更像系统设置页而不是表格工具，常用信息先露出，细节放进统一编辑弹窗。"
     >
       <template #actions>
-        <button class="app-button app-button-primary" type="button" @click="openEditor(null)">
+        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="openEditor(null)">
+          <AppIcon name="plus" :size="18" />
           添加设备
         </button>
       </template>
@@ -36,17 +37,24 @@
             <td>{{ formatCaptureMethod(device.data.capMethod) }}</td>
             <td>{{ device.data.cores.length ? device.data.cores.join(', ') : '未绑定' }}</td>
             <td>
-              <div class="flex flex-wrap gap-2">
+              <div class="flex flex-wrap items-center gap-3">
                 <StatusBadge :label="device.data.enable ? '已启用' : '已停用'" :tone="device.data.enable ? 'success' : 'neutral'" />
-                <StatusBadge :label="deviceStore.isDeviceOnline(device.id) ? '在线' : '离线'" :tone="deviceStore.isDeviceOnline(device.id) ? 'info' : 'neutral'" />
+                <div class="flex items-center gap-1.5 rounded-full bg-[var(--app-panel-muted)] px-2.5 py-1">
+                  <AppIcon type="custom" :name="deviceStore.isDeviceOnline(device.id) ? 'status-online' : 'status-offline'" :size="16" :color="deviceStore.isDeviceOnline(device.id) ? 'var(--app-vibrant-emerald)' : 'var(--app-text-faint)'" />
+                  <span class="text-xs font-semibold tracking-wide" :class="deviceStore.isDeviceOnline(device.id) ? 'text-[var(--app-vibrant-emerald)]' : 'text-[var(--app-text-faint)]'">
+                    {{ deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
+                  </span>
+                </div>
               </div>
             </td>
             <td>
               <div class="flex justify-end gap-2">
-                <button class="app-button app-button-ghost h-10 px-4" type="button" @click="openEditor(device.id)">
+                <button class="app-button app-button-ghost h-9 px-3 group text-sm" type="button" @click="openEditor(device.id)">
+                  <AppIcon name="edit-3" :size="16" class="text-[var(--app-text-soft)] transition-colors group-hover:text-[var(--app-accent)]" />
                   编辑
                 </button>
-                <button class="app-button app-button-danger h-10 px-4" type="button" @click="removeDevice(device.id)">
+                <button class="app-button app-button-danger h-9 px-3 group text-sm" type="button" @click="removeDevice(device.id)">
+                  <AppIcon name="trash-2" :size="16" class="opacity-70 transition-opacity group-hover:opacity-100" />
                   删除
                 </button>
               </div>
@@ -60,7 +68,7 @@
       v-else
       title="设备列表还是空的"
       description="先创建一台设备，配置连接方式、截图方案和自动启动策略，工作台才会出现真实控制对象。"
-      :icon="Smartphone"
+      icon="smartphone"
     />
 
     <DeviceEditorDialog
@@ -75,12 +83,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Smartphone } from 'lucide-vue-next';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';

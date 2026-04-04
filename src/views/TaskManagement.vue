@@ -6,13 +6,16 @@
       description="把多设备的运行状态、脚本队列与最近执行结果放在同一工作台里，减少切页和上下文切换。"
     >
       <template #actions>
-        <button class="app-button app-button-ghost" type="button" @click="deviceStore.pauseDevices(deviceIds)">
+        <button class="app-button app-button-ghost group text-[var(--app-text-strong)]" type="button" @click="deviceStore.pauseDevices(deviceIds)">
+          <AppIcon name="pause" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-text-strong)] transition-colors" />
           全部暂停
         </button>
-        <button class="app-button app-button-warning" type="button" @click="deviceStore.stopDevices(deviceIds)">
+        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" @click="deviceStore.stopDevices(deviceIds)">
+          <AppIcon name="square" :size="14" class="fill-current" />
           全部停止
         </button>
-        <button class="app-button app-button-primary" type="button" @click="deviceStore.startDevices(deviceIds)">
+        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-vibrant-blue)]/30 hover:shadow-[var(--app-vibrant-blue)]/50 transition-shadow" type="button" @click="deviceStore.startDevices(deviceIds)">
+          <AppIcon name="play" :size="16" class="fill-current" />
           全部启动
         </button>
       </template>
@@ -41,7 +44,7 @@
       v-if="!deviceIds.length"
       title="还没有可调度设备"
       description="先去设备列表创建一台设备，配置连接方式和截图能力后，任务中心会自动接入。"
-      :icon="MonitorSmartphone"
+      icon="monitor-smartphone"
     />
 
     <div v-else class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
@@ -98,7 +101,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { MonitorSmartphone } from 'lucide-vue-next';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';

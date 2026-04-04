@@ -4,9 +4,7 @@
       <div class="space-y-6">
         <div class="space-y-3 px-2" data-tauri-drag-region>
           <div class="flex items-center gap-3">
-            <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--app-accent-soft)] text-[var(--app-accent)]">
-              <Command class="h-5 w-5" />
-            </div>
+            <AppIcon name="logo" type="custom" :size="40" class="text-[var(--app-accent)] drop-shadow-md" />
             <div>
               <p class="text-sm font-semibold tracking-[0.18em] text-[var(--app-text-faint)]">AUTODAILY</p>
               <p class="text-lg font-semibold text-[var(--app-text-strong)]">控制台</p>
@@ -37,11 +35,11 @@
             v-for="route in primaryRoutes"
             :key="route.path"
             :to="route.path"
-            class="app-sidebar-link"
+            class="app-sidebar-link group my-1 py-3"
             :class="{ 'app-sidebar-link-active': isActive(route.path) }"
           >
-            <component :is="route.icon" class="h-4 w-4" />
-            <span class="font-medium">{{ route.label }}</span>
+            <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
+            <span class="font-medium tracking-wide">{{ route.label }}</span>
           </RouterLink>
         </nav>
       </div>
@@ -52,11 +50,11 @@
             v-for="route in secondaryRoutes"
             :key="route.path"
             :to="route.path"
-            class="app-sidebar-link"
+            class="app-sidebar-link group my-1 py-3"
             :class="{ 'app-sidebar-link-active': isActive(route.path) }"
           >
-            <component :is="route.icon" class="h-4 w-4" />
-            <span class="font-medium">{{ route.label }}</span>
+            <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
+            <span class="font-medium tracking-wide">{{ route.label }}</span>
           </RouterLink>
         </nav>
 
@@ -87,7 +85,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import { Command } from 'lucide-vue-next';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import { routesMenu } from '@/router';
 import { useUserStore } from '@/store/user';
 import { useDeviceStore } from '@/store/device';

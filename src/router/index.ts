@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { ref } from "vue";
-import { Monitor, Smartphone, FileCode, ShoppingBag, SettingsIcon, Info, FileText, ListTodo } from 'lucide-vue-next';
 import { getFromStore, defaultRouterKey } from '@/store/store';
 
 const storedRoute = await getFromStore<string | { path?: string }>(defaultRouterKey).catch(() => '/tasks');
@@ -14,56 +13,56 @@ const routes = [
         path: '/tasks',
         name: 'TaskManagement',
         label: "任务管理",
-        icon: ListTodo,
+        icon: 'list-todo',
         component: () => import('../views/TaskManagement.vue')
     },
     {
         path: '/logs',
         name: 'Logs',
         label: "运行日志",
-        icon: FileText,
+        icon: 'file-text',
         component: () => import('../views/Logs.vue')
     },
     {
         path: '/scripts',
         name: 'LocalScriptList',
         label: "本地列表",
-        icon: FileCode,
+        icon: 'file-code',
         component: () => import('../views/ScriptList.vue')
     },
     {
         path: '/market',
         name: 'ScriptMarket',
         label: "脚本市场",
-        icon: ShoppingBag,
+        icon: 'shopping-bag',
         component: () => import('../views/ScriptMarket.vue')
     },
     {
         path: '/devices',
         name: 'DeviceList',
         label: "设备列表",
-        icon: Smartphone,
+        icon: 'smartphone',
         component: () => import('../views/DeviceList.vue')
     },
     {
         path: '/settings',
         name: 'Settings',
         label: "系统设置",
-        icon: SettingsIcon,
+        icon: 'settings',
         component: () => import('../views/Settings.vue')
     },
     {
         path: '/about',
         name: 'About',
         label: "关于项目",
-        icon: Info,
+        icon: 'info',
         component: () => import('../views/About.vue')
     },
     {
         path: '/editor',
         name: 'ScriptEditor',
         label: "脚本开发",
-        icon: Monitor,
+        icon: 'monitor',
         component: () => import('../views/ScriptEditor.vue')
     }
 ];

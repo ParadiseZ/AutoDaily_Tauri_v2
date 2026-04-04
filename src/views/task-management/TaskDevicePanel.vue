@@ -16,13 +16,16 @@
       </div>
 
       <div class="flex flex-wrap gap-2">
-        <button class="app-button app-button-primary" type="button" @click="$emit('start', device.id)">
+        <button class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" @click="$emit('start', device.id)">
+          <AppIcon name="play" :size="16" class="fill-current" />
           启动
         </button>
-        <button class="app-button app-button-ghost" type="button" @click="$emit('pause', device.id)">
+        <button class="app-button app-button-ghost group" type="button" @click="$emit('pause', device.id)">
+          <AppIcon name="pause" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-text-strong)] transition-colors" />
           暂停
         </button>
         <button class="app-button app-button-warning" type="button" @click="$emit('stop', device.id)">
+          <AppIcon name="square" :size="14" class="fill-current" />
           停止
         </button>
       </div>
@@ -41,7 +44,8 @@
         <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
           <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择要追加的脚本" />
           <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
-          <button class="app-button app-button-ghost" type="button" @click="handleAddScript">
+          <button class="app-button app-button-ghost group" type="button" @click="handleAddScript">
+            <AppIcon name="list-plus" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
             追加
           </button>
         </div>
@@ -63,8 +67,8 @@
               <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ getScriptName(assignment.scriptId) }}</p>
               <p class="text-xs text-[var(--app-text-faint)]">{{ getTemplateName(assignment.timeTemplateId) }}</p>
             </div>
-            <button class="app-button app-button-danger h-10 px-4" type="button" @click="$emit('removeAssignment', device.id, assignment)">
-              移除
+            <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
+              <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
             </button>
           </div>
         </div>
@@ -110,6 +114,7 @@ import { computed, ref } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import type { AssignmentRecord, DeviceRuntimeStatus, ScriptTableRecord } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';

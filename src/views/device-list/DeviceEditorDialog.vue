@@ -97,9 +97,15 @@
         </label>
       </div>
 
-      <div class="flex justify-end gap-3">
-        <button class="app-button app-button-ghost" type="button" @click="$emit('close')">取消</button>
-        <button class="app-button app-button-primary" type="submit">保存设备</button>
+      <div class="flex justify-end gap-3 pt-2">
+        <button class="app-button app-button-ghost text-[var(--app-text-strong)] group" type="button" @click="$emit('close')">
+          <AppIcon name="x" :size="16" class="opacity-70 transition-opacity group-hover:opacity-100" />
+          取消
+        </button>
+        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="submit">
+          <AppIcon name="save" :size="16" />
+          保存设备
+        </button>
       </div>
     </form>
   </AppDialog>
@@ -109,6 +115,7 @@
 import { reactive, watch } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import type { DeviceFormState } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 

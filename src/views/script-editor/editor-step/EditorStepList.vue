@@ -34,10 +34,11 @@
         <button class="min-w-0 text-left" type="button" @click="$emit('select', index)">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
+              <AppIcon name="node" :size="16" class="text-[var(--app-vibrant-blue)] opacity-80 shrink-0" />
               <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">
                 {{ describeStep(step) }}
               </p>
-              <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] font-medium text-[var(--app-text-soft)]">
+              <span class="rounded-full border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-2 py-0.5 text-[11px] font-medium text-[var(--app-text-soft)]">
                 {{ step.op }}
               </span>
             </div>
@@ -61,6 +62,7 @@
 
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import type { Step } from '@/types/bindings/Step';
 import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
 import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';

@@ -8,13 +8,16 @@
 
     <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
       <div class="space-y-4">
-        <SettingsSection title="账户信息" description="云端能力集中在这里管理，避免分散到脚本页和市场页。">
+        <SettingsSection icon="user" title="账户信息" description="云端能力集中在这里管理，避免分散到脚本页和市场页。">
           <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-[var(--app-border)] px-4 py-4">
             <div>
               <p class="text-sm font-medium text-[var(--app-text-strong)]">当前未登录</p>
               <p class="text-sm text-[var(--app-text-soft)]">登录后可同步脚本、访问脚本市场和管理用户名。</p>
             </div>
-            <button class="app-button app-button-primary" type="button" @click="userStore.openAuthModal()">登录</button>
+            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-vibrant-blue)]/30" type="button" @click="userStore.openAuthModal()">
+              <AppIcon name="log-in" :size="16" />
+              登录
+            </button>
           </div>
 
           <template v-else>
@@ -23,7 +26,8 @@
                 <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">用户名</p>
                 <div class="mt-2 flex items-center gap-3">
                   <input v-model.trim="usernameDraft" class="app-input" />
-                  <button class="app-button app-button-ghost h-11 px-4" type="button" @click="saveUsername">
+                  <button class="app-button app-button-ghost h-11 px-4 group" type="button" @click="saveUsername">
+                    <AppIcon name="save" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
                     保存
                   </button>
                 </div>
@@ -50,12 +54,15 @@
             </div>
 
             <div class="flex justify-end">
-              <button class="app-button app-button-danger" type="button" @click="userStore.logout()">退出登录</button>
+              <button class="app-button app-button-danger px-4" type="button" @click="userStore.logout()">
+                <AppIcon name="log-out" :size="16" />
+                退出登录
+              </button>
             </div>
           </template>
         </SettingsSection>
 
-        <SettingsSection title="界面与启动" description="这些偏工作流的偏好写入本地 Store，并且主题会立即反馈到桌面界面。">
+        <SettingsSection icon="monitor" title="界面与启动" description="这些偏工作流的偏好写入本地 Store，并且主题会立即反馈到桌面界面。">
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">主题</span>
@@ -94,13 +101,16 @@
           </div>
         </SettingsSection>
 
-        <SettingsSection title="ADB 与环境" description="没有现成后端命令的字段保存在本地 Store，给设备编辑器和运行环境统一复用。">
+        <SettingsSection icon="terminal-square" title="ADB 与环境" description="没有现成后端命令的字段保存在本地 Store，给设备编辑器和运行环境统一复用。">
           <div class="grid gap-4 md:grid-cols-[1fr_auto]">
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">ADB 路径</span>
               <input v-model="settingsStore.preferences.adbPath" class="app-input" placeholder="选择 adb.exe 路径" />
             </label>
-            <button class="app-button app-button-ghost self-end" type="button" @click="pickAdbPath">选择路径</button>
+            <button class="app-button app-button-ghost group self-end" type="button" @click="pickAdbPath">
+              <AppIcon name="folder-open" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              选择路径
+            </button>
           </div>
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
@@ -113,11 +123,14 @@
             </label>
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary" type="button" @click="saveEnvironmentPreferences">保存环境配置</button>
+            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveEnvironmentPreferences">
+              <AppIcon name="save" :size="16" />
+              保存环境配置
+            </button>
           </div>
         </SettingsSection>
 
-        <SettingsSection title="OCR 文字缓存" description="启用后按脚本名称读写 JSON 缓存文件，目录留空时回退到应用数据目录下的默认缓存文件夹。">
+        <SettingsSection icon="file-search" title="OCR 文字缓存" description="启用后按脚本名称读写 JSON 缓存文件，目录留空时回退到应用数据目录下的默认缓存文件夹。">
           <div class="grid gap-3 md:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
             <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
               <span class="text-sm text-[var(--app-text-strong)]">启用缓存文字检测结果</span>
@@ -136,16 +149,22 @@
                 placeholder="留空时使用应用默认缓存目录"
               />
             </label>
-            <button class="app-button app-button-ghost self-end" type="button" @click="pickOcrTextCacheDir">选择目录</button>
+            <button class="app-button app-button-ghost group self-end" type="button" @click="pickOcrTextCacheDir">
+              <AppIcon name="folder-open" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              选择目录
+            </button>
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary" type="button" @click="saveVisionCachePreferences">保存缓存设置</button>
+            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveVisionCachePreferences">
+              <AppIcon name="save" :size="16" />
+              保存缓存设置
+            </button>
           </div>
         </SettingsSection>
       </div>
 
       <div class="space-y-4">
-        <SettingsSection title="日志设置" description="主进程日志由 Tauri 命令即时修改，日志路径和保留天数都在这里维护。">
+        <SettingsSection icon="file-clock" title="日志设置" description="主进程日志由 Tauri 命令即时修改，日志路径和保留天数都在这里维护。">
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-[var(--app-text-soft)]">主进程日志级别</span>
@@ -161,15 +180,24 @@
               <span class="text-sm text-[var(--app-text-soft)]">日志目录</span>
               <input v-model="settingsStore.logConfig.logDir" class="app-input" />
             </label>
-            <button class="app-button app-button-ghost self-end" type="button" @click="pickLogDir">选择目录</button>
+            <button class="app-button app-button-ghost group self-end" type="button" @click="pickLogDir">
+              <AppIcon name="folder-open" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              选择目录
+            </button>
           </div>
           <div class="flex flex-wrap justify-end gap-3">
-            <button class="app-button app-button-warning" type="button" @click="cleanLogs">立即清理</button>
-            <button class="app-button app-button-primary" type="button" @click="saveLogSettings">保存日志配置</button>
+            <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" @click="cleanLogs">
+              <AppIcon name="trash-2" :size="16" />
+              立即清理
+            </button>
+            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveLogSettings">
+              <AppIcon name="save" :size="16" />
+              保存日志配置
+            </button>
           </div>
         </SettingsSection>
 
-        <SettingsSection title="关于与更新" description="保持一个轻量的版本信息区，不把宣传内容塞进专业工具型桌面应用。">
+        <SettingsSection icon="info" title="关于与更新" description="保持一个轻量的版本信息区，不把宣传内容塞进专业工具型桌面应用。">
           <div class="grid gap-3 md:grid-cols-2">
             <div class="rounded-[20px] border border-[var(--app-border)] p-4">
               <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">版本</p>
@@ -186,7 +214,10 @@
             {{ settingsStore.updateInfo?.notes || '当前还没有拉取更新说明。' }}
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary" type="button" @click="checkUpdate">检查更新</button>
+            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="checkUpdate">
+              <AppIcon name="refresh-cw" :size="16" />
+              检查更新
+            </button>
           </div>
         </SettingsSection>
       </div>
@@ -197,6 +228,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import SettingsSection from '@/views/settings/SettingsSection.vue';
