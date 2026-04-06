@@ -59,8 +59,15 @@
         :steps="steps"
         :selected-step-path="selectedStepPath"
         :active-branch-path="activeBranchPath"
+        :input-entries="inputEntries"
         :variable-options="variableOptions"
         :catalog-variable-options="catalogVariableOptions"
+        :task-reference-options="taskReferenceOptions"
+        :policy-reference-options="policyReferenceOptions"
+        :create-reference="createReference"
+        :jump-to-reference="jumpToReference"
+        :create-variable="createVariable"
+        :jump-to-variable="jumpToVariable"
         @select-step-path="$emit('select-step-path', $event)"
         @navigate-branch="$emit('navigate-branch', $event)"
         @reorder-step="(from, to) => $emit('reorder-step', from, to)"
@@ -110,6 +117,7 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
+import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import EditorInputDetailsPanel from '@/views/script-editor/EditorInputDetailsPanel.vue';
 import EditorTaskOverviewPanel from '@/views/script-editor/EditorTaskOverviewPanel.vue';
 import EditorStepWorkspace from '@/views/script-editor/editor-step/EditorStepWorkspace.vue';
@@ -141,11 +149,17 @@ const props = defineProps<{
   steps: Step[];
   selectedStepPath: StepPath | null;
   activeBranchPath: StepBranchPath;
+  inputEntries: EditorInputEntry[];
   uiSchema: EditorUiSchema;
   selectedUiFieldId: string | null;
-  inputEntries: EditorInputEntry[];
   variableOptions: EditorVariableOption[];
   catalogVariableOptions: EditorVariableOption[];
+  taskReferenceOptions: EditorReferenceOption[];
+  policyReferenceOptions: EditorReferenceOption[];
+  createReference: (kind: EditorReferenceKind) => Promise<string>;
+  jumpToReference: (kind: EditorReferenceKind, id: string) => void;
+  createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+  jumpToVariable?: (option: EditorVariableOption) => void;
   selectedInputId: string | null;
 }>();
 

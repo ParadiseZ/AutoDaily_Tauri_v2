@@ -11,9 +11,9 @@
         </button>
       </div>
 
-      <div class="mt-4 grid gap-3">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">名称</span>
+      <div class="mt-4 detail-grid">
+        <label class="detail-item">
+          <span class="detail-label">名称</span>
           <input
             :value="selectedInputEntry.name"
             class="app-input"
@@ -22,8 +22,8 @@
           />
         </label>
 
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">键</span>
+        <label class="detail-item">
+          <span class="detail-label">键</span>
           <input
             :value="selectedInputEntry.key"
             class="app-input"
@@ -33,31 +33,29 @@
           />
         </label>
 
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">类型</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="selectedInputEntry.type"
-              :options="inputTypeOptions"
-              placeholder="选择类型"
-              :test-id="selectedInputIndex === 0 ? 'editor-input-type-0' : undefined"
-              @update:model-value="$emit('update-input', selectedInputEntry.id, 'type', String($event))"
-            />
-          </div>
-
-          <div class="editor-inline-label">作用域</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="selectedInputEntry.namespace"
-              :options="scopeOptions"
-              placeholder="选择作用域"
-              @update:model-value="$emit('update-input', selectedInputEntry.id, 'namespace', String($event))"
-            />
-          </div>
+        <div class="detail-item">
+          <span class="detail-label">类型</span>
+          <EditorSelectField
+            :model-value="selectedInputEntry.type"
+            :options="inputTypeOptions"
+            placeholder="选择类型"
+            :test-id="selectedInputIndex === 0 ? 'editor-input-type-0' : undefined"
+            @update:model-value="$emit('update-input', selectedInputEntry.id, 'type', String($event))"
+          />
         </div>
 
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">备注</span>
+        <div class="detail-item">
+          <span class="detail-label">作用域</span>
+          <EditorSelectField
+            :model-value="selectedInputEntry.namespace"
+            :options="scopeOptions"
+            placeholder="选择作用域"
+            @update:model-value="$emit('update-input', selectedInputEntry.id, 'namespace', String($event))"
+          />
+        </div>
+
+        <label class="detail-item">
+          <span class="detail-label">备注</span>
           <input
             :value="selectedInputEntry.description"
             class="app-input"
@@ -67,20 +65,23 @@
         </label>
 
         <template v-if="selectedInputEntry.namespace === 'input'">
-          <label v-if="selectedInputEntry.type === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
-            <input
-              :checked="selectedInputEntry.booleanValue"
-              type="checkbox"
-              class="h-4 w-4"
-              :data-testid="selectedInputIndex === 0 ? 'editor-input-bool-0' : undefined"
-              style="accent-color: var(--app-accent)"
-              @change="$emit('update-input', selectedInputEntry.id, 'booleanValue', ($event.target as HTMLInputElement).checked)"
-            />
-            <span class="text-sm text-[var(--app-text-soft)]">默认启用</span>
+          <label v-if="selectedInputEntry.type === 'bool'" class="detail-item">
+            <span class="detail-label">默认值</span>
+            <span class="flex min-h-[44px] items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+              <input
+                :checked="selectedInputEntry.booleanValue"
+                type="checkbox"
+                class="h-4 w-4"
+                :data-testid="selectedInputIndex === 0 ? 'editor-input-bool-0' : undefined"
+                style="accent-color: var(--app-accent)"
+                @change="$emit('update-input', selectedInputEntry.id, 'booleanValue', ($event.target as HTMLInputElement).checked)"
+              />
+              <span>默认启用</span>
+            </span>
           </label>
 
-          <label v-else class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
+          <label v-else class="detail-item detail-item-top">
+            <span class="detail-label">默认值</span>
             <textarea
               v-if="selectedInputEntry.type === 'json'"
               :value="selectedInputEntry.stringValue"
@@ -101,7 +102,7 @@
 
         <div
           v-else
-          class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
+          class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
         >
           {{ selectedInputEntry.namespace === 'runtime' ? 'Runtime 变量只定义结构和来源，不在这里设置默认值。' : 'System 变量由运行时注入，只在这里保留元数据。' }}
         </div>
@@ -142,6 +143,46 @@ const scopeOptions = [
 </script>
 
 <style scoped>
+.detail-grid {
+  display: grid;
+  gap: 0.9rem 1rem;
+}
+
+.detail-item {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.detail-label {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--app-text-faint);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+  .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-item {
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: center;
+  }
+
+  .detail-item-top {
+    align-items: start;
+  }
+
+  .detail-span-2 {
+    grid-column: 1 / -1;
+  }
+}
+
 .editor-inline-grid {
   display: grid;
   gap: 0.75rem;

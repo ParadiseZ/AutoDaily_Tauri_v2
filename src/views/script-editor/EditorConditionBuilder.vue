@@ -68,6 +68,12 @@
             :depth="depth + 1"
             removable
             :variable-options="variableOptions"
+            :variable-reference-options="variableReferenceOptions"
+            :variable-input-entries="variableInputEntries"
+            :task-reference-options="taskReferenceOptions"
+            :policy-reference-options="policyReferenceOptions"
+            :create-reference="createReference"
+            :jump-to-reference="jumpToReference"
             @update:model-value="updateGroupItem(index, $event)"
             @remove="removeGroupItem(index)"
           />
@@ -92,14 +98,31 @@
             />
           </div>
 
-          <div class="editor-inline-label">目标 ID</div>
-          <div class="editor-inline-content">
-            <input
-              :value="modelValue.a.id"
-              class="app-input"
-              @input="updateExecTargetId(($event.target as HTMLInputElement).value)"
+          <div class="editor-inline-label">目标资源</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="modelValue.a.id || null"
+              :options="resolvedExecTargetOptions"
+              placeholder="选择任务或策略"
+              @update:model-value="updateExecTargetId(String($event || ''))"
             />
           </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createExecTargetReference">
+            <AppIcon name="plus" :size="14" />
+            新建{{ modelValue.a.type === 'task' ? '任务' : '策略' }}
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!modelValue.a.id"
+            @click="jumpToExecTargetReference"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位编辑
+          </button>
         </div>
       </template>
 
@@ -125,12 +148,13 @@
             />
           </div>
 
-          <div class="editor-inline-label">目标 ID</div>
-          <div class="editor-inline-content">
-            <input
-              :value="modelValue.a.target.id"
-              class="app-input"
-              @input="updateTaskTargetId(($event.target as HTMLInputElement).value)"
+          <div class="editor-inline-label">目标资源</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="modelValue.a.target.id || null"
+              :options="resolvedTaskStatusTargetOptions"
+              placeholder="选择任务或策略"
+              @update:model-value="updateTaskTargetId(String($event || ''))"
             />
           </div>
 
@@ -143,6 +167,22 @@
               @update:model-value="updateTaskStatusType(String($event || 'done'))"
             />
           </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createTaskStatusTargetReference">
+            <AppIcon name="plus" :size="14" />
+            新建{{ modelValue.a.target.type === 'task' ? '任务' : '策略' }}
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!modelValue.a.target.id"
+            @click="jumpToTaskStatusTargetReference"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位编辑
+          </button>
         </div>
 
         <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
@@ -164,6 +204,7 @@
             <EditorSelectField
               :model-value="modelValue.var_name || null"
               :options="variableOptions"
+              :show-description="true"
               placeholder="从变量列表中选择"
               :test-id="rootTestId('var-name')"
               @update:model-value="updateVarCompareField('var_name', String($event || ''))"
@@ -190,6 +231,28 @@
             />
           </div>
         </div>
+
+        <div v-if="createVariable || (selectedVarCompareOption && jumpToVariable)" class="flex flex-wrap gap-2">
+          <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createVarCompareVariable">
+            <AppIcon name="plus" :size="14" />
+            新建变量
+          </button>
+          <button
+            v-if="selectedVarCompareOption && jumpToVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            @click="jumpToVarCompareVariable"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+
+        <EditorVariableMetaCard
+          v-if="selectedVarCompareOption"
+          :variable="selectedVarCompareOption"
+          :input-entry="selectedVarCompareInputEntry"
+        />
 
         <label v-if="currentVarValueDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
           <input
@@ -259,9 +322,14 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
+import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
+import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
+import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
+import { buildVariableCatalogKey, type EditorInputEntry, type EditorVariableOption } from '@/views/script-editor/editorVariables';
 import {
   buildVarValue,
   compareOpOptions,
@@ -290,12 +358,28 @@ const props = withDefaults(
       value: string;
       description?: string;
     }>;
+    variableReferenceOptions?: EditorVariableOption[];
+    variableInputEntries?: EditorInputEntry[];
+    taskReferenceOptions?: EditorReferenceOption[];
+    policyReferenceOptions?: EditorReferenceOption[];
+    createReference?: (kind: EditorReferenceKind) => Promise<string>;
+    jumpToReference?: (kind: EditorReferenceKind, id: string) => void;
+    createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+    jumpToVariable?: (option: EditorVariableOption) => void;
   }>(),
   {
     depth: 0,
     removable: false,
     testIdPrefix: null,
     variableOptions: () => [],
+    variableReferenceOptions: () => [],
+    variableInputEntries: () => [],
+    taskReferenceOptions: () => [],
+    policyReferenceOptions: () => [],
+    createReference: undefined,
+    jumpToReference: undefined,
+    createVariable: undefined,
+    jumpToVariable: undefined,
   },
 );
 
@@ -311,11 +395,45 @@ const filteredStateStatusTypeOptions = computed(() =>
     ? stateStatusTypeOptions.filter((option) => option.value !== 'enabled')
     : stateStatusTypeOptions,
 );
+const resolvedExecTargetOptions = computed(() =>
+  props.modelValue.type === 'execNumCompare'
+    ? withResolvedReferenceOption(
+        props.modelValue.a.type === 'task' ? props.taskReferenceOptions : props.policyReferenceOptions,
+        props.modelValue.a.id,
+        props.modelValue.a.type === 'task' ? 'task' : 'policy',
+      )
+    : [],
+);
+const resolvedTaskStatusTargetOptions = computed(() =>
+  props.modelValue.type === 'taskStatus'
+    ? withResolvedReferenceOption(
+        props.modelValue.a.target.type === 'task' ? props.taskReferenceOptions : props.policyReferenceOptions,
+        props.modelValue.a.target.id,
+        props.modelValue.a.target.type === 'task' ? 'task' : 'policy',
+      )
+    : [],
+);
 const currentVarValueDraft = computed(() =>
   props.modelValue.type === 'varCompare'
     ? parseVarValueDraft(props.modelValue.value, varCompareKindPreference.value ?? undefined)
     : parseVarValueDraft(''),
 );
+const selectedVarCompareOption = computed(() => {
+  const node = props.modelValue;
+  if (node.type !== 'varCompare') {
+    return null;
+  }
+
+  return props.variableReferenceOptions.find((option) => option.key === node.var_name) ?? null;
+});
+const selectedVarCompareInputEntry = computed(() => {
+  const option = selectedVarCompareOption.value;
+  if (!option) {
+    return null;
+  }
+
+  return props.variableInputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === option.key) ?? null;
+});
 
 watch(
   () => props.modelValue.type,
@@ -391,6 +509,16 @@ const updateExecTargetId = (id: string) => {
   } as ConditionNode);
 };
 
+const createExecTargetReference = async () => {
+  if (props.modelValue.type !== 'execNumCompare' || !props.createReference) return;
+  updateExecTargetId(await props.createReference(props.modelValue.a.type === 'task' ? 'task' : 'policy'));
+};
+
+const jumpToExecTargetReference = () => {
+  if (props.modelValue.type !== 'execNumCompare' || !props.jumpToReference || !props.modelValue.a.id) return;
+  props.jumpToReference(props.modelValue.a.type === 'task' ? 'task' : 'policy', props.modelValue.a.id);
+};
+
 const updateTaskStatusField = (field: 'type', value: string) => {
   if (props.modelValue.type !== 'taskStatus') return;
   replaceNode({
@@ -404,14 +532,22 @@ const updateTaskStatusField = (field: 'type', value: string) => {
 
 const updateTaskTargetType = (type: string) => {
   if (props.modelValue.type !== 'taskStatus') return;
+  const nextTargetType = type as 'task' | 'policy';
   replaceNode({
     ...props.modelValue,
     a: {
       ...props.modelValue.a,
       target: {
         ...props.modelValue.a.target,
-        type,
+        type: nextTargetType,
       },
+      status:
+        nextTargetType === 'policy' && props.modelValue.a.status.type === 'enabled'
+          ? {
+              ...props.modelValue.a.status,
+              type: 'done',
+            }
+          : props.modelValue.a.status,
     },
   } as ConditionNode);
 };
@@ -428,6 +564,19 @@ const updateTaskTargetId = (id: string) => {
       },
     },
   } as ConditionNode);
+};
+
+const createTaskStatusTargetReference = async () => {
+  if (props.modelValue.type !== 'taskStatus' || !props.createReference) return;
+  updateTaskTargetId(await props.createReference(props.modelValue.a.target.type === 'task' ? 'task' : 'policy'));
+};
+
+const jumpToTaskStatusTargetReference = () => {
+  if (props.modelValue.type !== 'taskStatus' || !props.jumpToReference || !props.modelValue.a.target.id) return;
+  props.jumpToReference(
+    props.modelValue.a.target.type === 'task' ? 'task' : 'policy',
+    props.modelValue.a.target.id,
+  );
 };
 
 const updateTaskStatusType = (type: string) => {
@@ -464,6 +613,19 @@ const updateVarCompareField = (field: 'var_name' | 'op', value: string) => {
     ...props.modelValue,
     [field]: value,
   } as ConditionNode);
+};
+
+const createVarCompareVariable = async () => {
+  if (props.modelValue.type !== 'varCompare' || !props.createVariable) return;
+  const key = await props.createVariable();
+  if (key) {
+    updateVarCompareField('var_name', key);
+  }
+};
+
+const jumpToVarCompareVariable = () => {
+  if (!selectedVarCompareOption.value || !props.jumpToVariable) return;
+  props.jumpToVariable(selectedVarCompareOption.value);
 };
 
 const updateVarCompareValueKind = (kind: string) => {

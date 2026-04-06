@@ -25,7 +25,10 @@ export interface EditorVariableOption {
   label: string;
   namespace: ScriptVariableNamespace;
   valueType: ScriptVariableValueType;
+  defaultValue: JsonValue | null;
   sourceType: ScriptVariableSourceType;
+  ownerTaskId: string | null;
+  sourceStepId: string | null;
   readable: boolean;
   writable: boolean;
   uiBindable: boolean;
@@ -58,7 +61,13 @@ const toStorageKey = (key: string) => {
   return trimmed;
 };
 
-const toCatalogKey = (key: string, namespace: ScriptVariableNamespace) => `${NAMESPACE_PREFIX[namespace]}${key.trim()}`;
+export const getVariableDisplayKey = (key: string, namespace: ScriptVariableNamespace) => {
+  const trimmed = key.trim();
+  const prefix = NAMESPACE_PREFIX[namespace];
+  return trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : trimmed;
+};
+
+export const buildVariableCatalogKey = (key: string, namespace: ScriptVariableNamespace) => `${NAMESPACE_PREFIX[namespace]}${key.trim()}`;
 
 const inferInputType = (value: JsonValue): EditorInputType => {
   if (typeof value === 'boolean') return 'bool';
@@ -177,7 +186,7 @@ const buildVariableDef = (entry: EditorInputEntry, ownerTaskId: string): ScriptV
 
   return {
     id: entry.id || createEditorId('input'),
-    key: toCatalogKey(storageKey, entry.namespace),
+    key: buildVariableCatalogKey(storageKey, entry.namespace),
     name: entry.name.trim() || storageKey || '未命名输入',
     namespace: entry.namespace,
     valueType: mapInputTypeToValueType(entry.type),
@@ -385,7 +394,10 @@ const createVariableOptions = (
       label: item.name || item.key,
       namespace: item.namespace,
       valueType: item.valueType,
+      defaultValue: item.defaultValue,
       sourceType: item.sourceType,
+      ownerTaskId: item.ownerTaskId,
+      sourceStepId: item.sourceStepId,
       readable: item.readable,
       writable: item.writable,
       uiBindable: item.uiBindable,
@@ -447,6 +459,25 @@ export const getInputTypeLabel = (type: EditorInputType) => {
       return '浮点';
     case 'json':
       return 'JSON';
+    default:
+      return '文本';
+  }
+};
+
+export const getVariableValueTypeLabel = (valueType: ScriptVariableValueType) => {
+  switch (valueType) {
+    case 'bool':
+      return '布尔';
+    case 'int':
+      return '整数';
+    case 'float':
+      return '浮点';
+    case 'json':
+      return 'JSON';
+    case 'list':
+      return '列表';
+    case 'object':
+      return '对象';
     default:
       return '文本';
   }

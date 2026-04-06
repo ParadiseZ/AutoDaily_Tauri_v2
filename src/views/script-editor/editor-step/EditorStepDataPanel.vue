@@ -8,6 +8,7 @@
             <EditorSelectField
               :model-value="selectedData.name || null"
               :options="writableCatalogVariableOptions"
+              :show-description="true"
               placeholder="从变量列表中选择"
               test-id="editor-set-var-name"
               @update:model-value="$emit('update-set-var-target', String($event || ''))"
@@ -15,7 +16,24 @@
           </div>
         </div>
 
-        <EditorVariableMetaCard v-if="selectedSetVarTarget" :variable="selectedSetVarTarget" />
+        <div v-if="createVariable || (selectedSetVarTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+          <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" data-testid="editor-set-var-create" @click="$emit('create-variable', 'setVar')">
+            <AppIcon name="plus" :size="14" />
+            新建变量
+          </button>
+          <button
+            v-if="selectedSetVarTarget && jumpToVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            data-testid="editor-set-var-locate"
+            @click="$emit('jump-to-variable', selectedSetVarTarget)"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+
+        <EditorVariableMetaCard v-if="selectedSetVarTarget" :variable="selectedSetVarTarget" :input-entry="selectedSetVarInputEntry" />
       </div>
 
       <div v-if="selectedSetVarTarget && setVarCanSwitchMode" class="flex justify-end">
@@ -86,6 +104,7 @@
             <EditorSelectField
               :model-value="selectedData.name || null"
               :options="readableCatalogVariableOptions"
+              :show-description="true"
               placeholder="从变量列表中选择"
               test-id="editor-get-var-name"
               @update:model-value="$emit('update-data-field', 'name', String($event || ''))"
@@ -93,7 +112,24 @@
           </div>
         </div>
 
-        <EditorVariableMetaCard v-if="selectedGetVarTarget" :variable="selectedGetVarTarget" />
+        <div v-if="createVariable || (selectedGetVarTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+          <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" data-testid="editor-get-var-create" @click="$emit('create-variable', 'getVar')">
+            <AppIcon name="plus" :size="14" />
+            新建变量
+          </button>
+          <button
+            v-if="selectedGetVarTarget && jumpToVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            data-testid="editor-get-var-locate"
+            @click="$emit('jump-to-variable', selectedGetVarTarget)"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+
+        <EditorVariableMetaCard v-if="selectedGetVarTarget" :variable="selectedGetVarTarget" :input-entry="selectedGetVarInputEntry" />
       </div>
       <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
         <input
@@ -144,14 +180,87 @@
 
     <template v-else-if="selectedData.type === DATA_TYPE.filter">
       <div class="grid gap-3 md:grid-cols-2">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入变量</span>
-          <input :value="selectedData.input_var" :list="variableDatalistId" class="app-input" @input="$emit('update-data-field', 'input_var', ($event.target as HTMLInputElement).value)" />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
-          <input :value="selectedData.out_name" :list="variableDatalistId" class="app-input" @input="$emit('update-data-field', 'out_name', ($event.target as HTMLInputElement).value)" />
-        </label>
+        <div class="space-y-3">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入变量</span>
+            <EditorSelectField
+              :model-value="selectedData.input_var || null"
+              :options="resolvedFilterInputOptions"
+              :show-description="true"
+              placeholder="从变量列表中选择"
+              test-id="editor-filter-input-var"
+              @update:model-value="$emit('update-data-field', 'input_var', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedFilterInputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+            <button
+              v-if="createVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-filter-input-create"
+              @click="$emit('create-variable', 'filterInput')"
+            >
+              <AppIcon name="plus" :size="14" />
+              新建变量
+            </button>
+            <button
+              v-if="selectedFilterInputTarget && jumpToVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-filter-input-locate"
+              @click="$emit('jump-to-variable', selectedFilterInputTarget)"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+          <EditorVariableMetaCard
+            v-if="selectedFilterInputTarget"
+            :variable="selectedFilterInputTarget"
+            :input-entry="selectedFilterInputEntry"
+          />
+        </div>
+
+        <div class="space-y-3">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
+            <EditorSelectField
+              :model-value="selectedData.out_name || null"
+              :options="resolvedFilterOutputOptions"
+              :show-description="true"
+              placeholder="选择或创建输出变量"
+              test-id="editor-filter-output-var"
+              @update:model-value="$emit('update-data-field', 'out_name', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedFilterOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+            <button
+              v-if="createVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-filter-output-create"
+              @click="$emit('create-variable', 'filterOutput')"
+            >
+              <AppIcon name="plus" :size="14" />
+              新建 Runtime 变量
+            </button>
+            <button
+              v-if="selectedFilterOutputTarget && jumpToVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-filter-output-locate"
+              @click="$emit('jump-to-variable', selectedFilterOutputTarget)"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+          <EditorVariableMetaCard
+            v-if="selectedFilterOutputTarget"
+            :variable="selectedFilterOutputTarget"
+            :input-entry="selectedFilterOutputInputEntry"
+          />
+        </div>
         <div class="editor-inline-grid">
           <div class="editor-inline-label">过滤模式</div>
           <div class="editor-inline-content">
@@ -187,20 +296,28 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
 import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { varValueTypeOptions, type VarValueDraft, type VarValueKind } from '@/views/script-editor/editorVarValue';
 import type { StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
-import type { EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputEntry, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepDataPanel' });
 
-defineProps<{
+const props = defineProps<{
   selectedData: DataHanding;
   selectedSetVarTarget: EditorVariableOption | null;
+  selectedSetVarInputEntry?: EditorInputEntry | null;
   selectedGetVarTarget: EditorVariableOption | null;
+  selectedGetVarInputEntry?: EditorInputEntry | null;
+  selectedFilterInputTarget?: EditorVariableOption | null;
+  selectedFilterInputEntry?: EditorInputEntry | null;
+  selectedFilterOutputTarget?: EditorVariableOption | null;
+  selectedFilterOutputInputEntry?: EditorInputEntry | null;
   selectedSetVarKind: VarValueKind | null;
   setVarUsesExpression: boolean;
   setVarCanSwitchMode: boolean;
@@ -213,6 +330,8 @@ defineProps<{
   filterModeOptions: Array<{ label: string; value: string; description: string }>;
   filterBranchTarget: { count: number; path: StepBranchPath } | null;
   variableDatalistId: string;
+  createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+  jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 
 defineEmits<{
@@ -229,7 +348,39 @@ defineEmits<{
   'update-get-var-bool': [value: boolean];
   'update-filter-mode': [value: string];
   'navigate-branch': [branchPath: StepBranchPath];
+  'create-variable': [target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput'];
+  'jump-to-variable': [option: EditorVariableOption];
 }>();
+
+type SelectOption = { label: string; value: string; description: string; disabled?: boolean };
+
+const withCurrentVariableOption = (options: SelectOption[], value: string) => {
+  const trimmedValue = value.trim();
+  if (!trimmedValue || options.some((option) => option.value === trimmedValue)) {
+    return options;
+  }
+
+  return [
+    {
+      label: trimmedValue,
+      value: trimmedValue,
+      description: '未解析变量',
+    },
+    ...options,
+  ];
+};
+
+const resolvedFilterInputOptions = computed(() =>
+  props.selectedData.type === DATA_TYPE.filter
+    ? withCurrentVariableOption(props.readableCatalogVariableOptions, props.selectedData.input_var)
+    : props.readableCatalogVariableOptions,
+);
+
+const resolvedFilterOutputOptions = computed(() =>
+  props.selectedData.type === DATA_TYPE.filter
+    ? withCurrentVariableOption(props.writableCatalogVariableOptions, props.selectedData.out_name)
+    : props.writableCatalogVariableOptions,
+);
 </script>
 
 <style scoped>

@@ -59,7 +59,7 @@ const seedEditorState = async (page: Page, script: StoredScriptTable) => {
 const selectOptionByValue = async (page: Page, testId: string, value: string) => {
   const directOption = page.getByTestId(`${testId}-option-${value}`);
   if (await directOption.count()) {
-    await directOption.first().click();
+    await directOption.first().evaluate((element: HTMLElement) => element.click());
     return;
   }
 
@@ -70,7 +70,7 @@ const selectOptionByValue = async (page: Page, testId: string, value: string) =>
 const selectOptionByLabel = async (page: Page, testId: string, label: string) => {
   const directOption = page.locator(`[data-testid^="${testId}-option-"]`).filter({ hasText: label });
   if (await directOption.count()) {
-    await directOption.first().click();
+    await directOption.first().evaluate((element: HTMLElement) => element.click());
     return;
   }
 
@@ -534,6 +534,42 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
   };
 
   await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'daily_task',
+        scriptId: currentScriptId,
+        name: '日常任务',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
 
   await page.getByTestId('editor-tab-inputs').click();
   await page.getByTestId('editor-input-add').click();
@@ -556,7 +592,7 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-set-task-state').click();
   await page.getByTestId('editor-step-card-2').click();
-  await page.getByLabel('目标 ID').fill('daily_task');
+  await selectOptionByValue(page, 'editor-task-control-target', 'daily_task');
   await page.getByLabel('状态值为真').uncheck();
 
   await page.getByTestId('editor-step-template-set-var').click();
@@ -657,6 +693,290 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
       ],
     },
   });
+});
+
+test('creates variable from setVar editor and persists catalog binding', async ({ page }) => {
+  const scriptId = 'script-editor-setvar-create';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '变量创建脚本',
+      description: '验证 setVar 内联创建变量并保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.setvar.create',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-set-var').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByTestId('editor-set-var-create').click();
+  await expect(page.getByTestId('editor-set-var-name')).toContainText('newVar1');
+  await page.getByTestId('editor-set-var-value').fill('hello');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const savedScript = state!.scripts.find((item) => item.id === scriptId);
+  const [task] = state!.scriptTasks[scriptId];
+
+  expect(savedScript?.data.variableCatalog.variables).toHaveLength(1);
+  expect(savedScript?.data.variableCatalog.variables[0]).toMatchObject({
+    key: 'input.newVar1',
+    name: 'newVar1',
+    namespace: 'input',
+    valueType: 'string',
+  });
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'setVar',
+      name: 'input.newVar1',
+      val: 'hello',
+      expr: null,
+    },
+  });
+});
+
+test('renames input variable and syncs setVar reference', async ({ page }) => {
+  const scriptId = 'script-editor-setvar-rename';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '变量重命名脚本',
+      description: '验证输入变量重命名后同步步骤引用',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.setvar.rename',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-set-var').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByTestId('editor-set-var-create').click();
+  await page.getByTestId('editor-set-var-locate').click();
+  await page.getByTestId('editor-input-key-0').fill('renamedVar');
+  await page.getByTestId('editor-tab-steps').click();
+  await expect(page.getByTestId('editor-set-var-name')).toContainText('renamedVar');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'setVar',
+      name: 'input.renamedVar',
+    },
+  });
+});
+
+test('shows variable key in setVar selector when variable name differs', async ({ page }) => {
+  const scriptId = 'script-editor-setvar-option-copy';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '变量选项文案脚本',
+      description: '验证 setVar 变量选择展示名称和键',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.setvar.option-copy',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-add').click();
+  await page.getByLabel('名称').fill('扫荡次数');
+  await page.getByTestId('editor-input-key-0').fill('sweepLimit');
+  await selectOptionByValue(page, 'editor-input-type-0', 'int');
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-set-var').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await expect(page.locator('[data-testid^="editor-set-var-name-option-"]').filter({ hasText: 'sweepLimit' })).toBeVisible();
+  await expect(page.locator('[data-testid^="editor-set-var-name-option-"]').filter({ hasText: 'Input · 整数' })).toBeVisible();
+});
+
+test('shows incomplete draft input in setVar selector as disabled option', async ({ page }) => {
+  const scriptId = 'script-editor-setvar-draft-option';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '变量草稿脚本',
+      description: '验证步骤变量选择包含未完成输入草稿',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.setvar.draft-option',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-add').click();
+  await page.getByLabel('名称').fill('test');
+  await page.getByTestId('editor-input-key-0').fill('newVar1');
+  await page.getByTestId('editor-input-add').click();
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-set-var').click();
+  await page.getByTestId('editor-step-card-0').click();
+
+  const variableOptions = page.locator('[data-testid^="editor-set-var-name-option-"]');
+  await expect(variableOptions).toHaveCount(2);
+  await expect(variableOptions.filter({ hasText: '未设置键' })).toBeVisible();
+  await expect(variableOptions.filter({ hasText: '需先填写键' })).toBeVisible();
+});
+
+test('selects filter variables and creates runtime output from filter editor', async ({ page }) => {
+  const scriptId = 'script-editor-filter-selectors';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '过滤变量选择脚本',
+      description: '验证 filter 输入选择和 runtime 输出创建',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.filter.selectors',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-add').click();
+  await page.getByTestId('editor-input-key-0').fill('items');
+  await selectOptionByValue(page, 'editor-input-type-0', 'json');
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-filter-var').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await selectOptionByValue(page, 'editor-filter-input-var', 'input.items');
+  await page.getByTestId('editor-filter-output-create').click();
+  await expect(page.getByTestId('editor-filter-output-var')).toContainText('runtimeVar2');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  const savedScript = state!.scripts.find((item) => item.id === scriptId);
+
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'filter',
+      input_var: 'input.items',
+      out_name: 'runtime.runtimeVar2',
+    },
+  });
+  expect(savedScript?.data.variableCatalog.variables).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: 'runtime.runtimeVar2',
+        namespace: 'runtime',
+        valueType: 'string',
+      }),
+    ]),
+  );
 });
 
 test('creates policies and persists search rule with before and after actions', async ({ page }) => {

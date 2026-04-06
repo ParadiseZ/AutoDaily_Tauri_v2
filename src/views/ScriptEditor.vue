@@ -245,6 +245,12 @@
           :input-entries="inputEntries"
           :variable-options="variableOptions"
           :catalog-variable-options="catalogVariableOptions"
+          :task-reference-options="taskReferenceOptions"
+          :policy-reference-options="policyReferenceOptions"
+          :create-reference="createReferenceResource"
+          :jump-to-reference="jumpToReferenceResource"
+          :create-variable="createVariableResource"
+          :jump-to-variable="jumpToVariableResource"
           :selected-input-id="selectedInputId"
           @update:task-name="taskName = $event"
           @update-input="updateInput"
@@ -285,6 +291,11 @@
           :active-branch-path="activePolicyBranchPath"
           :variable-options="policyVariableOptions"
           :catalog-variable-options="policyCatalogVariableOptions"
+          :task-reference-options="taskReferenceOptions"
+          :policy-reference-options="policyReferenceOptions"
+          :create-reference="createReferenceResource"
+          :jump-to-reference="jumpToReferenceResource"
+          :jump-to-variable="jumpToVariableResource"
           @update:number-field="updatePolicyNumberField"
           @update:boolean-field="updatePolicyBooleanField"
           @update:condition="updatePolicyCondition"
@@ -375,6 +386,7 @@ import EditorPolicyConfigPanel from '@/views/script-editor/editor-policy/EditorP
 import EditorPolicyWorkspace from '@/views/script-editor/editor-policy/EditorPolicyWorkspace.vue';
 import EditorRelationConfigPanel from '@/views/script-editor/editor-policy/EditorRelationConfigPanel.vue';
 import EditorRelationWorkspace from '@/views/script-editor/editor-policy/EditorRelationWorkspace.vue';
+import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import {
   createEmptyRelationMap,
   normalizePolicy,
@@ -423,6 +435,7 @@ import {
   parseInputEntries,
   syncInputVariableCatalog,
   type EditorInputEntry,
+  type EditorVariableOption,
 } from '@/views/script-editor/editorVariables';
 
 const route = useRoute();
@@ -610,6 +623,32 @@ const policySetItems = computed<EditorNamedItem[]>(() =>
     title: set.data.name,
     subtitle: `${(setGroupIdsBySetId.value[set.id] ?? []).length} 个策略组`,
     badge: String(set.orderIndex + 1),
+  })),
+);
+const describeTaskReferenceTriggerMode = (mode: TaskTriggerMode) => {
+  switch (mode) {
+    case 'linkOnly':
+      return '仅跳转';
+    case 'rootAndLink':
+      return '循环 + 跳转';
+    default:
+      return '仅循环';
+  }
+};
+const taskReferenceOptions = computed<EditorReferenceOption[]>(() =>
+  draftTasks.value
+    .filter((task) => task.rowType === 'task')
+    .map((task) => ({
+      label: task.name,
+      value: task.id,
+      description: `${describeTaskReferenceTriggerMode(task.triggerMode)} · ${task.defaultEnabled ? '默认启用' : '默认关闭'}`,
+    })),
+);
+const policyReferenceOptions = computed<EditorReferenceOption[]>(() =>
+  draftPolicies.value.map((policy) => ({
+    label: policy.data.name,
+    value: policy.id,
+    description: `${policy.data.afterAction.length} 个命中步骤 · ${policy.data.beforeAction.length} 个全局步骤`,
   })),
 );
 const assignedPolicies = computed<EditorNamedItem[]>(() => {
@@ -1049,6 +1088,214 @@ const createPolicySet = async () => {
   activePolicySetPanel.value = 'basic';
 };
 
+const createReferenceResource = async (kind: EditorReferenceKind) => {
+  if (kind === 'task') {
+    const nextTask = await buildTaskDraft();
+    draftTasks.value = [...draftTasks.value, nextTask].map((task, index) => normalizeTask(task, index));
+    showToast(`已创建引用任务：${nextTask.name}`, 'success');
+    return nextTask.id;
+  }
+
+  const nextPolicy = await buildPolicyDraft();
+  draftPolicies.value = [...draftPolicies.value, nextPolicy].map((policy, index) => normalizePolicy(policy, index));
+  showToast(`已创建引用策略：${nextPolicy.data.name}`, 'success');
+  return nextPolicy.id;
+};
+
+const jumpToReferenceResource = (kind: EditorReferenceKind, id: string) => {
+  if (kind === 'task') {
+    const matched = draftTasks.value.find((task) => task.id === id);
+    if (!matched) {
+      showToast('目标任务不存在，可能已被删除。', 'warning');
+      return;
+    }
+
+    selectedTaskId.value = id;
+    activeMode.value = 'task';
+    activePanel.value = 'basic';
+    return;
+  }
+
+  const matched = draftPolicies.value.find((policy) => policy.id === id);
+  if (!matched) {
+    showToast('目标策略不存在，可能已被删除。', 'warning');
+    return;
+  }
+
+  selectedPolicyId.value = id;
+  activeMode.value = 'policy';
+  activePolicyPanel.value = 'basic';
+};
+
+const buildVariableReferenceKey = (namespace: EditorInputEntry['namespace'], key: string) => {
+  const trimmed = key.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return `${namespace}.${trimmed}`;
+};
+
+const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nextKey: string): Step[] =>
+  steps.map((step) => {
+    const nextStep = cloneJson(step);
+
+    if (nextStep.op === 'sequence') {
+      nextStep.steps = renameVariableReferencesInSteps(nextStep.steps, previousKey, nextKey);
+      return nextStep;
+    }
+
+    if (nextStep.op === 'dataHanding') {
+      if (nextStep.a.type === 'setVar' || nextStep.a.type === 'getVar') {
+        if (nextStep.a.name === previousKey) {
+          nextStep.a.name = nextKey;
+        }
+        return nextStep;
+      }
+
+      if (nextStep.a.type === 'filter') {
+        if (nextStep.a.input_var === previousKey) {
+          nextStep.a.input_var = nextKey;
+        }
+        nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
+        return nextStep;
+      }
+
+      return nextStep;
+    }
+
+    if (nextStep.op === 'flowControl') {
+      if ((nextStep.a.type === 'if' || nextStep.a.type === 'while' || nextStep.a.type === 'for') && nextStep.a.con.type === 'varCompare') {
+        if (nextStep.a.con.var_name === previousKey) {
+          nextStep.a.con.var_name = nextKey;
+        }
+      }
+
+      if (nextStep.a.type === 'if') {
+        nextStep.a.then = renameVariableReferencesInSteps(nextStep.a.then, previousKey, nextKey);
+        nextStep.a.else_steps = nextStep.a.else_steps
+          ? renameVariableReferencesInSteps(nextStep.a.else_steps, previousKey, nextKey)
+          : nextStep.a.else_steps;
+        return nextStep;
+      }
+
+      if (nextStep.a.type === 'while' || nextStep.a.type === 'for') {
+        nextStep.a.flow = renameVariableReferencesInSteps(nextStep.a.flow, previousKey, nextKey);
+        return nextStep;
+      }
+
+      return nextStep;
+    }
+
+    if (nextStep.op === 'vision' && nextStep.a.type === 'visionSearch') {
+      nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
+    }
+
+    return nextStep;
+  });
+
+const syncVariableReferenceRename = (previousKey: string, nextKey: string) => {
+  if (!previousKey || !nextKey || previousKey === nextKey) {
+    return;
+  }
+
+  draftTasks.value = draftTasks.value.map((task, index) =>
+    normalizeTask(
+      {
+        ...cloneJson(task),
+        data: {
+          ...cloneJson(task.data),
+          steps: renameVariableReferencesInSteps(task.data.steps as Step[], previousKey, nextKey),
+          uiData:
+            task.data?.uiData && typeof task.data.uiData === 'object' && !Array.isArray(task.data.uiData)
+              ? {
+                  ...task.data.uiData,
+                  fields: Array.isArray((task.data.uiData as { fields?: unknown[] }).fields)
+                    ? ((task.data.uiData as { fields: Array<Record<string, unknown>> }).fields).map((field) => ({
+                        ...field,
+                        ...(field.inputKey === previousKey.replace(/^input\./, '') ? { inputKey: nextKey.replace(/^input\./, '') } : {}),
+                      }))
+                    : (task.data.uiData as { fields?: unknown[] }).fields,
+                }
+              : task.data.uiData,
+        },
+      },
+      index,
+    ),
+  );
+
+  draftPolicies.value = draftPolicies.value.map((policy, index) =>
+    normalizePolicy(
+      {
+        ...cloneJson(policy),
+        data: {
+          ...cloneJson(policy.data),
+          beforeAction: renameVariableReferencesInSteps(policy.data.beforeAction as Step[], previousKey, nextKey),
+          afterAction: renameVariableReferencesInSteps(policy.data.afterAction as Step[], previousKey, nextKey),
+        },
+      },
+      index,
+    ),
+  );
+};
+
+const createVariableResource = async (namespace: 'input' | 'runtime' = 'input') => {
+  if (!currentTask.value) {
+    showToast('当前没有选中任务，无法创建输入变量。', 'warning');
+    return '';
+  }
+
+  const existingKeys = new Set(inputEntries.value.map((entry) => entry.key.trim()).filter(Boolean));
+  let seed = inputEntries.value.length + 1;
+  let nextKey = `${namespace === 'runtime' ? 'runtimeVar' : 'newVar'}${seed}`;
+  while (existingKeys.has(nextKey)) {
+    seed += 1;
+    nextKey = `${namespace === 'runtime' ? 'runtimeVar' : 'newVar'}${seed}`;
+  }
+
+  const nextEntry: EditorInputEntry = {
+    ...createInputEntry('string'),
+    key: nextKey,
+    name: nextKey,
+    namespace,
+    type: 'string',
+    stringValue: '',
+  };
+
+  inputEntries.value = [...inputEntries.value, nextEntry];
+  selectedInputId.value = nextEntry.id;
+  showToast(`已创建变量：${namespace}.${nextKey}`, 'success');
+  return `${namespace}.${nextKey}`;
+};
+
+const jumpToVariableResource = (option: EditorVariableOption) => {
+  if (option.namespace === 'system') {
+    showToast('系统变量由运行时注入，当前不可在编辑器中修改。', 'warning');
+    return;
+  }
+
+  if (!option.ownerTaskId) {
+    showToast('这个变量没有可定位的来源任务。', 'warning');
+    return;
+  }
+
+  const matchedTask = draftTasks.value.find((task) => task.id === option.ownerTaskId);
+  if (!matchedTask) {
+    showToast('变量来源任务不存在，可能已被删除。', 'warning');
+    return;
+  }
+
+  selectedTaskId.value = matchedTask.id;
+  activeMode.value = 'task';
+  if (option.sourceType === 'manual') {
+    activePanel.value = 'inputs';
+    selectedInputId.value = option.id;
+    return;
+  }
+
+  activePanel.value = 'steps';
+  showToast('已定位到变量来源任务的步骤工作区。', 'success');
+};
+
 const removePolicy = (policyId: string) => {
   draftPolicies.value = draftPolicies.value.filter((item) => item.id !== policyId).map((item, index) => normalizePolicy(item, index));
   groupPolicyIdsByGroupId.value = Object.fromEntries(
@@ -1248,6 +1495,7 @@ const updateInput = (
   field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue',
   value: string | boolean,
 ) => {
+  const currentEntry = inputEntries.value.find((entry) => entry.id === entryId) ?? null;
   inputEntries.value = inputEntries.value.map((entry) => {
     if (entry.id !== entryId) {
       return entry;
@@ -1271,9 +1519,30 @@ const updateInput = (
       return next;
     }
 
+    if (field === 'key') {
+      const nextKey = String(value);
+      const currentName = entry.name.trim();
+      const currentKey = entry.key.trim();
+      next.key = nextKey;
+      if (!currentName || currentName === currentKey) {
+        next.name = nextKey;
+      }
+      return next;
+    }
+
     next[field] = String(value) as never;
     return next;
   });
+
+  if (currentEntry && (field === 'key' || field === 'namespace')) {
+    const updatedEntry = inputEntries.value.find((entry) => entry.id === entryId) ?? null;
+    if (updatedEntry) {
+      syncVariableReferenceRename(
+        buildVariableReferenceKey(currentEntry.namespace, currentEntry.key),
+        buildVariableReferenceKey(updatedEntry.namespace, updatedEntry.key),
+      );
+    }
+  }
 };
 
 const removeInput = (entryId: string) => {

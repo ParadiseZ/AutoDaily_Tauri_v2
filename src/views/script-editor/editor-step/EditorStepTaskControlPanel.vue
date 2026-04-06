@@ -23,14 +23,30 @@
           />
         </div>
 
-        <div class="editor-inline-label">目标 ID</div>
-        <div class="xl:col-span-3">
-          <input
-            :value="selectedTaskControl.target.id"
-            aria-label="目标 ID"
-            class="app-input"
-            @input="$emit('update-target-id', ($event.target as HTMLInputElement).value)"
+        <div class="editor-inline-label">目标资源</div>
+        <div class="xl:col-span-3 space-y-3">
+          <EditorSelectField
+            :model-value="selectedTaskControl.target.id || null"
+            :options="resolvedTargetOptions"
+            placeholder="选择任务或策略"
+            test-id="editor-task-control-target"
+            @update:model-value="emit('update-target-id', String($event || ''))"
           />
+          <div class="flex flex-wrap gap-2">
+            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createTargetReference">
+              <AppIcon name="plus" :size="14" />
+              新建{{ selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? '任务' : '策略' }}
+            </button>
+            <button
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              :disabled="!selectedTaskControl.target.id"
+              @click="jumpToTargetReference"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位编辑
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -63,26 +79,59 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { TaskControl } from '@/types/bindings/TaskControl';
+import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
+import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
 import { STATE_STATUS_TYPE, STATE_TARGET_TYPE, TASK_CONTROL_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 
 defineOptions({ name: 'EditorStepTaskControlPanel' });
 
-defineProps<{
+const props = defineProps<{
   selectedTaskControl: TaskControl;
   taskControlTypeOptions: Array<{ label: string; value: string; description: string }>;
   stateTargetTypeOptions: Array<{ label: string; value: string; description: string }>;
   stateStatusTypeOptions: Array<{ label: string; value: string; description: string }>;
+  taskReferenceOptions: EditorReferenceOption[];
+  policyReferenceOptions: EditorReferenceOption[];
+  createReference: (kind: EditorReferenceKind) => Promise<string>;
+  jumpToReference: (kind: EditorReferenceKind, id: string) => void;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update-type': [value: string];
   'update-target-type': [value: string];
   'update-target-id': [value: string];
   'update-status-type': [value: string];
   'update-status-value': [value: boolean];
 }>();
+
+const resolvedTargetOptions = computed(() =>
+  withResolvedReferenceOption(
+    props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? props.taskReferenceOptions : props.policyReferenceOptions,
+    props.selectedTaskControl.target.id,
+    props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? 'task' : 'policy',
+  ),
+);
+
+const createTargetReference = async () => {
+  const kind: EditorReferenceKind = props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? 'task' : 'policy';
+  const id = await props.createReference(kind);
+  emit('update-target-id', id);
+};
+
+const jumpToTargetReference = () => {
+  if (!props.selectedTaskControl.target.id) {
+    return;
+  }
+
+  props.jumpToReference(
+    props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? 'task' : 'policy',
+    props.selectedTaskControl.target.id,
+  );
+};
 </script>
 
 <style scoped>

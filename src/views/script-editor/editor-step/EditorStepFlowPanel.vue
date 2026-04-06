@@ -8,10 +8,32 @@
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.link">
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标任务</span>
-        <input :value="selectedFlow.target || ''" class="app-input" @input="$emit('update-field', 'target', ($event.target as HTMLInputElement).value)" />
-      </label>
+      <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+        <div class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标任务</span>
+          <EditorSelectField
+            :model-value="selectedLinkTarget || null"
+            :options="resolvedTaskReferenceOptions"
+            placeholder="选择跳转任务"
+            @update:model-value="$emit('update-field', 'target', String($event || ''))"
+          />
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createTaskReferenceAndBind">
+            <AppIcon name="plus" :size="14" />
+            新建任务
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!selectedLinkTarget"
+            @click="jumpToLinkedTask"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位编辑
+          </button>
+        </div>
+      </div>
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.continue || selectedFlow.type === FLOW_TYPE.break">
@@ -55,6 +77,14 @@
         <EditorConditionBuilder
           :model-value="flowCondition"
           :variable-options="readableCatalogVariableOptions"
+          :variable-reference-options="variableReferenceOptions"
+          :variable-input-entries="variableInputEntries"
+          :task-reference-options="taskReferenceOptions"
+          :policy-reference-options="policyReferenceOptions"
+          :create-reference="createReference"
+          :jump-to-reference="jumpToReference"
+          :create-variable="createVariable"
+          :jump-to-variable="jumpToVariable"
           test-id-prefix="editor-condition"
           @update:model-value="$emit('update-flow-condition', $event)"
         />
@@ -64,15 +94,28 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { FlowControl } from '@/types/bindings/FlowControl';
 import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder.vue';
+import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
+import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
 import { FLOW_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import type { EditorInputEntry, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepFlowPanel' });
 
-defineProps<{
+const emit = defineEmits<{
+  'update-number-field': [field: string, value: string];
+  'update-field': [field: string, value: string];
+  'update-flow-type': [type: string];
+  'update-flow-condition': [condition: ConditionNode];
+  'toggle-else-branch': [];
+}>();
+
+const props = defineProps<{
   selectedFlow: FlowControl;
   flowWithCondition: { type: string; con: ConditionNode } | null;
   flowCondition: ConditionNode | null;
@@ -80,15 +123,32 @@ defineProps<{
   branchSummary: string;
   flowTypeOptions: Array<{ label: string; value: string; description: string }>;
   readableCatalogVariableOptions: Array<{ label: string; value: string; description: string }>;
+  variableInputEntries?: EditorInputEntry[];
+  variableReferenceOptions: EditorVariableOption[];
+  taskReferenceOptions: EditorReferenceOption[];
+  policyReferenceOptions: EditorReferenceOption[];
+  createReference: (kind: EditorReferenceKind) => Promise<string>;
+  jumpToReference: (kind: EditorReferenceKind, id: string) => void;
+  createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+  jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 
-defineEmits<{
-  'update-number-field': [field: string, value: string];
-  'update-field': [field: string, value: string];
-  'update-flow-type': [type: string];
-  'update-flow-condition': [condition: ConditionNode];
-  'toggle-else-branch': [];
-}>();
+const resolvedTaskReferenceOptions = computed(() =>
+  withResolvedReferenceOption(props.taskReferenceOptions, selectedLinkTarget.value, 'task'),
+);
+const selectedLinkTarget = computed(() => (props.selectedFlow.type === FLOW_TYPE.link ? props.selectedFlow.target : ''));
+
+const createTaskReferenceAndBind = async () => {
+  const id = await props.createReference('task');
+  emit('update-field', 'target', id);
+};
+
+const jumpToLinkedTask = () => {
+  if (!selectedLinkTarget.value) {
+    return;
+  }
+  props.jumpToReference('task', selectedLinkTarget.value);
+};
 </script>
 
 <style scoped>

@@ -75,6 +75,14 @@
                 :branch-summary="flowBranchSummary"
                 :flow-type-options="flowTypeOptions"
                 :readable-catalog-variable-options="readableCatalogVariableOptions"
+                :variable-input-entries="inputEntries"
+                :variable-reference-options="variableOptions"
+                :task-reference-options="taskReferenceOptions"
+                :policy-reference-options="policyReferenceOptions"
+                :create-reference="createReference"
+                :jump-to-reference="jumpToReference"
+                :create-variable="createVariable"
+                :jump-to-variable="jumpToVariable"
                 @update-number-field="updateNumberField"
                 @update-field="updateFlowField"
                 @update-flow-type="updateFlowType"
@@ -86,7 +94,13 @@
                 v-else-if="selectedStep.op === STEP_OP.dataHanding && selectedData"
                 :selected-data="selectedData"
                 :selected-set-var-target="selectedSetVarTarget"
+                :selected-set-var-input-entry="selectedSetVarInputEntry"
                 :selected-get-var-target="selectedGetVarTarget"
+                :selected-get-var-input-entry="selectedGetVarInputEntry"
+                :selected-filter-input-target="selectedFilterInputTarget"
+                :selected-filter-input-entry="selectedFilterInputEntry"
+                :selected-filter-output-target="selectedFilterOutputTarget"
+                :selected-filter-output-input-entry="selectedFilterOutputInputEntry"
                 :selected-set-var-kind="selectedSetVarKind"
                 :set-var-uses-expression="setVarUsesExpression"
                 :set-var-can-switch-mode="setVarCanSwitchMode"
@@ -99,6 +113,8 @@
                 :filter-mode-options="filterModeOptions"
                 :filter-branch-target="filterBranchTarget"
                 :variable-datalist-id="variableDatalistId"
+                :create-variable="createVariable"
+                :jump-to-variable="jumpToVariable"
                 @update-set-var-target="updateSetVarTarget"
                 @update-set-var-mode="updateSetVarMode"
                 @update-set-var-type="updateSetVarType"
@@ -111,6 +127,8 @@
                 @update-get-var-text="updateGetVarText"
                 @update-get-var-bool="updateGetVarBool"
                 @update-filter-mode="updateFilterMode"
+                @create-variable="handleCreateDataVariable"
+                @jump-to-variable="handleJumpToDataVariable"
                 @navigate-branch="$emit('navigate-branch', $event)"
               />
 
@@ -126,6 +144,10 @@
                 :task-control-type-options="taskControlTypeOptions"
                 :state-target-type-options="stateTargetTypeOptions"
                 :state-status-type-options="filteredStateStatusTypeOptions"
+                :task-reference-options="taskReferenceOptions"
+                :policy-reference-options="policyReferenceOptions"
+                :create-reference="createReference"
+                :jump-to-reference="jumpToReference"
                 @update-type="updateTaskControlType"
                 @update-target-type="updateTaskControlTargetType"
                 @update-target-id="updateTaskControlTargetId"
@@ -194,6 +216,7 @@ import type { FlowControl } from '@/types/bindings/FlowControl';
 import type { TaskControl } from '@/types/bindings/TaskControl';
 import type { Step } from '@/types/bindings/Step';
 import type { VisionNode } from '@/types/bindings/VisionNode';
+import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import EditorStepActionPanel from '@/views/script-editor/editor-step/EditorStepActionPanel.vue';
 import EditorStepBreadcrumb from '@/views/script-editor/editor-step/EditorStepBreadcrumb.vue';
 import EditorStepDataPanel from '@/views/script-editor/editor-step/EditorStepDataPanel.vue';
@@ -221,7 +244,14 @@ import {
   parseVarValueDraft,
   type VarValueKind,
 } from '@/views/script-editor/editorVarValue';
-import type { EditorVariableOption } from '@/views/script-editor/editorVariables';
+import {
+  buildVariableCatalogKey,
+  getInputTypeLabel,
+  getVariableDisplayKey,
+  getVariableValueTypeLabel,
+  type EditorInputEntry,
+  type EditorVariableOption,
+} from '@/views/script-editor/editorVariables';
 import {
   buildStepPath,
   getBranchSteps,
@@ -235,13 +265,25 @@ import { cloneJson } from '@/views/script-editor/editorSchema';
 
 type NestedGroupKey = 'sequence' | 'then' | 'else' | 'flow' | 'visionThen' | 'filterThen';
 
-const props = defineProps<{
-  steps: Step[];
-  selectedStepPath: StepPath | null;
-  activeBranchPath: StepBranchPath;
-  variableOptions: EditorVariableOption[];
-  catalogVariableOptions: EditorVariableOption[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    steps: Step[];
+    selectedStepPath: StepPath | null;
+    activeBranchPath: StepBranchPath;
+    inputEntries?: EditorInputEntry[];
+    variableOptions: EditorVariableOption[];
+    catalogVariableOptions: EditorVariableOption[];
+    taskReferenceOptions: EditorReferenceOption[];
+    policyReferenceOptions: EditorReferenceOption[];
+    createReference: (kind: EditorReferenceKind) => Promise<string>;
+    jumpToReference: (kind: EditorReferenceKind, id: string) => void;
+    createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+    jumpToVariable?: (option: EditorVariableOption) => void;
+  }>(),
+  {
+    inputEntries: () => [],
+  },
+);
 
 const emit = defineEmits<{
   'select-step-path': [path: StepPath];
@@ -255,24 +297,72 @@ const variableDatalistId = 'editor-variable-suggestions';
 const variableSuggestions = computed(() =>
   Array.from(new Set(props.variableOptions.map((item) => item.key).filter(Boolean))),
 );
-const readableCatalogVariableOptions = computed(() =>
-  props.catalogVariableOptions
-    .filter((item) => item.readable)
-    .map((item) => ({
-      label: item.label || item.key,
-      value: item.key,
-      description: `${item.namespace} · ${item.valueType}`,
-    })),
-);
-const writableCatalogVariableOptions = computed(() =>
-  props.catalogVariableOptions
-    .filter((item) => item.writable)
-    .map((item) => ({
-      label: item.label || item.key,
-      value: item.key,
-      description: `${item.namespace} · ${item.valueType}`,
-    })),
-);
+type VariableSelectOption = {
+  label: string;
+  value: string;
+  description: string;
+  disabled?: boolean;
+};
+const formatVariableScopeLabel = (namespace: EditorVariableOption['namespace']) => {
+  if (namespace === 'runtime') return 'Runtime';
+  if (namespace === 'system') return 'System';
+  return 'Input';
+};
+const createVariableSelectOption = (item: EditorVariableOption): VariableSelectOption => {
+  const keyLabel = getVariableDisplayKey(item.key, item.namespace);
+  const shouldShowKey = keyLabel && keyLabel !== item.label;
+  const parts = [shouldShowKey ? keyLabel : null, formatVariableScopeLabel(item.namespace), getVariableValueTypeLabel(item.valueType)].filter(Boolean);
+  return {
+    label: item.label || item.key,
+    value: item.key,
+    description: parts.join(' · '),
+  };
+};
+const createDraftVariableSelectOption = (
+  entry: EditorInputEntry,
+  capability: 'read' | 'write',
+): VariableSelectOption | null => {
+  if (capability === 'write' && entry.namespace === 'system') {
+    return null;
+  }
+
+  const trimmedKey = entry.key.trim();
+  const hasKey = Boolean(trimmedKey);
+  const parts = [
+    hasKey && entry.name && entry.name !== trimmedKey ? trimmedKey : !hasKey ? '未设置键' : null,
+    formatVariableScopeLabel(entry.namespace),
+    getInputTypeLabel(entry.type),
+    !hasKey ? '需先填写键' : null,
+  ].filter(Boolean);
+
+  return {
+    label: entry.name || trimmedKey || '未命名变量',
+    value: hasKey ? buildVariableCatalogKey(trimmedKey, entry.namespace) : `__draft__${entry.id}`,
+    description: parts.join(' · '),
+    disabled: !hasKey,
+  };
+};
+const buildVariableSelectOptions = (capability: 'read' | 'write') => {
+  const options = new Map<string, VariableSelectOption>();
+
+  for (const entry of props.inputEntries) {
+    const option = createDraftVariableSelectOption(entry, capability);
+    if (!option) {
+      continue;
+    }
+    options.set(option.value, option);
+  }
+
+  for (const item of props.variableOptions.filter((option) => (capability === 'write' ? option.writable : option.readable))) {
+    if (!options.has(item.key)) {
+      options.set(item.key, createVariableSelectOption(item));
+    }
+  }
+
+  return Array.from(options.values());
+};
+const readableCatalogVariableOptions = computed(() => buildVariableSelectOptions('read'));
+const writableCatalogVariableOptions = computed(() => buildVariableSelectOptions('write'));
 
 const clickModeOptions = [
   { label: '坐标', value: ACTION_MODE.point, description: '绝对坐标点击。' },
@@ -369,10 +459,26 @@ const currentGetVarName = computed(() =>
   selectedData.value?.type === DATA_TYPE.getVar ? selectedData.value.name : '',
 );
 const selectedSetVarTarget = computed(() =>
-  currentSetVarName.value ? props.catalogVariableOptions.find((item) => item.key === currentSetVarName.value) ?? null : null,
+  currentSetVarName.value ? props.variableOptions.find((item) => item.key === currentSetVarName.value) ?? null : null,
 );
 const selectedGetVarTarget = computed(() =>
-  currentGetVarName.value ? props.catalogVariableOptions.find((item) => item.key === currentGetVarName.value) ?? null : null,
+  currentGetVarName.value ? props.variableOptions.find((item) => item.key === currentGetVarName.value) ?? null : null,
+);
+const findInputEntryByVariableKey = (key: string) =>
+  props.inputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === key) ?? null;
+const selectedSetVarInputEntry = computed(() => (selectedSetVarTarget.value ? findInputEntryByVariableKey(selectedSetVarTarget.value.key) : null));
+const selectedGetVarInputEntry = computed(() => (selectedGetVarTarget.value ? findInputEntryByVariableKey(selectedGetVarTarget.value.key) : null));
+const currentFilterInputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.input_var : ''));
+const currentFilterOutputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.out_name : ''));
+const selectedFilterInputTarget = computed(() =>
+  currentFilterInputName.value ? props.variableOptions.find((item) => item.key === currentFilterInputName.value) ?? null : null,
+);
+const selectedFilterOutputTarget = computed(() =>
+  currentFilterOutputName.value ? props.variableOptions.find((item) => item.key === currentFilterOutputName.value) ?? null : null,
+);
+const selectedFilterInputEntry = computed(() => (selectedFilterInputTarget.value ? findInputEntryByVariableKey(selectedFilterInputTarget.value.key) : null));
+const selectedFilterOutputInputEntry = computed(() =>
+  selectedFilterOutputTarget.value ? findInputEntryByVariableKey(selectedFilterOutputTarget.value.key) : null,
 );
 const selectedSetVarKind = computed(() => (selectedSetVarTarget.value ? mapVariableTypeToVarKind(selectedSetVarTarget.value.valueType) : null));
 const setVarUsesExpression = computed(() => {
@@ -602,7 +708,7 @@ const updateDataNullableField = (field: string, value: string) => {
 const getSetVarDraftForKind = (kind: VarValueKind) => (setVarDraft.value.kind === kind ? setVarDraft.value : createDefaultVarValueDraft(kind));
 
 const updateSetVarTarget = (value: string) => {
-  const matched = props.catalogVariableOptions.find((item) => item.key === value) ?? null;
+  const matched = props.variableOptions.find((item) => item.key === value) ?? null;
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
 
@@ -617,6 +723,38 @@ const updateSetVarTarget = (value: string) => {
       expr: matched && !nextKind ? nextExpr : step.a.expr,
     };
   });
+};
+
+const handleCreateDataVariable = async (target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput') => {
+  if (!props.createVariable) {
+    return;
+  }
+
+  const key = await props.createVariable(target === 'filterOutput' ? 'runtime' : 'input');
+  if (!key) {
+    return;
+  }
+
+  if (target === 'setVar') {
+    updateSetVarTarget(key);
+    return;
+  }
+
+  if (target === 'filterInput') {
+    updateDataField('input_var', key);
+    return;
+  }
+
+  if (target === 'filterOutput') {
+    updateDataField('out_name', key);
+    return;
+  }
+
+  updateDataField('name', key);
+};
+
+const handleJumpToDataVariable = (option: EditorVariableOption) => {
+  props.jumpToVariable?.(option);
 };
 
 const updateSetVarMode = (mode: string) => {
@@ -763,12 +901,20 @@ const updateTaskControlType = (value: string) => {
 const updateTaskControlTargetType = (value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.taskControl) return;
+    const nextTargetType = value as typeof STATE_TARGET_TYPE.task | typeof STATE_TARGET_TYPE.policy;
     step.a = {
       ...step.a,
       target: {
         ...step.a.target,
-        type: value as typeof STATE_TARGET_TYPE.task | typeof STATE_TARGET_TYPE.policy,
+        type: nextTargetType,
       },
+      status:
+        nextTargetType === STATE_TARGET_TYPE.policy && step.a.status.type === STATE_STATUS_TYPE.enabled
+          ? {
+              ...step.a.status,
+              type: STATE_STATUS_TYPE.done,
+            }
+          : step.a.status,
     };
   });
 };
