@@ -4,7 +4,10 @@
       <div class="flex items-start justify-between gap-3">
         <div>
           <p class="text-sm font-semibold text-[var(--app-text-strong)]">变量详情</p>
-          <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ selectedInputEntry.key || '未设置键' }}</p>
+          <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ selectedInputEntry.name || '未命名变量' }}</p>
+          <p v-if="selectedInputEntry.key && selectedInputEntry.key !== selectedInputEntry.name" class="mt-1 text-[11px] text-[var(--app-text-faint)]">
+            键：{{ selectedInputEntry.key }}
+          </p>
         </div>
         <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove-input', selectedInputEntry.id)">
           删除变量

@@ -1,10 +1,51 @@
 <template>
   <div class="space-y-3">
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
-        <input :value="selectedAction.output_var || ''" :list="variableDatalistId" class="app-input" @input="$emit('update-field', 'output_var', ($event.target as HTMLInputElement).value)" />
-      </label>
+      <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出名称</span>
+          <EditorSelectField
+            :model-value="selectedAction.output_var || null"
+            :options="resolvedCaptureOutputOptions"
+            :show-description="true"
+            placeholder="选择或创建输出变量"
+            test-id="editor-capture-output-var"
+            @update:model-value="$emit('update-field', 'output_var', String($event || ''))"
+          />
+        </label>
+        <div v-if="createVariable || (selectedCaptureOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+          <button
+            v-if="createVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            data-testid="editor-capture-output-create"
+            @click="$emit('create-variable', 'captureOutput')"
+          >
+            <AppIcon name="plus" :size="14" />
+            新建 Runtime 变量
+          </button>
+          <button
+            v-if="selectedCaptureOutputTarget && jumpToVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            data-testid="editor-capture-output-locate"
+            @click="$emit('jump-to-variable', selectedCaptureOutputTarget)"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+        <EditorVariableMetaCard
+          v-if="selectedCaptureOutputTarget"
+          :variable="selectedCaptureOutputTarget"
+          :input-entry="selectedCaptureOutputInputEntry"
+          editable
+          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
+        />
+        <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+          当前运行时的截图输出仍是字符串载荷，默认按 base64 图片内容处理。
+        </p>
+      </div>
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.launchApp || selectedAction.ac === ACTION_TYPE.stopApp">
@@ -147,26 +188,62 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import type { Action } from '@/types/bindings/Action';
 import { ACTION_MODE, ACTION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepActionPanel' });
 
-defineProps<{
+const props = defineProps<{
   selectedAction: Action;
   variableDatalistId: string;
+  writableCatalogVariableOptions?: Array<{ label: string; value: string; description: string; disabled?: boolean }>;
+  selectedCaptureOutputTarget?: EditorVariableOption | null;
+  selectedCaptureOutputInputEntry?: EditorInputEntry | null;
   clickModeOptions: Array<{ label: string; value: string; description: string }>;
   swipeModeOptions: Array<{ label: string; value: string; description: string }>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
+  jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update-field': [field: string, value: string];
   'update-mode': [mode: string];
   'update-point-field': [field: 'p' | 'from' | 'to', axis: 'x' | 'y', value: string];
   'update-number-field': [field: string, value: string];
   'update-text-field': [field: string, value: string];
+  'create-variable': [target: 'captureOutput'];
+  'jump-to-variable': [option: EditorVariableOption];
+  'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
+
+type SelectOption = { label: string; value: string; description: string; disabled?: boolean };
+
+const withCurrentVariableOption = (options: SelectOption[], value: string) => {
+  const trimmedValue = value.trim();
+  if (!trimmedValue || options.some((option) => option.value === trimmedValue)) {
+    return options;
+  }
+
+  return [
+    {
+      label: trimmedValue,
+      value: trimmedValue,
+      description: '未解析变量',
+    },
+    ...options,
+  ];
+};
+
+const resolvedCaptureOutputOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.capture
+    ? withCurrentVariableOption(props.writableCatalogVariableOptions ?? [], props.selectedAction.output_var ?? '')
+    : props.writableCatalogVariableOptions ?? [],
+);
 </script>
 
 <style scoped>

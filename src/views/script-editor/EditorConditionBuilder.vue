@@ -74,6 +74,9 @@
             :policy-reference-options="policyReferenceOptions"
             :create-reference="createReference"
             :jump-to-reference="jumpToReference"
+            :create-variable="createVariable"
+            :jump-to-variable="jumpToVariable"
+            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
             @update:model-value="updateGroupItem(index, $event)"
             @remove="removeGroupItem(index)"
           />
@@ -199,7 +202,7 @@
 
       <template v-else-if="modelValue.type === 'varCompare'">
         <div class="editor-inline-grid">
-          <div class="editor-inline-label">变量名</div>
+          <div class="editor-inline-label">变量名称</div>
           <div class="editor-inline-content md:col-span-3">
             <EditorSelectField
               :model-value="modelValue.var_name || null"
@@ -252,6 +255,8 @@
           v-if="selectedVarCompareOption"
           :variable="selectedVarCompareOption"
           :input-entry="selectedVarCompareInputEntry"
+          editable
+          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
         />
 
         <label v-if="currentVarValueDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
@@ -329,7 +334,7 @@ import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
-import { buildVariableCatalogKey, type EditorInputEntry, type EditorVariableOption } from '@/views/script-editor/editorVariables';
+import { buildVariableCatalogKey, type EditorInputEntry, type EditorInputType, type EditorVariableOption } from '@/views/script-editor/editorVariables';
 import {
   buildVarValue,
   compareOpOptions,
@@ -364,7 +369,7 @@ const props = withDefaults(
     policyReferenceOptions?: EditorReferenceOption[];
     createReference?: (kind: EditorReferenceKind) => Promise<string>;
     jumpToReference?: (kind: EditorReferenceKind, id: string) => void;
-    createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+    createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
     jumpToVariable?: (option: EditorVariableOption) => void;
   }>(),
   {
@@ -386,6 +391,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: ConditionNode];
   remove: [];
+  'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
 
 const addableConditionTypes = computed(() => conditionTypeOptions.filter((option) => option.value !== 'group' || props.depth < 2));
@@ -617,7 +623,7 @@ const updateVarCompareField = (field: 'var_name' | 'op', value: string) => {
 
 const createVarCompareVariable = async () => {
   if (props.modelValue.type !== 'varCompare' || !props.createVariable) return;
-  const key = await props.createVariable();
+  const key = await props.createVariable('input', 'int');
   if (key) {
     updateVarCompareField('var_name', key);
   }

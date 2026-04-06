@@ -1,4 +1,10 @@
-import { buildInputJson, type EditorInputEntry, type EditorVariableOption } from '@/views/script-editor/editorVariables';
+import {
+  buildInputJson,
+  getVariableDisplayKey,
+  getVariableValueTypeLabel,
+  type EditorInputEntry,
+  type EditorVariableOption,
+} from '@/views/script-editor/editorVariables';
 import type { EditorUiField } from '@/views/script-editor/editorSchema';
 
 export const buildUiBindOptions = (variableOptions: EditorVariableOption[]) => [
@@ -8,7 +14,7 @@ export const buildUiBindOptions = (variableOptions: EditorVariableOption[]) => [
     .map((entry) => ({
       label: entry.label || entry.key || '未命名输入',
       value: entry.id,
-      description: `${entry.key} · ${entry.namespace} · ${entry.valueType}`,
+      description: `${getVariableDisplayKey(entry.key, entry.namespace)} · ${entry.namespace === 'input' ? 'Input' : entry.namespace === 'runtime' ? 'Runtime' : 'System'} · ${getVariableValueTypeLabel(entry.valueType)}`,
     })),
 ];
 

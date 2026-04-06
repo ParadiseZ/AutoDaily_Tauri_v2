@@ -434,6 +434,7 @@ import {
   listVariableOptions,
   parseInputEntries,
   syncInputVariableCatalog,
+  type EditorInputType,
   type EditorInputEntry,
   type EditorVariableOption,
 } from '@/views/script-editor/editorVariables';
@@ -1135,6 +1136,155 @@ const buildVariableReferenceKey = (namespace: EditorInputEntry['namespace'], key
   return `${namespace}.${trimmed}`;
 };
 
+const collectStepTreeIds = (step: Step, bucket = new Set<string>()) => {
+  if (step.id) {
+    bucket.add(step.id);
+  }
+
+  if (step.op === 'sequence') {
+    step.steps.forEach((child) => collectStepTreeIds(child, bucket));
+    return bucket;
+  }
+
+  if (step.op === 'dataHanding' && step.a.type === 'filter') {
+    step.a.then_steps.forEach((child) => collectStepTreeIds(child, bucket));
+    return bucket;
+  }
+
+  if (step.op === 'vision' && step.a.type === 'visionSearch') {
+    step.a.then_steps.forEach((child) => collectStepTreeIds(child, bucket));
+    return bucket;
+  }
+
+  if (step.op === 'flowControl') {
+    if (step.a.type === 'if') {
+      step.a.then.forEach((child) => collectStepTreeIds(child, bucket));
+      (step.a.else_steps ?? []).forEach((child) => collectStepTreeIds(child, bucket));
+      return bucket;
+    }
+
+    if (step.a.type === 'while' || step.a.type === 'for') {
+      step.a.flow.forEach((child) => collectStepTreeIds(child, bucket));
+    }
+  }
+
+  return bucket;
+};
+
+const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<string>()) => {
+  for (const step of steps) {
+    if (step.op === 'sequence') {
+      collectVariableReferencesFromSteps(step.steps, bucket);
+      continue;
+    }
+
+    if (step.op === 'action' && step.a.ac === 'capture' && step.a.output_var?.trim()) {
+      bucket.add(step.a.output_var.trim());
+      continue;
+    }
+
+    if (step.op === 'dataHanding') {
+      if ((step.a.type === 'setVar' || step.a.type === 'getVar') && step.a.name?.trim()) {
+        bucket.add(step.a.name.trim());
+        continue;
+      }
+
+      if (step.a.type === 'filter') {
+        if (step.a.input_var?.trim()) {
+          bucket.add(step.a.input_var.trim());
+        }
+        if (step.a.out_name?.trim()) {
+          bucket.add(step.a.out_name.trim());
+        }
+        collectVariableReferencesFromSteps(step.a.then_steps, bucket);
+        continue;
+      }
+    }
+
+    if (step.op === 'vision' && step.a.type === 'visionSearch') {
+      if (step.a.out_var?.trim()) {
+        bucket.add(step.a.out_var.trim());
+      }
+      collectVariableReferencesFromSteps(step.a.then_steps, bucket);
+      continue;
+    }
+
+    if (step.op === 'flowControl') {
+      if ((step.a.type === 'if' || step.a.type === 'while' || step.a.type === 'for') && step.a.con.type === 'varCompare' && step.a.con.var_name?.trim()) {
+        bucket.add(step.a.con.var_name.trim());
+      }
+
+      if (step.a.type === 'if') {
+        collectVariableReferencesFromSteps(step.a.then, bucket);
+        collectVariableReferencesFromSteps(step.a.else_steps ?? [], bucket);
+        continue;
+      }
+
+      if (step.a.type === 'while' || step.a.type === 'for') {
+        collectVariableReferencesFromSteps(step.a.flow, bucket);
+      }
+    }
+  }
+
+  return bucket;
+};
+
+type VariableCreateOptions = {
+  preferredKey?: string;
+  name?: string;
+  select?: boolean;
+  silent?: boolean;
+  sourceStepId?: string | null;
+};
+
+const createEditorStepId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `step-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const createUniqueVariableStorageKey = (namespace: EditorInputEntry['namespace'], preferredKey?: string) => {
+  const existingKeys = new Set(inputEntries.value.map((entry) => entry.key.trim()).filter(Boolean));
+  const trimmedPreferred = preferredKey?.trim().replace(/^(input|runtime|system)\./, '') ?? '';
+  const defaultPrefix = namespace === 'runtime' ? 'runtimeVar' : 'newVar';
+  const baseSeed = trimmedPreferred || `${defaultPrefix}${inputEntries.value.length + 1}`;
+
+  if (!existingKeys.has(baseSeed)) {
+    return baseSeed;
+  }
+
+  const matched = baseSeed.match(/^(.*?)(\d+)$/);
+  const prefix = matched?.[1] || `${baseSeed}_`;
+  let seed = matched ? Number(matched[2]) : 1;
+  let nextKey = baseSeed;
+  while (existingKeys.has(nextKey)) {
+    seed += 1;
+    nextKey = `${prefix}${seed}`;
+  }
+  return nextKey;
+};
+
+const createVariableEntry = (
+  namespace: EditorInputEntry['namespace'],
+  inputType: EditorInputType,
+  options: VariableCreateOptions = {},
+) => {
+  const nextKey = createUniqueVariableStorageKey(namespace, options.preferredKey);
+  const nextEntry: EditorInputEntry = {
+    ...createInputEntry(inputType),
+    key: nextKey,
+    name: options.name?.trim() || nextKey,
+    namespace,
+    type: inputType,
+    sourceStepId: options.sourceStepId ?? null,
+  };
+  inputEntries.value = [...inputEntries.value, nextEntry];
+  if (options.select !== false) {
+    selectedInputId.value = nextEntry.id;
+  }
+  if (!options.silent) {
+    showToast(`已创建变量：${namespace}.${nextKey}`, 'success');
+  }
+  return `${namespace}.${nextKey}`;
+};
+
 const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nextKey: string): Step[] =>
   steps.map((step) => {
     const nextStep = cloneJson(step);
@@ -1155,6 +1305,9 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
       if (nextStep.a.type === 'filter') {
         if (nextStep.a.input_var === previousKey) {
           nextStep.a.input_var = nextKey;
+        }
+        if (nextStep.a.out_name === previousKey) {
+          nextStep.a.out_name = nextKey;
         }
         nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
         return nextStep;
@@ -1186,7 +1339,17 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
       return nextStep;
     }
 
+    if (nextStep.op === 'action' && nextStep.a.ac === 'capture') {
+      if (nextStep.a.output_var === previousKey) {
+        nextStep.a.output_var = nextKey;
+      }
+      return nextStep;
+    }
+
     if (nextStep.op === 'vision' && nextStep.a.type === 'visionSearch') {
+      if (nextStep.a.out_var === previousKey) {
+        nextStep.a.out_var = nextKey;
+      }
       nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
     }
 
@@ -1238,33 +1401,17 @@ const syncVariableReferenceRename = (previousKey: string, nextKey: string) => {
   );
 };
 
-const createVariableResource = async (namespace: 'input' | 'runtime' = 'input') => {
+const createVariableResource = async (
+  namespace: 'input' | 'runtime' = 'input',
+  inputType: EditorInputType = namespace === 'runtime' ? 'json' : 'int',
+  options: VariableCreateOptions = {},
+) => {
   if (!currentTask.value) {
-    showToast('当前没有选中任务，无法创建输入变量。', 'warning');
+    showToast('当前没有选中任务，无法创建变量。', 'warning');
     return '';
   }
 
-  const existingKeys = new Set(inputEntries.value.map((entry) => entry.key.trim()).filter(Boolean));
-  let seed = inputEntries.value.length + 1;
-  let nextKey = `${namespace === 'runtime' ? 'runtimeVar' : 'newVar'}${seed}`;
-  while (existingKeys.has(nextKey)) {
-    seed += 1;
-    nextKey = `${namespace === 'runtime' ? 'runtimeVar' : 'newVar'}${seed}`;
-  }
-
-  const nextEntry: EditorInputEntry = {
-    ...createInputEntry('string'),
-    key: nextKey,
-    name: nextKey,
-    namespace,
-    type: 'string',
-    stringValue: '',
-  };
-
-  inputEntries.value = [...inputEntries.value, nextEntry];
-  selectedInputId.value = nextEntry.id;
-  showToast(`已创建变量：${namespace}.${nextKey}`, 'success');
-  return `${namespace}.${nextKey}`;
+  return createVariableEntry(namespace, inputType, options);
 };
 
 const jumpToVariableResource = (option: EditorVariableOption) => {
@@ -1596,8 +1743,79 @@ const removeUiField = (fieldId: string) => {
   }
 };
 
-const appendTemplateStep = (templateId: string) => {
-  const step = createStepFromTemplate(templateId);
+const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
+  const nextStep = cloneJson(step);
+  if (!currentTask.value) {
+    return nextStep;
+  }
+  if (!nextStep.id) {
+    nextStep.id = createEditorStepId();
+  }
+
+  if (templateId === 'capture' && nextStep.op === 'action' && nextStep.a.ac === 'capture') {
+    nextStep.a.output_var = await createVariableResource('runtime', 'string', {
+      preferredKey: 'captureResult',
+      name: '截图结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'set-var' && nextStep.op === 'dataHanding' && nextStep.a.type === 'setVar') {
+    nextStep.a.name = await createVariableResource('input', 'int', {
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'get-var' && nextStep.op === 'dataHanding' && nextStep.a.type === 'getVar') {
+    nextStep.a.name = await createVariableResource('input', 'int', {
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'filter-var' && nextStep.op === 'dataHanding' && nextStep.a.type === 'filter') {
+    nextStep.a.input_var = await createVariableResource('input', 'json', {
+      preferredKey: 'items',
+      name: '输入列表',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_name = await createVariableResource('runtime', 'json', {
+      preferredKey: 'filteredItems',
+      name: '过滤结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'vision-search' && nextStep.op === 'vision' && nextStep.a.type === 'visionSearch') {
+    nextStep.a.out_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'visionHit',
+      name: '视觉命中',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  return nextStep;
+};
+
+const appendTemplateStep = async (templateId: string) => {
+  const templateStep = createStepFromTemplate(templateId);
+  const step = templateStep ? await bindTemplateVariableDefaults(templateId, templateStep) : null;
   if (!step) {
     return;
   }
@@ -1623,7 +1841,33 @@ const reorderSteps = (fromIndex: number, toIndex: number) => {
 };
 
 const removeStep = (index: number) => {
+  const removedStep = getBranchSteps(parsedSteps.value, activeBranchPath.value)[index] ?? null;
   const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => steps.filter((_, stepIndex) => stepIndex !== index));
+  if (removedStep) {
+    const removedSourceStepIds = collectStepTreeIds(removedStep);
+    if (removedSourceStepIds.size) {
+      const remainingReferences = collectVariableReferencesFromSteps(nextSteps);
+      for (const field of uiSchema.value.fields) {
+        if (field.inputKey?.trim()) {
+          remainingReferences.add(buildVariableReferenceKey('input', field.inputKey));
+        }
+      }
+
+      const removableEntryIds = new Set(
+        inputEntries.value
+          .filter((entry) => entry.sourceStepId && removedSourceStepIds.has(entry.sourceStepId))
+          .filter((entry) => !remainingReferences.has(buildVariableReferenceKey(entry.namespace, entry.key)))
+          .map((entry) => entry.id),
+      );
+
+      if (removableEntryIds.size) {
+        inputEntries.value = inputEntries.value.filter((entry) => !removableEntryIds.has(entry.id));
+        if (selectedInputId.value && removableEntryIds.has(selectedInputId.value)) {
+          selectedInputId.value = inputEntries.value[0]?.id ?? null;
+        }
+      }
+    }
+  }
   setCurrentTaskSteps(nextSteps);
   selectedStepPath.value = createSiblingSelection(activeBranchPath.value, getBranchSteps(nextSteps, activeBranchPath.value).length, index);
 };

@@ -179,17 +179,31 @@ test('edits script tasks with visual task editor and persists payload', async ({
   expect(task.defaultEnabled).toBe(false);
   expect(task.isHidden).toBe(true);
   expect(task.data.variables).toEqual({ activitySweepCount: 8 });
-  expect(savedScript?.data.variableCatalog.variables).toHaveLength(1);
-  expect(savedScript?.data.variableCatalog.variables[0]).toMatchObject({
-    key: 'input.activitySweepCount',
-    name: 'activitySweepCount',
-    namespace: 'input',
-    valueType: 'int',
-    ownerTaskId: task.id,
-    persisted: true,
-    uiBindable: true,
-    defaultValue: 8,
-  });
+  expect(savedScript?.data.variableCatalog.variables).toHaveLength(2);
+  expect(savedScript?.data.variableCatalog.variables).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: 'input.activitySweepCount',
+        name: 'activitySweepCount',
+        namespace: 'input',
+        valueType: 'int',
+        ownerTaskId: task.id,
+        persisted: true,
+        uiBindable: true,
+        defaultValue: 8,
+      }),
+      expect.objectContaining({
+        key: 'runtime.captureResult',
+        name: '截图结果',
+        namespace: 'runtime',
+        valueType: 'string',
+        ownerTaskId: task.id,
+        persisted: false,
+        uiBindable: false,
+        defaultValue: null,
+      }),
+    ]),
+  );
   expect(task.data.uiData).toEqual({
     layout: 'horizontal',
     fields: [
@@ -586,7 +600,6 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-vision-search').click();
   await page.getByTestId('editor-step-card-1').click();
-  await page.getByLabel('输出变量').fill('runtime.hit');
   await page.getByRole('button', { name: '添加关键字' }).click();
   await page.getByTestId('editor-search-rule-item-0-keyword').fill('领取');
 
@@ -626,7 +639,7 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
     op: 'vision',
     a: {
       type: 'visionSearch',
-      out_var: 'runtime.hit',
+      out_var: 'runtime.visionHit',
       rule: {
         type: 'group',
         op: 'And',
@@ -695,7 +708,7 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
   });
 });
 
-test('creates variable from setVar editor and persists catalog binding', async ({ page }) => {
+test('creates variable from setVar template and persists catalog binding', async ({ page }) => {
   const scriptId = 'script-editor-setvar-create';
   const script: StoredScriptTable = {
     id: scriptId,
@@ -731,9 +744,7 @@ test('creates variable from setVar editor and persists catalog binding', async (
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-0').click();
-  await page.getByTestId('editor-set-var-create').click();
-  await expect(page.getByTestId('editor-set-var-name')).toContainText('newVar1');
-  await page.getByTestId('editor-set-var-value').fill('hello');
+  await page.getByTestId('editor-set-var-value').fill('7');
 
   await page.getByTestId('editor-save').click();
 
@@ -746,14 +757,14 @@ test('creates variable from setVar editor and persists catalog binding', async (
     key: 'input.newVar1',
     name: 'newVar1',
     namespace: 'input',
-    valueType: 'string',
+    valueType: 'int',
   });
   expect(task.data.steps[0]).toMatchObject({
     op: 'dataHanding',
     a: {
       type: 'setVar',
       name: 'input.newVar1',
-      val: 'hello',
+      val: 7,
       expr: null,
     },
   });
@@ -795,7 +806,6 @@ test('renames input variable and syncs setVar reference', async ({ page }) => {
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-0').click();
-  await page.getByTestId('editor-set-var-create').click();
   await page.getByTestId('editor-set-var-locate').click();
   await page.getByTestId('editor-input-key-0').fill('renamedVar');
   await page.getByTestId('editor-tab-steps').click();
@@ -857,7 +867,7 @@ test('shows variable key in setVar selector when variable name differs', async (
   await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-0').click();
   await expect(page.locator('[data-testid^="editor-set-var-name-option-"]').filter({ hasText: 'sweepLimit' })).toBeVisible();
-  await expect(page.locator('[data-testid^="editor-set-var-name-option-"]').filter({ hasText: 'Input · 整数' })).toBeVisible();
+  await expect(page.locator('[data-testid^="editor-set-var-name-option-"]').filter({ hasText: 'Input · 整数' }).first()).toBeVisible();
 });
 
 test('shows incomplete draft input in setVar selector as disabled option', async ({ page }) => {
@@ -904,18 +914,18 @@ test('shows incomplete draft input in setVar selector as disabled option', async
   await page.getByTestId('editor-step-card-0').click();
 
   const variableOptions = page.locator('[data-testid^="editor-set-var-name-option-"]');
-  await expect(variableOptions).toHaveCount(2);
+  await expect(variableOptions).toHaveCount(3);
   await expect(variableOptions.filter({ hasText: '未设置键' })).toBeVisible();
   await expect(variableOptions.filter({ hasText: '需先填写键' })).toBeVisible();
 });
 
-test('selects filter variables and creates runtime output from filter editor', async ({ page }) => {
+test('registers filter template variables and persists bindings', async ({ page }) => {
   const scriptId = 'script-editor-filter-selectors';
   const script: StoredScriptTable = {
     id: scriptId,
     data: {
-      name: '过滤变量选择脚本',
-      description: '验证 filter 输入选择和 runtime 输出创建',
+      name: '过滤变量模板脚本',
+      description: '验证 filter 模板会自动登记输入和输出变量',
       userId: 'tester',
       userName: 'Tester',
       runtimeType: 'rhai',
@@ -942,17 +952,9 @@ test('selects filter variables and creates runtime output from filter editor', a
 
   await seedEditorState(page, script);
 
-  await page.getByTestId('editor-tab-inputs').click();
-  await page.getByTestId('editor-input-add').click();
-  await page.getByTestId('editor-input-key-0').fill('items');
-  await selectOptionByValue(page, 'editor-input-type-0', 'json');
-
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-filter-var').click();
   await page.getByTestId('editor-step-card-0').click();
-  await selectOptionByValue(page, 'editor-filter-input-var', 'input.items');
-  await page.getByTestId('editor-filter-output-create').click();
-  await expect(page.getByTestId('editor-filter-output-var')).toContainText('runtimeVar2');
 
   await page.getByTestId('editor-save').click();
 
@@ -965,15 +967,194 @@ test('selects filter variables and creates runtime output from filter editor', a
     a: {
       type: 'filter',
       input_var: 'input.items',
-      out_name: 'runtime.runtimeVar2',
+      out_name: 'runtime.filteredItems',
     },
   });
   expect(savedScript?.data.variableCatalog.variables).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
-        key: 'runtime.runtimeVar2',
+        key: 'input.items',
+        namespace: 'input',
+        valueType: 'json',
+      }),
+      expect.objectContaining({
+        key: 'runtime.filteredItems',
+        namespace: 'runtime',
+        valueType: 'json',
+      }),
+    ]),
+  );
+});
+
+test('registers capture template variable and supports inline editing from step workspace', async ({ page }) => {
+  const scriptId = 'script-editor-capture-inline-variable';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '截图变量脚本',
+      description: '验证 capture 模板自动登记变量并可在步骤区直接编辑',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.capture.inline-variable',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-capture').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByPlaceholder('例如：扫荡次数').fill('截图载荷');
+  await page.getByPlaceholder('例如：activitySweepCount').fill('capturePayload');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const savedScript = state!.scripts.find((item) => item.id === scriptId);
+  const [task] = state!.scriptTasks[scriptId];
+
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'capture',
+      output_var: 'runtime.capturePayload',
+    },
+  });
+  expect(savedScript?.data.variableCatalog.variables).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: 'runtime.capturePayload',
+        name: '截图载荷',
         namespace: 'runtime',
         valueType: 'string',
+      }),
+    ]),
+  );
+});
+
+test('removes auto-created variables when deleting the source step', async ({ page }) => {
+  const scriptId = 'script-editor-remove-step-variable';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '删除步骤变量脚本',
+      description: '验证删除自动创建变量来源步骤时会回收变量',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.remove-step-variable',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-capture').click();
+  await expect(page.getByTestId('editor-step-card-0')).toBeVisible();
+  await page.getByTestId('editor-step-card-0').getByRole('button', { name: '删除' }).click();
+  await expect(page.getByTestId('editor-step-card-0')).toHaveCount(0);
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const savedScript = state!.scripts.find((item) => item.id === scriptId);
+  const [task] = state!.scriptTasks[scriptId];
+
+  expect(task.data.steps).toEqual([]);
+  expect(savedScript?.data.variableCatalog.variables).toEqual([]);
+});
+
+test('registers runtime output from vision template', async ({ page }) => {
+  const scriptId = 'script-editor-vision-runtime-output';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '视觉输出变量脚本',
+      description: '验证 vision 模板自动登记 runtime 输出变量',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.vision.runtime-output',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-vision-search').click();
+  await page.getByTestId('editor-step-card-0').click();
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const savedScript = state!.scripts.find((item) => item.id === scriptId);
+  const [task] = state!.scriptTasks[scriptId];
+
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'vision',
+    a: {
+      type: 'visionSearch',
+      out_var: 'runtime.visionHit',
+    },
+  });
+  expect(savedScript?.data.variableCatalog.variables).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: 'runtime.visionHit',
+        namespace: 'runtime',
+        valueType: 'json',
       }),
     ]),
   );

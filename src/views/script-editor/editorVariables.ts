@@ -17,6 +17,7 @@ export interface EditorInputEntry {
   type: EditorInputType;
   stringValue: string;
   booleanValue: boolean;
+  sourceStepId: string | null;
 }
 
 export interface EditorVariableOption {
@@ -192,7 +193,7 @@ const buildVariableDef = (entry: EditorInputEntry, ownerTaskId: string): ScriptV
     valueType: mapInputTypeToValueType(entry.type),
     ownerTaskId,
     sourceType: 'manual' satisfies ScriptVariableSourceType,
-    sourceStepId: null,
+    sourceStepId: entry.sourceStepId,
     readable: rules.readable,
     writable: rules.writable,
     persisted: rules.persisted,
@@ -293,6 +294,7 @@ export const createInputEntry = (type: EditorInputType = 'int'): EditorInputEntr
   type,
   stringValue: type === 'string' ? '' : type === 'json' ? '{}' : '0',
   booleanValue: false,
+  sourceStepId: null,
 });
 
 export const parseInputEntries = (
@@ -320,6 +322,7 @@ export const parseInputEntries = (
       type,
       stringValue: stringifyInputValue(actualValue, type),
       booleanValue: typeof actualValue === 'boolean' ? actualValue : false,
+      sourceStepId: def.sourceStepId,
     });
   }
 
@@ -338,6 +341,7 @@ export const parseInputEntries = (
       type,
       stringValue: stringifyInputValue(item, type),
       booleanValue: typeof item === 'boolean' ? item : false,
+      sourceStepId: null,
     });
   }
 

@@ -57,13 +57,21 @@
                 v-if="selectedStep.op === STEP_OP.action && selectedAction"
                 :selected-action="selectedAction"
                 :variable-datalist-id="variableDatalistId"
+                :writable-catalog-variable-options="writableCatalogVariableOptions"
+                :selected-capture-output-target="selectedCaptureOutputTarget"
+                :selected-capture-output-input-entry="selectedCaptureOutputInputEntry"
                 :click-mode-options="clickModeOptions"
                 :swipe-mode-options="swipeModeOptions"
+                :create-variable="createVariable"
+                :jump-to-variable="jumpToVariable"
+                @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-field="updateActionField"
                 @update-mode="updateActionMode"
                 @update-point-field="updateActionPointField"
                 @update-number-field="updateActionNumberField"
                 @update-text-field="updateActionTextField"
+                @create-variable="handleCreateActionVariable"
+                @jump-to-variable="handleJumpToDataVariable"
               />
 
               <EditorStepFlowPanel
@@ -83,6 +91,7 @@
                 :jump-to-reference="jumpToReference"
                 :create-variable="createVariable"
                 :jump-to-variable="jumpToVariable"
+                @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-number-field="updateNumberField"
                 @update-field="updateFlowField"
                 @update-flow-type="updateFlowType"
@@ -115,6 +124,7 @@
                 :variable-datalist-id="variableDatalistId"
                 :create-variable="createVariable"
                 :jump-to-variable="jumpToVariable"
+                @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-set-var-target="updateSetVarTarget"
                 @update-set-var-mode="updateSetVarMode"
                 @update-set-var-type="updateSetVarType"
@@ -159,9 +169,17 @@
                 v-else-if="selectedStep.op === STEP_OP.vision && selectedVision?.type === VISION_TYPE.visionSearch"
                 :selected-vision="selectedVision"
                 :variable-datalist-id="variableDatalistId"
+                :writable-catalog-variable-options="writableCatalogVariableOptions"
+                :selected-vision-output-target="selectedVisionOutputTarget"
+                :selected-vision-output-input-entry="selectedVisionOutputInputEntry"
                 :vision-branch-target="visionBranchTarget"
+                :create-variable="createVariable"
+                :jump-to-variable="jumpToVariable"
+                @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-field="updateVisionField"
                 @update-rule="updateVisionRule"
+                @create-variable="handleCreateVisionVariable"
+                @jump-to-variable="handleJumpToDataVariable"
                 @navigate-branch="$emit('navigate-branch', $event)"
               />
 
@@ -250,6 +268,7 @@ import {
   getVariableDisplayKey,
   getVariableValueTypeLabel,
   type EditorInputEntry,
+  type EditorInputType,
   type EditorVariableOption,
 } from '@/views/script-editor/editorVariables';
 import {
@@ -277,8 +296,17 @@ const props = withDefaults(
     policyReferenceOptions: EditorReferenceOption[];
     createReference: (kind: EditorReferenceKind) => Promise<string>;
     jumpToReference: (kind: EditorReferenceKind, id: string) => void;
-    createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+    createVariable?: (
+      namespace?: 'input' | 'runtime',
+      inputType?: EditorInputType,
+      options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean },
+    ) => Promise<string>;
     jumpToVariable?: (option: EditorVariableOption) => void;
+    updateInput?: (
+      entryId: string,
+      field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue',
+      value: string | boolean,
+    ) => void;
   }>(),
   {
     inputEntries: () => [],
@@ -468,6 +496,15 @@ const findInputEntryByVariableKey = (key: string) =>
   props.inputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === key) ?? null;
 const selectedSetVarInputEntry = computed(() => (selectedSetVarTarget.value ? findInputEntryByVariableKey(selectedSetVarTarget.value.key) : null));
 const selectedGetVarInputEntry = computed(() => (selectedGetVarTarget.value ? findInputEntryByVariableKey(selectedGetVarTarget.value.key) : null));
+const currentCaptureOutputName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.capture ? selectedAction.value.output_var ?? '' : '',
+);
+const selectedCaptureOutputTarget = computed(() =>
+  currentCaptureOutputName.value ? props.variableOptions.find((item) => item.key === currentCaptureOutputName.value) ?? null : null,
+);
+const selectedCaptureOutputInputEntry = computed(() =>
+  selectedCaptureOutputTarget.value ? findInputEntryByVariableKey(selectedCaptureOutputTarget.value.key) : null,
+);
 const currentFilterInputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.input_var : ''));
 const currentFilterOutputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.out_name : ''));
 const selectedFilterInputTarget = computed(() =>
@@ -479,6 +516,15 @@ const selectedFilterOutputTarget = computed(() =>
 const selectedFilterInputEntry = computed(() => (selectedFilterInputTarget.value ? findInputEntryByVariableKey(selectedFilterInputTarget.value.key) : null));
 const selectedFilterOutputInputEntry = computed(() =>
   selectedFilterOutputTarget.value ? findInputEntryByVariableKey(selectedFilterOutputTarget.value.key) : null,
+);
+const currentVisionOutputName = computed(() =>
+  selectedVision.value?.type === VISION_TYPE.visionSearch ? selectedVision.value.out_var ?? '' : '',
+);
+const selectedVisionOutputTarget = computed(() =>
+  currentVisionOutputName.value ? props.variableOptions.find((item) => item.key === currentVisionOutputName.value) ?? null : null,
+);
+const selectedVisionOutputInputEntry = computed(() =>
+  selectedVisionOutputTarget.value ? findInputEntryByVariableKey(selectedVisionOutputTarget.value.key) : null,
 );
 const selectedSetVarKind = computed(() => (selectedSetVarTarget.value ? mapVariableTypeToVarKind(selectedSetVarTarget.value.valueType) : null));
 const setVarUsesExpression = computed(() => {
@@ -730,7 +776,12 @@ const handleCreateDataVariable = async (target: 'setVar' | 'getVar' | 'filterInp
     return;
   }
 
-  const key = await props.createVariable(target === 'filterOutput' ? 'runtime' : 'input');
+  const key =
+    target === 'filterOutput'
+      ? await props.createVariable('runtime', 'json')
+      : target === 'filterInput'
+        ? await props.createVariable('input', 'json')
+        : await props.createVariable('input', 'int');
   if (!key) {
     return;
   }
@@ -755,6 +806,23 @@ const handleCreateDataVariable = async (target: 'setVar' | 'getVar' | 'filterInp
 
 const handleJumpToDataVariable = (option: EditorVariableOption) => {
   props.jumpToVariable?.(option);
+};
+
+const handleCreateActionVariable = async (target: 'captureOutput') => {
+  if (!props.createVariable) {
+    return;
+  }
+
+  if (target !== 'captureOutput') {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'string');
+  if (!key) {
+    return;
+  }
+
+  updateActionField('output_var', key);
 };
 
 const updateSetVarMode = (mode: string) => {
@@ -963,6 +1031,23 @@ const updateVisionField = (field: string, value: string) => {
     if (step.op !== STEP_OP.vision) return;
     step.a = { ...(step.a ?? {}), [field]: value } as VisionNode;
   });
+};
+
+const handleCreateVisionVariable = async (target: 'visionOutput') => {
+  if (!props.createVariable) {
+    return;
+  }
+
+  if (target !== 'visionOutput') {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'json');
+  if (!key) {
+    return;
+  }
+
+  updateVisionField('out_var', key);
 };
 
 const updateVisionRule = (rule: SearchRule) => {

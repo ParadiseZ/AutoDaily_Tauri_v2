@@ -3,7 +3,7 @@
     <template v-if="selectedData.type === DATA_TYPE.setVar">
       <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
         <div class="editor-inline-grid">
-          <div class="editor-inline-label">目标变量</div>
+          <div class="editor-inline-label">目标名称</div>
           <div class="editor-inline-content md:col-span-3">
             <EditorSelectField
               :model-value="selectedData.name || null"
@@ -33,7 +33,13 @@
           </button>
         </div>
 
-        <EditorVariableMetaCard v-if="selectedSetVarTarget" :variable="selectedSetVarTarget" :input-entry="selectedSetVarInputEntry" />
+        <EditorVariableMetaCard
+          v-if="selectedSetVarTarget"
+          :variable="selectedSetVarTarget"
+          :input-entry="selectedSetVarInputEntry"
+          editable
+          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
+        />
       </div>
 
       <div v-if="selectedSetVarTarget && setVarCanSwitchMode" class="flex justify-end">
@@ -99,7 +105,7 @@
     <template v-else-if="selectedData.type === DATA_TYPE.getVar">
       <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
         <div class="editor-inline-grid">
-          <div class="editor-inline-label">读取变量</div>
+          <div class="editor-inline-label">读取名称</div>
           <div class="editor-inline-content md:col-span-3">
             <EditorSelectField
               :model-value="selectedData.name || null"
@@ -129,7 +135,13 @@
           </button>
         </div>
 
-        <EditorVariableMetaCard v-if="selectedGetVarTarget" :variable="selectedGetVarTarget" :input-entry="selectedGetVarInputEntry" />
+        <EditorVariableMetaCard
+          v-if="selectedGetVarTarget"
+          :variable="selectedGetVarTarget"
+          :input-entry="selectedGetVarInputEntry"
+          editable
+          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
+        />
       </div>
       <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
         <input
@@ -182,7 +194,7 @@
       <div class="grid gap-3 md:grid-cols-2">
         <div class="space-y-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入变量</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入名称</span>
             <EditorSelectField
               :model-value="selectedData.input_var || null"
               :options="resolvedFilterInputOptions"
@@ -218,12 +230,14 @@
             v-if="selectedFilterInputTarget"
             :variable="selectedFilterInputTarget"
             :input-entry="selectedFilterInputEntry"
+            editable
+            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
           />
         </div>
 
         <div class="space-y-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出变量</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出名称</span>
             <EditorSelectField
               :model-value="selectedData.out_name || null"
               :options="resolvedFilterOutputOptions"
@@ -259,6 +273,8 @@
             v-if="selectedFilterOutputTarget"
             :variable="selectedFilterOutputTarget"
             :input-entry="selectedFilterOutputInputEntry"
+            editable
+            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
           />
         </div>
         <div class="editor-inline-grid">
@@ -304,7 +320,7 @@ import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard
 import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { varValueTypeOptions, type VarValueDraft, type VarValueKind } from '@/views/script-editor/editorVarValue';
 import type { StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
-import type { EditorInputEntry, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepDataPanel' });
 
@@ -330,11 +346,11 @@ const props = defineProps<{
   filterModeOptions: Array<{ label: string; value: string; description: string }>;
   filterBranchTarget: { count: number; path: StepBranchPath } | null;
   variableDatalistId: string;
-  createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'update-set-var-target': [value: string];
   'update-set-var-mode': [mode: string];
   'update-set-var-type': [kind: string];
@@ -350,6 +366,7 @@ defineEmits<{
   'navigate-branch': [branchPath: StepBranchPath];
   'create-variable': [target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput'];
   'jump-to-variable': [option: EditorVariableOption];
+  'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
 
 type SelectOption = { label: string; value: string; description: string; disabled?: boolean };

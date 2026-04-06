@@ -104,7 +104,7 @@ import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-
 import EditorStepWorkspace from '@/views/script-editor/editor-step/EditorStepWorkspace.vue';
 import type { PolicyEditorPanelId } from '@/views/script-editor/editor-policy/editorPolicy';
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editor-step/editorStepTree';
-import type { EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 const props = defineProps<{
   policy: PolicyTable | null;
@@ -118,7 +118,7 @@ const props = defineProps<{
   policyReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
-  createVariable?: () => Promise<string>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 

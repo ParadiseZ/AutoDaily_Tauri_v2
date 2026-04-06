@@ -85,6 +85,7 @@
           :jump-to-reference="jumpToReference"
           :create-variable="createVariable"
           :jump-to-variable="jumpToVariable"
+          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
           test-id-prefix="editor-condition"
           @update:model-value="$emit('update-flow-condition', $event)"
         />
@@ -103,7 +104,7 @@ import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
 import { FLOW_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
-import type { EditorInputEntry, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepFlowPanel' });
 
@@ -113,6 +114,7 @@ const emit = defineEmits<{
   'update-flow-type': [type: string];
   'update-flow-condition': [condition: ConditionNode];
   'toggle-else-branch': [];
+  'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
 
 const props = defineProps<{
@@ -129,7 +131,7 @@ const props = defineProps<{
   policyReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
-  createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 

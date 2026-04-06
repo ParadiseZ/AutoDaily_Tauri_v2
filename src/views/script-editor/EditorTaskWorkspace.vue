@@ -68,6 +68,7 @@
         :jump-to-reference="jumpToReference"
         :create-variable="createVariable"
         :jump-to-variable="jumpToVariable"
+        :update-input="forwardUpdateInput"
         @select-step-path="$emit('select-step-path', $event)"
         @navigate-branch="$emit('navigate-branch', $event)"
         @reorder-step="(from, to) => $emit('reorder-step', from, to)"
@@ -125,7 +126,7 @@ import EditorTaskTablePreview from '@/views/script-editor/EditorTaskTablePreview
 import EditorUiFieldDetailsPanel from '@/views/script-editor/EditorUiFieldDetailsPanel.vue';
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editor-step/editorStepTree';
 import type { EditorPanelId, EditorUiSchema } from '@/views/script-editor/editorSchema';
-import type { EditorInputEntry, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 import type { TaskTone } from '@/types/bindings/TaskTone';
 import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 
@@ -158,7 +159,7 @@ const props = defineProps<{
   policyReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
-  createVariable?: (namespace?: 'input' | 'runtime') => Promise<string>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
   selectedInputId: string | null;
 }>();
