@@ -70,6 +70,9 @@
         :active-branch-path="activeBranchPath"
         :variable-options="variableOptions"
         :catalog-variable-options="catalogVariableOptions"
+        :label-index-options="labelIndexOptions"
+        :label-select-placeholder="labelSelectPlaceholder"
+        :label-select-hint="labelSelectHint"
         :task-reference-options="taskReferenceOptions"
         :policy-reference-options="policyReferenceOptions"
         :create-reference="createReference"
@@ -114,6 +117,9 @@ const props = defineProps<{
   activeBranchPath: StepBranchPath;
   variableOptions: EditorVariableOption[];
   catalogVariableOptions: EditorVariableOption[];
+  labelIndexOptions: Array<{ label: string; value: number; description?: string; disabled?: boolean }>;
+  labelSelectPlaceholder: string;
+  labelSelectHint?: string | null;
   taskReferenceOptions: EditorReferenceOption[];
   policyReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;

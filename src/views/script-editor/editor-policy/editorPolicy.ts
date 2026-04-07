@@ -17,9 +17,9 @@ export interface EditorNamedItem {
 
 export const editorModeOptions: Array<{ id: EditorModeId; label: string }> = [
   { id: 'task', label: '任务' },
-  { id: 'policy', label: '策略' },
-  { id: 'policyGroup', label: '策略组' },
   { id: 'policySet', label: '策略集' },
+  { id: 'policyGroup', label: '策略组' },
+  { id: 'policy', label: '策略' },
 ];
 
 export const policyPanelTabs: Array<{ id: PolicyEditorPanelId; label: string }> = [

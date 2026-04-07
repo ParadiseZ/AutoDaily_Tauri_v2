@@ -78,26 +78,28 @@ const selectOptionByLabel = async (page: Page, testId: string, label: string) =>
   await page.getByTestId(`${testId}-menu`).getByText(label).click();
 };
 
+const selectEditorMode = async (page: Page, mode: 'task' | 'policy' | 'policyGroup' | 'policySet') => {
+  await page.getByTestId(`editor-mode-${mode}`).click();
+};
+
+const selectEditorTarget = async (page: Page, id: string) => {
+  await selectOptionByValue(page, 'editor-header-target-item', id);
+};
+
 const dragStepByHandle = async (page: Page, fromIndex: number, toIndex: number) => {
   const handle = page.getByTestId(`editor-step-drag-${fromIndex}`);
   const target = page.getByTestId(`editor-step-card-${toIndex}`);
-  const handleBox = await handle.boundingBox();
-  const targetBox = await target.boundingBox();
-
-  if (!handleBox || !targetBox) {
-    throw new Error('step drag target is not visible');
-  }
-
-  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2, { steps: 10 });
-  await page.mouse.up();
+  await handle.dispatchEvent('mousedown', { button: 0 });
+  await target.dispatchEvent('mouseenter');
+  await target.dispatchEvent('mouseup', { button: 0 });
 };
 
 const dragRelationByHandle = async (page: Page, fromIndex: number, toIndex: number) => {
   const handle = page.getByTestId(`editor-relation-drag-${fromIndex}`);
   const target = page.getByTestId(`editor-relation-assigned-${toIndex === 0 ? 'policy-a' : 'policy-b'}`);
-  await handle.dragTo(target);
+  await handle.dispatchEvent('mousedown', { button: 0 });
+  await target.dispatchEvent('mouseenter');
+  await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 })));
 };
 
 test('edits script tasks with visual task editor and persists payload', async ({ page }) => {
@@ -298,6 +300,223 @@ test('persists flow conditions and action forms from step workspace', async ({ p
   });
 });
 
+test('loads text-det labels for label actions and persists idx only', async ({ page }) => {
+  const scriptId = 'script-editor-label-options';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '标签动作脚本',
+      description: '验证标签文件映射与 idx 保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: {
+        Yolo11: {
+          baseModel: {
+            intraThreadNum: 4,
+            intraSpinning: true,
+            interThreadNum: 1,
+            interSpinning: true,
+            executionProvider: 'CPU',
+            inputWidth: 640,
+            inputHeight: 640,
+            modelSource: 'BuiltIn',
+            modelPath: 'D:\\models\\txt-det.onnx',
+            modelType: 'Yolo11',
+          },
+          classCount: 4,
+          confidenceThresh: 0.25,
+          iouThresh: 0.45,
+          labelPath: 'D:\\models\\txt-det.labels.yaml',
+          txtIdx: 0,
+        },
+      },
+      txtRecModel: null,
+      pkgName: 'com.example.editor.label-options',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'task-label-click',
+        scriptId: currentScriptId,
+        name: '标签点击任务',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '点击标签',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'click',
+                mode: 'labelIdx',
+                idx: 2,
+              },
+            },
+          ],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await expect(page.getByTestId('editor-action-click-label-idx')).toContainText('2: 图标');
+
+  await page.getByTestId('editor-action-click-label-idx').click();
+  await page.getByTestId('editor-action-click-label-idx-menu').getByText('1: 按钮').click();
+  await expect(page.getByTestId('editor-action-click-label-idx')).toContainText('1: 按钮');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'click',
+      mode: 'labelIdx',
+      idx: 1,
+    },
+  });
+});
+
+test('reminds user to configure text-det label path when label action has no options', async ({ page }) => {
+  const scriptId = 'script-editor-label-warning';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '标签提醒脚本',
+      description: '验证未配置标签路径时的提示',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.label-warning',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'task-label-warning',
+        scriptId: currentScriptId,
+        name: '标签提醒任务',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '点击标签',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'click',
+                mode: 'labelIdx',
+                idx: 0,
+              },
+            },
+          ],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await expect(page.getByText('当前脚本未设置文字检测模型的标签文件')).toBeVisible();
+});
+
 test('renders script-level task preview with title groups and task metadata', async ({ page }) => {
   const scriptId = 'script-editor-preview';
   const script: StoredScriptTable = {
@@ -428,7 +647,7 @@ test('renders script-level task preview with title groups and task metadata', as
   }, scriptId);
   await page.reload();
 
-  await page.getByTestId('editor-task-item-task-daily-sign').getByRole('button', { name: /签到/ }).click();
+  await selectEditorTarget(page, 'task-daily-sign');
   await page.getByTestId('editor-tab-ui').click();
 
   await expect(page.getByText('整表任务预览')).toBeVisible();
@@ -1193,7 +1412,7 @@ test('creates policies and persists search rule with before and after actions', 
 
   await seedEditorState(page, script);
 
-  await page.getByTestId('editor-mode-policy').click();
+  await selectEditorMode(page, 'policy');
   await page.getByTestId('editor-policy-create').click();
   await page.getByTestId('editor-policy-name').fill('领奖策略');
 
@@ -1347,11 +1566,134 @@ test('reorders assigned policies inside policy group workspace', async ({ page }
   }, script);
   await page.reload();
 
-  await page.getByTestId('editor-mode-policyGroup').click();
+  await selectEditorMode(page, 'policyGroup');
   await dragRelationByHandle(page, 1, 0);
   await expect(page.getByTestId('editor-relation-assigned-policy-b')).toContainText('1');
   await page.getByTestId('editor-save').click();
 
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   expect(state?.groupPolicies['group-a']).toEqual(['policy-b', 'policy-a']);
+});
+
+test('reverses assigned policies inside policy group workspace', async ({ page }) => {
+  const scriptId = 'script-editor-policy-group-reverse';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略组逆序脚本',
+      description: '验证策略组关联逆序按钮',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.policy.group.reverse',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await page.goto(`/editor?scriptId=${script.id}`);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    window.__AUTODAILY_MOCK__.reset();
+    window.__AUTODAILY_MOCK__.seed({
+      scripts: [seedScript],
+      scriptTasks: {},
+      policies: [
+        {
+          id: 'policy-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '登录',
+            note: '测试备注A',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+        {
+          id: 'policy-b',
+          scriptId: seedScript.id,
+          orderIndex: 1,
+          data: {
+            name: '领奖',
+            note: '测试备注B',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+        {
+          id: 'policy-c',
+          scriptId: seedScript.id,
+          orderIndex: 2,
+          data: {
+            name: '收尾',
+            note: '测试备注C',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+      ],
+      policyGroups: [
+        {
+          id: 'group-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '基础策略组',
+            note: '测试策略组',
+          },
+        },
+      ],
+      policySets: [],
+      groupPolicies: {
+        'group-a': ['policy-a', 'policy-b', 'policy-c'],
+      },
+      setGroups: {},
+    });
+  }, script);
+  await page.reload();
+
+  await selectEditorMode(page, 'policyGroup');
+  await page.getByTestId('editor-relation-reverse').evaluate((element: HTMLElement) => element.click());
+  await expect(page.getByTestId('editor-relation-assigned-policy-c')).toContainText('1');
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.groupPolicies['group-a']).toEqual(['policy-c', 'policy-b', 'policy-a']);
 });

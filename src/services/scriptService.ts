@@ -189,4 +189,14 @@ export const scriptService = {
     },
     downloadMarketScript: async (scriptId: string, currentUserId: string | null) =>
         (await invoke('backend_download_script', { scriptId, currentUserId })) as ApiEnvelope<string>,
+    getYoloLabels: async (path: string): Promise<Array<{ index: number; label: string }>> => {
+        const labels = (await invoke('get_yolo_labels_cmd', { path })) as Record<string, string>;
+        return Object.entries(labels)
+            .map(([index, label]) => ({
+                index: Number(index),
+                label,
+            }))
+            .filter((item) => Number.isFinite(item.index))
+            .sort((left, right) => left.index - right.index);
+    },
 };

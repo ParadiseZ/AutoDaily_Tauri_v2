@@ -14,27 +14,55 @@
                 <span>Task Editor</span>
                 <span class="rounded-full border border-[var(--app-border)] bg-white/40 px-3 py-1">脚本开发工作台</span>
               </div>
-              <h1 class="text-2xl font-semibold tracking-[-0.05em] text-[var(--app-text-strong)] lg:text-3xl">
-                {{ draftScript?.data.name || '脚本编辑器' }}
-              </h1>
+              <div class="flex flex-wrap items-center gap-2">
+                <h1 class="text-2xl font-semibold tracking-[-0.05em] text-[var(--app-text-strong)] lg:text-3xl">
+                  {{ draftScript?.data.name || '脚本编辑器' }}
+                </h1>
+                <button class="app-button app-button-ghost group" type="button" data-testid="editor-script-info" @click="infoDialogOpen = true">
+                  <AppIcon name="file-text" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+                  编辑脚本信息
+                </button>
+                <span
+                  class="rounded-full px-3 py-1 text-xs font-medium"
+                  :class="hasValidationErrors ? 'bg-red-500/12 text-red-700' : dirty ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
+                >
+                  {{ hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步' }}
+                </span>
+                <span v-if="formattedSaveTime" class="text-xs text-[var(--app-text-faint)]">最近保存 {{ formattedSaveTime }}</span>
+              </div>
             </div>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
-            <span
-              class="rounded-full px-3 py-1 text-xs font-medium"
-              :class="hasValidationErrors ? 'bg-red-500/12 text-red-700' : dirty ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
-            >
-              {{ hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步' }}
-            </span>
-            <span v-if="formattedSaveTime" class="text-xs text-[var(--app-text-faint)]">最近保存 {{ formattedSaveTime }}</span>
-            <button class="app-button app-button-ghost group" type="button" data-testid="editor-script-info" @click="infoDialogOpen = true">
-              <AppIcon name="file-text" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
-              编辑脚本信息
+            <div class="min-w-[240px]">
+              <AppSelect
+                v-model="selectedPreviewDeviceId"
+                :options="deviceSelectOptions"
+                placeholder="请选择设备"
+                test-id="editor-header-device"
+              />
+            </div>
+            <button class="app-button app-button-ghost group" type="button" @click="openDeviceEditor(selectedPreviewDeviceId)">
+              <AppIcon name="edit-3" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              {{ selectedPreviewDeviceId ? '编辑' : '新建' }}
             </button>
-            <button class="app-button app-button-ghost group" type="button" @click="reloadEditor">
-              <AppIcon name="refresh-ccw" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
-              重新载入
+            <div class="min-w-[280px]">
+              <AppSelect
+                v-model="activeTargetValue"
+                :options="activeTargetSelectOptions"
+                :placeholder="activeTargetSelectPlaceholder"
+                test-id="editor-header-target-item"
+              />
+            </div>
+            <button
+              class="app-button app-button-ghost group"
+              type="button"
+              data-testid="editor-run"
+              :disabled="!canRunSelection"
+              @click="handleRunSelection"
+            >
+              <AppIcon name="play" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              运行
             </button>
             <button
               class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]"
@@ -62,275 +90,357 @@
         正在读取脚本和任务结构...
       </div>
 
-      <div v-else class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[72px_280px_360px_minmax(720px,1fr)]">
-        <EditorModeRail v-model="activeMode" />
+      <div v-else class="flex min-h-0 flex-1 flex-col gap-4">
+        <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+          <EditorTaskSidebar
+            v-if="activeMode === 'task'"
+            :tasks="draftTasks"
+            :selected-task-id="selectedTaskId"
+            @create="createTask"
+            @select="selectTask"
+            @duplicate="duplicateTask"
+            @toggle-hidden="toggleTaskHidden"
+            @remove="removeTask"
+            @reorder="reorderTasks"
+          >
+            <template #mode-switch>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+            </template>
+          </EditorTaskSidebar>
 
-        <EditorTaskSidebar
-          v-if="activeMode === 'task'"
-          :tasks="draftTasks"
-          :selected-task-id="selectedTaskId"
-          @create="createTask"
-          @select="selectTask"
-          @duplicate="duplicateTask"
-          @toggle-hidden="toggleTaskHidden"
-          @remove="removeTask"
-          @reorder="reorderTasks"
-        />
+          <EditorCollectionSidebar
+            v-else-if="activeMode === 'policy'"
+            eyebrow="Policy Mode"
+            title="策略列表"
+            create-label="新建策略"
+            count-label="策略"
+            search-placeholder="按名称或备注检索策略"
+            :items="policyItems"
+            :selected-id="selectedPolicyId"
+            empty-title="没有可编辑的策略"
+            empty-description="先创建策略，再在右侧配置命中条件和步骤。"
+            create-test-id="editor-policy-create-sidebar"
+            item-test-id-prefix="editor-policy-item"
+            @create="createPolicy"
+            @select="selectedPolicyId = $event"
+            @remove="removePolicy"
+            @reorder="reorderPolicies"
+          >
+            <template #mode-switch>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+            </template>
+          </EditorCollectionSidebar>
 
-        <EditorCollectionSidebar
-          v-else-if="activeMode === 'policy'"
-          eyebrow="Policy Mode"
-          title="策略列表"
-          create-label="新建策略"
-          count-label="策略数"
-          search-placeholder="按名称检索策略"
-          :items="policyItems"
-          :selected-id="selectedPolicyId"
-          empty-title="没有可显示的策略"
-          empty-description="先创建策略，再配置命中条件和行为。"
-          create-test-id="editor-policy-create"
-          item-test-id-prefix="editor-policy-item"
-          @create="createPolicy"
-          @select="selectedPolicyId = $event"
-          @remove="removePolicy"
-          @reorder="reorderPolicies"
-        />
+          <EditorCollectionSidebar
+            v-else-if="activeMode === 'policyGroup'"
+            eyebrow="Policy Group"
+            title="策略组列表"
+            create-label="新建策略组"
+            count-label="策略组"
+            search-placeholder="按名称或备注检索策略组"
+            :items="policyGroupItems"
+            :selected-id="selectedPolicyGroupId"
+            empty-title="没有可编辑的策略组"
+            empty-description="先创建策略组，再在右侧维护策略关联。"
+            create-test-id="editor-policy-group-create-sidebar"
+            item-test-id-prefix="editor-policy-group-item"
+            @create="createPolicyGroup"
+            @select="selectedPolicyGroupId = $event"
+            @remove="removePolicyGroup"
+            @reorder="reorderPolicyGroups"
+          >
+            <template #mode-switch>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+            </template>
+          </EditorCollectionSidebar>
 
-        <EditorCollectionSidebar
-          v-else-if="activeMode === 'policyGroup'"
-          eyebrow="Policy Group Mode"
-          title="策略组列表"
-          create-label="新建策略组"
-          count-label="策略组数"
-          search-placeholder="按名称检索策略组"
-          :items="policyGroupItems"
-          :selected-id="selectedPolicyGroupId"
-          empty-title="没有可显示的策略组"
-          empty-description="先创建策略组，再关联策略。"
-          create-test-id="editor-policy-group-create"
-          item-test-id-prefix="editor-policy-group-item"
-          @create="createPolicyGroup"
-          @select="selectedPolicyGroupId = $event"
-          @remove="removePolicyGroup"
-          @reorder="reorderPolicyGroups"
-        />
+          <EditorCollectionSidebar
+            v-else
+            eyebrow="Policy Set"
+            title="策略集列表"
+            create-label="新建策略集"
+            count-label="策略集"
+            search-placeholder="按名称或备注检索策略集"
+            :items="policySetItems"
+            :selected-id="selectedPolicySetId"
+            empty-title="没有可编辑的策略集"
+            empty-description="先创建策略集，再在右侧维护策略组关联。"
+            create-test-id="editor-policy-set-create-sidebar"
+            item-test-id-prefix="editor-policy-set-item"
+            @create="createPolicySet"
+            @select="selectedPolicySetId = $event"
+            @remove="removePolicySet"
+            @reorder="reorderPolicySets"
+          >
+            <template #mode-switch>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+            </template>
+          </EditorCollectionSidebar>
 
-        <EditorCollectionSidebar
-          v-else
-          eyebrow="Policy Set Mode"
-          title="策略集列表"
-          create-label="新建策略集"
-          count-label="策略集数"
-          search-placeholder="按名称检索策略集"
-          :items="policySetItems"
-          :selected-id="selectedPolicySetId"
-          empty-title="没有可显示的策略集"
-          empty-description="先创建策略集，再关联策略组。"
-          create-test-id="editor-policy-set-create"
-          item-test-id-prefix="editor-policy-set-item"
-          @create="createPolicySet"
-          @select="selectedPolicySetId = $event"
-          @remove="removePolicySet"
-          @reorder="reorderPolicySets"
-        />
+          <div class="flex min-h-0 flex-1 flex-col gap-4">
+            <section class="rounded-[22px] border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3">
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                <button
+                  class="app-button app-button-ghost app-toolbar-button"
+                  type="button"
+                  :data-testid="`editor-${activeMode}-create`"
+                  @click="createActiveItem"
+                >
+                  <AppIcon name="plus" :size="14" />
+                  新建{{ activeModeLabel }}
+                </button>
+                <button
+                  v-if="activeMode === 'task'"
+                  class="app-button app-button-ghost app-toolbar-button"
+                  type="button"
+                  :disabled="!currentTask"
+                  @click="duplicateActiveItem"
+                >
+                  <AppIcon name="copy" :size="14" />
+                  复制
+                </button>
+                <button
+                  class="app-button app-button-ghost app-toolbar-button"
+                  type="button"
+                  :disabled="!activeTargetValue"
+                  @click="moveActiveItem(-1)"
+                >
+                  <AppIcon name="arrow-up" :size="14" />
+                  上移
+                </button>
+                <button
+                  class="app-button app-button-ghost app-toolbar-button"
+                  type="button"
+                  :disabled="!activeTargetValue"
+                  @click="moveActiveItem(1)"
+                >
+                  <AppIcon name="arrow-down" :size="14" />
+                  下移
+                </button>
+                <button
+                  class="app-button app-button-danger app-toolbar-button"
+                  type="button"
+                  :disabled="!activeTargetValue"
+                  @click="removeActiveItem"
+                >
+                  <AppIcon name="trash-2" :size="14" />
+                  删除
+                </button>
+              </div>
+            </section>
 
-        <EditorTaskConfigPanel
-          v-if="activeMode === 'task'"
-          :task="currentTask"
-          :active-panel="activePanel"
-          :task-name="taskName"
-          :task-row-type="taskRowType"
-          :task-trigger-mode="taskTriggerMode"
-          :task-hidden="taskHidden"
-          :record-schedule="recordSchedule"
-          :section-id="sectionId"
-          :indent-level="indentLevel"
-          :default-task-cycle-value="defaultTaskCycleValue"
-          :default-task-cycle-mode="defaultTaskCycleMode"
-          :default-task-cycle-day="defaultTaskCycleDay"
-          :show-enabled-toggle="showEnabledToggle"
-          :default-enabled="defaultEnabled"
-          :task-tone="taskTone"
-          :title-options="titleTaskOptions"
-          :input-entries="inputEntries"
-          :input-error="inputError"
-          :ui-schema="uiSchema"
-          :selected-input-id="selectedInputId"
-          :selected-ui-field-id="selectedUiFieldId"
-          @update:active-panel="activePanel = $event"
-          @update:task-name="taskName = $event"
-          @update:task-row-type="taskRowType = $event"
-          @update:task-trigger-mode="taskTriggerMode = $event"
-          @update:task-hidden="taskHidden = $event"
-          @update:record-schedule="recordSchedule = $event"
-          @update:section-id="sectionId = $event"
-          @update:indent-level="indentLevel = $event"
-          @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
-          @update:default-task-cycle-day="
-            defaultTaskCycle =
-              defaultTaskCycleMode === 'weekDay'
-                ? { weekDay: Math.max(1, Math.min(7, $event)) }
-                : { monthDay: Math.max(1, Math.min(31, $event)) }
-          "
-          @update:show-enabled-toggle="showEnabledToggle = $event"
-          @update:default-enabled="defaultEnabled = $event"
-          @update:task-tone="taskTone = $event"
-          @add-input="addInput"
-          @select-input="selectedInputId = $event"
-          @remove-input="removeInput"
-          @add-ui-field="addUiField"
-          @select-ui-field="selectedUiFieldId = $event"
-          @remove-ui-field="removeUiField"
-          @append-template-step="appendTemplateStep"
-          @open-raw="openRawEditor"
-        />
+            <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <EditorTaskConfigPanel
+            v-if="activeMode === 'task'"
+            :task="currentTask"
+            :active-panel="activePanel"
+            :task-name="taskName"
+            :task-row-type="taskRowType"
+            :task-trigger-mode="taskTriggerMode"
+            :task-hidden="taskHidden"
+            :record-schedule="recordSchedule"
+            :section-id="sectionId"
+            :indent-level="indentLevel"
+            :default-task-cycle-value="defaultTaskCycleValue"
+            :default-task-cycle-mode="defaultTaskCycleMode"
+            :default-task-cycle-day="defaultTaskCycleDay"
+            :show-enabled-toggle="showEnabledToggle"
+            :default-enabled="defaultEnabled"
+            :task-tone="taskTone"
+            :title-options="titleTaskOptions"
+            :input-entries="inputEntries"
+            :input-error="inputError"
+            :ui-schema="uiSchema"
+            :selected-input-id="selectedInputId"
+            :selected-ui-field-id="selectedUiFieldId"
+            @update:active-panel="activePanel = $event"
+            @update:task-name="taskName = $event"
+            @update:task-row-type="taskRowType = $event"
+            @update:task-trigger-mode="taskTriggerMode = $event"
+            @update:task-hidden="taskHidden = $event"
+            @update:record-schedule="recordSchedule = $event"
+            @update:section-id="sectionId = $event"
+            @update:indent-level="indentLevel = $event"
+            @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
+            @update:default-task-cycle-day="
+              defaultTaskCycle =
+                defaultTaskCycleMode === 'weekDay'
+                  ? { weekDay: Math.max(1, Math.min(7, $event)) }
+                  : { monthDay: Math.max(1, Math.min(31, $event)) }
+            "
+            @update:show-enabled-toggle="showEnabledToggle = $event"
+            @update:default-enabled="defaultEnabled = $event"
+            @update:task-tone="taskTone = $event"
+            @add-input="addInput"
+            @select-input="selectedInputId = $event"
+            @remove-input="removeInput"
+            @add-ui-field="addUiField"
+            @select-ui-field="selectedUiFieldId = $event"
+            @remove-ui-field="removeUiField"
+            @append-template-step="appendTemplateStep"
+            @open-raw="openRawEditor"
+          />
 
-        <EditorPolicyConfigPanel
-          v-else-if="activeMode === 'policy'"
-          :policy="currentPolicy"
-          :active-panel="activePolicyPanel"
-          :policy-name="currentPolicy?.data.name || ''"
-          :policy-note="currentPolicy?.data.note || ''"
-          :policy-log-print="currentPolicy?.data.logPrint ?? null"
-          @update:active-panel="activePolicyPanel = $event"
-          @update:policy-name="updatePolicyTextField('name', $event)"
-          @update:policy-note="updatePolicyTextField('note', $event)"
-          @update:policy-log-print="updatePolicyTextField('logPrint', $event)"
-          @update:number-field="updatePolicyNumberField"
-          @update:boolean-field="updatePolicyBooleanField"
-          @append-template-step="appendPolicyTemplateStep"
-        />
+          <EditorPolicyConfigPanel
+            v-else-if="activeMode === 'policy'"
+            :policy="currentPolicy"
+            :active-panel="activePolicyPanel"
+            :policy-name="currentPolicy?.data.name || ''"
+            :policy-note="currentPolicy?.data.note || ''"
+            :policy-log-print="currentPolicy?.data.logPrint ?? null"
+            @update:active-panel="activePolicyPanel = $event"
+            @update:policy-name="updatePolicyTextField('name', $event)"
+            @update:policy-note="updatePolicyTextField('note', $event)"
+            @update:policy-log-print="updatePolicyTextField('logPrint', $event)"
+            @update:number-field="updatePolicyNumberField"
+            @update:boolean-field="updatePolicyBooleanField"
+            @append-template-step="appendPolicyTemplateStep"
+          />
 
-        <EditorRelationConfigPanel
-          v-else-if="activeMode === 'policyGroup'"
-          :item="currentPolicyGroup"
-          name-label="策略组名称"
-          relation-title="策略组关联"
-          relation-description="策略组只负责对策略分组，右侧上半区是已关联策略，下半区是未关联策略。"
-          @update:name="updateRelationName('policyGroup', $event)"
-          @update:note="updateRelationNote('policyGroup', $event)"
-        />
+          <EditorRelationConfigPanel
+            v-else-if="activeMode === 'policyGroup'"
+            :item="currentPolicyGroup"
+            name-label="策略组名称"
+            relation-title="策略组关联"
+            relation-description="策略组只负责对策略分组，右侧上半区是已关联策略，下半区是未关联策略。"
+            @update:name="updateRelationName('policyGroup', $event)"
+            @update:note="updateRelationNote('policyGroup', $event)"
+          />
 
-        <EditorRelationConfigPanel
-          v-else
-          :item="currentPolicySet"
-          name-label="策略集名称"
-          relation-title="策略集关联"
-          relation-description="策略集负责收拢多个策略组，右侧上半区是已关联策略组，下半区是未关联策略组。"
-          @update:name="updateRelationName('policySet', $event)"
-          @update:note="updateRelationNote('policySet', $event)"
-        />
+          <EditorRelationConfigPanel
+            v-else
+            :item="currentPolicySet"
+            name-label="策略集名称"
+            relation-title="策略集关联"
+            relation-description="策略集负责收拢多个策略组，右侧上半区是已关联策略组，下半区是未关联策略组。"
+            @update:name="updateRelationName('policySet', $event)"
+            @update:note="updateRelationNote('policySet', $event)"
+          />
 
-        <EditorTaskWorkspace
-          v-if="activeMode === 'task'"
-          :task="currentTask"
-          :tasks="draftTasks"
-          :active-panel="activePanel"
-          :task-trigger-mode="taskTriggerMode"
-          :record-schedule="recordSchedule"
-          :section-id="sectionId"
-          :indent-level="indentLevel"
-          :default-task-cycle-value="defaultTaskCycleValue"
-          :default-task-cycle-mode="defaultTaskCycleMode"
-          :default-task-cycle-day="defaultTaskCycleDay"
-          :show-enabled-toggle="showEnabledToggle"
-          :default-enabled="defaultEnabled"
-          :task-tone="taskTone"
-          :title-options="titleTaskOptions"
-          :steps="parsedSteps"
-          :selected-step-path="selectedStepPath"
-          :active-branch-path="activeBranchPath"
-          :ui-schema="uiSchema"
-          :selected-ui-field-id="selectedUiFieldId"
-          :input-entries="inputEntries"
-          :variable-options="variableOptions"
-          :catalog-variable-options="catalogVariableOptions"
-          :task-reference-options="taskReferenceOptions"
-          :policy-reference-options="policyReferenceOptions"
-          :create-reference="createReferenceResource"
-          :jump-to-reference="jumpToReferenceResource"
-          :create-variable="createVariableResource"
-          :jump-to-variable="jumpToVariableResource"
-          :selected-input-id="selectedInputId"
-          @update:task-name="taskName = $event"
-          @update-input="updateInput"
-          @remove-input="removeInput"
-          @select-input="selectedInputId = $event"
-          @select-task="selectTask"
-          @update:task-trigger-mode="taskTriggerMode = $event"
-          @update:record-schedule="recordSchedule = $event"
-          @update:section-id="sectionId = $event"
-          @update:indent-level="indentLevel = $event"
-          @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
-          @update:default-task-cycle-day="
-            defaultTaskCycle =
-              defaultTaskCycleMode === 'weekDay'
-                ? { weekDay: Math.max(1, Math.min(7, $event)) }
-                : { monthDay: Math.max(1, Math.min(31, $event)) }
-          "
-          @update:show-enabled-toggle="showEnabledToggle = $event"
-          @update:default-enabled="defaultEnabled = $event"
-          @update:task-tone="taskTone = $event"
-          @select-ui-field="selectedUiFieldId = $event"
-          @update-ui-field="updateUiField"
-          @remove-ui-field="removeUiField"
-          @select-step-path="selectStepPath"
-          @navigate-branch="navigateBranch"
-          @reorder-step="reorderSteps"
-          @remove-step="removeStep"
-          @update-step="updateStep"
-          @open-raw="openRawEditor"
-        />
+          <EditorTaskWorkspace
+            v-if="activeMode === 'task'"
+            :task="currentTask"
+            :tasks="draftTasks"
+            :active-panel="activePanel"
+            :task-trigger-mode="taskTriggerMode"
+            :record-schedule="recordSchedule"
+            :section-id="sectionId"
+            :indent-level="indentLevel"
+            :default-task-cycle-value="defaultTaskCycleValue"
+            :default-task-cycle-mode="defaultTaskCycleMode"
+            :default-task-cycle-day="defaultTaskCycleDay"
+            :show-enabled-toggle="showEnabledToggle"
+            :default-enabled="defaultEnabled"
+            :task-tone="taskTone"
+            :title-options="titleTaskOptions"
+            :steps="parsedSteps"
+            :selected-step-path="selectedStepPath"
+            :active-branch-path="activeBranchPath"
+            :ui-schema="uiSchema"
+            :selected-ui-field-id="selectedUiFieldId"
+            :input-entries="inputEntries"
+            :variable-options="variableOptions"
+            :catalog-variable-options="catalogVariableOptions"
+            :label-index-options="textDetLabelOptions"
+            :label-select-placeholder="textDetLabelSelectPlaceholder"
+            :label-select-hint="textDetLabelHint"
+            :task-reference-options="taskReferenceOptions"
+            :policy-reference-options="policyReferenceOptions"
+            :create-reference="createReferenceResource"
+            :jump-to-reference="jumpToReferenceResource"
+            :create-variable="createVariableResource"
+            :jump-to-variable="jumpToVariableResource"
+            :selected-input-id="selectedInputId"
+            @update:task-name="taskName = $event"
+            @update-input="updateInput"
+            @remove-input="removeInput"
+            @select-input="selectedInputId = $event"
+            @select-task="selectTask"
+            @update:task-trigger-mode="taskTriggerMode = $event"
+            @update:record-schedule="recordSchedule = $event"
+            @update:section-id="sectionId = $event"
+            @update:indent-level="indentLevel = $event"
+            @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
+            @update:default-task-cycle-day="
+              defaultTaskCycle =
+                defaultTaskCycleMode === 'weekDay'
+                  ? { weekDay: Math.max(1, Math.min(7, $event)) }
+                  : { monthDay: Math.max(1, Math.min(31, $event)) }
+            "
+            @update:show-enabled-toggle="showEnabledToggle = $event"
+            @update:default-enabled="defaultEnabled = $event"
+            @update:task-tone="taskTone = $event"
+            @select-ui-field="selectedUiFieldId = $event"
+            @update-ui-field="updateUiField"
+            @remove-ui-field="removeUiField"
+            @select-step-path="selectStepPath"
+            @navigate-branch="navigateBranch"
+            @reorder-step="reorderSteps"
+            @remove-step="removeStep"
+            @update-step="updateStep"
+            @open-raw="openRawEditor"
+          />
 
-        <EditorPolicyWorkspace
-          v-else-if="activeMode === 'policy'"
-          :policy="currentPolicy"
-          :active-panel="activePolicyPanel"
-          :steps="currentPolicySteps"
-          :selected-step-path="selectedPolicyStepPath"
-          :active-branch-path="activePolicyBranchPath"
-          :variable-options="policyVariableOptions"
-          :catalog-variable-options="policyCatalogVariableOptions"
-          :task-reference-options="taskReferenceOptions"
-          :policy-reference-options="policyReferenceOptions"
-          :create-reference="createReferenceResource"
-          :jump-to-reference="jumpToReferenceResource"
-          :jump-to-variable="jumpToVariableResource"
-          @update:number-field="updatePolicyNumberField"
-          @update:boolean-field="updatePolicyBooleanField"
-          @update:condition="updatePolicyCondition"
-          @select-step-path="selectPolicyStepPath"
-          @navigate-branch="navigatePolicyBranch"
-          @reorder-step="reorderPolicySteps"
-          @remove-step="removePolicyStep"
-          @update-step="updatePolicyStep"
-        />
+          <EditorPolicyWorkspace
+            v-else-if="activeMode === 'policy'"
+            :policy="currentPolicy"
+            :active-panel="activePolicyPanel"
+            :steps="currentPolicySteps"
+            :selected-step-path="selectedPolicyStepPath"
+            :active-branch-path="activePolicyBranchPath"
+            :variable-options="policyVariableOptions"
+            :catalog-variable-options="policyCatalogVariableOptions"
+            :label-index-options="textDetLabelOptions"
+            :label-select-placeholder="textDetLabelSelectPlaceholder"
+            :label-select-hint="textDetLabelHint"
+            :task-reference-options="taskReferenceOptions"
+            :policy-reference-options="policyReferenceOptions"
+            :create-reference="createReferenceResource"
+            :jump-to-reference="jumpToReferenceResource"
+            :jump-to-variable="jumpToVariableResource"
+            @update:number-field="updatePolicyNumberField"
+            @update:boolean-field="updatePolicyBooleanField"
+            @update:condition="updatePolicyCondition"
+            @select-step-path="selectPolicyStepPath"
+            @navigate-branch="navigatePolicyBranch"
+            @reorder-step="reorderPolicySteps"
+            @remove-step="removePolicyStep"
+            @update-step="updatePolicyStep"
+          />
 
-        <EditorRelationWorkspace
-          v-else-if="activeMode === 'policyGroup'"
-          title="策略组关联"
-          :selected-title="currentPolicyGroup?.data.name || null"
-          assigned-title="已关联策略"
-          unassigned-title="未关联策略"
-          :assigned-items="assignedPolicies"
-          :unassigned-items="unassignedPolicies"
-          @link="linkPolicyToGroup"
-          @unlink="unlinkPolicyFromGroup"
-          @reorder="reorderGroupPolicies"
-        />
+          <EditorRelationWorkspace
+            v-else-if="activeMode === 'policyGroup'"
+            title="策略组关联"
+            :selected-title="currentPolicyGroup?.data.name || null"
+            assigned-title="已关联策略"
+            unassigned-title="未关联策略"
+            :assigned-items="assignedPolicies"
+            :unassigned-items="unassignedPolicies"
+            show-reverse-action
+            reverse-action-label="逆序排列"
+            @link="linkPolicyToGroup"
+            @unlink="unlinkPolicyFromGroup"
+            @reorder="reorderGroupPolicies"
+            @reverse="reverseGroupPolicies"
+          />
 
-        <EditorRelationWorkspace
-          v-else
-          title="策略集关联"
-          :selected-title="currentPolicySet?.data.name || null"
-          assigned-title="已关联策略组"
-          unassigned-title="未关联策略组"
-          :assigned-items="assignedGroups"
-          :unassigned-items="unassignedGroups"
-          @link="linkGroupToSet"
-          @unlink="unlinkGroupFromSet"
-          @reorder="reorderSetGroups"
-        />
+          <EditorRelationWorkspace
+            v-else
+            title="策略集关联"
+            :selected-title="currentPolicySet?.data.name || null"
+            assigned-title="已关联策略组"
+            unassigned-title="未关联策略组"
+            :assigned-items="assignedGroups"
+            :unassigned-items="unassignedGroups"
+            @link="linkGroupToSet"
+            @unlink="unlinkGroupFromSet"
+            @reorder="reorderSetGroups"
+          />
+            </div>
+          </div>
+        </div>
+
+        <EditorConsolePanel :lines="consoleLines" :max-lines="MAX_CONSOLE_LINES" @clear="clearConsole" />
       </div>
     </div>
 
@@ -353,6 +463,14 @@
       @format="formatRawEditor"
       @update:model-value="rawDialogText = $event"
     />
+
+    <DeviceEditorDialog
+      :open="deviceEditorOpen"
+      :device="editingDevice"
+      :cpu-count="deviceStore.cpuCount"
+      @close="deviceEditorOpen = false"
+      @save="savePreviewDevice"
+    />
   </div>
 </template>
 
@@ -360,10 +478,17 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
+import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
 import { useScriptStore } from '@/store/script';
+import { useDeviceStore } from '@/store/device';
+import { useSettingsStore } from '@/store/settings';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
-import type { JsonValue, ScriptTableRecord } from '@/types/app/domain';
+import type { DeviceFormState, JsonValue, ScriptTableRecord } from '@/types/app/domain';
+import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
+import type { DetectorType } from '@/types/bindings/DetectorType';
+import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
 import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
@@ -374,12 +499,15 @@ import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { TaskRowType } from '@/types/bindings/TaskRowType';
 import type { TaskTone } from '@/types/bindings/TaskTone';
 import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
+import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
+import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
-import EditorModeRail from '@/views/script-editor/EditorModeRail.vue';
 import EditorJsonDialog from '@/views/script-editor/EditorJsonDialog.vue';
-import EditorTaskConfigPanel from '@/views/script-editor/EditorTaskConfigPanel.vue';
+import EditorConsolePanel from '@/views/script-editor/EditorConsolePanel.vue';
+import EditorModeSwitch from '@/views/script-editor/EditorModeSwitch.vue';
 import EditorTaskSidebar from '@/views/script-editor/EditorTaskSidebar.vue';
+import EditorTaskConfigPanel from '@/views/script-editor/EditorTaskConfigPanel.vue';
 import EditorTaskWorkspace from '@/views/script-editor/EditorTaskWorkspace.vue';
 import EditorCollectionSidebar from '@/views/script-editor/editor-policy/EditorCollectionSidebar.vue';
 import EditorPolicyConfigPanel from '@/views/script-editor/editor-policy/EditorPolicyConfigPanel.vue';
@@ -389,6 +517,7 @@ import EditorRelationWorkspace from '@/views/script-editor/editor-policy/EditorR
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import {
   createEmptyRelationMap,
+  editorModeOptions,
   normalizePolicy,
   normalizePolicyGroup,
   normalizePolicySet,
@@ -442,6 +571,8 @@ import {
 const route = useRoute();
 const router = useRouter();
 const scriptStore = useScriptStore();
+const deviceStore = useDeviceStore();
+const settingsStore = useSettingsStore();
 
 const isLoading = ref(true);
 const isSaving = ref(false);
@@ -486,6 +617,15 @@ const sourcePolicyGroupsSnapshot = ref('');
 const sourcePolicySetsSnapshot = ref('');
 const sourceGroupPoliciesSnapshot = ref('');
 const sourceSetGroupsSnapshot = ref('');
+const consoleLines = ref<string[]>([]);
+const selectedPreviewDeviceId = ref<string | null>(null);
+const deviceEditorOpen = ref(false);
+const editingDeviceId = ref<string | null>(null);
+const textDetLabelOptions = ref<Array<{ label: string; value: number; description?: string }>>([]);
+const textDetLabelHint = ref<string | null>('请先在脚本信息里设置文字检测模型的标签文件。');
+const textDetLabelLoading = ref(false);
+
+const MAX_CONSOLE_LINES = 300;
 
 const taskName = ref('');
 const taskRowType = ref<TaskRowType>('task');
@@ -506,6 +646,20 @@ const hydratingTaskMeta = ref(false);
 const hydratingTaskPanels = ref(false);
 
 const scriptId = computed(() => (typeof route.query.scriptId === 'string' ? route.query.scriptId : ''));
+
+const appendConsoleLine = (message: string) => {
+  const stamp = new Date().toLocaleTimeString('zh-CN', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  consoleLines.value = [...consoleLines.value, `[${stamp}] ${message}`].slice(-MAX_CONSOLE_LINES);
+};
+
+const clearConsole = () => {
+  consoleLines.value = [];
+};
 
 const currentTask = computed<ScriptTaskTable | null>(() => {
   const tasks = draftTasks.value as ScriptTaskTable[];
@@ -541,6 +695,112 @@ const currentPolicySet = computed<PolicySetTable | null>(() => {
   }
   return draftPolicySets.value.find((item) => item.id === selected) ?? draftPolicySets.value[0] ?? null;
 });
+
+const editingDevice = computed(() => deviceStore.devices.find((device) => device.id === editingDeviceId.value) ?? null);
+const selectedPreviewDevice = computed(() => deviceStore.devices.find((device) => device.id === selectedPreviewDeviceId.value) ?? null);
+const deviceSelectOptions = computed(() =>
+  deviceStore.devices.map((device) => ({
+    label: device.data.deviceName,
+    value: device.id,
+    description: `${formatConnectLabel(device.data.adbConnect)} · ${formatCaptureMethod(device.data.capMethod)}`,
+  })),
+);
+
+const extractYoloDetector = (model: DetectorType | null | undefined): YoloDet | null => {
+  if (!model) {
+    return null;
+  }
+  if ('Yolo11' in model) {
+    return model.Yolo11;
+  }
+  if ('Yolo26' in model) {
+    return model.Yolo26;
+  }
+  return null;
+};
+
+const textDetLabelPath = computed(() => extractYoloDetector(draftScript.value?.data.txtDetModel)?.labelPath?.trim() || '');
+const textDetLabelSelectPlaceholder = computed(() => {
+  if (textDetLabelLoading.value) {
+    return '正在加载标签...';
+  }
+  if (textDetLabelOptions.value.length) {
+    return '选择标签';
+  }
+  return '请先设置文字检测模型标签文件';
+});
+
+const activeModeLabel = computed(() => {
+  switch (activeMode.value) {
+    case 'policy':
+      return '策略';
+    case 'policyGroup':
+      return '策略组';
+    case 'policySet':
+      return '策略集';
+    default:
+      return '任务';
+  }
+});
+
+const activeModeFocusName = computed(() => {
+  switch (activeMode.value) {
+    case 'policy':
+      return currentPolicy.value?.data.name || null;
+    case 'policyGroup':
+      return currentPolicyGroup.value?.data.name || null;
+    case 'policySet':
+      return currentPolicySet.value?.data.name || null;
+    default:
+      return currentTask.value?.name || null;
+  }
+});
+
+const activeTargetSelectPlaceholder = computed(() => `选择${activeModeLabel.value}`);
+
+const activeTargetSelectOptions = computed(() => {
+  if (activeMode.value === 'policy') {
+    return policyItems.value.map((item) => ({ label: item.title, value: item.id, description: item.subtitle }));
+  }
+  if (activeMode.value === 'policyGroup') {
+    return policyGroupItems.value.map((item) => ({ label: item.title, value: item.id, description: item.subtitle }));
+  }
+  if (activeMode.value === 'policySet') {
+    return policySetItems.value.map((item) => ({ label: item.title, value: item.id, description: item.subtitle }));
+  }
+  return draftTasks.value.map((task) => ({
+    label: task.name,
+    value: task.id,
+    description: `${task.rowType === 'title' ? '标题行' : '任务行'} · ${task.index + 1}`,
+  }));
+});
+
+const activeTargetValue = computed<string | null>({
+  get: () => {
+    if (activeMode.value === 'policy') return selectedPolicyId.value;
+    if (activeMode.value === 'policyGroup') return selectedPolicyGroupId.value;
+    if (activeMode.value === 'policySet') return selectedPolicySetId.value;
+    return selectedTaskId.value;
+  },
+  set: (value) => {
+    if (activeMode.value === 'policy') {
+      selectedPolicyId.value = value;
+      return;
+    }
+    if (activeMode.value === 'policyGroup') {
+      selectedPolicyGroupId.value = value;
+      return;
+    }
+    if (activeMode.value === 'policySet') {
+      selectedPolicySetId.value = value;
+      return;
+    }
+    selectedTaskId.value = value;
+  },
+});
+
+const canRunSelection = computed(() => Boolean(selectedPreviewDeviceId.value && activeTargetValue.value));
+
 
 const variableOptions = computed(() =>
   listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value),
@@ -1565,6 +1825,186 @@ const updateRelationNote = (mode: 'policyGroup' | 'policySet', value: string) =>
   }
 };
 
+const loadTextDetLabels = async (path: string) => {
+  const trimmedPath = path.trim();
+  if (!trimmedPath) {
+    textDetLabelOptions.value = [];
+    textDetLabelHint.value = '当前脚本未设置文字检测模型的标签文件，请先在“编辑脚本信息 > 模型信息 > 文字检测”里配置标签路径。';
+    appendConsoleLine('文字检测标签文件未配置。');
+    return;
+  }
+
+  textDetLabelLoading.value = true;
+
+  try {
+    const labels = await scriptService.getYoloLabels(trimmedPath);
+    textDetLabelOptions.value = labels.map((item) => ({
+      label: `${item.index}: ${item.label}`,
+      value: item.index,
+      description: `idx ${item.index}`,
+    }));
+    textDetLabelHint.value = labels.length ? null : '标签文件已读取，但未解析出任何 names 标签。';
+    appendConsoleLine(`已加载文字检测标签 ${labels.length} 项：${trimmedPath}`);
+  } catch (error) {
+    console.error(error);
+    textDetLabelOptions.value = [];
+    textDetLabelHint.value = error instanceof Error ? `标签文件读取失败：${error.message}` : '标签文件读取失败，请检查路径和格式。';
+    appendConsoleLine(`文字检测标签加载失败：${error instanceof Error ? error.message : '未知错误'}`);
+  } finally {
+    textDetLabelLoading.value = false;
+  }
+};
+
+const buildAdbConnect = (form: DeviceFormState): ADBConnectConfig | null => {
+  const serverConfig = {
+    adbPath: settingsStore.preferences.adbPath || null,
+    serverConnect: `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
+  };
+
+  if (form.connectMethod === 'directTcp') {
+    return {
+      directTcp: form.connectAddress || null,
+    };
+  }
+
+  if (form.connectMethod === 'serverConnectByIp') {
+    return {
+      serverConnectByIp: {
+        adbConfig: serverConfig,
+        clientConnect: form.connectAddress || null,
+      },
+    };
+  }
+
+  return {
+    serverConnectByName: {
+      adbConfig: serverConfig,
+      deviceName: form.connectDeviceName || null,
+    },
+  };
+};
+
+const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => ({
+  id: form.id ?? (await taskService.requestUuid()),
+  data: {
+    deviceName: form.deviceName,
+    exePath: form.exePath || null,
+    exeArgs: form.exeArgs || null,
+    cores: form.cores,
+    logLevel: form.logLevel,
+    logToFile: form.logToFile,
+    adbConnect: buildAdbConnect(form),
+    capMethod: form.capMethodType === 'adb' ? 'adb' : { window: form.capMethodValue || form.deviceName },
+    imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
+    enable: form.enable,
+    autoStart: form.autoStart,
+  },
+});
+
+const openDeviceEditor = (deviceId: string | null) => {
+  editingDeviceId.value = deviceId;
+  deviceEditorOpen.value = true;
+};
+
+const savePreviewDevice = async (form: DeviceFormState) => {
+  try {
+    const device = await buildDeviceTable(form);
+    await deviceStore.saveDevice(device);
+    deviceEditorOpen.value = false;
+    selectedPreviewDeviceId.value = device.id;
+    appendConsoleLine(`设备已保存：${device.data.deviceName}`);
+    showToast('设备已保存', 'success');
+  } catch (error) {
+    appendConsoleLine(`设备保存失败：${error instanceof Error ? error.message : '未知错误'}`);
+    showToast(error instanceof Error ? error.message : '设备保存失败', 'error');
+  }
+};
+
+const handleRunSelection = () => {
+  if (!selectedPreviewDevice.value || !activeTargetValue.value) {
+    showToast('请先选择设备和目标对象。', 'warning');
+    return;
+  }
+
+  appendConsoleLine(`请求运行：设备=${selectedPreviewDevice.value.data.deviceName}，目标=${activeModeLabel.value} ${activeModeFocusName.value || activeTargetValue.value}`);
+  showToast('运行链路尚未接入，这里先按 IDE 顶部工具条布局保留入口。', 'warning');
+};
+
+const createActiveItem = () => {
+  if (activeMode.value === 'policy') {
+    void createPolicy();
+    return;
+  }
+  if (activeMode.value === 'policyGroup') {
+    void createPolicyGroup();
+    return;
+  }
+  if (activeMode.value === 'policySet') {
+    void createPolicySet();
+    return;
+  }
+  void createTask();
+};
+
+const duplicateActiveItem = () => {
+  if (!currentTask.value) {
+    return;
+  }
+  duplicateTask(currentTask.value.id);
+};
+
+const removeActiveItem = () => {
+  if (activeMode.value === 'policy' && currentPolicy.value) {
+    removePolicy(currentPolicy.value.id);
+    return;
+  }
+  if (activeMode.value === 'policyGroup' && currentPolicyGroup.value) {
+    removePolicyGroup(currentPolicyGroup.value.id);
+    return;
+  }
+  if (activeMode.value === 'policySet' && currentPolicySet.value) {
+    removePolicySet(currentPolicySet.value.id);
+    return;
+  }
+  if (currentTask.value) {
+    removeTask(currentTask.value.id);
+  }
+};
+
+const moveActiveItem = (direction: -1 | 1) => {
+  if (activeMode.value === 'policy' && currentPolicy.value) {
+    const fromIndex = draftPolicies.value.findIndex((item) => item.id === currentPolicy.value?.id);
+    const toIndex = fromIndex + direction;
+    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftPolicies.value.length) {
+      reorderPolicies(draftPolicies.value[fromIndex].id, draftPolicies.value[toIndex].id);
+    }
+    return;
+  }
+  if (activeMode.value === 'policyGroup' && currentPolicyGroup.value) {
+    const fromIndex = draftPolicyGroups.value.findIndex((item) => item.id === currentPolicyGroup.value?.id);
+    const toIndex = fromIndex + direction;
+    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftPolicyGroups.value.length) {
+      reorderPolicyGroups(draftPolicyGroups.value[fromIndex].id, draftPolicyGroups.value[toIndex].id);
+    }
+    return;
+  }
+  if (activeMode.value === 'policySet' && currentPolicySet.value) {
+    const fromIndex = draftPolicySets.value.findIndex((item) => item.id === currentPolicySet.value?.id);
+    const toIndex = fromIndex + direction;
+    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftPolicySets.value.length) {
+      reorderPolicySets(draftPolicySets.value[fromIndex].id, draftPolicySets.value[toIndex].id);
+    }
+    return;
+  }
+  if (currentTask.value) {
+    const fromIndex = draftTasks.value.findIndex((item) => item.id === currentTask.value?.id);
+    const toIndex = fromIndex + direction;
+    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftTasks.value.length) {
+      reorderTasks(draftTasks.value[fromIndex].id, draftTasks.value[toIndex].id);
+    }
+  }
+};
+
 const linkPolicyToGroup = (policyId: string) => {
   if (!currentPolicyGroup.value) return;
   const groupId = currentPolicyGroup.value.id;
@@ -1595,6 +2035,15 @@ const reorderGroupPolicies = (draggedId: string, targetId: string) => {
   groupPolicyIdsByGroupId.value = {
     ...groupPolicyIdsByGroupId.value,
     [groupId]: reorderCollection(currentIds, fromIndex, toIndex),
+  };
+};
+
+const reverseGroupPolicies = () => {
+  if (!currentPolicyGroup.value) return;
+  const groupId = currentPolicyGroup.value.id;
+  groupPolicyIdsByGroupId.value = {
+    ...groupPolicyIdsByGroupId.value,
+    [groupId]: [...(groupPolicyIdsByGroupId.value[groupId] ?? [])].reverse(),
   };
 };
 
@@ -2161,9 +2610,11 @@ const saveEditor = async () => {
     sourceSetGroupsSnapshot.value = stableStringify(setGroupIdsBySetId.value);
     sourceScriptSnapshot.value = stableStringify(script);
     saveTime.value = nextSaveTime;
+    appendConsoleLine(`脚本结构已保存：${script.data.name || script.id}`);
     showToast('脚本编辑结果已保存', 'success');
   } catch (error) {
     console.error(error);
+    appendConsoleLine(`脚本保存失败：${error instanceof Error ? error.message : '未知错误'}`);
     showToast(error instanceof Error ? error.message : '保存失败', 'error');
   } finally {
     isSaving.value = false;
@@ -2234,9 +2685,11 @@ const loadEditor = async () => {
     activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
     saveTime.value = sourceScript.data.updateTime || null;
     hydrateTaskEditors();
+    appendConsoleLine(`已载入脚本：${sourceScript.data.name}`);
   } catch (error) {
     console.error(error);
     loadError.value = error instanceof Error ? error.message : '脚本编辑器初始化失败';
+    appendConsoleLine(`编辑器载入失败：${loadError.value}`);
   } finally {
     isLoading.value = false;
   }
@@ -2299,6 +2752,25 @@ watch(
   () => currentPolicy.value?.id,
   () => {
     hydratePolicyStepEditors();
+  },
+  { immediate: true },
+);
+
+watch(
+  textDetLabelPath,
+  (path) => {
+    void loadTextDetLabels(path);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => deviceStore.devices.map((device) => device.id).join('|'),
+  () => {
+    if (selectedPreviewDeviceId.value && deviceStore.devices.some((device) => device.id === selectedPreviewDeviceId.value)) {
+      return;
+    }
+    selectedPreviewDeviceId.value = deviceStore.devices[0]?.id ?? null;
   },
   { immediate: true },
 );
@@ -2504,6 +2976,8 @@ watch(
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
+  void deviceStore.initIpcListeners();
+  void Promise.all([deviceStore.refreshAll(), settingsStore.loadPreferences()]);
 });
 
 onBeforeUnmount(() => {

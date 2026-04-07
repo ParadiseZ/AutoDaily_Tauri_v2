@@ -58,6 +58,9 @@
                 :selected-action="selectedAction"
                 :variable-datalist-id="variableDatalistId"
                 :writable-catalog-variable-options="writableCatalogVariableOptions"
+                :label-index-options="labelIndexOptions"
+                :label-select-placeholder="labelSelectPlaceholder"
+                :label-select-hint="labelSelectHint"
                 :selected-capture-output-target="selectedCaptureOutputTarget"
                 :selected-capture-output-input-entry="selectedCaptureOutputInputEntry"
                 :click-mode-options="clickModeOptions"
@@ -292,6 +295,9 @@ const props = withDefaults(
     inputEntries?: EditorInputEntry[];
     variableOptions: EditorVariableOption[];
     catalogVariableOptions: EditorVariableOption[];
+    labelIndexOptions?: Array<{ label: string; value: number; description?: string; disabled?: boolean }>;
+    labelSelectPlaceholder?: string;
+    labelSelectHint?: string | null;
     taskReferenceOptions: EditorReferenceOption[];
     policyReferenceOptions: EditorReferenceOption[];
     createReference: (kind: EditorReferenceKind) => Promise<string>;
@@ -310,6 +316,9 @@ const props = withDefaults(
   }>(),
   {
     inputEntries: () => [],
+    labelIndexOptions: () => [],
+    labelSelectPlaceholder: '请先设置文字检测模型标签文件',
+    labelSelectHint: null,
   },
 );
 

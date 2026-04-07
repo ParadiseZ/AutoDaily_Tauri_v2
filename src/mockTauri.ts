@@ -241,12 +241,24 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           };
         case 'get_log_config_cmd':
           return DEFAULT_LOG_CONFIG;
+        case 'get_vision_text_cache_config_cmd':
+          return {
+            enabled: false,
+            dir: '',
+          };
         case 'get_all_devices_cmd':
           return readState().devices;
         case 'cmd_get_running_devices':
           return [];
         case 'get_cpu_count_cmd':
           return 8;
+        case 'get_yolo_labels_cmd':
+          return {
+            0: '文本',
+            1: '按钮',
+            2: '图标',
+            3: '高亮',
+          };
         case 'get_assignments_by_device_cmd': {
           const state = readState();
           return state.assignmentsByDevice[String(args.deviceId)] ?? [];

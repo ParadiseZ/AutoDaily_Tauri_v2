@@ -16,6 +16,15 @@
                   {{ assignedItems.length }}
                 </span>
               </div>
+              <button
+                v-if="showReverseAction && assignedItems.length > 1"
+                class="app-button app-button-ghost app-toolbar-button"
+                type="button"
+                data-testid="editor-relation-reverse"
+                @click="$emit('reverse')"
+              >
+                {{ reverseActionLabel }}
+              </button>
               <input v-model="assignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索已关联内容" />
               <p class="text-xs text-[var(--app-text-faint)]">拖动排序，控制执行和命中顺序。</p>
             </div>
@@ -117,19 +126,28 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';
 
-const props = defineProps<{
-  title: string;
-  selectedTitle: string | null;
-  assignedTitle: string;
-  unassignedTitle: string;
-  assignedItems: EditorNamedItem[];
-  unassignedItems: EditorNamedItem[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    title: string;
+    selectedTitle: string | null;
+    assignedTitle: string;
+    unassignedTitle: string;
+    assignedItems: EditorNamedItem[];
+    unassignedItems: EditorNamedItem[];
+    showReverseAction?: boolean;
+    reverseActionLabel?: string;
+  }>(),
+  {
+    showReverseAction: false,
+    reverseActionLabel: '逆序',
+  },
+);
 
 const emit = defineEmits<{
   link: [id: string];
   unlink: [id: string];
   reorder: [draggedId: string, targetId: string];
+  reverse: [];
 }>();
 
 const assignedSearch = ref('');

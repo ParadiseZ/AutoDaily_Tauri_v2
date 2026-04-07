@@ -97,8 +97,16 @@
       </label>
 
       <label v-else class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签索引</span>
-        <input :value="String(selectedAction.idx ?? 0)" class="app-input" type="number" @input="$emit('update-number-field', 'idx', ($event.target as HTMLInputElement).value)" />
+        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签</span>
+        <AppSelect
+          :model-value="selectedAction.idx ?? null"
+          :options="resolvedLabelIdxOptions"
+          :placeholder="labelSelectPlaceholder"
+          :disabled="!(labelIndexOptions?.length)"
+          test-id="editor-action-click-label-idx"
+          @update:model-value="$emit('update-number-field', 'idx', String($event ?? 0))"
+        />
+        <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
       </label>
     </template>
 
@@ -176,12 +184,27 @@
       <div v-else class="grid gap-3 md:grid-cols-2">
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点标签</span>
-          <input :value="String(selectedAction.from ?? 0)" class="app-input" type="number" @input="$emit('update-number-field', 'from', ($event.target as HTMLInputElement).value)" />
+          <AppSelect
+            :model-value="typeof selectedAction.from === 'number' ? selectedAction.from : null"
+            :options="resolvedSwipeFromLabelOptions"
+            :placeholder="labelSelectPlaceholder"
+            :disabled="!(labelIndexOptions?.length)"
+            test-id="editor-action-swipe-label-from"
+            @update:model-value="$emit('update-number-field', 'from', String($event ?? 0))"
+          />
         </label>
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点标签</span>
-          <input :value="String(selectedAction.to ?? 1)" class="app-input" type="number" @input="$emit('update-number-field', 'to', ($event.target as HTMLInputElement).value)" />
+          <AppSelect
+            :model-value="typeof selectedAction.to === 'number' ? selectedAction.to : null"
+            :options="resolvedSwipeToLabelOptions"
+            :placeholder="labelSelectPlaceholder"
+            :disabled="!(labelIndexOptions?.length)"
+            test-id="editor-action-swipe-label-to"
+            @update:model-value="$emit('update-number-field', 'to', String($event ?? 0))"
+          />
         </label>
+        <p v-if="labelSelectHint" class="md:col-span-2 text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
       </div>
     </template>
   </div>
@@ -190,6 +213,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import type { Action } from '@/types/bindings/Action';
@@ -202,6 +226,9 @@ const props = defineProps<{
   selectedAction: Action;
   variableDatalistId: string;
   writableCatalogVariableOptions?: Array<{ label: string; value: string; description: string; disabled?: boolean }>;
+  labelIndexOptions?: LabelSelectOption[];
+  labelSelectPlaceholder?: string;
+  labelSelectHint?: string | null;
   selectedCaptureOutputTarget?: EditorVariableOption | null;
   selectedCaptureOutputInputEntry?: EditorInputEntry | null;
   clickModeOptions: Array<{ label: string; value: string; description: string }>;
@@ -222,6 +249,7 @@ const emit = defineEmits<{
 }>();
 
 type SelectOption = { label: string; value: string; description: string; disabled?: boolean };
+type LabelSelectOption = { label: string; value: number; description?: string; disabled?: boolean };
 
 const withCurrentVariableOption = (options: SelectOption[], value: string) => {
   const trimmedValue = value.trim();
@@ -239,10 +267,47 @@ const withCurrentVariableOption = (options: SelectOption[], value: string) => {
   ];
 };
 
+const withCurrentLabelOption = (options: LabelSelectOption[], value: number | null | undefined) => {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return options;
+  }
+
+  if (options.some((option) => option.value === value)) {
+    return options;
+  }
+
+  return [
+    {
+      label: `${value}: 未找到标签`,
+      value,
+      description: '标签文件中不存在该索引，保存时仍会保留当前 idx。',
+    },
+    ...options,
+  ];
+};
+
 const resolvedCaptureOutputOptions = computed(() =>
   props.selectedAction.ac === ACTION_TYPE.capture
     ? withCurrentVariableOption(props.writableCatalogVariableOptions ?? [], props.selectedAction.output_var ?? '')
     : props.writableCatalogVariableOptions ?? [],
+);
+
+const resolvedLabelIdxOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx
+    ? withCurrentLabelOption(props.labelIndexOptions ?? [], props.selectedAction.idx ?? null)
+    : props.labelIndexOptions ?? [],
+);
+
+const resolvedSwipeFromLabelOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.swipe && props.selectedAction.mode === ACTION_MODE.labelIdx
+    ? withCurrentLabelOption(props.labelIndexOptions ?? [], typeof props.selectedAction.from === 'number' ? props.selectedAction.from : null)
+    : props.labelIndexOptions ?? [],
+);
+
+const resolvedSwipeToLabelOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.swipe && props.selectedAction.mode === ACTION_MODE.labelIdx
+    ? withCurrentLabelOption(props.labelIndexOptions ?? [], typeof props.selectedAction.to === 'number' ? props.selectedAction.to : null)
+    : props.labelIndexOptions ?? [],
 );
 </script>
 
