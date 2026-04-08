@@ -1,9 +1,7 @@
 <template>
   <div class="space-y-6">
     <AppPageHeader
-      eyebrow="Workspace"
       title="任务管理"
-      description="把多设备的运行状态、脚本队列与最近执行结果放在同一工作台里，减少切页和上下文切换。"
     >
       <template #actions>
         <button class="app-button app-button-ghost group text-[var(--app-text-strong)]" type="button" @click="deviceStore.pauseDevices(deviceIds)">

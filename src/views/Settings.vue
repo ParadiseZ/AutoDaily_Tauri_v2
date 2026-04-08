@@ -1,14 +1,12 @@
 <template>
   <div class="space-y-6">
     <AppPageHeader
-      eyebrow="Preferences"
       title="系统设置"
-      description="账户、桌面行为、ADB 与日志配置保持统一来源，本地持久化和运行时命令分开处理。"
     />
 
     <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
       <div class="space-y-4">
-        <SettingsSection icon="user" title="账户信息" description="云端能力集中在这里管理，避免分散到脚本页和市场页。">
+        <SettingsSection icon="user" title="账户信息">
           <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-[var(--app-border)] px-4 py-4">
             <div>
               <p class="text-sm font-medium text-[var(--app-text-strong)]">当前未登录</p>

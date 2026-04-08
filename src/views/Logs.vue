@@ -1,9 +1,7 @@
 <template>
   <div class="space-y-6">
     <AppPageHeader
-      eyebrow="Diagnostics"
       title="运行日志"
-      description="日志页保持低干扰和长时间可读，过滤条件压在顶部，正文只做排查所需的最小高亮。"
     />
 
     <SurfacePanel class="grid gap-3 xl:grid-cols-[220px_180px_minmax(0,1fr)_180px_auto]">

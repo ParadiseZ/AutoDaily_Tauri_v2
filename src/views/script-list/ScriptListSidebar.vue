@@ -1,22 +1,18 @@
 <template>
   <SurfacePanel class="flex h-full flex-col gap-4">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <p class="text-sm font-semibold text-[var(--app-text-strong)]">本地脚本</p>
-        <p class="text-xs text-[var(--app-text-faint)]">最近修改的脚本会优先排在上面。</p>
-      </div>
+    <div class="flex items-center justify-between gap-2">
+      <input
+          :value="searchQuery"
+          class="app-input"
+          placeholder="按脚本名或描述搜索"
+          @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
+      />
       <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" data-testid="script-list-create-button" type="button" @click="$emit('create')">
         <AppIcon name="plus" :size="16" />
-        新建
       </button>
     </div>
 
-    <input
-      :value="searchQuery"
-      class="app-input"
-      placeholder="按脚本名或描述搜索"
-      @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
-    />
+
 
     <div class="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
       <button

@@ -1,9 +1,7 @@
 <template>
   <div class="space-y-6">
     <AppPageHeader
-      eyebrow="Devices"
       title="设备列表"
-      description="设备配置更像系统设置页而不是表格工具，常用信息先露出，细节放进统一编辑弹窗。"
     >
       <template #actions>
         <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="openEditor(null)">
@@ -67,7 +65,7 @@
     <EmptyState
       v-else
       title="设备列表还是空的"
-      description="先创建一台设备，配置连接方式、截图方案和自动启动策略，工作台才会出现真实控制对象。"
+      description="先创建一台设备，配置连接方式、截图方案和自动启动策略"
       icon="smartphone"
     />
 

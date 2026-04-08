@@ -5,7 +5,7 @@
     </div>
     <div class="space-y-1 text-center">
       <h3 class="text-sm font-semibold text-[var(--app-text-strong)]">{{ title }}</h3>
-      <p class="max-w-sm text-sm text-[var(--app-text-soft)]">{{ description }}</p>
+      <p v-if="description" class="max-w-sm text-sm text-[var(--app-text-soft)]">{{ description }}</p>
     </div>
     <div v-if="$slots.default" class="mt-2">
       <slot />
@@ -18,7 +18,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 
 defineProps<{
   title: string;
-  description: string;
+  description?: string;
   icon?: string;
 }>();
 </script>

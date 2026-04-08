@@ -1,9 +1,7 @@
 <template>
   <div class="space-y-6">
     <AppPageHeader
-      eyebrow="Library"
-      title="本地脚本"
-      description="列表、详情和下一步动作分离布局，浏览脚本时不用再被大量卡片和冗余按钮打断。"
+      title="本地列表"
     />
 
     <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_340px]">

@@ -1,10 +1,7 @@
 <template>
   <SurfacePanel class="space-y-4">
     <div>
-      <p class="text-sm font-semibold text-[var(--app-text-strong)]">任务设置</p>
-      <p class="text-xs text-[var(--app-text-faint)]">
-        这里不只放脚本说明，也预留脚本任务变量和时间模板关系。真正可编辑的项应来自任务变量，而不是硬编码在页面里。
-      </p>
+      <p class="text-sm font-semibold text-[var(--app-text-strong)]">任务与模板设置</p>
     </div>
 
     <template v-if="script">
@@ -16,7 +13,7 @@
             <span class="truncate text-[var(--app-text-soft)]">{{ item.templateLabel }}</span>
           </div>
         </div>
-        <p v-else class="mt-3 text-sm text-[var(--app-text-soft)]">当前脚本还没有挂到任何设备队列上。</p>
+        <p v-else class="mt-3 text-sm text-[var(--app-text-soft)]">未挂载到任何设备队列上。</p>
       </div>
 
       <div class="space-y-3">
@@ -84,8 +81,7 @@
 
     <EmptyState
       v-else
-      title="先选择一个脚本"
-      description="脚本详情和任务设置应该同时出现，这样用户才能同时看到脚本本身和运行时配置。"
+      title="选择一个脚本查看设置"
     />
   </SurfacePanel>
 </template>

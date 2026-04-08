@@ -2,14 +2,13 @@
   <AppDialog
     :open="open"
     :title="device ? '编辑设备' : '添加设备'"
-    description="把连接方式、截图能力和执行约束集中在一个弹层里，避免表单分散在多个页面。"
     width-class="max-w-4xl"
     @close="$emit('close')"
   >
     <form class="grid gap-5" @submit.prevent="$emit('save', form)">
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
-          <span class="text-sm text-[var(--app-text-soft)]">设备名称</span>
+          <span class="text-sm text-[var(--app-text-soft)]">名称</span>
           <input v-model.trim="form.deviceName" class="app-input" placeholder="MuMu 模拟器 12" />
         </label>
         <label class="grid gap-2">
@@ -70,19 +69,19 @@
       <div class="grid gap-3">
         <div class="flex items-center justify-between">
           <span class="text-sm font-medium text-[var(--app-text-strong)]">CPU 核心绑定</span>
-          <span class="text-xs text-[var(--app-text-faint)]">建议只给高负载设备绑定固定核心</span>
+          <span class="text-xs text-[var(--app-text-faint)]">影响执行效率</span>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="index in cpuCount"
-            :key="index - 1"
-            type="button"
-            class="app-button app-button-ghost h-10 px-4"
-            :class="{ 'app-button-primary': form.cores.includes(index - 1) }"
-            @click="toggleCore(index - 1)"
-          >
-            Core {{ index - 1 }}
-          </button>
+        <div class="flex flex-wrap gap-10">
+          <label v-for="index in cpuCount" :key="index-1" class="flex items-center gap-2">
+            <input
+                type="checkbox"
+                :value="index"
+                class="w-4 h-4"
+                :class="{ 'app-button-primary': form.cores.includes(index - 1) }"
+                @click="toggleCore(index - 1)"
+            />
+            <span class="text-sm">{{ index }}</span>
+          </label>
         </div>
       </div>
 

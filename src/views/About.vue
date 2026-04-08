@@ -1,9 +1,7 @@
 <template>
   <div class="space-y-6">
     <AppPageHeader
-      eyebrow="About"
       title="关于 AutoDaily"
-      description="它是一套偏专业工具型的桌面自动化工作台，目标不是展示，而是让多设备脚本运行更稳定、更清楚。"
     />
 
     <div class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">

@@ -6,13 +6,9 @@
           <div class="flex items-center gap-3">
             <AppIcon name="logo" type="custom" :size="40" class="text-[var(--app-accent)] drop-shadow-md" />
             <div>
-              <p class="text-sm font-semibold tracking-[0.18em] text-[var(--app-text-faint)]">AUTODAILY</p>
-              <p class="text-lg font-semibold text-[var(--app-text-strong)]">控制台</p>
+              <p class="text-lg font-semibold text-[var(--app-text-strong)]">AutoDaily</p>
             </div>
           </div>
-          <p class="text-sm leading-6 text-[var(--app-text-soft)]">
-            多设备自动化调度、脚本资产管理与系统配置统一收敛在同一工作台里。
-          </p>
         </div>
 
         <div class="grid grid-cols-3 gap-3">
@@ -97,37 +93,12 @@ const deviceStore = useDeviceStore();
 const primaryRoutes = computed(() => routesMenu.filter((item) => !['/settings', '/about'].includes(item.path)));
 const secondaryRoutes = computed(() => routesMenu.filter((item) => ['/settings', '/about'].includes(item.path)));
 
-const currentRouteMeta = computed(() => {
-  return routesMenu.find((item) => route.path === item.path || route.path.startsWith(`${item.path}/`));
-});
-
-const routeSummary = computed(() => {
-  if (route.path === '/tasks') {
-    return '多设备任务中心';
-  }
-  if (route.path === '/devices') {
-    return '设备连接与执行配置';
-  }
-  if (route.path === '/scripts') {
-    return '本地脚本与任务关系';
-  }
-  if (route.path === '/market') {
-    return '云端脚本浏览与下载';
-  }
-  if (route.path === '/logs') {
-    return '长时间运行排查面板';
-  }
-  if (route.path === '/settings') {
-    return '系统行为与账户管理';
-  }
-  return 'AutoDaily';
-});
 
 const userInitial = computed(() => userStore.userProfile?.username?.slice(0, 1).toUpperCase() || 'A');
 const userName = computed(() => userStore.userProfile?.username || '未登录');
 const userState = computed(() => {
   if (!userStore.isLoggedIn) {
-    return '点击登录后同步云端能力';
+    return '登录后同步云端能力';
   }
   return userStore.isDeveloper ? '开发者权限已激活' : '本地模式';
 });

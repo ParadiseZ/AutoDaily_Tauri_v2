@@ -3,7 +3,7 @@
     <div class="space-y-2">
       <p v-if="eyebrow" class="app-eyebrow">{{ eyebrow }}</p>
       <div class="space-y-1">
-        <h1 class="app-page-title">{{ title }}</h1>
+        <p class="app-page-title">{{ title }}</p>
         <p v-if="description" class="app-page-description">{{ description }}</p>
       </div>
     </div>

@@ -93,7 +93,6 @@
   <EmptyState
     v-else
     title="选择一个脚本查看详情"
-    description="左侧脚本列表承载浏览，右侧负责解释这个脚本的结构和动作。现在先选一个脚本，让我们继续往编辑器工作区走。"
   />
 </template>
 

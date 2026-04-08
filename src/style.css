@@ -172,15 +172,15 @@ a {
 
 .app-page-header {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
 }
 
 .app-page-title {
   color: var(--app-text-strong);
-  font-size: 1.75rem;
-  font-weight: 650;
+  font-size: 1rem;
+  font-weight: 640;
   letter-spacing: -0.04em;
 }
 

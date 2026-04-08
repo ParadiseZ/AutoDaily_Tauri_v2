@@ -1,6 +1,6 @@
 <template>
   <SurfacePanel class="space-y-4">
-    <div class="flex items-start gap-3">
+    <div class="flex items-center gap-3">
       <div v-if="icon" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--app-panel-muted)] border border-[var(--app-border)] text-[var(--app-text-strong)]">
         <AppIcon :name="icon" :size="20" />
       </div>

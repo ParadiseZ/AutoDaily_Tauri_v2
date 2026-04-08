@@ -1,15 +1,13 @@
 <template>
   <div class="space-y-6">
     <AppPageHeader
-      eyebrow="Cloud"
       title="脚本市场"
-      description="搜索和下载维持轻量双栏结构，方便快速筛选、预览再导入本地继续编辑。"
     />
 
     <SurfacePanel class="grid gap-3 lg:grid-cols-[1.2fr_1fr_220px_120px]">
       <input v-model.trim="filters.keyword" class="app-input" placeholder="搜索脚本名或描述" />
       <input v-model.trim="filters.author" class="app-input" placeholder="按作者筛选" />
-      <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="全部运行时" />
+      <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="运行时" />
       <button class="app-button app-button-primary" type="button" @click="search">
         搜索
       </button>
@@ -20,13 +18,12 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm font-semibold text-[var(--app-text-strong)]">搜索结果</p>
-            <p class="text-xs text-[var(--app-text-faint)]">共 {{ scriptStore.marketPage.total }} 个可下载脚本</p>
           </div>
         </div>
 
-        <div v-if="scriptStore.marketLoading" class="py-12 text-sm text-[var(--app-text-soft)]">正在从服务端检索脚本...</div>
+        <div v-if="scriptStore.marketLoading" class="py-12 text-sm text-[var(--app-text-soft)]">正在检索...</div>
         <div v-else-if="!scriptStore.marketPage.records.length">
-          <EmptyState title="没有找到匹配脚本" description="可以换一个关键字、作者名或运行时，再让市场重新筛一轮。" />
+          <EmptyState title="没有找到匹配脚本" description="换一个关键字、作者名或运行时试试？" />
         </div>
         <div v-else class="space-y-2">
           <button
@@ -98,7 +95,6 @@
         <EmptyState
           v-else
           title="选择一个脚本查看详情"
-          description="左边负责快速筛选，右边负责解释这个脚本值不值得拉到本地继续编辑。"
         />
       </SurfacePanel>
     </div>
@@ -127,13 +123,16 @@ const filters = reactive({
   author: '',
   runtimeType: '',
 });
-const runtimeOptions = [
+/*const runtimeOptions = [
   { label: '全部运行时', value: '' },
   { label: 'Rhai', value: 'rhai' },
-/*  { label: 'JavaScript', value: 'javaScript' },
-  { label: 'Lua', value: 'lua' },*/
+/!*  { label: 'JavaScript', value: 'javaScript' },
+  { label: 'Lua', value: 'lua' },*!/
   { label: 'AI + Vision', value: 'aIAndVision' },
   { label: 'AI', value: 'aI' },
+];*/
+const runtimeOptions = [
+  { label: 'Rhai', value: 'rhai' }
 ];
 
 const selectedScript = computed(
