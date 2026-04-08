@@ -71,6 +71,7 @@ export const useSettingsStore = defineStore('settings', () => {
                         ...preferences.value,
                         ocrTextCacheEnabled: loadedVisionCacheConfig.enabled,
                         ocrTextCacheDir: loadedVisionCacheConfig.dir,
+                        visionSignatureGridSize: loadedVisionCacheConfig.signatureGridSize ?? DEFAULT_SYSTEM_PREFERENCES.visionSignatureGridSize,
                     };
                 }
             } catch {

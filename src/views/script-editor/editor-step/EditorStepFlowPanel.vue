@@ -36,6 +36,120 @@
       </div>
     </template>
 
+    <template v-else-if="selectedFlow.type === FLOW_TYPE.handlePolicySet || selectedFlow.type === FLOW_TYPE.handlePolicy">
+      <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+        <div class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">{{ targetTitle }}</span>
+          <div class="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+            <EditorSelectField
+              :model-value="pendingTargetId"
+              :options="availableTargetReferenceOptions"
+              :placeholder="targetPlaceholder"
+              :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-pending' : 'editor-flow-policy-pending'"
+              @update:model-value="pendingTargetId = String($event || '')"
+            />
+            <button
+              class="app-button app-button-primary app-toolbar-button"
+              type="button"
+              :data-testid="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-add' : 'editor-flow-policy-add'"
+              :disabled="!pendingTargetId"
+              @click="appendTarget"
+            >
+              添加
+            </button>
+          </div>
+        </div>
+
+        <div v-if="resolvedTargets.length" class="space-y-2">
+          <article
+            v-for="target in resolvedTargets"
+            :key="target.id"
+            :data-testid="selectedFlow.type === FLOW_TYPE.handlePolicySet ? `editor-flow-policy-set-target-${target.id}` : `editor-flow-policy-target-${target.id}`"
+            class="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--app-border)] bg-white/55 px-3 py-3"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ target.label }}</p>
+              <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ target.description }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="jumpToTarget(target.id)">
+                <AppIcon name="locate-fixed" :size="14" />
+                定位
+              </button>
+              <button class="app-button app-button-danger app-toolbar-button" type="button" @click="removeTarget(target.id)">
+                移除
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <div v-else class="rounded-[14px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)]">
+          还没有绑定策略集，运行时不会执行任何匹配。
+        </div>
+
+        <div class="grid gap-4 xl:grid-cols-2">
+          <div class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入图像变量</span>
+            <EditorSelectField
+              :model-value="selectedFlowInput || null"
+              :options="resolvedFlowInputOptions"
+              :show-description="true"
+              placeholder="选择截图或图像变量"
+              :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-input-var' : 'editor-flow-policy-input-var'"
+              @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+            />
+            <div class="flex flex-wrap gap-2">
+              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createFlowInputVariable">
+                <AppIcon name="plus" :size="14" />
+                新建图像变量
+              </button>
+              <button
+                class="app-button app-button-ghost app-toolbar-button"
+                type="button"
+                :disabled="!selectedFlowInputOption"
+                @click="jumpToFlowInputVariable"
+              >
+                <AppIcon name="locate-fixed" :size="14" />
+                定位变量
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出结果变量</span>
+            <EditorSelectField
+              :model-value="selectedFlowOutput || null"
+              :options="resolvedFlowOutputOptions"
+              :show-description="true"
+              placeholder="选择 JSON 结果变量"
+              :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-out-var' : 'editor-flow-policy-out-var'"
+              @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
+            />
+            <div class="flex flex-wrap gap-2">
+              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createFlowOutputVariable">
+                <AppIcon name="plus" :size="14" />
+                新建结果变量
+              </button>
+              <button
+                class="app-button app-button-ghost app-toolbar-button"
+                type="button"
+                :disabled="!selectedFlowOutputOption"
+                @click="jumpToFlowOutputVariable"
+              >
+                <AppIcon name="locate-fixed" :size="14" />
+                定位变量
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4 text-xs leading-6 text-[var(--app-text-soft)]">
+          输出 JSON 约定：顶层摘要字段为 `matched`、`policySetId`、`policyGroupId`、`policyId`，逐轮明细写入 `rounds`。
+          每个 round 内再保存 `pageFingerprints`、`actionSignatures`、`actions`，其中 `actions` 按 `actionIndex` 标识单轮中的动作顺序。
+        </div>
+      </div>
+    </template>
+
     <template v-else-if="selectedFlow.type === FLOW_TYPE.continue || selectedFlow.type === FLOW_TYPE.break">
       <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]">
         {{ selectedFlow.type === FLOW_TYPE.continue ? '该步骤会立即开始下一轮循环。' : '该步骤会立即跳出当前循环。' }}
@@ -81,6 +195,8 @@
           :variable-input-entries="variableInputEntries"
           :task-reference-options="taskReferenceOptions"
           :policy-reference-options="policyReferenceOptions"
+          :policy-group-reference-options="policyGroupReferenceOptions"
+          :policy-set-reference-options="policySetReferenceOptions"
           :create-reference="createReference"
           :jump-to-reference="jumpToReference"
           :create-variable="createVariable"
@@ -95,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
@@ -129,6 +245,8 @@ const props = defineProps<{
   variableReferenceOptions: EditorVariableOption[];
   taskReferenceOptions: EditorReferenceOption[];
   policyReferenceOptions: EditorReferenceOption[];
+  policyGroupReferenceOptions: EditorReferenceOption[];
+  policySetReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;
@@ -139,6 +257,97 @@ const resolvedTaskReferenceOptions = computed(() =>
   withResolvedReferenceOption(props.taskReferenceOptions, selectedLinkTarget.value, 'task'),
 );
 const selectedLinkTarget = computed(() => (props.selectedFlow.type === FLOW_TYPE.link ? props.selectedFlow.target : ''));
+const pendingTargetId = ref('');
+const jsonVariableOptions = computed(() =>
+  props.variableReferenceOptions
+    .filter((option) => ['json', 'object', 'list'].includes(option.valueType))
+    .map((option) => ({ label: option.label, value: option.key, description: option.description })),
+);
+const imageVariableOptions = computed(() =>
+  props.variableReferenceOptions
+    .filter((option) => option.valueType === 'image')
+    .map((option) => ({ label: option.label, value: option.key, description: option.description })),
+);
+const selectedFlowInput = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.handlePolicySet || props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.input_var : '',
+);
+const selectedFlowOutput = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.handlePolicySet || props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.out_var : '',
+);
+const selectedFlowInputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedFlowInput.value) ?? null,
+);
+const selectedFlowOutputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedFlowOutput.value) ?? null,
+);
+const resolvedFlowInputOptions = computed(() => {
+  if (!selectedFlowInput.value || imageVariableOptions.value.some((option) => option.value === selectedFlowInput.value)) {
+    return imageVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `未解析变量 ${selectedFlowInput.value}`,
+      value: selectedFlowInput.value,
+      description: `保留历史输入 ${selectedFlowInput.value}`,
+    },
+    ...imageVariableOptions.value,
+  ];
+});
+const resolvedFlowOutputOptions = computed(() => {
+  if (!selectedFlowOutput.value || jsonVariableOptions.value.some((option) => option.value === selectedFlowOutput.value)) {
+    return jsonVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `未解析变量 ${selectedFlowOutput.value}`,
+      value: selectedFlowOutput.value,
+      description: `保留历史输出 ${selectedFlowOutput.value}`,
+    },
+    ...jsonVariableOptions.value,
+  ];
+});
+const availableTargetReferenceOptions = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
+    const selectedIds = new Set(props.selectedFlow.target);
+    return props.policySetReferenceOptions.filter((option) => !selectedIds.has(option.value));
+  }
+
+  if (props.selectedFlow.type === FLOW_TYPE.handlePolicy) {
+    const selectedIds = new Set(props.selectedFlow.target);
+    return props.policyReferenceOptions.filter((option) => !selectedIds.has(option.value));
+  }
+
+  return [];
+});
+const resolvedTargets = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
+    return props.selectedFlow.target.map((id) => {
+      const matched = props.policySetReferenceOptions.find((option) => option.value === id);
+      return {
+        id,
+        label: matched?.label || '未解析策略集',
+        description: matched?.description || `保留历史引用 ${id}`,
+      };
+    });
+  }
+
+  if (props.selectedFlow.type === FLOW_TYPE.handlePolicy) {
+    return props.selectedFlow.target.map((id) => {
+      const matched = props.policyReferenceOptions.find((option) => option.value === id);
+      return {
+        id,
+        label: matched?.label || '未解析策略',
+        description: matched?.description || `保留历史引用 ${id}`,
+      };
+    });
+  }
+
+  return [];
+});
+const targetTitle = computed(() => (props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '目标策略集' : '目标策略'));
+const targetPlaceholder = computed(() => (props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '选择策略集后添加' : '选择策略后添加'));
 
 const createTaskReferenceAndBind = async () => {
   const id = await props.createReference('task');
@@ -150,6 +359,71 @@ const jumpToLinkedTask = () => {
     return;
   }
   props.jumpToReference('task', selectedLinkTarget.value);
+};
+
+const appendTarget = () => {
+  if ((props.selectedFlow.type !== FLOW_TYPE.handlePolicySet && props.selectedFlow.type !== FLOW_TYPE.handlePolicy) || !pendingTargetId.value) {
+    return;
+  }
+
+  emit('update-field', 'target', JSON.stringify([...props.selectedFlow.target, pendingTargetId.value]));
+  pendingTargetId.value = '';
+};
+
+const removeTarget = (targetId: string) => {
+  if (props.selectedFlow.type !== FLOW_TYPE.handlePolicySet && props.selectedFlow.type !== FLOW_TYPE.handlePolicy) {
+    return;
+  }
+
+  emit('update-field', 'target', JSON.stringify(props.selectedFlow.target.filter((item) => item !== targetId)));
+};
+
+const jumpToTarget = (targetId: string) => {
+  props.jumpToReference(props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'policySet' : 'policy', targetId);
+};
+
+const createFlowInputVariable = async () => {
+  if (!props.createVariable) {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'image', {
+    preferredKey: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'policySetImage' : 'policyImage',
+    name: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '策略集输入图像' : '策略输入图像',
+  });
+  if (!key) {
+    return;
+  }
+  emit('update-field', 'input_var', key);
+};
+
+const createFlowOutputVariable = async () => {
+  if (!props.createVariable) {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'policySetResult' : 'policyResult',
+    name: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '策略集结果' : '策略结果',
+  });
+  if (!key) {
+    return;
+  }
+  emit('update-field', 'out_var', key);
+};
+
+const jumpToFlowInputVariable = () => {
+  if (!selectedFlowInputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedFlowInputOption.value);
+};
+
+const jumpToFlowOutputVariable = () => {
+  if (!selectedFlowOutputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedFlowOutputOption.value);
 };
 </script>
 

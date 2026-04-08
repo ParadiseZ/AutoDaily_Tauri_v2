@@ -154,6 +154,21 @@
               选择目录
             </button>
           </div>
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">视觉签名网格(px)</span>
+              <input
+                v-model.number="settingsStore.preferences.visionSignatureGridSize"
+                class="app-input"
+                type="number"
+                min="1"
+                step="1"
+              />
+            </label>
+            <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+              稳定排序、相对位置判断和动作签名会按该像素挡位离散化；原始执行坐标仍保留精确值。
+            </div>
+          </div>
           <div class="flex justify-end">
             <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveVisionCachePreferences">
               <AppIcon name="save" :size="16" />
@@ -315,6 +330,7 @@ const saveVisionCachePreferences = async () => {
   const config: VisionTextCacheConfig = {
     enabled: settingsStore.preferences.ocrTextCacheEnabled,
     dir: settingsStore.preferences.ocrTextCacheDir,
+    signatureGridSize: Math.max(1, Number(settingsStore.preferences.visionSignatureGridSize) || 8),
   };
 
   try {
@@ -322,6 +338,7 @@ const saveVisionCachePreferences = async () => {
     await settingsStore.updatePreferences({
       ocrTextCacheEnabled: config.enabled,
       ocrTextCacheDir: config.dir,
+      visionSignatureGridSize: config.signatureGridSize,
     });
     showToast('OCR 缓存设置已保存', 'success');
   } catch (error) {

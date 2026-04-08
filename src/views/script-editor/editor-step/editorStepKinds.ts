@@ -26,7 +26,7 @@ export const ACTION_MODE = {
   labelIdx: ACTION_MODES[3],
 } as const;
 
-export const FLOW_TYPES = ['if', 'while', 'for', 'continue', 'break', 'waitMs', 'link', 'addPolicies', 'handlePolicySet'] as const;
+export const FLOW_TYPES = ['if', 'while', 'for', 'continue', 'break', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const;
 export const FLOW_TYPE = {
   if: FLOW_TYPES[0],
   while: FLOW_TYPES[1],
@@ -37,6 +37,7 @@ export const FLOW_TYPE = {
   link: FLOW_TYPES[6],
   addPolicies: FLOW_TYPES[7],
   handlePolicySet: FLOW_TYPES[8],
+  handlePolicy: FLOW_TYPES[9],
 } as const;
 
 export const DATA_TYPES = ['setVar', 'getVar', 'filter'] as const;
@@ -76,12 +77,11 @@ export const FILTER_MODE_TYPE = {
   map: FILTER_MODE_TYPES[1],
 } as const;
 
-export const SEARCH_RULE_TYPES = ['keyword', 'yoloIdx', 'regex', 'group'] as const;
+export const SEARCH_RULE_TYPES = ['txt', 'detLabel', 'group'] as const;
 export const SEARCH_RULE_TYPE = {
-  keyword: SEARCH_RULE_TYPES[0],
-  yoloIdx: SEARCH_RULE_TYPES[1],
-  regex: SEARCH_RULE_TYPES[2],
-  group: SEARCH_RULE_TYPES[3],
+  txt: SEARCH_RULE_TYPES[0],
+  detLabel: SEARCH_RULE_TYPES[1],
+  group: SEARCH_RULE_TYPES[2],
 } as const;
 
 export const LOGIC_OPS = ['And', 'Or', 'Not'] as const;

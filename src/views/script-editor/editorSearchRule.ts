@@ -2,10 +2,9 @@ import type { SearchRule } from '@/types/bindings/SearchRule';
 import { LOGIC_OP, SEARCH_RULE_TYPE, SEARCH_SCOPE } from '@/views/script-editor/editor-step/editorStepKinds';
 
 export const searchRuleTypeOptions = [
-  { label: '关键字', value: SEARCH_RULE_TYPE.keyword, description: '按 OCR 文本关键字匹配。' },
-  { label: '正则', value: SEARCH_RULE_TYPE.regex, description: '按正则表达式匹配文本。' },
-  { label: 'YOLO 索引', value: SEARCH_RULE_TYPE.yoloIdx, description: '按视觉检测索引匹配。' },
-  { label: '规则组', value: SEARCH_RULE_TYPE.group, description: '组合多个搜索规则。' },
+  { label: '文本', value: SEARCH_RULE_TYPE.txt, description: '按 OCR 文本召回策略。' },
+  { label: '标签', value: SEARCH_RULE_TYPE.detLabel, description: '按检测标签召回策略。' },
+  { label: '规则组', value: SEARCH_RULE_TYPE.group, description: '组合多个召回规则。' },
 ];
 
 export const logicOpOptions = [
@@ -21,10 +20,8 @@ export const searchScopeOptions = [
 
 export const createSearchRule = (type: string): SearchRule => {
   switch (type) {
-    case SEARCH_RULE_TYPE.regex:
-      return { type: SEARCH_RULE_TYPE.regex, pattern: '.*' };
-    case SEARCH_RULE_TYPE.yoloIdx:
-      return { type: SEARCH_RULE_TYPE.yoloIdx, idx: 0 };
+    case SEARCH_RULE_TYPE.detLabel:
+      return { type: SEARCH_RULE_TYPE.detLabel, idx: 0 };
     case SEARCH_RULE_TYPE.group:
       return {
         type: SEARCH_RULE_TYPE.group,
@@ -33,7 +30,7 @@ export const createSearchRule = (type: string): SearchRule => {
         items: [],
       };
     default:
-      return { type: SEARCH_RULE_TYPE.keyword, pattern: '开始' };
+      return { type: SEARCH_RULE_TYPE.txt, pattern: '开始' };
   }
 };
 
@@ -52,12 +49,10 @@ export const ensureRootGroupRule = (rule: SearchRule): SearchRule => {
 
 export const describeSearchRule = (rule: SearchRule): string => {
   switch (rule.type) {
-    case SEARCH_RULE_TYPE.keyword:
-      return `关键字: ${rule.pattern || '未填写'}`;
-    case SEARCH_RULE_TYPE.regex:
-      return `正则: ${rule.pattern || '未填写'}`;
-    case SEARCH_RULE_TYPE.yoloIdx:
-      return `YOLO 索引: ${String(rule.idx)}`;
+    case SEARCH_RULE_TYPE.txt:
+      return `文本: ${rule.pattern || '未填写'}`;
+    case SEARCH_RULE_TYPE.detLabel:
+      return `标签索引: ${String(rule.idx)}`;
     case SEARCH_RULE_TYPE.group:
       return `${rule.op} 组合 · ${rule.items.length} 项`;
     default:

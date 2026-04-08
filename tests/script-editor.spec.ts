@@ -64,7 +64,8 @@ const selectOptionByValue = async (page: Page, testId: string, value: string) =>
   }
 
   await page.getByTestId(testId).click();
-  await page.getByTestId(`${testId}-option-${value}`).click();
+  const dropdownOption = page.getByTestId(`${testId}-option-${value}`);
+  await dropdownOption.first().evaluate((element: HTMLElement) => element.click());
 };
 
 const selectOptionByLabel = async (page: Page, testId: string, label: string) => {
@@ -75,7 +76,8 @@ const selectOptionByLabel = async (page: Page, testId: string, label: string) =>
   }
 
   await page.getByTestId(testId).click();
-  await page.getByTestId(`${testId}-menu`).getByText(label).click();
+  const dropdownOption = page.getByTestId(`${testId}-menu`).getByText(label);
+  await dropdownOption.first().evaluate((element: HTMLElement) => element.click());
 };
 
 const selectEditorMode = async (page: Page, mode: 'task' | 'policy' | 'policyGroup' | 'policySet') => {
@@ -198,7 +200,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
         key: 'runtime.captureResult',
         name: '截图结果',
         namespace: 'runtime',
-        valueType: 'string',
+        valueType: 'image',
         ownerTaskId: task.id,
         persisted: false,
         uiBindable: false,
@@ -295,6 +297,140 @@ test('persists flow conditions and action forms from step workspace', async ({ p
       p: {
         x: 128,
         y: 256,
+      },
+    },
+  });
+});
+
+test('persists handle policy set flow and policy-set-result condition with ids only', async ({ page }) => {
+  const scriptId = 'script-editor-policy-set-flow';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略集流程脚本',
+      description: '验证策略集处理步骤与结果条件保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.policy.set.flow',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    window.__AUTODAILY_MOCK__.seed({
+      policies: [
+        {
+          id: 'policy-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '领奖策略',
+            note: '策略备注',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+      ],
+      policyGroups: [
+        {
+          id: 'group-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '基础策略组',
+            note: '策略组备注',
+          },
+        },
+      ],
+      policySets: [
+        {
+          id: 'set-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '主策略集',
+            note: '策略集备注',
+          },
+        },
+      ],
+      groupPolicies: {
+        'group-a': ['policy-a'],
+      },
+      setGroups: {
+        'set-a': ['group-a'],
+      },
+    });
+  }, script);
+  await page.reload();
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-handle-policy-set').click();
+  await page.getByTestId('editor-step-template-if').click();
+
+  await page.getByTestId('editor-step-card-0').click();
+  await selectOptionByValue(page, 'editor-flow-policy-set-pending', 'set-a');
+  await page.getByTestId('editor-flow-policy-set-add').click();
+  await expect(page.getByTestId('editor-flow-policy-set-target-set-a')).toContainText('主策略集');
+
+  await page.getByTestId('editor-step-card-1').click();
+  await selectOptionByValue(page, 'editor-condition-type', 'policySetResult');
+  await selectOptionByValue(page, 'editor-condition-policy-set-result-var', 'runtime.policySetResult');
+  await selectOptionByValue(page, 'editor-condition-policy-set-result-field', 'policyId');
+  await selectOptionByValue(page, 'editor-condition-policy-set-result-op', 'eq');
+  await selectOptionByValue(page, 'editor-condition-policy-set-result-target-id', 'policy-a');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'handlePolicySet',
+      target: ['set-a'],
+      input_var: 'runtime.policySetImage',
+      out_var: 'runtime.policySetResult',
+    },
+  });
+  expect(task.data.steps[1]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'if',
+      con: {
+        type: 'policySetResult',
+        result_var: 'runtime.policySetResult',
+        field: 'policyId',
+        op: 'eq',
+        value_bool: true,
+        value_id: 'policy-a',
       },
     },
   });
@@ -819,8 +955,8 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-vision-search').click();
   await page.getByTestId('editor-step-card-1').click();
-  await page.getByRole('button', { name: '添加关键字' }).click();
-  await page.getByTestId('editor-search-rule-item-0-keyword').fill('领取');
+  await page.getByRole('button', { name: '添加文本' }).click();
+  await page.getByTestId('editor-search-rule-item-0-txt').fill('领取');
 
   await page.getByTestId('editor-step-template-set-task-state').click();
   await page.getByTestId('editor-step-card-2').click();
@@ -865,7 +1001,7 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
         scope: 'Global',
         items: [
           {
-            type: 'keyword',
+            type: 'txt',
             pattern: '领取',
           },
         ],
@@ -1263,7 +1399,7 @@ test('registers capture template variable and supports inline editing from step 
         key: 'runtime.capturePayload',
         name: '截图载荷',
         namespace: 'runtime',
-        valueType: 'string',
+        valueType: 'image',
       }),
     ]),
   );
@@ -1417,8 +1553,8 @@ test('creates policies and persists search rule with before and after actions', 
   await page.getByTestId('editor-policy-name').fill('领奖策略');
 
   await page.getByTestId('editor-policy-tab-condition').click();
-  await page.getByRole('button', { name: '添加关键字' }).click();
-  await page.getByTestId('editor-policy-condition-item-0-keyword').fill('领取');
+  await page.getByRole('button', { name: '添加文本' }).click();
+  await page.getByTestId('editor-policy-condition-item-0-txt').fill('领取');
 
   await page.getByTestId('editor-policy-tab-before').click();
   await page.getByTestId('editor-policy-step-template-wait').click();
@@ -1450,7 +1586,7 @@ test('creates policies and persists search rule with before and after actions', 
         scope: 'Global',
         items: [
           {
-            type: 'keyword',
+            type: 'txt',
             pattern: '领取',
           },
         ],
@@ -1465,6 +1601,77 @@ test('creates policies and persists search rule with before and after actions', 
           },
         },
       ],
+    },
+  });
+});
+
+test('persists policyCondition with relative rule in task flow', async ({ page }) => {
+  const scriptId = 'script-editor-policy-condition-relative';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略条件相对位置脚本',
+      description: '验证 PolicyCondition 的相对位置规则保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      pkgName: 'com.example.editor.policy-condition.relative',
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-if').click();
+  await selectOptionByValue(page, 'editor-condition-type', 'policyCondition');
+  await selectOptionByValue(page, 'editor-condition-policy-condition-rule-type', 'relative');
+  await selectOptionByValue(page, 'editor-condition-policy-condition-rule-relative-direction', 'right');
+  await selectOptionByValue(page, 'editor-condition-policy-condition-rule-relative-target-kind', 'ocrText');
+  await selectOptionByValue(page, 'editor-condition-policy-condition-rule-relative-value-type', 'number');
+  await selectOptionByValue(page, 'editor-condition-policy-condition-rule-relative-compare', 'gt');
+  await page.getByTestId('editor-condition-policy-condition-rule-relative-anchor-text').fill('结晶');
+  await page.getByTestId('editor-condition-policy-condition-rule-relative-value').fill('5');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'if',
+      con: {
+        type: 'policyCondition',
+        input_var: null,
+        rule: {
+          type: 'relative',
+          anchor_type: 'ocrText',
+          anchor_text: '结晶',
+          anchor_idx: 0,
+          direction: 'right',
+          target_kind: 'ocrText',
+          value_type: 'number',
+          compare: 'gt',
+          value: '5',
+        },
+      },
     },
   });
 });

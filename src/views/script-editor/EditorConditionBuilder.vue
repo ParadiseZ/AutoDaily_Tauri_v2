@@ -10,7 +10,7 @@
           :test-id="rootTestId('type')"
           @update:model-value="changeType(String($event || 'rawExpr'))"
         />
-        <span class="truncate text-xs text-[var(--app-text-faint)]">{{ describeConditionNode(modelValue) }}</span>
+        <span class="truncate text-xs text-[var(--app-text-faint)]">{{ conditionSummary }}</span>
       </div>
 
       <button
@@ -72,6 +72,8 @@
             :variable-input-entries="variableInputEntries"
             :task-reference-options="taskReferenceOptions"
             :policy-reference-options="policyReferenceOptions"
+            :policy-group-reference-options="policyGroupReferenceOptions"
+            :policy-set-reference-options="policySetReferenceOptions"
             :create-reference="createReference"
             :jump-to-reference="jumpToReference"
             :create-variable="createVariable"
@@ -281,6 +283,125 @@
         </label>
       </template>
 
+      <template v-else-if="modelValue.type === 'policySetResult'">
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">结果变量</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="modelValue.result_var || null"
+              :options="resolvedPolicySetResultVarOptions"
+              :show-description="true"
+              placeholder="选择策略集结果变量"
+              :test-id="rootTestId('policy-set-result-var')"
+              @update:model-value="updatePolicySetResultField('result_var', String($event || ''))"
+            />
+          </div>
+
+          <div class="editor-inline-label">判断字段</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
+              :model-value="modelValue.field"
+              :options="policySetResultFieldOptions"
+              placeholder="结果字段"
+              :test-id="rootTestId('policy-set-result-field')"
+              @update:model-value="updatePolicySetResultFieldType(String($event || 'policyId'))"
+            />
+          </div>
+
+          <div class="editor-inline-label">比较方式</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
+              :model-value="modelValue.op"
+              :options="policySetResultCompareOptions"
+              placeholder="比较方式"
+              :test-id="rootTestId('policy-set-result-op')"
+              @update:model-value="updatePolicySetResultCompareOp(String($event || 'eq'))"
+            />
+          </div>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createPolicySetResultVariable">
+            <AppIcon name="plus" :size="14" />
+            新建结果变量
+          </button>
+          <button
+            v-if="selectedPolicySetResultVarOption && jumpToVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            @click="jumpToPolicySetResultVariable"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+
+        <label v-if="modelValue.field === 'matched'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+          <input
+            :checked="Boolean(modelValue.value_bool)"
+            type="checkbox"
+            class="h-4 w-4"
+            style="accent-color: var(--app-accent)"
+            @change="updatePolicySetResultBool(($event.target as HTMLInputElement).checked)"
+          />
+          <span class="text-sm text-[var(--app-text-soft)]">比较值为真</span>
+        </label>
+
+        <div v-else class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">比较对象</span>
+          <EditorSelectField
+            :model-value="modelValue.value_id || null"
+            :options="resolvedPolicySetResultTargetOptions"
+            placeholder="选择资源"
+            :test-id="rootTestId('policy-set-result-target-id')"
+            @update:model-value="updatePolicySetResultValueId(String($event || ''))"
+          />
+        </div>
+
+        <div class="rounded-[14px] border border-[var(--app-border)] bg-white/40 px-4 py-3 text-sm leading-6 text-[var(--app-text-soft)]">
+          该节点比较策略集处理结果对象里的明确字段。运行时结果会同时写出 `policySetId`、`policyGroupId`、`policyId`
+          和动作序列签名，前端只展示名称，保存时仍然只存 id。
+        </div>
+      </template>
+
+      <template v-else-if="modelValue.type === 'policyCondition'">
+        <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+          <div class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入图像变量</span>
+            <EditorSelectField
+              :model-value="modelValue.input_var || null"
+              :options="resolvedPolicyConditionInputOptions"
+              :show-description="true"
+              placeholder="留空则使用当前策略图像上下文"
+              :test-id="rootTestId('policy-condition-input-var')"
+              @update:model-value="updatePolicyConditionInput($event ? String($event) : null)"
+            />
+          </div>
+
+          <div v-if="createVariable || (selectedPolicyConditionInputOption && jumpToVariable)" class="flex flex-wrap gap-2">
+            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createPolicyConditionInputVariable">
+              <AppIcon name="plus" :size="14" />
+              新建图像变量
+            </button>
+            <button
+              v-if="selectedPolicyConditionInputOption && jumpToVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              @click="jumpToPolicyConditionInputVariable"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+
+          <EditorPolicyConditionRuleBuilder
+            :model-value="modelValue.rule"
+            :test-id-prefix="rootTestId('policy-condition-rule')"
+            @update:model-value="updatePolicyConditionRule"
+          />
+        </div>
+      </template>
+
       <template v-else-if="modelValue.type === 'colorCompare'">
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">OCR 目标文本</span>
@@ -329,9 +450,11 @@
 import { computed, ref, watch } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
+import EditorPolicyConditionRuleBuilder from '@/views/script-editor/EditorPolicyConditionRuleBuilder.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
+import type { PolicyConditionRule } from '@/types/bindings/PolicyConditionRule';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
 import { buildVariableCatalogKey, type EditorInputEntry, type EditorInputType, type EditorVariableOption } from '@/views/script-editor/editorVariables';
@@ -342,6 +465,8 @@ import {
   createConditionNode,
   describeConditionNode,
   logicOpOptions,
+  policySetResultCompareOptions,
+  policySetResultFieldOptions,
   parseVarValueDraft,
   stateStatusTypeOptions,
   stateTargetTypeOptions,
@@ -367,6 +492,8 @@ const props = withDefaults(
     variableInputEntries?: EditorInputEntry[];
     taskReferenceOptions?: EditorReferenceOption[];
     policyReferenceOptions?: EditorReferenceOption[];
+    policyGroupReferenceOptions?: EditorReferenceOption[];
+    policySetReferenceOptions?: EditorReferenceOption[];
     createReference?: (kind: EditorReferenceKind) => Promise<string>;
     jumpToReference?: (kind: EditorReferenceKind, id: string) => void;
     createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
@@ -381,6 +508,8 @@ const props = withDefaults(
     variableInputEntries: () => [],
     taskReferenceOptions: () => [],
     policyReferenceOptions: () => [],
+    policyGroupReferenceOptions: () => [],
+    policySetReferenceOptions: () => [],
     createReference: undefined,
     jumpToReference: undefined,
     createVariable: undefined,
@@ -419,6 +548,34 @@ const resolvedTaskStatusTargetOptions = computed(() =>
       )
     : [],
 );
+const resolvedPolicySetResultVarOptions = computed(() => {
+  const resultVarOptions = props.variableReferenceOptions
+    .filter((option) => option.valueType === 'json' || option.valueType === 'object' || option.valueType === 'list')
+    .map((option) => ({
+      label: option.label,
+      value: option.key,
+      description: option.description,
+    }));
+
+  if (props.modelValue.type !== 'policySetResult') {
+    return resultVarOptions;
+  }
+
+  const node = props.modelValue;
+
+  if (!node.result_var || resultVarOptions.some((option) => option.value === node.result_var)) {
+    return resultVarOptions;
+  }
+
+  return [
+    {
+      label: `未解析变量 ${node.result_var}`,
+      value: node.result_var,
+      description: `保留历史变量 ${node.result_var}`,
+    },
+    ...resultVarOptions,
+  ];
+});
 const currentVarValueDraft = computed(() =>
   props.modelValue.type === 'varCompare'
     ? parseVarValueDraft(props.modelValue.value, varCompareKindPreference.value ?? undefined)
@@ -439,6 +596,81 @@ const selectedVarCompareInputEntry = computed(() => {
   }
 
   return props.variableInputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === option.key) ?? null;
+});
+const selectedPolicySetResultVarOption = computed(() => {
+  const node = props.modelValue;
+  if (node.type !== 'policySetResult') {
+    return null;
+  }
+
+  return props.variableReferenceOptions.find((option) => option.key === node.result_var) ?? null;
+});
+const selectedPolicyConditionInputOption = computed(() => {
+  const node = props.modelValue;
+  if (node.type !== 'policyCondition' || !node.input_var) {
+    return null;
+  }
+
+  return props.variableReferenceOptions.find((option) => option.key === node.input_var) ?? null;
+});
+const imageVariableReferenceOptions = computed(() =>
+  props.variableReferenceOptions
+    .filter((option) => option.valueType === 'image')
+    .map((option) => ({
+      label: option.label,
+      value: option.key,
+      description: option.description,
+    })),
+);
+const resolvedPolicyConditionInputOptions = computed(() => {
+  if (props.modelValue.type !== 'policyCondition') {
+    return imageVariableReferenceOptions.value;
+  }
+
+  const current = props.modelValue.input_var ?? '';
+  if (!current || imageVariableReferenceOptions.value.some((option) => option.value === current)) {
+    return imageVariableReferenceOptions.value;
+  }
+
+  return [
+    {
+      label: `未解析变量 ${current}`,
+      value: current,
+      description: `保留历史输入 ${current}`,
+    },
+    ...imageVariableReferenceOptions.value,
+  ];
+});
+const resolvedPolicySetResultTargetOptions = computed(() => {
+  if (props.modelValue.type !== 'policySetResult') {
+    return [];
+  }
+
+  const selectedId = props.modelValue.value_id;
+  const sourceOptions =
+    props.modelValue.field === 'policySetId'
+      ? props.policySetReferenceOptions
+      : props.modelValue.field === 'policyGroupId'
+        ? props.policyGroupReferenceOptions
+        : props.policyReferenceOptions;
+
+  return withResolvedReferenceOption(
+    sourceOptions,
+    selectedId,
+    props.modelValue.field === 'policySetId'
+      ? 'policySet'
+      : props.modelValue.field === 'policyGroupId'
+        ? 'policyGroup'
+        : 'policy',
+  );
+});
+const conditionSummary = computed(() => {
+  if (props.modelValue.type !== 'policySetResult') {
+    return describeConditionNode(props.modelValue);
+  }
+
+  const node = props.modelValue;
+  return `策略集结果 · ${getPolicySetResultFieldLabel(node.field)}`;
 });
 
 watch(
@@ -669,6 +901,102 @@ const updateVarCompareBool = (value: boolean) => {
       boolValue: value,
       textValue: value ? 'true' : 'false',
     }),
+  });
+};
+
+const getPolicySetResultFieldLabel = (field: 'matched' | 'policySetId' | 'policyGroupId' | 'policyId') => {
+  switch (field) {
+    case 'matched':
+      return 'matched';
+    case 'policyGroupId':
+      return 'policyGroupId';
+    case 'policyId':
+      return 'policyId';
+    default:
+      return 'policySetId';
+  }
+};
+
+const updatePolicySetResultField = (field: 'result_var', value: string) => {
+  if (props.modelValue.type !== 'policySetResult') return;
+  replaceNode({
+    ...props.modelValue,
+    [field]: value,
+  } as ConditionNode);
+};
+
+const updatePolicySetResultFieldType = (value: string) => {
+  if (props.modelValue.type !== 'policySetResult') return;
+  replaceNode({
+    ...props.modelValue,
+    field: value as 'matched' | 'policySetId' | 'policyGroupId' | 'policyId',
+    value_id: value === 'matched' ? '' : props.modelValue.value_id,
+  } as ConditionNode);
+};
+
+const updatePolicySetResultCompareOp = (value: string) => {
+  if (props.modelValue.type !== 'policySetResult') return;
+  replaceNode({
+    ...props.modelValue,
+    op: value as 'eq' | 'ne',
+  } as ConditionNode);
+};
+
+const updatePolicySetResultBool = (value: boolean) => {
+  if (props.modelValue.type !== 'policySetResult') return;
+  replaceNode({
+    ...props.modelValue,
+    value_bool: value,
+  });
+};
+
+const updatePolicySetResultValueId = (value: string) => {
+  if (props.modelValue.type !== 'policySetResult') return;
+  replaceNode({
+    ...props.modelValue,
+    value_id: value,
+  });
+};
+
+const createPolicySetResultVariable = async () => {
+  if (props.modelValue.type !== 'policySetResult' || !props.createVariable) return;
+  const key = await props.createVariable('runtime', 'json');
+  if (key) {
+    updatePolicySetResultField('result_var', key);
+  }
+};
+
+const jumpToPolicySetResultVariable = () => {
+  if (!selectedPolicySetResultVarOption.value || !props.jumpToVariable) return;
+  props.jumpToVariable(selectedPolicySetResultVarOption.value);
+};
+
+const updatePolicyConditionInput = (value: string | null) => {
+  if (props.modelValue.type !== 'policyCondition') return;
+  replaceNode({
+    ...props.modelValue,
+    input_var: value?.trim() ? value : null,
+  });
+};
+
+const createPolicyConditionInputVariable = async () => {
+  if (props.modelValue.type !== 'policyCondition' || !props.createVariable) return;
+  const key = await props.createVariable('runtime', 'image');
+  if (key) {
+    updatePolicyConditionInput(key);
+  }
+};
+
+const jumpToPolicyConditionInputVariable = () => {
+  if (!selectedPolicyConditionInputOption.value || !props.jumpToVariable) return;
+  props.jumpToVariable(selectedPolicyConditionInputOption.value);
+};
+
+const updatePolicyConditionRule = (rule: PolicyConditionRule) => {
+  if (props.modelValue.type !== 'policyCondition') return;
+  replaceNode({
+    ...props.modelValue,
+    rule,
   });
 };
 

@@ -368,6 +368,44 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'handle-policy-set',
+    label: '处理策略集',
+    description: '执行策略集匹配并把命中结果输出为 JSON 变量。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '处理策略集',
+        op: STEP_OP.flowControl,
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: FLOW_TYPE.handlePolicySet,
+          target: [],
+          input_var: 'runtime.latestCapture',
+          out_var: 'runtime.policySetResult',
+        },
+      }),
+  },
+  {
+    id: 'handle-policy',
+    label: '处理策略',
+    description: '执行指定策略并把结果输出为 JSON 变量。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '处理策略',
+        op: STEP_OP.flowControl,
+        cur_exec_num: 0,
+        max_exec_num: 1,
+        a: {
+          type: FLOW_TYPE.handlePolicy,
+          target: [],
+          input_var: 'runtime.latestCapture',
+          out_var: 'runtime.policyResult',
+        },
+      }),
+  },
+  {
     id: 'set-var',
     label: '设置变量',
     description: '向任务上下文写入一个变量。',
@@ -550,6 +588,8 @@ export const describeStepTitle = (step: Step) => {
   if (step.op === STEP_OP.flowControl) {
     if (step.a.type === FLOW_TYPE.waitMs) return '等待';
     if (step.a.type === FLOW_TYPE.link) return '跳转任务';
+    if (step.a.type === FLOW_TYPE.handlePolicySet) return '处理策略集';
+    if (step.a.type === FLOW_TYPE.handlePolicy) return '处理策略';
     if (step.a.type === FLOW_TYPE.if) return '条件分支';
     if (step.a.type === FLOW_TYPE.while) return 'While';
     if (step.a.type === FLOW_TYPE.for) return 'For';
@@ -611,7 +651,9 @@ export const describeStepMeta = (step: Step) => {
       case FLOW_TYPE.break:
         return '跳出当前循环';
       case FLOW_TYPE.handlePolicySet:
-        return `处理 ${step.a.target.length} 个策略集`;
+        return `处理 ${step.a.target.length} 个策略集 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
+      case FLOW_TYPE.handlePolicy:
+        return `处理 ${step.a.target.length} 个策略 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
       case FLOW_TYPE.addPolicies:
         return `追加策略 ${step.a.source || '未命名'} -> ${step.a.target || '未命名'}`;
       default:

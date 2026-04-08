@@ -90,6 +90,8 @@
                 :variable-reference-options="variableOptions"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
+                :policy-group-reference-options="policyGroupReferenceOptions"
+                :policy-set-reference-options="policySetReferenceOptions"
                 :create-reference="createReference"
                 :jump-to-reference="jumpToReference"
                 :create-variable="createVariable"
@@ -300,6 +302,8 @@ const props = withDefaults(
     labelSelectHint?: string | null;
     taskReferenceOptions: EditorReferenceOption[];
     policyReferenceOptions: EditorReferenceOption[];
+    policyGroupReferenceOptions: EditorReferenceOption[];
+    policySetReferenceOptions: EditorReferenceOption[];
     createReference: (kind: EditorReferenceKind) => Promise<string>;
     jumpToReference: (kind: EditorReferenceKind, id: string) => void;
     createVariable?: (
@@ -742,6 +746,17 @@ const updateActionTextField = (field: string, value: string) => {
 const updateFlowField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.flowControl) return;
+    if ((step.a.type === FLOW_TYPE.handlePolicySet || step.a.type === FLOW_TYPE.handlePolicy) && field === 'target') {
+      let nextTarget: string[] = [];
+      try {
+        nextTarget = JSON.parse(value) as string[];
+      } catch {
+        nextTarget = [];
+      }
+      step.a = { ...step.a, target: nextTarget } as FlowControl;
+      return;
+    }
+
     step.a = { ...(step.a ?? {}), [field]: value } as FlowControl;
   });
 };
@@ -826,7 +841,7 @@ const handleCreateActionVariable = async (target: 'captureOutput') => {
     return;
   }
 
-  const key = await props.createVariable('runtime', 'string');
+  const key = await props.createVariable('runtime', 'image');
   if (!key) {
     return;
   }

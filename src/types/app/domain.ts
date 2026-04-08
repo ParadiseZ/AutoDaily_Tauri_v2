@@ -35,6 +35,7 @@ export interface SystemPreferences {
     adbServerPort: number;
     ocrTextCacheEnabled: boolean;
     ocrTextCacheDir: string;
+    visionSignatureGridSize: number;
     shortcut: ShortCutConfig;
 }
 
@@ -57,6 +58,7 @@ export interface LogConfig {
 export interface VisionTextCacheConfig {
     enabled: boolean;
     dir: string;
+    signatureGridSize: number;
 }
 
 export interface UserProfile {
@@ -234,6 +236,7 @@ export const DEFAULT_SYSTEM_PREFERENCES: SystemPreferences = {
     adbServerPort: 5037,
     ocrTextCacheEnabled: false,
     ocrTextCacheDir: '',
+    visionSignatureGridSize: 8,
     shortcut: DEFAULT_SHORTCUTS,
 };
 

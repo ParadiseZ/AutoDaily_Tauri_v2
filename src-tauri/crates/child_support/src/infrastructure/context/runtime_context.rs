@@ -64,6 +64,9 @@ pub struct RuntimeContext {
 
     /// OCR 文字缓存运行时
     pub vision_text_cache: ScriptTextRecCacheRuntime,
+
+    /// 视觉签名网格大小，用于稳定坐标和排序分桶。
+    pub vision_signature_grid_size: u16,
 }
 
 impl RuntimeContext {
@@ -74,6 +77,7 @@ impl RuntimeContext {
         vision_text_cache_config: VisionTextCacheRuntimeConfig,
         //adb_executor: Arc<RwLock<ADBExecutor>>,
     ) -> Self {
+        let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
         Self {
             script_id,
             target,
@@ -88,6 +92,7 @@ impl RuntimeContext {
             last_hits: Vec::new(),
             screen_size: (0, 0),
             vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
+            vision_signature_grid_size,
         }
     }
 }

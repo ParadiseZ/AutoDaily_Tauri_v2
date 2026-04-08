@@ -464,10 +464,9 @@ impl TextRecognizer for PaddleRecCrnn {
             }
         }
         let ocr_result = OcrResult {
-            id: 0,
-            pre_id: 0,
-            next_id: 0,
             bounding_box: det_result.bounding_box.clone(),
+            stable_box: det_result.stable_box.clone(),
+            stable_center: det_result.stable_center.clone(),
             txt: result_text,
             score: scores,
             index: indexes,

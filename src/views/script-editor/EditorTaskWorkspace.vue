@@ -67,6 +67,8 @@
         :label-select-hint="labelSelectHint"
         :task-reference-options="taskReferenceOptions"
         :policy-reference-options="policyReferenceOptions"
+        :policy-group-reference-options="policyGroupReferenceOptions"
+        :policy-set-reference-options="policySetReferenceOptions"
         :create-reference="createReference"
         :jump-to-reference="jumpToReference"
         :create-variable="createVariable"
@@ -163,6 +165,8 @@ const props = defineProps<{
   labelSelectHint?: string | null;
   taskReferenceOptions: EditorReferenceOption[];
   policyReferenceOptions: EditorReferenceOption[];
+  policyGroupReferenceOptions: EditorReferenceOption[];
+  policySetReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;

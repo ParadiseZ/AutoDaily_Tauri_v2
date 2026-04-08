@@ -260,7 +260,7 @@ impl ScriptExecutor {
 
                     if let Some((hits, det_results)) = result {
                         // 将命中结果存入缓存
-                        let success = rule.evaluate(&hits, &det_results);
+                        let success = rule.evaluate(&hits, &det_results, snapshot);
                         ctx.last_hits = hits;
                         // 将命中结果存入变量
                         self.scope.set_value(output_var, success);

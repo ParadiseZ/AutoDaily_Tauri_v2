@@ -1,4 +1,4 @@
-export type EditorReferenceKind = 'task' | 'policy';
+export type EditorReferenceKind = 'task' | 'policy' | 'policyGroup' | 'policySet';
 
 export interface EditorReferenceOption {
   label: string;
@@ -6,7 +6,18 @@ export interface EditorReferenceOption {
   description?: string;
 }
 
-const getReferenceKindLabel = (kind: EditorReferenceKind) => (kind === 'task' ? '任务' : '策略');
+const getReferenceKindLabel = (kind: EditorReferenceKind) => {
+  switch (kind) {
+    case 'policyGroup':
+      return '策略组';
+    case 'policySet':
+      return '策略集';
+    case 'policy':
+      return '策略';
+    default:
+      return '任务';
+  }
+};
 
 export const withResolvedReferenceOption = (
   options: EditorReferenceOption[],

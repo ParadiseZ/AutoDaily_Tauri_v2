@@ -346,6 +346,8 @@
             :label-select-hint="textDetLabelHint"
             :task-reference-options="taskReferenceOptions"
             :policy-reference-options="policyReferenceOptions"
+            :policy-group-reference-options="policyGroupReferenceOptions"
+            :policy-set-reference-options="policySetReferenceOptions"
             :create-reference="createReferenceResource"
             :jump-to-reference="jumpToReferenceResource"
             :create-variable="createVariableResource"
@@ -395,8 +397,11 @@
             :label-select-hint="textDetLabelHint"
             :task-reference-options="taskReferenceOptions"
             :policy-reference-options="policyReferenceOptions"
+            :policy-group-reference-options="policyGroupReferenceOptions"
+            :policy-set-reference-options="policySetReferenceOptions"
             :create-reference="createReferenceResource"
             :jump-to-reference="jumpToReferenceResource"
+            :create-variable="createVariableResource"
             :jump-to-variable="jumpToVariableResource"
             @update:number-field="updatePolicyNumberField"
             @update:boolean-field="updatePolicyBooleanField"
@@ -492,6 +497,7 @@ import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
 import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
+import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
@@ -910,6 +916,20 @@ const policyReferenceOptions = computed<EditorReferenceOption[]>(() =>
     label: policy.data.name,
     value: policy.id,
     description: `${policy.data.afterAction.length} 个命中步骤 · ${policy.data.beforeAction.length} 个全局步骤`,
+  })),
+);
+const policyGroupReferenceOptions = computed<EditorReferenceOption[]>(() =>
+  draftPolicyGroups.value.map((group) => ({
+    label: group.data.name,
+    value: group.id,
+    description: `${(groupPolicyIdsByGroupId.value[group.id] ?? []).length} 个策略`,
+  })),
+);
+const policySetReferenceOptions = computed<EditorReferenceOption[]>(() =>
+  draftPolicySets.value.map((set) => ({
+    label: set.data.name,
+    value: set.id,
+    description: `${(setGroupIdsBySetId.value[set.id] ?? []).length} 个策略组`,
   })),
 );
 const assignedPolicies = computed<EditorNamedItem[]>(() => {
@@ -1357,10 +1377,24 @@ const createReferenceResource = async (kind: EditorReferenceKind) => {
     return nextTask.id;
   }
 
-  const nextPolicy = await buildPolicyDraft();
-  draftPolicies.value = [...draftPolicies.value, nextPolicy].map((policy, index) => normalizePolicy(policy, index));
-  showToast(`已创建引用策略：${nextPolicy.data.name}`, 'success');
-  return nextPolicy.id;
+  if (kind === 'policy') {
+    const nextPolicy = await buildPolicyDraft();
+    draftPolicies.value = [...draftPolicies.value, nextPolicy].map((policy, index) => normalizePolicy(policy, index));
+    showToast(`已创建引用策略：${nextPolicy.data.name}`, 'success');
+    return nextPolicy.id;
+  }
+
+  if (kind === 'policyGroup') {
+    const nextGroup = await buildPolicyGroupDraft();
+    draftPolicyGroups.value = [...draftPolicyGroups.value, nextGroup].map((group, index) => normalizePolicyGroup(group, index));
+    showToast(`已创建引用策略组：${nextGroup.data.name}`, 'success');
+    return nextGroup.id;
+  }
+
+  const nextSet = await buildPolicySetDraft();
+  draftPolicySets.value = [...draftPolicySets.value, nextSet].map((set, index) => normalizePolicySet(set, index));
+  showToast(`已创建引用策略集：${nextSet.data.name}`, 'success');
+  return nextSet.id;
 };
 
 const jumpToReferenceResource = (kind: EditorReferenceKind, id: string) => {
@@ -1377,15 +1411,41 @@ const jumpToReferenceResource = (kind: EditorReferenceKind, id: string) => {
     return;
   }
 
-  const matched = draftPolicies.value.find((policy) => policy.id === id);
-  if (!matched) {
-    showToast('目标策略不存在，可能已被删除。', 'warning');
+  if (kind === 'policy') {
+    const matched = draftPolicies.value.find((policy) => policy.id === id);
+    if (!matched) {
+      showToast('目标策略不存在，可能已被删除。', 'warning');
+      return;
+    }
+
+    selectedPolicyId.value = id;
+    activeMode.value = 'policy';
+    activePolicyPanel.value = 'basic';
     return;
   }
 
-  selectedPolicyId.value = id;
-  activeMode.value = 'policy';
-  activePolicyPanel.value = 'basic';
+  if (kind === 'policyGroup') {
+    const matched = draftPolicyGroups.value.find((group) => group.id === id);
+    if (!matched) {
+      showToast('目标策略组不存在，可能已被删除。', 'warning');
+      return;
+    }
+
+    selectedPolicyGroupId.value = id;
+    activeMode.value = 'policyGroup';
+    activePolicyGroupPanel.value = 'basic';
+    return;
+  }
+
+  const matched = draftPolicySets.value.find((set) => set.id === id);
+  if (!matched) {
+    showToast('目标策略集不存在，可能已被删除。', 'warning');
+    return;
+  }
+
+  selectedPolicySetId.value = id;
+  activeMode.value = 'policySet';
+  activePolicySetPanel.value = 'basic';
 };
 
 const buildVariableReferenceKey = (namespace: EditorInputEntry['namespace'], key: string) => {
@@ -1470,8 +1530,18 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
     }
 
     if (step.op === 'flowControl') {
-      if ((step.a.type === 'if' || step.a.type === 'while' || step.a.type === 'for') && step.a.con.type === 'varCompare' && step.a.con.var_name?.trim()) {
-        bucket.add(step.a.con.var_name.trim());
+      if (step.a.type === 'handlePolicySet' || step.a.type === 'handlePolicy') {
+        if (step.a.input_var?.trim()) {
+          bucket.add(step.a.input_var.trim());
+        }
+        if (step.a.out_var?.trim()) {
+          bucket.add(step.a.out_var.trim());
+        }
+        continue;
+      }
+
+      if (step.a.type === 'if' || step.a.type === 'while' || step.a.type === 'for') {
+        collectConditionVariableReferences(step.a.con, bucket);
       }
 
       if (step.a.type === 'if') {
@@ -1487,6 +1557,27 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
   }
 
   return bucket;
+};
+
+const collectConditionVariableReferences = (condition: ConditionNode, bucket: Set<string>) => {
+  if (condition.type === 'group') {
+    condition.items.forEach((item: ConditionNode) => collectConditionVariableReferences(item, bucket));
+    return;
+  }
+
+  if (condition.type === 'varCompare' && condition.var_name?.trim()) {
+    bucket.add(condition.var_name.trim());
+    return;
+  }
+
+  if (condition.type === 'policySetResult' && condition.result_var?.trim()) {
+    bucket.add(condition.result_var.trim());
+    return;
+  }
+
+  if (condition.type === 'policyCondition' && condition.input_var?.trim()) {
+    bucket.add(condition.input_var.trim());
+  }
 };
 
 type VariableCreateOptions = {
@@ -1577,10 +1668,18 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
     }
 
     if (nextStep.op === 'flowControl') {
-      if ((nextStep.a.type === 'if' || nextStep.a.type === 'while' || nextStep.a.type === 'for') && nextStep.a.con.type === 'varCompare') {
-        if (nextStep.a.con.var_name === previousKey) {
-          nextStep.a.con.var_name = nextKey;
+      if (nextStep.a.type === 'if' || nextStep.a.type === 'while' || nextStep.a.type === 'for') {
+        nextStep.a.con = renameConditionVariableReferences(nextStep.a.con, previousKey, nextKey);
+      }
+
+      if (nextStep.a.type === 'handlePolicySet' || nextStep.a.type === 'handlePolicy') {
+        if (nextStep.a.input_var === previousKey) {
+          nextStep.a.input_var = nextKey;
         }
+        if (nextStep.a.out_var === previousKey) {
+          nextStep.a.out_var = nextKey;
+        }
+        return nextStep;
       }
 
       if (nextStep.a.type === 'if') {
@@ -1615,6 +1714,31 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
 
     return nextStep;
   });
+
+const renameConditionVariableReferences = (condition: ConditionNode, previousKey: string, nextKey: string): ConditionNode => {
+  const nextCondition = cloneJson(condition) as ConditionNode;
+
+  if (nextCondition.type === 'group') {
+    nextCondition.items = nextCondition.items.map((item: ConditionNode) => renameConditionVariableReferences(item, previousKey, nextKey));
+    return nextCondition;
+  }
+
+  if (nextCondition.type === 'varCompare' && nextCondition.var_name === previousKey) {
+    nextCondition.var_name = nextKey;
+    return nextCondition;
+  }
+
+  if (nextCondition.type === 'policySetResult' && nextCondition.result_var === previousKey) {
+    nextCondition.result_var = nextKey;
+    return nextCondition;
+  }
+
+  if (nextCondition.type === 'policyCondition' && nextCondition.input_var === previousKey) {
+    nextCondition.input_var = nextKey;
+  }
+
+  return nextCondition;
+};
 
 const syncVariableReferenceRename = (previousKey: string, nextKey: string) => {
   if (!previousKey || !nextKey || previousKey === nextKey) {
@@ -2202,7 +2326,7 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
   }
 
   if (templateId === 'capture' && nextStep.op === 'action' && nextStep.a.ac === 'capture') {
-    nextStep.a.output_var = await createVariableResource('runtime', 'string', {
+    nextStep.a.output_var = await createVariableResource('runtime', 'image', {
       preferredKey: 'captureResult',
       name: '截图结果',
       select: false,
@@ -2252,6 +2376,42 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
     nextStep.a.out_var = await createVariableResource('runtime', 'json', {
       preferredKey: 'visionHit',
       name: '视觉命中',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'handle-policy-set' && nextStep.op === 'flowControl' && nextStep.a.type === 'handlePolicySet') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'image', {
+      preferredKey: 'policySetImage',
+      name: '策略集输入图像',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'policySetResult',
+      name: '策略集结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'handle-policy' && nextStep.op === 'flowControl' && nextStep.a.type === 'handlePolicy') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'image', {
+      preferredKey: 'policyImage',
+      name: '策略输入图像',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'policyResult',
+      name: '策略结果',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,

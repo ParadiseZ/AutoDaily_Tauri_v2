@@ -226,20 +226,18 @@ impl TextDetector for PaddleDetDbNet {
             let scaled_points = scale_polygon(unclipped_poly, scale_factor, origin_shape);
 
             //boxes.push((scaled_points, score));
-            boxes.push(DetResult {
-                id: 0,
-                pre_id: 0,
-                next_id: 0,
-                bounding_box: BoundingBox::new(
+            boxes.push(DetResult::new(
+                BoundingBox::new(
                     scaled_points[0].x,
                     scaled_points[0].y,
                     scaled_points[2].x,
                     scaled_points[2].y,
                 ),
-                index: 0,
-                label: "txt".into(),
+                0,
+                "txt".into(),
                 score,
-            });
+                8,
+            ));
         }
 
         // 按分数排序（可选）

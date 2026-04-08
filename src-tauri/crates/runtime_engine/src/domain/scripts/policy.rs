@@ -103,7 +103,15 @@ impl<'a> PolicySetEvaluator<'a> {
         Self { policies }
     }
 
-    /// 执行单次批量搜索并返回所有命中的策略
+    /// 执行单次批量搜索并返回所有命中的策略。
+    ///
+    /// 当前策略集评估只负责第一阶段视觉召回：
+    /// 1. 从所有策略规则中提取 Txt 构建 Aho-Corasick 搜索器；
+    /// 2. 对全量 OCR 文本缓冲区只扫描一次；
+    /// 3. 结合 DetLabel 条件按策略顺序筛出候选策略。
+    ///
+    /// 第二阶段精判改由步骤里的 PolicyCondition 在线性执行流中完成，
+    /// 因此这里不再承载 regex / relative 等规则。
     pub fn evaluate(&self, snapshot: &VisionSnapshot) -> Vec<&'a PolicyInfo> {
         if self.policies.is_empty() {
             return Vec::new();

@@ -245,6 +245,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return {
             enabled: false,
             dir: '',
+            signatureGridSize: 8,
           };
         case 'get_all_devices_cmd':
           return readState().devices;

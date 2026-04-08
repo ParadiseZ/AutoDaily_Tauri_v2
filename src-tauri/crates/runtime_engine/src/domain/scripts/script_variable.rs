@@ -31,6 +31,8 @@ pub enum ScriptVariableValueType {
     List,
     /// 对象值。
     Object,
+    /// 图像值，通常来自截图步骤输出。
+    Image,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ts_rs::TS)]

@@ -6,7 +6,7 @@ import type { ScriptVariableSourceType } from '@/types/bindings/ScriptVariableSo
 import type { ScriptVariableValueType } from '@/types/bindings/ScriptVariableValueType';
 import type { Step } from '@/types/bindings/Step';
 
-export type EditorInputType = 'string' | 'int' | 'float' | 'bool' | 'json';
+export type EditorInputType = 'string' | 'int' | 'float' | 'bool' | 'json' | 'image';
 
 export interface EditorInputEntry {
   id: string;
@@ -89,6 +89,8 @@ const mapValueTypeToInputType = (valueType: ScriptVariableValueType): EditorInpu
     case 'list':
     case 'object':
       return 'json';
+    case 'image':
+      return 'image';
     default:
       return 'string';
   }
@@ -104,6 +106,8 @@ const mapInputTypeToValueType = (valueType: EditorInputType): ScriptVariableValu
       return 'bool';
     case 'json':
       return 'json';
+    case 'image':
+      return 'image';
     default:
       return 'string';
   }
@@ -132,7 +136,7 @@ const getNamespaceRules = (namespace: ScriptVariableNamespace, type: EditorInput
     readable: true,
     writable: true,
     persisted: true,
-    uiBindable: type !== 'json',
+    uiBindable: type !== 'json' && type !== 'image',
   };
 };
 
@@ -146,6 +150,10 @@ const stringifyInputValue = (value: JsonValue, type: EditorInputType) => {
   }
 
   if (type === 'string') {
+    return typeof value === 'string' ? value : '';
+  }
+
+  if (type === 'image') {
     return typeof value === 'string' ? value : '';
   }
 
@@ -175,6 +183,10 @@ const parseInputValue = (entry: EditorInputEntry): JsonValue => {
 
   if (entry.type === 'json') {
     return JSON.parse(entry.stringValue) as JsonValue;
+  }
+
+  if (entry.type === 'image') {
+    return entry.stringValue;
   }
 
   return entry.stringValue;
@@ -241,7 +253,7 @@ const collectDerivedRuntimeVariables = (
 
     if (step.op === 'action' && step.a.ac === 'capture' && step.a.output_var?.trim()) {
       const key = step.a.output_var.trim();
-      bucket.set(key, createDerivedRuntimeVariable(key, 'string', ownerTaskId, step.id));
+      bucket.set(key, createDerivedRuntimeVariable(key, 'image', ownerTaskId, step.id));
       continue;
     }
 
@@ -264,6 +276,11 @@ const collectDerivedRuntimeVariables = (
     }
 
     if (step.op === 'flowControl') {
+      if ((step.a.type === 'handlePolicySet' || step.a.type === 'handlePolicy') && step.a.out_var?.trim()) {
+        const key = step.a.out_var.trim();
+        bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
+      }
+
       if (step.a.type === 'if') {
         collectDerivedRuntimeVariables(step.a.then, ownerTaskId, bucket);
         collectDerivedRuntimeVariables(step.a.else_steps ?? [], ownerTaskId, bucket);
@@ -283,6 +300,7 @@ export const editorInputTypeOptions = [
   { label: '浮点', value: 'float', description: '阈值、比例和精度值。' },
   { label: '布尔', value: 'bool', description: '开关状态。' },
   { label: 'JSON', value: 'json', description: '复杂对象或数组。' },
+  { label: '图像', value: 'image', description: '截图或其他图像输入。' },
 ];
 
 export const createInputEntry = (type: EditorInputType = 'int'): EditorInputEntry => ({
@@ -292,7 +310,7 @@ export const createInputEntry = (type: EditorInputType = 'int'): EditorInputEntr
   description: '',
   namespace: 'input',
   type,
-  stringValue: type === 'string' ? '' : type === 'json' ? '{}' : '0',
+  stringValue: type === 'string' || type === 'image' ? '' : type === 'json' ? '{}' : '0',
   booleanValue: false,
   sourceStepId: null,
 });
@@ -463,6 +481,8 @@ export const getInputTypeLabel = (type: EditorInputType) => {
       return '浮点';
     case 'json':
       return 'JSON';
+    case 'image':
+      return '图像';
     default:
       return '文本';
   }
@@ -482,6 +502,8 @@ export const getVariableValueTypeLabel = (valueType: ScriptVariableValueType) =>
       return '列表';
     case 'object':
       return '对象';
+    case 'image':
+      return '图像';
     default:
       return '文本';
   }

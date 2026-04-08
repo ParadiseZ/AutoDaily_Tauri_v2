@@ -21,7 +21,7 @@
             placeholder="规则类型"
             class="min-w-[180px]"
             :test-id="rootTestId('type')"
-            @update:model-value="changeType(String($event || SEARCH_RULE_TYPE.keyword))"
+            @update:model-value="changeType(String($event || SEARCH_RULE_TYPE.txt))"
           />
         </div>
       </div>
@@ -32,28 +32,26 @@
     </div>
 
     <div class="mt-4 space-y-3">
-      <template v-if="currentRule.type === SEARCH_RULE_TYPE.keyword || currentRule.type === SEARCH_RULE_TYPE.regex">
+      <template v-if="currentRule.type === SEARCH_RULE_TYPE.txt">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">
-            {{ currentRule.type === SEARCH_RULE_TYPE.keyword ? '关键字' : '正则表达式' }}
-          </span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">文本</span>
           <input
             :value="currentRule.pattern"
             class="app-input"
-            :data-testid="rootTestId(currentRule.type === SEARCH_RULE_TYPE.keyword ? 'keyword' : 'regex')"
+            :data-testid="rootTestId('txt')"
             @input="replaceRule({ ...currentRule, pattern: ($event.target as HTMLInputElement).value })"
           />
         </label>
       </template>
 
-      <template v-else-if="currentRule.type === SEARCH_RULE_TYPE.yoloIdx">
+      <template v-else-if="currentRule.type === SEARCH_RULE_TYPE.detLabel">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">检测索引</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签索引</span>
           <input
             :value="String(currentRule.idx)"
             class="app-input"
             type="number"
-            :data-testid="rootTestId('yolo-idx')"
+            :data-testid="rootTestId('det-label-idx')"
             @input="replaceRule({ ...currentRule, idx: Number(($event.target as HTMLInputElement).value) || 0 })"
           />
         </label>
@@ -111,7 +109,7 @@
           />
         </div>
 
-        <EmptyState v-if="!currentRule.items.length" title="还没有子规则" description="先在当前逻辑组里添加关键字、正则、YOLO 或子组。" />
+        <EmptyState v-if="!currentRule.items.length" title="还没有子规则" description="先在当前逻辑组里添加文本、标签或子组。" />
       </template>
     </div>
   </div>
@@ -160,7 +158,7 @@ const currentRule = computed(() => (isRootGroup.value ? ensureRootGroupRule(prop
 const headerLabel = computed(() => {
   if (isRootGroup.value) return '根逻辑组';
   if (currentRule.value.type === SEARCH_RULE_TYPE.group) return '逻辑组';
-  return '规则';
+  return '召回规则';
 });
 const addableRuleTypes = computed(() => searchRuleTypeOptions.filter((option) => option.value !== SEARCH_RULE_TYPE.group || props.depth < 2));
 const rootTestId = (suffix: string) => (props.testIdPrefix ? `${props.testIdPrefix}-${suffix}` : undefined);
