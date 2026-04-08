@@ -190,12 +190,10 @@ pub enum SearchScope {
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum SearchRule {
     /// OCR 文本包含
-    #[serde(alias = "keyword")]
     Txt {
         pattern: String
     },
     /// 检测标签匹配
-    #[serde(alias = "yoloIdx")]
     DetLabel{
         idx: i32,
     },
@@ -723,7 +721,7 @@ mod tests {
             items: vec![SearchRule::DetLabel { idx: 3 }],
         };
 
-        let snapshot = VisionSnapshot::new(vec![], det.clone(), None, 8).unwrap();
+        let _ = VisionSnapshot::new(vec![], det.clone(), None, 8).unwrap();
         assert!(rule.evaluate(&[], &det));
     }
 
