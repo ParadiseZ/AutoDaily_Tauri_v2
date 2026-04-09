@@ -908,6 +908,8 @@ dependencies = [
  "rhai",
  "runtime_common",
  "runtime_engine",
+ "serde",
+ "serde_json",
  "tokio",
  "tokio-util",
  "vision_core",

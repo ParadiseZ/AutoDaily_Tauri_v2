@@ -1,23 +1,29 @@
 use crate::infrastructure::ipc::message::{
-    ConfigUpdateMessage, ConfigUpdateType, IpcMessage, MessagePayload, MessageType, ProcessAction,
-    ProcessControlMessage, RuntimeEventMessage, RuntimeLifecycleEvent, RuntimeLifecyclePhase,
+    ConfigUpdateMessage, ConfigUpdateType, IpcMessage, MessagePayload, ProcessAction,
+    ProcessControlMessage, RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus,
     SessionControlMessage,
 };
 use crate::infrastructure::context::child_process_sec::{
     get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
+use crate::infrastructure::ipc::runtime_reporter::{
+    emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event, emit_schedule_event,
+};
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::session::runtime_session::{
+    clear_runtime_session, replace_runtime_session,
+};
 use std::sync::atomic::Ordering;
 
 /// 子进程消息处理器
 /// 处理来自主进程的命令消息
-pub fn handle_main_message(msg: IpcMessage) {
+pub async fn handle_main_message(msg: IpcMessage) {
     match msg.payload {
         MessagePayload::ProcessControl(ctrl) => {
             handle_process_control(ctrl);
         }
         MessagePayload::SessionControl(control) => {
-            handle_session_control(control);
+            handle_session_control(control).await;
         }
         MessagePayload::ConfigUpdate(config) => {
             handle_config_update(config);
@@ -33,94 +39,155 @@ fn handle_process_control(ctrl: ProcessControlMessage) {
         ProcessAction::Start => {
             Log::info("[ child ] 收到启动命令");
             set_running_status(RunningStatus::Running);
-            emit_lifecycle_event(RuntimeLifecyclePhase::Running, None, None);
+            emit_lifecycle_event(RuntimeLifecyclePhase::Running, None);
             // TODO: 第二阶段后续 - 通知调度器开始执行
         }
         ProcessAction::Stop => {
             Log::info("[ child ] 收到停止命令，停止当前脚本执行");
             set_running_status(RunningStatus::Idle);
-            emit_lifecycle_event(RuntimeLifecyclePhase::Idle, None, Some("收到停止命令".to_string()));
+            emit_progress_event(
+                RuntimeProgressPhase::Idle,
+                None,
+                None,
+                None,
+                None,
+                Some("收到停止命令".to_string()),
+            );
+            emit_lifecycle_event(
+                RuntimeLifecyclePhase::Idle,
+                Some("收到停止命令".to_string()),
+            );
             // 停止当前脚本执行但不退出进程，回到 Idle 状态
             // TODO: 持久化运行时数据
         }
         ProcessAction::Pause => {
             Log::info("[ child ] 收到暂停命令");
             set_running_status(RunningStatus::Paused);
-            emit_lifecycle_event(RuntimeLifecyclePhase::Paused, None, None);
+            emit_progress_event(
+                RuntimeProgressPhase::Paused,
+                None,
+                None,
+                None,
+                None,
+                Some("执行已暂停".to_string()),
+            );
+            emit_lifecycle_event(RuntimeLifecyclePhase::Paused, None);
         }
         ProcessAction::Shutdown => {
             Log::info("[ child ] 收到关闭命令，准备退出");
             set_running_status(RunningStatus::Stopping);
-            emit_lifecycle_event(RuntimeLifecyclePhase::Stopping, None, None);
+            emit_lifecycle_event(RuntimeLifecyclePhase::Stopping, None);
             trigger_cancel(); // 取消 CancellationToken，主循环立即退出
             // TODO: 持久化运行时数据
         }
     }
 }
 
-fn handle_session_control(control: SessionControlMessage) {
+async fn handle_session_control(control: SessionControlMessage) {
     use crate::infrastructure::scripts::scheduler::get_scheduler;
 
     match control {
         SessionControlMessage::LoadSession { session, checkpoint } => {
-            let session_id = session.session_id;
-            let queue_len = session.queue.len();
+            let summary = replace_runtime_session(session.clone(), checkpoint).await;
             Log::info(&format!(
                 "[ child ] 加载 session[{}]，队列长度: {}，checkpoint: {}",
-                session_id,
-                queue_len,
-                if checkpoint.is_some() { "yes" } else { "no" }
+                summary.session_id,
+                summary.queue_len,
+                if summary.has_checkpoint { "yes" } else { "no" }
             ));
             if let Some(scheduler) = get_scheduler() {
-                tokio::spawn(async move {
-                    scheduler.load_session(session).await;
-                });
+                scheduler.load_session(session).await;
             }
             set_running_status(RunningStatus::Idle);
-            emit_lifecycle_event(
+            emit_progress_event(
+                RuntimeProgressPhase::Loading,
+                None,
+                None,
+                None,
+                None,
+                Some(format!("运行会话已加载，队列 {} 项", summary.queue_len)),
+            );
+            emit_lifecycle_event_with(
                 RuntimeLifecyclePhase::Loaded,
-                Some(session_id),
+                Some(summary.session_id),
+                None,
                 Some("运行会话已加载".to_string()),
+            );
+            emit_lifecycle_event_with(
+                RuntimeLifecyclePhase::Idle,
+                Some(summary.session_id),
+                None,
+                Some("设备待命，等待执行命令".to_string()),
             );
         }
         SessionControlMessage::ReloadSession { session, checkpoint } => {
-            let session_id = session.session_id;
-            let queue_len = session.queue.len();
+            let summary = replace_runtime_session(session.clone(), checkpoint).await;
             Log::info(&format!(
                 "[ child ] 热更新 session[{}]，队列长度: {}，checkpoint: {}",
-                session_id,
-                queue_len,
-                if checkpoint.is_some() { "yes" } else { "no" }
+                summary.session_id,
+                summary.queue_len,
+                if summary.has_checkpoint { "yes" } else { "no" }
             ));
             if let Some(scheduler) = get_scheduler() {
-                tokio::spawn(async move {
-                    scheduler.load_session(session).await;
-                });
+                scheduler.load_session(session).await;
             }
-            emit_lifecycle_event(
+            emit_progress_event(
+                RuntimeProgressPhase::Loading,
+                None,
+                None,
+                None,
+                None,
+                Some(format!("运行会话已热更新，队列 {} 项", summary.queue_len)),
+            );
+            emit_lifecycle_event_with(
                 RuntimeLifecyclePhase::Loaded,
-                Some(session_id),
+                Some(summary.session_id),
+                None,
                 Some("运行会话已热更新".to_string()),
             );
         }
         SessionControlMessage::PrepareCheckpoint { reason } => {
             Log::info(&format!("[ child ] 收到 checkpoint 准备命令: {:?}", reason));
+            emit_progress_event(
+                RuntimeProgressPhase::Paused,
+                None,
+                None,
+                None,
+                None,
+                Some("checkpoint 准备逻辑待接入".to_string()),
+            );
             emit_lifecycle_event(
                 RuntimeLifecyclePhase::Paused,
-                None,
                 Some("checkpoint 准备逻辑待接入".to_string()),
             );
         }
         SessionControlMessage::ClearSession => {
+            let cleared = clear_runtime_session().await;
             Log::info("[ child ] 清空当前 session");
             if let Some(scheduler) = get_scheduler() {
-                tokio::spawn(async move {
-                    scheduler.clear_session().await;
-                });
+                scheduler.clear_session().await;
             }
             set_running_status(RunningStatus::Idle);
-            emit_lifecycle_event(
+            emit_schedule_event(
+                RuntimeScheduleStatus::Cleared,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some("运行会话已清空".to_string()),
+            );
+            emit_progress_event(
+                RuntimeProgressPhase::Idle,
+                None,
+                None,
+                None,
+                None,
+                Some("运行会话已清空".to_string()),
+            );
+            emit_lifecycle_event_with(
                 RuntimeLifecyclePhase::Idle,
+                cleared.map(|summary| summary.session_id),
                 None,
                 Some("运行会话已清空".to_string()),
             );
@@ -158,41 +225,5 @@ fn handle_config_update(config: ConfigUpdateMessage) {
             });
         }
     }
-}
-
-fn emit_lifecycle_event(
-    phase: RuntimeLifecyclePhase,
-    session_id: Option<crate::infrastructure::core::SessionId>,
-    message: Option<String>,
-) {
-    let at = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|value| value.as_millis().to_string())
-        .unwrap_or_else(|_| "0".to_string());
-
-    let event = RuntimeEventMessage::Lifecycle(RuntimeLifecycleEvent {
-        session_id,
-        phase,
-        current_script_id: current_script_for_event(),
-        message,
-        at,
-    });
-
-    if let Some(client) = get_ipc_client() {
-        tokio::spawn(async move {
-            let msg = IpcMessage::new(
-                *client.device_id,
-                MessageType::Status,
-                MessagePayload::RuntimeEvent(event),
-            );
-            if let Err(error) = client.send_ensure(msg).await {
-                Log::warn(&format!("[ child ] 发送生命周期事件失败: {}", error));
-            }
-        });
-    }
-}
-
-fn current_script_for_event() -> Option<crate::infrastructure::core::ScriptId> {
-    None
 }
 

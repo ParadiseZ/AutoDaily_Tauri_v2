@@ -123,6 +123,7 @@ pub enum TimeoutAction {
 pub enum TimeoutNotifyPolicy {
     None,
     Email,
+    SystemNotification,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]

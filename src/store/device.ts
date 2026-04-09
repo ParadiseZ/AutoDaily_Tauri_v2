@@ -18,6 +18,7 @@ const toStatusKind = (status: string): DeviceRuntimeStatus['kind'] => {
     if (normalized.includes('pause')) return 'paused';
     if (normalized.includes('stop') || normalized.includes('shutdown')) return 'stopped';
     if (normalized.includes('error') || normalized.includes('fail')) return 'error';
+    if (normalized.includes('load')) return 'idle';
     if (normalized.includes('idle') || normalized.includes('wait')) return 'idle';
     return 'unknown';
 };
@@ -34,6 +35,7 @@ const toStatusEvent = (payload: unknown): DeviceStatusEvent | null => {
 
     return {
         deviceId: record.deviceId,
+        sessionId: typeof record.sessionId === 'string' ? record.sessionId : null,
         status: record.status,
         currentScript: typeof record.currentScript === 'string' ? record.currentScript : null,
         message: typeof record.message === 'string' ? record.message : null,

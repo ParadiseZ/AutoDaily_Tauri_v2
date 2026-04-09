@@ -229,7 +229,7 @@ impl IpcClient {
                     if let Ok((msg, _)) =
                         decode_from_slice::<IpcMessage, _>(&buffer, serialize_config())
                     {
-                        Self::handle_msg(msg);
+                        crate::infrastructure::ipc::msg_handler_child::handle_main_message(msg).await;
                     }
                 }
                 Err(_) => break, // 连接断开
@@ -241,6 +241,8 @@ impl IpcClient {
 /// 日志相关方法在日志模块里
 impl ChannelTrait for IpcClient {
     fn handle_msg(msg: IpcMessage) {
-        crate::infrastructure::ipc::msg_handler_child::handle_main_message(msg);
+        tokio::spawn(async move {
+            crate::infrastructure::ipc::msg_handler_child::handle_main_message(msg).await;
+        });
     }
 }

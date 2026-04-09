@@ -5,4 +5,5 @@ pub mod ipc;
 pub mod logging;
 pub mod scripts;
 pub mod ort;
+pub mod session;
 pub mod vision;

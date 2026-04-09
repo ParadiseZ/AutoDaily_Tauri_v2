@@ -2,17 +2,38 @@
 // 管理子进程中的脚本执行队列，按顺序执行脚本
 
 use crate::infrastructure::context::runtime_context::get_runtime_ctx;
-use crate::constant::table_name::SCRIPT_TABLE;
+use crate::domain::scripts::policy::{
+    GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
+};
 use crate::domain::scripts::script_info::ScriptTable;
+use crate::domain::scripts::script_task::ScriptTaskTable;
+use crate::infrastructure::core::ExecutionId;
 use crate::infrastructure::core::ScriptId;
-use crate::infrastructure::db::DbRepo;
-use crate::infrastructure::ipc::message::{RunTarget, RuntimeQueueItem, RuntimeSessionSnapshot};
+use crate::infrastructure::ipc::message::{
+    RunTarget, RuntimeProgressPhase, RuntimeQueueItem, RuntimeScheduleStatus,
+    RuntimeSessionSnapshot,
+};
+use crate::infrastructure::ipc::runtime_reporter::{emit_progress_event, emit_schedule_event};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::executor::ScriptExecutor;
+use crate::infrastructure::session::runtime_session::{
+    get_script_bundle_snapshot, try_current_session_summary,
+};
+use serde::de::DeserializeOwned;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
+
+struct ParsedScriptBundle {
+    script: ScriptTable,
+    tasks: Vec<ScriptTaskTable>,
+    policies: Vec<PolicyTable>,
+    policy_groups: Vec<PolicyGroupTable>,
+    policy_sets: Vec<PolicySetTable>,
+    group_policies: Vec<GroupPolicyRelation>,
+    set_groups: Vec<SetGroupRelation>,
+}
 
 /// 脚本调度器
 pub struct ScriptScheduler {
@@ -42,11 +63,45 @@ pub fn get_scheduler() -> Option<Arc<ScriptScheduler>> {
 }
 
 impl ScriptScheduler {
+    fn parse_bundle_json<T: DeserializeOwned>(field: &str, json: &str) -> Result<T, String> {
+        serde_json::from_str(json)
+            .map_err(|error| format!("解析 bundle 字段 {} 失败: {}", field, error))
+    }
+
+    async fn load_script_bundle(script_id: ScriptId) -> Result<ParsedScriptBundle, String> {
+        let snapshot = get_script_bundle_snapshot(script_id)
+            .await
+            .ok_or_else(|| format!("session 中不存在脚本[{}]的 bundle", script_id))?;
+
+        Ok(ParsedScriptBundle {
+            script: Self::parse_bundle_json("script_json", &snapshot.script_json)?,
+            tasks: Self::parse_bundle_json("tasks_json", &snapshot.tasks_json)?,
+            policies: Self::parse_bundle_json("policies_json", &snapshot.policies_json)?,
+            policy_groups: Self::parse_bundle_json(
+                "policy_groups_json",
+                &snapshot.policy_groups_json,
+            )?,
+            policy_sets: Self::parse_bundle_json("policy_sets_json", &snapshot.policy_sets_json)?,
+            group_policies: Self::parse_bundle_json(
+                "group_policies_json",
+                &snapshot.group_policies_json,
+            )?,
+            set_groups: Self::parse_bundle_json("set_groups_json", &snapshot.set_groups_json)?,
+        })
+    }
+
+    fn current_run_target() -> RunTarget {
+        try_current_session_summary()
+            .map(|summary| summary.run_target)
+            .unwrap_or(RunTarget::DeviceQueue)
+    }
+
     /// 用完整 session 替换当前队列
     pub async fn load_session(&self, session: RuntimeSessionSnapshot) {
         let mut queue = self.queue.write().await;
         queue.clear();
         queue.extend(session.queue);
+        *self.current_script.write().await = None;
         Log::info(&format!(
             "[ scheduler ] 已加载 session[{}]，队列长度: {}",
             session.session_id,
@@ -57,6 +112,11 @@ impl ScriptScheduler {
     /// 获取当前正在执行的脚本
     pub async fn current_script(&self) -> Option<ScriptId> {
         *self.current_script.read().await
+    }
+
+    /// 非阻塞快照读取，供事件上报使用
+    pub fn current_script_snapshot(&self) -> Option<ScriptId> {
+        self.current_script.try_read().ok().and_then(|guard| *guard)
     }
 
     /// 获取队列长度
@@ -84,13 +144,32 @@ impl ScriptScheduler {
             None => return false, // 队列为空
         };
         let script_id = queue_item.script_id;
+        let assignment_id = queue_item.assignment_id;
+        let execution_id = ExecutionId::new_v7();
 
         // 标记当前脚本
         *self.current_script.write().await = Some(script_id);
         Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_id));
+        emit_progress_event(
+            RuntimeProgressPhase::Loading,
+            Some(assignment_id),
+            Some(script_id),
+            None,
+            None,
+            Some("开始加载脚本 bundle".to_string()),
+        );
+        emit_schedule_event(
+            RuntimeScheduleStatus::Running,
+            Some(execution_id),
+            Some(assignment_id),
+            Some(script_id),
+            None,
+            None,
+            Some("脚本已进入执行".to_string()),
+        );
 
         // 执行脚本
-        let result = self.execute_script(queue_item).await;
+        let result = self.execute_script(queue_item, execution_id).await;
 
         // 清除当前脚本
         *self.current_script.write().await = None;
@@ -101,6 +180,23 @@ impl ScriptScheduler {
             }
             Err(e) => {
                 Log::error(&format!("[ scheduler ] 脚本[{}]执行失败: {}", script_id, e));
+                emit_progress_event(
+                    RuntimeProgressPhase::Failed,
+                    Some(assignment_id),
+                    Some(script_id),
+                    None,
+                    None,
+                    Some(e.clone()),
+                );
+                emit_schedule_event(
+                    RuntimeScheduleStatus::Failed,
+                    Some(execution_id),
+                    Some(assignment_id),
+                    Some(script_id),
+                    None,
+                    None,
+                    Some(e),
+                );
             }
         }
 
@@ -109,20 +205,29 @@ impl ScriptScheduler {
     }
 
     /// 执行单个脚本
-    async fn execute_script(&self, queue_item: RuntimeQueueItem) -> Result<(), String> {
+    async fn execute_script(
+        &self,
+        queue_item: RuntimeQueueItem,
+        execution_id: ExecutionId,
+    ) -> Result<(), String> {
         let script_id = queue_item.script_id;
+        let bundle = Self::load_script_bundle(script_id).await?;
+        let tasks_len = bundle.tasks.len();
+        let policy_count = bundle.policies.len();
+        let policy_group_count = bundle.policy_groups.len();
+        let policy_set_count = bundle.policy_sets.len();
+        let group_policy_count = bundle.group_policies.len();
+        let set_group_count = bundle.set_groups.len();
         let runtime_ctx = get_runtime_ctx();
-        let script_table: ScriptTable = DbRepo::get_by_id(SCRIPT_TABLE, &script_id.to_string())
-            .await?
-            .ok_or_else(|| format!("脚本[{}]不存在", script_id))?;
-        let script_info = script_table.data.0;
+        let script_info = bundle.script.data.0;
         let script_name = script_info.name.clone();
+        let run_target = Self::current_run_target();
 
         // 更新运行时上下文的 script_id
         {
             let mut ctx = runtime_ctx.write().await;
             ctx.script_id = script_id;
-            ctx.target = RunTarget::DeviceQueue;
+            ctx.target = run_target;
             ctx.script_info = Some(script_info);
             ctx.current_task = None;
             ctx.last_snapshot = None;
@@ -135,21 +240,38 @@ impl ScriptScheduler {
             }
         }
 
+        emit_progress_event(
+            RuntimeProgressPhase::Planning,
+            Some(queue_item.assignment_id),
+            Some(script_id),
+            None,
+            None,
+            Some(format!(
+                "已加载 bundle: tasks={}, policies={}, groups={}, sets={}",
+                tasks_len, policy_count, policy_group_count, policy_set_count
+            )),
+        );
+
         // 创建执行器
         let _executor = ScriptExecutor::new(runtime_ctx.clone());
 
-        // TODO: 从数据库加载脚本的任务列表（ScriptTaskTable）
-        // TODO: 解析节点/边为 Step 执行序列
-        // TODO: 加载脚本参数到 runtime_ctx
-        // 目前使用占位逻辑：
+        // TODO: M4 接 ExecutionPlanAssembler，把 bundle 真正装配成 step plan。
         Log::info(&format!(
-            "[ scheduler ] 脚本[{}]加载中... assignment: {} (TODO: 从数据库加载任务)",
-            script_id, queue_item.assignment_id
+            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, policy={}, group_relation={}, set_relation={}",
+            script_id, tasks_len, policy_count, group_policy_count, set_group_count
         ));
+        emit_progress_event(
+            RuntimeProgressPhase::Executing,
+            Some(queue_item.assignment_id),
+            Some(script_id),
+            None,
+            None,
+            Some(format!(
+                "已进入占位执行，等待 M4 接入真实 step executor（tasks={}）",
+                tasks_len
+            )),
+        );
 
-        // 占位：执行空步骤列表（后续接入实际加载逻辑）
-        // let steps = load_script_steps(script_id).await?;
-        // executor.execute(&steps).await.map_err(|e| e.to_string())?;
         {
             let mut ctx = runtime_ctx.write().await;
             if let Err(error) = ctx.vision_text_cache.flush_current_script() {
@@ -159,6 +281,24 @@ impl ScriptScheduler {
                 ));
             }
         }
+
+        emit_progress_event(
+            RuntimeProgressPhase::Completed,
+            Some(queue_item.assignment_id),
+            Some(script_id),
+            None,
+            None,
+            Some("脚本占位执行完成".to_string()),
+        );
+        emit_schedule_event(
+            RuntimeScheduleStatus::Success,
+            Some(execution_id),
+            Some(queue_item.assignment_id),
+            Some(script_id),
+            None,
+            None,
+            Some("脚本占位执行完成".to_string()),
+        );
 
         Ok(())
     }
@@ -176,11 +316,9 @@ impl ScriptScheduler {
             script_id, target
         ));
 
+        let bundle = Self::load_script_bundle(script_id).await?;
         let runtime_ctx = get_runtime_ctx();
-        let script_table: ScriptTable = DbRepo::get_by_id(SCRIPT_TABLE, &script_id.to_string())
-            .await?
-            .ok_or_else(|| format!("脚本[{}]不存在", script_id))?;
-        let script_info = script_table.data.0;
+        let script_info = bundle.script.data.0;
         let script_name = script_info.name.clone();
         {
             let mut ctx = runtime_ctx.write().await;
@@ -200,7 +338,7 @@ impl ScriptScheduler {
 
         let _executor = ScriptExecutor::new(runtime_ctx.clone());
 
-        // TODO: 根据 target 加载对应的步骤
+        // TODO: M4 根据 target 装配 bundle 内对应的步骤。
         // match target {
         //     RunTarget::FullScript { script_id } => { ... }
         //     RunTarget::Task { script_id, task_id } => { ... }

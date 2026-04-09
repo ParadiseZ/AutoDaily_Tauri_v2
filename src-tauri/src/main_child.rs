@@ -4,6 +4,8 @@ use child_support::infrastructure::context::child_process_sec::{
 };
 use child_support::infrastructure::context::init_error::InitError;
 use child_support::infrastructure::core::{Deserialize, Error, Serialize};
+use child_support::infrastructure::ipc::runtime_reporter::emit_lifecycle_event;
+use child_support::infrastructure::ipc::message::RuntimeLifecyclePhase;
 use child_support::infrastructure::logging::log_trait::Log;
 use child_support::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
 use tokio_util::sync::CancellationToken;
@@ -80,6 +82,10 @@ async fn run_child_process() -> ChildProcessResult<()> {
     // 6. 设置运行状态为 Idle，等待主进程指令
     set_running_status(RunningStatus::Idle);
     Log::info("[ child ] 进入主循环（Idle），等待主进程指令");
+    emit_lifecycle_event(
+        RuntimeLifecyclePhase::Idle,
+        Some("子进程已就绪，等待运行会话".to_string()),
+    );
 
     // 7. 主循环
     run_main_loop(cancel_token.clone()).await;
@@ -130,6 +136,10 @@ async fn run_main_loop(cancel_token: CancellationToken) {
                                 // 队列执行完毕，回到 Idle 等待新任务
                                 Log::info("[ child ] 脚本队列已空，回到 Idle 状态");
                                 set_running_status(RunningStatus::Idle);
+                                emit_lifecycle_event(
+                                    RuntimeLifecyclePhase::Idle,
+                                    Some("脚本队列已空".to_string()),
+                                );
                             }
                         } else {
                             tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
