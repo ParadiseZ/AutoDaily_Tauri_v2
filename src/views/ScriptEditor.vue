@@ -510,6 +510,7 @@ import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
 import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
+import { validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import EditorJsonDialog from '@/views/script-editor/EditorJsonDialog.vue';
 import EditorConsolePanel from '@/views/script-editor/EditorConsolePanel.vue';
@@ -2110,6 +2111,19 @@ const handleRunSelection = async () => {
   if (!runTarget) {
     showToast('当前目标对象无法转换为运行目标。', 'error');
     return;
+  }
+
+  if (draftScript.value) {
+    const recoveryError = validateRunTargetRecoveryForDevice(
+      selectedPreviewDevice.value,
+      draftScript.value,
+      draftTasks.value,
+    );
+    if (recoveryError) {
+      appendConsoleLine(`运行前校验失败：${recoveryError}`);
+      showToast(recoveryError, 'warning');
+      return;
+    }
   }
 
   if (dirty.value) {

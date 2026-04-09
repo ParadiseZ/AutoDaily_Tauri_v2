@@ -12,7 +12,7 @@
           <AppIcon name="square" :size="14" class="fill-current" />
           全部停止
         </button>
-        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-vibrant-blue)]/30 hover:shadow-[var(--app-vibrant-blue)]/50 transition-shadow" type="button" @click="deviceStore.startDevices(deviceIds)">
+        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-vibrant-blue)]/30 hover:shadow-[var(--app-vibrant-blue)]/50 transition-shadow" type="button" @click="handleStartAllDevices">
           <AppIcon name="play" :size="16" class="fill-current" />
           全部启动
         </button>
@@ -89,7 +89,7 @@
         @add-script="handleAddScript"
         @remove-assignment="handleRemoveAssignment"
         @clear-schedules="taskStore.clearSchedules"
-        @start="deviceStore.startDevice"
+        @start="handleStartDevice"
         @pause="deviceStore.pauseDevice"
         @stop="deviceStore.stopDevice"
       />
@@ -108,6 +108,7 @@ import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { showToast } from '@/utils/toast';
+import { validateDeviceQueueRecoveryForDevice } from '@/utils/runtimePolicy';
 import type { AssignmentRecord } from '@/types/app/domain';
 
 const deviceStore = useDeviceStore();
@@ -148,6 +149,49 @@ const handleRemoveAssignment = async (deviceId: string, assignment: AssignmentRe
     showToast('脚本已从队列移除', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '移除失败', 'error');
+  }
+};
+
+const validateDeviceQueueStart = (deviceId: string) => {
+  const device = deviceStore.devices.find((item) => item.id === deviceId);
+  if (!device) {
+    return '目标设备不存在。';
+  }
+
+  return validateDeviceQueueRecoveryForDevice(
+    device,
+    taskStore.assignmentsByDevice[deviceId] ?? [],
+    scriptStore.sortedScripts,
+  );
+};
+
+const handleStartDevice = async (deviceId: string) => {
+  const error = validateDeviceQueueStart(deviceId);
+  if (error) {
+    showToast(error, 'warning');
+    return;
+  }
+
+  try {
+    await deviceStore.startDevice(deviceId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '启动失败', 'error');
+  }
+};
+
+const handleStartAllDevices = async () => {
+  for (const deviceId of deviceIds.value) {
+    const error = validateDeviceQueueStart(deviceId);
+    if (error) {
+      showToast(error, 'warning');
+      return;
+    }
+  }
+
+  try {
+    await deviceStore.startDevices(deviceIds.value);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '批量启动失败', 'error');
   }
 };
 

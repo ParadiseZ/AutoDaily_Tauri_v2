@@ -1,6 +1,6 @@
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import type { LogConfig, ScriptTimeTemplateValuesDto } from '@/types/app/domain';
-import type { PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
+import type { DeviceTable, PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
 
 type StoreData = Record<string, unknown>;
 type AssignmentMap = Record<string, unknown[]>;
@@ -10,6 +10,7 @@ type GroupPolicyMap = Record<string, string[]>;
 type SetGroupMap = Record<string, string[]>;
 type RuntimeProjectionMap = Record<string, unknown>;
 type ScriptTemplateValueMap = Record<string, ScriptTimeTemplateValuesDto>;
+type StoredDeviceTable = DeviceTable;
 type StoredScriptTable = Omit<ScriptTable, 'data'> & {
   data: Omit<ScriptTable['data'], 'downloadCount' | 'latestVer' | 'verNum'> & {
     downloadCount: number;
@@ -32,7 +33,7 @@ interface MockState {
   runningDeviceIds: string[];
   runtimeProjections: RuntimeProjectionMap;
   scriptTemplateValues: ScriptTemplateValueMap;
-  devices: unknown[];
+  devices: StoredDeviceTable[];
   timeTemplates: unknown[];
 }
 
@@ -190,6 +191,64 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     accountId: string | null | undefined,
   ) => [deviceId ?? '', scriptId ?? '', timeTemplateId ?? '', accountId ?? ''].join('::');
 
+  const findDevice = (state: MockState, deviceId: string) =>
+    state.devices.find((device) => device.id === deviceId) ?? null;
+
+  const findScript = (state: MockState, scriptId: string) =>
+    state.scripts.find((script) => script.id === scriptId) ?? null;
+
+  const isRunnableRecoveryTask = (state: MockState, scriptId: string, taskId: string) =>
+    (state.scriptTasks[scriptId] ?? []).some(
+      (task) => task.id === taskId && task.rowType === 'task' && !task.isDeleted,
+    );
+
+  const validateRecoveryPolicyForScript = (state: MockState, scriptId: string) => {
+    const script = findScript(state, scriptId);
+    if (!script) {
+      return;
+    }
+
+    const recoveryTaskId = script.data.runtimeSettings?.recoveryTaskId ?? null;
+    if (!recoveryTaskId) {
+      throw new Error(`脚本「${script.data.name}」未配置恢复任务，无法使用 RunRecoveryTask 策略`);
+    }
+
+    if (!isRunnableRecoveryTask(state, scriptId, recoveryTaskId)) {
+      throw new Error(`脚本「${script.data.name}」配置的恢复任务不存在，或不是可执行 Task`);
+    }
+  };
+
+  const validateRecoveryPolicyForRun = (state: MockState, deviceId: string, target?: unknown) => {
+    const device = findDevice(state, deviceId);
+    if (!device) {
+      return;
+    }
+
+    if (device.data.executionPolicy?.timeoutAction !== 'runRecoveryTask') {
+      return;
+    }
+
+    const targetRecord = target && typeof target === 'object' ? (target as Record<string, unknown>) : null;
+    const runType = typeof targetRecord?.type === 'string' ? targetRecord.type : 'deviceQueue';
+
+    if (runType === 'deviceQueue') {
+      for (const assignment of state.assignmentsByDevice[deviceId] ?? []) {
+        const scriptId = typeof (assignment as { scriptId?: unknown }).scriptId === 'string'
+          ? String((assignment as { scriptId?: unknown }).scriptId)
+          : null;
+        if (scriptId) {
+          validateRecoveryPolicyForScript(state, scriptId);
+        }
+      }
+      return;
+    }
+
+    const scriptId = typeof targetRecord?.scriptId === 'string' ? targetRecord.scriptId : null;
+    if (scriptId) {
+      validateRecoveryPolicyForScript(state, scriptId);
+    }
+  };
+
   mockWindows('main');
   mockConvertFileSrc('windows');
   mockIPC(
@@ -289,14 +348,17 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }));
           return `设备[${String(args.deviceId)}]子进程已关闭`;
         case 'cmd_device_start':
+          validateRecoveryPolicyForRun(readState(), String(args.deviceId));
           return `已向设备[${String(args.deviceId)}]发送启动命令`;
         case 'cmd_device_pause':
           return `已向设备[${String(args.deviceId)}]发送暂停命令`;
         case 'cmd_device_stop':
           return `已向设备[${String(args.deviceId)}]发送停止命令`;
         case 'cmd_sync_device_runtime_session':
+          validateRecoveryPolicyForRun(readState(), String(args.deviceId));
           return `已同步设备[${String(args.deviceId)}]运行会话`;
         case 'cmd_run_script_target':
+          validateRecoveryPolicyForRun(readState(), String(args.deviceId), args.target);
           return `已向设备[${String(args.deviceId)}]发送运行目标`;
         case 'get_cpu_count_cmd':
           return 8;
@@ -359,6 +421,28 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return null;
         case 'get_all_scripts_cmd':
           return readState().scripts;
+        case 'save_device_cmd':
+          updateState((current) => ({
+            ...current,
+            devices: upsertById(current.devices, args.device as StoredDeviceTable),
+          }));
+          return null;
+        case 'delete_device_cmd':
+          updateState((current) => ({
+            ...current,
+            devices: current.devices.filter((device) => device.id !== args.deviceId),
+            assignmentsByDevice: Object.fromEntries(
+              Object.entries(current.assignmentsByDevice).filter(([deviceId]) => deviceId !== args.deviceId),
+            ),
+            schedulesByDevice: Object.fromEntries(
+              Object.entries(current.schedulesByDevice).filter(([deviceId]) => deviceId !== args.deviceId),
+            ),
+            runtimeProjections: Object.fromEntries(
+              Object.entries(current.runtimeProjections).filter(([deviceId]) => deviceId !== args.deviceId),
+            ),
+            runningDeviceIds: current.runningDeviceIds.filter((deviceId) => deviceId !== args.deviceId),
+          }));
+          return null;
         case 'get_script_tasks_cmd': {
           const state = readState();
           return state.scriptTasks[String(args.scriptId)] ?? [];
