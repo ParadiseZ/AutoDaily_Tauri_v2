@@ -1,5 +1,5 @@
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { LogConfig } from '@/types/app/domain';
+import type { LogConfig, ScriptTimeTemplateValuesDto } from '@/types/app/domain';
 import type { PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
 
 type StoreData = Record<string, unknown>;
@@ -8,6 +8,8 @@ type ScheduleMap = Record<string, unknown[]>;
 type ScriptTaskMap = Record<string, ScriptTaskTable[]>;
 type GroupPolicyMap = Record<string, string[]>;
 type SetGroupMap = Record<string, string[]>;
+type RuntimeProjectionMap = Record<string, unknown>;
+type ScriptTemplateValueMap = Record<string, ScriptTimeTemplateValuesDto>;
 type StoredScriptTable = Omit<ScriptTable, 'data'> & {
   data: Omit<ScriptTable['data'], 'downloadCount' | 'latestVer' | 'verNum'> & {
     downloadCount: number;
@@ -27,6 +29,9 @@ interface MockState {
   setGroups: SetGroupMap;
   assignmentsByDevice: AssignmentMap;
   schedulesByDevice: ScheduleMap;
+  runningDeviceIds: string[];
+  runtimeProjections: RuntimeProjectionMap;
+  scriptTemplateValues: ScriptTemplateValueMap;
   devices: unknown[];
   timeTemplates: unknown[];
 }
@@ -62,6 +67,9 @@ const createDefaultState = (): MockState => ({
   setGroups: {},
   assignmentsByDevice: {},
   schedulesByDevice: {},
+  runningDeviceIds: [],
+  runtimeProjections: {},
+  scriptTemplateValues: {},
   devices: [],
   timeTemplates: [],
 });
@@ -93,6 +101,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         setGroups: parsed.setGroups ?? {},
         assignmentsByDevice: parsed.assignmentsByDevice ?? {},
         schedulesByDevice: parsed.schedulesByDevice ?? {},
+        runningDeviceIds: parsed.runningDeviceIds ?? [],
+        runtimeProjections: parsed.runtimeProjections ?? {},
+        scriptTemplateValues: parsed.scriptTemplateValues ?? {},
         devices: parsed.devices ?? [],
         timeTemplates: parsed.timeTemplates ?? [],
       };
@@ -125,6 +136,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       setGroups: partial.setGroups ?? current.setGroups,
       assignmentsByDevice: partial.assignmentsByDevice ?? current.assignmentsByDevice,
       schedulesByDevice: partial.schedulesByDevice ?? current.schedulesByDevice,
+      runningDeviceIds: partial.runningDeviceIds ?? current.runningDeviceIds,
+      runtimeProjections: partial.runtimeProjections ?? current.runtimeProjections,
+      scriptTemplateValues: partial.scriptTemplateValues ?? current.scriptTemplateValues,
       devices: partial.devices ?? current.devices,
       timeTemplates: partial.timeTemplates ?? current.timeTemplates,
     }));
@@ -168,6 +182,13 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
 
     return `mock-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   };
+
+  const buildTemplateValueScopeKey = (
+    deviceId: string | null | undefined,
+    scriptId: string | null | undefined,
+    timeTemplateId: string | null | undefined,
+    accountId: string | null | undefined,
+  ) => [deviceId ?? '', scriptId ?? '', timeTemplateId ?? '', accountId ?? ''].join('::');
 
   mockWindows('main');
   mockConvertFileSrc('windows');
@@ -250,7 +271,33 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         case 'get_all_devices_cmd':
           return readState().devices;
         case 'cmd_get_running_devices':
-          return [];
+          return readState().runningDeviceIds;
+        case 'cmd_is_device_running':
+          return readState().runningDeviceIds.includes(String(args.deviceId));
+        case 'cmd_spawn_device':
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
+              ? current.runningDeviceIds
+              : [...current.runningDeviceIds, String(args.deviceId)],
+          }));
+          return `设备[${String(args.deviceId)}]子进程已启动`;
+        case 'cmd_device_shutdown':
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: current.runningDeviceIds.filter((deviceId) => deviceId !== String(args.deviceId)),
+          }));
+          return `设备[${String(args.deviceId)}]子进程已关闭`;
+        case 'cmd_device_start':
+          return `已向设备[${String(args.deviceId)}]发送启动命令`;
+        case 'cmd_device_pause':
+          return `已向设备[${String(args.deviceId)}]发送暂停命令`;
+        case 'cmd_device_stop':
+          return `已向设备[${String(args.deviceId)}]发送停止命令`;
+        case 'cmd_sync_device_runtime_session':
+          return `已同步设备[${String(args.deviceId)}]运行会话`;
+        case 'cmd_run_script_target':
+          return `已向设备[${String(args.deviceId)}]发送运行目标`;
         case 'get_cpu_count_cmd':
           return 8;
         case 'get_yolo_labels_cmd':
@@ -270,6 +317,46 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         }
         case 'get_all_time_templates_cmd':
           return readState().timeTemplates;
+        case 'get_script_time_template_values_cmd': {
+          const state = readState();
+          return state.scriptTemplateValues[
+            buildTemplateValueScopeKey(
+              String(args.deviceId),
+              String(args.scriptId),
+              String(args.timeTemplateId),
+              typeof args.accountId === 'string' ? args.accountId : null,
+            )
+          ] ?? null;
+        }
+        case 'save_script_time_template_values_cmd':
+          updateState((current) => {
+            const record = args.record as ScriptTimeTemplateValuesDto;
+            return {
+              ...current,
+              scriptTemplateValues: {
+                ...current.scriptTemplateValues,
+                [buildTemplateValueScopeKey(record.deviceId, record.scriptId, record.timeTemplateId, record.accountId ?? null)]: record,
+              },
+            };
+          });
+          return null;
+        case 'delete_script_time_template_values_cmd':
+          updateState((current) => {
+            const next = { ...current.scriptTemplateValues };
+            delete next[
+              buildTemplateValueScopeKey(
+                String(args.deviceId),
+                String(args.scriptId),
+                String(args.timeTemplateId),
+                typeof args.accountId === 'string' ? args.accountId : null,
+              )
+            ];
+            return {
+              ...current,
+              scriptTemplateValues: next,
+            };
+          });
+          return null;
         case 'get_all_scripts_cmd':
           return readState().scripts;
         case 'get_script_tasks_cmd': {

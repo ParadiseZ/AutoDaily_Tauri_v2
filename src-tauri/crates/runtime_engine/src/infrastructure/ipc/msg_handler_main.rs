@@ -1,6 +1,6 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::infrastructure::app_handle::get_app_handle;
-use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload};
+use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload, RuntimeEventMessage};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use tauri::{Emitter, Manager};
@@ -31,21 +31,8 @@ pub async fn handle_child_message(msg: IpcMessage) {
             // 心跳消息：更新最后心跳时间
             // TODO: 更新 IpcClientState.last_heartbeat
         }
-        MessagePayload::StatusReport(ref report) => {
-            // 状态报告：转发到前端
-            Log::info(&format!(
-                "[ ipc ] 设备[{}]状态: {:?}",
-                device_id, report.status
-            ));
-            if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
-                let emit_data = serde_json::json!({
-                    "deviceId": device_id.to_string(),
-                    "status": format!("{:?}", report.status),
-                    "currentScript": report.current_script.map(|s| s.to_string()),
-                    "message": report.message,
-                });
-                let _ = main_window.emit("device-status", emit_data);
-            }
+        MessagePayload::RuntimeEvent(ref event) => {
+            handle_runtime_event(device_id, event);
         }
         MessagePayload::Error(ref error) => {
             Log::error(&format!(
@@ -63,5 +50,59 @@ pub async fn handle_child_message(msg: IpcMessage) {
             }
         }
         _ => {}
+    }
+}
+
+fn handle_runtime_event(
+    device_id: crate::infrastructure::core::DeviceId,
+    event: &RuntimeEventMessage,
+) {
+    if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
+        match event {
+            RuntimeEventMessage::Lifecycle(lifecycle) => {
+                Log::info(&format!(
+                    "[ ipc ] 设备[{}]生命周期: {:?}",
+                    device_id, lifecycle.phase
+                ));
+                let emit_data = serde_json::json!({
+                    "deviceId": device_id.to_string(),
+                    "sessionId": lifecycle.session_id.map(|id| id.to_string()),
+                    "status": format!("{:?}", lifecycle.phase),
+                    "currentScript": lifecycle.current_script_id.map(|id| id.to_string()),
+                    "message": lifecycle.message,
+                    "at": lifecycle.at,
+                });
+                let _ = main_window.emit("device-status", emit_data);
+            }
+            RuntimeEventMessage::Progress(progress) => {
+                let emit_data = serde_json::json!({
+                    "deviceId": device_id.to_string(),
+                    "sessionId": progress.session_id.map(|id| id.to_string()),
+                    "assignmentId": progress.assignment_id.map(|id| id.to_string()),
+                    "scriptId": progress.script_id.map(|id| id.to_string()),
+                    "taskId": progress.task_id.map(|id| id.to_string()),
+                    "stepId": progress.step_id.map(|id| id.to_string()),
+                    "phase": format!("{:?}", progress.phase),
+                    "message": progress.message,
+                    "at": progress.at,
+                });
+                let _ = main_window.emit("device-progress", emit_data);
+            }
+            RuntimeEventMessage::Schedule(schedule) => {
+                let emit_data = serde_json::json!({
+                    "deviceId": device_id.to_string(),
+                    "sessionId": schedule.session_id.map(|id| id.to_string()),
+                    "executionId": schedule.execution_id.map(|id| id.to_string()),
+                    "assignmentId": schedule.assignment_id.map(|id| id.to_string()),
+                    "scriptId": schedule.script_id.map(|id| id.to_string()),
+                    "taskId": schedule.task_id.map(|id| id.to_string()),
+                    "stepId": schedule.step_id.map(|id| id.to_string()),
+                    "status": format!("{:?}", schedule.status),
+                    "message": schedule.message,
+                    "at": schedule.at,
+                });
+                let _ = main_window.emit("device-schedule", emit_data);
+            }
+        }
     }
 }

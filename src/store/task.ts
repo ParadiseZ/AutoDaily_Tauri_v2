@@ -1,12 +1,10 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { taskService } from '@/services/taskService';
-import { deviceService } from '@/services/deviceService';
 import type { AssignmentRecord, JsonValue } from '@/types/app/domain';
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
-import { useDeviceStore } from '@/store/device';
 
 const normalizeAssignment = (assignment: DeviceScriptAssignment): AssignmentRecord => ({
     ...assignment,
@@ -88,23 +86,12 @@ export const useTaskStore = defineStore('task', () => {
 
         await taskService.saveAssignment(assignment);
 
-        const deviceStore = useDeviceStore();
-        if (deviceStore.isDeviceOnline(deviceId)) {
-            await deviceService.addScriptToDevice(deviceId, scriptId);
-        }
-
         await loadAssignments(deviceId);
         return normalizeAssignment(assignment);
     };
 
     const removeAssignment = async (deviceId: string, assignment: AssignmentRecord) => {
         await taskService.deleteAssignment(assignment.id);
-
-        const deviceStore = useDeviceStore();
-        if (deviceStore.isDeviceOnline(deviceId)) {
-            await deviceService.removeScriptFromDevice(deviceId, assignment.scriptId);
-        }
-
         await loadAssignments(deviceId);
     };
 

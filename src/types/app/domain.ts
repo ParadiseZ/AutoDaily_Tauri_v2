@@ -127,9 +127,62 @@ export interface DeviceRuntimeStatus {
 
 export interface DeviceStatusEvent {
     deviceId: string;
+    sessionId?: string | null;
     status: string;
     currentScript?: string | null;
     message?: string | null;
+}
+
+export type RunTarget =
+    | { type: 'deviceQueue' }
+    | { type: 'fullScript'; scriptId: string }
+    | { type: 'task'; scriptId: string; taskId: string }
+    | { type: 'policyGroup'; scriptId: string; policyGroupId: string }
+    | { type: 'policySet'; scriptId: string; policySetId: string };
+
+export interface RuntimeLifecycleEvent {
+    deviceId: string;
+    sessionId?: string | null;
+    status: string;
+    currentScript?: string | null;
+    message?: string | null;
+    at?: string | null;
+}
+
+export interface RuntimeProgressEvent {
+    deviceId: string;
+    sessionId?: string | null;
+    assignmentId?: string | null;
+    scriptId?: string | null;
+    taskId?: string | null;
+    stepId?: string | null;
+    phase: string;
+    message?: string | null;
+    at: string;
+}
+
+export interface RuntimeScheduleEvent {
+    deviceId: string;
+    sessionId?: string | null;
+    executionId?: string | null;
+    assignmentId?: string | null;
+    scriptId?: string | null;
+    taskId?: string | null;
+    stepId?: string | null;
+    status: string;
+    message?: string | null;
+    at: string;
+}
+
+export interface ScriptTimeTemplateValuesDto {
+    id: string;
+    deviceId?: string | null;
+    scriptId: string;
+    timeTemplateId: string;
+    accountId?: string | null;
+    valuesJson: JsonValue;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export interface DeviceLogEntry {

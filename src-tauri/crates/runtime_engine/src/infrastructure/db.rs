@@ -9,6 +9,28 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tokio::sync::OnceCell;
 
+const SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS script_time_template_values (
+            id TEXT PRIMARY KEY,
+            device_id TEXT,
+            script_id TEXT NOT NULL,
+            time_template_id TEXT NOT NULL,
+            account_id TEXT,
+            values_json JSON NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE,
+            FOREIGN KEY (time_template_id) REFERENCES time_templates(id) ON DELETE CASCADE
+        )";
+
+const SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL: &str = "CREATE UNIQUE INDEX IF NOT EXISTS idx_script_time_template_values_scope
+        ON script_time_template_values (
+            ifnull(device_id, ''),
+            script_id,
+            time_template_id,
+            ifnull(account_id, '')
+        )";
+
 pub static POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
 /// 子进程初始化数据库
@@ -217,22 +239,11 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     // 12. 脚本时间模板变量值表
-    sqlx::query(
-        "CREATE TABLE IF NOT EXISTS script_time_template_values (
-            id TEXT PRIMARY KEY,
-            script_id TEXT NOT NULL,
-            time_template_id TEXT NOT NULL,
-            values_json JSON NOT NULL DEFAULT '{}',
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE (script_id, time_template_id),
-            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE,
-            FOREIGN KEY (time_template_id) REFERENCES time_templates(id) ON DELETE CASCADE
-        )",
-    )
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    sqlx::query(SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    ensure_script_time_template_values_schema(pool).await?;
 
     Ok(())
 }
@@ -359,6 +370,81 @@ async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> 
     if ensure_column("task_type") || ensure_column("nodes") || ensure_column("edges") {
         rebuild_script_tasks_table(pool).await?;
     }
+
+    Ok(())
+}
+
+async fn ensure_script_time_template_values_schema(pool: &Pool<Sqlite>) -> Result<(), String> {
+    let rows = sqlx::query("PRAGMA table_info(script_time_template_values)")
+        .fetch_all(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let column_names: Vec<String> = rows
+        .iter()
+        .filter_map(|row| row.try_get::<String, _>("name").ok())
+        .collect();
+
+    let has_device_id = column_names.iter().any(|column| column == "device_id");
+    let has_account_id = column_names.iter().any(|column| column == "account_id");
+
+    if !has_device_id || !has_account_id {
+        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
+        sqlx::query("ALTER TABLE script_time_template_values RENAME TO script_time_template_values_legacy")
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        sqlx::query(SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        sqlx::query(SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        sqlx::query(
+            "INSERT INTO script_time_template_values (
+                id,
+                device_id,
+                script_id,
+                time_template_id,
+                account_id,
+                values_json,
+                created_at,
+                updated_at
+            )
+            SELECT
+                id,
+                NULL,
+                script_id,
+                time_template_id,
+                NULL,
+                values_json,
+                created_at,
+                updated_at
+            FROM script_time_template_values_legacy",
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
+
+        sqlx::query("DROP TABLE script_time_template_values_legacy")
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        tx.commit().await.map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+
+    sqlx::query(SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }

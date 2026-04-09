@@ -4,7 +4,7 @@ use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{HashMap, PolicyId, ScriptId, TaskId};
-use crate::infrastructure::ipc::message::ExecuteTarget;
+use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use crate::infrastructure::vision::text_rec_cache::ScriptTextRecCacheRuntime;
 use std::sync::{Arc, OnceLock};
@@ -36,7 +36,7 @@ pub struct TaskState {
 #[derive(Debug)]
 pub struct RuntimeContext {
     pub script_id: ScriptId,
-    pub target: ExecuteTarget,
+    pub target: RunTarget,
     pub script_info: Option<ScriptInfo>,
     pub current_task: Option<ScriptTaskTable>,
     
@@ -72,7 +72,7 @@ pub struct RuntimeContext {
 impl RuntimeContext {
     pub fn new(
         script_id: ScriptId,
-        target: ExecuteTarget,
+        target: RunTarget,
         ocr_service: Arc<OcrService>,
         vision_text_cache_config: VisionTextCacheRuntimeConfig,
         //adb_executor: Arc<RwLock<ADBExecutor>>,

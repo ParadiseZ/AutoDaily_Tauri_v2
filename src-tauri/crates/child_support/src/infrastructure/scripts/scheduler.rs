@@ -6,7 +6,7 @@ use crate::constant::table_name::SCRIPT_TABLE;
 use crate::domain::scripts::script_info::ScriptTable;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::db::DbRepo;
-use crate::infrastructure::ipc::message::ExecuteTarget;
+use crate::infrastructure::ipc::message::{RunTarget, RuntimeQueueItem, RuntimeSessionSnapshot};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::executor::ScriptExecutor;
 use std::collections::VecDeque;
@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 /// 脚本调度器
 pub struct ScriptScheduler {
     /// 待执行的脚本队列
-    queue: Arc<RwLock<VecDeque<ScriptId>>>,
+    queue: Arc<RwLock<VecDeque<RuntimeQueueItem>>>,
     /// 当前正在执行的脚本
     current_script: Arc<RwLock<Option<ScriptId>>>,
     /// 取消令牌
@@ -42,26 +42,16 @@ pub fn get_scheduler() -> Option<Arc<ScriptScheduler>> {
 }
 
 impl ScriptScheduler {
-    /// 添加脚本到队列
-    pub async fn add_script(&self, script_id: ScriptId) {
+    /// 用完整 session 替换当前队列
+    pub async fn load_session(&self, session: RuntimeSessionSnapshot) {
         let mut queue = self.queue.write().await;
-        if !queue.contains(&script_id) {
-            queue.push_back(script_id);
-            Log::info(&format!(
-                "[ scheduler ] 脚本[{}]已加入队列，队列长度: {}",
-                script_id,
-                queue.len()
-            ));
-        } else {
-            Log::warn(&format!("[ scheduler ] 脚本[{}]已在队列中", script_id));
-        }
-    }
-
-    /// 从队列移除脚本
-    pub async fn remove_script(&self, script_id: &ScriptId) {
-        let mut queue = self.queue.write().await;
-        queue.retain(|id| id != script_id);
-        Log::info(&format!("[ scheduler ] 脚本[{}]已从队列移除", script_id));
+        queue.clear();
+        queue.extend(session.queue);
+        Log::info(&format!(
+            "[ scheduler ] 已加载 session[{}]，队列长度: {}",
+            session.session_id,
+            queue.len()
+        ));
     }
 
     /// 获取当前正在执行的脚本
@@ -84,22 +74,23 @@ impl ScriptScheduler {
         }
 
         // 从队列取出下一个脚本
-        let script_id = {
+        let queue_item = {
             let mut queue = self.queue.write().await;
             queue.pop_front()
         };
 
-        let script_id = match script_id {
-            Some(id) => id,
+        let queue_item = match queue_item {
+            Some(item) => item,
             None => return false, // 队列为空
         };
+        let script_id = queue_item.script_id;
 
         // 标记当前脚本
         *self.current_script.write().await = Some(script_id);
         Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_id));
 
         // 执行脚本
-        let result = self.execute_script(script_id).await;
+        let result = self.execute_script(queue_item).await;
 
         // 清除当前脚本
         *self.current_script.write().await = None;
@@ -118,7 +109,8 @@ impl ScriptScheduler {
     }
 
     /// 执行单个脚本
-    async fn execute_script(&self, script_id: ScriptId) -> Result<(), String> {
+    async fn execute_script(&self, queue_item: RuntimeQueueItem) -> Result<(), String> {
+        let script_id = queue_item.script_id;
         let runtime_ctx = get_runtime_ctx();
         let script_table: ScriptTable = DbRepo::get_by_id(SCRIPT_TABLE, &script_id.to_string())
             .await?
@@ -130,7 +122,7 @@ impl ScriptScheduler {
         {
             let mut ctx = runtime_ctx.write().await;
             ctx.script_id = script_id;
-            ctx.target = ExecuteTarget::FullScript;
+            ctx.target = RunTarget::DeviceQueue;
             ctx.script_info = Some(script_info);
             ctx.current_task = None;
             ctx.last_snapshot = None;
@@ -151,8 +143,8 @@ impl ScriptScheduler {
         // TODO: 加载脚本参数到 runtime_ctx
         // 目前使用占位逻辑：
         Log::info(&format!(
-            "[ scheduler ] 脚本[{}]加载中... (TODO: 从数据库加载任务)",
-            script_id
+            "[ scheduler ] 脚本[{}]加载中... assignment: {} (TODO: 从数据库加载任务)",
+            script_id, queue_item.assignment_id
         ));
 
         // 占位：执行空步骤列表（后续接入实际加载逻辑）
@@ -174,9 +166,11 @@ impl ScriptScheduler {
     /// 开发者调试执行 — 直接执行指定目标，不走队列
     pub async fn debug_execute(
         &self,
-        script_id: ScriptId,
-        target: ExecuteTarget,
+        target: RunTarget,
     ) -> Result<(), String> {
+        let script_id = target
+            .script_id()
+            .ok_or_else(|| "调试运行目标必须携带 script_id".to_string())?;
         Log::info(&format!(
             "[ scheduler ] 调试执行脚本[{}] target: {:?}",
             script_id, target
@@ -191,7 +185,7 @@ impl ScriptScheduler {
         {
             let mut ctx = runtime_ctx.write().await;
             ctx.script_id = script_id;
-            ctx.target = target;
+            ctx.target = target.clone();
             ctx.script_info = Some(script_info);
             ctx.current_task = None;
             ctx.last_snapshot = None;
@@ -208,10 +202,10 @@ impl ScriptScheduler {
 
         // TODO: 根据 target 加载对应的步骤
         // match target {
-        //     ExecuteTarget::FullScript => { ... }
-        //     ExecuteTarget::Task(task_id) => { ... }
-        //     ExecuteTarget::PolicyGroup(pg_id) => { ... }
-        //     ExecuteTarget::PolicySet(ps_id) => { ... }
+        //     RunTarget::FullScript { script_id } => { ... }
+        //     RunTarget::Task { script_id, task_id } => { ... }
+        //     RunTarget::PolicyGroup { script_id, policy_group_id } => { ... }
+        //     RunTarget::PolicySet { script_id, policy_set_id } => { ... }
         // }
 
         Log::info(&format!(
@@ -236,5 +230,12 @@ impl ScriptScheduler {
     pub async fn clear_queue(&self) {
         self.queue.write().await.clear();
         Log::info("[ scheduler ] 队列已清空");
+    }
+
+    /// 清空当前会话
+    pub async fn clear_session(&self) {
+        self.clear_queue().await;
+        *self.current_script.write().await = None;
+        Log::info("[ scheduler ] 当前 session 已清空");
     }
 }

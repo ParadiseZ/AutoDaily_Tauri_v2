@@ -24,9 +24,12 @@ pub type PolicySetId = UuidV7;
 pub type SubFlowId = UuidV7;
 pub type StepId = UuidV7;
 pub type MessageId = UuidV7;
+pub type SessionId = UuidV7;
+pub type ExecutionId = UuidV7;
 pub type ScheduleId = UuidV7;
 pub type TemplateId = UuidV7;
 pub type ScriptTemplateValueId = UuidV7;
+pub type AccountId = String;
 
 #[derive(Encode, Decode, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UuidV7(pub u128);

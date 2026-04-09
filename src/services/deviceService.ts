@@ -14,10 +14,6 @@ export const deviceService = {
     start: (deviceId: string) => invoke('cmd_device_start', { deviceId }) as Promise<string>,
     pause: (deviceId: string) => invoke('cmd_device_pause', { deviceId }) as Promise<string>,
     stop: (deviceId: string) => invoke('cmd_device_stop', { deviceId }) as Promise<string>,
-    addScriptToDevice: (deviceId: string, scriptId: string) =>
-        invoke('cmd_add_script_to_device', { deviceId, scriptId }) as Promise<string>,
-    removeScriptFromDevice: (deviceId: string, scriptId: string) =>
-        invoke('cmd_remove_script_from_device', { deviceId, scriptId }) as Promise<string>,
     updateChildLogLevel: (deviceId: string, logLevel: LogLevel) =>
         invoke('update_child_log_level_cmd', { deviceId, logLevel }) as Promise<string>,
 };

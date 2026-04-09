@@ -9,7 +9,7 @@ use crate::infrastructure::context::runtime_context::{init_runtime_ctx, RuntimeC
 use crate::infrastructure::core::cores_affinity::set_process_affinity;
 use crate::infrastructure::db::init_db_with_path;
 use crate::infrastructure::devices::device_ctx::init_device_ctx;
-use crate::infrastructure::ipc::message::ExecuteTarget;
+use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::logging::child_log::LogChild;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_service::OcrService;
@@ -44,7 +44,7 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
     let ocr_service = Arc::new(OcrService::new());
     let runtime_ctx = Arc::new(RwLock::new(RuntimeContext::new(
         init_data.device_id,
-        ExecuteTarget::FullScript,
+        RunTarget::DeviceQueue,
         ocr_service,
         init_data.vision_text_cache_config.clone(),
     )));

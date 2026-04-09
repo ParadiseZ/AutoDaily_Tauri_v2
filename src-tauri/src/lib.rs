@@ -30,7 +30,7 @@ use crate::api::domain::scripts::{get_all_scripts_cmd, get_script_by_id_cmd, sav
 use crate::api::domain::policy::*;
 use crate::api::infrastructure::process_api::{
     cmd_device_start, cmd_device_stop, cmd_device_pause,
-    cmd_add_script_to_device, cmd_remove_script_from_device,
+    cmd_sync_device_runtime_session, cmd_run_script_target,
     cmd_device_shutdown, cmd_get_running_devices,
     cmd_spawn_device, cmd_is_device_running,
 };
@@ -38,6 +38,7 @@ use crate::api::domain::schedule::{
     get_assignments_by_device_cmd, save_assignment_cmd, delete_assignment_cmd, reorder_assignments_cmd,
     get_schedules_by_device_cmd, clear_schedules_cmd, clear_schedules_by_script_cmd,
     get_all_time_templates_cmd, save_time_template_cmd, delete_time_template_cmd,
+    get_script_time_template_values_cmd, save_script_time_template_values_cmd, delete_script_time_template_values_cmd,
 };
 use crate::app::init_start::init_at_start;
 use tauri::{App, Emitter, Manager};
@@ -133,8 +134,8 @@ pub fn run() {
             cmd_device_start,
             cmd_device_stop,
             cmd_device_pause,
-            cmd_add_script_to_device,
-            cmd_remove_script_from_device,
+            cmd_sync_device_runtime_session,
+            cmd_run_script_target,
             cmd_device_shutdown,
             cmd_get_running_devices,
             cmd_spawn_device,
@@ -150,6 +151,9 @@ pub fn run() {
             get_all_time_templates_cmd,
             save_time_template_cmd,
             delete_time_template_cmd,
+            get_script_time_template_values_cmd,
+            save_script_time_template_values_cmd,
+            delete_script_time_template_values_cmd,
             // 远端服务器相关
             backend_send_verification_code,
             backend_register,
