@@ -51,7 +51,7 @@ pub struct ScriptTaskTable {
     pub index: u32,//排序
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, sqlx::Type, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 #[sqlx(rename_all = "camelCase")]

@@ -37,6 +37,7 @@
       :mode="dialogMode"
       :open="scriptInfoDialogOpen"
       :script="dialogScript"
+      :task-options="[]"
       @close="closeInfoDialog"
       @save="handleSaveScriptInfo"
     />

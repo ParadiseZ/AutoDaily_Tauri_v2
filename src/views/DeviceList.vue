@@ -149,6 +149,13 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
     imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
     enable: form.enable,
     autoStart: form.autoStart,
+    executionPolicy: {
+      actionWaitMs: Math.max(0, Number(form.actionWaitMs) || 0),
+      progressTimeoutEnabled: form.progressTimeoutEnabled,
+      progressTimeoutMs: Math.max(1000, Number(form.progressTimeoutMs) || 30000),
+      timeoutAction: form.timeoutAction,
+      timeoutNotifyChannels: [...form.timeoutNotifyChannels],
+    },
   },
 });
 

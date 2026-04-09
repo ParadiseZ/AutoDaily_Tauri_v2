@@ -5,6 +5,8 @@ import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { RuntimeType } from '@/types/bindings/RuntimeType';
 import type { ScriptVariableCatalog } from '@/types/bindings/ScriptVariableCatalog';
 import type { ScriptType } from '@/types/bindings/ScriptType';
+import type { TimeoutAction } from '@/types/bindings/TimeoutAction';
+import type { TimeoutNotifyChannel } from '@/types/bindings/TimeoutNotifyChannel';
 import type { JsonValue as StoreJsonValue } from '@/types/bindings/serde_json/JsonValue';
 
 export type JsonValue = StoreJsonValue;
@@ -107,6 +109,9 @@ export interface ScriptInfoRecord {
     allowClone: boolean;
     variableCatalog: ScriptVariableCatalog;
     cloudId: string | null;
+    runtimeSettings: {
+        recoveryTaskId: string | null;
+    };
 }
 
 export interface ScriptTableRecord {
@@ -260,6 +265,11 @@ export interface DeviceFormState {
     connectDeviceName: string;
     enable: boolean;
     autoStart: boolean;
+    actionWaitMs: number;
+    progressTimeoutEnabled: boolean;
+    progressTimeoutMs: number;
+    timeoutAction: TimeoutAction;
+    timeoutNotifyChannels: TimeoutNotifyChannel[];
 }
 
 export interface DeviceSummary {

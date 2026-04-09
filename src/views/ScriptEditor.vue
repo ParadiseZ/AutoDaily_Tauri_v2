@@ -453,6 +453,7 @@
       :open="infoDialogOpen"
       mode="edit"
       :script="draftScript"
+      :task-options="scriptRecoveryTaskOptions"
       @close="infoDialogOpen = false"
       @save="applyScriptInfo"
     />
@@ -488,9 +489,10 @@ import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
 import { useScriptStore } from '@/store/script';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
+import { runtimeService } from '@/services/runtimeService';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
-import type { DeviceFormState, JsonValue, ScriptTableRecord } from '@/types/app/domain';
+import type { DeviceFormState, JsonValue, RunTarget, ScriptTableRecord } from '@/types/app/domain';
 import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
@@ -780,6 +782,16 @@ const activeTargetSelectOptions = computed(() => {
     description: `${task.rowType === 'title' ? '标题行' : '任务行'} · ${task.index + 1}`,
   }));
 });
+
+const scriptRecoveryTaskOptions = computed(() =>
+  draftTasks.value
+    .filter((task) => task.rowType === 'task' && !task.isDeleted)
+    .map((task) => ({
+      label: task.name,
+      value: task.id,
+      description: `任务 ${task.index + 1}`,
+    })),
+);
 
 const activeTargetValue = computed<string | null>({
   get: () => {
@@ -2022,6 +2034,13 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
     imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
     enable: form.enable,
     autoStart: form.autoStart,
+    executionPolicy: {
+      actionWaitMs: Math.max(0, Number(form.actionWaitMs) || 0),
+      progressTimeoutEnabled: form.progressTimeoutEnabled,
+      progressTimeoutMs: Math.max(1000, Number(form.progressTimeoutMs) || 30000),
+      timeoutAction: form.timeoutAction,
+      timeoutNotifyChannels: [...form.timeoutNotifyChannels],
+    },
   },
 });
 
@@ -2044,14 +2063,76 @@ const savePreviewDevice = async (form: DeviceFormState) => {
   }
 };
 
-const handleRunSelection = () => {
-  if (!selectedPreviewDevice.value || !activeTargetValue.value) {
+const buildActiveRunTarget = (): RunTarget | null => {
+  if (!scriptId.value || !activeTargetValue.value) {
+    return null;
+  }
+
+  if (activeMode.value === 'policyGroup') {
+    return {
+      type: 'policyGroup',
+      scriptId: scriptId.value,
+      policyGroupId: activeTargetValue.value,
+    };
+  }
+
+  if (activeMode.value === 'policySet') {
+    return {
+      type: 'policySet',
+      scriptId: scriptId.value,
+      policySetId: activeTargetValue.value,
+    };
+  }
+
+  if (activeMode.value === 'task') {
+    return {
+      type: 'task',
+      scriptId: scriptId.value,
+      taskId: activeTargetValue.value,
+    };
+  }
+
+  return null;
+};
+
+const handleRunSelection = async () => {
+  if (!selectedPreviewDevice.value || !selectedPreviewDeviceId.value || !activeTargetValue.value) {
     showToast('请先选择设备和目标对象。', 'warning');
     return;
   }
 
+  if (activeMode.value === 'policy') {
+    showToast('策略单项运行尚未接入，当前仅支持任务、策略组、策略集。', 'warning');
+    return;
+  }
+
+  const runTarget = buildActiveRunTarget();
+  if (!runTarget) {
+    showToast('当前目标对象无法转换为运行目标。', 'error');
+    return;
+  }
+
+  if (dirty.value) {
+    appendConsoleLine('运行前检测到未保存改动，先保存当前脚本结构。');
+    await saveEditor();
+    if (dirty.value) {
+      appendConsoleLine('运行已取消：脚本草稿仍未保存。');
+      return;
+    }
+  }
+
   appendConsoleLine(`请求运行：设备=${selectedPreviewDevice.value.data.deviceName}，目标=${activeModeLabel.value} ${activeModeFocusName.value || activeTargetValue.value}`);
-  showToast('运行链路尚未接入，这里先按 IDE 顶部工具条布局保留入口。', 'warning');
+
+  try {
+    const result = await runtimeService.runScriptTarget(selectedPreviewDeviceId.value, runTarget);
+    await deviceStore.refreshRunningDevices();
+    appendConsoleLine(result);
+    showToast('运行命令已发送', 'success');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '运行命令发送失败';
+    appendConsoleLine(`运行失败：${message}`);
+    showToast(message, 'error');
+  }
 };
 
 const createActiveItem = () => {

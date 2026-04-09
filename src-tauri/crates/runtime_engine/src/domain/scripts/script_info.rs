@@ -1,4 +1,4 @@
-use crate::infrastructure::core::{Deserialize, ScriptId, Serialize, UserId};
+use crate::infrastructure::core::{Deserialize, ScriptId, Serialize, TaskId, UserId};
 use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::rec::RecognizerType;
 use crate::domain::scripts::script_variable::ScriptVariableCatalog;
@@ -88,9 +88,18 @@ pub struct ScriptInfo {
     /// - None: 从未上传过
     /// - Some(id): 已上传，关联的云端版本 ID
     pub cloud_id: Option<ScriptId>,
+    #[serde(default)]
+    pub runtime_settings: ScriptRuntimeSettings,
 
     // 模板排序时间 (秒)
     //pub template_time: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptRuntimeSettings {
+    pub recovery_task_id: Option<TaskId>,
 }
 
 impl Default for ScriptInfo {
@@ -119,7 +128,16 @@ impl Default for ScriptInfo {
             allow_clone: true,
             variable_catalog: ScriptVariableCatalog::default(),
             cloud_id: None,
+            runtime_settings: ScriptRuntimeSettings::default(),
             //template_time: None,
         }
     }
  }
+
+impl Default for ScriptRuntimeSettings {
+    fn default() -> Self {
+        Self {
+            recovery_task_id: None,
+        }
+    }
+}

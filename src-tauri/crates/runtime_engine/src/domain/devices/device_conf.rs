@@ -53,6 +53,39 @@ pub struct DeviceConfig {
     pub enable: bool,
     // 启用时是否自动启动（启动设备+连接+调度脚本）
     pub auto_start: bool,
+    #[serde(default)]
+    pub execution_policy: DeviceExecutionPolicy,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceExecutionPolicy {
+    pub action_wait_ms: u64,
+    pub progress_timeout_enabled: bool,
+    pub progress_timeout_ms: u64,
+    pub timeout_action: TimeoutAction,
+    pub timeout_notify_channels: Vec<TimeoutNotifyChannel>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum TimeoutAction {
+    NotifyOnly,
+    PauseExecution,
+    StopExecution,
+    RestartApp,
+    RunRecoveryTask,
+    SkipCurrentTask,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum TimeoutNotifyChannel {
+    SystemNotification,
+    Email,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
@@ -77,6 +110,19 @@ impl Default for DeviceConfig {
             image_compression: ImageCompression::WindowOriginal,
             enable: false,
             auto_start: false,
+            execution_policy: DeviceExecutionPolicy::default(),
+        }
+    }
+}
+
+impl Default for DeviceExecutionPolicy {
+    fn default() -> Self {
+        Self {
+            action_wait_ms: 500,
+            progress_timeout_enabled: false,
+            progress_timeout_ms: 30_000,
+            timeout_action: TimeoutAction::StopExecution,
+            timeout_notify_channels: Vec::new(),
         }
     }
 }

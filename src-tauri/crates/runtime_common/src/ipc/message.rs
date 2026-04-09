@@ -113,17 +113,19 @@ pub struct RuntimeVisionTextCachePolicy {
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum TimeoutAction {
-    Stop,
-    Skip,
-    Continue,
+    NotifyOnly,
+    PauseExecution,
+    StopExecution,
+    RestartApp,
+    RunRecoveryTask,
+    SkipCurrentTask,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum TimeoutNotifyPolicy {
-    None,
-    Email,
+pub enum TimeoutNotifyChannel {
     SystemNotification,
+    Email,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
@@ -131,9 +133,10 @@ pub enum TimeoutNotifyPolicy {
 pub struct RuntimeExecutionPolicy {
     pub ocr_text_cache: RuntimeVisionTextCachePolicy,
     pub action_wait_ms: u64,
-    pub step_timeout_ms: u64,
+    pub progress_timeout_enabled: bool,
+    pub progress_timeout_ms: u64,
     pub timeout_action: TimeoutAction,
-    pub timeout_notify: TimeoutNotifyPolicy,
+    pub timeout_notify_channels: Vec<TimeoutNotifyChannel>,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]

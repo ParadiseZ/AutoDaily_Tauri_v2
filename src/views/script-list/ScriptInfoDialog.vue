@@ -409,6 +409,31 @@
           </div>
         </template>
 
+        <template v-else-if="activeTab === 'runtime'">
+          <SurfacePanel tone="muted" padding="sm" class="space-y-5">
+            <div class="max-w-[720px] space-y-4">
+              <label class="support-form-row">
+                <span class="support-form-label">恢复任务</span>
+                <div class="space-y-3">
+                  <AppSelect
+                    v-model="recoveryTaskValue"
+                    :options="recoveryTaskOptions"
+                    :disabled="!hasTaskContext"
+                    placeholder="不设置"
+                    test-id="script-runtime-recovery-task"
+                  />
+                  <p class="text-sm text-[var(--app-text-soft)]">
+                    当设备执行策略选择 `RunRecoveryTask` 时，运行时会使用这里选定的普通 Task 作为恢复入口。
+                  </p>
+                  <p v-if="!hasTaskContext" class="text-xs text-[var(--app-text-faint)]">
+                    当前入口没有可选的任务上下文。请在脚本编辑器中打开脚本信息后配置恢复任务。
+                  </p>
+                </div>
+              </label>
+            </div>
+          </SurfacePanel>
+        </template>
+
         <template v-else>
           <SurfacePanel tone="muted" padding="sm" class="space-y-5">
             <div class="max-w-[720px] space-y-4">
@@ -471,16 +496,18 @@ import type { YoloDet } from '@/types/bindings/YoloDet';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import SponsorshipQrField from '@/views/script-list/script-info/SponsorshipQrField.vue';
 
-type DialogTab = 'basic' | 'models' | 'support';
+type DialogTab = 'basic' | 'models' | 'runtime' | 'support';
 type ModelTab = 'imgDet' | 'txtDet' | 'txtRec';
 type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
 type RecognizerKind = 'none' | 'PaddleCrnn';
 type EditableDetectorField = 'imgDetModel' | 'txtDetModel';
+type TaskOption = { label: string; value: string | null; description?: string };
 
 const props = defineProps<{
   open: boolean;
   mode: 'create' | 'edit';
   script: ScriptTableRecord | null;
+  taskOptions?: TaskOption[];
 }>();
 
 const emit = defineEmits(['close', 'save']);
@@ -488,6 +515,7 @@ const emit = defineEmits(['close', 'save']);
 const tabs = [
   { id: 'basic' as const, label: '基本信息' },
   { id: 'models' as const, label: '模型信息' },
+  { id: 'runtime' as const, label: '运行恢复' },
   { id: 'support' as const, label: '赞助信息' },
 ];
 const modelTabs = [
@@ -709,6 +737,27 @@ const sponsorshipQrValue = computed({
   },
 });
 
+const hasTaskContext = computed(() => Boolean(props.taskOptions?.length));
+
+const recoveryTaskOptions = computed<TaskOption[]>(() => [
+  { label: '不设置', value: null, description: '当前脚本不提供恢复任务。' },
+  ...(props.taskOptions ?? []),
+]);
+
+const recoveryTaskValue = computed<string | null>({
+  get: () => form.value?.data.runtimeSettings?.recoveryTaskId || null,
+  set: (value) => {
+    if (!form.value) {
+      return;
+    }
+
+    form.value.data.runtimeSettings = {
+      ...(form.value.data.runtimeSettings ?? { recoveryTaskId: null }),
+      recoveryTaskId: value || null,
+    };
+  },
+});
+
 const imgLabelPathValue = computed({
   get: () => imgYoloModel.value?.labelPath || '',
   set: (value: string) => {
@@ -746,6 +795,12 @@ function cloneScriptRecord(script: unknown): ScriptTableRecord {
   return JSON.parse(JSON.stringify(toRaw(script))) as ScriptTableRecord;
 }
 
+function ensureRuntimeSettings(script: ScriptTableRecord) {
+  script.data.runtimeSettings = {
+    recoveryTaskId: script.data.runtimeSettings?.recoveryTaskId || null,
+  };
+}
+
 function submit() {
   if (!form.value || !canSubmit.value) return;
   form.value.data.name = form.value.data.name.trim();
@@ -759,7 +814,9 @@ watch(
   () => [props.open, props.script?.id],
   ([open]) => {
     if (!open || !props.script) return;
-    form.value = cloneScriptRecord(props.script);
+    const nextForm = cloneScriptRecord(props.script);
+    ensureRuntimeSettings(nextForm);
+    form.value = nextForm;
     activeTab.value = 'basic';
     activeModelTab.value = 'imgDet';
     syncKinds();

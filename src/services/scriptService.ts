@@ -72,6 +72,7 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
             ...raw.data,
             scriptType: raw.data.scriptType ?? 'dev',
             variableCatalog: raw.data.variableCatalog ?? createEmptyVariableCatalog(),
+            runtimeSettings: raw.data.runtimeSettings ?? { recoveryTaskId: null },
             verNum: toSafeNumber(raw.data.verNum, 1),
             latestVer: toSafeNumber(raw.data.latestVer, 1),
             downloadCount: toSafeNumber(raw.data.downloadCount, 0),
@@ -109,6 +110,9 @@ export const createBlankScript = (
         allowClone: true,
         variableCatalog: createEmptyVariableCatalog(),
         cloudId: null,
+        runtimeSettings: {
+            recoveryTaskId: null,
+        },
     },
 });
 

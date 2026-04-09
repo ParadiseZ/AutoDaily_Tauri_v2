@@ -85,6 +85,59 @@
         </div>
       </div>
 
+      <div class="grid gap-4 rounded-[24px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/60 p-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-semibold text-[var(--app-text-strong)]">执行策略</p>
+            <p class="text-xs text-[var(--app-text-faint)]">设备级运行策略，作用于当前设备会话，不属于脚本定义。</p>
+          </div>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="grid gap-2">
+            <span class="text-sm text-[var(--app-text-soft)]">动作后等待（毫秒）</span>
+            <input v-model.number="form.actionWaitMs" class="app-input" type="number" min="0" step="100" />
+          </label>
+          <label class="grid gap-2">
+            <span class="text-sm text-[var(--app-text-soft)]">超时行为</span>
+            <AppSelect v-model="form.timeoutAction" :options="timeoutActionOptions" />
+          </label>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+          <label class="flex items-center justify-between rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3">
+            <span class="text-sm text-[var(--app-text-strong)]">启用无有效进展超时</span>
+            <input v-model="form.progressTimeoutEnabled" type="checkbox" class="toggle toggle-sm" />
+          </label>
+          <label class="grid gap-2">
+            <span class="text-sm text-[var(--app-text-soft)]">超时时间（毫秒）</span>
+            <input
+              v-model.number="form.progressTimeoutMs"
+              class="app-input"
+              type="number"
+              min="1000"
+              step="1000"
+              :disabled="!form.progressTimeoutEnabled"
+            />
+          </label>
+        </div>
+
+        <div class="grid gap-2">
+          <span class="text-sm text-[var(--app-text-soft)]">通知渠道</span>
+          <div class="flex flex-wrap gap-3">
+            <label class="flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-sm text-[var(--app-text-strong)]">
+              <input v-model="form.timeoutNotifyChannels" type="checkbox" value="systemNotification" class="h-4 w-4" />
+              系统通知
+            </label>
+            <label class="flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-sm text-[var(--app-text-strong)]">
+              <input v-model="form.timeoutNotifyChannels" type="checkbox" value="email" class="h-4 w-4" />
+              邮件
+            </label>
+          </div>
+          <p class="text-xs text-[var(--app-text-faint)]">通知可多选；行为只有一个。真正的超时检测与执行动作仍在后续 runtime 阶段接入。</p>
+        </div>
+      </div>
+
       <div class="grid gap-3 md:grid-cols-2">
         <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
           <span class="text-sm text-[var(--app-text-strong)]">启用设备</span>
@@ -144,6 +197,11 @@ const createEmptyForm = (): DeviceFormState => ({
   connectDeviceName: '',
   enable: true,
   autoStart: false,
+  actionWaitMs: 500,
+  progressTimeoutEnabled: false,
+  progressTimeoutMs: 30000,
+  timeoutAction: 'stopExecution',
+  timeoutNotifyChannels: [],
 });
 
 const form = reactive<DeviceFormState>(createEmptyForm());
@@ -167,6 +225,15 @@ const connectOptions = [
   { label: 'ADB 服务（按名称）', value: 'serverConnectByName' },
 ];
 
+const timeoutActionOptions = [
+  { label: '只通知', value: 'notifyOnly', description: '只发通知，不改变执行流。' },
+  { label: '暂停执行', value: 'pauseExecution', description: '进入暂停态，等待人工介入。' },
+  { label: '停止执行', value: 'stopExecution', description: '结束当前执行。' },
+  { label: '重启应用', value: 'restartApp', description: '先做通用重启，再由脚本自行恢复业务流。' },
+  { label: '执行恢复任务', value: 'runRecoveryTask', description: '使用脚本预先配置的恢复任务。' },
+  { label: '跳过当前任务', value: 'skipCurrentTask', description: '跳过当前任务，继续后续任务。' },
+];
+
 const syncForm = (device: DeviceTable | null) => {
   Object.assign(form, createEmptyForm());
   if (!device) {
@@ -182,6 +249,11 @@ const syncForm = (device: DeviceTable | null) => {
   form.logToFile = device.data.logToFile;
   form.enable = device.data.enable;
   form.autoStart = device.data.autoStart;
+  form.actionWaitMs = Number(device.data.executionPolicy?.actionWaitMs ?? 500);
+  form.progressTimeoutEnabled = Boolean(device.data.executionPolicy?.progressTimeoutEnabled ?? false);
+  form.progressTimeoutMs = Number(device.data.executionPolicy?.progressTimeoutMs ?? 30000);
+  form.timeoutAction = device.data.executionPolicy?.timeoutAction ?? 'stopExecution';
+  form.timeoutNotifyChannels = [...(device.data.executionPolicy?.timeoutNotifyChannels ?? [])];
 
   if (typeof device.data.capMethod === 'string') {
     form.capMethodType = 'adb';

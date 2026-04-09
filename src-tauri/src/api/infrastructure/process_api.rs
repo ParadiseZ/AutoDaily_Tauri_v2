@@ -5,31 +5,45 @@ use crate::constant::table_name::{
 };
 use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
-use crate::domain::devices::device_conf::DeviceTable;
+use crate::domain::devices::device_conf::{
+    DeviceTable, TimeoutAction as DeviceTimeoutAction,
+    TimeoutNotifyChannel as DeviceTimeoutNotifyChannel,
+};
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
 use crate::domain::scripts::script_info::ScriptTable;
-use crate::domain::scripts::script_task::ScriptTaskTable;
+use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
+use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
-use crate::infrastructure::core::{AccountId, DeviceId, ScheduleId, ScriptId, SessionId, TemplateId};
+use crate::infrastructure::core::{
+    AccountId, DeviceId, ScheduleId, ScriptId, SessionId, TaskId, TemplateId,
+};
 use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
     RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
-    RuntimeVisionTextCachePolicy, ScriptBundleSnapshot, SessionControlMessage, TimeoutAction,
-    TimeoutNotifyPolicy,
+    RuntimeVisionTextCachePolicy, ScriptBundleSnapshot, SessionControlMessage,
+    TimeoutAction as RuntimeTimeoutAction, TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
 };
 use serde::Serialize;
 use std::collections::HashSet;
 use tauri::command;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
+
+struct LoadedScriptBundle {
+    script_id: ScriptId,
+    script_name: String,
+    recovery_task_id: Option<TaskId>,
+    runnable_task_ids: HashSet<TaskId>,
+    snapshot: ScriptBundleSnapshot,
+}
 
 fn load_vision_text_cache_runtime_config(
     app_handle: &tauri::AppHandle,
@@ -53,8 +67,10 @@ fn load_vision_text_cache_runtime_config(
 }
 
 fn to_runtime_policy(
+    device_table: &DeviceTable,
     cache_config: crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig,
 ) -> RuntimeExecutionPolicy {
+    let execution_policy = &device_table.data.0.execution_policy;
     RuntimeExecutionPolicy {
         ocr_text_cache: RuntimeVisionTextCachePolicy {
             enabled: cache_config.enabled,
@@ -64,10 +80,35 @@ fn to_runtime_policy(
                 .map(|path| path.to_string_lossy().to_string()),
             signature_grid_size: cache_config.signature_grid_size,
         },
-        action_wait_ms: 500,
-        step_timeout_ms: 30_000,
-        timeout_action: TimeoutAction::Stop,
-        timeout_notify: TimeoutNotifyPolicy::None,
+        action_wait_ms: execution_policy.action_wait_ms,
+        progress_timeout_enabled: execution_policy.progress_timeout_enabled,
+        progress_timeout_ms: execution_policy.progress_timeout_ms,
+        timeout_action: map_timeout_action(&execution_policy.timeout_action),
+        timeout_notify_channels: execution_policy
+            .timeout_notify_channels
+            .iter()
+            .map(map_timeout_notify_channel)
+            .collect(),
+    }
+}
+
+fn map_timeout_action(action: &DeviceTimeoutAction) -> RuntimeTimeoutAction {
+    match action {
+        DeviceTimeoutAction::NotifyOnly => RuntimeTimeoutAction::NotifyOnly,
+        DeviceTimeoutAction::PauseExecution => RuntimeTimeoutAction::PauseExecution,
+        DeviceTimeoutAction::StopExecution => RuntimeTimeoutAction::StopExecution,
+        DeviceTimeoutAction::RestartApp => RuntimeTimeoutAction::RestartApp,
+        DeviceTimeoutAction::RunRecoveryTask => RuntimeTimeoutAction::RunRecoveryTask,
+        DeviceTimeoutAction::SkipCurrentTask => RuntimeTimeoutAction::SkipCurrentTask,
+    }
+}
+
+fn map_timeout_notify_channel(channel: &DeviceTimeoutNotifyChannel) -> RuntimeTimeoutNotifyChannel {
+    match channel {
+        DeviceTimeoutNotifyChannel::SystemNotification => {
+            RuntimeTimeoutNotifyChannel::SystemNotification
+        }
+        DeviceTimeoutNotifyChannel::Email => RuntimeTimeoutNotifyChannel::Email,
     }
 }
 
@@ -126,7 +167,7 @@ async fn find_template_values_with_fallback(
         .map_err(|e| e.to_string())
 }
 
-async fn load_script_bundle(script_id: ScriptId) -> Result<ScriptBundleSnapshot, String> {
+async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, String> {
     let pool = get_pool();
     let script = DbRepo::get_by_id::<ScriptTable>(SCRIPT_TABLE, &script_id.to_string())
         .await?
@@ -200,15 +241,30 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<ScriptBundleSnapshot,
         .await
         .map_err(|e| e.to_string())?;
 
-    Ok(ScriptBundleSnapshot {
+    let runnable_task_ids = tasks
+        .iter()
+        .filter(|task| task.row_type == TaskRowType::Task && !task.is_deleted)
+        .map(|task| task.id)
+        .collect();
+
+    let script_name = script.data.0.name.clone();
+    let recovery_task_id = script.data.0.runtime_settings.recovery_task_id;
+
+    Ok(LoadedScriptBundle {
         script_id,
-        script_json: serialize_to_json_string(&script)?,
-        tasks_json: serialize_to_json_string(&tasks)?,
-        policies_json: serialize_to_json_string(&policies)?,
-        policy_groups_json: serialize_to_json_string(&policy_groups)?,
-        policy_sets_json: serialize_to_json_string(&policy_sets)?,
-        group_policies_json: serialize_to_json_string(&group_policies)?,
-        set_groups_json: serialize_to_json_string(&set_groups)?,
+        script_name,
+        recovery_task_id,
+        runnable_task_ids,
+        snapshot: ScriptBundleSnapshot {
+            script_id,
+            script_json: serialize_to_json_string(&script)?,
+            tasks_json: serialize_to_json_string(&tasks)?,
+            policies_json: serialize_to_json_string(&policies)?,
+            policy_groups_json: serialize_to_json_string(&policy_groups)?,
+            policy_sets_json: serialize_to_json_string(&policy_sets)?,
+            group_policies_json: serialize_to_json_string(&group_policies)?,
+            set_groups_json: serialize_to_json_string(&set_groups)?,
+        },
     })
 }
 
@@ -254,7 +310,10 @@ async fn load_runtime_queue(device_id: DeviceId) -> Result<Vec<RuntimeQueueItem>
     Ok(queue)
 }
 
-async fn load_script_bundles(run_target: &RunTarget, queue: &[RuntimeQueueItem]) -> Result<Vec<ScriptBundleSnapshot>, String> {
+async fn load_script_bundles(
+    run_target: &RunTarget,
+    queue: &[RuntimeQueueItem],
+) -> Result<Vec<LoadedScriptBundle>, String> {
     let mut script_ids = HashSet::new();
 
     if let Some(script_id) = run_target.script_id() {
@@ -268,8 +327,44 @@ async fn load_script_bundles(run_target: &RunTarget, queue: &[RuntimeQueueItem])
     for script_id in script_ids {
         bundles.push(load_script_bundle(script_id).await?);
     }
-    bundles.sort_by_key(|bundle| bundle.script_id.to_string());
+    bundles.sort_by_key(|bundle| bundle.snapshot.script_id.to_string());
     Ok(bundles)
+}
+
+fn validate_recovery_task_config(
+    run_target: &RunTarget,
+    runtime_policy: &RuntimeExecutionPolicy,
+    bundles: &[LoadedScriptBundle],
+) -> Result<(), String> {
+    if !matches!(runtime_policy.timeout_action, RuntimeTimeoutAction::RunRecoveryTask) {
+        return Ok(());
+    }
+
+    let required_script_ids: HashSet<ScriptId> = match run_target {
+        RunTarget::DeviceQueue => bundles.iter().map(|bundle| bundle.script_id).collect(),
+        _ => run_target.script_id().into_iter().collect(),
+    };
+
+    for bundle in bundles
+        .iter()
+        .filter(|bundle| required_script_ids.contains(&bundle.script_id))
+    {
+        let recovery_task_id = bundle.recovery_task_id.ok_or_else(|| {
+            format!(
+                "脚本[{}]未配置恢复任务，无法使用 RunRecoveryTask 策略",
+                bundle.script_name
+            )
+        })?;
+
+        if !bundle.runnable_task_ids.contains(&recovery_task_id) {
+            return Err(format!(
+                "脚本[{}]的恢复任务不存在，或不是可执行 Task",
+                bundle.script_name
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 async fn build_runtime_session_snapshot(
@@ -277,6 +372,9 @@ async fn build_runtime_session_snapshot(
     device_id: DeviceId,
     run_target: RunTarget,
 ) -> Result<RuntimeSessionSnapshot, String> {
+    let device_table: DeviceTable = DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
+        .await?
+        .ok_or_else(|| format!("设备[{}]不存在", device_id))?;
     let queue = match &run_target {
         RunTarget::DeviceQueue => load_runtime_queue(device_id).await?,
         target => target
@@ -293,13 +391,20 @@ async fn build_runtime_session_snapshot(
             .into_iter()
             .collect(),
     };
-    let script_bundles = load_script_bundles(&run_target, &queue).await?;
+    let runtime_policy =
+        to_runtime_policy(&device_table, load_vision_text_cache_runtime_config(app_handle)?);
+    let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
+    validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
+    let script_bundles = loaded_script_bundles
+        .into_iter()
+        .map(|bundle| bundle.snapshot)
+        .collect();
 
     Ok(RuntimeSessionSnapshot {
         session_id: SessionId::new_v7(),
         device_id,
         run_target,
-        runtime_policy: to_runtime_policy(load_vision_text_cache_runtime_config(app_handle)?),
+        runtime_policy,
         queue,
         script_bundles,
         issued_at: chrono::Local::now().to_rfc3339(),
@@ -326,12 +431,85 @@ fn send_process_control(device_id: DeviceId, action: ProcessAction) {
     });
 }
 
+async fn wait_for_ipc_client(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    timeout: std::time::Duration,
+) -> Result<(), String> {
+    let started_at = tokio::time::Instant::now();
+    loop {
+        {
+            let ipc_servers = app_handle.state::<MainProcessCtx>().ipc_servers.clone();
+            let guard = ipc_servers
+                .read()
+                .map_err(|_| "读取 IPC 状态失败".to_string())?;
+            if guard.iter().any(|(registered_device_id, _)| **registered_device_id == device_id) {
+                return Ok(());
+            }
+        }
+
+        if started_at.elapsed() >= timeout {
+            return Err(format!("设备[{}]子进程启动后未及时连上 IPC", device_id));
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+}
+
+async fn build_child_init_data(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<ChildProcessInitData, String> {
+    let device_table: DeviceTable = DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
+        .await?
+        .ok_or_else(|| format!("设备[{}]不存在", device_id))?;
+
+    let device_config = device_table.data.0;
+
+    if device_config.auto_start && device_config.exe_path.is_some() {
+        launch_device(&device_config)
+            .await
+            .map_err(|e| format!("自动启动设备失败: {}", e))?;
+    }
+
+    let db_path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("获取数据库路径失败: {}", e))?;
+
+    Ok(ChildProcessInitData {
+        device_id,
+        device_config: device_config.clone(),
+        shm_name: format!("autodaily_shm_{}", device_id),
+        log_level: device_config.log_level.clone(),
+        cpu_cores: device_config.cores.iter().map(|c| *c as usize).collect(),
+        db_path,
+        vision_text_cache_config: load_vision_text_cache_runtime_config(app_handle)?,
+    })
+}
+
+async fn ensure_device_online(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    let manager = get_process_manager()
+        .ok_or_else(|| "进程管理器未初始化".to_string())?;
+
+    if !manager.is_running(&device_id).await {
+        let init_data = build_child_init_data(app_handle, device_id).await?;
+        manager.spawn_child(init_data).await?;
+    }
+
+    wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await
+}
+
 /// 向已运行的子进程发送 Start 命令（开始执行脚本队列）
 #[command]
 pub async fn cmd_device_start(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
+    ensure_device_online(&app_handle, device_id).await?;
     let session = build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_session_control(
         device_id,
@@ -365,6 +543,7 @@ pub async fn cmd_sync_device_runtime_session(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
+    ensure_device_online(&app_handle, device_id).await?;
     let session = build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_session_control(
         device_id,
@@ -384,6 +563,7 @@ pub async fn cmd_run_script_target(
     device_id: DeviceId,
     target: RunTarget,
 ) -> Result<String, String> {
+    ensure_device_online(&app_handle, device_id).await?;
     let session = build_runtime_session_snapshot(&app_handle, device_id, target.clone()).await?;
     send_session_control(
         device_id,
@@ -425,47 +605,16 @@ pub async fn cmd_spawn_device(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    // 1. 从数据库加载设备配置
-    let device_table: DeviceTable = DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
-        .await?
-        .ok_or_else(|| format!("设备[{}]不存在", device_id))?;
-
-    let device_config = device_table.data.0;
-
-    // 2. auto_start 时先启动模拟器并等待连接
-    if device_config.auto_start {
-        if device_config.exe_path.is_some() {
-            launch_device(&device_config).await
-                .map_err(|e| format!("自动启动设备失败: {}", e))?;
-        }
-    }
-
-    // 3. 获取数据库路径
-    let db_path = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取数据库路径失败: {}", e))?;
-
-    // 4. 构造初始化数据
-    let init_data = ChildProcessInitData {
-        device_id,
-        device_config: device_config.clone(),
-        shm_name: format!("autodaily_shm_{}", device_id),
-        log_level: device_config.log_level.clone(),
-        cpu_cores: device_config.cores.iter().map(|c| *c as usize).collect(),
-        db_path,
-        vision_text_cache_config: load_vision_text_cache_runtime_config(&app_handle)?,
-    };
-
-    // 5. 获取进程管理器并启动子进程
+    let init_data = build_child_init_data(&app_handle, device_id).await?;
+    let device_name = init_data.device_config.device_name.clone();
     let manager = get_process_manager()
         .ok_or_else(|| "进程管理器未初始化".to_string())?;
-
     manager.spawn_child(init_data).await?;
+    wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
 
     Ok(format!(
         "设备[{}]({})子进程已启动",
-        device_config.device_name, device_id
+        device_name, device_id
     ))
 }
 
