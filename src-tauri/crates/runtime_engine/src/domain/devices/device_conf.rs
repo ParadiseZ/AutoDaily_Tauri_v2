@@ -57,7 +57,7 @@ pub struct DeviceConfig {
     pub execution_policy: DeviceExecutionPolicy,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceExecutionPolicy {
@@ -68,7 +68,7 @@ pub struct DeviceExecutionPolicy {
     pub timeout_notify_channels: Vec<TimeoutNotifyChannel>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub enum TimeoutAction {
@@ -80,7 +80,7 @@ pub enum TimeoutAction {
     SkipCurrentTask,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub enum TimeoutNotifyChannel {
