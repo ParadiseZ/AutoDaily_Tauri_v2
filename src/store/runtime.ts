@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { listen } from '@tauri-apps/api/event';
-import type { RuntimeProgressEvent, RuntimeScheduleEvent } from '@/types/app/domain';
+import { runtimeService } from '@/services/runtimeService';
+import type {
+    ResumeCheckpointRecord,
+    RuntimeProgressEvent,
+    RuntimeRecoveryEvent,
+    RuntimeScheduleEvent,
+} from '@/types/app/domain';
 
 const MAX_SCHEDULE_EVENTS = 50;
 
@@ -60,10 +66,42 @@ const normalizeScheduleEvent = (payload: unknown): RuntimeScheduleEvent | null =
     };
 };
 
+const normalizeRecoveryEvent = (payload: unknown): RuntimeRecoveryEvent | null => {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const record = payload as Record<string, unknown>;
+    if (
+        typeof record.deviceId !== 'string' ||
+        typeof record.phase !== 'string' ||
+        typeof record.at !== 'string'
+    ) {
+        return null;
+    }
+
+    return {
+        deviceId: record.deviceId,
+        sessionId: typeof record.sessionId === 'string' ? record.sessionId : null,
+        executionId: typeof record.executionId === 'string' ? record.executionId : null,
+        assignmentId: typeof record.assignmentId === 'string' ? record.assignmentId : null,
+        scriptId: typeof record.scriptId === 'string' ? record.scriptId : null,
+        taskId: typeof record.taskId === 'string' ? record.taskId : null,
+        stepId: typeof record.stepId === 'string' ? record.stepId : null,
+        phase: record.phase,
+        checkpointUpdatedAt:
+            typeof record.checkpointUpdatedAt === 'string' ? record.checkpointUpdatedAt : null,
+        message: typeof record.message === 'string' ? record.message : null,
+        at: record.at,
+    };
+};
+
 export const useRuntimeStore = defineStore('runtime', () => {
     const initialized = ref(false);
     const latestProgressByDevice = ref<Record<string, RuntimeProgressEvent | null>>({});
     const scheduleEventsByDevice = ref<Record<string, RuntimeScheduleEvent[]>>({});
+    const latestRecoveryByDevice = ref<Record<string, RuntimeRecoveryEvent | null>>({});
+    const checkpointsByDevice = ref<Record<string, ResumeCheckpointRecord | null>>({});
 
     const appendScheduleEvent = (entry: RuntimeScheduleEvent) => {
         const current = scheduleEventsByDevice.value[entry.deviceId] ?? [];
@@ -100,11 +138,59 @@ export const useRuntimeStore = defineStore('runtime', () => {
             appendScheduleEvent(payload);
         });
 
+        await listen('device-recovery', async (event) => {
+            const payload = normalizeRecoveryEvent(event.payload);
+            if (!payload) {
+                return;
+            }
+
+            latestRecoveryByDevice.value = {
+                ...latestRecoveryByDevice.value,
+                [payload.deviceId]: payload,
+            };
+
+            if (payload.phase === 'CheckpointReady' || payload.phase === 'CheckpointLoaded') {
+                await loadRecoveryCheckpoint(payload.deviceId);
+            }
+        });
+
         initialized.value = true;
     };
 
     const getLatestProgress = (deviceId: string) => latestProgressByDevice.value[deviceId] ?? null;
     const getScheduleEvents = (deviceId: string) => scheduleEventsByDevice.value[deviceId] ?? [];
+    const getLatestRecovery = (deviceId: string) => latestRecoveryByDevice.value[deviceId] ?? null;
+    const getRecoveryCheckpoint = (deviceId: string) => checkpointsByDevice.value[deviceId] ?? null;
+
+    const loadRecoveryCheckpoint = async (deviceId: string) => {
+        const checkpoint = await runtimeService.getRecoveryCheckpoint(deviceId);
+        checkpointsByDevice.value = {
+            ...checkpointsByDevice.value,
+            [deviceId]: checkpoint,
+        };
+        return checkpoint;
+    };
+
+    const hydrateRecoveryCheckpoints = async (deviceIds: string[]) => {
+        await Promise.all(deviceIds.map((deviceId) => loadRecoveryCheckpoint(deviceId)));
+    };
+
+    const clearRecoveryState = (deviceId?: string) => {
+        if (deviceId) {
+            latestRecoveryByDevice.value = {
+                ...latestRecoveryByDevice.value,
+                [deviceId]: null,
+            };
+            checkpointsByDevice.value = {
+                ...checkpointsByDevice.value,
+                [deviceId]: null,
+            };
+            return;
+        }
+
+        latestRecoveryByDevice.value = {};
+        checkpointsByDevice.value = {};
+    };
 
     const clearRuntimeState = (deviceId?: string) => {
         if (deviceId) {
@@ -116,20 +202,29 @@ export const useRuntimeStore = defineStore('runtime', () => {
                 ...scheduleEventsByDevice.value,
                 [deviceId]: [],
             };
+            clearRecoveryState(deviceId);
             return;
         }
 
         latestProgressByDevice.value = {};
         scheduleEventsByDevice.value = {};
+        clearRecoveryState();
     };
 
     return {
         clearRuntimeState,
+        clearRecoveryState,
         getLatestProgress,
+        getLatestRecovery,
+        getRecoveryCheckpoint,
         getScheduleEvents,
+        hydrateRecoveryCheckpoints,
         initIpcListeners,
         initialized,
+        checkpointsByDevice,
+        latestRecoveryByDevice,
         latestProgressByDevice,
+        loadRecoveryCheckpoint,
         scheduleEventsByDevice,
     };
 });

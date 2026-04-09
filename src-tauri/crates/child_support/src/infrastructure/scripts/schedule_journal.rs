@@ -2,7 +2,7 @@ use crate::constant::table_name::SCHEDULE_TABLE;
 use crate::domain::devices::device_schedule::DeviceScriptSchedule;
 use crate::domain::devices::device_schedule::RunStatus;
 use crate::domain::scripts::script_task::ScriptTaskTable;
-use crate::infrastructure::core::{DeviceId, ScheduleId, ScriptId};
+use crate::infrastructure::core::{DeviceId, ExecutionId, ScheduleId, ScriptId};
 use crate::infrastructure::db::get_pool;
 
 pub struct ScheduleJournal;
@@ -19,6 +19,8 @@ impl ScheduleJournal {
 
     pub async fn append_task_record(
         device_id: DeviceId,
+        execution_id: ExecutionId,
+        assignment_id: ScheduleId,
         script_id: ScriptId,
         task: &ScriptTaskTable,
         status: RunStatus,
@@ -29,6 +31,8 @@ impl ScheduleJournal {
         let record = DeviceScriptSchedule {
             id: ScheduleId::new_v7(),
             device_id,
+            execution_id: Some(execution_id),
+            assignment_id: Some(assignment_id),
             script_id,
             task_id: task.id,
             task_cycle: Self::task_cycle_value(task)?,
@@ -39,12 +43,14 @@ impl ScheduleJournal {
         };
 
         sqlx::query(&format!(
-            "INSERT INTO {} (id, device_id, script_id, task_id, task_cycle, status, started_at, completed_at, message)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO {} (id, device_id, execution_id, assignment_id, script_id, task_id, task_cycle, status, started_at, completed_at, message)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             SCHEDULE_TABLE
         ))
         .bind(record.id.to_string())
         .bind(record.device_id.to_string())
+        .bind(record.execution_id.map(|id| id.to_string()))
+        .bind(record.assignment_id.map(|id| id.to_string()))
         .bind(record.script_id.to_string())
         .bind(record.task_id.to_string())
         .bind(&record.task_cycle)

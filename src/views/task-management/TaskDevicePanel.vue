@@ -13,6 +13,14 @@
           <span v-if="status.currentScript">· 正在执行 {{ status.currentScript }}</span>
         </div>
         <p v-if="status.message" class="text-sm text-[var(--app-text-faint)]">{{ status.message }}</p>
+        <p v-if="recoveryCheckpoint" class="text-sm text-[var(--app-text-faint)]">
+          可恢复执行：{{ getScriptName(recoveryCheckpoint.scriptId) }}
+          <span v-if="recoveryCheckpoint.taskId"> · 任务 {{ recoveryCheckpoint.taskId }}</span>
+          · {{ formatDateTime(recoveryCheckpoint.updatedAt) }}
+        </p>
+        <p v-else-if="recoveryEvent?.message" class="text-sm text-[var(--app-text-faint)]">
+          {{ recoveryEvent.message }}
+        </p>
       </div>
 
       <div class="flex flex-wrap gap-2">
@@ -115,7 +123,13 @@ import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
-import type { AssignmentRecord, DeviceRuntimeStatus, ScriptTableRecord } from '@/types/app/domain';
+import type {
+  AssignmentRecord,
+  DeviceRuntimeStatus,
+  ResumeCheckpointRecord,
+  RuntimeRecoveryEvent,
+  ScriptTableRecord,
+} from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
@@ -135,6 +149,8 @@ const props = defineProps<{
   timeTemplates: TimeTemplate[];
   assignments: AssignmentRecord[];
   schedules: DeviceScriptSchedule[];
+  recoveryCheckpoint: ResumeCheckpointRecord | null;
+  recoveryEvent: RuntimeRecoveryEvent | null;
   loadingAssignments: boolean;
   loadingSchedules: boolean;
 }>();

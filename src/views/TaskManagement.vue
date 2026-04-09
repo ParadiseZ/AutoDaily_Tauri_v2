@@ -84,11 +84,13 @@
         :time-templates="taskStore.timeTemplates"
         :assignments="taskStore.assignmentsByDevice[activeDevice.id] ?? []"
         :schedules="taskStore.schedulesByDevice[activeDevice.id] ?? []"
+        :recovery-checkpoint="runtimeStore.getRecoveryCheckpoint(activeDevice.id)"
+        :recovery-event="runtimeStore.getLatestRecovery(activeDevice.id)"
         :loading-assignments="Boolean(taskStore.loadingAssignments[activeDevice.id])"
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         @add-script="handleAddScript"
         @remove-assignment="handleRemoveAssignment"
-        @clear-schedules="taskStore.clearSchedules"
+        @clear-schedules="handleClearSchedules"
         @start="handleStartDevice"
         @pause="deviceStore.pauseDevice"
         @stop="deviceStore.stopDevice"
@@ -105,6 +107,7 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
 import { useDeviceStore } from '@/store/device';
+import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { showToast } from '@/utils/toast';
@@ -112,6 +115,7 @@ import { validateDeviceQueueRecoveryForDevice } from '@/utils/runtimePolicy';
 import type { AssignmentRecord } from '@/types/app/domain';
 
 const deviceStore = useDeviceStore();
+const runtimeStore = useRuntimeStore();
 const scriptStore = useScriptStore();
 const taskStore = useTaskStore();
 
@@ -129,6 +133,7 @@ const totalAssignments = computed(() =>
 const loadPageData = async () => {
   await Promise.all([deviceStore.refreshAll(), scriptStore.loadScripts()]);
   await taskStore.hydrateForDevices(deviceIds.value);
+  await runtimeStore.hydrateRecoveryCheckpoints(deviceIds.value);
   if (!deviceStore.selectedDeviceId && orderedDevices.value.length) {
     deviceStore.selectedDeviceId = orderedDevices.value[0].id;
   }
@@ -149,6 +154,16 @@ const handleRemoveAssignment = async (deviceId: string, assignment: AssignmentRe
     showToast('脚本已从队列移除', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '移除失败', 'error');
+  }
+};
+
+const handleClearSchedules = async (deviceId: string) => {
+  try {
+    await taskStore.clearSchedules(deviceId);
+    runtimeStore.clearRecoveryState(deviceId);
+    showToast('运行记录与恢复检查点已清空', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '清空失败', 'error');
   }
 };
 

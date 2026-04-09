@@ -103,6 +103,22 @@ fn handle_runtime_event(
                 });
                 let _ = main_window.emit("device-schedule", emit_data);
             }
+            RuntimeEventMessage::Recovery(recovery) => {
+                let emit_data = serde_json::json!({
+                    "deviceId": device_id.to_string(),
+                    "sessionId": recovery.session_id.map(|id| id.to_string()),
+                    "executionId": recovery.execution_id.map(|id| id.to_string()),
+                    "assignmentId": recovery.assignment_id.map(|id| id.to_string()),
+                    "scriptId": recovery.script_id.map(|id| id.to_string()),
+                    "taskId": recovery.task_id.map(|id| id.to_string()),
+                    "stepId": recovery.step_id.map(|id| id.to_string()),
+                    "phase": format!("{:?}", recovery.phase),
+                    "checkpointUpdatedAt": recovery.checkpoint_updated_at,
+                    "message": recovery.message,
+                    "at": recovery.at,
+                });
+                let _ = main_window.emit("device-recovery", emit_data);
+            }
         }
     }
 }

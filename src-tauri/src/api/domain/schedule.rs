@@ -1,14 +1,17 @@
 // 调度管理 API — 供前端调用
 use crate::api::infrastructure::process_api::cmd_sync_device_runtime_session;
 use crate::constant::table_name::{
-    ASSIGNMENT_TABLE, SCHEDULE_TABLE, SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
+    ASSIGNMENT_TABLE, RECOVERY_CHECKPOINT_TABLE, SCHEDULE_TABLE,
+    SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
 };
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
+use crate::domain::schedule::recovery_checkpoint::RecoveryCheckpointRow;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::schedule::time_template::TimeTemplate;
 use crate::infrastructure::core::{AccountId, DeviceId, ScheduleId, ScriptId, TemplateId};
 use crate::infrastructure::db::get_pool;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
+use crate::infrastructure::ipc::message::ResumeCheckpoint;
 use tauri::command;
 
 async fn sync_device_session_if_online(
@@ -128,7 +131,7 @@ pub async fn reorder_assignments_cmd(
 pub async fn get_schedules_by_device_cmd(device_id: DeviceId) -> Result<Vec<crate::domain::devices::device_schedule::DeviceScriptSchedule>, String> {
     let pool = get_pool();
     let query = format!(
-        "SELECT id, device_id, script_id, task_id, task_cycle, status, started_at, completed_at, message FROM {} WHERE device_id = ? ORDER BY started_at DESC",
+        "SELECT id, device_id, execution_id, assignment_id, script_id, task_id, task_cycle, status, started_at, completed_at, message FROM {} WHERE device_id = ? ORDER BY started_at DESC",
         SCHEDULE_TABLE
     );
     sqlx::query_as(&query)
@@ -147,6 +150,14 @@ pub async fn clear_schedules_cmd(device_id: DeviceId) -> Result<(), String> {
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE device_id = ?",
+        RECOVERY_CHECKPOINT_TABLE
+    ))
+    .bind(device_id.to_string())
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -159,7 +170,37 @@ pub async fn clear_schedules_by_script_cmd(script_id: ScriptId) -> Result<(), St
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE script_id = ?",
+        RECOVERY_CHECKPOINT_TABLE
+    ))
+    .bind(script_id.to_string())
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// 获取指定设备最近一次可恢复检查点
+#[command]
+pub async fn get_recovery_checkpoint_by_device_cmd(
+    device_id: DeviceId,
+) -> Result<Option<ResumeCheckpoint>, String> {
+    let pool = get_pool();
+    let query = format!(
+        "SELECT execution_id, source_session_id, device_id, run_target_json, assignment_id, script_id, time_template_id, account_id, task_id, step_id, resume_mode, definition_fingerprint, updated_at
+         FROM {}
+         WHERE device_id = ?
+         ORDER BY updated_at DESC
+         LIMIT 1",
+        RECOVERY_CHECKPOINT_TABLE
+    );
+    sqlx::query_as::<_, RecoveryCheckpointRow>(&query)
+        .bind(device_id.to_string())
+        .fetch_optional(pool)
+        .await
+        .map(|row| row.map(RecoveryCheckpointRow::into_checkpoint))
+        .map_err(|e| e.to_string())
 }
 
 // ========== 时间模板 ==========

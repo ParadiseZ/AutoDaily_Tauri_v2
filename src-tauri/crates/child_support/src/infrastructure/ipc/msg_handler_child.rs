@@ -1,15 +1,17 @@
 use crate::infrastructure::ipc::message::{
     ConfigUpdateMessage, ConfigUpdateType, IpcMessage, MessagePayload, ProcessAction,
-    ProcessControlMessage, RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus,
-    SessionControlMessage,
+    ProcessControlMessage, RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeRecoveryPhase,
+    RuntimeScheduleStatus, SessionControlMessage,
 };
 use crate::infrastructure::context::child_process_sec::{
     get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
 use crate::infrastructure::ipc::runtime_reporter::{
-    emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event, emit_schedule_event,
+    emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event, emit_recovery_event,
+    emit_schedule_event,
 };
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::session::recovery_checkpoint_store::prepare_and_persist_checkpoint;
 use crate::infrastructure::session::runtime_session::{
     clear_runtime_session, replace_runtime_session,
 };
@@ -88,7 +90,7 @@ async fn handle_session_control(control: SessionControlMessage) {
 
     match control {
         SessionControlMessage::LoadSession { session, checkpoint } => {
-            let summary = replace_runtime_session(session.clone(), checkpoint).await;
+            let summary = replace_runtime_session(session.clone(), checkpoint.clone()).await;
             Log::info(&format!(
                 "[ child ] 加载 session[{}]，队列长度: {}，checkpoint: {}",
                 summary.session_id,
@@ -119,9 +121,21 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 Some("设备待命，等待执行命令".to_string()),
             );
+            if let Some(checkpoint) = checkpoint {
+                emit_recovery_event(
+                    RuntimeRecoveryPhase::CheckpointLoaded,
+                    Some(checkpoint.execution_id),
+                    checkpoint.assignment_id,
+                    Some(checkpoint.script_id),
+                    checkpoint.task_id,
+                    checkpoint.step_id,
+                    Some(checkpoint.updated_at),
+                    Some("已加载可恢复检查点".to_string()),
+                );
+            }
         }
         SessionControlMessage::ReloadSession { session, checkpoint } => {
-            let summary = replace_runtime_session(session.clone(), checkpoint).await;
+            let summary = replace_runtime_session(session.clone(), checkpoint.clone()).await;
             Log::info(&format!(
                 "[ child ] 热更新 session[{}]，队列长度: {}，checkpoint: {}",
                 summary.session_id,
@@ -145,21 +159,76 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 Some("运行会话已热更新".to_string()),
             );
+            if let Some(checkpoint) = checkpoint {
+                emit_recovery_event(
+                    RuntimeRecoveryPhase::CheckpointLoaded,
+                    Some(checkpoint.execution_id),
+                    checkpoint.assignment_id,
+                    Some(checkpoint.script_id),
+                    checkpoint.task_id,
+                    checkpoint.step_id,
+                    Some(checkpoint.updated_at),
+                    Some("已热加载可恢复检查点".to_string()),
+                );
+            }
         }
         SessionControlMessage::PrepareCheckpoint { reason } => {
             Log::info(&format!("[ child ] 收到 checkpoint 准备命令: {:?}", reason));
-            emit_progress_event(
-                RuntimeProgressPhase::Paused,
+            emit_recovery_event(
+                RuntimeRecoveryPhase::CheckpointPreparing,
                 None,
                 None,
                 None,
                 None,
-                Some("checkpoint 准备逻辑待接入".to_string()),
+                None,
+                None,
+                Some("正在准备恢复检查点".to_string()),
             );
-            emit_lifecycle_event(
-                RuntimeLifecyclePhase::Paused,
-                Some("checkpoint 准备逻辑待接入".to_string()),
-            );
+            match prepare_and_persist_checkpoint(reason).await {
+                Ok(Some(checkpoint)) => {
+                    emit_recovery_event(
+                        RuntimeRecoveryPhase::CheckpointReady,
+                        Some(checkpoint.execution_id),
+                        checkpoint.assignment_id,
+                        Some(checkpoint.script_id),
+                        checkpoint.task_id,
+                        checkpoint.step_id,
+                        Some(checkpoint.updated_at),
+                        Some("恢复检查点已保存".to_string()),
+                    );
+                    emit_progress_event(
+                        RuntimeProgressPhase::Paused,
+                        checkpoint.assignment_id,
+                        Some(checkpoint.script_id),
+                        checkpoint.task_id,
+                        checkpoint.step_id,
+                        Some("恢复检查点已保存，等待主进程下一步动作".to_string()),
+                    );
+                }
+                Ok(None) => {
+                    emit_recovery_event(
+                        RuntimeRecoveryPhase::CheckpointReady,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some("当前没有活动 execution，无需保存检查点".to_string()),
+                    );
+                }
+                Err(error) => {
+                    Log::error(&format!("[ child ] 保存 checkpoint 失败: {}", error));
+                    emit_progress_event(
+                        RuntimeProgressPhase::Failed,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(format!("保存 checkpoint 失败: {}", error)),
+                    );
+                }
+            }
         }
         SessionControlMessage::ClearSession => {
             let cleared = clear_runtime_session().await;

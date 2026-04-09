@@ -212,6 +212,14 @@ pub enum SessionCheckpointReason {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum RuntimeRecoveryPhase {
+    CheckpointPreparing,
+    CheckpointReady,
+    CheckpointLoaded,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum SessionControlMessage {
     LoadSession {
         session: RuntimeSessionSnapshot,
@@ -301,10 +309,26 @@ pub struct RuntimeScheduleEvent {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeRecoveryEvent {
+    pub session_id: Option<SessionId>,
+    pub execution_id: Option<ExecutionId>,
+    pub assignment_id: Option<ScheduleId>,
+    pub script_id: Option<ScriptId>,
+    pub task_id: Option<TaskId>,
+    pub step_id: Option<StepId>,
+    pub phase: RuntimeRecoveryPhase,
+    pub checkpoint_updated_at: Option<String>,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RuntimeEventMessage {
     Lifecycle(RuntimeLifecycleEvent),
     Progress(RuntimeProgressEvent),
     Schedule(RuntimeScheduleEvent),
+    Recovery(RuntimeRecoveryEvent),
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]

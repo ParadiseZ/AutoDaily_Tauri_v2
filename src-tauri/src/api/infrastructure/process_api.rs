@@ -1,7 +1,8 @@
 // 子进程管理 API — 供前端调用
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, DEVICE_TABLE, GROUP_POLICIES, POLICY_GROUP_TABLE, POLICY_SET_TABLE,
-    POLICY_TABLE, SCRIPT_TABLE, SCRIPT_TASK_TABLE, SCRIPT_TIME_TEMPLATE_VALUES_TABLE, SET_GROUPS,
+    POLICY_TABLE, RECOVERY_CHECKPOINT_TABLE, SCRIPT_TABLE, SCRIPT_TASK_TABLE,
+    SCRIPT_TIME_TEMPLATE_VALUES_TABLE, SET_GROUPS,
 };
 use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
@@ -11,6 +12,7 @@ use crate::domain::devices::device_conf::{
 };
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
+use crate::domain::schedule::recovery_checkpoint::RecoveryCheckpointRow;
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
@@ -27,8 +29,9 @@ use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
-    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
-    RuntimeVisionTextCachePolicy, ScriptBundleSnapshot, SessionControlMessage,
+    ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
+    RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, ScriptBundleSnapshot,
+    SessionCheckpointReason, SessionControlMessage,
     TimeoutAction as RuntimeTimeoutAction, TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
 };
 use serde::Serialize;
@@ -367,11 +370,40 @@ fn validate_recovery_task_config(
     Ok(())
 }
 
+fn checkpoint_matches_run_target(run_target: &RunTarget, checkpoint: &ResumeCheckpoint) -> bool {
+    match run_target {
+        RunTarget::DeviceQueue => matches!(checkpoint.run_target, RunTarget::DeviceQueue),
+        _ => run_target.script_id() == Some(checkpoint.script_id),
+    }
+}
+
+async fn load_recovery_checkpoint(
+    device_id: DeviceId,
+    run_target: &RunTarget,
+) -> Result<Option<ResumeCheckpoint>, String> {
+    let query = format!(
+        "SELECT execution_id, source_session_id, device_id, run_target_json, assignment_id, script_id, time_template_id, account_id, task_id, step_id, resume_mode, definition_fingerprint, updated_at
+         FROM {}
+         WHERE device_id = ?
+         ORDER BY updated_at DESC
+         LIMIT 1",
+        RECOVERY_CHECKPOINT_TABLE
+    );
+    let checkpoint = sqlx::query_as::<_, RecoveryCheckpointRow>(&query)
+        .bind(device_id.to_string())
+        .fetch_optional(get_pool())
+        .await
+        .map_err(|e| e.to_string())?
+        .map(RecoveryCheckpointRow::into_checkpoint);
+
+    Ok(checkpoint.filter(|item| checkpoint_matches_run_target(run_target, item)))
+}
+
 async fn build_runtime_session_snapshot(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
     run_target: RunTarget,
-) -> Result<RuntimeSessionSnapshot, String> {
+) -> Result<(RuntimeSessionSnapshot, Option<ResumeCheckpoint>), String> {
     let device_table: DeviceTable = DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
         .await?
         .ok_or_else(|| format!("设备[{}]不存在", device_id))?;
@@ -395,12 +427,16 @@ async fn build_runtime_session_snapshot(
         to_runtime_policy(&device_table, load_vision_text_cache_runtime_config(app_handle)?);
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
+    let compatible_script_ids: HashSet<ScriptId> =
+        loaded_script_bundles.iter().map(|bundle| bundle.script_id).collect();
+    let checkpoint = load_recovery_checkpoint(device_id, &run_target)
+        .await?
+        .filter(|item| compatible_script_ids.contains(&item.script_id));
     let script_bundles = loaded_script_bundles
         .into_iter()
         .map(|bundle| bundle.snapshot)
         .collect();
-
-    Ok(RuntimeSessionSnapshot {
+    Ok((RuntimeSessionSnapshot {
         session_id: SessionId::new_v7(),
         device_id,
         run_target,
@@ -408,7 +444,7 @@ async fn build_runtime_session_snapshot(
         queue,
         script_bundles,
         issued_at: chrono::Local::now().to_rfc3339(),
-    })
+    }, checkpoint))
 }
 
 async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
@@ -510,12 +546,13 @@ pub async fn cmd_device_start(
     device_id: DeviceId,
 ) -> Result<String, String> {
     ensure_device_online(&app_handle, device_id).await?;
-    let session = build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
+    let (session, checkpoint) =
+        build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_session_control(
         device_id,
         SessionControlMessage::LoadSession {
             session,
-            checkpoint: None,
+            checkpoint,
         },
     )
     .await;
@@ -544,12 +581,13 @@ pub async fn cmd_sync_device_runtime_session(
     device_id: DeviceId,
 ) -> Result<String, String> {
     ensure_device_online(&app_handle, device_id).await?;
-    let session = build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
+    let (session, checkpoint) =
+        build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_session_control(
         device_id,
         SessionControlMessage::ReloadSession {
             session,
-            checkpoint: None,
+            checkpoint,
         },
     )
     .await;
@@ -564,17 +602,35 @@ pub async fn cmd_run_script_target(
     target: RunTarget,
 ) -> Result<String, String> {
     ensure_device_online(&app_handle, device_id).await?;
-    let session = build_runtime_session_snapshot(&app_handle, device_id, target.clone()).await?;
+    let (session, checkpoint) =
+        build_runtime_session_snapshot(&app_handle, device_id, target.clone()).await?;
     send_session_control(
         device_id,
         SessionControlMessage::LoadSession {
             session,
-            checkpoint: None,
+            checkpoint,
         },
     )
     .await;
     send_process_control(device_id, ProcessAction::Start);
     Ok(format!("已向设备[{}]发送运行目标: {:?}", device_id, target))
+}
+
+/// 请求子进程在安全点准备恢复检查点
+#[command]
+pub async fn cmd_prepare_device_checkpoint(
+    device_id: DeviceId,
+    reason: SessionCheckpointReason,
+) -> Result<String, String> {
+    send_session_control(
+        device_id,
+        SessionControlMessage::PrepareCheckpoint { reason: reason.clone() },
+    )
+    .await;
+    Ok(format!(
+        "已向设备[{}]发送 checkpoint 准备命令: {:?}",
+        device_id, reason
+    ))
 }
 
 /// 关闭子进程

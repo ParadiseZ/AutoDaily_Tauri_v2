@@ -1,6 +1,6 @@
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId, SessionId};
 use crate::infrastructure::ipc::message::{
-    ResumeCheckpoint, RunTarget, RuntimeSessionSnapshot, ScriptBundleSnapshot,
+    ResumeCheckpoint, RunTarget, RuntimeQueueItem, RuntimeSessionSnapshot, ScriptBundleSnapshot,
 };
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
@@ -54,6 +54,18 @@ impl ChildRuntimeSession {
     pub fn bundle(&self, script_id: ScriptId) -> Option<ScriptBundleSnapshot> {
         self.bundles_by_script.get(&script_id).cloned()
     }
+
+    pub fn queue_item(&self, assignment_id: crate::infrastructure::core::ScheduleId) -> Option<RuntimeQueueItem> {
+        self.snapshot
+            .queue
+            .iter()
+            .find(|item| item.assignment_id == assignment_id)
+            .cloned()
+    }
+
+    pub fn checkpoint(&self) -> Option<ResumeCheckpoint> {
+        self.checkpoint.clone()
+    }
 }
 
 pub fn get_runtime_session_store() -> SharedChildRuntimeSession {
@@ -85,6 +97,20 @@ pub async fn get_script_bundle_snapshot(script_id: ScriptId) -> Option<ScriptBun
     let store = get_runtime_session_store();
     let guard = store.read().await;
     guard.as_ref().and_then(|session| session.bundle(script_id))
+}
+
+pub async fn get_runtime_queue_item(
+    assignment_id: crate::infrastructure::core::ScheduleId,
+) -> Option<RuntimeQueueItem> {
+    let store = get_runtime_session_store();
+    let guard = store.read().await;
+    guard.as_ref().and_then(|session| session.queue_item(assignment_id))
+}
+
+pub async fn get_loaded_checkpoint() -> Option<ResumeCheckpoint> {
+    let store = get_runtime_session_store();
+    let guard = store.read().await;
+    guard.as_ref().and_then(ChildRuntimeSession::checkpoint)
 }
 
 pub fn try_current_session_summary() -> Option<ChildRuntimeSessionSummary> {

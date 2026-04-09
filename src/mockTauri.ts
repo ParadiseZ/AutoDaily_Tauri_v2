@@ -1,5 +1,5 @@
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { LogConfig, ScriptTimeTemplateValuesDto } from '@/types/app/domain';
+import type { LogConfig, ResumeCheckpointRecord, ScriptTimeTemplateValuesDto } from '@/types/app/domain';
 import type { DeviceTable, PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
 
 type StoreData = Record<string, unknown>;
@@ -10,6 +10,7 @@ type GroupPolicyMap = Record<string, string[]>;
 type SetGroupMap = Record<string, string[]>;
 type RuntimeProjectionMap = Record<string, unknown>;
 type ScriptTemplateValueMap = Record<string, ScriptTimeTemplateValuesDto>;
+type RecoveryCheckpointMap = Record<string, ResumeCheckpointRecord>;
 type StoredDeviceTable = DeviceTable;
 type StoredScriptTable = Omit<ScriptTable, 'data'> & {
   data: Omit<ScriptTable['data'], 'downloadCount' | 'latestVer' | 'verNum'> & {
@@ -33,6 +34,7 @@ interface MockState {
   runningDeviceIds: string[];
   runtimeProjections: RuntimeProjectionMap;
   scriptTemplateValues: ScriptTemplateValueMap;
+  recoveryCheckpointsByDevice: RecoveryCheckpointMap;
   devices: StoredDeviceTable[];
   timeTemplates: unknown[];
 }
@@ -71,6 +73,7 @@ const createDefaultState = (): MockState => ({
   runningDeviceIds: [],
   runtimeProjections: {},
   scriptTemplateValues: {},
+  recoveryCheckpointsByDevice: {},
   devices: [],
   timeTemplates: [],
 });
@@ -105,6 +108,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         runningDeviceIds: parsed.runningDeviceIds ?? [],
         runtimeProjections: parsed.runtimeProjections ?? {},
         scriptTemplateValues: parsed.scriptTemplateValues ?? {},
+        recoveryCheckpointsByDevice: parsed.recoveryCheckpointsByDevice ?? {},
         devices: parsed.devices ?? [],
         timeTemplates: parsed.timeTemplates ?? [],
       };
@@ -140,6 +144,8 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       runningDeviceIds: partial.runningDeviceIds ?? current.runningDeviceIds,
       runtimeProjections: partial.runtimeProjections ?? current.runtimeProjections,
       scriptTemplateValues: partial.scriptTemplateValues ?? current.scriptTemplateValues,
+      recoveryCheckpointsByDevice:
+        partial.recoveryCheckpointsByDevice ?? current.recoveryCheckpointsByDevice,
       devices: partial.devices ?? current.devices,
       timeTemplates: partial.timeTemplates ?? current.timeTemplates,
     }));
@@ -377,6 +383,10 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           const state = readState();
           return state.schedulesByDevice[String(args.deviceId)] ?? [];
         }
+        case 'get_recovery_checkpoint_by_device_cmd': {
+          const state = readState();
+          return state.recoveryCheckpointsByDevice[String(args.deviceId)] ?? null;
+        }
         case 'get_all_time_templates_cmd':
           return readState().timeTemplates;
         case 'get_script_time_template_values_cmd': {
@@ -436,6 +446,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             ),
             schedulesByDevice: Object.fromEntries(
               Object.entries(current.schedulesByDevice).filter(([deviceId]) => deviceId !== args.deviceId),
+            ),
+            recoveryCheckpointsByDevice: Object.fromEntries(
+              Object.entries(current.recoveryCheckpointsByDevice).filter(([deviceId]) => deviceId !== args.deviceId),
             ),
             runtimeProjections: Object.fromEntries(
               Object.entries(current.runtimeProjections).filter(([deviceId]) => deviceId !== args.deviceId),
@@ -568,9 +581,36 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             policies: current.policies.filter((policy) => policy.scriptId !== args.scriptId),
             policyGroups: current.policyGroups.filter((group) => group.scriptId !== args.scriptId),
             policySets: current.policySets.filter((set) => set.scriptId !== args.scriptId),
+            recoveryCheckpointsByDevice: Object.fromEntries(
+              Object.entries(current.recoveryCheckpointsByDevice).filter(([, checkpoint]) => checkpoint.scriptId !== args.scriptId),
+            ),
+          }));
+          return null;
+        case 'clear_schedules_cmd':
+          updateState((current) => ({
+            ...current,
+            schedulesByDevice: {
+              ...current.schedulesByDevice,
+              [String(args.deviceId)]: [],
+            },
+            recoveryCheckpointsByDevice: Object.fromEntries(
+              Object.entries(current.recoveryCheckpointsByDevice).filter(([deviceId]) => deviceId !== args.deviceId),
+            ),
           }));
           return null;
         case 'clear_schedules_by_script_cmd':
+          updateState((current) => ({
+            ...current,
+            schedulesByDevice: Object.fromEntries(
+              Object.entries(current.schedulesByDevice).map(([deviceId, items]) => [
+                deviceId,
+                items.filter((item) => (item as { scriptId?: unknown }).scriptId !== args.scriptId),
+              ]),
+            ),
+            recoveryCheckpointsByDevice: Object.fromEntries(
+              Object.entries(current.recoveryCheckpointsByDevice).filter(([, checkpoint]) => checkpoint.scriptId !== args.scriptId),
+            ),
+          }));
           return null;
         case 'get_uuid_v7':
           return buildUuid();

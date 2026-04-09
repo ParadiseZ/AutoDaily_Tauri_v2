@@ -3,7 +3,9 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
-use crate::infrastructure::core::{HashMap, PolicyId, ScheduleId, ScriptId, StepId, TaskId};
+use crate::infrastructure::core::{
+    ExecutionId, HashMap, PolicyId, ScheduleId, ScriptId, StepId, TaskId,
+};
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use crate::infrastructure::vision::text_rec_cache::ScriptTextRecCacheRuntime;
@@ -35,6 +37,7 @@ pub struct TaskState {
 
 #[derive(Debug)]
 pub struct RuntimeContext {
+    pub current_execution_id: Option<ExecutionId>,
     pub current_assignment_id: Option<ScheduleId>,
     pub script_id: ScriptId,
     pub target: RunTarget,
@@ -81,6 +84,7 @@ impl RuntimeContext {
     ) -> Self {
         let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
         Self {
+            current_execution_id: None,
             current_assignment_id: None,
             script_id,
             target,

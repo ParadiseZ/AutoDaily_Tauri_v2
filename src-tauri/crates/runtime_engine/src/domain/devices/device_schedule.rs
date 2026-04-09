@@ -1,6 +1,8 @@
 // 设备脚本分配（队列定义）+ 调度记录
 
-use crate::infrastructure::core::{Deserialize, DeviceId, ScheduleId, ScriptId, Serialize, TaskId, TemplateId};
+use crate::infrastructure::core::{
+    Deserialize, DeviceId, ExecutionId, ScheduleId, ScriptId, Serialize, TaskId, TemplateId,
+};
 use sqlx::FromRow;
 
 /// 任务周期
@@ -69,6 +71,8 @@ impl Default for DeviceScriptAssignment {
 pub struct DeviceScriptSchedule {
     pub id: ScheduleId,
     pub device_id: DeviceId,
+    pub execution_id: Option<ExecutionId>,
+    pub assignment_id: Option<ScheduleId>,
     pub script_id: ScriptId,
     pub task_id: TaskId,
     /// 从 ScriptTaskTable 继承的周期

@@ -235,6 +235,7 @@ impl ScriptScheduler {
         // 更新运行时上下文的 script_id
         {
             let mut ctx = runtime_ctx.write().await;
+            ctx.current_execution_id = Some(execution_id);
             ctx.current_assignment_id = Some(assignment_id);
             ctx.script_id = script_id;
             ctx.target = run_target;
@@ -326,6 +327,8 @@ impl ScriptScheduler {
                     if task.record_schedule && matches!(task.row_type, TaskRowType::Task) {
                         ScheduleJournal::append_task_record(
                             device_id,
+                            execution_id,
+                            assignment_id,
                             script_id,
                             &task,
                             RunStatus::Success,
@@ -364,6 +367,8 @@ impl ScriptScheduler {
                     if task.record_schedule && matches!(task.row_type, TaskRowType::Task) {
                         ScheduleJournal::append_task_record(
                             device_id,
+                            execution_id,
+                            assignment_id,
                             script_id,
                             &task,
                             RunStatus::Failed,
@@ -382,6 +387,7 @@ impl ScriptScheduler {
                                 script_id, error
                             ));
                         }
+                        ctx.current_execution_id = None;
                         ctx.current_assignment_id = None;
                         ctx.current_task = None;
                         ctx.current_step_id = None;
@@ -393,6 +399,7 @@ impl ScriptScheduler {
 
         {
             let mut ctx = runtime_ctx.write().await;
+            ctx.current_execution_id = None;
             ctx.current_assignment_id = None;
             ctx.current_task = None;
             ctx.current_step_id = None;
