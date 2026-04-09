@@ -6,7 +6,8 @@ use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
 use crate::domain::scripts::script_info::ScriptTable;
-use crate::domain::scripts::script_task::ScriptTaskTable;
+use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
+use crate::domain::devices::device_schedule::RunStatus;
 use crate::infrastructure::core::ExecutionId;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::ipc::message::{
@@ -15,7 +16,9 @@ use crate::infrastructure::ipc::message::{
 };
 use crate::infrastructure::ipc::runtime_reporter::{emit_progress_event, emit_schedule_event};
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::scripts::execution_plan::ExecutionPlanAssembler;
 use crate::infrastructure::scripts::executor::ScriptExecutor;
+use crate::infrastructure::scripts::schedule_journal::ScheduleJournal;
 use crate::infrastructure::session::runtime_session::{
     get_script_bundle_snapshot, try_current_session_summary,
 };
@@ -211,6 +214,10 @@ impl ScriptScheduler {
         execution_id: ExecutionId,
     ) -> Result<(), String> {
         let script_id = queue_item.script_id;
+        let assignment_id = queue_item.assignment_id;
+        let device_id = try_current_session_summary()
+            .map(|summary| summary.device_id)
+            .ok_or_else(|| "当前 child session 未加载 device_id".to_string())?;
         let bundle = Self::load_script_bundle(script_id).await?;
         let tasks_len = bundle.tasks.len();
         let policy_count = bundle.policies.len();
@@ -222,14 +229,18 @@ impl ScriptScheduler {
         let script_info = bundle.script.data.0;
         let script_name = script_info.name.clone();
         let run_target = Self::current_run_target();
+        let planned_tasks = ExecutionPlanAssembler::select_tasks(&run_target, &bundle.tasks)?;
+        let runnable_task_count = planned_tasks.len();
 
         // 更新运行时上下文的 script_id
         {
             let mut ctx = runtime_ctx.write().await;
+            ctx.current_assignment_id = Some(assignment_id);
             ctx.script_id = script_id;
             ctx.target = run_target;
             ctx.script_info = Some(script_info);
             ctx.current_task = None;
+            ctx.current_step_id = None;
             ctx.last_snapshot = None;
             ctx.last_hits.clear();
             if let Err(error) = ctx.vision_text_cache.load_for_script(script_id, &script_name) {
@@ -251,29 +262,140 @@ impl ScriptScheduler {
                 tasks_len, policy_count, policy_group_count, policy_set_count
             )),
         );
-
-        // 创建执行器
-        let _executor = ScriptExecutor::new(runtime_ctx.clone());
-
-        // TODO: M4 接 ExecutionPlanAssembler，把 bundle 真正装配成 step plan。
         Log::info(&format!(
-            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, policy={}, group_relation={}, set_relation={}",
-            script_id, tasks_len, policy_count, group_policy_count, set_group_count
+            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, runnable_task={}, policy={}, group_relation={}, set_relation={}",
+            script_id, tasks_len, runnable_task_count, policy_count, group_policy_count, set_group_count
         ));
         emit_progress_event(
             RuntimeProgressPhase::Executing,
-            Some(queue_item.assignment_id),
+            Some(assignment_id),
             Some(script_id),
             None,
             None,
             Some(format!(
-                "已进入占位执行，等待 M4 接入真实 step executor（tasks={}）",
-                tasks_len
+                "执行计划已装配，待执行任务 {} 个",
+                runnable_task_count
             )),
         );
 
+        let mut executor = ScriptExecutor::new(runtime_ctx.clone());
+        for task in planned_tasks {
+            let task_started_at = chrono::Utc::now().to_rfc3339();
+            {
+                let mut ctx = runtime_ctx.write().await;
+                ctx.current_task = Some(task.clone());
+                ctx.current_step_id = None;
+            }
+
+            emit_progress_event(
+                RuntimeProgressPhase::Executing,
+                Some(assignment_id),
+                Some(script_id),
+                Some(task.id),
+                None,
+                Some(format!("开始执行任务: {}", task.name)),
+            );
+
+            executor.reset_node_indices();
+            let task_result = executor
+                .execute(task.data.0.steps.as_slice())
+                .await
+                .map(|_| ());
+
+            let completion_at = chrono::Utc::now().to_rfc3339();
+            match task_result {
+                Ok(()) => {
+                    emit_schedule_event(
+                        RuntimeScheduleStatus::Success,
+                        Some(execution_id),
+                        Some(assignment_id),
+                        Some(script_id),
+                        Some(task.id),
+                        None,
+                        Some(format!("任务执行完成: {}", task.name)),
+                    );
+                    emit_progress_event(
+                        RuntimeProgressPhase::Completed,
+                        Some(assignment_id),
+                        Some(script_id),
+                        Some(task.id),
+                        None,
+                        Some(format!("任务执行完成: {}", task.name)),
+                    );
+
+                    if task.record_schedule && matches!(task.row_type, TaskRowType::Task) {
+                        ScheduleJournal::append_task_record(
+                            device_id,
+                            script_id,
+                            &task,
+                            RunStatus::Success,
+                            task_started_at.clone(),
+                            Some(completion_at.clone()),
+                            None,
+                        )
+                        .await?;
+                    }
+                    {
+                        let mut ctx = runtime_ctx.write().await;
+                        ctx.current_task = None;
+                        ctx.current_step_id = None;
+                    }
+                }
+                Err(error) => {
+                    let message = error.to_string();
+                    emit_schedule_event(
+                        RuntimeScheduleStatus::Failed,
+                        Some(execution_id),
+                        Some(assignment_id),
+                        Some(script_id),
+                        Some(task.id),
+                        None,
+                        Some(message.clone()),
+                    );
+                    emit_progress_event(
+                        RuntimeProgressPhase::Failed,
+                        Some(assignment_id),
+                        Some(script_id),
+                        Some(task.id),
+                        None,
+                        Some(message.clone()),
+                    );
+
+                    if task.record_schedule && matches!(task.row_type, TaskRowType::Task) {
+                        ScheduleJournal::append_task_record(
+                            device_id,
+                            script_id,
+                            &task,
+                            RunStatus::Failed,
+                            task_started_at,
+                            Some(completion_at),
+                            Some(message.clone()),
+                        )
+                        .await?;
+                    }
+
+                    {
+                        let mut ctx = runtime_ctx.write().await;
+                        if let Err(error) = ctx.vision_text_cache.flush_current_script() {
+                            Log::warn(&format!(
+                                "[ scheduler ] 脚本[{}]失败后写回 OCR 文字缓存失败，已忽略: {}",
+                                script_id, error
+                            ));
+                        }
+                        ctx.current_assignment_id = None;
+                        ctx.current_task = None;
+                        ctx.current_step_id = None;
+                    }
+                    return Err(message);
+                }
+            }
+        }
+
         {
             let mut ctx = runtime_ctx.write().await;
+            ctx.current_assignment_id = None;
+            ctx.current_task = None;
+            ctx.current_step_id = None;
             if let Err(error) = ctx.vision_text_cache.flush_current_script() {
                 Log::warn(&format!(
                     "[ scheduler ] 脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
@@ -284,20 +406,20 @@ impl ScriptScheduler {
 
         emit_progress_event(
             RuntimeProgressPhase::Completed,
-            Some(queue_item.assignment_id),
+            Some(assignment_id),
             Some(script_id),
             None,
             None,
-            Some("脚本占位执行完成".to_string()),
+            Some(format!("脚本执行完成，共 {} 个任务", runnable_task_count)),
         );
         emit_schedule_event(
             RuntimeScheduleStatus::Success,
             Some(execution_id),
-            Some(queue_item.assignment_id),
+            Some(assignment_id),
             Some(script_id),
             None,
             None,
-            Some("脚本占位执行完成".to_string()),
+            Some(format!("脚本执行完成，共 {} 个任务", runnable_task_count)),
         );
 
         Ok(())

@@ -1,6 +1,8 @@
 use crate::domain::scripts::script_decision::Step;
 use crate::infrastructure::context::runtime_context::SharedRuntimeContext;
 use crate::infrastructure::core::{HashMap, StepId};
+use crate::infrastructure::ipc::message::RuntimeProgressPhase;
+use crate::infrastructure::ipc::runtime_reporter::emit_progress_event;
 use crate::infrastructure::scripts::script_error::ExecuteResult;
 use rhai::{Engine, Scope};
 use std::future::Future;
@@ -69,6 +71,30 @@ impl ScriptExecutor {
     fn execute_step<'a>(&'a mut self, step: &'a Step) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
         Box::pin(async move {
             use crate::domain::scripts::script_decision::StepKind;
+
+            let (assignment_id, script_id, task_id) = {
+                let mut ctx = self.runtime_ctx.write().await;
+                ctx.current_step_id = step.id;
+                (
+                    ctx.current_assignment_id,
+                    Some(ctx.script_id),
+                    ctx.current_task.as_ref().map(|task| task.id),
+                )
+            };
+
+            emit_progress_event(
+                RuntimeProgressPhase::Executing,
+                assignment_id,
+                script_id,
+                task_id,
+                step.id,
+                Some(format!(
+                    "执行步骤{}",
+                    step.id
+                        .map(|id| format!("[{}]", id))
+                        .unwrap_or_else(|| "".to_string())
+                )),
+            );
             
             // 每次执行步骤前，如果步骤有 ID，可以将当前索引注入到 Rhai Scope
             if let Some(id) = &step.id {
@@ -306,6 +332,11 @@ impl ScriptExecutor {
                     self.inc_node_index(id, 1);
                 }
             }*/
+
+            {
+                let mut ctx = self.runtime_ctx.write().await;
+                ctx.current_step_id = None;
+            }
 
             Ok(ControlFlow::Next)
         })

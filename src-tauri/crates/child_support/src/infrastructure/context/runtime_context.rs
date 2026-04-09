@@ -3,7 +3,7 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
-use crate::infrastructure::core::{HashMap, PolicyId, ScriptId, TaskId};
+use crate::infrastructure::core::{HashMap, PolicyId, ScheduleId, ScriptId, StepId, TaskId};
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use crate::infrastructure::vision::text_rec_cache::ScriptTextRecCacheRuntime;
@@ -35,10 +35,12 @@ pub struct TaskState {
 
 #[derive(Debug)]
 pub struct RuntimeContext {
+    pub current_assignment_id: Option<ScheduleId>,
     pub script_id: ScriptId,
     pub target: RunTarget,
     pub script_info: Option<ScriptInfo>,
     pub current_task: Option<ScriptTaskTable>,
+    pub current_step_id: Option<StepId>,
     
     /// 基础服务
     pub ocr_service: Arc<OcrService>,
@@ -79,10 +81,12 @@ impl RuntimeContext {
     ) -> Self {
         let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
         Self {
+            current_assignment_id: None,
             script_id,
             target,
             script_info: None,
             current_task: None,
+            current_step_id: None,
             ocr_service,
             //adb_executor,
             var_map: HashMap::new(),

@@ -17,7 +17,7 @@ pub struct ScriptTask {
     pub steps: Vec<Step>
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct ScriptTaskTable {

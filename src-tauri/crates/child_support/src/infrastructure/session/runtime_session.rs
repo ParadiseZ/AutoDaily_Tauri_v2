@@ -1,4 +1,4 @@
-use crate::infrastructure::core::{HashMap, ScriptId, SessionId};
+use crate::infrastructure::core::{DeviceId, HashMap, ScriptId, SessionId};
 use crate::infrastructure::ipc::message::{
     ResumeCheckpoint, RunTarget, RuntimeSessionSnapshot, ScriptBundleSnapshot,
 };
@@ -15,6 +15,7 @@ pub struct ChildRuntimeSession {
 #[derive(Debug, Clone)]
 pub struct ChildRuntimeSessionSummary {
     pub session_id: SessionId,
+    pub device_id: DeviceId,
     pub run_target: RunTarget,
     pub queue_len: usize,
     pub has_checkpoint: bool,
@@ -43,6 +44,7 @@ impl ChildRuntimeSession {
     pub fn summary(&self) -> ChildRuntimeSessionSummary {
         ChildRuntimeSessionSummary {
             session_id: self.snapshot.session_id,
+            device_id: self.snapshot.device_id,
             run_target: self.snapshot.run_target.clone(),
             queue_len: self.snapshot.queue.len(),
             has_checkpoint: self.checkpoint.is_some(),
