@@ -229,22 +229,29 @@ impl ScriptScheduler {
         let script_info = bundle.script.data.0;
         let script_name = script_info.name.clone();
         let run_target = Self::current_run_target();
-        let planned_tasks = ExecutionPlanAssembler::select_tasks(&run_target, &bundle.tasks)?;
-        let runnable_task_count = planned_tasks.len();
+        let task_selection =
+            ExecutionPlanAssembler::select_tasks(&run_target, device_id, &queue_item, &bundle.tasks)
+                .await?;
+        let runnable_task_count = task_selection.runnable_tasks.len();
+        let skipped_task_count = task_selection.skipped_tasks.len();
 
         // 更新运行时上下文的 script_id
         {
             let mut ctx = runtime_ctx.write().await;
-            ctx.current_execution_id = Some(execution_id);
-            ctx.current_assignment_id = Some(assignment_id);
-            ctx.script_id = script_id;
-            ctx.target = run_target;
-            ctx.script_info = Some(script_info);
-            ctx.current_task = None;
-            ctx.current_step_id = None;
-            ctx.last_snapshot = None;
-            ctx.last_hits.clear();
-            if let Err(error) = ctx.vision_text_cache.load_for_script(script_id, &script_name) {
+            ctx.execution.current_execution_id = Some(execution_id);
+            ctx.execution.current_assignment_id = Some(assignment_id);
+            ctx.execution.script_id = script_id;
+            ctx.execution.target = run_target;
+            ctx.execution.script_info = Some(script_info);
+            ctx.execution.current_task = None;
+            ctx.execution.current_step_id = None;
+            ctx.observation.last_snapshot = None;
+            ctx.observation.last_hits.clear();
+            if let Err(error) = ctx
+                .observation
+                .vision_text_cache
+                .load_for_script(script_id, &script_name)
+            {
                 Log::warn(&format!(
                     "[ scheduler ] 脚本[{}]加载 OCR 文字缓存失败，已忽略: {}",
                     script_id, error
@@ -264,8 +271,8 @@ impl ScriptScheduler {
             )),
         );
         Log::info(&format!(
-            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, runnable_task={}, policy={}, group_relation={}, set_relation={}",
-            script_id, tasks_len, runnable_task_count, policy_count, group_policy_count, set_group_count
+            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, runnable_task={}, skipped_task={}, policy={}, group_relation={}, set_relation={}",
+            script_id, tasks_len, runnable_task_count, skipped_task_count, policy_count, group_policy_count, set_group_count
         ));
         emit_progress_event(
             RuntimeProgressPhase::Executing,
@@ -274,18 +281,49 @@ impl ScriptScheduler {
             None,
             None,
             Some(format!(
-                "执行计划已装配，待执行任务 {} 个",
-                runnable_task_count
+                "执行计划已装配，待执行任务 {} 个，跳过 {} 个",
+                runnable_task_count, skipped_task_count
             )),
         );
 
+        for skipped in &task_selection.skipped_tasks {
+            emit_schedule_event(
+                RuntimeScheduleStatus::Skipped,
+                Some(execution_id),
+                Some(assignment_id),
+                Some(script_id),
+                Some(skipped.task.id),
+                None,
+                Some(skipped.reason.clone()),
+            );
+
+            if skipped.task.record_schedule && matches!(skipped.task.row_type, TaskRowType::Task) {
+                let now = chrono::Utc::now().to_rfc3339();
+                ScheduleJournal::append_task_record(
+                    device_id,
+                    execution_id,
+                    assignment_id,
+                    script_id,
+                    &skipped.task,
+                    &skipped.task_cycle,
+                    RunStatus::Skipped,
+                    now.clone(),
+                    Some(now),
+                    Some(skipped.reason.clone()),
+                )
+                .await?;
+            }
+        }
+
         let mut executor = ScriptExecutor::new(runtime_ctx.clone());
-        for task in planned_tasks {
+        for planned_task in task_selection.runnable_tasks {
+            let task_cycle = planned_task.task_cycle;
+            let task = planned_task.task;
             let task_started_at = chrono::Utc::now().to_rfc3339();
             {
                 let mut ctx = runtime_ctx.write().await;
-                ctx.current_task = Some(task.clone());
-                ctx.current_step_id = None;
+                ctx.execution.current_task = Some(task.clone());
+                ctx.execution.current_step_id = None;
             }
 
             emit_progress_event(
@@ -331,6 +369,7 @@ impl ScriptScheduler {
                             assignment_id,
                             script_id,
                             &task,
+                            &task_cycle,
                             RunStatus::Success,
                             task_started_at.clone(),
                             Some(completion_at.clone()),
@@ -340,8 +379,8 @@ impl ScriptScheduler {
                     }
                     {
                         let mut ctx = runtime_ctx.write().await;
-                        ctx.current_task = None;
-                        ctx.current_step_id = None;
+                        ctx.execution.current_task = None;
+                        ctx.execution.current_step_id = None;
                     }
                 }
                 Err(error) => {
@@ -371,6 +410,7 @@ impl ScriptScheduler {
                             assignment_id,
                             script_id,
                             &task,
+                            &task_cycle,
                             RunStatus::Failed,
                             task_started_at,
                             Some(completion_at),
@@ -381,16 +421,16 @@ impl ScriptScheduler {
 
                     {
                         let mut ctx = runtime_ctx.write().await;
-                        if let Err(error) = ctx.vision_text_cache.flush_current_script() {
+                        if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
                             Log::warn(&format!(
                                 "[ scheduler ] 脚本[{}]失败后写回 OCR 文字缓存失败，已忽略: {}",
                                 script_id, error
                             ));
                         }
-                        ctx.current_execution_id = None;
-                        ctx.current_assignment_id = None;
-                        ctx.current_task = None;
-                        ctx.current_step_id = None;
+                        ctx.execution.current_execution_id = None;
+                        ctx.execution.current_assignment_id = None;
+                        ctx.execution.current_task = None;
+                        ctx.execution.current_step_id = None;
                     }
                     return Err(message);
                 }
@@ -399,11 +439,11 @@ impl ScriptScheduler {
 
         {
             let mut ctx = runtime_ctx.write().await;
-            ctx.current_execution_id = None;
-            ctx.current_assignment_id = None;
-            ctx.current_task = None;
-            ctx.current_step_id = None;
-            if let Err(error) = ctx.vision_text_cache.flush_current_script() {
+            ctx.execution.current_execution_id = None;
+            ctx.execution.current_assignment_id = None;
+            ctx.execution.current_task = None;
+            ctx.execution.current_step_id = None;
+            if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
                 Log::warn(&format!(
                     "[ scheduler ] 脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
                     script_id, error
@@ -426,7 +466,10 @@ impl ScriptScheduler {
             Some(script_id),
             None,
             None,
-            Some(format!("脚本执行完成，共 {} 个任务", runnable_task_count)),
+            Some(format!(
+                "脚本执行完成，成功执行 {} 个任务，跳过 {} 个任务",
+                runnable_task_count, skipped_task_count
+            )),
         );
 
         Ok(())
@@ -451,13 +494,17 @@ impl ScriptScheduler {
         let script_name = script_info.name.clone();
         {
             let mut ctx = runtime_ctx.write().await;
-            ctx.script_id = script_id;
-            ctx.target = target.clone();
-            ctx.script_info = Some(script_info);
-            ctx.current_task = None;
-            ctx.last_snapshot = None;
-            ctx.last_hits.clear();
-            if let Err(error) = ctx.vision_text_cache.load_for_script(script_id, &script_name) {
+            ctx.execution.script_id = script_id;
+            ctx.execution.target = target.clone();
+            ctx.execution.script_info = Some(script_info);
+            ctx.execution.current_task = None;
+            ctx.observation.last_snapshot = None;
+            ctx.observation.last_hits.clear();
+            if let Err(error) = ctx
+                .observation
+                .vision_text_cache
+                .load_for_script(script_id, &script_name)
+            {
                 Log::warn(&format!(
                     "[ scheduler ] 调试执行脚本[{}]加载 OCR 文字缓存失败，已忽略: {}",
                     script_id, error
@@ -482,7 +529,7 @@ impl ScriptScheduler {
 
         {
             let mut ctx = runtime_ctx.write().await;
-            if let Err(error) = ctx.vision_text_cache.flush_current_script() {
+            if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
                 Log::warn(&format!(
                     "[ scheduler ] 调试执行脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
                     script_id, error

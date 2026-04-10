@@ -177,6 +177,59 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     return next;
   };
 
+  const removeScriptFromState = (current: MockState, scriptId: string): MockState => {
+    const removedGroupIds = new Set(
+      current.policyGroups
+        .filter((group) => group.scriptId === scriptId)
+        .map((group) => group.id),
+    );
+    const removedSetIds = new Set(
+      current.policySets
+        .filter((set) => set.scriptId === scriptId)
+        .map((set) => set.id),
+    );
+
+    return {
+      ...current,
+      scripts: current.scripts.filter((script) => script.id !== scriptId),
+      scriptTasks: Object.fromEntries(
+        Object.entries(current.scriptTasks).filter(([currentScriptId]) => currentScriptId !== scriptId),
+      ),
+      policies: current.policies.filter((policy) => policy.scriptId !== scriptId),
+      policyGroups: current.policyGroups.filter((group) => group.scriptId !== scriptId),
+      policySets: current.policySets.filter((set) => set.scriptId !== scriptId),
+      groupPolicies: Object.fromEntries(
+        Object.entries(current.groupPolicies).filter(([groupId]) => !removedGroupIds.has(groupId)),
+      ),
+      setGroups: Object.fromEntries(
+        Object.entries(current.setGroups)
+          .filter(([setId]) => !removedSetIds.has(setId))
+          .map(([setId, groupIds]) => [
+            setId,
+            groupIds.filter((groupId) => !removedGroupIds.has(groupId)),
+          ]),
+      ),
+      assignmentsByDevice: Object.fromEntries(
+        Object.entries(current.assignmentsByDevice).map(([deviceId, assignments]) => [
+          deviceId,
+          assignments.filter((assignment) => (assignment as { scriptId?: unknown }).scriptId !== scriptId),
+        ]),
+      ),
+      schedulesByDevice: Object.fromEntries(
+        Object.entries(current.schedulesByDevice).map(([deviceId, items]) => [
+          deviceId,
+          items.filter((item) => (item as { scriptId?: unknown }).scriptId !== scriptId),
+        ]),
+      ),
+      scriptTemplateValues: Object.fromEntries(
+        Object.entries(current.scriptTemplateValues).filter(([, record]) => record.scriptId !== scriptId),
+      ),
+      recoveryCheckpointsByDevice: Object.fromEntries(
+        Object.entries(current.recoveryCheckpointsByDevice).filter(([, checkpoint]) => checkpoint.scriptId !== scriptId),
+      ),
+    };
+  };
+
   const readStoreValue = (state: MockState, key: string) => {
     const exists = Object.prototype.hasOwnProperty.call(state.store, key);
     return [exists ? state.store[key] : null, exists] as const;
@@ -590,59 +643,121 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }));
           return null;
         case 'delete_script_cmd':
+          updateState((current) => removeScriptFromState(current, String(args.scriptId)));
+          return null;
+        case 'clone_local_script_cmd':
+          {
+            let clonedScriptId = '';
           updateState((current) => {
-            const removedGroupIds = new Set(
-              current.policyGroups
-                .filter((group) => group.scriptId === args.scriptId)
-                .map((group) => group.id),
+            const sourceScriptId = String(args.sourceScriptId);
+            const overwriteCloudId = Boolean(args.overwriteCloudId);
+            const sourceScript = current.scripts.find((script) => script.id === sourceScriptId);
+            if (!sourceScript) {
+              return current;
+            }
+
+            let nextState = current;
+            const sourceCloudId = sourceScript.data.cloudId ?? sourceScript.id;
+            const isPublished = sourceScript.data.scriptType === 'published';
+
+            if (overwriteCloudId && isPublished) {
+              const existingDev = nextState.scripts.find(
+                (script) =>
+                  script.id !== sourceScriptId &&
+                  script.data.scriptType === 'dev' &&
+                  script.data.cloudId === sourceCloudId,
+              );
+              if (existingDev) {
+                nextState = removeScriptFromState(nextState, existingDev.id);
+              }
+            }
+
+            const newScriptId = buildUuid();
+            clonedScriptId = newScriptId;
+            const policyIdMap = new Map<string, string>();
+            const groupIdMap = new Map<string, string>();
+            const setIdMap = new Map<string, string>();
+
+            const nextScript: StoredScriptTable = {
+              ...sourceScript,
+              id: newScriptId,
+              data: {
+                ...sourceScript.data,
+                name: `${sourceScript.data.name} (Clone)`,
+                scriptType: 'dev',
+                cloudId: overwriteCloudId && isPublished ? sourceCloudId : null,
+                userId:
+                  typeof args.currentUserId === 'string' && args.currentUserId.trim().length > 0
+                    ? args.currentUserId
+                    : sourceScript.data.userId,
+              },
+            };
+
+            const sourcePolicies = nextState.policies.filter((policy) => policy.scriptId === sourceScriptId);
+            const sourceGroups = nextState.policyGroups.filter((group) => group.scriptId === sourceScriptId);
+            const sourceSets = nextState.policySets.filter((set) => set.scriptId === sourceScriptId);
+            const sourceTasks = nextState.scriptTasks[sourceScriptId] ?? [];
+
+            const clonedPolicies = sourcePolicies.map((policy) => {
+              const nextId = buildUuid();
+              policyIdMap.set(policy.id, nextId);
+              return { ...policy, id: nextId, scriptId: newScriptId };
+            });
+            const clonedGroups = sourceGroups.map((group) => {
+              const nextId = buildUuid();
+              groupIdMap.set(group.id, nextId);
+              return { ...group, id: nextId, scriptId: newScriptId };
+            });
+            const clonedSets = sourceSets.map((set) => {
+              const nextId = buildUuid();
+              setIdMap.set(set.id, nextId);
+              return { ...set, id: nextId, scriptId: newScriptId };
+            });
+            const clonedTasks = sourceTasks.map((task) => ({
+              ...task,
+              id: buildUuid(),
+              scriptId: newScriptId,
+            }));
+
+            const clonedGroupPolicies = Object.fromEntries(
+              sourceGroups.map((group) => [
+                groupIdMap.get(group.id) ?? group.id,
+                (nextState.groupPolicies[group.id] ?? []).map((policyId) => policyIdMap.get(policyId) ?? policyId),
+              ]),
             );
-            const removedSetIds = new Set(
-              current.policySets
-                .filter((set) => set.scriptId === args.scriptId)
-                .map((set) => set.id),
+            const clonedSetGroups = Object.fromEntries(
+              sourceSets.map((set) => [
+                setIdMap.get(set.id) ?? set.id,
+                (nextState.setGroups[set.id] ?? []).map((groupId) => groupIdMap.get(groupId) ?? groupId),
+              ]),
             );
 
             return {
-              ...current,
-              scripts: current.scripts.filter((script) => script.id !== args.scriptId),
-              scriptTasks: Object.fromEntries(
-                Object.entries(current.scriptTasks).filter(([scriptId]) => scriptId !== args.scriptId),
-              ),
-              policies: current.policies.filter((policy) => policy.scriptId !== args.scriptId),
-              policyGroups: current.policyGroups.filter((group) => group.scriptId !== args.scriptId),
-              policySets: current.policySets.filter((set) => set.scriptId !== args.scriptId),
-              groupPolicies: Object.fromEntries(
-                Object.entries(current.groupPolicies).filter(([groupId]) => !removedGroupIds.has(groupId)),
-              ),
-              setGroups: Object.fromEntries(
-                Object.entries(current.setGroups).filter(([setId]) => !removedSetIds.has(setId)).map(([setId, groupIds]) => [
-                  setId,
-                  groupIds.filter((groupId) => !removedGroupIds.has(groupId)),
-                ]),
-              ),
-              assignmentsByDevice: Object.fromEntries(
-                Object.entries(current.assignmentsByDevice).map(([deviceId, assignments]) => [
-                  deviceId,
-                  assignments.filter((assignment) => (assignment as { scriptId?: unknown }).scriptId !== args.scriptId),
-                ]),
-              ),
-              schedulesByDevice: Object.fromEntries(
-                Object.entries(current.schedulesByDevice).map(([deviceId, items]) => [
-                  deviceId,
-                  items.filter((item) => (item as { scriptId?: unknown }).scriptId !== args.scriptId),
-                ]),
-              ),
-              scriptTemplateValues: Object.fromEntries(
-                Object.entries(current.scriptTemplateValues).filter(
-                  ([, record]) => record.scriptId !== args.scriptId,
-                ),
-              ),
-              recoveryCheckpointsByDevice: Object.fromEntries(
-                Object.entries(current.recoveryCheckpointsByDevice).filter(([, checkpoint]) => checkpoint.scriptId !== args.scriptId),
-              ),
+              ...nextState,
+              scripts: upsertScript(nextState.scripts, nextScript),
+              scriptTasks: {
+                ...nextState.scriptTasks,
+                [newScriptId]: clonedTasks,
+              },
+              policies: [...nextState.policies, ...clonedPolicies],
+              policyGroups: [...nextState.policyGroups, ...clonedGroups],
+              policySets: [...nextState.policySets, ...clonedSets],
+              groupPolicies: {
+                ...nextState.groupPolicies,
+                ...clonedGroupPolicies,
+              },
+              setGroups: {
+                ...nextState.setGroups,
+                ...clonedSetGroups,
+              },
             };
           });
-          return null;
+          return {
+            success: true,
+            data: clonedScriptId,
+            message: '复制成功',
+          };
+          }
         case 'clear_schedules_cmd':
           updateState((current) => ({
             ...current,

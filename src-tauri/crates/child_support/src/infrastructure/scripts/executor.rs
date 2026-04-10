@@ -74,11 +74,11 @@ impl ScriptExecutor {
 
             let (assignment_id, script_id, task_id) = {
                 let mut ctx = self.runtime_ctx.write().await;
-                ctx.current_step_id = step.id;
+                ctx.execution.current_step_id = step.id;
                 (
-                    ctx.current_assignment_id,
-                    Some(ctx.script_id),
-                    ctx.current_task.as_ref().map(|task| task.id),
+                    ctx.execution.current_assignment_id,
+                    Some(ctx.execution.script_id),
+                    ctx.execution.current_task.as_ref().map(|task| task.id),
                 )
             };
 
@@ -335,7 +335,7 @@ impl ScriptExecutor {
 
             {
                 let mut ctx = self.runtime_ctx.write().await;
-                ctx.current_step_id = None;
+                ctx.execution.current_step_id = None;
             }
 
             Ok(ControlFlow::Next)

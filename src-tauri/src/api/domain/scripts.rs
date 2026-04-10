@@ -130,6 +130,7 @@ pub async fn get_yolo_labels_cmd(path: String) -> Result<std::collections::HashM
 /// 3. 克隆 Dev -> Dev: 始终作为独立新副本
 #[command]
 pub async fn clone_local_script_cmd(
+    app_handle: tauri::AppHandle,
     source_script_id: String,
     current_user_id: Option<String>,
     overwrite_cloud_id: bool, // 是否覆盖已存在的 cloud_id Dev
@@ -173,7 +174,7 @@ pub async fn clone_local_script_cmd(
         script.data.user_id = UserId::from(uuid);
     }
 
-    let mut target_delete_id: Option<String> = None;
+    let mut target_delete_id: Option<ScriptId> = None;
 
     if is_published {
         if overwrite_cloud_id {
@@ -184,7 +185,7 @@ pub async fn clone_local_script_cmd(
 
             if let Some(existing) = existing_dev {
                 // If the user wants to overwrite their local Dev clone of this Published cloud_id
-                target_delete_id = Some(existing.id.to_string());
+                target_delete_id = Some(existing.id);
             } 
             // Keep the cloud_id
             if script.data.cloud_id.is_none() {
@@ -224,18 +225,27 @@ pub async fn clone_local_script_cmd(
     }
 
     // 7. Push to Transaction
+    let affected_device_ids = match target_delete_id {
+        Some(target_script_id) => match load_assigned_device_ids_by_script(target_script_id).await {
+            Ok(device_ids) => device_ids,
+            Err(error) => return ApiResponse::error(Some(error)),
+        },
+        None => Vec::new(),
+    };
+
     let mut tx = match pool.begin().await {
         Ok(t) => t,
         Err(e) => return ApiResponse::error(Some(format!("开启事务失败: {}", e))),
     };
 
     if let Some(del_id) = target_delete_id {
-        let _ = sqlx::query("DELETE FROM scripts WHERE id = ?").bind(del_id).execute(&mut *tx).await;
-        // Policies, Tasks, Groups cascading delete should trigger automatically IF foreign keys delete logic set. Otherwise:
-        let _ = sqlx::query("DELETE FROM policies WHERE script_id = ?").bind(&source_script_id).execute(&mut *tx).await;
-        let _ = sqlx::query("DELETE FROM script_tasks WHERE script_id = ?").bind(&source_script_id).execute(&mut *tx).await;
-        let _ = sqlx::query("DELETE FROM policy_groups WHERE script_id = ?").bind(&source_script_id).execute(&mut *tx).await;
-        let _ = sqlx::query("DELETE FROM policy_sets WHERE script_id = ?").bind(&source_script_id).execute(&mut *tx).await;
+        if let Err(error) = sqlx::query("DELETE FROM scripts WHERE id = ?")
+            .bind(del_id.to_string())
+            .execute(&mut *tx)
+            .await
+        {
+            return ApiResponse::error(Some(format!("删除被覆盖脚本失败: {}", error)));
+        }
     }
 
     if let Err(e) = crate::api::domain::script_batch_insert::batch_insert_script_related(
@@ -243,6 +253,10 @@ pub async fn clone_local_script_cmd(
     ).await { return ApiResponse::error(Some(e)); }
 
     if let Err(e) = tx.commit().await { return ApiResponse::error(Some(e.to_string())); }
+
+    if let Err(error) = sync_device_sessions_if_online(&app_handle, affected_device_ids).await {
+        return ApiResponse::error(Some(error));
+    }
     
     ApiResponse::success(Some(new_script_id.to_string()), Some("复制成功".to_string()))
 }

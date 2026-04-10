@@ -36,7 +36,7 @@ pub struct TaskState {
 }
 
 #[derive(Debug)]
-pub struct RuntimeContext {
+pub struct ExecutionState {
     pub current_execution_id: Option<ExecutionId>,
     pub current_assignment_id: Option<ScheduleId>,
     pub script_id: ScriptId,
@@ -44,25 +44,41 @@ pub struct RuntimeContext {
     pub script_info: Option<ScriptInfo>,
     pub current_task: Option<ScriptTaskTable>,
     pub current_step_id: Option<StepId>,
-    
-    /// 基础服务
-    pub ocr_service: Arc<OcrService>,
-    //pub adb_executor: Arc<RwLock<ADBExecutor>>,
-    
+
     /// Rhai 变量映射
     pub var_map: HashMap<String, rhai::Dynamic>,
-    
+
     /// 策略状态
     pub policy_states: HashMap<PolicyId, PolicyState>,
-    
+
     /// 任务状态
     pub task_states: HashMap<TaskId, TaskState>,
+}
 
+impl ExecutionState {
+    pub fn new(script_id: ScriptId, target: RunTarget) -> Self {
+        Self {
+            current_execution_id: None,
+            current_assignment_id: None,
+            script_id,
+            target,
+            script_info: None,
+            current_task: None,
+            current_step_id: None,
+            var_map: HashMap::new(),
+            policy_states: HashMap::new(),
+            task_states: HashMap::new(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ObservationState {
     /// 每一帧的视觉快照缓存
     pub last_snapshot: Option<VisionSnapshot>,
-    
+
     /// 每一帧的搜索命中结果缓存
-    pub last_hits: Vec<SearchHit>, 
+    pub last_hits: Vec<SearchHit>,
 
     /// 设备相关属性
     pub screen_size: (u32, u32),
@@ -74,6 +90,29 @@ pub struct RuntimeContext {
     pub vision_signature_grid_size: u16,
 }
 
+impl ObservationState {
+    pub fn new(vision_text_cache_config: VisionTextCacheRuntimeConfig) -> Self {
+        let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
+        Self {
+            last_snapshot: None,
+            last_hits: Vec::new(),
+            screen_size: (0, 0),
+            vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
+            vision_signature_grid_size,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct RuntimeContext {
+    pub execution: ExecutionState,
+    pub observation: ObservationState,
+
+    /// 基础服务
+    pub ocr_service: Arc<OcrService>,
+    //pub adb_executor: Arc<RwLock<ADBExecutor>>,
+}
+
 impl RuntimeContext {
     pub fn new(
         script_id: ScriptId,
@@ -82,25 +121,10 @@ impl RuntimeContext {
         vision_text_cache_config: VisionTextCacheRuntimeConfig,
         //adb_executor: Arc<RwLock<ADBExecutor>>,
     ) -> Self {
-        let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
         Self {
-            current_execution_id: None,
-            current_assignment_id: None,
-            script_id,
-            target,
-            script_info: None,
-            current_task: None,
-            current_step_id: None,
+            execution: ExecutionState::new(script_id, target),
+            observation: ObservationState::new(vision_text_cache_config),
             ocr_service,
-            //adb_executor,
-            var_map: HashMap::new(),
-            policy_states: HashMap::new(),
-            task_states: HashMap::new(),
-            last_snapshot: None,
-            last_hits: Vec::new(),
-            screen_size: (0, 0),
-            vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
-            vision_signature_grid_size,
         }
     }
 }

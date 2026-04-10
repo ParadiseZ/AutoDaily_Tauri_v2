@@ -91,7 +91,7 @@ pub async fn prepare_and_persist_checkpoint(
     let (execution_id, assignment_id, script_id, task_id, step_id) = {
         let runtime_ctx = get_runtime_ctx();
         let mut ctx = runtime_ctx.write().await;
-        if let Err(error) = ctx.vision_text_cache.flush_current_script() {
+        if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
             Log::warn(&format!(
                 "[ recovery ] checkpoint 前写回 OCR 文字缓存失败，已忽略: {}",
                 error
@@ -99,11 +99,11 @@ pub async fn prepare_and_persist_checkpoint(
         }
 
         (
-            ctx.current_execution_id,
-            ctx.current_assignment_id,
-            ctx.script_id,
-            ctx.current_task.as_ref().map(|task| task.id),
-            ctx.current_step_id,
+            ctx.execution.current_execution_id,
+            ctx.execution.current_assignment_id,
+            ctx.execution.script_id,
+            ctx.execution.current_task.as_ref().map(|task| task.id),
+            ctx.execution.current_step_id,
         )
     };
 
