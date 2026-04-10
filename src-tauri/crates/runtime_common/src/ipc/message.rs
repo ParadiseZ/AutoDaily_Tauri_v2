@@ -215,6 +215,7 @@ pub enum SessionCheckpointReason {
 pub enum RuntimeRecoveryPhase {
     CheckpointPreparing,
     CheckpointReady,
+    RestartReady,
     CheckpointLoaded,
 }
 

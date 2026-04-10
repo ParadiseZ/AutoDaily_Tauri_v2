@@ -14,6 +14,8 @@ export const deviceService = {
     start: (deviceId: string) => invoke('cmd_device_start', { deviceId }) as Promise<string>,
     pause: (deviceId: string) => invoke('cmd_device_pause', { deviceId }) as Promise<string>,
     stop: (deviceId: string) => invoke('cmd_device_stop', { deviceId }) as Promise<string>,
+    restartRuntime: (deviceId: string, reason: 'restart' | 'shutdown' | 'manual' = 'restart') =>
+        invoke('cmd_restart_device_runtime', { deviceId, reason }) as Promise<string>,
     updateChildLogLevel: (deviceId: string, logLevel: LogLevel) =>
         invoke('update_child_log_level_cmd', { deviceId, logLevel }) as Promise<string>,
 };

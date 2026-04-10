@@ -186,6 +186,7 @@ async fn handle_session_control(control: SessionControlMessage) {
             );
             match prepare_and_persist_checkpoint(reason).await {
                 Ok(Some(checkpoint)) => {
+                    let checkpoint_updated_at = checkpoint.updated_at.clone();
                     emit_recovery_event(
                         RuntimeRecoveryPhase::CheckpointReady,
                         Some(checkpoint.execution_id),
@@ -193,8 +194,18 @@ async fn handle_session_control(control: SessionControlMessage) {
                         Some(checkpoint.script_id),
                         checkpoint.task_id,
                         checkpoint.step_id,
-                        Some(checkpoint.updated_at),
+                        Some(checkpoint_updated_at.clone()),
                         Some("恢复检查点已保存".to_string()),
+                    );
+                    emit_recovery_event(
+                        RuntimeRecoveryPhase::RestartReady,
+                        Some(checkpoint.execution_id),
+                        checkpoint.assignment_id,
+                        Some(checkpoint.script_id),
+                        checkpoint.task_id,
+                        checkpoint.step_id,
+                        Some(checkpoint_updated_at),
+                        Some("子进程已到安全点，可由主进程执行重启".to_string()),
                     );
                     emit_progress_event(
                         RuntimeProgressPhase::Paused,
@@ -215,6 +226,16 @@ async fn handle_session_control(control: SessionControlMessage) {
                         None,
                         None,
                         Some("当前没有活动 execution，无需保存检查点".to_string()),
+                    );
+                    emit_recovery_event(
+                        RuntimeRecoveryPhase::RestartReady,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some("当前没有活动 execution，可直接重启子进程".to_string()),
                     );
                 }
                 Err(error) => {

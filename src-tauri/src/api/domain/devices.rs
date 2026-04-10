@@ -1,53 +1,13 @@
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::api::infrastructure::process_api::{
-    cmd_device_shutdown, cmd_prepare_device_checkpoint, cmd_spawn_device,
-    cmd_sync_device_runtime_session,
+    cmd_device_shutdown, cmd_restart_device_runtime, cmd_sync_device_runtime_session,
 };
-use crate::constant::table_name::RECOVERY_CHECKPOINT_TABLE;
-use crate::domain::schedule::recovery_checkpoint::RecoveryCheckpointRow;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::core::DeviceId;
-use crate::infrastructure::db::{get_pool, DbRepo};
+use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::message::SessionCheckpointReason;
 use tauri::command;
 use crate::domain::devices::device_conf::DeviceTable;
-
-async fn latest_checkpoint_updated_at(device_id: DeviceId) -> Result<Option<String>, String> {
-    let query = format!(
-        "SELECT execution_id, source_session_id, device_id, run_target_json, assignment_id, script_id, time_template_id, account_id, task_id, step_id, resume_mode, definition_fingerprint, updated_at
-         FROM {}
-         WHERE device_id = ?
-         ORDER BY updated_at DESC
-         LIMIT 1",
-        RECOVERY_CHECKPOINT_TABLE
-    );
-    sqlx::query_as::<_, RecoveryCheckpointRow>(&query)
-        .bind(device_id.to_string())
-        .fetch_optional(get_pool())
-        .await
-        .map(|row| row.map(|checkpoint| checkpoint.updated_at))
-        .map_err(|e| e.to_string())
-}
-
-async fn wait_for_checkpoint_refresh(
-    device_id: DeviceId,
-    previous_updated_at: Option<String>,
-    timeout: std::time::Duration,
-) -> Result<bool, String> {
-    let started_at = tokio::time::Instant::now();
-    loop {
-        let latest = latest_checkpoint_updated_at(device_id).await?;
-        if latest.is_some() && latest != previous_updated_at {
-            return Ok(true);
-        }
-
-        if started_at.elapsed() >= timeout {
-            return Ok(false);
-        }
-
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-    }
-}
 
 async fn reconcile_runtime_after_device_save(
     app_handle: &tauri::AppHandle,
@@ -66,17 +26,12 @@ async fn reconcile_runtime_after_device_save(
     }
 
     if previous.data.0.cores != device.data.0.cores {
-        let previous_checkpoint = latest_checkpoint_updated_at(device.id).await?;
-        let _ = cmd_prepare_device_checkpoint(device.id, SessionCheckpointReason::Restart).await?;
-        let _ = wait_for_checkpoint_refresh(
+        cmd_restart_device_runtime(
+            app_handle.clone(),
             device.id,
-            previous_checkpoint,
-            std::time::Duration::from_secs(3),
+            SessionCheckpointReason::Restart,
         )
         .await?;
-        cmd_device_shutdown(device.id).await?;
-        cmd_spawn_device(app_handle.clone(), device.id).await?;
-        cmd_sync_device_runtime_session(app_handle.clone(), device.id).await?;
         return Ok(());
     }
 

@@ -32,6 +32,7 @@ use crate::api::infrastructure::process_api::{
     cmd_device_start, cmd_device_stop, cmd_device_pause,
     cmd_sync_device_runtime_session, cmd_run_script_target,
     cmd_device_shutdown, cmd_get_running_devices, cmd_prepare_device_checkpoint,
+    cmd_restart_device_runtime,
     cmd_spawn_device, cmd_is_device_running,
 };
 use crate::api::domain::schedule::{
@@ -42,6 +43,7 @@ use crate::api::domain::schedule::{
     get_script_time_template_values_cmd, save_script_time_template_values_cmd, delete_script_time_template_values_cmd,
 };
 use crate::app::init_start::init_at_start;
+use crate::infrastructure::context::main_process::MainProcessCtx;
 use tauri::{App, Emitter, Manager};
 use crate::api::backend_cmd::{
     backend_send_verification_code, backend_register, backend_login, backend_logout,
@@ -54,6 +56,7 @@ use crate::api::backend_cmd::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(MainProcessCtx::new())
         .plugin(
             tauri_plugin_single_instance::init(|app, argv, cwd| {
                 println!("{}, {argv:?}, {cwd}", app.package_info().name);
@@ -139,6 +142,7 @@ pub fn run() {
             cmd_run_script_target,
             cmd_device_shutdown,
             cmd_prepare_device_checkpoint,
+            cmd_restart_device_runtime,
             cmd_get_running_devices,
             cmd_spawn_device,
             cmd_is_device_running,

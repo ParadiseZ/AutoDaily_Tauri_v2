@@ -67,6 +67,16 @@ pub struct ScriptManager {
     script_cache: std::collections::BTreeMap<ScriptId, ScriptInfo>,
 }
 
+impl ScriptManager {
+    pub fn empty() -> Self {
+        Self {
+            script_index: Arc::new(RwLock::new(HashMap::new())),
+            cache_size: AtomicU8::new(0),
+            script_cache: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
 /// 脚本元数据（用于索引，内存占用小）
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScriptMeta {

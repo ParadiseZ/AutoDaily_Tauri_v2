@@ -30,8 +30,8 @@ use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
     ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
-    RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, ScriptBundleSnapshot,
-    SessionCheckpointReason, SessionControlMessage,
+    RuntimeRecoveryPhase, RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy,
+    ScriptBundleSnapshot, SessionCheckpointReason, SessionControlMessage,
     TimeoutAction as RuntimeTimeoutAction, TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
 };
 use serde::Serialize;
@@ -45,6 +45,8 @@ struct LoadedScriptBundle {
     script_name: String,
     recovery_task_id: Option<TaskId>,
     runnable_task_ids: HashSet<TaskId>,
+    policy_group_ids: HashSet<crate::infrastructure::core::PolicyGroupId>,
+    policy_set_ids: HashSet<crate::infrastructure::core::PolicySetId>,
     snapshot: ScriptBundleSnapshot,
 }
 
@@ -252,12 +254,16 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
 
     let script_name = script.data.0.name.clone();
     let recovery_task_id = script.data.0.runtime_settings.recovery_task_id;
+    let policy_group_ids = policy_groups.iter().map(|group| group.id).collect();
+    let policy_set_ids = policy_sets.iter().map(|set| set.id).collect();
 
     Ok(LoadedScriptBundle {
         script_id,
         script_name,
         recovery_task_id,
         runnable_task_ids,
+        policy_group_ids,
+        policy_set_ids,
         snapshot: ScriptBundleSnapshot {
             script_id,
             script_json: serialize_to_json_string(&script)?,
@@ -370,6 +376,65 @@ fn validate_recovery_task_config(
     Ok(())
 }
 
+fn validate_run_target_support(
+    run_target: &RunTarget,
+    bundles: &[LoadedScriptBundle],
+) -> Result<(), String> {
+    let find_bundle = |script_id: ScriptId| bundles.iter().find(|bundle| bundle.script_id == script_id);
+
+    match run_target {
+        RunTarget::DeviceQueue | RunTarget::FullScript { .. } => Ok(()),
+        RunTarget::Task { script_id, task_id } => {
+            let bundle = find_bundle(*script_id)
+                .ok_or_else(|| format!("运行目标中的脚本[{}]未装入当前 session", script_id))?;
+            if bundle.runnable_task_ids.contains(task_id) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "脚本[{}]中的任务[{}]不存在，或不是可执行 Task",
+                    bundle.script_name, task_id
+                ))
+            }
+        }
+        RunTarget::PolicyGroup {
+            script_id,
+            policy_group_id,
+        } => {
+            let bundle = find_bundle(*script_id)
+                .ok_or_else(|| format!("运行目标中的脚本[{}]未装入当前 session", script_id))?;
+            if !bundle.policy_group_ids.contains(policy_group_id) {
+                return Err(format!(
+                    "脚本[{}]中的策略组[{}]不存在",
+                    bundle.script_name, policy_group_id
+                ));
+            }
+
+            Err(format!(
+                "策略组[{}]运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行",
+                policy_group_id
+            ))
+        }
+        RunTarget::PolicySet {
+            script_id,
+            policy_set_id,
+        } => {
+            let bundle = find_bundle(*script_id)
+                .ok_or_else(|| format!("运行目标中的脚本[{}]未装入当前 session", script_id))?;
+            if !bundle.policy_set_ids.contains(policy_set_id) {
+                return Err(format!(
+                    "脚本[{}]中的策略集[{}]不存在",
+                    bundle.script_name, policy_set_id
+                ));
+            }
+
+            Err(format!(
+                "策略集[{}]运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行",
+                policy_set_id
+            ))
+        }
+    }
+}
+
 fn checkpoint_matches_run_target(run_target: &RunTarget, checkpoint: &ResumeCheckpoint) -> bool {
     match run_target {
         RunTarget::DeviceQueue => matches!(checkpoint.run_target, RunTarget::DeviceQueue),
@@ -380,6 +445,13 @@ fn checkpoint_matches_run_target(run_target: &RunTarget, checkpoint: &ResumeChec
 async fn load_recovery_checkpoint(
     device_id: DeviceId,
     run_target: &RunTarget,
+) -> Result<Option<ResumeCheckpoint>, String> {
+    let checkpoint = load_latest_recovery_checkpoint(device_id).await?;
+    Ok(checkpoint.filter(|item| checkpoint_matches_run_target(run_target, item)))
+}
+
+async fn load_latest_recovery_checkpoint(
+    device_id: DeviceId,
 ) -> Result<Option<ResumeCheckpoint>, String> {
     let query = format!(
         "SELECT execution_id, source_session_id, device_id, run_target_json, assignment_id, script_id, time_template_id, account_id, task_id, step_id, resume_mode, definition_fingerprint, updated_at
@@ -395,8 +467,78 @@ async fn load_recovery_checkpoint(
         .await
         .map_err(|e| e.to_string())?
         .map(RecoveryCheckpointRow::into_checkpoint);
+    Ok(checkpoint)
+}
 
-    Ok(checkpoint.filter(|item| checkpoint_matches_run_target(run_target, item)))
+async fn load_runtime_session_for_target(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    run_target: RunTarget,
+) -> Result<(), String> {
+    let (session, checkpoint) =
+        build_runtime_session_snapshot(app_handle, device_id, run_target).await?;
+    send_session_control(
+        device_id,
+        SessionControlMessage::LoadSession {
+            session,
+            checkpoint,
+        },
+    )
+    .await;
+    Ok(())
+}
+
+async fn restart_device_runtime_internal(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    reason: SessionCheckpointReason,
+) -> Result<String, String> {
+    let manager = get_process_manager()
+        .ok_or_else(|| "进程管理器未初始化".to_string())?;
+    let was_running = manager.is_running(&device_id).await;
+
+    let previous_checkpoint = latest_checkpoint_updated_at(device_id).await?;
+    let previous_sequence = current_recovery_sequence(app_handle, device_id);
+    if was_running {
+        send_session_control(
+            device_id,
+            SessionControlMessage::PrepareCheckpoint {
+                reason: reason.clone(),
+            },
+        )
+        .await;
+        let restart_ready = wait_for_restart_ready_event(
+            app_handle,
+            device_id,
+            previous_sequence,
+            std::time::Duration::from_secs(3),
+        )
+        .await?;
+        if !restart_ready {
+            let _ = wait_for_checkpoint_refresh_fallback(
+                device_id,
+                previous_checkpoint,
+                std::time::Duration::from_secs(2),
+            )
+            .await?;
+        }
+        manager.stop_child(&device_id).await?;
+    }
+
+    let init_data = build_child_init_data(app_handle, device_id).await?;
+    manager.spawn_child(init_data).await?;
+    wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+
+    let run_target = load_latest_recovery_checkpoint(device_id)
+        .await?
+        .map(|checkpoint| checkpoint.run_target)
+        .unwrap_or(RunTarget::DeviceQueue);
+    load_runtime_session_for_target(app_handle, device_id, run_target).await?;
+
+    Ok(format!(
+        "设备[{}]子进程已按 checkpoint 流程重启并重新装填 session",
+        device_id
+    ))
 }
 
 async fn build_runtime_session_snapshot(
@@ -426,6 +568,7 @@ async fn build_runtime_session_snapshot(
     let runtime_policy =
         to_runtime_policy(&device_table, load_vision_text_cache_runtime_config(app_handle)?);
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
+    validate_run_target_support(&run_target, &loaded_script_bundles)?;
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     let compatible_script_ids: HashSet<ScriptId> =
         loaded_script_bundles.iter().map(|bundle| bundle.script_id).collect();
@@ -465,6 +608,74 @@ fn send_process_control(device_id: DeviceId, action: ProcessAction) {
     tauri::async_runtime::spawn(async move {
         IpcServer::send_to_client(&device_id, msg).await;
     });
+}
+
+async fn latest_checkpoint_updated_at(device_id: DeviceId) -> Result<Option<String>, String> {
+    Ok(load_latest_recovery_checkpoint(device_id)
+        .await?
+        .map(|checkpoint| checkpoint.updated_at))
+}
+
+async fn wait_for_restart_ready_event(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    previous_sequence: u64,
+    timeout: std::time::Duration,
+) -> Result<bool, String> {
+    let recovery_runtime = app_handle
+        .state::<MainProcessCtx>()
+        .recovery_runtime
+        .clone();
+    let deadline = tokio::time::Instant::now() + timeout;
+
+    loop {
+        if let Some(signal) = recovery_runtime.latest_signal(device_id) {
+            if signal.sequence > previous_sequence
+                && signal.phase == RuntimeRecoveryPhase::RestartReady
+            {
+                return Ok(true);
+            }
+        }
+
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            return Ok(false);
+        }
+
+        if tokio::time::timeout_at(deadline, recovery_runtime.notify.notified())
+            .await
+            .is_err()
+        {
+            return Ok(false);
+        }
+    }
+}
+
+fn current_recovery_sequence(app_handle: &tauri::AppHandle, device_id: DeviceId) -> u64 {
+    app_handle
+        .state::<MainProcessCtx>()
+        .recovery_runtime
+        .current_sequence(device_id)
+}
+
+async fn wait_for_checkpoint_refresh_fallback(
+    device_id: DeviceId,
+    previous_updated_at: Option<String>,
+    timeout: std::time::Duration,
+) -> Result<bool, String> {
+    let started_at = tokio::time::Instant::now();
+    loop {
+        let latest = latest_checkpoint_updated_at(device_id).await?;
+        if latest.is_some() && latest != previous_updated_at {
+            return Ok(true);
+        }
+
+        if started_at.elapsed() >= timeout {
+            return Ok(false);
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    }
 }
 
 async fn wait_for_ipc_client(
@@ -546,16 +757,7 @@ pub async fn cmd_device_start(
     device_id: DeviceId,
 ) -> Result<String, String> {
     ensure_device_online(&app_handle, device_id).await?;
-    let (session, checkpoint) =
-        build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
-    send_session_control(
-        device_id,
-        SessionControlMessage::LoadSession {
-            session,
-            checkpoint,
-        },
-    )
-    .await;
+    load_runtime_session_for_target(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_process_control(device_id, ProcessAction::Start);
     Ok(format!("已向设备[{}]发送启动命令", device_id))
 }
@@ -602,16 +804,7 @@ pub async fn cmd_run_script_target(
     target: RunTarget,
 ) -> Result<String, String> {
     ensure_device_online(&app_handle, device_id).await?;
-    let (session, checkpoint) =
-        build_runtime_session_snapshot(&app_handle, device_id, target.clone()).await?;
-    send_session_control(
-        device_id,
-        SessionControlMessage::LoadSession {
-            session,
-            checkpoint,
-        },
-    )
-    .await;
+    load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
     send_process_control(device_id, ProcessAction::Start);
     Ok(format!("已向设备[{}]发送运行目标: {:?}", device_id, target))
 }
@@ -631,6 +824,16 @@ pub async fn cmd_prepare_device_checkpoint(
         "已向设备[{}]发送 checkpoint 准备命令: {:?}",
         device_id, reason
     ))
+}
+
+/// 请求主进程按 checkpoint 流程重启 child，并重新装填 session
+#[command]
+pub async fn cmd_restart_device_runtime(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+    reason: SessionCheckpointReason,
+) -> Result<String, String> {
+    restart_device_runtime_internal(&app_handle, device_id, reason).await
 }
 
 /// 关闭子进程

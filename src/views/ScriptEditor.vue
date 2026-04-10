@@ -2107,6 +2107,15 @@ const handleRunSelection = async () => {
     return;
   }
 
+  if (activeMode.value === 'policyGroup' || activeMode.value === 'policySet') {
+    const message = activeMode.value === 'policyGroup'
+      ? '策略组运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行。'
+      : '策略集运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行。';
+    appendConsoleLine(`运行前校验失败：${message}`);
+    showToast(message, 'warning');
+    return;
+  }
+
   const runTarget = buildActiveRunTarget();
   if (!runTarget) {
     showToast('当前目标对象无法转换为运行目标。', 'error');

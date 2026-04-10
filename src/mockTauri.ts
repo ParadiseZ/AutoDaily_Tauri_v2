@@ -353,6 +353,15 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             runningDeviceIds: current.runningDeviceIds.filter((deviceId) => deviceId !== String(args.deviceId)),
           }));
           return `设备[${String(args.deviceId)}]子进程已关闭`;
+        case 'cmd_restart_device_runtime':
+          validateRecoveryPolicyForRun(readState(), String(args.deviceId));
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
+              ? current.runningDeviceIds
+              : [...current.runningDeviceIds, String(args.deviceId)],
+          }));
+          return `设备[${String(args.deviceId)}]子进程已按 checkpoint 流程重启并重新装填 session`;
         case 'cmd_device_start':
           validateRecoveryPolicyForRun(readState(), String(args.deviceId));
           return `已向设备[${String(args.deviceId)}]发送启动命令`;
@@ -365,6 +374,15 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return `已同步设备[${String(args.deviceId)}]运行会话`;
         case 'cmd_run_script_target':
           validateRecoveryPolicyForRun(readState(), String(args.deviceId), args.target);
+          if (args.target && typeof args.target === 'object') {
+            const target = args.target as { type?: unknown };
+            if (target.type === 'policyGroup') {
+              throw new Error('策略组运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行');
+            }
+            if (target.type === 'policySet') {
+              throw new Error('策略集运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行');
+            }
+          }
           return `已向设备[${String(args.deviceId)}]发送运行目标`;
         case 'get_cpu_count_cmd':
           return 8;
