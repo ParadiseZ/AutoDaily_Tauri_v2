@@ -1,12 +1,26 @@
-use crate::domain::scripts::script_decision::Step;
-use crate::infrastructure::context::runtime_context::SharedRuntimeContext;
+use crate::domain::scripts::nodes::action::Action;
+use crate::domain::scripts::nodes::data_handing::{DataHanding, FilterMode, VarValue};
+use crate::domain::scripts::nodes::flow_control::{CompareOp, ConditionNode, FlowControl};
+use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
+use crate::domain::scripts::nodes::vision_node::VisionNode;
+use crate::domain::scripts::script_decision::{Step, StepKind};
+use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit};
+use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{HashMap, StepId};
 use crate::infrastructure::ipc::message::RuntimeProgressPhase;
 use crate::infrastructure::ipc::runtime_reporter::emit_progress_event;
-use crate::infrastructure::scripts::script_error::ExecuteResult;
-use rhai::{Engine, Scope};
+use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
+use rhai::{Array, Dynamic, Engine, FLOAT, INT, Map, Scope};
 use std::future::Future;
 use std::pin::Pin;
+use tokio::time::Duration;
+
+const FILTER_ITEM_VAR: &str = "filter_item";
+const FILTER_INDEX_VAR: &str = "filter_index";
+const ITEM_VAR: &str = "item";
+const ITEM_INDEX_VAR: &str = "item_index";
+const MAX_LOOP_ITERATIONS: usize = 10_000;
 
 #[derive(Debug)]
 pub enum ControlFlow {
@@ -14,6 +28,11 @@ pub enum ControlFlow {
     Break,
     Next,
     Return,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct StepFrame {
+    previous_step_id: Option<StepId>,
 }
 
 pub struct ScriptExecutor {
@@ -25,13 +44,11 @@ pub struct ScriptExecutor {
 
 impl ScriptExecutor {
     pub fn new(runtime_ctx: SharedRuntimeContext) -> Self {
-        let engine = Engine::new();
-        
         Self {
-            engine,
+            engine: Engine::new(),
             scope: Scope::new(),
             runtime_ctx,
-            node_indices:HashMap::new(),
+            node_indices: HashMap::new(),
         }
     }
 
@@ -44,7 +61,7 @@ impl ScriptExecutor {
     }
 
     pub fn set_node_index(&mut self, id: &StepId, val: usize) {
-        self.node_indices.insert(id.clone(), val);
+        self.node_indices.insert(*id, val);
     }
 
     pub fn inc_node_index(&mut self, id: &StepId, amount: usize) {
@@ -68,324 +85,690 @@ impl ScriptExecutor {
         Ok(ControlFlow::Next)
     }
 
-    fn execute_step<'a>(&'a mut self, step: &'a Step) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
+    fn execute_step<'a>(
+        &'a mut self,
+        step: &'a Step,
+    ) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
         Box::pin(async move {
-            use crate::domain::scripts::script_decision::StepKind;
-
-            let (assignment_id, script_id, task_id) = {
-                let mut ctx = self.runtime_ctx.write().await;
-                ctx.execution.current_step_id = step.id;
-                (
-                    ctx.execution.current_assignment_id,
-                    Some(ctx.execution.script_id),
-                    ctx.execution.current_task.as_ref().map(|task| task.id),
-                )
-            };
-
-            emit_progress_event(
-                RuntimeProgressPhase::Executing,
-                assignment_id,
-                script_id,
-                task_id,
-                step.id,
-                Some(format!(
-                    "执行步骤{}",
-                    step.id
-                        .map(|id| format!("[{}]", id))
-                        .unwrap_or_else(|| "".to_string())
-                )),
-            );
-            
-            // 每次执行步骤前，如果步骤有 ID，可以将当前索引注入到 Rhai Scope
-            if let Some(id) = &step.id {
-                let idx = self.get_node_index(id);
-                self.scope.set_value(format!("idx_{}", id), idx as i64);
+            if step.skip_flag {
+                return Ok(ControlFlow::Next);
             }
 
-            match &step.kind {
-                StepKind::Sequence { steps, reverse } => {
-                    let iter: Box<dyn Iterator<Item = _>> = if *reverse {
-                        Box::new(steps.iter().rev())
-                    } else {
-                        Box::new(steps.iter())
-                    };
-                    
-                    for s in iter {
-                        let flow = self.execute_step(s).await?;
-                        match flow {
-                            ControlFlow::Next => continue,
-                            _ => return Ok(flow), // Propagate Break/Continue/Return
-                        }
-                    }
-                },
-                StepKind::Action{ cur_exec_num, max_exec_num, a: _ } => {
-                    if *cur_exec_num > *max_exec_num {
-                        return Ok(ControlFlow::Continue);
-                    }
-                },
-                StepKind::FlowControl { cur_exec_num, max_exec_num, a: _ } => {
-                    if *cur_exec_num > *max_exec_num {
-                        return Ok(ControlFlow::Continue);
-                    }
-                },
-                StepKind::TaskControl { a: _ } => {
-
-                },
-                StepKind::DataHanding { a: _ }=>{
-
-                },
-                StepKind::Vision { a: _ }=>{
-
-                },
-                /*StepKind::Continue => return Ok(ControlFlow::Continue),
-                StepKind::Break => return Ok(ControlFlow::Break),
-                StepKind::If { cond, then_steps, else_steps } => {
-                    let val: bool = self.engine.eval_expression_with_scope(&mut self.scope, cond)
-                        .map_err(|e| ScriptError::ExecuteErr { step_type: "if".to_string(), e: e.to_string() })?;
-                    
-                    if val {
-                        // then_steps is Vec<Step>
-                        for s in then_steps {
-                            let flow = self.execute_step(s).await?;
-                            if matches!(flow, ControlFlow::Break | ControlFlow::Continue | ControlFlow::Return) {
-                                return Ok(flow);
-                            }
-                        }
-                    } else if let Some(else_block) = else_steps {
-                        // else_steps is Box<Step>, likely a Sequence or single step
-                        let flow = self.execute_step(else_block).await?;
-                         if matches!(flow, ControlFlow::Break | ControlFlow::Continue | ControlFlow::Return) {
-                            return Ok(flow);
-                        }
-                    }
-                }
-                StepKind::While { cond, steps, max_loop } => {
-                    let mut count = 0;
-                    loop {
-                        // Check max_loop
-                        if let Some(max) = max_loop {
-                            if count >= *max {
-                                break;
-                            }
-                        }
-                        
-                        // Check condition
-                        let val: bool = self.engine.eval_expression_with_scope(&mut self.scope, cond)
-                             .map_err(|e| ScriptError::ExecuteErr { step_type: "while".to_string(), e: e.to_string() })?;
-                        
-                        if !val {
-                            break;
-                        }
-
-                        // Execute body
-                        let mut broken = false;
-                        for s in steps {
-                            let flow = self.execute_step(s).await?;
-                            match flow {
-                                ControlFlow::Break => {
-                                    broken = true;
-                                    break;
-                                },
-                                ControlFlow::Continue => break, // Stop current iteration, go to next
-                                ControlFlow::Return => return Ok(ControlFlow::Return),
-                                ControlFlow::Next => {},
-                            }
-                        }
-                        if broken {
-                            break;
-                        }
-                        count += 1;
-                    }
-                }
-                StepKind::SetVar { name, value_expr } => {
-                     let val: Dynamic = self.engine.eval_expression_with_scope(&mut self.scope, value_expr)
-                        .map_err(|e| ScriptError::ExecuteErr { step_type: "setVar".to_string(), e: e.to_string() })?;
-                     self.scope.set_value(name, val);
-                }
-                StepKind::GetVar { name } => {
-                    // Usually for debugging or returning? 
-                    // In this design, GetVar might not do much unless logged.
-                    if let Some(val) = self.scope.get_value::<Dynamic>(name) {
-                        tracing::info!("Var {}: {:?}", name, val);
-                    }
-                }
-                StepKind::WaitMs { ms } => {
-                    tokio::time::sleep(Duration::from_millis(*ms)).await;
-                }
-                StepKind::WaitUntil { cond, timeout_ms } => {
-                     let start = tokio::time::Instant::now();
-                     let timeout = Duration::from_millis(*timeout_ms);
-                     
-                     loop {
-                         let val: bool = self.engine.eval_expression_with_scope(&mut self.scope, cond)
-                            .unwrap_or(false);
-                         if val {
-                             break;
-                         }
-                         if start.elapsed() > timeout {
-                             break; // Timeout, maybe return error or bool?
-                         }
-                         tokio::time::sleep(Duration::from_millis(100)).await;
-                     }
-                }
-                
-                // Vision/Device ops - Placeholder for now as we need Device Traits
-                StepKind::TakeScreenshot { output_var } => {
-                    // TODO: Call device.screencap()
-                    // Store path or handle in scope
-                    self.scope.set_value(output_var, "placeholder_image_path.png".to_string());
-                    let mut ctx = self.runtime_ctx.write().await;
-                    ctx.last_snapshot = None; // 截图后旧快照失效
-                }
-                StepKind::Ocr { image_var: _, output_var } => {
-                     // TODO: Call OCR engine
-                     self.scope.set_value(output_var, "detected text".to_string());
-                }
-                StepKind::FindObject { image_var: _, query: _, output_var } => {
-                     // TODO: Call vision 
-                     self.scope.set_value(output_var,  "100,200".to_string());
-                }
-                StepKind::ClickAction(_click) => {
-                     // TODO: Click
-                    /*match click {
-                        Click::Label{
-                            label,
-                            label_idx,
-                            ..
-                        } => {
-                            // 获取坐标
-                            if let Some(coords) = self.scope.get_value::<String>(target_var) {
-                                let coords: Vec<&str> = coords.split(',').collect();
-                                let x: i32 = coords[0].parse().unwrap();
-                                let y: i32 = coords[1].parse().unwrap();
-                                // TODO: Click
-                                self.adb_executor
-                            }
-                        },
-                        _ => {}
-                    }*/
-                }
-                StepKind::VisionSearch { rule, output_var } => {
-                    let mut ctx = self.runtime_ctx.write().await;
-                    
-                    // 1. 获取当前快照 (如果过期则重建)
-                    if ctx.last_snapshot.is_none() {
-                        // TODO: 从 adb_executor 获取截图并跑 OCR/YOLO
-                        // 这里需要整合 adb_executor.capture()
-                    }
-
-                    let result = if let Some(snapshot) = &ctx.last_snapshot {
-                        let rules = vec![rule.clone()];
-                        let searcher = crate::domain::vision::ocr_search::OcrSearcher::new(&rules);
-                        let hits = searcher.search(snapshot);
-                        let det_results = &snapshot.det_items;
-                        Some((hits, det_results.clone()))
-                    } else {
-                        None
-                    };
-
-                    if let Some((hits, det_results)) = result {
-                        // 将命中结果存入缓存
-                        let success = rule.evaluate(&hits, &det_results, snapshot);
-                        ctx.last_hits = hits;
-                        // 将命中结果存入变量
-                        self.scope.set_value(output_var, success);
-                    }
-                }
-                // 索引管理
-                StepKind::IncIndex { id, amount } => {
-                    self.inc_node_index(id, amount.unwrap_or(1));
-                }
-                StepKind::ResetIndex { id } => {
-                    if let Some(sid) = id {
-                        self.node_indices.remove(sid);
-                    } else {
-                        self.reset_node_indices();
-                    }
-                }
-                // 滑动重置索引
-                StepKind::SwipeDet { .. } | StepKind::SwipeTxt { .. } | StepKind::SwipePoint { .. } | StepKind::SwipePercent { .. } => {
-                    self.reset_node_indices();
-                    // TODO: 实际滑动逻辑
-                }
-                StepKind::SetState { .. } => {
-                     // TODO: Set state in global context
-                }
-                StepKind::GetState { .. } => {
-                     // TODO: Get state from global context
-                }
-                StepKind::StopPolicy => {
-                     return Ok(ControlFlow::Return);
-                }
-                StepKind::FinishTask { .. } => {
-                     return Ok(ControlFlow::Return);
-                }
-                StepKind::FilterHits { .. } => {
-                     // TODO: Implementation with Rhai
-                }
-                _ => {}*/
-            }
-            
-            // 自动迭代逻辑
-            /*if step.iterate {
-                if let Some(id) = &step.id {
-                    self.inc_node_index(id, 1);
-                }
-            }*/
-
-            {
-                let mut ctx = self.runtime_ctx.write().await;
-                ctx.execution.current_step_id = None;
-            }
-
-            Ok(ControlFlow::Next)
+            let frame = self.enter_step(step).await;
+            let result = self.execute_step_inner(step).await;
+            self.leave_step(frame).await;
+            result
         })
     }
 
-    /*fn action_handler<'a>(&'a mut self, action: &Action) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
+    async fn enter_step(&mut self, step: &Step) -> StepFrame {
+        let (previous_step_id, assignment_id, script_id, task_id) = {
+            let mut ctx = self.runtime_ctx.write().await;
+            let previous_step_id = ctx.execution.current_step_id;
+            ctx.execution.current_step_id = step.id;
+            (
+                previous_step_id,
+                ctx.execution.current_assignment_id,
+                Some(ctx.execution.script_id),
+                ctx.execution.current_task.as_ref().map(|task| task.id),
+            )
+        };
+
+        emit_progress_event(
+            RuntimeProgressPhase::Executing,
+            assignment_id,
+            script_id,
+            task_id,
+            step.id,
+            Some(format!(
+                "执行步骤{}",
+                step.id
+                    .map(|id| format!("[{}]", id))
+                    .unwrap_or_default()
+            )),
+        );
+
+        if let Some(id) = step.id {
+            let idx = self.get_node_index(&id);
+            self.scope.set_value(format!("idx_{}", id), idx as i64);
+        }
+
+        StepFrame { previous_step_id }
+    }
+
+    async fn leave_step(&mut self, frame: StepFrame) {
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.execution.current_step_id = frame.previous_step_id;
+    }
+
+    async fn execute_step_inner(&mut self, step: &Step) -> ExecuteResult<ControlFlow> {
+        match &step.kind {
+            StepKind::Sequence { steps, reverse } => self.execute_sequence(steps, *reverse).await,
+            StepKind::Action {
+                cur_exec_num,
+                max_exec_num,
+                a,
+            } => self.execute_action_step(*cur_exec_num, *max_exec_num, a).await,
+            StepKind::DataHanding { a } => self.execute_data_handling_step(a).await,
+            StepKind::FlowControl {
+                cur_exec_num,
+                max_exec_num,
+                a,
+            } => self.execute_flow_control_step(*cur_exec_num, *max_exec_num, a).await,
+            StepKind::TaskControl { a } => self.execute_task_control_step(a).await,
+            StepKind::Vision { a } => self.execute_vision_step(a).await,
+        }
+    }
+
+    async fn execute_sequence(
+        &mut self,
+        steps: &[Step],
+        reverse: bool,
+    ) -> ExecuteResult<ControlFlow> {
+        let iter: Box<dyn Iterator<Item = &Step>> = if reverse {
+            Box::new(steps.iter().rev())
+        } else {
+            Box::new(steps.iter())
+        };
+
+        for step in iter {
+            let flow = self.execute_step(step).await?;
+            if !matches!(flow, ControlFlow::Next) {
+                return Ok(flow);
+            }
+        }
+
+        Ok(ControlFlow::Next)
+    }
+
+    async fn execute_action_step(
+        &mut self,
+        cur_exec_num: u32,
+        max_exec_num: u32,
+        action: &Action,
+    ) -> ExecuteResult<ControlFlow> {
+        if cur_exec_num > max_exec_num {
+            return Ok(ControlFlow::Next);
+        }
+
+        self.before_action(action).await?;
+        let result = self.dispatch_action(action).await;
+        self.after_action(action).await?;
+        result
+    }
+
+    async fn before_action(&mut self, _action: &Action) -> ExecuteResult<()> {
+        Ok(())
+    }
+
+    async fn after_action(&mut self, _action: &Action) -> ExecuteResult<()> {
+        Ok(())
+    }
+
+    async fn dispatch_action(&mut self, action: &Action) -> ExecuteResult<ControlFlow> {
         match action {
-            Action::ClickPoint { p } => {
-                // TODO: Click
+            Action::Capture { output_var } => {
+                Log::warn("[ executor ] Capture 尚未接入设备截图适配器，当前写入占位输出");
+                self.set_runtime_var(
+                    output_var,
+                    Dynamic::from("runtime://capture/unavailable".to_string()),
+                )
+                .await?;
+                let mut ctx = self.runtime_ctx.write().await;
+                ctx.observation.last_snapshot = None;
+                ctx.observation.last_hits.clear();
                 Ok(ControlFlow::Next)
             }
-            _=>{Ok(ControlFlow::Next)}
+            Action::Click { .. }
+            | Action::Swipe { .. }
+            | Action::Reboot
+            | Action::LaunchApp { .. }
+            | Action::StopApp { .. } => {
+                Log::warn("[ executor ] 设备动作适配器尚未接入，当前仅走执行骨架，不执行真实设备操作");
+                Ok(ControlFlow::Next)
+            }
         }
     }
 
-    fn task_control_handler(&self, task_control: &TaskControl) -> Result<ControlFlow, Box<dyn Error>> {
+    async fn execute_flow_control_step(
+        &mut self,
+        cur_exec_num: u32,
+        max_exec_num: u32,
+        flow: &FlowControl,
+    ) -> ExecuteResult<ControlFlow> {
+        if cur_exec_num > max_exec_num {
+            return Ok(ControlFlow::Next);
+        }
+
+        match flow {
+            FlowControl::If {
+                con,
+                then,
+                else_steps,
+            } => {
+                if self.evaluate_condition(con).await? {
+                    self.execute(then).await
+                } else if let Some(else_steps) = else_steps {
+                    self.execute(else_steps).await
+                } else {
+                    Ok(ControlFlow::Next)
+                }
+            }
+            FlowControl::While { con, flow } | FlowControl::For { con, flow } => {
+                let mut iteration = 0usize;
+                while self.evaluate_condition(con).await? {
+                    iteration += 1;
+                    if iteration > MAX_LOOP_ITERATIONS {
+                        return Err(Self::execute_error(
+                            "flow.loop",
+                            format!("循环次数超过上限 {}", MAX_LOOP_ITERATIONS),
+                        ));
+                    }
+
+                    match self.execute(flow).await? {
+                        ControlFlow::Next => continue,
+                        ControlFlow::Continue => continue,
+                        ControlFlow::Break => break,
+                        ControlFlow::Return => return Ok(ControlFlow::Return),
+                    }
+                }
+                Ok(ControlFlow::Next)
+            }
+            FlowControl::Continue => Ok(ControlFlow::Continue),
+            FlowControl::Break => Ok(ControlFlow::Break),
+            FlowControl::WaitMs { ms } => {
+                tokio::time::sleep(Duration::from_millis(*ms)).await;
+                Ok(ControlFlow::Next)
+            }
+            FlowControl::Link { target } => Err(Self::execute_error(
+                "flow.link",
+                format!("跳转任务[{}]尚未接入调度器切换逻辑", target),
+            )),
+            FlowControl::AddPolicies { .. } => Err(Self::execute_error(
+                "flow.addPolicies",
+                "动态策略集拼装尚未接入运行时".to_string(),
+            )),
+            FlowControl::HandlePolicySet { .. } => Err(Self::execute_error(
+                "flow.handlePolicySet",
+                "策略集执行入口尚未接入执行器".to_string(),
+            )),
+            FlowControl::HandlePolicy { .. } => Err(Self::execute_error(
+                "flow.handlePolicy",
+                "策略执行入口尚未接入执行器".to_string(),
+            )),
+        }
+    }
+
+    async fn execute_data_handling_step(
+        &mut self,
+        data: &DataHanding,
+    ) -> ExecuteResult<ControlFlow> {
+        match data {
+            DataHanding::SetVar { name, val, expr } => {
+                let value = if let Some(expr) = expr.as_ref().filter(|value| !value.trim().is_empty())
+                {
+                    self.eval_dynamic(expr, "data.setVar")?
+                } else if let Some(val) = val {
+                    Self::var_value_to_dynamic(val)
+                } else {
+                    Dynamic::UNIT
+                };
+                self.set_runtime_var(name, value).await?;
+                Ok(ControlFlow::Next)
+            }
+            DataHanding::GetVar { name, default_val } => {
+                if self.read_runtime_var(name).await.is_none() {
+                    if let Some(default_val) = default_val {
+                        self.set_runtime_var(name, Self::var_value_to_dynamic(default_val))
+                            .await?;
+                    }
+                }
+                Ok(ControlFlow::Next)
+            }
+            DataHanding::Filter {
+                input_var,
+                out_name,
+                mode,
+                logic_expr,
+                then_steps,
+            } => {
+                let Some(input) = self.read_runtime_var(input_var).await else {
+                    self.set_runtime_var(out_name, Dynamic::from(Array::new())).await?;
+                    return Ok(ControlFlow::Next);
+                };
+
+                let Some(items) = input.clone().try_cast::<Array>() else {
+                    return Err(Self::execute_error(
+                        "data.filter",
+                        format!("输入变量[{}]不是数组，无法执行过滤", input_var),
+                    ));
+                };
+
+                let mut output = Array::new();
+                for (index, item) in items.into_iter().enumerate() {
+                    self.scope.set_value(FILTER_ITEM_VAR, item.clone());
+                    self.scope.set_value(ITEM_VAR, item.clone());
+                    self.scope.set_value(FILTER_INDEX_VAR, index as i64);
+                    self.scope.set_value(ITEM_INDEX_VAR, index as i64);
+
+                    let matched = if logic_expr.trim().is_empty() {
+                        true
+                    } else {
+                        self.eval_bool(logic_expr, "data.filter.logicExpr")?
+                    };
+
+                    if !matched {
+                        continue;
+                    }
+
+                    if !then_steps.is_empty() {
+                        match self.execute(then_steps).await? {
+                            ControlFlow::Next => {}
+                            ControlFlow::Continue => continue,
+                            ControlFlow::Break => break,
+                            ControlFlow::Return => return Ok(ControlFlow::Return),
+                        }
+                    }
+
+                    match mode {
+                        FilterMode::Filter => output.push(item),
+                        FilterMode::Map => {
+                            let current = self
+                                .scope
+                                .get_value::<Dynamic>(ITEM_VAR)
+                                .unwrap_or_else(|| Dynamic::UNIT);
+                            output.push(current);
+                        }
+                    }
+                }
+
+                self.set_runtime_var(out_name, Dynamic::from(output)).await?;
+                Ok(ControlFlow::Next)
+            }
+        }
+    }
+
+    async fn execute_task_control_step(
+        &mut self,
+        task_control: &TaskControl,
+    ) -> ExecuteResult<ControlFlow> {
         match task_control {
-            TaskControl::GetState {  .. } => {
-                // TODO: GetState
+            TaskControl::SetState { target, status } => {
+                self.set_state_value(target, status).await?;
                 Ok(ControlFlow::Next)
             }
-            _=>{Ok(ControlFlow::Next)}
+            TaskControl::GetState { target, status } => Err(Self::execute_error(
+                "taskControl.getState",
+                format!(
+                    "读取状态步骤[target={}]尚未定义输出语义，请改用条件节点 TaskStatus",
+                    Self::state_target_label(target)
+                ),
+            )),
         }
     }
 
-    fn flow_control_handler(&self, flow_control: &FlowControl) -> Result<ControlFlow, Box<dyn Error>> {
-        match flow_control {
-            FlowControl::If { con, then, else_steps } => {
-                Ok(ControlFlow::Next)
-            }
-            _=>{Ok(ControlFlow::Next)}
-        }
-    }
-
-    fn data_handler(&self, data_handling: &DataHanding) -> Result<ControlFlow, Box<dyn Error>> {
-        match data_handling {
-            DataHanding::GetVar { .. } => {
-                Ok(ControlFlow::Next)
-            }
-            _=>{Ok(ControlFlow::Next)}
-        }
-    }
-
-    fn vision_handler(&self, vision: &VisionNode) -> Result<ControlFlow, Box<dyn Error>> {
+    async fn execute_vision_step(
+        &mut self,
+        vision: &VisionNode,
+    ) -> ExecuteResult<ControlFlow> {
         match vision {
-            VisionNode::VisionSearch { .. } => {
+            VisionNode::VisionSearch {
+                rule,
+                out_var,
+                then_steps,
+            } => {
+                let (hits, matched) = {
+                    let ctx = self.runtime_ctx.read().await;
+                    if let Some(snapshot) = ctx.observation.last_snapshot.as_ref() {
+                        let searcher = OcrSearcher::new(std::slice::from_ref(rule));
+                        let hits = searcher.search(snapshot);
+                        let matched = rule.evaluate(&hits, &snapshot.det_items);
+                        (hits, matched)
+                    } else {
+                        (Vec::new(), false)
+                    }
+                };
+
+                {
+                    let mut ctx = self.runtime_ctx.write().await;
+                    ctx.observation.last_hits = hits.clone();
+                }
+
+                self.set_runtime_var(out_var, Self::search_hits_to_dynamic(&hits))
+                    .await?;
+
+                if matched && !then_steps.is_empty() {
+                    return self.execute(then_steps).await;
+                }
+
                 Ok(ControlFlow::Next)
             }
-            _=>{Ok(ControlFlow::Next)}
         }
-    }*/
+    }
+
+    async fn evaluate_condition(&mut self, condition: &ConditionNode) -> ExecuteResult<bool> {
+        match condition {
+            ConditionNode::RawExpr { expr } => self.eval_bool(expr, "condition.rawExpr"),
+            ConditionNode::Group { op, items } => match op {
+                crate::domain::vision::ocr_search::LogicOp::And => {
+                    for item in items {
+                        if !self.evaluate_condition(item).await? {
+                            return Ok(false);
+                        }
+                    }
+                    Ok(true)
+                }
+                crate::domain::vision::ocr_search::LogicOp::Or => {
+                    for item in items {
+                        if self.evaluate_condition(item).await? {
+                            return Ok(true);
+                        }
+                    }
+                    Ok(false)
+                }
+                crate::domain::vision::ocr_search::LogicOp::Not => {
+                    if let Some(first) = items.first() {
+                        Ok(!self.evaluate_condition(first).await?)
+                    } else {
+                        Ok(true)
+                    }
+                }
+            },
+            ConditionNode::VarCompare {
+                var_name,
+                op,
+                value,
+            } => {
+                let Some(lhs) = self.read_runtime_var(var_name).await else {
+                    return Ok(false);
+                };
+                let rhs = Self::var_value_to_dynamic(value);
+                Ok(Self::compare_dynamic(&lhs, op, &rhs))
+            }
+            ConditionNode::TaskStatus { a } => self.match_state_status(a).await,
+            ConditionNode::PolicyCondition { rule, .. } => {
+                let ctx = self.runtime_ctx.read().await;
+                Ok(ctx
+                    .observation
+                    .last_snapshot
+                    .as_ref()
+                    .map(|snapshot| rule.evaluate(snapshot))
+                    .unwrap_or(false))
+            }
+            ConditionNode::ExecNumCompare { .. } => Err(Self::execute_error(
+                "condition.execNumCompare",
+                "执行次数条件尚未定义比较阈值，当前不执行隐式推断".to_string(),
+            )),
+            ConditionNode::ColorCompare { .. } => Err(Self::execute_error(
+                "condition.colorCompare",
+                "颜色比较尚未接入视觉颜色分析".to_string(),
+            )),
+            ConditionNode::PolicySetResult { .. } => Err(Self::execute_error(
+                "condition.policySetResult",
+                "策略结果条件尚未接入执行器".to_string(),
+            )),
+        }
+    }
+
+    async fn set_state_value(
+        &mut self,
+        target: &StateTarget,
+        status: &StateStatus,
+    ) -> ExecuteResult<()> {
+        let mut ctx = self.runtime_ctx.write().await;
+        match target {
+            StateTarget::Task { id } => {
+                let state = ctx.execution.task_states.entry(*id).or_default();
+                match status {
+                    StateStatus::Enabled { value } => state.enabled_flag = *value,
+                    StateStatus::Skip { value } => state.skip_flag = *value,
+                    StateStatus::Done { value } => state.done_flag = *value,
+                }
+            }
+            StateTarget::Policy { id } => {
+                let state = ctx.execution.policy_states.entry(*id).or_default();
+                match status {
+                    StateStatus::Enabled { .. } => {
+                        return Err(Self::execute_error(
+                            "taskControl.setState",
+                            format!("策略[{}]不支持 enabled 状态", id),
+                        ));
+                    }
+                    StateStatus::Skip { value } => state.skip_flag = *value,
+                    StateStatus::Done { value } => state.done_flag = *value,
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn match_state_status(&mut self, task_control: &TaskControl) -> ExecuteResult<bool> {
+        let TaskControl::GetState { target, status } | TaskControl::SetState { target, status } =
+            task_control;
+
+        let ctx = self.runtime_ctx.read().await;
+        match target {
+            StateTarget::Task { id } => {
+                let state = ctx.execution.task_states.get(id).cloned().unwrap_or_else(TaskState::default);
+                Ok(match status {
+                    StateStatus::Enabled { value } => state.enabled_flag == *value,
+                    StateStatus::Skip { value } => state.skip_flag == *value,
+                    StateStatus::Done { value } => state.done_flag == *value,
+                })
+            }
+            StateTarget::Policy { id } => {
+                let state = ctx.execution.policy_states.get(id).cloned().unwrap_or_default();
+                Ok(match status {
+                    StateStatus::Enabled { .. } => false,
+                    StateStatus::Skip { value } => state.skip_flag == *value,
+                    StateStatus::Done { value } => state.done_flag == *value,
+                })
+            }
+        }
+    }
+
+    async fn set_runtime_var(&mut self, name: &str, value: Dynamic) -> ExecuteResult<()> {
+        if name.trim().is_empty() {
+            return Ok(());
+        }
+
+        let root = name
+            .split('.')
+            .next()
+            .unwrap_or(name)
+            .trim()
+            .to_string();
+        let root_value = {
+            let mut ctx = self.runtime_ctx.write().await;
+            ctx.execution.var_map.insert(name.to_string(), value);
+            Self::build_scope_root_value(&ctx.execution.var_map, &root)
+        };
+        self.scope.set_value(root, root_value);
+        Ok(())
+    }
+
+    async fn read_runtime_var(&self, name: &str) -> Option<Dynamic> {
+        {
+            let ctx = self.runtime_ctx.read().await;
+            if let Some(value) = ctx.execution.var_map.get(name) {
+                return Some(value.clone());
+            }
+        }
+
+        if name.contains('.') {
+            None
+        } else {
+            self.scope.get_value::<Dynamic>(name)
+        }
+    }
+
+    fn build_scope_root_value(var_map: &HashMap<String, Dynamic>, root: &str) -> Dynamic {
+        let nested_prefix = format!("{}.", root);
+        let mut nested = Map::new();
+
+        for (key, value) in var_map {
+            if let Some(suffix) = key.strip_prefix(&nested_prefix) {
+                let partial = Self::build_nested_map(suffix, value.clone());
+                Self::merge_map(&mut nested, partial);
+            }
+        }
+
+        if nested.is_empty() {
+            var_map.get(root).cloned().unwrap_or(Dynamic::UNIT)
+        } else {
+            Dynamic::from(nested)
+        }
+    }
+
+    fn build_nested_map(path: &str, value: Dynamic) -> Map {
+        let mut current = value;
+        for segment in path.split('.').rev() {
+            let mut map = Map::new();
+            map.insert(segment.into(), current);
+            current = Dynamic::from(map);
+        }
+
+        current.try_cast::<Map>().unwrap_or_default()
+    }
+
+    fn merge_map(target: &mut Map, source: Map) {
+        for (key, value) in source {
+            if let Some(existing) = target.get_mut(&key) {
+                let left = existing.clone().try_cast::<Map>();
+                let right = value.clone().try_cast::<Map>();
+                match (left, right) {
+                    (Some(mut left_map), Some(right_map)) => {
+                        Self::merge_map(&mut left_map, right_map);
+                        *existing = Dynamic::from(left_map);
+                    }
+                    _ => *existing = value,
+                }
+            } else {
+                target.insert(key, value);
+            }
+        }
+    }
+
+    fn var_value_to_dynamic(value: &VarValue) -> Dynamic {
+        match value {
+            VarValue::Int(value) => Dynamic::from_int((*value).into()),
+            VarValue::Float(value) => Dynamic::from_float((*value).into()),
+            VarValue::Bool(value) => Dynamic::from_bool(*value),
+            VarValue::String(value) => Dynamic::from(value.clone()),
+        }
+    }
+
+    fn search_hits_to_dynamic(hits: &[SearchHit]) -> Dynamic {
+        let mut array = Array::new();
+        for hit in hits {
+            let mut item = Map::new();
+            item.insert("pattern".into(), Dynamic::from(hit.pattern.clone()));
+            item.insert("ocrIndex".into(), Dynamic::from_int(hit.ocr_index as INT));
+            item.insert("text".into(), Dynamic::from(hit.ocr_item.txt.clone()));
+            array.push(Dynamic::from(item));
+        }
+        Dynamic::from(array)
+    }
+
+    fn compare_dynamic(lhs: &Dynamic, op: &CompareOp, rhs: &Dynamic) -> bool {
+        match op {
+            CompareOp::Contains => Self::dynamic_to_string(lhs)
+                .zip(Self::dynamic_to_string(rhs))
+                .map(|(lhs, rhs)| lhs.contains(&rhs))
+                .unwrap_or(false),
+            CompareOp::NotContains => Self::dynamic_to_string(lhs)
+                .zip(Self::dynamic_to_string(rhs))
+                .map(|(lhs, rhs)| !lhs.contains(&rhs))
+                .unwrap_or(false),
+            CompareOp::Eq => Self::dynamic_eq(lhs, rhs),
+            CompareOp::Ne => !Self::dynamic_eq(lhs, rhs),
+            CompareOp::Lt => Self::dynamic_to_number(lhs)
+                .zip(Self::dynamic_to_number(rhs))
+                .map(|(lhs, rhs)| lhs < rhs)
+                .unwrap_or(false),
+            CompareOp::Le => Self::dynamic_to_number(lhs)
+                .zip(Self::dynamic_to_number(rhs))
+                .map(|(lhs, rhs)| lhs <= rhs)
+                .unwrap_or(false),
+            CompareOp::Gt => Self::dynamic_to_number(lhs)
+                .zip(Self::dynamic_to_number(rhs))
+                .map(|(lhs, rhs)| lhs > rhs)
+                .unwrap_or(false),
+            CompareOp::Ge => Self::dynamic_to_number(lhs)
+                .zip(Self::dynamic_to_number(rhs))
+                .map(|(lhs, rhs)| lhs >= rhs)
+                .unwrap_or(false),
+        }
+    }
+
+    fn dynamic_eq(lhs: &Dynamic, rhs: &Dynamic) -> bool {
+        if let (Some(lhs), Some(rhs)) = (lhs.clone().try_cast::<bool>(), rhs.clone().try_cast::<bool>())
+        {
+            return lhs == rhs;
+        }
+        if let (Some(lhs), Some(rhs)) = (Self::dynamic_to_number(lhs), Self::dynamic_to_number(rhs))
+        {
+            return (lhs - rhs).abs() < f64::EPSILON;
+        }
+        if let (Some(lhs), Some(rhs)) = (Self::dynamic_to_string(lhs), Self::dynamic_to_string(rhs))
+        {
+            return lhs == rhs;
+        }
+        false
+    }
+
+    fn dynamic_to_number(value: &Dynamic) -> Option<f64> {
+        if let Some(value) = value.clone().try_cast::<INT>() {
+            return Some(value as f64);
+        }
+        if let Some(value) = value.clone().try_cast::<FLOAT>() {
+            return Some(value as f64);
+        }
+        if let Some(value) = value.clone().try_cast::<String>() {
+            return value.parse::<f64>().ok();
+        }
+        None
+    }
+
+    fn dynamic_to_string(value: &Dynamic) -> Option<String> {
+        if let Some(value) = value.clone().try_cast::<String>() {
+            return Some(value);
+        }
+        if let Some(value) = value.clone().try_cast::<bool>() {
+            return Some(value.to_string());
+        }
+        if let Some(value) = value.clone().try_cast::<INT>() {
+            return Some(value.to_string());
+        }
+        if let Some(value) = value.clone().try_cast::<FLOAT>() {
+            return Some(value.to_string());
+        }
+        None
+    }
+
+    fn eval_bool(&mut self, expr: &str, step_type: &str) -> ExecuteResult<bool> {
+        self.engine
+            .eval_expression_with_scope::<bool>(&mut self.scope, expr)
+            .map_err(|error| Self::execute_error(step_type, error.to_string()))
+    }
+
+    fn eval_dynamic(&mut self, expr: &str, step_type: &str) -> ExecuteResult<Dynamic> {
+        self.engine
+            .eval_expression_with_scope::<Dynamic>(&mut self.scope, expr)
+            .map_err(|error| Self::execute_error(step_type, error.to_string()))
+    }
+
+    fn state_target_label(target: &StateTarget) -> String {
+        match target {
+            StateTarget::Task { id } => format!("task:{}", id),
+            StateTarget::Policy { id } => format!("policy:{}", id),
+        }
+    }
+
+    fn execute_error(step_type: &str, e: String) -> ScriptError {
+        ScriptError::ExecuteErr {
+            step_type: step_type.to_string(),
+            e,
+        }
+    }
 }

@@ -26,13 +26,27 @@ pub fn init_runtime_ctx(ctx: SharedRuntimeContext)->InitResult<()>  {
 #[derive(Debug, Default, Clone)]
 pub struct PolicyState {
     pub skip_flag: bool,
+    pub done_flag: bool,
     pub exec_cur: u32,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct TaskState {
+    pub enabled_flag: bool,
     pub skip_flag: bool,
     pub done_flag: bool,
+    pub exec_cur: u32,
+}
+
+impl Default for TaskState {
+    fn default() -> Self {
+        Self {
+            enabled_flag: true,
+            skip_flag: false,
+            done_flag: false,
+            exec_cur: 0,
+        }
+    }
 }
 
 #[derive(Debug)]
