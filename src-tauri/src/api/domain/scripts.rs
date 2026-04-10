@@ -1,4 +1,7 @@
 use crate::api::api_response::ApiResponse;
+use crate::api::infrastructure::runtime_sync::{
+    load_assigned_device_ids_by_script, sync_device_sessions_if_online,
+};
 use crate::constant::table_name::{SCRIPT_TABLE, SCRIPT_TASK_TABLE};
 use crate::domain::scripts::policy::*;
 use crate::domain::scripts::script_info::ScriptTable;
@@ -21,14 +24,24 @@ pub async fn get_script_by_id_cmd(script_id: ScriptId) -> Result<Option<ScriptTa
 
 /// 保存（新增或更新）脚本配置
 #[command]
-pub async fn save_script_cmd(script: ScriptTable) -> Result<(), String> {
-    DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await
+pub async fn save_script_cmd(
+    app_handle: tauri::AppHandle,
+    script: ScriptTable,
+) -> Result<(), String> {
+    DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await?;
+    let affected_device_ids = load_assigned_device_ids_by_script(script.id).await?;
+    sync_device_sessions_if_online(&app_handle, affected_device_ids).await
 }
 
 /// 删除脚本配置
 #[command]
-pub async fn delete_script_cmd(script_id: ScriptId) -> Result<(), String> {
-    DbRepo::delete(SCRIPT_TABLE, &script_id.to_string()).await
+pub async fn delete_script_cmd(
+    app_handle: tauri::AppHandle,
+    script_id: ScriptId,
+) -> Result<(), String> {
+    let affected_device_ids = load_assigned_device_ids_by_script(script_id).await?;
+    DbRepo::delete(SCRIPT_TABLE, &script_id.to_string()).await?;
+    sync_device_sessions_if_online(&app_handle, affected_device_ids).await
 }
 
 /// 获取脚本关联的所有任务逻辑

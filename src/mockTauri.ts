@@ -590,19 +590,58 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }));
           return null;
         case 'delete_script_cmd':
-          updateState((current) => ({
-            ...current,
-            scripts: current.scripts.filter((script) => script.id !== args.scriptId),
-            scriptTasks: Object.fromEntries(
-              Object.entries(current.scriptTasks).filter(([scriptId]) => scriptId !== args.scriptId),
-            ),
-            policies: current.policies.filter((policy) => policy.scriptId !== args.scriptId),
-            policyGroups: current.policyGroups.filter((group) => group.scriptId !== args.scriptId),
-            policySets: current.policySets.filter((set) => set.scriptId !== args.scriptId),
-            recoveryCheckpointsByDevice: Object.fromEntries(
-              Object.entries(current.recoveryCheckpointsByDevice).filter(([, checkpoint]) => checkpoint.scriptId !== args.scriptId),
-            ),
-          }));
+          updateState((current) => {
+            const removedGroupIds = new Set(
+              current.policyGroups
+                .filter((group) => group.scriptId === args.scriptId)
+                .map((group) => group.id),
+            );
+            const removedSetIds = new Set(
+              current.policySets
+                .filter((set) => set.scriptId === args.scriptId)
+                .map((set) => set.id),
+            );
+
+            return {
+              ...current,
+              scripts: current.scripts.filter((script) => script.id !== args.scriptId),
+              scriptTasks: Object.fromEntries(
+                Object.entries(current.scriptTasks).filter(([scriptId]) => scriptId !== args.scriptId),
+              ),
+              policies: current.policies.filter((policy) => policy.scriptId !== args.scriptId),
+              policyGroups: current.policyGroups.filter((group) => group.scriptId !== args.scriptId),
+              policySets: current.policySets.filter((set) => set.scriptId !== args.scriptId),
+              groupPolicies: Object.fromEntries(
+                Object.entries(current.groupPolicies).filter(([groupId]) => !removedGroupIds.has(groupId)),
+              ),
+              setGroups: Object.fromEntries(
+                Object.entries(current.setGroups).filter(([setId]) => !removedSetIds.has(setId)).map(([setId, groupIds]) => [
+                  setId,
+                  groupIds.filter((groupId) => !removedGroupIds.has(groupId)),
+                ]),
+              ),
+              assignmentsByDevice: Object.fromEntries(
+                Object.entries(current.assignmentsByDevice).map(([deviceId, assignments]) => [
+                  deviceId,
+                  assignments.filter((assignment) => (assignment as { scriptId?: unknown }).scriptId !== args.scriptId),
+                ]),
+              ),
+              schedulesByDevice: Object.fromEntries(
+                Object.entries(current.schedulesByDevice).map(([deviceId, items]) => [
+                  deviceId,
+                  items.filter((item) => (item as { scriptId?: unknown }).scriptId !== args.scriptId),
+                ]),
+              ),
+              scriptTemplateValues: Object.fromEntries(
+                Object.entries(current.scriptTemplateValues).filter(
+                  ([, record]) => record.scriptId !== args.scriptId,
+                ),
+              ),
+              recoveryCheckpointsByDevice: Object.fromEntries(
+                Object.entries(current.recoveryCheckpointsByDevice).filter(([, checkpoint]) => checkpoint.scriptId !== args.scriptId),
+              ),
+            };
+          });
           return null;
         case 'clear_schedules_cmd':
           updateState((current) => ({

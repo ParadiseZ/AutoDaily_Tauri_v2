@@ -1,5 +1,8 @@
 // 调度管理 API — 供前端调用
-use crate::api::infrastructure::process_api::cmd_sync_device_runtime_session;
+use crate::api::infrastructure::runtime_sync::{
+    load_assigned_device_ids_by_time_template, sync_device_session_if_online,
+    sync_device_sessions_if_online,
+};
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, RECOVERY_CHECKPOINT_TABLE, SCHEDULE_TABLE,
     SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
@@ -10,24 +13,8 @@ use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValu
 use crate::domain::schedule::time_template::TimeTemplate;
 use crate::infrastructure::core::{AccountId, DeviceId, ScheduleId, ScriptId, TemplateId};
 use crate::infrastructure::db::get_pool;
-use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::ipc::message::ResumeCheckpoint;
 use tauri::command;
-
-async fn sync_device_session_if_online(
-    app_handle: &tauri::AppHandle,
-    device_id: DeviceId,
-) -> Result<(), String> {
-    let Some(manager) = get_process_manager() else {
-        return Ok(());
-    };
-
-    if manager.is_running(&device_id).await {
-        cmd_sync_device_runtime_session(app_handle.clone(), device_id).await?;
-    }
-
-    Ok(())
-}
 
 // ========== 脚本分配（队列定义）==========
 
@@ -237,14 +224,18 @@ pub async fn save_time_template_cmd(template: TimeTemplate) -> Result<(), String
 
 /// 删除时间模板
 #[command]
-pub async fn delete_time_template_cmd(template_id: String) -> Result<(), String> {
+pub async fn delete_time_template_cmd(
+    app_handle: tauri::AppHandle,
+    template_id: String,
+) -> Result<(), String> {
     let pool = get_pool();
+    let affected_device_ids = load_assigned_device_ids_by_time_template(&template_id).await?;
     sqlx::query(&format!("DELETE FROM {} WHERE id = ?", TIME_TEMPLATE_TABLE))
         .bind(&template_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(())
+    sync_device_sessions_if_online(&app_handle, affected_device_ids).await
 }
 
 // ========== 脚本时间模板变量值 ==========
@@ -304,6 +295,7 @@ pub async fn get_script_time_template_values_cmd(
 /// 保存（新增或更新）脚本时间模板变量值
 #[command]
 pub async fn save_script_time_template_values_cmd(
+    app_handle: tauri::AppHandle,
     mut record: ScriptTimeTemplateValuesDto,
 ) -> Result<(), String> {
     let pool = get_pool();
@@ -359,12 +351,17 @@ pub async fn save_script_time_template_values_cmd(
         }
     }
 
-    Ok(())
+    sync_device_session_if_online(
+        &app_handle,
+        record.device_id.ok_or_else(|| "device_id 不能为空".to_string())?,
+    )
+    .await
 }
 
 /// 删除某设备某脚本在某时间模板和账号下的覆盖值
 #[command]
 pub async fn delete_script_time_template_values_cmd(
+    app_handle: tauri::AppHandle,
     device_id: DeviceId,
     script_id: ScriptId,
     time_template_id: TemplateId,
@@ -387,5 +384,5 @@ pub async fn delete_script_time_template_values_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    Ok(())
+    sync_device_session_if_online(&app_handle, device_id).await
 }
