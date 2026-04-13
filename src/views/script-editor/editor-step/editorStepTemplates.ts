@@ -504,28 +504,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
-    id: 'get-task-state',
-    label: '读取状态',
-    description: '读取任务或策略的状态。',
-    group: '状态',
-    create: () =>
-      createBaseStep({
-        label: '读取状态',
-        op: STEP_OP.taskControl,
-        a: {
-          type: TASK_CONTROL_TYPE.getState,
-          target: {
-            type: STATE_TARGET_TYPE.task,
-            id: '',
-          },
-          status: {
-            type: STATE_STATUS_TYPE.done,
-            value: true,
-          },
-        },
-      }),
-  },
-  {
     id: 'link-task',
     label: '跳转任务',
     description: '将执行流切换到另一个任务。',

@@ -424,7 +424,6 @@ const filterModeOptions = [
 ];
 const taskControlTypeOptions = [
   { label: '设置状态', value: TASK_CONTROL_TYPE.setState, description: '写入目标状态。' },
-  { label: '读取状态', value: TASK_CONTROL_TYPE.getState, description: '读取目标状态。' },
 ];
 
 const stateTargetTypeOptions = [

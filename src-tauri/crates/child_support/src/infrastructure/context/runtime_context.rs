@@ -9,6 +9,7 @@ use crate::infrastructure::core::{
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use crate::infrastructure::vision::text_rec_cache::ScriptTextRecCacheRuntime;
+use image::RgbaImage;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
@@ -88,6 +89,9 @@ impl ExecutionState {
 
 #[derive(Debug)]
 pub struct ObservationState {
+    /// 最近一次截图动作得到的原始图像。
+    pub last_capture_image: Option<Arc<RgbaImage>>,
+
     /// 每一帧的视觉快照缓存
     pub last_snapshot: Option<VisionSnapshot>,
 
@@ -108,6 +112,7 @@ impl ObservationState {
     pub fn new(vision_text_cache_config: VisionTextCacheRuntimeConfig) -> Self {
         let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
         Self {
+            last_capture_image: None,
             last_snapshot: None,
             last_hits: Vec::new(),
             screen_size: (0, 0),

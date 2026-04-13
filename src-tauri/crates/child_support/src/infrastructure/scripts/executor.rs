@@ -14,11 +14,10 @@ use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::RuntimeProgressPhase;
 use crate::infrastructure::ipc::runtime_reporter::emit_progress_event;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
-use chrono::Utc;
 use rhai::{Array, Dynamic, Engine, FLOAT, INT, Map, Scope};
 use std::future::Future;
-use std::path::PathBuf;
 use std::pin::Pin;
+use std::sync::Arc;
 use tokio::time::Duration;
 
 const FILTER_ITEM_VAR: &str = "filter_item";
@@ -203,17 +202,13 @@ impl ScriptExecutor {
     async fn dispatch_action(&mut self, action: &Action) -> ExecuteResult<ControlFlow> {
         match action {
             Action::Capture { output_var } => {
-                let image = get_device_ctx().get_screenshot().await.ok_or_else(|| {
+                let image = Arc::new(get_device_ctx().get_screenshot().await.ok_or_else(|| {
                     Self::execute_error("action.capture", "获取设备截图失败".to_string())
-                })?;
+                })?);
                 let screen_size = (image.width(), image.height());
-                let capture_path = self.persist_capture_image(image).await?;
-                self.set_runtime_var(
-                    output_var,
-                    Dynamic::from(capture_path.to_string_lossy().to_string()),
-                )
-                .await?;
+                self.set_runtime_var(output_var, Dynamic::from(image.clone())).await?;
                 let mut ctx = self.runtime_ctx.write().await;
+                ctx.observation.last_capture_image = Some(image);
                 ctx.observation.screen_size = screen_size;
                 ctx.observation.last_snapshot = None;
                 ctx.observation.last_hits.clear();
@@ -225,58 +220,18 @@ impl ScriptExecutor {
                 get_adb_ctx().send_adb_cmd(&ADBCommand::Reboot);
                 Ok(ControlFlow::Next)
             }
-            Action::LaunchApp { pkg_name } => {
-                get_adb_ctx().send_adb_cmd(&ADBCommand::LaunchPackage(pkg_name.clone()));
-                Ok(ControlFlow::Next)
-            }
+            Action::LaunchApp { pkg_name } => Err(Self::execute_error(
+                "action.launchApp",
+                format!(
+                    "LaunchApp 当前只有 pkg_name={}，缺少 activity/launch target，暂不执行隐式启动",
+                    pkg_name
+                ),
+            )),
             Action::StopApp { pkg_name } => {
                 get_adb_ctx().send_adb_cmd(&ADBCommand::StopApp(pkg_name.clone()));
                 Ok(ControlFlow::Next)
             }
         }
-    }
-
-    async fn persist_capture_image(&self, image: image::RgbaImage) -> ExecuteResult<PathBuf> {
-        let output_path = self.build_capture_output_path().await;
-        let save_path = output_path.clone();
-        tokio::task::spawn_blocking(move || -> Result<PathBuf, String> {
-            if let Some(parent) = save_path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|error| format!("创建截图目录失败: {}", error))?;
-            }
-            image
-                .save(&save_path)
-                .map_err(|error| format!("保存截图失败: {}", error))?;
-            Ok(save_path)
-        })
-        .await
-        .map_err(|error| {
-            Self::execute_error("action.capture", format!("保存截图任务失败: {}", error))
-        })?
-        .map_err(|error| Self::execute_error("action.capture", error))
-    }
-
-    async fn build_capture_output_path(&self) -> PathBuf {
-        let (script_id, execution_id, step_id) = {
-            let ctx = self.runtime_ctx.read().await;
-            (
-                ctx.execution.script_id.to_string(),
-                ctx.execution
-                    .current_execution_id
-                    .map(|id| id.to_string())
-                    .unwrap_or_else(|| "no-execution".to_string()),
-                ctx.execution
-                    .current_step_id
-                    .map(|id| id.to_string())
-                    .unwrap_or_else(|| "no-step".to_string()),
-            )
-        };
-        let timestamp = Utc::now().format("%Y%m%dT%H%M%S%.3fZ");
-        std::env::temp_dir()
-            .join("autodaily-captures")
-            .join(script_id)
-            .join(execution_id)
-            .join(format!("{}_{}.png", step_id, timestamp))
     }
 
     async fn execute_click(&mut self, mode: &ClickMode) -> ExecuteResult<ControlFlow> {
@@ -339,16 +294,25 @@ impl ScriptExecutor {
     async fn ensure_screen_size(&self) -> ExecuteResult<(u32, u32)> {
         let cached = {
             let ctx = self.runtime_ctx.read().await;
-            ctx.observation.screen_size
+            if ctx.observation.screen_size.0 > 0 && ctx.observation.screen_size.1 > 0 {
+                return Ok(ctx.observation.screen_size);
+            }
+            ctx.observation
+                .last_capture_image
+                .as_ref()
+                .map(|image| (image.width(), image.height()))
         };
-        if cached.0 > 0 && cached.1 > 0 {
-            return Ok(cached);
+        if let Some(screen_size) = cached {
+            let mut ctx = self.runtime_ctx.write().await;
+            ctx.observation.screen_size = screen_size;
+            return Ok(screen_size);
         }
         let image = get_device_ctx().get_screenshot().await.ok_or_else(|| {
             Self::execute_error("action.screenSize", "获取屏幕尺寸失败".to_string())
         })?;
         let screen_size = (image.width(), image.height());
         let mut ctx = self.runtime_ctx.write().await;
+        ctx.observation.last_capture_image = Some(Arc::new(image));
         ctx.observation.screen_size = screen_size;
         Ok(screen_size)
     }
@@ -545,7 +509,7 @@ impl ScriptExecutor {
             TaskControl::GetState { target, status: _ } => Err(Self::execute_error(
                 "taskControl.getState",
                 format!(
-                    "读取状态步骤[target={}]尚未定义输出语义，请改用条件节点 TaskStatus",
+                    "GetState 只应用于条件节点 TaskStatus，不应作为步骤执行[target={}]",
                     Self::state_target_label(target)
                 ),
             )),

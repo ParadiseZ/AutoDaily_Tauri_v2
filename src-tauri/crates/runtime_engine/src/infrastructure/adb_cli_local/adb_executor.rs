@@ -1,4 +1,4 @@
-use crate::infrastructure::adb_cli_local::adb_command::{click_cmd, input_text_cmd, launch_app_cmd, long_click_and_swipe, long_click_cmd, sleep_cmd, stop_app_cmd, swipe_cmd, swipe_duration_cmd, ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME};
+use crate::infrastructure::adb_cli_local::adb_command::{click_cmd, input_text_cmd, long_click_and_swipe, long_click_cmd, sleep_cmd, stop_app_cmd, swipe_cmd, swipe_duration_cmd, ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME};
 
 use adb_client::{ADBDeviceExt, RebootType};
 use crossbeam_channel::bounded;
@@ -236,9 +236,6 @@ impl ADBExecutor {
     fn translate_cmd(cmd: &ADBCommand, cmds_str: &mut VecDeque<ADBCmdConv>) -> bool {
         match cmd {
             ADBCommand::Reboot => cmds_str.push_back(ADBCmdConv::ADBClientCommand(cmd.clone())),
-            ADBCommand::LaunchPackage(_) => {
-                cmds_str.push_back(ADBCmdConv::ADBShellCommand(cmd.to_string()))
-            }
             ADBCommand::StartActivity(_, _) => {
                 cmds_str.push_back(ADBCmdConv::ADBClientCommand(cmd.clone()))
             }
@@ -316,10 +313,6 @@ impl ADBExecutor {
                     cmd_string.push_str(&stop_app_cmd(pkg_name));
                     cmd_string.push_str(" &&");
                 }
-                ADBCommand::LaunchPackage(pkg_name) => {
-                    cmd_string.push_str(&launch_app_cmd(pkg_name));
-                    cmd_string.push_str(" &&");
-                }
                 ADBCommand::InputText(text) => {
                     cmd_string.push_str(&input_text_cmd(text));
                     cmd_string.push_str(" &&");
@@ -390,7 +383,6 @@ impl ADBExecutor {
                     detail: "Device not connected".to_string(),
                 })
             }
-            ADBCommand::LaunchPackage(package_name) => self.execute_shell(&launch_app_cmd(package_name)).await,
             ADBCommand::Click(point) => {
                 let _ = self.execute_shell(&click_cmd(point)).await;
                 Ok(ADBCommandResult::Success)
