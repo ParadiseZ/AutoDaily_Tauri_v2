@@ -181,7 +181,7 @@
 ### 6.11 叶子步骤表单覆盖目标
 
 - 右侧步骤详情要尽量覆盖常用叶子结构，不要让用户频繁退回 JSON
-- 第一优先级包括：`sequence.reverse`、`continue / break`、`taskControl`、`visionSearch.rule`、`setVar / getVar` 的补充字段、`filter` 的主要字段
+- 第一优先级包括：`continue / break`、`taskControl`、`visionSearch.rule`、`setVar / getVar` 的补充字段、`filter` 的主要字段
 - `setVar / getVar / varCompare` 里的值编辑必须显式选择 `Int / Float / Bool / String`
 - `if / while / for` 里的 `varCompare.var_name` 不能手填，必须从变量目录里选择
 - 不允许只靠当前值内容反推类型，例如 `0` 不能自动把用户刚选的 `Float` 又退回成 `Int`

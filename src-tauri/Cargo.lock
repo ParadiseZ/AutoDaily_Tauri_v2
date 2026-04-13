@@ -905,6 +905,7 @@ name = "child_support"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "image",
  "interprocess",
  "rhai",
  "runtime_common",

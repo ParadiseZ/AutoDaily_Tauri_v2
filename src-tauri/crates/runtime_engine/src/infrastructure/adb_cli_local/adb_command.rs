@@ -72,6 +72,10 @@ pub fn stop_app_cmd(package_name: &str) -> String {
     format!("{} {}", STOP_APP, package_name)
 }
 
+pub fn launch_app_cmd(package_name: &str) -> String {
+    format!("monkey -p {} -c android.intent.category.LAUNCHER 1", package_name)
+}
+
 #[derive(Debug, Clone)]
 pub enum ADBCommand {
     Click(Point<u16>),
@@ -80,6 +84,7 @@ pub enum ADBCommand {
     Swipe(Point<u16>, Point<u16>),
     SwipeWithDuration(Point<u16>, Point<u16>, u64),
     Reboot,
+    LaunchPackage(String),
     StartActivity(String, String),
     Capture(crossbeam_channel::Sender<RgbaImage>),
     StopApp(String),
@@ -110,6 +115,7 @@ impl std::fmt::Display for ADBCommand {
             ADBCommand::Swipe(p1, p2) => write!(f, "{}", swipe_cmd(p1, p2)),
             ADBCommand::SwipeWithDuration(p1, p2, duration) => write!(f, "{}", swipe_duration_cmd(p1, p2, duration)),
             ADBCommand::Reboot => write!(f, "reboot:{}", POWER),
+            ADBCommand::LaunchPackage(package_name) => write!(f, "{}", launch_app_cmd(package_name)),
             ADBCommand::StartActivity(package_name, activity_name) => write!(f, "am start -n {}/{}", package_name, activity_name),
             ADBCommand::Capture(_) => write!(f, "capture"),
             ADBCommand::StopApp(package_name) => write!(f, "{} {}", STOP_APP, package_name),

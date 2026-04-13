@@ -107,7 +107,6 @@ pub enum StepKind {
     //Router { to: Option<Uuid> },
     Sequence {
         steps: Vec<Step>,
-        reverse: bool,
     },
 
     Action{

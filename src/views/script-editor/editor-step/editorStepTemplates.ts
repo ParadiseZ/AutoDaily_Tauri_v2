@@ -552,7 +552,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         label: '子序列',
         op: STEP_OP.sequence,
         steps: [],
-        reverse: false,
       }),
   },
 ];

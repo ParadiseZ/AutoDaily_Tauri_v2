@@ -147,12 +147,6 @@
                 @navigate-branch="$emit('navigate-branch', $event)"
               />
 
-              <EditorStepSequencePanel
-                v-else-if="selectedStep.op === STEP_OP.sequence"
-                :reverse="selectedStep.reverse"
-                @update-reverse="updateSequenceReverse"
-              />
-
               <EditorStepTaskControlPanel
                 v-else-if="selectedStep.op === STEP_OP.taskControl && selectedTaskControl"
                 :selected-task-control="selectedTaskControl"
@@ -245,7 +239,6 @@ import EditorStepBreadcrumb from '@/views/script-editor/editor-step/EditorStepBr
 import EditorStepDataPanel from '@/views/script-editor/editor-step/EditorStepDataPanel.vue';
 import EditorStepFlowPanel from '@/views/script-editor/editor-step/EditorStepFlowPanel.vue';
 import EditorStepList from '@/views/script-editor/editor-step/EditorStepList.vue';
-import EditorStepSequencePanel from '@/views/script-editor/editor-step/EditorStepSequencePanel.vue';
 import EditorStepTaskControlPanel from '@/views/script-editor/editor-step/EditorStepTaskControlPanel.vue';
 import EditorStepVisionPanel from '@/views/script-editor/editor-step/EditorStepVisionPanel.vue';
 import { createConditionNode } from '@/views/script-editor/editorCondition';
@@ -970,13 +963,6 @@ const updateFilterMode = (value: string) => {
         type: value as typeof FILTER_MODE_TYPE.filter | typeof FILTER_MODE_TYPE.map,
       },
     };
-  });
-};
-
-const updateSequenceReverse = (value: boolean) => {
-  updateSelectedStep((step) => {
-    if (step.op !== STEP_OP.sequence) return;
-    step.reverse = value;
   });
 };
 

@@ -1,18 +1,23 @@
-use crate::domain::scripts::nodes::action::Action;
+use crate::domain::scripts::nodes::action::{Action, ClickMode, SwipeMode};
 use crate::domain::scripts::nodes::data_handing::{DataHanding, FilterMode, VarValue};
 use crate::domain::scripts::nodes::flow_control::{CompareOp, ConditionNode, FlowControl};
+use crate::domain::scripts::point::{Point, PointF32, PointU16};
 use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
 use crate::domain::scripts::nodes::vision_node::VisionNode;
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit};
+use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
+use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{HashMap, StepId};
+use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::RuntimeProgressPhase;
 use crate::infrastructure::ipc::runtime_reporter::emit_progress_event;
-use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
+use chrono::Utc;
 use rhai::{Array, Dynamic, Engine, FLOAT, INT, Map, Scope};
 use std::future::Future;
+use std::path::PathBuf;
 use std::pin::Pin;
 use tokio::time::Duration;
 
@@ -143,7 +148,7 @@ impl ScriptExecutor {
 
     async fn execute_step_inner(&mut self, step: &Step) -> ExecuteResult<ControlFlow> {
         match &step.kind {
-            StepKind::Sequence { steps, reverse } => self.execute_sequence(steps, *reverse).await,
+            StepKind::Sequence { steps } => self.execute_sequence(steps).await,
             StepKind::Action {
                 cur_exec_num,
                 max_exec_num,
@@ -160,18 +165,8 @@ impl ScriptExecutor {
         }
     }
 
-    async fn execute_sequence(
-        &mut self,
-        steps: &[Step],
-        reverse: bool,
-    ) -> ExecuteResult<ControlFlow> {
-        let iter: Box<dyn Iterator<Item = &Step>> = if reverse {
-            Box::new(steps.iter().rev())
-        } else {
-            Box::new(steps.iter())
-        };
-
-        for step in iter {
+    async fn execute_sequence(&mut self, steps: &[Step]) -> ExecuteResult<ControlFlow> {
+        for step in steps {
             let flow = self.execute_step(step).await?;
             if !matches!(flow, ControlFlow::Next) {
                 return Ok(flow);
@@ -208,26 +203,176 @@ impl ScriptExecutor {
     async fn dispatch_action(&mut self, action: &Action) -> ExecuteResult<ControlFlow> {
         match action {
             Action::Capture { output_var } => {
-                Log::warn("[ executor ] Capture 尚未接入设备截图适配器，当前写入占位输出");
+                let image = get_device_ctx().get_screenshot().await.ok_or_else(|| {
+                    Self::execute_error("action.capture", "获取设备截图失败".to_string())
+                })?;
+                let screen_size = (image.width(), image.height());
+                let capture_path = self.persist_capture_image(image).await?;
                 self.set_runtime_var(
                     output_var,
-                    Dynamic::from("runtime://capture/unavailable".to_string()),
+                    Dynamic::from(capture_path.to_string_lossy().to_string()),
                 )
                 .await?;
                 let mut ctx = self.runtime_ctx.write().await;
+                ctx.observation.screen_size = screen_size;
                 ctx.observation.last_snapshot = None;
                 ctx.observation.last_hits.clear();
                 Ok(ControlFlow::Next)
             }
-            Action::Click { .. }
-            | Action::Swipe { .. }
-            | Action::Reboot
-            | Action::LaunchApp { .. }
-            | Action::StopApp { .. } => {
-                Log::warn("[ executor ] 设备动作适配器尚未接入，当前仅走执行骨架，不执行真实设备操作");
+            Action::Click { mode } => self.execute_click(mode).await,
+            Action::Swipe { duration, mode } => self.execute_swipe(mode, *duration).await,
+            Action::Reboot => {
+                get_adb_ctx().send_adb_cmd(&ADBCommand::Reboot);
+                Ok(ControlFlow::Next)
+            }
+            Action::LaunchApp { pkg_name } => {
+                get_adb_ctx().send_adb_cmd(&ADBCommand::LaunchPackage(pkg_name.clone()));
+                Ok(ControlFlow::Next)
+            }
+            Action::StopApp { pkg_name } => {
+                get_adb_ctx().send_adb_cmd(&ADBCommand::StopApp(pkg_name.clone()));
                 Ok(ControlFlow::Next)
             }
         }
+    }
+
+    async fn persist_capture_image(&self, image: image::RgbaImage) -> ExecuteResult<PathBuf> {
+        let output_path = self.build_capture_output_path().await;
+        let save_path = output_path.clone();
+        tokio::task::spawn_blocking(move || -> Result<PathBuf, String> {
+            if let Some(parent) = save_path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|error| format!("创建截图目录失败: {}", error))?;
+            }
+            image
+                .save(&save_path)
+                .map_err(|error| format!("保存截图失败: {}", error))?;
+            Ok(save_path)
+        })
+        .await
+        .map_err(|error| {
+            Self::execute_error("action.capture", format!("保存截图任务失败: {}", error))
+        })?
+        .map_err(|error| Self::execute_error("action.capture", error))
+    }
+
+    async fn build_capture_output_path(&self) -> PathBuf {
+        let (script_id, execution_id, step_id) = {
+            let ctx = self.runtime_ctx.read().await;
+            (
+                ctx.execution.script_id.to_string(),
+                ctx.execution
+                    .current_execution_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "no-execution".to_string()),
+                ctx.execution
+                    .current_step_id
+                    .map(|id| id.to_string())
+                    .unwrap_or_else(|| "no-step".to_string()),
+            )
+        };
+        let timestamp = Utc::now().format("%Y%m%dT%H%M%S%.3fZ");
+        std::env::temp_dir()
+            .join("autodaily-captures")
+            .join(script_id)
+            .join(execution_id)
+            .join(format!("{}_{}.png", step_id, timestamp))
+    }
+
+    async fn execute_click(&mut self, mode: &ClickMode) -> ExecuteResult<ControlFlow> {
+        let point = match mode {
+            ClickMode::Point { p } => Self::to_device_point(p),
+            ClickMode::Percent { p } => {
+                let screen_size = self.ensure_screen_size().await?;
+                Self::percent_to_device_point(p, screen_size)?
+            }
+            ClickMode::Txt { txt } => {
+                return Err(Self::execute_error(
+                    "action.click",
+                    format!("文字点击尚未接入执行器动作适配: {}", txt.clone().unwrap_or_default()),
+                ));
+            }
+            ClickMode::LabelIdx { idx } => {
+                return Err(Self::execute_error(
+                    "action.click",
+                    format!("标签点击尚未接入执行器动作适配: {:?}", idx),
+                ));
+            }
+        };
+        get_adb_ctx().send_adb_cmd(&ADBCommand::Click(point));
+        Ok(ControlFlow::Next)
+    }
+
+    async fn execute_swipe(
+        &mut self,
+        mode: &SwipeMode,
+        duration: u64,
+    ) -> ExecuteResult<ControlFlow> {
+        let (from, to) = match mode {
+            SwipeMode::Point { from, to } => {
+                (Self::to_device_point(from), Self::to_device_point(to))
+            }
+            SwipeMode::Percent { from, to } => {
+                let screen_size = self.ensure_screen_size().await?;
+                (
+                    Self::percent_to_device_point(from, screen_size)?,
+                    Self::percent_to_device_point(to, screen_size)?,
+                )
+            }
+            SwipeMode::Txt { from, to } => {
+                return Err(Self::execute_error(
+                    "action.swipe",
+                    format!("文字滑动尚未接入执行器动作适配: {:?} -> {:?}", from, to),
+                ));
+            }
+            SwipeMode::LabelIdx { from, to } => {
+                return Err(Self::execute_error(
+                    "action.swipe",
+                    format!("标签滑动尚未接入执行器动作适配: {} -> {}", from, to),
+                ));
+            }
+        };
+        get_adb_ctx().send_adb_cmd(&ADBCommand::SwipeWithDuration(from, to, duration));
+        Ok(ControlFlow::Next)
+    }
+
+    async fn ensure_screen_size(&self) -> ExecuteResult<(u32, u32)> {
+        let cached = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.observation.screen_size
+        };
+        if cached.0 > 0 && cached.1 > 0 {
+            return Ok(cached);
+        }
+        let image = get_device_ctx().get_screenshot().await.ok_or_else(|| {
+            Self::execute_error("action.screenSize", "获取屏幕尺寸失败".to_string())
+        })?;
+        let screen_size = (image.width(), image.height());
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.observation.screen_size = screen_size;
+        Ok(screen_size)
+    }
+
+    fn to_device_point(point: &PointU16) -> Point<u16> {
+        Point::new(point.x, point.y)
+    }
+
+    fn percent_to_device_point(
+        point: &PointF32,
+        screen_size: (u32, u32),
+    ) -> ExecuteResult<Point<u16>> {
+        let (width, height) = screen_size;
+        if width == 0 || height == 0 {
+            return Err(Self::execute_error(
+                "action.percentPoint",
+                "屏幕尺寸无效，无法换算百分比坐标".to_string(),
+            ));
+        }
+        let max_x = width.saturating_sub(1) as f32;
+        let max_y = height.saturating_sub(1) as f32;
+        let x = (point.x.clamp(0.0, 1.0) * max_x).round() as u16;
+        let y = (point.y.clamp(0.0, 1.0) * max_y).round() as u16;
+        Ok(Point::new(x, y))
     }
 
     async fn execute_flow_control_step(
@@ -397,7 +542,7 @@ impl ScriptExecutor {
                 self.set_state_value(target, status).await?;
                 Ok(ControlFlow::Next)
             }
-            TaskControl::GetState { target, status } => Err(Self::execute_error(
+            TaskControl::GetState { target, status: _ } => Err(Self::execute_error(
                 "taskControl.getState",
                 format!(
                     "读取状态步骤[target={}]尚未定义输出语义，请改用条件节点 TaskStatus",
@@ -446,68 +591,73 @@ impl ScriptExecutor {
         }
     }
 
-    async fn evaluate_condition(&mut self, condition: &ConditionNode) -> ExecuteResult<bool> {
-        match condition {
-            ConditionNode::RawExpr { expr } => self.eval_bool(expr, "condition.rawExpr"),
-            ConditionNode::Group { op, items } => match op {
-                crate::domain::vision::ocr_search::LogicOp::And => {
-                    for item in items {
-                        if !self.evaluate_condition(item).await? {
-                            return Ok(false);
+    fn evaluate_condition<'a>(
+        &'a mut self,
+        condition: &'a ConditionNode,
+    ) -> Pin<Box<dyn Future<Output = ExecuteResult<bool>> + 'a>> {
+        Box::pin(async move {
+            match condition {
+                ConditionNode::RawExpr { expr } => self.eval_bool(expr, "condition.rawExpr"),
+                ConditionNode::Group { op, items } => match op {
+                    crate::domain::vision::ocr_search::LogicOp::And => {
+                        for item in items {
+                            if !self.evaluate_condition(item).await? {
+                                return Ok(false);
+                            }
                         }
-                    }
-                    Ok(true)
-                }
-                crate::domain::vision::ocr_search::LogicOp::Or => {
-                    for item in items {
-                        if self.evaluate_condition(item).await? {
-                            return Ok(true);
-                        }
-                    }
-                    Ok(false)
-                }
-                crate::domain::vision::ocr_search::LogicOp::Not => {
-                    if let Some(first) = items.first() {
-                        Ok(!self.evaluate_condition(first).await?)
-                    } else {
                         Ok(true)
                     }
+                    crate::domain::vision::ocr_search::LogicOp::Or => {
+                        for item in items {
+                            if self.evaluate_condition(item).await? {
+                                return Ok(true);
+                            }
+                        }
+                        Ok(false)
+                    }
+                    crate::domain::vision::ocr_search::LogicOp::Not => {
+                        if let Some(first) = items.first() {
+                            Ok(!self.evaluate_condition(first).await?)
+                        } else {
+                            Ok(true)
+                        }
+                    }
+                },
+                ConditionNode::VarCompare {
+                    var_name,
+                    op,
+                    value,
+                } => {
+                    let Some(lhs) = self.read_runtime_var(var_name).await else {
+                        return Ok(false);
+                    };
+                    let rhs = Self::var_value_to_dynamic(value);
+                    Ok(Self::compare_dynamic(&lhs, op, &rhs))
                 }
-            },
-            ConditionNode::VarCompare {
-                var_name,
-                op,
-                value,
-            } => {
-                let Some(lhs) = self.read_runtime_var(var_name).await else {
-                    return Ok(false);
-                };
-                let rhs = Self::var_value_to_dynamic(value);
-                Ok(Self::compare_dynamic(&lhs, op, &rhs))
+                ConditionNode::TaskStatus { a } => self.match_state_status(a).await,
+                ConditionNode::PolicyCondition { rule, .. } => {
+                    let ctx = self.runtime_ctx.read().await;
+                    Ok(ctx
+                        .observation
+                        .last_snapshot
+                        .as_ref()
+                        .map(|snapshot| rule.evaluate(snapshot))
+                        .unwrap_or(false))
+                }
+                ConditionNode::ExecNumCompare { .. } => Err(Self::execute_error(
+                    "condition.execNumCompare",
+                    "执行次数条件尚未定义比较阈值，当前不执行隐式推断".to_string(),
+                )),
+                ConditionNode::ColorCompare { .. } => Err(Self::execute_error(
+                    "condition.colorCompare",
+                    "颜色比较尚未接入视觉颜色分析".to_string(),
+                )),
+                ConditionNode::PolicySetResult { .. } => Err(Self::execute_error(
+                    "condition.policySetResult",
+                    "策略结果条件尚未接入执行器".to_string(),
+                )),
             }
-            ConditionNode::TaskStatus { a } => self.match_state_status(a).await,
-            ConditionNode::PolicyCondition { rule, .. } => {
-                let ctx = self.runtime_ctx.read().await;
-                Ok(ctx
-                    .observation
-                    .last_snapshot
-                    .as_ref()
-                    .map(|snapshot| rule.evaluate(snapshot))
-                    .unwrap_or(false))
-            }
-            ConditionNode::ExecNumCompare { .. } => Err(Self::execute_error(
-                "condition.execNumCompare",
-                "执行次数条件尚未定义比较阈值，当前不执行隐式推断".to_string(),
-            )),
-            ConditionNode::ColorCompare { .. } => Err(Self::execute_error(
-                "condition.colorCompare",
-                "颜色比较尚未接入视觉颜色分析".to_string(),
-            )),
-            ConditionNode::PolicySetResult { .. } => Err(Self::execute_error(
-                "condition.policySetResult",
-                "策略结果条件尚未接入执行器".to_string(),
-            )),
-        }
+        })
     }
 
     async fn set_state_value(
@@ -543,8 +693,10 @@ impl ScriptExecutor {
     }
 
     async fn match_state_status(&mut self, task_control: &TaskControl) -> ExecuteResult<bool> {
-        let TaskControl::GetState { target, status } | TaskControl::SetState { target, status } =
-            task_control;
+        let (target, status) = match task_control {
+            TaskControl::GetState { target, status }
+            | TaskControl::SetState { target, status } => (target, status),
+        };
 
         let ctx = self.runtime_ctx.read().await;
         match target {
