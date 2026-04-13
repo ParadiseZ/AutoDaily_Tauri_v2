@@ -7,7 +7,7 @@ use crate::constant::table_name::{
 use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use crate::domain::devices::device_conf::{
-    DeviceTable, TimeoutAction as DeviceTimeoutAction,
+    DevicePlatform, DeviceTable, TimeoutAction as DeviceTimeoutAction,
     TimeoutNotifyChannel as DeviceTimeoutNotifyChannel,
 };
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
@@ -48,6 +48,22 @@ struct LoadedScriptBundle {
     policy_group_ids: HashSet<crate::infrastructure::core::PolicyGroupId>,
     policy_set_ids: HashSet<crate::infrastructure::core::PolicySetId>,
     snapshot: ScriptBundleSnapshot,
+}
+
+async fn load_device_table(device_id: DeviceId) -> Result<DeviceTable, String> {
+    DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
+        .await?
+        .ok_or_else(|| format!("设备[{}]不存在", device_id))
+}
+
+fn validate_runtime_platform_supported(device_table: &DeviceTable) -> Result<(), String> {
+    match device_table.data.0.platform {
+        DevicePlatform::Android => Ok(()),
+        DevicePlatform::Desktop => Err(format!(
+            "设备[{}]当前为 desktop 平台，但本版本尚未实现 Desktop 运行时适配器",
+            device_table.data.0.device_name
+        )),
+    }
 }
 
 fn load_vision_text_cache_runtime_config(
@@ -546,9 +562,8 @@ async fn build_runtime_session_snapshot(
     device_id: DeviceId,
     run_target: RunTarget,
 ) -> Result<(RuntimeSessionSnapshot, Option<ResumeCheckpoint>), String> {
-    let device_table: DeviceTable = DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
-        .await?
-        .ok_or_else(|| format!("设备[{}]不存在", device_id))?;
+    let device_table = load_device_table(device_id).await?;
+    validate_runtime_platform_supported(&device_table)?;
     let queue = match &run_target {
         RunTarget::DeviceQueue => load_runtime_queue(device_id).await?,
         target => target
@@ -707,9 +722,8 @@ async fn build_child_init_data(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<ChildProcessInitData, String> {
-    let device_table: DeviceTable = DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
-        .await?
-        .ok_or_else(|| format!("设备[{}]不存在", device_id))?;
+    let device_table = load_device_table(device_id).await?;
+    validate_runtime_platform_supported(&device_table)?;
 
     let device_config = device_table.data.0;
 
@@ -739,6 +753,8 @@ async fn ensure_device_online(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<(), String> {
+    let device_table = load_device_table(device_id).await?;
+    validate_runtime_platform_supported(&device_table)?;
     let manager = get_process_manager()
         .ok_or_else(|| "进程管理器未初始化".to_string())?;
 

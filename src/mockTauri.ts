@@ -308,6 +308,17 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     }
   };
 
+  const validateRuntimePlatformSupported = (state: MockState, deviceId: string) => {
+    const device = findDevice(state, deviceId);
+    if (!device) {
+      return;
+    }
+
+    if (normalizePlatform(device.data.platform) === 'desktop') {
+      throw new Error(`设备[${device.data.deviceName}]当前为 desktop 平台，但本版本尚未实现 Desktop 运行时适配器`);
+    }
+  };
+
   const normalizePlatform = (value: unknown) => (value === 'desktop' ? 'desktop' : 'android');
 
   const validateAssignmentPlatform = (state: MockState, deviceId: string, scriptId: string) => {
@@ -413,6 +424,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         case 'cmd_is_device_running':
           return readState().runningDeviceIds.includes(String(args.deviceId));
         case 'cmd_spawn_device':
+          validateRuntimePlatformSupported(readState(), String(args.deviceId));
           updateState((current) => ({
             ...current,
             runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
@@ -427,6 +439,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }));
           return `设备[${String(args.deviceId)}]子进程已关闭`;
         case 'cmd_restart_device_runtime':
+          validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateRecoveryPolicyForRun(readState(), String(args.deviceId));
           updateState((current) => ({
             ...current,
@@ -436,6 +449,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }));
           return `设备[${String(args.deviceId)}]子进程已按 checkpoint 流程重启并重新装填 session`;
         case 'cmd_device_start':
+          validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateRecoveryPolicyForRun(readState(), String(args.deviceId));
           return `已向设备[${String(args.deviceId)}]发送启动命令`;
         case 'cmd_device_pause':
@@ -443,9 +457,11 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         case 'cmd_device_stop':
           return `已向设备[${String(args.deviceId)}]发送停止命令`;
         case 'cmd_sync_device_runtime_session':
+          validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateRecoveryPolicyForRun(readState(), String(args.deviceId));
           return `已同步设备[${String(args.deviceId)}]运行会话`;
         case 'cmd_run_script_target':
+          validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateRecoveryPolicyForRun(readState(), String(args.deviceId), args.target);
           if (args.target && typeof args.target === 'object') {
             const target = args.target as { type?: unknown };

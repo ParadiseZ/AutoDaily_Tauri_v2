@@ -58,6 +58,7 @@
               class="app-button app-button-ghost group"
               type="button"
               data-testid="editor-run"
+              :title="runSelectionDisabledReason || undefined"
               :disabled="!canRunSelection"
               @click="handleRunSelection"
             >
@@ -510,7 +511,7 @@ import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
 import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
-import { validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
+import { validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import EditorJsonDialog from '@/views/script-editor/EditorJsonDialog.vue';
 import EditorConsolePanel from '@/views/script-editor/EditorConsolePanel.vue';
@@ -707,6 +708,9 @@ const currentPolicySet = computed<PolicySetTable | null>(() => {
 
 const editingDevice = computed(() => deviceStore.devices.find((device) => device.id === editingDeviceId.value) ?? null);
 const selectedPreviewDevice = computed(() => deviceStore.devices.find((device) => device.id === selectedPreviewDeviceId.value) ?? null);
+const selectedPreviewDeviceRuntimeError = computed(() =>
+  selectedPreviewDevice.value ? validateDeviceRuntimePlatform(selectedPreviewDevice.value) : null,
+);
 const deviceSelectOptions = computed(() =>
   deviceStore.devices.map((device) => ({
     label: device.data.deviceName,
@@ -818,7 +822,15 @@ const activeTargetValue = computed<string | null>({
   },
 });
 
-const canRunSelection = computed(() => Boolean(selectedPreviewDeviceId.value && activeTargetValue.value));
+const runSelectionDisabledReason = computed(() => {
+  if (!selectedPreviewDeviceId.value || !activeTargetValue.value) {
+    return '请先选择设备和目标对象。';
+  }
+
+  return selectedPreviewDeviceRuntimeError.value;
+});
+
+const canRunSelection = computed(() => !runSelectionDisabledReason.value);
 
 
 const variableOptions = computed(() =>
@@ -2100,6 +2112,12 @@ const buildActiveRunTarget = (): RunTarget | null => {
 const handleRunSelection = async () => {
   if (!selectedPreviewDevice.value || !selectedPreviewDeviceId.value || !activeTargetValue.value) {
     showToast('请先选择设备和目标对象。', 'warning');
+    return;
+  }
+
+  if (selectedPreviewDeviceRuntimeError.value) {
+    appendConsoleLine(`运行前校验失败：${selectedPreviewDeviceRuntimeError.value}`);
+    showToast(selectedPreviewDeviceRuntimeError.value, 'warning');
     return;
   }
 

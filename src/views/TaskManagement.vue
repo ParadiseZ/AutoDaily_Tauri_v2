@@ -111,7 +111,7 @@ import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { showToast } from '@/utils/toast';
-import { validateDeviceQueueRecoveryForDevice } from '@/utils/runtimePolicy';
+import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform } from '@/utils/runtimePolicy';
 import type { AssignmentRecord } from '@/types/app/domain';
 
 const deviceStore = useDeviceStore();
@@ -171,6 +171,11 @@ const validateDeviceQueueStart = (deviceId: string) => {
   const device = deviceStore.devices.find((item) => item.id === deviceId);
   if (!device) {
     return '目标设备不存在。';
+  }
+
+  const platformError = validateDeviceRuntimePlatform(device);
+  if (platformError) {
+    return platformError;
   }
 
   return validateDeviceQueueRecoveryForDevice(
