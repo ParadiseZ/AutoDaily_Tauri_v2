@@ -1,9 +1,11 @@
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
+import type { DevicePlatform } from '@/types/bindings/DevicePlatform';
 import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { RuntimeType } from '@/types/bindings/RuntimeType';
 import type { ScriptVariableCatalog } from '@/types/bindings/ScriptVariableCatalog';
+import type { ScriptPlatform } from '@/types/bindings/ScriptPlatform';
 import type { ScriptType } from '@/types/bindings/ScriptType';
 import type { TimeoutAction } from '@/types/bindings/TimeoutAction';
 import type { TimeoutNotifyChannel } from '@/types/bindings/TimeoutNotifyChannel';
@@ -91,6 +93,7 @@ export interface ScriptInfoRecord {
     userId: string;
     userName: string | null;
     runtimeType: RuntimeType;
+    platform: ScriptPlatform;
     sponsorshipQr: string | null;
     sponsorshipUrl: string | null;
     contactInfo: string | null;
@@ -283,6 +286,7 @@ export interface UpdateInfo {
 export interface DeviceFormState {
     id: string | null;
     deviceName: string;
+    platform: DevicePlatform;
     exePath: string;
     exeArgs: string;
     cores: number[];

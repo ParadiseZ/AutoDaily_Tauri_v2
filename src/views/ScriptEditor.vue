@@ -2025,6 +2025,7 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
   id: form.id ?? (await taskService.requestUuid()),
   data: {
     deviceName: form.deviceName,
+    platform: form.platform,
     exePath: form.exePath || null,
     exeArgs: form.exeArgs || null,
     cores: form.cores,

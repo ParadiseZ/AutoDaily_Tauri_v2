@@ -19,6 +19,13 @@
 
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
+          <span class="text-sm text-[var(--app-text-soft)]">运行平台</span>
+          <AppSelect v-model="form.platform" :options="platformOptions" />
+        </label>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <label class="grid gap-2">
           <span class="text-sm text-[var(--app-text-soft)]">截图方式</span>
           <AppSelect v-model="form.capMethodType" :options="captureOptions" />
         </label>
@@ -185,6 +192,7 @@ defineEmits<{
 const createEmptyForm = (): DeviceFormState => ({
   id: null,
   deviceName: '',
+  platform: 'android',
   exePath: '',
   exeArgs: '',
   cores: [],
@@ -225,6 +233,11 @@ const connectOptions = [
   { label: 'ADB 服务（按名称）', value: 'serverConnectByName' },
 ];
 
+const platformOptions = [
+  { label: 'Android', value: 'android' },
+  { label: '桌面程序', value: 'desktop' },
+];
+
 const timeoutActionOptions = [
   { label: '只通知', value: 'notifyOnly', description: '只发通知，不改变执行流。' },
   { label: '暂停执行', value: 'pauseExecution', description: '进入暂停态，等待人工介入。' },
@@ -242,6 +255,7 @@ const syncForm = (device: DeviceTable | null) => {
 
   form.id = device.id;
   form.deviceName = device.data.deviceName;
+  form.platform = device.data.platform ?? 'android';
   form.exePath = device.data.exePath ?? '';
   form.exeArgs = device.data.exeArgs ?? '';
   form.cores = [...device.data.cores];

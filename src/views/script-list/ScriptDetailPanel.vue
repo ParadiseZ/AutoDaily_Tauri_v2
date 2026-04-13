@@ -48,6 +48,10 @@
             <p class="app-stat-value text-base">{{ formatRuntimeLabel(script.data.runtimeType) }}</p>
           </div>
           <div class="app-stat">
+            <p class="app-stat-label">脚本平台</p>
+            <p class="app-stat-value text-base">{{ formatPlatformLabel(script.data.platform) }}</p>
+          </div>
+          <div class="app-stat">
             <p class="app-stat-label">版本</p>
             <p class="app-stat-value text-base">{{ script.data.verName }}</p>
           </div>
@@ -102,7 +106,7 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import type { ScriptTableRecord } from '@/types/app/domain';
-import { formatDate, formatNumberLike, formatRuntimeLabel, formatScriptType } from '@/utils/presenters';
+import { formatDate, formatNumberLike, formatPlatformLabel, formatRuntimeLabel, formatScriptType } from '@/utils/presenters';
 
 defineProps<{
   script: ScriptTableRecord | null;

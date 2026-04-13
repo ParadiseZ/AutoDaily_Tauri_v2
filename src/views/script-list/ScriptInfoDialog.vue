@@ -64,6 +64,11 @@
                 </label>
               </div>
 
+              <label class="dialog-form-row">
+                <span class="dialog-form-label">脚本平台</span>
+                <AppSelect v-model="scriptPlatformValue" :options="platformOptions" test-id="script-basic-platform" />
+              </label>
+
               <div class="dialog-form-grid">
                 <label class="dialog-form-row">
                   <span class="dialog-form-label">版本名称</span>
@@ -532,6 +537,11 @@ const runtimeOptions = [
   { label: 'AI', value: 'aI', description: '适合纯 AI 处理流程。' },
 ];
 
+const platformOptions = [
+  { label: 'Android', value: 'android', description: '当前 ADB / start_activity / 截图链路默认支持的平台。' },
+  { label: '桌面程序', value: 'desktop', description: '用于桌面端脚本归类与分配约束，执行适配器后续再接。' },
+];
+
 const detectorOptions = [
   { label: '不设置', value: 'none', description: '当前字段留空，不启用该类模型。' },
   { label: 'YOLO11', value: 'Yolo11', description: '通用目标检测方案。' },
@@ -716,6 +726,15 @@ const pkgNameValue = computed({
   },
 });
 
+const scriptPlatformValue = computed({
+  get: () => form.value?.data.platform || 'android',
+  set: (value: string) => {
+    if (form.value) {
+      form.value.data.platform = value as ScriptTableRecord['data']['platform'];
+    }
+  },
+});
+
 const contactInfoValue = computed({
   get: () => form.value?.data.contactInfo || '',
   set: (value: string) => {
@@ -796,6 +815,7 @@ function cloneScriptRecord(script: unknown): ScriptTableRecord {
 }
 
 function ensureRuntimeSettings(script: ScriptTableRecord) {
+  script.data.platform = script.data.platform || 'android';
   script.data.runtimeSettings = {
     recoveryTaskId: script.data.runtimeSettings?.recoveryTaskId || null,
   };

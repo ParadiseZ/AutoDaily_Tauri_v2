@@ -70,6 +70,14 @@ export const formatRuntimeLabel = (runtimeType?: string | null) => {
     }
 };
 
+export const formatPlatformLabel = (platform?: string | null) => {
+    if (platform === 'desktop') {
+        return '桌面程序';
+    }
+
+    return 'Android';
+};
+
 export const formatScriptType = (script: ScriptTableRecord) =>
     script.data.scriptType === 'published' ? '云端版本' : '本地开发';
 

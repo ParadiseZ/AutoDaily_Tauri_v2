@@ -4,17 +4,60 @@ use crate::api::infrastructure::runtime_sync::{
     sync_device_sessions_if_online,
 };
 use crate::constant::table_name::{
-    ASSIGNMENT_TABLE, RECOVERY_CHECKPOINT_TABLE, SCHEDULE_TABLE,
+    ASSIGNMENT_TABLE, DEVICE_TABLE, RECOVERY_CHECKPOINT_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
     SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
 };
+use crate::domain::devices::device_conf::{DevicePlatform, DeviceTable};
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
+use crate::domain::scripts::script_info::{ScriptPlatform, ScriptTable};
 use crate::domain::schedule::recovery_checkpoint::RecoveryCheckpointRow;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::schedule::time_template::TimeTemplate;
 use crate::infrastructure::core::{AccountId, DeviceId, ScheduleId, ScriptId, TemplateId};
-use crate::infrastructure::db::get_pool;
+use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::ipc::message::ResumeCheckpoint;
 use tauri::command;
+
+fn device_platform_label(platform: &DevicePlatform) -> &'static str {
+    match platform {
+        DevicePlatform::Android => "android",
+        DevicePlatform::Desktop => "desktop",
+    }
+}
+
+fn script_platform_label(platform: &ScriptPlatform) -> &'static str {
+    match platform {
+        ScriptPlatform::Android => "android",
+        ScriptPlatform::Desktop => "desktop",
+    }
+}
+
+fn platform_matches(device_platform: &DevicePlatform, script_platform: &ScriptPlatform) -> bool {
+    matches!(
+        (device_platform, script_platform),
+        (DevicePlatform::Android, ScriptPlatform::Android)
+            | (DevicePlatform::Desktop, ScriptPlatform::Desktop)
+    )
+}
+
+async fn validate_assignment_platform(device_id: DeviceId, script_id: ScriptId) -> Result<(), String> {
+    let device = DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string())
+        .await?
+        .ok_or_else(|| format!("设备不存在: {}", device_id.to_string()))?;
+    let script = DbRepo::get_by_id::<ScriptTable>(SCRIPT_TABLE, &script_id.to_string())
+        .await?
+        .ok_or_else(|| format!("脚本不存在: {}", script_id.to_string()))?;
+
+    if platform_matches(&device.data.0.platform, &script.data.0.platform) {
+        return Ok(());
+    }
+
+    Err(format!(
+        "脚本平台不匹配，设备平台={}, 脚本平台={}",
+        device_platform_label(&device.data.0.platform),
+        script_platform_label(&script.data.0.platform),
+    ))
+}
 
 // ========== 脚本分配（队列定义）==========
 
@@ -39,6 +82,7 @@ pub async fn save_assignment_cmd(
     app_handle: tauri::AppHandle,
     assignment: DeviceScriptAssignment,
 ) -> Result<(), String> {
+    validate_assignment_platform(assignment.device_id, assignment.script_id).await?;
     let pool = get_pool();
     sqlx::query(&format!(
         "INSERT INTO {} (id, device_id, script_id, time_template_id, account_data, `index`) VALUES (?, ?, ?, ?, ?, ?)

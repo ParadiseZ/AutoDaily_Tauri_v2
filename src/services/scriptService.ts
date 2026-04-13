@@ -71,6 +71,7 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
         data: {
             ...raw.data,
             scriptType: raw.data.scriptType ?? 'dev',
+            platform: raw.data.platform ?? 'android',
             variableCatalog: raw.data.variableCatalog ?? createEmptyVariableCatalog(),
             runtimeSettings: raw.data.runtimeSettings ?? { recoveryTaskId: null },
             verNum: toSafeNumber(raw.data.verNum, 1),
@@ -92,6 +93,7 @@ export const createBlankScript = (
         userId: author.userId,
         userName: author.userName,
         runtimeType: 'rhai',
+        platform: 'android',
         sponsorshipQr: null,
         sponsorshipUrl: null,
         contactInfo: null,

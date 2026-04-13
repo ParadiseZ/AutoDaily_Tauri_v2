@@ -31,6 +31,8 @@ impl Default for DeviceTable {
 pub struct DeviceConfig {
     // 设备名称
     pub device_name: String,
+    #[serde(default)]
+    pub platform: DevicePlatform,
 
     // 执行路径
     pub exe_path: Option<String>,
@@ -96,10 +98,19 @@ pub enum  CapMethod {
     Adb
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum DevicePlatform {
+    Android,
+    Desktop,
+}
+
 impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
             device_name: "MuMu模拟器12".into(),
+            platform: DevicePlatform::default(),
             exe_path: None,
             exe_args: None,
             cores: vec![0,1],
@@ -112,6 +123,12 @@ impl Default for DeviceConfig {
             auto_start: false,
             execution_policy: DeviceExecutionPolicy::default(),
         }
+    }
+}
+
+impl Default for DevicePlatform {
+    fn default() -> Self {
+        Self::Android
     }
 }
 

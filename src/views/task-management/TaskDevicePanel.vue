@@ -7,6 +7,8 @@
           <StatusBadge :label="formatStatusLabel(status)" :tone="formatStatusTone(status.kind)" />
         </div>
         <div class="flex flex-wrap gap-2 text-sm text-[var(--app-text-soft)]">
+          <span>{{ formatPlatformLabel(device.data.platform) }}</span>
+          <span>·</span>
           <span>{{ formatConnectLabel(device.data.adbConnect) }}</span>
           <span>·</span>
           <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
@@ -57,6 +59,9 @@
             追加
           </button>
         </div>
+        <p v-if="!scriptOptions.length" class="text-xs text-[var(--app-text-faint)]">
+          当前没有与设备平台匹配的脚本。设备平台为 {{ formatPlatformLabel(device.data.platform) }}。
+        </p>
 
         <div v-if="loadingAssignments" class="py-10 text-sm text-[var(--app-text-soft)]">正在读取队列...</div>
         <div v-else-if="assignments.length === 0" class="rounded-[20px] border border-dashed border-[var(--app-border)] p-6 text-sm text-[var(--app-text-soft)]">
@@ -137,6 +142,7 @@ import {
   formatCaptureMethod,
   formatConnectLabel,
   formatDateTime,
+  formatPlatformLabel,
   formatStatusLabel,
   formatStatusTone,
   formatTemplateWindow,
@@ -167,12 +173,16 @@ const emit = defineEmits<{
 const selectedScriptId = ref('');
 const selectedTemplateId = ref('');
 
+const devicePlatform = computed(() => props.device.data.platform ?? 'android');
+
 const scriptOptions = computed(() =>
-  props.scripts.map((script) => ({
-    label: script.data.name,
-    value: script.id,
-    description: script.data.description || undefined,
-  })),
+  props.scripts
+    .filter((script) => (script.data.platform ?? 'android') === devicePlatform.value)
+    .map((script) => ({
+      label: script.data.name,
+      value: script.id,
+      description: script.data.description || formatPlatformLabel(script.data.platform),
+    })),
 );
 
 const templateOptions = computed(() => [

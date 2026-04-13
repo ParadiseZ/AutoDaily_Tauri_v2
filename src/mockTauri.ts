@@ -308,6 +308,26 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     }
   };
 
+  const normalizePlatform = (value: unknown) => (value === 'desktop' ? 'desktop' : 'android');
+
+  const validateAssignmentPlatform = (state: MockState, deviceId: string, scriptId: string) => {
+    const device = findDevice(state, deviceId);
+    if (!device) {
+      throw new Error(`设备不存在: ${deviceId}`);
+    }
+
+    const script = findScript(state, scriptId);
+    if (!script) {
+      throw new Error(`脚本不存在: ${scriptId}`);
+    }
+
+    const devicePlatform = normalizePlatform(device.data.platform);
+    const scriptPlatform = normalizePlatform(script.data.platform);
+    if (devicePlatform !== scriptPlatform) {
+      throw new Error(`脚本平台不匹配，设备平台=${devicePlatform}，脚本平台=${scriptPlatform}`);
+    }
+  };
+
   mockWindows('main');
   mockConvertFileSrc('windows');
   mockIPC(
@@ -450,6 +470,73 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           const state = readState();
           return state.assignmentsByDevice[String(args.deviceId)] ?? [];
         }
+        case 'save_assignment_cmd':
+          updateState((current) => {
+            const assignment = args.assignment as {
+              id: string;
+              deviceId: string;
+              scriptId: string;
+              index: number;
+            };
+            validateAssignmentPlatform(current, assignment.deviceId, assignment.scriptId);
+            const deviceId = String(assignment.deviceId);
+            const currentAssignments = [...(current.assignmentsByDevice[deviceId] ?? [])];
+            const nextAssignments = [
+              ...currentAssignments.filter((item) => (item as { id?: unknown }).id !== assignment.id),
+              assignment,
+            ].sort(
+              (left, right) =>
+                Number((left as { index?: number }).index ?? 0) - Number((right as { index?: number }).index ?? 0),
+            );
+            return {
+              ...current,
+              assignmentsByDevice: {
+                ...current.assignmentsByDevice,
+                [deviceId]: nextAssignments,
+              },
+            };
+          });
+          return null;
+        case 'delete_assignment_cmd':
+          updateState((current) => ({
+            ...current,
+            assignmentsByDevice: Object.fromEntries(
+              Object.entries(current.assignmentsByDevice).map(([deviceId, assignments]) => [
+                deviceId,
+                assignments.filter((assignment) => (assignment as { id?: unknown }).id !== args.assignmentId),
+              ]),
+            ),
+          }));
+          return null;
+        case 'reorder_assignments_cmd':
+          updateState((current) => {
+            const deviceId = String(args.deviceId);
+            const assignmentIds = Array.isArray(args.assignmentIds) ? (args.assignmentIds as string[]) : [];
+            const currentAssignments = [...(current.assignmentsByDevice[deviceId] ?? [])];
+            const assignmentMap = new Map(
+              currentAssignments.map((assignment) => [String((assignment as { id?: unknown }).id ?? ''), assignment]),
+            );
+            const reordered = assignmentIds
+              .map((id, index) => {
+                const assignment = assignmentMap.get(id);
+                if (!assignment) {
+                  return null;
+                }
+                return {
+                  ...assignment,
+                  index,
+                };
+              })
+              .filter(Boolean);
+            return {
+              ...current,
+              assignmentsByDevice: {
+                ...current.assignmentsByDevice,
+                [deviceId]: reordered,
+              },
+            };
+          });
+          return null;
         case 'get_schedules_by_device_cmd': {
           const state = readState();
           return state.schedulesByDevice[String(args.deviceId)] ?? [];

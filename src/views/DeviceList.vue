@@ -16,6 +16,7 @@
         <thead>
           <tr>
             <th>设备</th>
+            <th>平台</th>
             <th>连接方式</th>
             <th>截图方式</th>
             <th>CPU</th>
@@ -31,6 +32,7 @@
                 <p class="text-xs text-[var(--app-text-faint)]">{{ device.id }}</p>
               </div>
             </td>
+            <td>{{ formatPlatformLabel(device.data.platform) }}</td>
             <td>{{ formatConnectLabel(device.data.adbConnect) }}</td>
             <td>{{ formatCaptureMethod(device.data.capMethod) }}</td>
             <td>{{ device.data.cores.length ? device.data.cores.join(', ') : '未绑定' }}</td>
@@ -92,7 +94,7 @@ import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
 import { taskService } from '@/services/taskService';
 import { showToast } from '@/utils/toast';
-import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
+import { formatCaptureMethod, formatConnectLabel, formatPlatformLabel } from '@/utils/presenters';
 import type { DeviceFormState } from '@/types/app/domain';
 import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
@@ -139,6 +141,7 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
   id: form.id ?? (await taskService.requestUuid()),
   data: {
     deviceName: form.deviceName,
+    platform: form.platform,
     exePath: form.exePath || null,
     exeArgs: form.exeArgs || null,
     cores: form.cores,

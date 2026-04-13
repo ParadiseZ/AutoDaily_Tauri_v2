@@ -52,6 +52,14 @@ pub enum RuntimeType {
     AI
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum ScriptPlatform {
+    Android,
+    Desktop,
+}
+
 #[derive(Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -62,6 +70,8 @@ pub struct ScriptInfo {
     pub user_name : Option<String>,
     
     pub runtime_type: RuntimeType,
+    #[serde(default)]
+    pub platform: ScriptPlatform,
 
     pub sponsorship_qr : Option<String>,
     pub sponsorship_url : Option<String>,
@@ -110,6 +120,7 @@ impl Default for ScriptInfo {
             user_id: UserId::new_v7(),
             user_name: None,
             runtime_type: RuntimeType::Rhai,
+            platform: ScriptPlatform::default(),
             sponsorship_qr: None,
             sponsorship_url: None,
             contact_info: None,
@@ -139,5 +150,11 @@ impl Default for ScriptRuntimeSettings {
         Self {
             recovery_task_id: None,
         }
+    }
+}
+
+impl Default for ScriptPlatform {
+    fn default() -> Self {
+        Self::Android
     }
 }
