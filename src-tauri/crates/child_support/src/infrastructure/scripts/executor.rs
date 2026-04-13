@@ -6,8 +6,6 @@ use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, Task
 use crate::domain::scripts::nodes::vision_node::VisionNode;
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit};
-use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
-use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{HashMap, StepId};
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
@@ -217,7 +215,10 @@ impl ScriptExecutor {
             Action::Click { mode } => self.execute_click(mode).await,
             Action::Swipe { duration, mode } => self.execute_swipe(mode, *duration).await,
             Action::Reboot => {
-                get_adb_ctx().send_adb_cmd(&ADBCommand::Reboot);
+                get_device_ctx()
+                    .reboot()
+                    .await
+                    .map_err(|e| Self::execute_error("action.reboot", e))?;
                 Ok(ControlFlow::Next)
             }
             Action::LaunchApp {
@@ -230,14 +231,17 @@ impl ScriptExecutor {
                         "LaunchApp 需要同时提供 pkg_name 和 activity_name".to_string(),
                     ));
                 }
-                get_adb_ctx().send_adb_cmd(&ADBCommand::StartActivity(
-                    pkg_name.clone(),
-                    activity_name.clone(),
-                ));
+                get_device_ctx()
+                    .launch_app(pkg_name, activity_name)
+                    .await
+                    .map_err(|e| Self::execute_error("action.launchApp", e))?;
                 Ok(ControlFlow::Next)
             }
             Action::StopApp { pkg_name } => {
-                get_adb_ctx().send_adb_cmd(&ADBCommand::StopApp(pkg_name.clone()));
+                get_device_ctx()
+                    .stop_app(pkg_name)
+                    .await
+                    .map_err(|e| Self::execute_error("action.stopApp", e))?;
                 Ok(ControlFlow::Next)
             }
         }
@@ -263,7 +267,10 @@ impl ScriptExecutor {
                 ));
             }
         };
-        get_adb_ctx().send_adb_cmd(&ADBCommand::Click(point));
+        get_device_ctx()
+            .click(point)
+            .await
+            .map_err(|e| Self::execute_error("action.click", e))?;
         Ok(ControlFlow::Next)
     }
 
@@ -296,7 +303,10 @@ impl ScriptExecutor {
                 ));
             }
         };
-        get_adb_ctx().send_adb_cmd(&ADBCommand::SwipeWithDuration(from, to, duration));
+        get_device_ctx()
+            .swipe(from, to, duration)
+            .await
+            .map_err(|e| Self::execute_error("action.swipe", e))?;
         Ok(ControlFlow::Next)
     }
 
