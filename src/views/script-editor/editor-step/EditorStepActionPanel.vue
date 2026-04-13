@@ -43,16 +43,22 @@
           @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
         />
         <p class="text-xs leading-5 text-[var(--app-text-faint)]">
-          当前运行时的截图输出仍是字符串载荷，默认按 base64 图片内容处理。
+          当前运行时会把截图图像对象写入 runtime 变量，不再默认转成字符串或文件路径。
         </p>
       </div>
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.launchApp || selectedAction.ac === ACTION_TYPE.stopApp">
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">包名</span>
-        <input :value="selectedAction.pkg_name || ''" class="app-input" @input="$emit('update-field', 'pkg_name', ($event.target as HTMLInputElement).value)" />
-      </label>
+      <div class="space-y-3">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">包名</span>
+          <input :value="selectedAction.pkg_name || ''" class="app-input" @input="$emit('update-field', 'pkg_name', ($event.target as HTMLInputElement).value)" />
+        </label>
+        <label v-if="selectedAction.ac === ACTION_TYPE.launchApp" class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">Activity</span>
+          <input :value="selectedAction.activity_name || ''" class="app-input" placeholder=".MainActivity" @input="$emit('update-field', 'activity_name', ($event.target as HTMLInputElement).value)" />
+        </label>
+      </div>
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.click">

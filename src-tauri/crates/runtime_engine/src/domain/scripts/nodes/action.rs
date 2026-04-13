@@ -60,6 +60,7 @@ pub enum Action {
     Reboot,
     LaunchApp{
         pkg_name: String,
+        activity_name: String,
     },
     StopApp{
         pkg_name: String,

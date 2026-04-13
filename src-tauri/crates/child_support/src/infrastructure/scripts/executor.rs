@@ -220,13 +220,22 @@ impl ScriptExecutor {
                 get_adb_ctx().send_adb_cmd(&ADBCommand::Reboot);
                 Ok(ControlFlow::Next)
             }
-            Action::LaunchApp { pkg_name } => Err(Self::execute_error(
-                "action.launchApp",
-                format!(
-                    "LaunchApp 当前只有 pkg_name={}，缺少 activity/launch target，暂不执行隐式启动",
-                    pkg_name
-                ),
-            )),
+            Action::LaunchApp {
+                pkg_name,
+                activity_name,
+            } => {
+                if pkg_name.trim().is_empty() || activity_name.trim().is_empty() {
+                    return Err(Self::execute_error(
+                        "action.launchApp",
+                        "LaunchApp 需要同时提供 pkg_name 和 activity_name".to_string(),
+                    ));
+                }
+                get_adb_ctx().send_adb_cmd(&ADBCommand::StartActivity(
+                    pkg_name.clone(),
+                    activity_name.clone(),
+                ));
+                Ok(ControlFlow::Next)
+            }
             Action::StopApp { pkg_name } => {
                 get_adb_ctx().send_adb_cmd(&ADBCommand::StopApp(pkg_name.clone()));
                 Ok(ControlFlow::Next)
@@ -236,10 +245,10 @@ impl ScriptExecutor {
 
     async fn execute_click(&mut self, mode: &ClickMode) -> ExecuteResult<ControlFlow> {
         let point = match mode {
-            ClickMode::Point { p } => Self::to_device_point(p),
+            ClickMode::Point { p } => Self::point_to_absolute(p),
             ClickMode::Percent { p } => {
                 let screen_size = self.ensure_screen_size().await?;
-                Self::percent_to_device_point(p, screen_size)?
+                Self::percent_point_to_absolute(p, screen_size)?
             }
             ClickMode::Txt { txt } => {
                 return Err(Self::execute_error(
@@ -265,13 +274,13 @@ impl ScriptExecutor {
     ) -> ExecuteResult<ControlFlow> {
         let (from, to) = match mode {
             SwipeMode::Point { from, to } => {
-                (Self::to_device_point(from), Self::to_device_point(to))
+                (Self::point_to_absolute(from), Self::point_to_absolute(to))
             }
             SwipeMode::Percent { from, to } => {
                 let screen_size = self.ensure_screen_size().await?;
                 (
-                    Self::percent_to_device_point(from, screen_size)?,
-                    Self::percent_to_device_point(to, screen_size)?,
+                    Self::percent_point_to_absolute(from, screen_size)?,
+                    Self::percent_point_to_absolute(to, screen_size)?,
                 )
             }
             SwipeMode::Txt { from, to } => {
@@ -317,11 +326,11 @@ impl ScriptExecutor {
         Ok(screen_size)
     }
 
-    fn to_device_point(point: &PointU16) -> Point<u16> {
+    fn point_to_absolute(point: &PointU16) -> Point<u16> {
         Point::new(point.x, point.y)
     }
 
-    fn percent_to_device_point(
+    fn percent_point_to_absolute(
         point: &PointF32,
         screen_size: (u32, u32),
     ) -> ExecuteResult<Point<u16>> {

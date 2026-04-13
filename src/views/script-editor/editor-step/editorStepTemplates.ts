@@ -55,7 +55,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'launch-app',
     label: '启动应用',
-    description: '启动目标包名，适合作为任务开头。',
+    description: '使用包名和 Activity 启动应用，适合作为任务开头。',
     group: '动作',
     create: () =>
       createBaseStep({
@@ -66,6 +66,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           ac: ACTION_TYPE.launchApp,
           pkg_name: '',
+          activity_name: '',
         },
       }),
   },
@@ -603,7 +604,9 @@ export const describeStepMeta = (step: Step) => {
 
   if (step.op === STEP_OP.action) {
     if (step.a.ac === ACTION_TYPE.capture) return `截图写入 ${step.a.output_var}`;
-    if (step.a.ac === ACTION_TYPE.launchApp) return `启动 ${step.a.pkg_name || '未指定包名'}`;
+    if (step.a.ac === ACTION_TYPE.launchApp) {
+      return `启动 ${step.a.pkg_name || '未指定包名'}/${step.a.activity_name || '未指定 Activity'}`;
+    }
     if (step.a.ac === ACTION_TYPE.stopApp) return `停止 ${step.a.pkg_name || '未指定包名'}`;
     if (step.a.ac === ACTION_TYPE.reboot) return '重启设备';
     if (step.a.ac === ACTION_TYPE.click) return `点击 · ${step.a.mode}`;
