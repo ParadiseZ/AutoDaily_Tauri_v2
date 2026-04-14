@@ -1,11 +1,12 @@
 use crate::domain::scripts::nodes::action::{Action, ClickMode, SwipeMode};
 use crate::domain::scripts::nodes::data_handing::{DataHanding, FilterMode, VarValue};
 use crate::domain::scripts::nodes::flow_control::{CompareOp, ConditionNode, FlowControl};
-use crate::domain::scripts::point::{Point, PointF32, PointU16};
 use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
 use crate::domain::scripts::nodes::vision_node::VisionNode;
+use crate::domain::scripts::point::{Point, PointF32, PointU16};
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit};
+use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{HashMap, StepId};
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
@@ -13,7 +14,9 @@ use crate::infrastructure::ipc::message::RuntimeProgressPhase;
 use crate::infrastructure::ipc::runtime_reporter::emit_progress_event;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::infrastructure::session::runtime_session::get_runtime_execution_policy;
-use rhai::{Array, Dynamic, Engine, FLOAT, INT, Map, Scope};
+use rhai::serde::from_dynamic;
+use rhai::{Array, Dynamic, Engine, Map, Scope, FLOAT, INT};
+use serde::de::DeserializeOwned;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -125,9 +128,7 @@ impl ScriptExecutor {
             step.id,
             Some(format!(
                 "执行步骤{}",
-                step.id
-                    .map(|id| format!("[{}]", id))
-                    .unwrap_or_default()
+                step.id.map(|id| format!("[{}]", id)).unwrap_or_default()
             )),
         );
 
@@ -151,13 +152,19 @@ impl ScriptExecutor {
                 cur_exec_num,
                 max_exec_num,
                 a,
-            } => self.execute_action_step(*cur_exec_num, *max_exec_num, a).await,
+            } => {
+                self.execute_action_step(*cur_exec_num, *max_exec_num, a)
+                    .await
+            }
             StepKind::DataHanding { a } => self.execute_data_handling_step(a).await,
             StepKind::FlowControl {
                 cur_exec_num,
                 max_exec_num,
                 a,
-            } => self.execute_flow_control_step(*cur_exec_num, *max_exec_num, a).await,
+            } => {
+                self.execute_flow_control_step(*cur_exec_num, *max_exec_num, a)
+                    .await
+            }
             StepKind::TaskControl { a } => self.execute_task_control_step(a).await,
             StepKind::Vision { a } => self.execute_vision_step(a).await,
         }
@@ -217,7 +224,8 @@ impl ScriptExecutor {
                     Self::execute_error("action.capture", "获取设备截图失败".to_string())
                 })?);
                 let screen_size = (image.width(), image.height());
-                self.set_runtime_var(output_var, Dynamic::from(image.clone())).await?;
+                self.set_runtime_var(output_var, Dynamic::from(image.clone()))
+                    .await?;
                 let mut ctx = self.runtime_ctx.write().await;
                 ctx.observation.last_capture_image = Some(image);
                 ctx.observation.screen_size = screen_size;
@@ -267,17 +275,13 @@ impl ScriptExecutor {
                 let screen_size = self.ensure_screen_size().await?;
                 Self::percent_point_to_absolute(p, screen_size)?
             }
-            ClickMode::Txt { txt, .. } => {
-                return Err(Self::execute_error(
-                    "action.click",
-                    format!("文字点击尚未接入执行器动作适配: {}", txt.clone().unwrap_or_default()),
-                ));
+            ClickMode::Txt { input_var, txt } => {
+                self.resolve_ocr_target_point("action.click", input_var, txt.as_deref(), "点击目标")
+                    .await?
             }
-            ClickMode::LabelIdx { idx, .. } => {
-                return Err(Self::execute_error(
-                    "action.click",
-                    format!("标签点击尚未接入执行器动作适配: {:?}", idx),
-                ));
+            ClickMode::LabelIdx { input_var, idx } => {
+                self.resolve_det_target_point("action.click", input_var, *idx, "点击目标")
+                    .await?
             }
         };
         get_device_ctx()
@@ -303,17 +307,82 @@ impl ScriptExecutor {
                     Self::percent_point_to_absolute(to, screen_size)?,
                 )
             }
-            SwipeMode::Txt { from, to, .. } => {
-                return Err(Self::execute_error(
-                    "action.swipe",
-                    format!("文字滑动尚未接入执行器动作适配: {:?} -> {:?}", from, to),
-                ));
+            SwipeMode::Txt {
+                input_var,
+                from,
+                to,
+            } => {
+                let items = self
+                    .read_runtime_result_vec::<OcrResult>(input_var, "action.swipe", "OCR")
+                    .await?;
+                let from_item =
+                    Self::select_ocr_result(&items, from.as_deref()).ok_or_else(|| {
+                        Self::execute_error(
+                            "action.swipe",
+                            format!(
+                                "输入变量[{}]里未找到文字滑动起点: {}",
+                                input_var,
+                                from.clone().unwrap_or_default()
+                            ),
+                        )
+                    })?;
+                let to_item = Self::select_ocr_result(&items, to.as_deref()).ok_or_else(|| {
+                    Self::execute_error(
+                        "action.swipe",
+                        format!(
+                            "输入变量[{}]里未找到文字滑动终点: {}",
+                            input_var,
+                            to.clone().unwrap_or_default()
+                        ),
+                    )
+                })?;
+                (
+                    Self::bounding_box_center_to_point(
+                        "action.swipe",
+                        "文字滑动起点",
+                        &from_item.bounding_box,
+                    )?,
+                    Self::bounding_box_center_to_point(
+                        "action.swipe",
+                        "文字滑动终点",
+                        &to_item.bounding_box,
+                    )?,
+                )
             }
-            SwipeMode::LabelIdx { from, to, .. } => {
-                return Err(Self::execute_error(
-                    "action.swipe",
-                    format!("标签滑动尚未接入执行器动作适配: {} -> {}", from, to),
-                ));
+            SwipeMode::LabelIdx {
+                input_var,
+                from,
+                to,
+            } => {
+                let items = self
+                    .read_runtime_result_vec::<DetResult>(input_var, "action.swipe", "检测")
+                    .await?;
+                let from_item = Self::select_det_result(&items, Some(u32::from(*from)))
+                    .ok_or_else(|| {
+                        Self::execute_error(
+                            "action.swipe",
+                            format!("输入变量[{}]里未找到标签滑动起点: {}", input_var, from),
+                        )
+                    })?;
+                let to_item =
+                    Self::select_det_result(&items, Some(u32::from(*to))).ok_or_else(|| {
+                        Self::execute_error(
+                            "action.swipe",
+                            format!("输入变量[{}]里未找到标签滑动终点: {}", input_var, to),
+                        )
+                    })?;
+                (
+                    Self::bounding_box_center_to_point(
+                        "action.swipe",
+                        "标签滑动起点",
+                        &from_item.bounding_box,
+                    )?,
+                    Self::bounding_box_center_to_point(
+                        "action.swipe",
+                        "标签滑动终点",
+                        &to_item.bounding_box,
+                    )?,
+                )
             }
         };
         get_device_ctx()
@@ -321,6 +390,56 @@ impl ScriptExecutor {
             .await
             .map_err(|e| Self::execute_error("action.swipe", e))?;
         Ok(ControlFlow::Next)
+    }
+
+    async fn resolve_ocr_target_point(
+        &self,
+        step_type: &str,
+        input_var: &str,
+        target_text: Option<&str>,
+        target_label: &str,
+    ) -> ExecuteResult<Point<u16>> {
+        let items = self
+            .read_runtime_result_vec::<OcrResult>(input_var, step_type, "OCR")
+            .await?;
+        let item = Self::select_ocr_result(&items, target_text).ok_or_else(|| {
+            Self::execute_error(
+                step_type,
+                format!(
+                    "输入变量[{}]里未找到{}: {}",
+                    input_var,
+                    target_label,
+                    target_text.unwrap_or_default()
+                ),
+            )
+        })?;
+        Self::bounding_box_center_to_point(step_type, target_label, &item.bounding_box)
+    }
+
+    async fn resolve_det_target_point(
+        &self,
+        step_type: &str,
+        input_var: &str,
+        target_idx: Option<u32>,
+        target_label: &str,
+    ) -> ExecuteResult<Point<u16>> {
+        let items = self
+            .read_runtime_result_vec::<DetResult>(input_var, step_type, "检测")
+            .await?;
+        let item = Self::select_det_result(&items, target_idx).ok_or_else(|| {
+            Self::execute_error(
+                step_type,
+                format!(
+                    "输入变量[{}]里未找到{}标签: {}",
+                    input_var,
+                    target_label,
+                    target_idx
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "<empty>".to_string())
+                ),
+            )
+        })?;
+        Self::bounding_box_center_to_point(step_type, target_label, &item.bounding_box)
     }
 
     async fn ensure_screen_size(&self) -> ExecuteResult<(u32, u32)> {
@@ -351,6 +470,78 @@ impl ScriptExecutor {
 
     fn point_to_absolute(point: &PointU16) -> Point<u16> {
         Point::new(point.x, point.y)
+    }
+
+    fn bounding_box_center_to_point(
+        step_type: &str,
+        target_label: &str,
+        bounding_box: &BoundingBox,
+    ) -> ExecuteResult<Point<u16>> {
+        let center = bounding_box.center();
+        let x = u16::try_from(center.x).map_err(|_| {
+            Self::execute_error(
+                step_type,
+                format!("{}中心点 x 坐标越界: {}", target_label, center.x),
+            )
+        })?;
+        let y = u16::try_from(center.y).map_err(|_| {
+            Self::execute_error(
+                step_type,
+                format!("{}中心点 y 坐标越界: {}", target_label, center.y),
+            )
+        })?;
+        Ok(Point::new(x, y))
+    }
+
+    fn select_ocr_result<'a>(
+        items: &'a [OcrResult],
+        target_text: Option<&str>,
+    ) -> Option<&'a OcrResult> {
+        let target_text = target_text.map(str::trim).filter(|value| !value.is_empty());
+        match target_text {
+            Some(target) => items
+                .iter()
+                .find(|item| item.txt.trim() == target)
+                .or_else(|| items.iter().find(|item| item.txt.contains(target))),
+            None => items.first(),
+        }
+    }
+
+    fn select_det_result(items: &[DetResult], target_idx: Option<u32>) -> Option<&DetResult> {
+        match target_idx {
+            Some(target) => items.iter().find(|item| item.index == target as i32),
+            None => items.first(),
+        }
+    }
+
+    async fn read_runtime_result_vec<T>(
+        &self,
+        input_var: &str,
+        step_type: &str,
+        result_label: &str,
+    ) -> ExecuteResult<Vec<T>>
+    where
+        T: DeserializeOwned,
+    {
+        let value = self.read_runtime_var(input_var).await.ok_or_else(|| {
+            Self::execute_error(
+                step_type,
+                format!(
+                    "输入变量[{}]不存在，无法读取{}结果集",
+                    input_var, result_label
+                ),
+            )
+        })?;
+
+        from_dynamic::<Vec<T>>(&value).map_err(|error| {
+            Self::execute_error(
+                step_type,
+                format!(
+                    "输入变量[{}]不是兼容的{}结果集，无法执行动作: {}",
+                    input_var, result_label, error
+                ),
+            )
+        })
     }
 
     fn action_requires_wait(action: &Action) -> bool {
@@ -493,14 +684,14 @@ impl ScriptExecutor {
     ) -> ExecuteResult<ControlFlow> {
         match data {
             DataHanding::SetVar { name, val, expr } => {
-                let value = if let Some(expr) = expr.as_ref().filter(|value| !value.trim().is_empty())
-                {
-                    self.eval_dynamic(expr, "data.setVar")?
-                } else if let Some(val) = val {
-                    Self::var_value_to_dynamic(val)
-                } else {
-                    Dynamic::UNIT
-                };
+                let value =
+                    if let Some(expr) = expr.as_ref().filter(|value| !value.trim().is_empty()) {
+                        self.eval_dynamic(expr, "data.setVar")?
+                    } else if let Some(val) = val {
+                        Self::var_value_to_dynamic(val)
+                    } else {
+                        Dynamic::UNIT
+                    };
                 self.set_runtime_var(name, value).await?;
                 Ok(ControlFlow::Next)
             }
@@ -521,7 +712,8 @@ impl ScriptExecutor {
                 then_steps,
             } => {
                 let Some(input) = self.read_runtime_var(input_var).await else {
-                    self.set_runtime_var(out_name, Dynamic::from(Array::new())).await?;
+                    self.set_runtime_var(out_name, Dynamic::from(Array::new()))
+                        .await?;
                     return Ok(ControlFlow::Next);
                 };
 
@@ -570,7 +762,8 @@ impl ScriptExecutor {
                     }
                 }
 
-                self.set_runtime_var(out_name, Dynamic::from(output)).await?;
+                self.set_runtime_var(out_name, Dynamic::from(output))
+                    .await?;
                 Ok(ControlFlow::Next)
             }
         }
@@ -595,12 +788,13 @@ impl ScriptExecutor {
         }
     }
 
-    async fn execute_vision_step(
-        &mut self,
-        vision: &VisionNode,
-    ) -> ExecuteResult<ControlFlow> {
+    async fn execute_vision_step(&mut self, vision: &VisionNode) -> ExecuteResult<ControlFlow> {
         match vision {
-            VisionNode::VisionSearch { rule, out_var, then_steps } => {
+            VisionNode::VisionSearch {
+                rule,
+                out_var,
+                then_steps,
+            } => {
                 let (hits, matched) = {
                     let ctx = self.runtime_ctx.read().await;
                     if let Some(snapshot) = ctx.observation.last_snapshot.as_ref() {
@@ -733,14 +927,20 @@ impl ScriptExecutor {
 
     async fn match_state_status(&mut self, task_control: &TaskControl) -> ExecuteResult<bool> {
         let (target, status) = match task_control {
-            TaskControl::GetState { target, status }
-            | TaskControl::SetState { target, status } => (target, status),
+            TaskControl::GetState { target, status } | TaskControl::SetState { target, status } => {
+                (target, status)
+            }
         };
 
         let ctx = self.runtime_ctx.read().await;
         match target {
             StateTarget::Task { id } => {
-                let state = ctx.execution.task_states.get(id).cloned().unwrap_or_else(TaskState::default);
+                let state = ctx
+                    .execution
+                    .task_states
+                    .get(id)
+                    .cloned()
+                    .unwrap_or_else(TaskState::default);
                 Ok(match status {
                     StateStatus::Enabled { value } => state.enabled_flag == *value,
                     StateStatus::Skip { value } => state.skip_flag == *value,
@@ -748,7 +948,12 @@ impl ScriptExecutor {
                 })
             }
             StateTarget::Policy { id } => {
-                let state = ctx.execution.policy_states.get(id).cloned().unwrap_or_default();
+                let state = ctx
+                    .execution
+                    .policy_states
+                    .get(id)
+                    .cloned()
+                    .unwrap_or_default();
                 Ok(match status {
                     StateStatus::Enabled { .. } => false,
                     StateStatus::Skip { value } => state.skip_flag == *value,
@@ -763,12 +968,7 @@ impl ScriptExecutor {
             return Ok(());
         }
 
-        let root = name
-            .split('.')
-            .next()
-            .unwrap_or(name)
-            .trim()
-            .to_string();
+        let root = name.split('.').next().unwrap_or(name).trim().to_string();
         let root_value = {
             let mut ctx = self.runtime_ctx.write().await;
             ctx.execution.var_map.insert(name.to_string(), value);
@@ -893,8 +1093,10 @@ impl ScriptExecutor {
     }
 
     fn dynamic_eq(lhs: &Dynamic, rhs: &Dynamic) -> bool {
-        if let (Some(lhs), Some(rhs)) = (lhs.clone().try_cast::<bool>(), rhs.clone().try_cast::<bool>())
-        {
+        if let (Some(lhs), Some(rhs)) = (
+            lhs.clone().try_cast::<bool>(),
+            rhs.clone().try_cast::<bool>(),
+        ) {
             return lhs == rhs;
         }
         if let (Some(lhs), Some(rhs)) = (Self::dynamic_to_number(lhs), Self::dynamic_to_number(rhs))
@@ -961,5 +1163,80 @@ impl ScriptExecutor {
             step_type: step_type.to_string(),
             e,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ScriptExecutor;
+    use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
+    use rhai::serde::to_dynamic;
+
+    fn build_ocr_result(txt: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> OcrResult {
+        OcrResult::new(
+            BoundingBox::new(x1, y1, x2, y2),
+            txt.to_string(),
+            vec![0.9],
+            vec![1],
+            vec![txt.to_string()],
+            8,
+        )
+    }
+
+    fn build_det_result(index: i32, label: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> DetResult {
+        DetResult::new(
+            BoundingBox::new(x1, y1, x2, y2),
+            index,
+            label.to_string(),
+            0.9,
+            8,
+        )
+    }
+
+    #[test]
+    fn select_ocr_result_prefers_exact_match_then_contains() {
+        let items = vec![
+            build_ocr_result("开始行动", 0, 0, 40, 20),
+            build_ocr_result("开始", 50, 0, 90, 20),
+        ];
+
+        let exact = ScriptExecutor::select_ocr_result(&items, Some("开始")).unwrap();
+        assert_eq!(exact.txt, "开始");
+
+        let contains = ScriptExecutor::select_ocr_result(&items, Some("行动")).unwrap();
+        assert_eq!(contains.txt, "开始行动");
+    }
+
+    #[test]
+    fn select_det_result_matches_label_index() {
+        let items = vec![
+            build_det_result(3, "enemy", 0, 0, 40, 40),
+            build_det_result(7, "ally", 50, 0, 90, 40),
+        ];
+
+        let matched = ScriptExecutor::select_det_result(&items, Some(7)).unwrap();
+        assert_eq!(matched.label, "ally");
+    }
+
+    #[test]
+    fn bounding_box_center_converts_to_device_point() {
+        let point = ScriptExecutor::bounding_box_center_to_point(
+            "action.click",
+            "点击目标",
+            &BoundingBox::new(10, 20, 30, 40),
+        )
+        .unwrap();
+
+        assert_eq!(point.x, 20);
+        assert_eq!(point.y, 30);
+    }
+
+    #[test]
+    fn result_vec_can_be_deserialized_from_dynamic() {
+        let dynamic = to_dynamic(vec![build_ocr_result("开始", 0, 0, 20, 20)]).unwrap();
+        let items = rhai::serde::from_dynamic::<Vec<OcrResult>>(&dynamic).unwrap();
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].txt, "开始");
     }
 }
