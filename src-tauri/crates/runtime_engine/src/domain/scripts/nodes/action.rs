@@ -14,10 +14,12 @@ pub enum SwipeMode {
         to: PointU16,
     },
     LabelIdx{
+        input_var: String,
         from : u16,
         to: u16,
     },
     Txt{
+        input_var: String,
         from : Option<String>,
         to: Option<String>,
     },
@@ -34,9 +36,11 @@ pub enum ClickMode {
         p: PointF32
     },
     Txt {
+        input_var: String,
         txt: Option<String>
     },
     LabelIdx {
+        input_var: String,
         idx: Option<u32>
     },
 }

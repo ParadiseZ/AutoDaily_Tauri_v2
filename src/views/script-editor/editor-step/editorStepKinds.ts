@@ -26,11 +26,11 @@ export const ACTION_MODE = {
   labelIdx: ACTION_MODES[3],
 } as const;
 
-export const FLOW_TYPES = ['if', 'while', 'for', 'continue', 'break', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const;
+export const FLOW_TYPES = ['if', 'while', 'forEach', 'continue', 'break', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const;
 export const FLOW_TYPE = {
   if: FLOW_TYPES[0],
   while: FLOW_TYPES[1],
-  for: FLOW_TYPES[2],
+  forEach: FLOW_TYPES[2],
   continue: FLOW_TYPES[3],
   break: FLOW_TYPES[4],
   waitMs: FLOW_TYPES[5],

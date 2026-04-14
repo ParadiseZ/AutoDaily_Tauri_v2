@@ -97,12 +97,41 @@
         </div>
       </div>
 
-      <label v-else-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-2">
+      <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入结果变量</span>
+          <EditorSelectField
+            :model-value="selectedActionInput || null"
+            :options="resolvedActionInputOptions"
+            :show-description="true"
+            placeholder="选择 OCR / 检测 / 处理结果变量"
+            test-id="editor-action-click-input-var"
+            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          />
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'actionInput')">
+            <AppIcon name="plus" :size="14" />
+            新建结果变量
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!selectedActionInputTarget || !jumpToVariable"
+            @click="selectedActionInputTarget ? $emit('jump-to-variable', selectedActionInputTarget) : undefined"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+      </template>
+
+      <label v-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-2">
         <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标文字</span>
         <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
       </label>
 
-      <label v-else class="space-y-2">
+      <label v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="space-y-2">
         <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签</span>
         <AppSelect
           :model-value="selectedAction.idx ?? null"
@@ -132,6 +161,35 @@
           <input :value="String(selectedAction.duration ?? 300)" class="app-input" type="number" @input="$emit('update-number-field', 'duration', ($event.target as HTMLInputElement).value)" />
         </div>
       </div>
+
+      <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入结果变量</span>
+          <EditorSelectField
+            :model-value="selectedActionInput || null"
+            :options="resolvedActionInputOptions"
+            :show-description="true"
+            placeholder="选择 OCR / 检测 / 处理结果变量"
+            test-id="editor-action-swipe-input-var"
+            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          />
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'actionInput')">
+            <AppIcon name="plus" :size="14" />
+            新建结果变量
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!selectedActionInputTarget || !jumpToVariable"
+            @click="selectedActionInputTarget ? $emit('jump-to-variable', selectedActionInputTarget) : undefined"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+      </template>
 
       <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-inline-grid">
         <div class="editor-inline-label">起点 X</div>
@@ -176,7 +234,7 @@
         </div>
       </div>
 
-      <div v-else-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
+      <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点文字</span>
           <input :value="String(selectedAction.from ?? '')" class="app-input" @input="$emit('update-text-field', 'from', ($event.target as HTMLInputElement).value)" />
@@ -187,7 +245,7 @@
         </label>
       </div>
 
-      <div v-else class="grid gap-3 md:grid-cols-2">
+      <div v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="grid gap-3 md:grid-cols-2">
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点标签</span>
           <AppSelect
@@ -232,11 +290,13 @@ const props = defineProps<{
   selectedAction: Action;
   variableDatalistId: string;
   writableCatalogVariableOptions?: Array<{ label: string; value: string; description: string; disabled?: boolean }>;
+  resultCatalogVariableOptions?: SelectOption[];
   labelIndexOptions?: LabelSelectOption[];
   labelSelectPlaceholder?: string;
   labelSelectHint?: string | null;
   selectedCaptureOutputTarget?: EditorVariableOption | null;
   selectedCaptureOutputInputEntry?: EditorInputEntry | null;
+  selectedActionInputTarget?: EditorVariableOption | null;
   clickModeOptions: Array<{ label: string; value: string; description: string }>;
   swipeModeOptions: Array<{ label: string; value: string; description: string }>;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
@@ -249,7 +309,7 @@ const emit = defineEmits<{
   'update-point-field': [field: 'p' | 'from' | 'to', axis: 'x' | 'y', value: string];
   'update-number-field': [field: string, value: string];
   'update-text-field': [field: string, value: string];
-  'create-variable': [target: 'captureOutput'];
+  'create-variable': [target: 'captureOutput' | 'actionInput'];
   'jump-to-variable': [option: EditorVariableOption];
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
@@ -296,6 +356,22 @@ const resolvedCaptureOutputOptions = computed(() =>
   props.selectedAction.ac === ACTION_TYPE.capture
     ? withCurrentVariableOption(props.writableCatalogVariableOptions ?? [], props.selectedAction.output_var ?? '')
     : props.writableCatalogVariableOptions ?? [],
+);
+
+const selectedActionInput = computed(() => {
+  if (props.selectedAction.ac !== ACTION_TYPE.click && props.selectedAction.ac !== ACTION_TYPE.swipe) {
+    return '';
+  }
+
+  if (props.selectedAction.mode === ACTION_MODE.txt || props.selectedAction.mode === ACTION_MODE.labelIdx) {
+    return String((props.selectedAction as { input_var?: string }).input_var ?? '');
+  }
+
+  return '';
+});
+
+const resolvedActionInputOptions = computed(() =>
+  withCurrentVariableOption(props.resultCatalogVariableOptions ?? [], selectedActionInput.value),
 );
 
 const resolvedLabelIdxOptions = computed(() =>

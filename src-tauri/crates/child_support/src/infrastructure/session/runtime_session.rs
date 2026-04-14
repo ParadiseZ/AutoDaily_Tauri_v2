@@ -1,6 +1,7 @@
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId, SessionId};
 use crate::infrastructure::ipc::message::{
-    ResumeCheckpoint, RunTarget, RuntimeQueueItem, RuntimeSessionSnapshot, ScriptBundleSnapshot,
+    ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
+    RuntimeSessionSnapshot, ScriptBundleSnapshot,
 };
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
@@ -66,6 +67,10 @@ impl ChildRuntimeSession {
     pub fn checkpoint(&self) -> Option<ResumeCheckpoint> {
         self.checkpoint.clone()
     }
+
+    pub fn runtime_policy(&self) -> RuntimeExecutionPolicy {
+        self.snapshot.runtime_policy.clone()
+    }
 }
 
 pub fn get_runtime_session_store() -> SharedChildRuntimeSession {
@@ -111,6 +116,12 @@ pub async fn get_loaded_checkpoint() -> Option<ResumeCheckpoint> {
     let store = get_runtime_session_store();
     let guard = store.read().await;
     guard.as_ref().and_then(ChildRuntimeSession::checkpoint)
+}
+
+pub async fn get_runtime_execution_policy() -> Option<RuntimeExecutionPolicy> {
+    let store = get_runtime_session_store();
+    let guard = store.read().await;
+    guard.as_ref().map(ChildRuntimeSession::runtime_policy)
 }
 
 pub fn try_current_session_summary() -> Option<ChildRuntimeSessionSummary> {

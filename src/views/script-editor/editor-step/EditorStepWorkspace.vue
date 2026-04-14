@@ -58,11 +58,13 @@
                 :selected-action="selectedAction"
                 :variable-datalist-id="variableDatalistId"
                 :writable-catalog-variable-options="writableCatalogVariableOptions"
+                :result-catalog-variable-options="resultCatalogVariableOptions"
                 :label-index-options="labelIndexOptions"
                 :label-select-placeholder="labelSelectPlaceholder"
                 :label-select-hint="labelSelectHint"
                 :selected-capture-output-target="selectedCaptureOutputTarget"
                 :selected-capture-output-input-entry="selectedCaptureOutputInputEntry"
+                :selected-action-input-target="selectedActionInputTarget"
                 :click-mode-options="clickModeOptions"
                 :swipe-mode-options="swipeModeOptions"
                 :create-variable="createVariable"
@@ -397,6 +399,11 @@ const buildVariableSelectOptions = (capability: 'read' | 'write') => {
 };
 const readableCatalogVariableOptions = computed(() => buildVariableSelectOptions('read'));
 const writableCatalogVariableOptions = computed(() => buildVariableSelectOptions('write'));
+const resultCatalogVariableOptions = computed(() =>
+  props.variableOptions
+    .filter((item) => item.readable && ['json', 'list', 'object'].includes(item.valueType))
+    .map((item) => createVariableSelectOption(item)),
+);
 
 const clickModeOptions = [
   { label: '坐标', value: ACTION_MODE.point, description: '绝对坐标点击。' },
@@ -415,7 +422,7 @@ const swipeModeOptions = [
 const flowTypeOptions = [
   { label: '条件分支', value: FLOW_TYPE.if, description: 'Then / Else 分支。' },
   { label: 'While', value: FLOW_TYPE.while, description: '满足条件时循环。' },
-  { label: 'For', value: FLOW_TYPE.for, description: '条件控制的遍历循环。' },
+  { label: '遍历循环', value: FLOW_TYPE.forEach, description: '遍历输入集合，并向子步骤暴露元素变量。' },
 ];
 
 const filterModeOptions = [
@@ -504,11 +511,27 @@ const selectedGetVarInputEntry = computed(() => (selectedGetVarTarget.value ? fi
 const currentCaptureOutputName = computed(() =>
   selectedAction.value?.ac === ACTION_TYPE.capture ? selectedAction.value.output_var ?? '' : '',
 );
+const currentActionInputName = computed(() => {
+  if (!selectedAction.value) {
+    return '';
+  }
+
+  if (selectedAction.value.ac !== ACTION_TYPE.click && selectedAction.value.ac !== ACTION_TYPE.swipe) {
+    return '';
+  }
+
+  return selectedAction.value.mode === ACTION_MODE.txt || selectedAction.value.mode === ACTION_MODE.labelIdx
+    ? (selectedAction.value as { input_var?: string }).input_var ?? ''
+    : '';
+});
 const selectedCaptureOutputTarget = computed(() =>
   currentCaptureOutputName.value ? props.variableOptions.find((item) => item.key === currentCaptureOutputName.value) ?? null : null,
 );
 const selectedCaptureOutputInputEntry = computed(() =>
   selectedCaptureOutputTarget.value ? findInputEntryByVariableKey(selectedCaptureOutputTarget.value.key) : null,
+);
+const selectedActionInputTarget = computed(() =>
+  currentActionInputName.value ? props.variableOptions.find((item) => item.key === currentActionInputName.value) ?? null : null,
 );
 const currentFilterInputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.input_var : ''));
 const currentFilterOutputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.out_name : ''));
@@ -558,7 +581,7 @@ watch(
 const flowWithCondition = computed(() => {
   if (!selectedFlow.value) return null;
   const type = selectedFlow.value.type;
-  if ((type === FLOW_TYPE.if || type === FLOW_TYPE.while || type === FLOW_TYPE.for) && selectedFlow.value.con) {
+  if ((type === FLOW_TYPE.if || type === FLOW_TYPE.while) && selectedFlow.value.con) {
     return {
       type,
       con: selectedFlow.value.con,
@@ -593,7 +616,7 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
       return targets;
   }
 
-  if (selectedFlow.value?.type === FLOW_TYPE.while || selectedFlow.value?.type === FLOW_TYPE.for) {
+  if (selectedFlow.value?.type === FLOW_TYPE.while || selectedFlow.value?.type === FLOW_TYPE.forEach) {
     return [{ key: 'flow', label: '循环体', count: selectedFlow.value.flow.length, path: { parentStepPath: props.selectedStepPath, branch: 'flow' } }];
   }
 
@@ -643,9 +666,9 @@ const createClickAction = (mode: string): Action => {
     case ACTION_MODE.percent:
       return { ac: ACTION_TYPE.click, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
     case ACTION_MODE.txt:
-      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.txt, txt: '开始' };
+      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始' };
     case ACTION_MODE.labelIdx:
-      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.labelIdx, idx: 0 };
+      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0 };
     default:
       return { ac: ACTION_TYPE.click, mode: ACTION_MODE.point, p: { x: 640, y: 360 } };
   }
@@ -666,6 +689,7 @@ const createSwipeAction = (mode: string): Action => {
         ac: ACTION_TYPE.swipe,
         mode: ACTION_MODE.txt,
         duration: 300 as never,
+        input_var: currentActionInputName.value || 'runtime.ocrResults',
         from: '开始',
         to: '结束',
       };
@@ -674,6 +698,7 @@ const createSwipeAction = (mode: string): Action => {
         ac: ACTION_TYPE.swipe,
         mode: ACTION_MODE.labelIdx,
         duration: 300 as never,
+        input_var: currentActionInputName.value || 'runtime.detResults',
         from: 0,
         to: 1,
       };
@@ -824,8 +849,25 @@ const handleJumpToDataVariable = (option: EditorVariableOption) => {
   props.jumpToVariable?.(option);
 };
 
-const handleCreateActionVariable = async (target: 'captureOutput') => {
+const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput') => {
   if (!props.createVariable) {
+    return;
+  }
+
+  if (target === 'actionInput') {
+    const preferredMode =
+      selectedAction.value?.ac === ACTION_TYPE.click || selectedAction.value?.ac === ACTION_TYPE.swipe
+        ? selectedAction.value.mode
+        : null;
+    const key = await props.createVariable('runtime', 'json', {
+      preferredKey: preferredMode === ACTION_MODE.labelIdx ? 'detResults' : 'ocrResults',
+      name: preferredMode === ACTION_MODE.labelIdx ? '检测结果' : 'OCR结果',
+    });
+    if (!key) {
+      return;
+    }
+
+    updateActionField('input_var', key);
     return;
   }
 
@@ -1079,7 +1121,7 @@ const updateNumberField = (field: string, value: string) => {
 const updateFlowCondition = (condition: ConditionNode) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.flowControl) return;
-    if (step.a.type === FLOW_TYPE.if || step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.for) {
+    if (step.a.type === FLOW_TYPE.if || step.a.type === FLOW_TYPE.while) {
       step.a.con = condition;
     }
   });
@@ -1090,7 +1132,7 @@ const updateFlowType = (type: string) => {
     if (step.op !== STEP_OP.flowControl) return;
     const currentCondition = flowCondition.value ?? createConditionNode('rawExpr');
     if (type === FLOW_TYPE.if) {
-      const flowSteps = step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.for ? step.a.flow : [];
+      const flowSteps = step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach ? step.a.flow : [];
       step.a = {
         type: FLOW_TYPE.if,
         con: currentCondition,
@@ -1100,12 +1142,25 @@ const updateFlowType = (type: string) => {
       return;
     }
 
-    if (type === FLOW_TYPE.while || type === FLOW_TYPE.for) {
+    if (type === FLOW_TYPE.while) {
       const branchSteps =
-        step.a.type === FLOW_TYPE.if ? step.a.then : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.for ? step.a.flow : [];
+        step.a.type === FLOW_TYPE.if ? step.a.then : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach ? step.a.flow : [];
       step.a = {
-        type: type as typeof FLOW_TYPE.while | typeof FLOW_TYPE.for,
+        type: FLOW_TYPE.while,
         con: currentCondition,
+        flow: branchSteps,
+      } as FlowControl;
+      return;
+    }
+
+    if (type === FLOW_TYPE.forEach) {
+      const branchSteps =
+        step.a.type === FLOW_TYPE.if ? step.a.then : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach ? step.a.flow : [];
+      step.a = {
+        type: FLOW_TYPE.forEach,
+        input_var: 'runtime.items',
+        item_var: 'runtime.item',
+        index_var: 'runtime.itemIndex',
         flow: branchSteps,
       } as FlowControl;
     }

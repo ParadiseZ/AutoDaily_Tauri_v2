@@ -12,6 +12,7 @@ use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::RuntimeProgressPhase;
 use crate::infrastructure::ipc::runtime_reporter::emit_progress_event;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
+use crate::infrastructure::session::runtime_session::get_runtime_execution_policy;
 use rhai::{Array, Dynamic, Engine, FLOAT, INT, Map, Scope};
 use std::future::Future;
 use std::pin::Pin;
@@ -193,7 +194,19 @@ impl ScriptExecutor {
         Ok(())
     }
 
-    async fn after_action(&mut self, _action: &Action) -> ExecuteResult<()> {
+    async fn after_action(&mut self, action: &Action) -> ExecuteResult<()> {
+        if !Self::action_requires_wait(action) {
+            return Ok(());
+        }
+
+        let Some(runtime_policy) = get_runtime_execution_policy().await else {
+            return Ok(());
+        };
+
+        if runtime_policy.action_wait_ms > 0 {
+            tokio::time::sleep(Duration::from_millis(runtime_policy.action_wait_ms)).await;
+        }
+
         Ok(())
     }
 
@@ -254,13 +267,13 @@ impl ScriptExecutor {
                 let screen_size = self.ensure_screen_size().await?;
                 Self::percent_point_to_absolute(p, screen_size)?
             }
-            ClickMode::Txt { txt } => {
+            ClickMode::Txt { txt, .. } => {
                 return Err(Self::execute_error(
                     "action.click",
                     format!("文字点击尚未接入执行器动作适配: {}", txt.clone().unwrap_or_default()),
                 ));
             }
-            ClickMode::LabelIdx { idx } => {
+            ClickMode::LabelIdx { idx, .. } => {
                 return Err(Self::execute_error(
                     "action.click",
                     format!("标签点击尚未接入执行器动作适配: {:?}", idx),
@@ -290,13 +303,13 @@ impl ScriptExecutor {
                     Self::percent_point_to_absolute(to, screen_size)?,
                 )
             }
-            SwipeMode::Txt { from, to } => {
+            SwipeMode::Txt { from, to, .. } => {
                 return Err(Self::execute_error(
                     "action.swipe",
                     format!("文字滑动尚未接入执行器动作适配: {:?} -> {:?}", from, to),
                 ));
             }
-            SwipeMode::LabelIdx { from, to } => {
+            SwipeMode::LabelIdx { from, to, .. } => {
                 return Err(Self::execute_error(
                     "action.swipe",
                     format!("标签滑动尚未接入执行器动作适配: {} -> {}", from, to),
@@ -338,6 +351,17 @@ impl ScriptExecutor {
 
     fn point_to_absolute(point: &PointU16) -> Point<u16> {
         Point::new(point.x, point.y)
+    }
+
+    fn action_requires_wait(action: &Action) -> bool {
+        matches!(
+            action,
+            Action::Click { .. }
+                | Action::Swipe { .. }
+                | Action::Reboot
+                | Action::LaunchApp { .. }
+                | Action::StopApp { .. }
+        )
     }
 
     fn percent_point_to_absolute(
@@ -382,7 +406,7 @@ impl ScriptExecutor {
                     Ok(ControlFlow::Next)
                 }
             }
-            FlowControl::While { con, flow } | FlowControl::For { con, flow } => {
+            FlowControl::While { con, flow } => {
                 let mut iteration = 0usize;
                 while self.evaluate_condition(con).await? {
                     iteration += 1;
@@ -400,6 +424,42 @@ impl ScriptExecutor {
                         ControlFlow::Return => return Ok(ControlFlow::Return),
                     }
                 }
+                Ok(ControlFlow::Next)
+            }
+            FlowControl::ForEach {
+                input_var,
+                item_var,
+                index_var,
+                flow,
+            } => {
+                let Some(input) = self.read_runtime_var(input_var).await else {
+                    return Ok(ControlFlow::Next);
+                };
+
+                let Some(items) = input.clone().try_cast::<Array>() else {
+                    return Err(Self::execute_error(
+                        "flow.forEach",
+                        format!("输入变量[{}]不是数组，无法执行遍历", input_var),
+                    ));
+                };
+
+                for (index, item) in items.into_iter().enumerate() {
+                    if !item_var.trim().is_empty() {
+                        self.set_runtime_var(item_var, item).await?;
+                    }
+                    if !index_var.trim().is_empty() {
+                        self.set_runtime_var(index_var, Dynamic::from_int(index as INT))
+                            .await?;
+                    }
+
+                    match self.execute(flow).await? {
+                        ControlFlow::Next => continue,
+                        ControlFlow::Continue => continue,
+                        ControlFlow::Break => break,
+                        ControlFlow::Return => return Ok(ControlFlow::Return),
+                    }
+                }
+
                 Ok(ControlFlow::Next)
             }
             FlowControl::Continue => Ok(ControlFlow::Continue),
@@ -540,11 +600,7 @@ impl ScriptExecutor {
         vision: &VisionNode,
     ) -> ExecuteResult<ControlFlow> {
         match vision {
-            VisionNode::VisionSearch {
-                rule,
-                out_var,
-                then_steps,
-            } => {
+            VisionNode::VisionSearch { rule, out_var, then_steps } => {
                 let (hits, matched) = {
                     let ctx = self.runtime_ctx.read().await;
                     if let Some(snapshot) = ctx.observation.last_snapshot.as_ref() {

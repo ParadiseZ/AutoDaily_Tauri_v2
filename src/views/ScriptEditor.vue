@@ -1508,7 +1508,7 @@ const collectStepTreeIds = (step: Step, bucket = new Set<string>()) => {
       return bucket;
     }
 
-    if (step.a.type === 'while' || step.a.type === 'for') {
+    if (step.a.type === 'while' || step.a.type === 'forEach') {
       step.a.flow.forEach((child) => collectStepTreeIds(child, bucket));
     }
   }
@@ -1523,9 +1523,15 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
       continue;
     }
 
-    if (step.op === 'action' && step.a.ac === 'capture' && step.a.output_var?.trim()) {
-      bucket.add(step.a.output_var.trim());
-      continue;
+    if (step.op === 'action') {
+      if (step.a.ac === 'capture' && step.a.output_var?.trim()) {
+        bucket.add(step.a.output_var.trim());
+        continue;
+      }
+
+      if ((step.a.ac === 'click' || step.a.ac === 'swipe') && (step.a.mode === 'txt' || step.a.mode === 'labelIdx') && step.a.input_var?.trim()) {
+        bucket.add(step.a.input_var.trim());
+      }
     }
 
     if (step.op === 'dataHanding') {
@@ -1565,7 +1571,7 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
         continue;
       }
 
-      if (step.a.type === 'if' || step.a.type === 'while' || step.a.type === 'for') {
+      if (step.a.type === 'if' || step.a.type === 'while') {
         collectConditionVariableReferences(step.a.con, bucket);
       }
 
@@ -1575,7 +1581,10 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
         continue;
       }
 
-      if (step.a.type === 'while' || step.a.type === 'for') {
+      if (step.a.type === 'while' || step.a.type === 'forEach') {
+        if (step.a.type === 'forEach' && step.a.input_var?.trim()) {
+          bucket.add(step.a.input_var.trim());
+        }
         collectVariableReferencesFromSteps(step.a.flow, bucket);
       }
     }
@@ -1693,7 +1702,7 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
     }
 
     if (nextStep.op === 'flowControl') {
-      if (nextStep.a.type === 'if' || nextStep.a.type === 'while' || nextStep.a.type === 'for') {
+      if (nextStep.a.type === 'if' || nextStep.a.type === 'while') {
         nextStep.a.con = renameConditionVariableReferences(nextStep.a.con, previousKey, nextKey);
       }
 
@@ -1715,7 +1724,15 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
         return nextStep;
       }
 
-      if (nextStep.a.type === 'while' || nextStep.a.type === 'for') {
+      if (nextStep.a.type === 'forEach') {
+        if (nextStep.a.input_var === previousKey) {
+          nextStep.a.input_var = nextKey;
+        }
+        nextStep.a.flow = renameVariableReferencesInSteps(nextStep.a.flow, previousKey, nextKey);
+        return nextStep;
+      }
+
+      if (nextStep.a.type === 'while') {
         nextStep.a.flow = renameVariableReferencesInSteps(nextStep.a.flow, previousKey, nextKey);
         return nextStep;
       }
@@ -1723,9 +1740,16 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
       return nextStep;
     }
 
-    if (nextStep.op === 'action' && nextStep.a.ac === 'capture') {
-      if (nextStep.a.output_var === previousKey) {
-        nextStep.a.output_var = nextKey;
+    if (nextStep.op === 'action') {
+      if (nextStep.a.ac === 'capture') {
+        if (nextStep.a.output_var === previousKey) {
+          nextStep.a.output_var = nextKey;
+        }
+        return nextStep;
+      }
+
+      if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'swipe') && (nextStep.a.mode === 'txt' || nextStep.a.mode === 'labelIdx') && nextStep.a.input_var === previousKey) {
+        nextStep.a.input_var = nextKey;
       }
       return nextStep;
     }
@@ -2499,6 +2523,50 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
     nextStep.a.out_var = await createVariableResource('runtime', 'json', {
       preferredKey: 'visionHit',
       name: '视觉命中',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'click-text' && nextStep.op === 'action' && nextStep.a.ac === 'click' && nextStep.a.mode === 'txt') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'ocrResults',
+      name: 'OCR结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'swipe-text' && nextStep.op === 'action' && nextStep.a.ac === 'swipe' && nextStep.a.mode === 'txt') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'ocrResults',
+      name: 'OCR结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'click-label' && nextStep.op === 'action' && nextStep.a.ac === 'click' && nextStep.a.mode === 'labelIdx') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'detResults',
+      name: '检测结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'swipe-label' && nextStep.op === 'action' && nextStep.a.ac === 'swipe' && nextStep.a.mode === 'labelIdx') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'detResults',
+      name: '检测结果',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,

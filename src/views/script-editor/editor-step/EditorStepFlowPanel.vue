@@ -156,6 +156,42 @@
       </div>
     </template>
 
+    <template v-else-if="selectedFlow.type === FLOW_TYPE.forEach">
+      <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入集合变量</span>
+          <EditorSelectField
+            :model-value="selectedFlow.input_var || null"
+            :options="resolvedForEachInputOptions"
+            :show-description="true"
+            placeholder="选择数组或 JSON 变量"
+            test-id="editor-flow-for-each-input-var"
+            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          />
+        </label>
+
+        <div class="grid gap-3 md:grid-cols-2">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">元素变量</span>
+            <input
+              :value="selectedFlow.item_var || ''"
+              class="app-input"
+              @input="$emit('update-field', 'item_var', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">索引变量</span>
+            <input
+              :value="selectedFlow.index_var || ''"
+              class="app-input"
+              @input="$emit('update-field', 'index_var', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </div>
+      </div>
+    </template>
+
     <template v-else-if="flowWithCondition && flowCondition">
       <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
         <div class="editor-inline-grid">
@@ -304,6 +340,25 @@ const resolvedFlowOutputOptions = computed(() => {
       label: `未解析变量 ${selectedFlowOutput.value}`,
       value: selectedFlowOutput.value,
       description: `保留历史输出 ${selectedFlowOutput.value}`,
+    },
+    ...jsonVariableOptions.value,
+  ];
+});
+const resolvedForEachInputOptions = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.forEach) {
+    return jsonVariableOptions.value;
+  }
+
+  if (!flow.input_var || jsonVariableOptions.value.some((option) => option.value === flow.input_var)) {
+    return jsonVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `未解析变量 ${flow.input_var}`,
+      value: flow.input_var,
+      description: `保留历史输入 ${flow.input_var}`,
     },
     ...jsonVariableOptions.value,
   ];

@@ -14,7 +14,12 @@ pub enum FlowControl{
         else_steps: Option<Vec<Step>>,
     },
     While{ con: ConditionNode,flow: Vec<Step> },
-    For{ con: ConditionNode,flow: Vec<Step> },
+    ForEach {
+        input_var: String,
+        item_var: String,
+        index_var: String,
+        flow: Vec<Step>,
+    },
     Continue,
     Break,
     WaitMs {

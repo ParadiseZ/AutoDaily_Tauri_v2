@@ -120,7 +120,7 @@ const nestedSummary = (step: Step) => {
   if (step.op === STEP_OP.sequence && step.steps.length) return `顺序容器 · ${step.steps.length} 个子步骤`;
   if (step.op === STEP_OP.flowControl) {
     if (step.a.type === FLOW_TYPE.if) return `Then ${step.a.then.length} · Else ${(step.a.else_steps ?? []).length}`;
-    if (step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.for) return `嵌套 ${step.a.flow.length} 个步骤`;
+    if (step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach) return `嵌套 ${step.a.flow.length} 个步骤`;
   }
   if (step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch && step.a.then_steps.length) {
     return `命中后 ${step.a.then_steps.length} 个步骤`;

@@ -137,6 +137,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           ac: ACTION_TYPE.click,
           mode: ACTION_MODE.txt,
+          input_var: 'runtime.ocrResults',
           txt: '开始',
         },
       }),
@@ -155,6 +156,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           ac: ACTION_TYPE.click,
           mode: ACTION_MODE.labelIdx,
+          input_var: 'runtime.detResults',
           idx: 0,
         },
       }),
@@ -214,6 +216,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           ac: ACTION_TYPE.swipe,
           mode: ACTION_MODE.txt,
           duration: 300,
+          input_var: 'runtime.ocrResults',
           from: '开始',
           to: '结束',
         },
@@ -234,6 +237,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           ac: ACTION_TYPE.swipe,
           mode: ACTION_MODE.labelIdx,
           duration: 300,
+          input_var: 'runtime.detResults',
           from: 0,
           to: 1,
         },
@@ -316,9 +320,9 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
-    id: 'for',
+    id: 'for-each',
     label: '遍历循环',
-    description: '根据 ConditionNode 条件执行 for 流程。',
+    description: '遍历输入变量中的数组元素，并把当前元素映射到运行时变量。',
     group: '流程',
     create: () =>
       createBaseStep({
@@ -327,11 +331,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         cur_exec_num: 0,
         max_exec_num: 1,
         a: {
-          type: FLOW_TYPE.for,
-          con: {
-            type: 'rawExpr',
-            expr: 'true',
-          },
+          type: FLOW_TYPE.forEach,
+          input_var: 'runtime.items',
+          item_var: 'runtime.item',
+          index_var: 'runtime.itemIndex',
           flow: [],
         },
       }),
@@ -570,7 +573,7 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === FLOW_TYPE.handlePolicy) return '处理策略';
     if (step.a.type === FLOW_TYPE.if) return '条件分支';
     if (step.a.type === FLOW_TYPE.while) return 'While';
-    if (step.a.type === FLOW_TYPE.for) return 'For';
+    if (step.a.type === FLOW_TYPE.forEach) return '遍历循环';
     if (step.a.type === FLOW_TYPE.continue) return '继续循环';
     if (step.a.type === FLOW_TYPE.break) return '跳出循环';
     return '流程控制';
@@ -620,8 +623,8 @@ export const describeStepMeta = (step: Step) => {
         return `条件分支 · then ${step.a.then.length} 步`;
       case FLOW_TYPE.while:
         return `循环 · ${step.a.flow.length} 步`;
-      case FLOW_TYPE.for:
-        return `遍历 · ${step.a.flow.length} 步`;
+      case FLOW_TYPE.forEach:
+        return `遍历 ${step.a.input_var || '未指定输入'} -> ${step.a.item_var || '未指定元素变量'}`;
       case FLOW_TYPE.waitMs:
         return `等待 ${String(step.a.ms)} ms`;
       case FLOW_TYPE.link:

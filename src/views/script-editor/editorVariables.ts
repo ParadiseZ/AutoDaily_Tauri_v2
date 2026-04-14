@@ -287,7 +287,7 @@ const collectDerivedRuntimeVariables = (
         continue;
       }
 
-      if (step.a.type === 'while' || step.a.type === 'for') {
+      if (step.a.type === 'while' || step.a.type === 'forEach') {
         collectDerivedRuntimeVariables(step.a.flow, ownerTaskId, bucket);
       }
     }
