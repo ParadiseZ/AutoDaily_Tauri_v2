@@ -770,9 +770,14 @@ impl ScriptExecutor {
             return;
         };
 
+        let (_execution_id, _assignment_id, script_id, task_id, step_id) =
+            self.current_execution_locator().await;
         let page_fingerprint = self.current_page_fingerprint().await;
         Log::debug(&format!(
-            "[ executor ] 动作后 observe hook: action={:?}, signature={}, page_fingerprint={}",
+            "[ executor ] 动作后 observe hook: script={:?}, task={:?}, step={:?}, action={:?}, signature={}, page_fingerprint={}",
+            script_id,
+            task_id,
+            step_id,
             action,
             action_trace.signature,
             page_fingerprint.unwrap_or_else(|| "<none>".to_string())
@@ -793,10 +798,14 @@ impl ScriptExecutor {
             self.last_progress_probe = None;
             return Ok(None);
         };
+        let (_execution_id, _assignment_id, _script_id, task_id, step_id) =
+            self.current_execution_locator().await;
 
         let probe = ActionProgressProbe {
             page_fingerprint: page_fingerprint.clone(),
             action_signature: action_trace.signature.clone(),
+            task_id,
+            step_id,
             recorded_at: Instant::now(),
         };
 
@@ -810,6 +819,8 @@ impl ScriptExecutor {
             .as_ref()
             .filter(|previous| previous.page_fingerprint == probe.page_fingerprint)
             .filter(|previous| previous.action_signature == probe.action_signature)
+            .filter(|previous| previous.task_id == probe.task_id)
+            .filter(|previous| previous.step_id == probe.step_id)
             .map(|previous| {
                 probe.recorded_at.duration_since(previous.recorded_at)
                     >= Duration::from_millis(runtime_policy.progress_timeout_ms)
@@ -822,7 +833,9 @@ impl ScriptExecutor {
         }
 
         let message = format!(
-            "检测到动作长时间无进展: action={}, page={}, threshold={}ms",
+            "检测到动作长时间无进展: task={:?}, step={:?}, action={}, page={}, threshold={}ms",
+            task_id,
+            step_id,
             action_trace.signature,
             page_fingerprint,
             runtime_policy.progress_timeout_ms

@@ -157,6 +157,19 @@ impl ScriptScheduler {
             .unwrap_or(RunTarget::DeviceQueue)
     }
 
+    async fn consume_task_skip_flag(
+        runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
+        task_id: crate::infrastructure::core::TaskId,
+    ) -> bool {
+        let mut ctx = runtime_ctx.write().await;
+        let Some(state) = ctx.execution.task_states.get_mut(&task_id) else {
+            return false;
+        };
+        let skip_flag = state.skip_flag;
+        state.skip_flag = false;
+        skip_flag
+    }
+
     /// 用完整 session 替换当前队列
     pub async fn load_session(&self, session: RuntimeSessionSnapshot) {
         let mut queue = self.queue.write().await;
@@ -305,6 +318,10 @@ impl ScriptScheduler {
             ctx.execution.script_info = Some(script_info);
             ctx.execution.current_task = None;
             ctx.execution.current_step_id = None;
+            ctx.execution.var_map.clear();
+            ctx.execution.policy_states.clear();
+            ctx.execution.task_states.clear();
+            ctx.observation.last_capture_image = None;
             ctx.observation.last_snapshot = None;
             ctx.observation.last_hits.clear();
             if let Err(error) = ctx
@@ -405,6 +422,7 @@ impl ScriptScheduler {
             let completion_at = chrono::Utc::now().to_rfc3339();
             match task_result {
                 Ok(flow) => {
+                    let task_skipped = Self::consume_task_skip_flag(&runtime_ctx, task.id).await;
                     let linked_task = match flow {
                         crate::infrastructure::scripts::executor::ControlFlow::Link(target) => {
                             Some(
@@ -422,19 +440,34 @@ impl ScriptScheduler {
                         _ => None,
                     };
                     let link_target = linked_task.as_ref().map(|planned| planned.task.id);
+                    let schedule_status = if task_skipped {
+                        RuntimeScheduleStatus::Skipped
+                    } else {
+                        RuntimeScheduleStatus::Success
+                    };
+                    let schedule_message = if task_skipped {
+                        match link_target {
+                            Some(target) => {
+                                format!("任务已跳过并跳转到任务[{}]: {}", target, task.name)
+                            }
+                            None => format!("任务已跳过: {}", task.name),
+                        }
+                    } else {
+                        match link_target {
+                            Some(target) => {
+                                format!("任务执行完成并跳转到任务[{}]: {}", target, task.name)
+                            }
+                            None => format!("任务执行完成: {}", task.name),
+                        }
+                    };
                     emit_schedule_event(
-                        RuntimeScheduleStatus::Success,
+                        schedule_status,
                         Some(execution_id),
                         Some(assignment_id),
                         Some(script_id),
                         Some(task.id),
                         None,
-                        Some(match link_target {
-                            Some(target) => {
-                                format!("任务执行完成并跳转到任务[{}]: {}", target, task.name)
-                            }
-                            None => format!("任务执行完成: {}", task.name),
-                        }),
+                        Some(schedule_message.clone()),
                     );
                     emit_progress_event(
                         RuntimeProgressPhase::Completed,
@@ -442,11 +475,20 @@ impl ScriptScheduler {
                         Some(script_id),
                         Some(task.id),
                         None,
-                        Some(match link_target {
-                            Some(target) => {
-                                format!("任务执行完成，下一步跳转到任务[{}]", target)
+                        Some(if task_skipped {
+                            match link_target {
+                                Some(target) => {
+                                    format!("任务已跳过，下一步跳转到任务[{}]", target)
+                                }
+                                None => format!("任务已跳过: {}", task.name),
                             }
-                            None => format!("任务执行完成: {}", task.name),
+                        } else {
+                            match link_target {
+                                Some(target) => {
+                                    format!("任务执行完成，下一步跳转到任务[{}]", target)
+                                }
+                                None => format!("任务执行完成: {}", task.name),
+                            }
                         }),
                     );
 
@@ -458,10 +500,14 @@ impl ScriptScheduler {
                             script_id,
                             &task,
                             &task_cycle,
-                            RunStatus::Success,
+                            if task_skipped {
+                                RunStatus::Skipped
+                            } else {
+                                RunStatus::Success
+                            },
                             task_started_at.clone(),
                             Some(completion_at.clone()),
-                            None,
+                            task_skipped.then(|| "任务在执行过程中被标记为跳过".to_string()),
                         )
                         .await?;
                     }
@@ -597,6 +643,11 @@ impl ScriptScheduler {
             ctx.execution.target = target.clone();
             ctx.execution.script_info = Some(script_info);
             ctx.execution.current_task = None;
+            ctx.execution.current_step_id = None;
+            ctx.execution.var_map.clear();
+            ctx.execution.policy_states.clear();
+            ctx.execution.task_states.clear();
+            ctx.observation.last_capture_image = None;
             ctx.observation.last_snapshot = None;
             ctx.observation.last_hits.clear();
             if let Err(error) = ctx

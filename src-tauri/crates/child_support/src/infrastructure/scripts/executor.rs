@@ -101,6 +101,8 @@ struct ActivePolicyRoundTrace {
 struct ActionProgressProbe {
     page_fingerprint: String,
     action_signature: String,
+    task_id: Option<TaskId>,
+    step_id: Option<StepId>,
     recorded_at: Instant,
 }
 
