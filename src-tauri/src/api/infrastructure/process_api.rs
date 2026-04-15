@@ -43,6 +43,8 @@ use tauri_plugin_store::StoreExt;
 struct LoadedScriptBundle {
     script_id: ScriptId,
     script_name: String,
+    pkg_name: Option<String>,
+    activity_name: Option<String>,
     recovery_task_id: Option<TaskId>,
     runnable_task_ids: HashSet<TaskId>,
     policy_group_ids: HashSet<crate::infrastructure::core::PolicyGroupId>,
@@ -146,6 +148,10 @@ fn normalize_account_id(account_id: Option<AccountId>) -> Option<AccountId> {
 
 fn serialize_to_json_string<T: Serialize>(value: &T) -> Result<String, String> {
     serde_json::to_string(value).map_err(|e| e.to_string())
+}
+
+fn has_non_empty_text(value: Option<&str>) -> bool {
+    value.map(str::trim).is_some_and(|text| !text.is_empty())
 }
 
 async fn find_template_values_with_fallback(
@@ -269,6 +275,8 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
         .collect();
 
     let script_name = script.data.0.name.clone();
+    let pkg_name = script.data.0.pkg_name.clone();
+    let activity_name = script.data.0.activity_name.clone();
     let recovery_task_id = script.data.0.runtime_settings.recovery_task_id;
     let policy_group_ids = policy_groups.iter().map(|group| group.id).collect();
     let policy_set_ids = policy_sets.iter().map(|set| set.id).collect();
@@ -276,6 +284,8 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
     Ok(LoadedScriptBundle {
         script_id,
         script_name,
+        pkg_name,
+        activity_name,
         recovery_task_id,
         runnable_task_ids,
         policy_group_ids,
@@ -387,6 +397,39 @@ fn validate_recovery_task_config(
                 bundle.script_name
             ));
         }
+    }
+
+    Ok(())
+}
+
+fn validate_restart_app_config(
+    run_target: &RunTarget,
+    runtime_policy: &RuntimeExecutionPolicy,
+    bundles: &[LoadedScriptBundle],
+) -> Result<(), String> {
+    if !matches!(runtime_policy.timeout_action, RuntimeTimeoutAction::RestartApp) {
+        return Ok(());
+    }
+
+    let required_script_ids: HashSet<ScriptId> = match run_target {
+        RunTarget::DeviceQueue => bundles.iter().map(|bundle| bundle.script_id).collect(),
+        _ => run_target.script_id().into_iter().collect(),
+    };
+
+    for bundle in bundles
+        .iter()
+        .filter(|bundle| required_script_ids.contains(&bundle.script_id))
+    {
+        if has_non_empty_text(bundle.pkg_name.as_deref())
+            && has_non_empty_text(bundle.activity_name.as_deref())
+        {
+            continue;
+        }
+
+        return Err(format!(
+            "脚本[{}]未配置全局包名或 Activity，无法使用 RestartApp 策略",
+            bundle.script_name
+        ));
     }
 
     Ok(())
@@ -585,6 +628,7 @@ async fn build_runtime_session_snapshot(
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
     validate_run_target_support(&run_target, &loaded_script_bundles)?;
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
+    validate_restart_app_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     let compatible_script_ids: HashSet<ScriptId> =
         loaded_script_bundles.iter().map(|bundle| bundle.script_id).collect();
     let checkpoint = load_recovery_checkpoint(device_id, &run_target)

@@ -261,6 +261,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       (task) => task.id === taskId && task.rowType === 'task' && !task.isDeleted,
     );
 
+  const normalizeOptionalText = (value: unknown) =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+
   const validateRecoveryPolicyForScript = (state: MockState, scriptId: string) => {
     const script = findScript(state, scriptId);
     if (!script) {
@@ -277,13 +280,27 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     }
   };
 
-  const validateRecoveryPolicyForRun = (state: MockState, deviceId: string, target?: unknown) => {
+  const validateRestartAppPolicyForScript = (state: MockState, scriptId: string) => {
+    const script = findScript(state, scriptId);
+    if (!script) {
+      return;
+    }
+
+    const pkgName = normalizeOptionalText(script.data.pkgName);
+    const activityName = normalizeOptionalText((script.data as { activityName?: unknown }).activityName);
+    if (!pkgName || !activityName) {
+      throw new Error(`脚本「${script.data.name}」未配置全局包名或 Activity，无法使用 RestartApp 策略`);
+    }
+  };
+
+  const validateTimeoutPolicyForRun = (state: MockState, deviceId: string, target?: unknown) => {
     const device = findDevice(state, deviceId);
     if (!device) {
       return;
     }
 
-    if (device.data.executionPolicy?.timeoutAction !== 'runRecoveryTask') {
+    const timeoutAction = device.data.executionPolicy?.timeoutAction;
+    if (timeoutAction !== 'runRecoveryTask' && timeoutAction !== 'restartApp') {
       return;
     }
 
@@ -296,7 +313,11 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           ? String((assignment as { scriptId?: unknown }).scriptId)
           : null;
         if (scriptId) {
-          validateRecoveryPolicyForScript(state, scriptId);
+          if (timeoutAction === 'runRecoveryTask') {
+            validateRecoveryPolicyForScript(state, scriptId);
+          } else {
+            validateRestartAppPolicyForScript(state, scriptId);
+          }
         }
       }
       return;
@@ -304,7 +325,11 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
 
     const scriptId = typeof targetRecord?.scriptId === 'string' ? targetRecord.scriptId : null;
     if (scriptId) {
-      validateRecoveryPolicyForScript(state, scriptId);
+      if (timeoutAction === 'runRecoveryTask') {
+        validateRecoveryPolicyForScript(state, scriptId);
+      } else {
+        validateRestartAppPolicyForScript(state, scriptId);
+      }
     }
   };
 
@@ -440,7 +465,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return `设备[${String(args.deviceId)}]子进程已关闭`;
         case 'cmd_restart_device_runtime':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateRecoveryPolicyForRun(readState(), String(args.deviceId));
+          validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           updateState((current) => ({
             ...current,
             runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
@@ -450,7 +475,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return `设备[${String(args.deviceId)}]子进程已按 checkpoint 流程重启并重新装填 session`;
         case 'cmd_device_start':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateRecoveryPolicyForRun(readState(), String(args.deviceId));
+          validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           return `已向设备[${String(args.deviceId)}]发送启动命令`;
         case 'cmd_device_pause':
           return `已向设备[${String(args.deviceId)}]发送暂停命令`;
@@ -458,11 +483,11 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return `已向设备[${String(args.deviceId)}]发送停止命令`;
         case 'cmd_sync_device_runtime_session':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateRecoveryPolicyForRun(readState(), String(args.deviceId));
+          validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           return `已同步设备[${String(args.deviceId)}]运行会话`;
         case 'cmd_run_script_target':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateRecoveryPolicyForRun(readState(), String(args.deviceId), args.target);
+          validateTimeoutPolicyForRun(readState(), String(args.deviceId), args.target);
           if (args.target && typeof args.target === 'object') {
             const target = args.target as { type?: unknown };
             if (target.type === 'policyGroup') {

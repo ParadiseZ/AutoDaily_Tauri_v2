@@ -101,6 +101,7 @@ export interface ScriptInfoRecord {
     txtDetModel: DetectorType | null;
     txtRecModel: RecognizerType | null;
     pkgName: string | null;
+    activityName: string | null;
     createTime: string | null;
     updateTime: string | null;
     verName: string;
@@ -252,6 +253,7 @@ export interface MarketScriptRecord {
     txtDetModel: string | null;
     txtRecModel: string | null;
     pkgName: string | null;
+    activityName: string | null;
     createTime: string | null;
     updateTime: string | null;
     verName: string | null;

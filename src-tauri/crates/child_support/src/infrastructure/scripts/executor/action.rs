@@ -893,9 +893,32 @@ impl ScriptExecutor {
             }
             TimeoutAction::RestartApp => {
                 self.prepare_timeout_checkpoint_if_needed().await;
+                let (script_name, pkg_name, activity_name) =
+                    self.current_script_launch_target().await?;
+                if let Err(error) = get_device_ctx().stop_app(&pkg_name).await {
+                    Log::warn(&format!(
+                        "[ executor ] timeout RestartApp 停止应用失败，继续尝试拉起: script={}, pkg={}, error={}",
+                        script_name, pkg_name, error
+                    ));
+                }
+                get_device_ctx()
+                    .launch_app(&pkg_name, &activity_name)
+                    .await
+                    .map_err(|error| {
+                        Self::execute_error(
+                            "action.timeout",
+                            format!(
+                                "{}；执行 RestartApp 失败: script={}, pkg={}, activity={}, error={}",
+                                message, script_name, pkg_name, activity_name, error
+                            ),
+                        )
+                    })?;
                 Err(Self::execute_error(
                     "action.timeout",
-                    format!("{}；RestartApp 尚未接入全局启动元数据，请改用 RunRecoveryTask", message),
+                    format!(
+                        "{}；已执行 RestartApp: script={}, pkg={}, activity={}。当前执行不会自动恢复到目标页，如需继续编排，请改用 RunRecoveryTask。",
+                        message, script_name, pkg_name, activity_name
+                    ),
                 ))
             }
         }
@@ -982,6 +1005,49 @@ impl ScriptExecutor {
             .script_info
             .as_ref()
             .and_then(|info| info.runtime_settings.recovery_task_id)
+    }
+
+    async fn current_script_launch_target(&self) -> ExecuteResult<(String, String, String)> {
+        let ctx = self.runtime_ctx.read().await;
+        let script_info = ctx.execution.script_info.as_ref().ok_or_else(|| {
+            Self::execute_error(
+                "action.timeout",
+                "当前运行时缺少 script_info，无法执行 RestartApp".to_string(),
+            )
+        })?;
+
+        let pkg_name = script_info
+            .pkg_name
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .ok_or_else(|| {
+                Self::execute_error(
+                    "action.timeout",
+                    format!(
+                        "脚本[{}]未配置全局 pkg_name，无法执行 RestartApp",
+                        script_info.name
+                    ),
+                )
+            })?;
+        let activity_name = script_info
+            .activity_name
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .ok_or_else(|| {
+                Self::execute_error(
+                    "action.timeout",
+                    format!(
+                        "脚本[{}]未配置全局 activity_name，无法执行 RestartApp",
+                        script_info.name
+                    ),
+                )
+            })?;
+
+        Ok((script_info.name.clone(), pkg_name, activity_name))
     }
 
     async fn prepare_timeout_checkpoint_if_needed(&self) {

@@ -64,10 +64,27 @@
                 </label>
               </div>
 
-              <label class="dialog-form-row">
-                <span class="dialog-form-label">脚本平台</span>
-                <AppSelect v-model="scriptPlatformValue" :options="platformOptions" test-id="script-basic-platform" />
-              </label>
+              <div class="dialog-form-grid">
+                <label class="dialog-form-row">
+                  <span class="dialog-form-label">Activity</span>
+                  <input
+                    v-model.trim="activityNameValue"
+                    class="app-input"
+                    data-testid="script-basic-activity-name"
+                    maxlength="160"
+                    placeholder=".MainActivity"
+                  />
+                </label>
+
+                <label class="dialog-form-row">
+                  <span class="dialog-form-label">脚本平台</span>
+                  <AppSelect v-model="scriptPlatformValue" :options="platformOptions" test-id="script-basic-platform" />
+                </label>
+              </div>
+
+              <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+                当设备超时行为选择 `RestartApp` 时，运行时会使用这里的 `包名 + Activity` 执行 `stop_app / start_activity`。
+              </p>
 
               <div class="dialog-form-grid">
                 <label class="dialog-form-row">
@@ -726,6 +743,13 @@ const pkgNameValue = computed({
   },
 });
 
+const activityNameValue = computed({
+  get: () => form.value?.data.activityName || '',
+  set: (value: string) => {
+    if (form.value) form.value.data.activityName = value || null;
+  },
+});
+
 const scriptPlatformValue = computed({
   get: () => form.value?.data.platform || 'android',
   set: (value: string) => {
@@ -816,6 +840,8 @@ function cloneScriptRecord(script: unknown): ScriptTableRecord {
 
 function ensureRuntimeSettings(script: ScriptTableRecord) {
   script.data.platform = script.data.platform || 'android';
+  script.data.pkgName = script.data.pkgName || null;
+  script.data.activityName = script.data.activityName || null;
   script.data.runtimeSettings = {
     recoveryTaskId: script.data.runtimeSettings?.recoveryTaskId || null,
   };

@@ -89,6 +89,10 @@
             <span>包名</span>
             <span class="truncate text-[var(--app-text-strong)]">{{ script.data.pkgName || '未指定' }}</span>
           </div>
+          <div class="flex justify-between gap-4">
+            <span>Activity</span>
+            <span class="truncate text-[var(--app-text-strong)]">{{ script.data.activityName || '未指定' }}</span>
+          </div>
         </div>
       </SurfacePanel>
     </div>
