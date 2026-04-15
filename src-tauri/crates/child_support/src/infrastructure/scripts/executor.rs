@@ -4,7 +4,8 @@ use crate::domain::scripts::nodes::flow_control::{
     CompareOp, ConditionNode, FlowControl, PolicySetResultCompareOp, PolicySetResultField,
 };
 use crate::domain::scripts::nodes::policy_execution::{
-    PolicyExecutionResult, PolicyExecutionRound,
+    PolicyActionKind, PolicyActionSource, PolicyActionTarget, PolicyActionTargetRole,
+    PolicyActionTrace, PolicyExecutionResult, PolicyExecutionRound,
 };
 use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
 use crate::domain::scripts::nodes::vision_node::VisionNode;
@@ -16,12 +17,19 @@ use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit, VisionSnapshot};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
-use crate::infrastructure::core::{HashMap, PolicyGroupId, PolicyId, PolicySetId, StepId};
+use crate::infrastructure::core::{
+    ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScheduleId, StepId, TaskId,
+};
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
-use crate::infrastructure::ipc::message::RuntimeProgressPhase;
-use crate::infrastructure::ipc::runtime_reporter::emit_progress_event;
+use crate::infrastructure::ipc::message::{
+    RuntimeLifecyclePhase, RuntimeProgressPhase, SessionCheckpointReason, TimeoutAction,
+};
+use crate::infrastructure::ipc::runtime_reporter::{
+    emit_lifecycle_event, emit_progress_event,
+};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
+use crate::infrastructure::session::recovery_checkpoint_store::prepare_and_persist_checkpoint;
 use crate::infrastructure::session::runtime_session::{
     get_runtime_execution_policy, get_script_bundle_snapshot,
 };
@@ -34,6 +42,7 @@ use std::future::Future;
 use std::hash::Hasher;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::time::Duration;
 use twox_hash::XxHash3_64;
 
@@ -55,6 +64,7 @@ const MAX_LOOP_ITERATIONS: usize = 10_000;
 pub enum ControlFlow {
     Continue,
     Break,
+    Link(TaskId),
     Next,
     Return,
 }
@@ -80,11 +90,27 @@ struct PolicyCandidate {
     policy: PolicyTable,
 }
 
+#[derive(Debug, Default, Clone)]
+struct ActivePolicyRoundTrace {
+    page_fingerprints: Vec<String>,
+    action_signatures: Vec<String>,
+    actions: Vec<PolicyActionTrace>,
+}
+
+#[derive(Debug, Clone)]
+struct ActionProgressProbe {
+    page_fingerprint: String,
+    action_signature: String,
+    recorded_at: Instant,
+}
+
 pub struct ScriptExecutor {
     pub engine: Engine,
     pub scope: Scope<'static>,
     pub runtime_ctx: SharedRuntimeContext,
     pub node_indices: HashMap<StepId, usize>,
+    active_policy_round: Option<ActivePolicyRoundTrace>,
+    last_progress_probe: Option<ActionProgressProbe>,
 }
 
 impl ScriptExecutor {
@@ -94,6 +120,8 @@ impl ScriptExecutor {
             scope: Scope::new(),
             runtime_ctx,
             node_indices: HashMap::new(),
+            active_policy_round: None,
+            last_progress_probe: None,
         }
     }
 
@@ -124,6 +152,7 @@ impl ScriptExecutor {
                 ControlFlow::Next => continue,
                 ControlFlow::Continue => return Ok(ControlFlow::Continue),
                 ControlFlow::Break => return Ok(ControlFlow::Break),
+                ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                 ControlFlow::Return => return Ok(ControlFlow::Return),
             }
         }

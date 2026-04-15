@@ -291,8 +291,9 @@ impl ScriptScheduler {
         let task_selection =
             ExecutionPlanAssembler::select_tasks(&run_target, device_id, &queue_item, &bundle.tasks)
                 .await?;
-        let runnable_task_count = task_selection.runnable_tasks.len();
+        let runnable_task_count = task_selection.root_tasks.len();
         let skipped_task_count = task_selection.skipped_tasks.len();
+        let linkable_task_count = task_selection.linkable_tasks.len();
 
         // 更新运行时上下文的 script_id
         {
@@ -330,8 +331,8 @@ impl ScriptScheduler {
             )),
         );
         Log::info(&format!(
-            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, runnable_task={}, skipped_task={}, policy={}, group_relation={}, set_relation={}",
-            script_id, tasks_len, runnable_task_count, skipped_task_count, policy_count, group_policy_count, set_group_count
+            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, root_task={}, linkable_task={}, skipped_task={}, policy={}, group_relation={}, set_relation={}",
+            script_id, tasks_len, runnable_task_count, linkable_task_count, skipped_task_count, policy_count, group_policy_count, set_group_count
         ));
         emit_progress_event(
             RuntimeProgressPhase::Executing,
@@ -340,8 +341,8 @@ impl ScriptScheduler {
             None,
             None,
             Some(format!(
-                "执行计划已装配，待执行任务 {} 个，跳过 {} 个",
-                runnable_task_count, skipped_task_count
+                "执行计划已装配，一级任务 {} 个，可跳转任务 {} 个，跳过 {} 个",
+                runnable_task_count, linkable_task_count, skipped_task_count
             )),
         );
 
@@ -375,7 +376,9 @@ impl ScriptScheduler {
         }
 
         let mut executor = ScriptExecutor::new(runtime_ctx.clone());
-        for planned_task in task_selection.runnable_tasks {
+        let mut pending_tasks: VecDeque<_> = task_selection.root_tasks.into_iter().collect();
+        let linkable_tasks = task_selection.linkable_tasks;
+        while let Some(planned_task) = pending_tasks.pop_front() {
             let task_cycle = planned_task.task_cycle;
             let task = planned_task.task;
             let task_started_at = chrono::Utc::now().to_rfc3339();
@@ -397,12 +400,28 @@ impl ScriptScheduler {
             executor.reset_node_indices();
             let task_result = executor
                 .execute(task.data.0.steps.as_slice())
-                .await
-                .map(|_| ());
+                .await;
 
             let completion_at = chrono::Utc::now().to_rfc3339();
             match task_result {
-                Ok(()) => {
+                Ok(flow) => {
+                    let linked_task = match flow {
+                        crate::infrastructure::scripts::executor::ControlFlow::Link(target) => {
+                            Some(
+                                linkable_tasks
+                                    .get(&target)
+                                    .cloned()
+                                    .ok_or_else(|| {
+                                        format!(
+                                            "跳转目标任务[{}]不存在，或不允许通过 link 进入",
+                                            target
+                                        )
+                                    })?,
+                            )
+                        }
+                        _ => None,
+                    };
+                    let link_target = linked_task.as_ref().map(|planned| planned.task.id);
                     emit_schedule_event(
                         RuntimeScheduleStatus::Success,
                         Some(execution_id),
@@ -410,7 +429,12 @@ impl ScriptScheduler {
                         Some(script_id),
                         Some(task.id),
                         None,
-                        Some(format!("任务执行完成: {}", task.name)),
+                        Some(match link_target {
+                            Some(target) => {
+                                format!("任务执行完成并跳转到任务[{}]: {}", target, task.name)
+                            }
+                            None => format!("任务执行完成: {}", task.name),
+                        }),
                     );
                     emit_progress_event(
                         RuntimeProgressPhase::Completed,
@@ -418,7 +442,12 @@ impl ScriptScheduler {
                         Some(script_id),
                         Some(task.id),
                         None,
-                        Some(format!("任务执行完成: {}", task.name)),
+                        Some(match link_target {
+                            Some(target) => {
+                                format!("任务执行完成，下一步跳转到任务[{}]", target)
+                            }
+                            None => format!("任务执行完成: {}", task.name),
+                        }),
                     );
 
                     if task.record_schedule && matches!(task.row_type, TaskRowType::Task) {
@@ -440,6 +469,16 @@ impl ScriptScheduler {
                         let mut ctx = runtime_ctx.write().await;
                         ctx.execution.current_task = None;
                         ctx.execution.current_step_id = None;
+                    }
+
+                    if let Some(linked_task) = linked_task {
+                        let target = linked_task.task.id;
+                        if let Some(position) =
+                            pending_tasks.iter().position(|planned| planned.task.id == target)
+                        {
+                            pending_tasks.remove(position);
+                        }
+                        pending_tasks.push_front(linked_task);
                     }
                 }
                 Err(error) => {

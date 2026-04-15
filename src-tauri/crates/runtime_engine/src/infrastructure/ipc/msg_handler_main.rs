@@ -1,10 +1,13 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::main_process::MainProcessCtx;
-use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload, RuntimeEventMessage};
+use crate::infrastructure::ipc::message::IpcMessage;
+use crate::infrastructure::ipc::message::MessagePayload;
+use crate::infrastructure::ipc::message::RuntimeEventMessage;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use tauri::{Emitter, Manager};
+use tauri_plugin_notification::NotificationExt;
 
 /// 主进程消息处理器
 /// 处理来自子进程的消息
@@ -88,6 +91,31 @@ fn handle_runtime_event(
                     "at": progress.at,
                 });
                 let _ = main_window.emit("device-progress", emit_data);
+
+                if let Some(message) = progress.message.as_deref() {
+                    if let Some(body) = message.strip_prefix("[timeout_notify]") {
+                        let _ = get_app_handle()
+                            .notification()
+                            .builder()
+                            .title("脚本执行超时")
+                            .body(body.trim())
+                            .show();
+                    }
+
+                    if let Some(body) = message.strip_prefix("[timeout]") {
+                        let emit_data = serde_json::json!({
+                            "deviceId": device_id.to_string(),
+                            "sessionId": progress.session_id.map(|id| id.to_string()),
+                            "assignmentId": progress.assignment_id.map(|id| id.to_string()),
+                            "scriptId": progress.script_id.map(|id| id.to_string()),
+                            "taskId": progress.task_id.map(|id| id.to_string()),
+                            "stepId": progress.step_id.map(|id| id.to_string()),
+                            "message": body.trim(),
+                            "at": progress.at,
+                        });
+                        let _ = main_window.emit("device-timeout", emit_data);
+                    }
+                }
             }
             RuntimeEventMessage::Schedule(schedule) => {
                 let emit_data = serde_json::json!({

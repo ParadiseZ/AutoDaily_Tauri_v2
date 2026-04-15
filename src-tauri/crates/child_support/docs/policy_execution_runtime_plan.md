@@ -19,7 +19,9 @@ Current status:
   - 图像变量读取与 `VisionSnapshot` 刷新已接入
   - `HandlePolicySet / HandlePolicy` 已可执行首个命中的策略
   - `PolicyCondition.input_var` 与 `PolicySetResult` 已接入
-  - `PolicyExecutionResult.rounds[*].pageFingerprints / actionSignatures / actions` 仍未真实记录
+  - `PolicyExecutionResult.rounds[*].pageFingerprints / actionSignatures / actions` 已接入真实记录
+    - `pageFingerprints` 在策略入口图像激活、后续显式 `Capture` / 图像变量刷新时写入
+    - `actionSignatures / actions` 在真实设备动作执行时按实际目标写入
 
 ## Expected Runtime Flow
 
@@ -149,7 +151,5 @@ Whether that evidence means "stuck" must be decided by later analysis logic, not
 
 ## Remaining Implementation Items
 
-1. Fill `PolicyExecutionRound.page_fingerprints`.
-2. Fill `PolicyExecutionRound.action_signatures`.
-3. Fill `PolicyExecutionRound.actions`.
-4. Add richer debug logs for snapshot reuse / rebuild decisions.
+1. Add richer debug logs for snapshot reuse / rebuild decisions.
+2. If later需要“动作后强制观察”，再单独评估是否要在当前显式图像变量模型之外引入自动截图，不在本版本默认开启。

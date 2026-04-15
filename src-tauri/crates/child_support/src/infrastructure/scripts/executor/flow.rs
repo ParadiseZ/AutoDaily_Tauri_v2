@@ -38,6 +38,7 @@ impl ScriptExecutor {
                         ControlFlow::Next => continue,
                         ControlFlow::Continue => continue,
                         ControlFlow::Break => break,
+                        ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                         ControlFlow::Return => return Ok(ControlFlow::Return),
                     }
                 }
@@ -73,6 +74,7 @@ impl ScriptExecutor {
                         ControlFlow::Next => continue,
                         ControlFlow::Continue => continue,
                         ControlFlow::Break => break,
+                        ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                         ControlFlow::Return => return Ok(ControlFlow::Return),
                     }
                 }
@@ -85,14 +87,14 @@ impl ScriptExecutor {
                 tokio::time::sleep(Duration::from_millis(*ms)).await;
                 Ok(ControlFlow::Next)
             }
-            FlowControl::Link { target } => Err(Self::execute_error(
-                "flow.link",
-                format!("跳转任务[{}]尚未接入调度器切换逻辑", target),
-            )),
-            FlowControl::AddPolicies { .. } => Err(Self::execute_error(
-                "flow.addPolicies",
-                "动态策略集拼装尚未接入运行时".to_string(),
-            )),
+            FlowControl::Link { target } => Ok(ControlFlow::Link(*target)),
+            FlowControl::AddPolicies { source, target } => {
+                Log::warn(&format!(
+                    "[ executor ] AddPolicies(source={}, target={}) 当前已裁剪为兼容空操作，请迁移到显式 HandlePolicySet / HandlePolicy 链路",
+                    source, target
+                ));
+                Ok(ControlFlow::Next)
+            }
             FlowControl::HandlePolicySet {
                 target,
                 input_var,
@@ -174,6 +176,7 @@ impl ScriptExecutor {
                             ControlFlow::Next => {}
                             ControlFlow::Continue => continue,
                             ControlFlow::Break => break,
+                            ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                             ControlFlow::Return => return Ok(ControlFlow::Return),
                         }
                     }
@@ -206,13 +209,15 @@ impl ScriptExecutor {
                 self.set_state_value(target, status).await?;
                 Ok(ControlFlow::Next)
             }
-            TaskControl::GetState { target, status: _ } => Err(Self::execute_error(
-                "taskControl.getState",
-                format!(
-                    "GetState 只应用于条件节点 TaskStatus，不应作为步骤执行[target={}]",
-                    Self::state_target_label(target)
-                ),
-            )),
+            TaskControl::GetState { target, status } => {
+                let matched = self.match_state_value(target, status).await;
+                Log::warn(&format!(
+                    "[ executor ] GetState(step) 当前按兼容空操作处理[target={}, matched={}]；请改用条件节点 TaskStatus",
+                    Self::state_target_label(target),
+                    matched
+                ));
+                Ok(ControlFlow::Next)
+            }
         }
     }
 
@@ -420,6 +425,10 @@ impl ScriptExecutor {
             }
         };
 
+        Ok(self.match_state_value(target, status).await)
+    }
+
+    async fn match_state_value(&self, target: &StateTarget, status: &StateStatus) -> bool {
         let ctx = self.runtime_ctx.read().await;
         match target {
             StateTarget::Task { id } => {
@@ -429,11 +438,11 @@ impl ScriptExecutor {
                     .get(id)
                     .cloned()
                     .unwrap_or_else(TaskState::default);
-                Ok(match status {
+                match status {
                     StateStatus::Enabled { value } => state.enabled_flag == *value,
                     StateStatus::Skip { value } => state.skip_flag == *value,
                     StateStatus::Done { value } => state.done_flag == *value,
-                })
+                }
             }
             StateTarget::Policy { id } => {
                 let state = ctx
@@ -442,11 +451,11 @@ impl ScriptExecutor {
                     .get(id)
                     .cloned()
                     .unwrap_or_default();
-                Ok(match status {
+                match status {
                     StateStatus::Enabled { .. } => false,
                     StateStatus::Skip { value } => state.skip_flag == *value,
                     StateStatus::Done { value } => state.done_flag == *value,
-                })
+                }
             }
         }
     }

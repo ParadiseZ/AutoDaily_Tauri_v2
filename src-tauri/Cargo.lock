@@ -5650,6 +5650,7 @@ dependencies = [
  "serde_yaml",
  "sqlx",
  "tauri",
+ "tauri-plugin-notification",
  "tauri-plugin-store",
  "thiserror 2.0.18",
  "tokio",

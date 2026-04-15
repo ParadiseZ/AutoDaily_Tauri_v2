@@ -83,24 +83,33 @@ impl ScriptExecutor {
             let policy_name = candidate.policy.data.0.name.clone();
             let before_action = candidate.policy.data.0.before_action.clone();
             let after_action = candidate.policy.data.0.after_action.clone();
-
-            self.execute_policy_steps(
-                step_type,
-                &policy_name,
-                "before_action",
-                before_action.as_slice(),
-            )
-            .await?;
-            self.execute_policy_steps(
-                step_type,
-                &policy_name,
-                "after_action",
-                after_action.as_slice(),
-            )
-            .await?;
+            self.begin_active_policy_round_trace().await;
+            let execute_result = async {
+                self.execute_policy_steps(
+                    step_type,
+                    &policy_name,
+                    "before_action",
+                    before_action.as_slice(),
+                )
+                .await?;
+                self.execute_policy_steps(
+                    step_type,
+                    &policy_name,
+                    "after_action",
+                    after_action.as_slice(),
+                )
+                .await?;
+                Ok::<(), crate::infrastructure::scripts::script_error::ScriptError>(())
+            }
+            .await;
+            let trace = self.take_active_policy_round_trace();
+            execute_result?;
 
             self.mark_policy_succeeded(candidate.policy.id).await;
             round.matched = true;
+            round.page_fingerprints = trace.page_fingerprints;
+            round.action_signatures = trace.action_signatures;
+            round.actions = trace.actions;
             result.matched = true;
             result.policy_set_id = candidate.policy_set_id;
             result.policy_group_id = candidate.policy_group_id;
@@ -341,5 +350,16 @@ impl ScriptExecutor {
         }
 
         Ok(candidates)
+    }
+
+    async fn begin_active_policy_round_trace(&mut self) {
+        self.active_policy_round = Some(ActivePolicyRoundTrace::default());
+        if let Some(fingerprint) = self.current_page_fingerprint().await {
+            self.push_active_policy_page_fingerprint(fingerprint);
+        }
+    }
+
+    fn take_active_policy_round_trace(&mut self) -> ActivePolicyRoundTrace {
+        self.active_policy_round.take().unwrap_or_default()
     }
 }

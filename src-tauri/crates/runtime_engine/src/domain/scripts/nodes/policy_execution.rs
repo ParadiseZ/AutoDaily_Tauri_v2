@@ -14,6 +14,7 @@ pub enum PolicyActionKind {
     Press,
     Reboot,
     StartApp,
+    StopApp,
     Back,
     Home,
     Menu,

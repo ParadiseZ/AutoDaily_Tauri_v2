@@ -1,6 +1,6 @@
 use crate::domain::devices::device_schedule::TaskCycle;
-use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
-use crate::infrastructure::core::{DeviceId, ScheduleId};
+use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType, TaskTriggerMode};
+use crate::infrastructure::core::{DeviceId, ScheduleId, TaskId};
 use crate::infrastructure::ipc::message::{RunTarget, RuntimeQueueItem};
 use crate::infrastructure::scripts::schedule_journal::ScheduleJournal;
 use chrono::{DateTime, Datelike, Duration, Local};
@@ -13,6 +13,8 @@ pub struct ExecutionPlanAssembler;
 pub struct PlannedTask {
     pub task: ScriptTaskTable,
     pub task_cycle: TaskCycle,
+    pub allow_root: bool,
+    pub allow_link: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -24,7 +26,8 @@ pub struct SkippedTask {
 
 #[derive(Debug, Clone, Default)]
 pub struct TaskSelection {
-    pub runnable_tasks: Vec<PlannedTask>,
+    pub root_tasks: Vec<PlannedTask>,
+    pub linkable_tasks: HashMap<TaskId, PlannedTask>,
     pub skipped_tasks: Vec<SkippedTask>,
 }
 
@@ -50,8 +53,14 @@ impl ExecutionPlanAssembler {
         tasks: &[ScriptTaskTable],
     ) -> Result<TaskSelection, String> {
         let template_values = Self::parse_template_values(queue_item.template_values_json.as_deref())?;
-        let mut runnable_tasks = Vec::new();
+        let mut root_tasks = Vec::new();
+        let mut linkable_tasks = HashMap::new();
         let mut skipped_tasks = Vec::new();
+        let mut direct_target = None;
+        let direct_task_id = match run_target {
+            RunTarget::Task { task_id, .. } => Some(*task_id),
+            _ => None,
+        };
 
         for task in tasks
             .iter()
@@ -63,6 +72,26 @@ impl ExecutionPlanAssembler {
                 continue;
             }
             let task_cycle = Self::resolve_task_cycle(&task, template_values.as_ref());
+            let (allow_root, allow_link) = Self::resolve_trigger_mode(&task);
+            let planned_task = PlannedTask {
+                task: task.clone(),
+                task_cycle: task_cycle.clone(),
+                allow_root,
+                allow_link,
+            };
+
+            if allow_link {
+                linkable_tasks.insert(task.id, planned_task.clone());
+            }
+
+            if Some(task.id) == direct_task_id {
+                direct_target = Some(planned_task);
+                continue;
+            }
+
+            if !allow_root {
+                continue;
+            }
 
             if let Some(reason) = Self::should_skip_by_schedule(
                 run_target,
@@ -81,19 +110,19 @@ impl ExecutionPlanAssembler {
                 continue;
             }
 
-            runnable_tasks.push(PlannedTask { task, task_cycle });
+            root_tasks.push(planned_task);
         }
 
         match run_target {
             RunTarget::DeviceQueue | RunTarget::FullScript { .. } => Ok(TaskSelection {
-                runnable_tasks,
+                root_tasks,
+                linkable_tasks,
                 skipped_tasks,
             }),
-            RunTarget::Task { task_id, .. } => runnable_tasks
-                .into_iter()
-                .find(|planned_task| planned_task.task.id == *task_id)
+            RunTarget::Task { task_id, .. } => direct_target
                 .map(|planned_task| TaskSelection {
-                    runnable_tasks: vec![planned_task],
+                    root_tasks: vec![planned_task],
+                    linkable_tasks,
                     skipped_tasks: Vec::new(),
                 })
                 .ok_or_else(|| format!("运行目标中的任务[{}]不存在或不可执行", task_id)),
@@ -107,6 +136,14 @@ impl ExecutionPlanAssembler {
                 "策略集目标[{}]的执行计划尚未接入，当前不执行降级推断",
                 policy_set_id
             )),
+        }
+    }
+
+    fn resolve_trigger_mode(task: &ScriptTaskTable) -> (bool, bool) {
+        match task.trigger_mode {
+            TaskTriggerMode::RootOnly => (true, false),
+            TaskTriggerMode::LinkOnly => (false, true),
+            TaskTriggerMode::RootAndLink => (true, true),
         }
     }
 

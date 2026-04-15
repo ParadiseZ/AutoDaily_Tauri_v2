@@ -43,6 +43,7 @@ sqlx = { workspace = true }
 num = { workspace = true }
 machineid-rs = { workspace = true }
 tauri = { workspace = true }
+tauri-plugin-notification = { workspace = true }
 tauri-plugin-store = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
