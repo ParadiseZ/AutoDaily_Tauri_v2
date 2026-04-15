@@ -15,7 +15,7 @@ use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use runtime_engine::domain::devices::device_conf::CapMethod;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()> {
     set_process_affinity(&init_data.cpu_cores)
@@ -41,10 +41,12 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
         .unwrap_or_else(|| ADBConnectConfig::DirectTcp(None));
     ADBCtx::new(adb_config).await;
 
-    let ocr_service = Arc::new(OcrService::new());
+    let img_det_service = Arc::new(Mutex::new(OcrService::new()));
+    let ocr_service = Arc::new(Mutex::new(OcrService::new()));
     let runtime_ctx = Arc::new(RwLock::new(RuntimeContext::new(
         init_data.device_id,
         RunTarget::DeviceQueue,
+        img_det_service,
         ocr_service,
         init_data.vision_text_cache_config.clone(),
     )));

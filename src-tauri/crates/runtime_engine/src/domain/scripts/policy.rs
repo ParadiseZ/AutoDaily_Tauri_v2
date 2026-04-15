@@ -4,7 +4,7 @@ use crate::infrastructure::core::{Deserialize, PolicyGroupId, PolicyId, PolicySe
 use sqlx::types::Json;
 use sqlx::FromRow;
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyTable {
@@ -36,7 +36,7 @@ pub struct PolicyInfo {
     pub after_action: Vec<Step>,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicyGroupTable {
@@ -55,7 +55,7 @@ pub struct PolicyGroupInfo {
     pub note: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct PolicySetTable {
@@ -75,7 +75,7 @@ pub struct PolicySetInfo {
 }
 
 // Structs for Many-to-Many fetching
-#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupPolicyRelation {
@@ -84,7 +84,7 @@ pub struct GroupPolicyRelation {
     pub order_index: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct SetGroupRelation {

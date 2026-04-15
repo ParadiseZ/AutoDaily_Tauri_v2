@@ -15,7 +15,11 @@ Current status:
   - first-stage recall with `SearchRule`
   - second-stage refine with `PolicyConditionRule`
   - `VisionSnapshot` layout sorting and relative-position matching
-- child executor is still mostly placeholder logic
+- child executor 已完成第一轮最小闭环：
+  - 图像变量读取与 `VisionSnapshot` 刷新已接入
+  - `HandlePolicySet / HandlePolicy` 已可执行首个命中的策略
+  - `PolicyCondition.input_var` 与 `PolicySetResult` 已接入
+  - `PolicyExecutionResult.rounds[*].pageFingerprints / actionSignatures / actions` 仍未真实记录
 
 ## Expected Runtime Flow
 
@@ -143,13 +147,9 @@ Fingerprints must be appended inside each round so later analysis can inspect:
 The child executor should only provide evidence.
 Whether that evidence means "stuck" must be decided by later analysis logic, not by the recorder itself.
 
-## Pending Implementation Items
+## Remaining Implementation Items
 
-1. Add image variable read path in child executor.
-2. Build `VisionSnapshot` from screenshot variables.
-3. Expand policy set -> group -> policy ordering in child runtime.
-4. Execute `HandlePolicySet` and `HandlePolicy`.
-5. Evaluate `PolicyCondition` in `if / while / for`.
-6. Record `PolicyExecutionRound` during execution.
-7. Update runtime output variable with final `PolicyExecutionResult`.
-8. Add debug logs for snapshot reuse / rebuild decisions.
+1. Fill `PolicyExecutionRound.page_fingerprints`.
+2. Fill `PolicyExecutionRound.action_signatures`.
+3. Fill `PolicyExecutionRound.actions`.
+4. Add richer debug logs for snapshot reuse / rebuild decisions.

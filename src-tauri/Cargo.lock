@@ -915,6 +915,7 @@ dependencies = [
  "sqlx",
  "tokio",
  "tokio-util",
+ "twox-hash",
  "vision_core",
 ]
 

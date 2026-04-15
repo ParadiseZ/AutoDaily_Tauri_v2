@@ -16,3 +16,4 @@ tokio-util = { workspace = true }
 interprocess = { workspace = true }
 rhai = { workspace = true }
 image = { workspace = true }
+twox-hash = { workspace = true }

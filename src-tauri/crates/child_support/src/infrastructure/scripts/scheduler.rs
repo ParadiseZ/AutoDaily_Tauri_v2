@@ -5,11 +5,14 @@ use crate::infrastructure::context::runtime_context::get_runtime_ctx;
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
-use crate::domain::scripts::script_info::ScriptTable;
+use crate::domain::scripts::script_info::{ScriptInfo, ScriptTable};
 use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
 use crate::domain::devices::device_schedule::RunStatus;
 use crate::infrastructure::core::ExecutionId;
 use crate::infrastructure::core::ScriptId;
+use crate::infrastructure::vision::det::DetectorType;
+use crate::infrastructure::vision::ocr_service::OcrService;
+use crate::infrastructure::vision::rec::RecognizerType;
 use crate::infrastructure::ipc::message::{
     RunTarget, RuntimeProgressPhase, RuntimeQueueItem, RuntimeScheduleStatus,
     RuntimeSessionSnapshot,
@@ -23,6 +26,7 @@ use crate::infrastructure::session::runtime_session::{
     get_script_bundle_snapshot, try_current_session_summary,
 };
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -66,6 +70,60 @@ pub fn get_scheduler() -> Option<Arc<ScriptScheduler>> {
 }
 
 impl ScriptScheduler {
+    fn clone_model_config<T>(field: &str, value: &T) -> Result<T, String>
+    where
+        T: Serialize + DeserializeOwned,
+    {
+        let json = serde_json::to_string(value)
+            .map_err(|error| format!("序列化 {} 配置失败: {}", field, error))?;
+        serde_json::from_str(&json)
+            .map_err(|error| format!("复制 {} 配置失败: {}", field, error))
+    }
+
+    async fn configure_visual_services(
+        runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
+        script_info: &ScriptInfo,
+    ) -> Result<(), String> {
+        let (img_det_service, ocr_service) = {
+            let ctx = runtime_ctx.read().await;
+            (ctx.img_det_service.clone(), ctx.ocr_service.clone())
+        };
+
+        {
+            let mut service = img_det_service.lock().await;
+            *service = OcrService::new();
+            if let Some(model) = script_info.img_det_model.as_ref() {
+                let detector = Self::clone_model_config::<DetectorType>("img_det_model", model)?;
+                service
+                    .init_detector(detector)
+                    .await
+                    .map_err(|error| format!("初始化目标检测模型失败: {}", error))?;
+            }
+        }
+
+        {
+            let mut service = ocr_service.lock().await;
+            *service = OcrService::new();
+            if let Some(model) = script_info.txt_det_model.as_ref() {
+                let detector = Self::clone_model_config::<DetectorType>("txt_det_model", model)?;
+                service
+                    .init_detector(detector)
+                    .await
+                    .map_err(|error| format!("初始化文字检测模型失败: {}", error))?;
+            }
+            if let Some(model) = script_info.txt_rec_model.as_ref() {
+                let recognizer =
+                    Self::clone_model_config::<RecognizerType>("txt_rec_model", model)?;
+                service
+                    .init_recognizer(recognizer)
+                    .await
+                    .map_err(|error| format!("初始化文字识别模型失败: {}", error))?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn parse_bundle_json<T: DeserializeOwned>(field: &str, json: &str) -> Result<T, String> {
         serde_json::from_str(json)
             .map_err(|error| format!("解析 bundle 字段 {} 失败: {}", field, error))
@@ -228,6 +286,7 @@ impl ScriptScheduler {
         let runtime_ctx = get_runtime_ctx();
         let script_info = bundle.script.data.0;
         let script_name = script_info.name.clone();
+        Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
         let task_selection =
             ExecutionPlanAssembler::select_tasks(&run_target, device_id, &queue_item, &bundle.tasks)
@@ -492,6 +551,7 @@ impl ScriptScheduler {
         let runtime_ctx = get_runtime_ctx();
         let script_info = bundle.script.data.0;
         let script_name = script_info.name.clone();
+        Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         {
             let mut ctx = runtime_ctx.write().await;
             ctx.execution.script_id = script_id;

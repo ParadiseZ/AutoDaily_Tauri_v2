@@ -11,7 +11,7 @@ use crate::infrastructure::vision::ocr_service::OcrService;
 use crate::infrastructure::vision::text_rec_cache::ScriptTextRecCacheRuntime;
 use image::RgbaImage;
 use std::sync::{Arc, OnceLock};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 static RUNTIME_CTX: OnceLock<SharedRuntimeContext> = OnceLock::new();
 
@@ -128,7 +128,8 @@ pub struct RuntimeContext {
     pub observation: ObservationState,
 
     /// 基础服务
-    pub ocr_service: Arc<OcrService>,
+    pub img_det_service: Arc<Mutex<OcrService>>,
+    pub ocr_service: Arc<Mutex<OcrService>>,
     //pub adb_executor: Arc<RwLock<ADBExecutor>>,
 }
 
@@ -136,13 +137,15 @@ impl RuntimeContext {
     pub fn new(
         script_id: ScriptId,
         target: RunTarget,
-        ocr_service: Arc<OcrService>,
+        img_det_service: Arc<Mutex<OcrService>>,
+        ocr_service: Arc<Mutex<OcrService>>,
         vision_text_cache_config: VisionTextCacheRuntimeConfig,
         //adb_executor: Arc<RwLock<ADBExecutor>>,
     ) -> Self {
         Self {
             execution: ExecutionState::new(script_id, target),
             observation: ObservationState::new(vision_text_cache_config),
+            img_det_service,
             ocr_service,
         }
     }
