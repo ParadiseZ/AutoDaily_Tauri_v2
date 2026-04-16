@@ -1021,6 +1021,22 @@ impl ScriptExecutor {
                 Some(format!("[timeout_notify] {}", message)),
             );
         }
+
+        if notify_channels.iter().any(|channel| {
+            matches!(
+                channel,
+                crate::infrastructure::ipc::message::TimeoutNotifyChannel::Email
+            )
+        }) {
+            emit_progress_event(
+                RuntimeProgressPhase::Executing,
+                assignment_id,
+                script_id,
+                task_id,
+                step_id,
+                Some(format!("[timeout_email] {}", message)),
+            );
+        }
     }
 
     async fn current_execution_locator(

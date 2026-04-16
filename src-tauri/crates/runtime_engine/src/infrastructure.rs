@@ -10,6 +10,7 @@ pub mod http_client;
 pub mod image;
 pub mod ipc;
 pub mod logging;
+pub mod mail;
 pub mod ort;
 pub mod path_resolve;
 pub mod scripts;

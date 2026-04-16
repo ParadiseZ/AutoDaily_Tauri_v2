@@ -45,6 +45,7 @@ machineid-rs = { workspace = true }
 tauri = { workspace = true }
 tauri-plugin-notification = { workspace = true }
 tauri-plugin-store = { workspace = true }
+lettre = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true }

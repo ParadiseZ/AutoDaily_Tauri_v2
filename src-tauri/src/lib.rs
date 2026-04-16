@@ -13,6 +13,9 @@ pub mod infrastructure;
 use crate::api::dev_test::{
     dev_capture_test, paddle_ocr_inference_test, save_captured_image, yolo_inference_test,
 };
+use crate::api::infrastructure::config::email::{
+    get_email_config_cmd, send_test_email_cmd, set_email_config_cmd,
+};
 use crate::api::infrastructure::config::log_api::{
     update_log_level_cmd, update_log_dir_cmd, update_retention_days_cmd,
     get_log_config_cmd, clean_logs_now_cmd, update_child_log_level_cmd,
@@ -91,6 +94,9 @@ pub fn run() {
             get_log_config_cmd,
             clean_logs_now_cmd,
             update_child_log_level_cmd,
+            get_email_config_cmd,
+            set_email_config_cmd,
+            send_test_email_cmd,
             get_vision_text_cache_config_cmd,
             set_vision_text_cache_config_cmd,
             //性能设置

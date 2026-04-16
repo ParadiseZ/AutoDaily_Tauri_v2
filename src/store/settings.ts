@@ -5,6 +5,7 @@ import { settingsService } from '@/services/settingsService';
 import type {
     AppTheme,
     DefaultRoute,
+    EmailConfig,
     LogConfig,
     SystemConfigPayload,
     SystemPreferences,
@@ -13,6 +14,7 @@ import type {
 } from '@/types/app/domain';
 import {
     DEFAULT_LOG_CONFIG,
+    DEFAULT_EMAIL_CONFIG,
     DEFAULT_SYSTEM_PREFERENCES,
 } from '@/types/app/domain';
 
@@ -31,6 +33,7 @@ const toRouteValue = (value: DefaultRoute | { path?: DefaultRoute } | null | und
 export const useSettingsStore = defineStore('settings', () => {
     const preferences = ref<SystemPreferences>(DEFAULT_SYSTEM_PREFERENCES);
     const logConfig = ref<LogConfig>(DEFAULT_LOG_CONFIG);
+    const emailConfig = ref<EmailConfig>(DEFAULT_EMAIL_CONFIG);
     const loading = ref(false);
     const updateInfo = ref<UpdateInfo | null>(null);
 
@@ -56,14 +59,20 @@ export const useSettingsStore = defineStore('settings', () => {
             };
 
             try {
-                const [loadedLogConfig, loadedVisionCacheConfig] = await Promise.all([
+                const [loadedLogConfig, loadedEmailConfig, loadedVisionCacheConfig] = await Promise.all([
                     settingsService.getLogConfig(),
+                    settingsService.getEmailConfig().catch(() => null as EmailConfig | null),
                     settingsService.getVisionTextCacheConfig().catch(() => null as VisionTextCacheConfig | null),
                 ]);
 
                 logConfig.value = {
                     ...DEFAULT_LOG_CONFIG,
                     ...loadedLogConfig,
+                };
+
+                emailConfig.value = {
+                    ...DEFAULT_EMAIL_CONFIG,
+                    ...(loadedEmailConfig ?? {}),
                 };
 
                 if (loadedVisionCacheConfig) {
@@ -76,6 +85,7 @@ export const useSettingsStore = defineStore('settings', () => {
                 }
             } catch {
                 logConfig.value = DEFAULT_LOG_CONFIG;
+                emailConfig.value = DEFAULT_EMAIL_CONFIG;
             }
         } finally {
             loading.value = false;
@@ -141,15 +151,30 @@ export const useSettingsStore = defineStore('settings', () => {
         await settingsService.cleanLogs();
     };
 
+    const saveEmailSettings = async (config: EmailConfig) => {
+        await settingsService.updateEmailConfig(config);
+        emailConfig.value = {
+            ...DEFAULT_EMAIL_CONFIG,
+            ...config,
+        };
+    };
+
+    const sendEmailTest = async (config: EmailConfig) => {
+        await settingsService.sendTestEmail(config);
+    };
+
     return {
         applySystemPreferences,
         cleanLogsNow,
+        emailConfig,
         interfacePreferences,
         loadPreferences,
         loading,
         logConfig,
         preferences,
         refreshUpdateInfo,
+        saveEmailSettings,
+        sendEmailTest,
         updateInfo,
         updateLogSettings,
         updatePreferences,

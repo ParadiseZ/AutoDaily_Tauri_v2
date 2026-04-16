@@ -210,6 +210,115 @@
           </div>
         </SettingsSection>
 
+        <SettingsSection icon="mail" title="邮件通知" description="支持 163、QQ、Gmail、Outlook 预设，也支持自定义 SMTP。QQ、Gmail 等通常需要授权码或应用专用密码，而不是登录密码。">
+          <div class="grid gap-3 md:grid-cols-2">
+            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
+              <span class="text-sm text-[var(--app-text-strong)]">桌面超时提醒</span>
+              <input v-model="settingsStore.emailConfig.desktopNotice" type="checkbox" class="toggle toggle-sm" />
+            </label>
+            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
+              <span class="text-sm text-[var(--app-text-strong)]">邮件超时提醒</span>
+              <input v-model="settingsStore.emailConfig.emailNotification" type="checkbox" class="toggle toggle-sm" />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">SMTP 服务商</span>
+              <AppSelect v-model="settingsStore.emailConfig.provider" :options="emailProviderOptions" />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">连接加密</span>
+              <AppSelect
+                v-model="settingsStore.emailConfig.security"
+                :options="emailSecurityOptions"
+                :disabled="settingsStore.emailConfig.provider !== 'custom'"
+              />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-[1fr_180px]">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">SMTP 服务器</span>
+              <input
+                v-model.trim="settingsStore.emailConfig.smtpServer"
+                class="app-input"
+                :disabled="settingsStore.emailConfig.provider !== 'custom'"
+                placeholder="smtp.example.com"
+              />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">端口</span>
+              <input
+                v-model.number="settingsStore.emailConfig.smtpPort"
+                class="app-input"
+                type="number"
+                min="1"
+                max="65535"
+                :disabled="settingsStore.emailConfig.provider !== 'custom'"
+              />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">SMTP 用户名</span>
+              <input v-model.trim="settingsStore.emailConfig.username" class="app-input" placeholder="通常为邮箱地址" />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">SMTP 密码 / 授权码</span>
+              <input v-model="settingsStore.emailConfig.password" class="app-input" type="password" placeholder="建议使用服务商授权码" />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">发件人名称</span>
+              <input v-model.trim="settingsStore.emailConfig.senderName" class="app-input" placeholder="AutoDaily" />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">发件人邮箱</span>
+              <input v-model.trim="settingsStore.emailConfig.senderEmail" class="app-input" placeholder="留空时回退到 SMTP 用户名" />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-[1fr_180px]">
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">收件人</span>
+              <textarea
+                v-model.trim="settingsStore.emailConfig.recipient"
+                class="app-input min-h-[104px] resize-y py-3"
+                placeholder="支持多个邮箱，使用逗号、分号或换行分隔"
+              />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-[var(--app-text-soft)]">超时时间(秒)</span>
+              <input
+                v-model.number="settingsStore.emailConfig.timeoutSeconds"
+                class="app-input"
+                type="number"
+                min="5"
+                max="300"
+              />
+            </label>
+          </div>
+
+          <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+            常见预设：163 / QQ 默认走 465 + SSL/TLS，Outlook 默认走 587 + STARTTLS。Gmail 建议开启两步验证后使用应用专用密码。
+          </div>
+
+          <div class="flex flex-wrap justify-end gap-3">
+            <button class="app-button app-button-ghost" type="button" @click="sendTestEmail">
+              <AppIcon name="send" :size="16" />
+              测试发送
+            </button>
+            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveEmailSettings">
+              <AppIcon name="save" :size="16" />
+              保存邮件配置
+            </button>
+          </div>
+        </SettingsSection>
+
         <SettingsSection icon="info" title="关于与更新" description="保持一个轻量的版本信息区，不把宣传内容塞进专业工具型桌面应用。">
           <div class="grid gap-3 md:grid-cols-2">
             <div class="rounded-[20px] border border-[var(--app-border)] p-4">
@@ -252,7 +361,7 @@ import { settingsService } from '@/services/settingsService';
 import { appThemeKey } from '@/store/store';
 import { showToast } from '@/utils/toast';
 import { formatDate } from '@/utils/presenters';
-import type { VisionTextCacheConfig } from '@/types/app/domain';
+import type { EmailConfig, EmailProviderPreset, EmailSecurity, VisionTextCacheConfig } from '@/types/app/domain';
 
 const settingsStore = useSettingsStore();
 const userStore = useUserStore();
@@ -289,6 +398,24 @@ const logLevelOptions = [
   { label: 'Error', value: 'Error' },
   { label: 'Off', value: 'Off' },
 ];
+const emailProviderOptions = [
+  { label: '自定义', value: 'custom' },
+  { label: '163 邮箱', value: '163' },
+  { label: 'QQ 邮箱', value: 'qq' },
+  { label: 'Gmail', value: 'gmail' },
+  { label: 'Outlook', value: 'outlook' },
+];
+const emailSecurityOptions = [
+  { label: 'SSL / TLS', value: 'tlsWrapper' },
+  { label: 'STARTTLS', value: 'startTls' },
+  { label: '明文', value: 'none' },
+];
+const emailProviderPresetMap: Record<Exclude<EmailProviderPreset, 'custom'>, { smtpServer: string; smtpPort: number; security: EmailSecurity }> = {
+  '163': { smtpServer: 'smtp.163.com', smtpPort: 465, security: 'tlsWrapper' },
+  qq: { smtpServer: 'smtp.qq.com', smtpPort: 465, security: 'tlsWrapper' },
+  gmail: { smtpServer: 'smtp.gmail.com', smtpPort: 465, security: 'tlsWrapper' },
+  outlook: { smtpServer: 'smtp-mail.outlook.com', smtpPort: 587, security: 'startTls' },
+};
 
 const handleThemeChange = async () => {
   await settingsStore.updatePreferences({ appTheme: settingsStore.preferences.appTheme });
@@ -366,6 +493,49 @@ const cleanLogs = async () => {
   }
 };
 
+const syncEmailProviderPreset = () => {
+  const provider = settingsStore.emailConfig.provider;
+  if (provider === 'custom') {
+    return;
+  }
+
+  const preset = emailProviderPresetMap[provider];
+  settingsStore.emailConfig.smtpServer = preset.smtpServer;
+  settingsStore.emailConfig.smtpPort = preset.smtpPort;
+  settingsStore.emailConfig.security = preset.security;
+};
+
+const normalizedEmailConfig = (): EmailConfig => {
+  syncEmailProviderPreset();
+  return {
+    ...settingsStore.emailConfig,
+    senderName: settingsStore.emailConfig.senderName.trim(),
+    senderEmail: settingsStore.emailConfig.senderEmail.trim(),
+    username: settingsStore.emailConfig.username.trim(),
+    recipient: settingsStore.emailConfig.recipient.trim(),
+    timeoutSeconds: Math.max(5, Number(settingsStore.emailConfig.timeoutSeconds) || 60),
+  };
+};
+
+const saveEmailSettings = async () => {
+  try {
+    const config = normalizedEmailConfig();
+    await settingsStore.saveEmailSettings(config);
+    showToast('邮件配置已保存', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '邮件配置保存失败', 'error');
+  }
+};
+
+const sendTestEmail = async () => {
+  try {
+    await settingsStore.sendEmailTest(normalizedEmailConfig());
+    showToast('测试邮件已发送，请检查收件箱', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '测试邮件发送失败', 'error');
+  }
+};
+
 const pickAdbPath = async () => {
   const value = await open({ multiple: false, directory: false });
   if (typeof value === 'string') {
@@ -410,6 +580,14 @@ watch(
   () => userStore.userProfile?.username,
   (value) => {
     usernameDraft.value = value || '';
+  },
+  { immediate: true },
+);
+
+watch(
+  () => settingsStore.emailConfig.provider,
+  () => {
+    syncEmailProviderPreset();
   },
   { immediate: true },
 );

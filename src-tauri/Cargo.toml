@@ -71,6 +71,7 @@ lazy_static = "1.5.0"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "json", "chrono", "macros", "derive"] }
 num = "0.4.3"
 machineid-rs = "1.2.4"
+lettre = { version = "0.11.19", default-features = false, features = ["builder", "smtp-transport", "tokio1-rustls", "pool", "ring", "webpki-roots"] }
 tauri = { version = "2.10.3", features = ["uuid", "unstable"] }
 tauri-plugin-opener = "2.5.3"
 tauri-plugin-dialog = "2.6.0"

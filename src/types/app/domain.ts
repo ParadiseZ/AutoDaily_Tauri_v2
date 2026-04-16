@@ -59,6 +59,24 @@ export interface LogConfig {
     retentionDays: number;
 }
 
+export type EmailProviderPreset = 'custom' | '163' | 'qq' | 'gmail' | 'outlook';
+export type EmailSecurity = 'tlsWrapper' | 'startTls' | 'none';
+
+export interface EmailConfig {
+    desktopNotice: boolean;
+    emailNotification: boolean;
+    provider: EmailProviderPreset;
+    smtpServer: string;
+    smtpPort: number;
+    security: EmailSecurity;
+    username: string;
+    password: string;
+    senderName: string;
+    senderEmail: string;
+    recipient: string;
+    timeoutSeconds: number;
+}
+
 export interface VisionTextCacheConfig {
     enabled: boolean;
     dir: string;
@@ -343,4 +361,19 @@ export const DEFAULT_LOG_CONFIG: LogConfig = {
     logLevel: 'Info',
     logDir: 'logs',
     retentionDays: 7,
+};
+
+export const DEFAULT_EMAIL_CONFIG: EmailConfig = {
+    desktopNotice: true,
+    emailNotification: false,
+    provider: 'custom',
+    smtpServer: '',
+    smtpPort: 465,
+    security: 'tlsWrapper',
+    username: '',
+    password: '',
+    senderName: 'AutoDaily',
+    senderEmail: '',
+    recipient: '',
+    timeoutSeconds: 60,
 };

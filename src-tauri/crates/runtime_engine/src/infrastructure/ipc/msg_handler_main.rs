@@ -5,6 +5,9 @@ use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::RuntimeEventMessage;
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::mail::{
+    load_email_config, send_timeout_email_in_background, EmailMessagePayload,
+};
 use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use tauri::{Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -94,12 +97,35 @@ fn handle_runtime_event(
 
                 if let Some(message) = progress.message.as_deref() {
                     if let Some(body) = message.strip_prefix("[timeout_notify]") {
-                        let _ = get_app_handle()
-                            .notification()
-                            .builder()
-                            .title("脚本执行超时")
-                            .body(body.trim())
-                            .show();
+                        let app_handle = get_app_handle();
+                        let desktop_notice_enabled = load_email_config(&app_handle)
+                            .map(|config| config.desktop_notice)
+                            .unwrap_or(true);
+
+                        if desktop_notice_enabled {
+                            let _ = app_handle
+                                .notification()
+                                .builder()
+                                .title("脚本执行超时")
+                                .body(body.trim())
+                                .show();
+                        }
+                    }
+
+                    if let Some(body) = message.strip_prefix("[timeout_email]") {
+                        let email_body = format!(
+                            "设备: {}\n时间: {}\n\n{}",
+                            device_id,
+                            progress.at,
+                            body.trim()
+                        );
+                        send_timeout_email_in_background(
+                            get_app_handle().clone(),
+                            EmailMessagePayload {
+                                subject: format!("AutoDaily 执行超时通知 - 设备 {}", device_id),
+                                body: email_body,
+                            },
+                        );
                     }
 
                     if let Some(body) = message.strip_prefix("[timeout]") {
