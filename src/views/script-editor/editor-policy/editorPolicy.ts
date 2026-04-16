@@ -43,7 +43,6 @@ export const normalizePolicy = (policy: PolicyTable, index: number): PolicyTable
     logPrint: policy.data?.logPrint ?? null,
     curPos: policy.data?.curPos ?? 0,
     skipFlag: Boolean(policy.data?.skipFlag),
-    execCur: policy.data?.execCur ?? 0,
     execMax: policy.data?.execMax ?? 1,
     beforeAction: Array.isArray(policy.data?.beforeAction) ? cloneJson(policy.data.beforeAction) : [],
     cond: policy.data?.cond ? cloneJson(policy.data.cond) : createSearchRule('group'),

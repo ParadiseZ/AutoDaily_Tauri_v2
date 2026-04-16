@@ -245,6 +245,7 @@
             :default-task-cycle-value="defaultTaskCycleValue"
             :default-task-cycle-mode="defaultTaskCycleMode"
             :default-task-cycle-day="defaultTaskCycleDay"
+            :task-exec-max="taskExecMax"
             :show-enabled-toggle="showEnabledToggle"
             :default-enabled="defaultEnabled"
             :task-tone="taskTone"
@@ -269,6 +270,7 @@
                   ? { weekDay: Math.max(1, Math.min(7, $event)) }
                   : { monthDay: Math.max(1, Math.min(31, $event)) }
             "
+            @update:task-exec-max="taskExecMax = $event"
             @update:show-enabled-toggle="showEnabledToggle = $event"
             @update:default-enabled="defaultEnabled = $event"
             @update:task-tone="taskTone = $event"
@@ -330,6 +332,7 @@
             :default-task-cycle-value="defaultTaskCycleValue"
             :default-task-cycle-mode="defaultTaskCycleMode"
             :default-task-cycle-day="defaultTaskCycleDay"
+            :task-exec-max="taskExecMax"
             :show-enabled-toggle="showEnabledToggle"
             :default-enabled="defaultEnabled"
             :task-tone="taskTone"
@@ -370,6 +373,7 @@
                   ? { weekDay: Math.max(1, Math.min(7, $event)) }
                   : { monthDay: Math.max(1, Math.min(31, $event)) }
             "
+            @update:task-exec-max="taskExecMax = $event"
             @update:show-enabled-toggle="showEnabledToggle = $event"
             @update:default-enabled="defaultEnabled = $event"
             @update:task-tone="taskTone = $event"
@@ -645,6 +649,7 @@ const recordSchedule = ref(true);
 const sectionId = ref<string | null>(null);
 const indentLevel = ref(1);
 const defaultTaskCycle = ref<TaskCycle>('everyRun');
+const taskExecMax = ref(0);
 const showEnabledToggle = ref(true);
 const defaultEnabled = ref(true);
 const taskTone = ref<TaskTone>('normal');
@@ -1066,6 +1071,7 @@ const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable =>
     sectionId: isTitle ? null : task.sectionId ?? null,
     indentLevel: isTitle ? 0 : Math.max(0, Math.min(8, Number(task.indentLevel ?? 1))),
     defaultTaskCycle: task.defaultTaskCycle ?? 'everyRun',
+    execMax: isTitle ? 0 : Math.max(0, Number(task.execMax ?? 0)),
     showEnabledToggle: isTitle ? false : task.showEnabledToggle ?? true,
     defaultEnabled: task.defaultEnabled ?? true,
     taskTone: isTitle ? 'normal' : task.taskTone ?? 'normal',
@@ -1096,6 +1102,7 @@ const buildTaskDraft = async (name?: string): Promise<ScriptTaskTable> => {
       sectionId: draftTasks.value.filter((task) => task.rowType === 'title').at(-1)?.id ?? null,
       indentLevel: 1,
       defaultTaskCycle: 'everyRun',
+      execMax: 0,
       showEnabledToggle: true,
       defaultEnabled: true,
       taskTone: 'normal',
@@ -1138,6 +1145,7 @@ const hydrateTaskEditors = () => {
     sectionId.value = null;
     indentLevel.value = 1;
     defaultTaskCycle.value = 'everyRun';
+    taskExecMax.value = 0;
     showEnabledToggle.value = true;
     defaultEnabled.value = true;
     taskTone.value = 'normal';
@@ -1157,6 +1165,7 @@ const hydrateTaskEditors = () => {
     sectionId.value = currentTask.value.sectionId;
     indentLevel.value = currentTask.value.indentLevel;
     defaultTaskCycle.value = currentTask.value.defaultTaskCycle;
+    taskExecMax.value = currentTask.value.execMax;
     showEnabledToggle.value = currentTask.value.showEnabledToggle;
     defaultEnabled.value = currentTask.value.defaultEnabled;
     taskTone.value = currentTask.value.taskTone;
@@ -1239,7 +1248,6 @@ const buildPolicyDraft = async (name?: string): Promise<PolicyTable> =>
         logPrint: null,
         curPos: 0,
         skipFlag: false,
-        execCur: 0,
         execMax: 1,
         beforeAction: [],
         cond: createSearchRule('group'),
@@ -1944,7 +1952,7 @@ const updatePolicyTextField = (field: 'name' | 'note' | 'logPrint', value: strin
   });
 };
 
-const updatePolicyNumberField = (field: 'curPos' | 'execCur' | 'execMax', value: string) => {
+const updatePolicyNumberField = (field: 'curPos' | 'execMax', value: string) => {
   if (!currentPolicy.value) return;
   replacePolicy(currentPolicy.value.id, (policy) => {
     policy.data[field] = Math.max(0, Number(value) || 0);
@@ -3165,6 +3173,7 @@ watch(taskRowType, (value) => {
       task.recordSchedule = false;
       task.sectionId = null;
       task.indentLevel = 0;
+      task.execMax = 0;
       task.showEnabledToggle = false;
       task.taskTone = 'normal';
     }
@@ -3234,6 +3243,17 @@ watch(defaultTaskCycle, (value) => {
 
   replaceTask(currentTask.value.id, (task) => {
     task.defaultTaskCycle = value;
+    return task;
+  });
+});
+
+watch(taskExecMax, (value) => {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+    return;
+  }
+
+  replaceTask(currentTask.value.id, (task) => {
+    task.execMax = Math.max(0, Number(value) || 0);
     return task;
   });
 });

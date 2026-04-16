@@ -29,8 +29,6 @@ const createBaseStep = (partial: Record<string, unknown>) =>
     target_id: null,
     label: null,
     skip_flag: false,
-    exec_cur: 0,
-    exec_max: 1,
     ...partial,
   });
 
@@ -44,8 +42,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '截图',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.capture,
           output_var: 'latest_capture',
@@ -61,8 +58,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '启动应用',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.launchApp,
           pkg_name: '',
@@ -79,8 +75,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '停止应用',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.stopApp,
           pkg_name: '',
@@ -96,8 +91,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '点击坐标',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
           mode: ACTION_MODE.point,
@@ -114,8 +108,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '点击百分比',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
           mode: ACTION_MODE.percent,
@@ -132,8 +125,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '点击文字',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
           mode: ACTION_MODE.txt,
@@ -151,8 +143,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '点击标签',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
           mode: ACTION_MODE.labelIdx,
@@ -170,8 +161,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '滑动坐标',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.swipe,
           mode: ACTION_MODE.point,
@@ -190,8 +180,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '滑动百分比',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.swipe,
           mode: ACTION_MODE.percent,
@@ -210,8 +199,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '滑动文字',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.swipe,
           mode: ACTION_MODE.txt,
@@ -231,8 +219,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '滑动标签',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.swipe,
           mode: ACTION_MODE.labelIdx,
@@ -252,8 +239,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '重启设备',
         op: STEP_OP.action,
-        cur_exec_num: 0,
-        max_exec_num: 1,
+        exec_max: 0,
         a: {
           ac: ACTION_TYPE.reboot,
         },
@@ -268,8 +254,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '等待',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.waitMs,
           ms: 1000,
@@ -285,8 +269,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '条件分支',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.if,
           con: {
@@ -307,8 +289,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '循环条件',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.while,
           con: {
@@ -328,8 +308,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '遍历循环',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.forEach,
           input_var: 'runtime.items',
@@ -348,8 +326,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '继续循环',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.continue,
         },
@@ -364,8 +340,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '跳出循环',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.break,
         },
@@ -380,8 +354,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '处理策略集',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.handlePolicySet,
           target: [],
@@ -399,8 +371,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '处理策略',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.handlePolicy,
           target: [],
@@ -516,8 +486,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       createBaseStep({
         label: '跳转任务',
         op: STEP_OP.flowControl,
-        cur_exec_num: 0,
-        max_exec_num: 1,
         a: {
           type: FLOW_TYPE.link,
           target: '',
@@ -588,7 +556,6 @@ export const describeStepTitle = (step: Step) => {
 
   if (step.op === STEP_OP.taskControl) {
     if (step.a.type === TASK_CONTROL_TYPE.setState) return '设置状态';
-    if (step.a.type === TASK_CONTROL_TYPE.getState) return '读取状态';
     return '状态控制';
   }
 
@@ -662,10 +629,11 @@ export const describeStepMeta = (step: Step) => {
   }
 
   if (step.op === STEP_OP.taskControl) {
-    return `${step.a.type === TASK_CONTROL_TYPE.setState ? '设置' : '读取'}状态 · ${step.a.target.type}:${step.a.target.id || '未指定'}`;
+    return `设置状态 · ${step.a.target.type}:${step.a.target.id || '未指定'}`;
   }
 
   return '未识别步骤';
 };
 
 export const describeStep = (step: Step) => step.label?.trim() || describeStepTitle(step);
+

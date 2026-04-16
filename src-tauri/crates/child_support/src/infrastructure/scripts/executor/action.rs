@@ -1,11 +1,11 @@
 impl ScriptExecutor {
     async fn execute_action_step(
         &mut self,
-        cur_exec_num: u32,
-        max_exec_num: u32,
+        step_id: Option<StepId>,
+        exec_max: u32,
         action: &Action,
     ) -> ExecuteResult<ControlFlow> {
-        if cur_exec_num > max_exec_num {
+        if self.should_skip_action_execution(step_id, exec_max).await {
             return Ok(ControlFlow::Next);
         }
 
@@ -15,7 +15,41 @@ impl ScriptExecutor {
             self.record_action_trace(action_trace.clone());
         }
         let post_action_flow = self.after_action(action, action_trace.as_ref()).await?;
-        Ok(post_action_flow.unwrap_or(flow))
+        let final_flow = post_action_flow.unwrap_or(flow);
+        if matches!(final_flow, ControlFlow::Next) {
+            self.mark_action_succeeded(step_id).await;
+        }
+        Ok(final_flow)
+    }
+
+    async fn should_skip_action_execution(&self, step_id: Option<StepId>, exec_max: u32) -> bool {
+        if exec_max == 0 {
+            return false;
+        }
+
+        let Some(step_id) = step_id else {
+            Log::warn("[ executor ] Action.exec_max 已配置，但当前 action step 缺少 id，无法做运行时计数限制");
+            return false;
+        };
+
+        let ctx = self.runtime_ctx.read().await;
+        let exec_cur = ctx
+            .execution
+            .action_states
+            .get(&step_id)
+            .map(|state| state.exec_cur)
+            .unwrap_or(0);
+        exec_cur >= exec_max
+    }
+
+    async fn mark_action_succeeded(&self, step_id: Option<StepId>) {
+        let Some(step_id) = step_id else {
+            return;
+        };
+
+        let mut ctx = self.runtime_ctx.write().await;
+        let state = ctx.execution.action_states.entry(step_id).or_default();
+        state.exec_cur = state.exec_cur.saturating_add(1);
     }
 
     async fn before_action(&mut self, _action: &Action) -> ExecuteResult<()> {
@@ -800,13 +834,28 @@ impl ScriptExecutor {
         };
         let (_execution_id, _assignment_id, _script_id, task_id, step_id) =
             self.current_execution_locator().await;
+        let now = Instant::now();
+        let previous_probe = self.last_progress_probe.clone();
+        let same_probe_chain = previous_probe
+            .as_ref()
+            .filter(|previous| previous.page_fingerprint == page_fingerprint)
+            .filter(|previous| previous.action_signature == action_trace.signature)
+            .filter(|previous| previous.task_id == task_id)
+            .filter(|previous| previous.step_id == step_id);
+        let stagnant_since = same_probe_chain
+            .map(|previous| previous.stagnant_since)
+            .unwrap_or(now);
+        let already_notified = same_probe_chain
+            .map(|previous| previous.notified)
+            .unwrap_or(false);
 
-        let probe = ActionProgressProbe {
+        let mut probe = ActionProgressProbe {
             page_fingerprint: page_fingerprint.clone(),
             action_signature: action_trace.signature.clone(),
             task_id,
             step_id,
-            recorded_at: Instant::now(),
+            stagnant_since,
+            notified: already_notified,
         };
 
         if !runtime_policy.progress_timeout_enabled || runtime_policy.progress_timeout_ms == 0 {
@@ -814,30 +863,24 @@ impl ScriptExecutor {
             return Ok(None);
         }
 
-        let timeout_elapsed = self
-            .last_progress_probe
-            .as_ref()
-            .filter(|previous| previous.page_fingerprint == probe.page_fingerprint)
-            .filter(|previous| previous.action_signature == probe.action_signature)
-            .filter(|previous| previous.task_id == probe.task_id)
-            .filter(|previous| previous.step_id == probe.step_id)
-            .map(|previous| {
-                probe.recorded_at.duration_since(previous.recorded_at)
-                    >= Duration::from_millis(runtime_policy.progress_timeout_ms)
-            })
-            .unwrap_or(false);
+        let timeout_elapsed =
+            now.duration_since(probe.stagnant_since)
+                >= Duration::from_millis(runtime_policy.progress_timeout_ms);
 
-        self.last_progress_probe = Some(probe);
-        if !timeout_elapsed {
+        if !timeout_elapsed || already_notified {
+            self.last_progress_probe = Some(probe);
             return Ok(None);
         }
+        probe.notified = true;
+        self.last_progress_probe = Some(probe);
 
         let message = format!(
-            "检测到动作长时间无进展: task={:?}, step={:?}, action={}, page={}, threshold={}ms",
+            "检测到动作长时间无进展: task={:?}, step={:?}, action={}, page={}, stagnantFor={}ms, threshold={}ms",
             task_id,
             step_id,
             action_trace.signature,
             page_fingerprint,
+            now.duration_since(stagnant_since).as_millis(),
             runtime_policy.progress_timeout_ms
         );
         self.emit_timeout_signals(

@@ -92,6 +92,7 @@
         :default-task-cycle-value="defaultTaskCycleValue"
         :default-task-cycle-mode="defaultTaskCycleMode"
         :default-task-cycle-day="defaultTaskCycleDay"
+        :task-exec-max="taskExecMax"
         :show-enabled-toggle="showEnabledToggle"
         :default-enabled="defaultEnabled"
         :task-tone="taskTone"
@@ -103,6 +104,7 @@
         @update:indent-level="$emit('update:indent-level', $event)"
         @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
         @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
+        @update:task-exec-max="$emit('update:task-exec-max', $event)"
         @update:show-enabled-toggle="$emit('update:show-enabled-toggle', $event)"
         @update:default-enabled="$emit('update:default-enabled', $event)"
         @update:task-tone="$emit('update:task-tone', $event)"
@@ -148,6 +150,7 @@ const props = defineProps<{
   defaultTaskCycleValue: string;
   defaultTaskCycleMode: 'named' | 'weekDay' | 'monthDay';
   defaultTaskCycleDay: number;
+  taskExecMax: number;
   showEnabledToggle: boolean;
   defaultEnabled: boolean;
   taskTone: TaskTone;
@@ -187,6 +190,7 @@ const emit = defineEmits<{
   'update:indent-level': [value: number];
   'update:default-task-cycle-value': [value: string];
   'update:default-task-cycle-day': [value: number];
+  'update:task-exec-max': [value: number];
   'update:show-enabled-toggle': [value: boolean];
   'update:default-enabled': [value: boolean];
   'update:task-tone': [value: TaskTone];

@@ -8,7 +8,7 @@ impl ScriptExecutor {
         self.activate_image_var("flow.handlePolicySet", input_var)
             .await?;
         let bundle = self.load_policy_bundle("flow.handlePolicySet").await?;
-        let candidates = Self::resolve_policy_set_candidates(&bundle, target)?;
+        let candidates = self.resolve_policy_set_candidates(&bundle, target).await?;
         self.execute_policy_candidates("flow.handlePolicySet", candidates, out_var)
             .await
     }
@@ -244,7 +244,8 @@ impl ScriptExecutor {
         })
     }
 
-    fn resolve_policy_set_candidates(
+    async fn resolve_policy_set_candidates(
+        &self,
         bundle: &PolicyBundle,
         target: &[PolicySetId],
     ) -> ExecuteResult<Vec<PolicyCandidate>> {
@@ -267,14 +268,18 @@ impl ScriptExecutor {
             .map(|set| (set.id, set))
             .collect();
 
-        let mut candidates = Vec::new();
+        let overlays = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.execution.policy_set_overlays.clone()
+        };
+
+        let mut expanded_targets = Vec::new();
         for set_id in target {
-            if !set_map.contains_key(set_id) {
-                return Err(Self::execute_error(
-                    "flow.handlePolicySet",
-                    format!("目标策略集[{}]不存在", set_id),
-                ));
-            }
+            Self::collect_policy_set_targets(*set_id, &overlays, &set_map, &mut expanded_targets)?;
+        }
+
+        let mut candidates = Vec::new();
+        for set_id in &expanded_targets {
 
             let mut group_relations: Vec<_> = bundle
                 .set_groups
@@ -320,6 +325,33 @@ impl ScriptExecutor {
         }
 
         Ok(candidates)
+    }
+
+    fn collect_policy_set_targets(
+        set_id: PolicySetId,
+        overlays: &HashMap<PolicySetId, Vec<PolicySetId>>,
+        set_map: &HashMap<PolicySetId, PolicySetTable>,
+        output: &mut Vec<PolicySetId>,
+    ) -> ExecuteResult<()> {
+        if !set_map.contains_key(&set_id) {
+            return Err(Self::execute_error(
+                "flow.handlePolicySet",
+                format!("目标策略集[{}]不存在", set_id),
+            ));
+        }
+
+        if output.contains(&set_id) {
+            return Ok(());
+        }
+        output.push(set_id);
+
+        if let Some(sources) = overlays.get(&set_id) {
+            for source in sources {
+                Self::collect_policy_set_targets(*source, overlays, set_map, output)?;
+            }
+        }
+
+        Ok(())
     }
 
     fn resolve_policy_candidates(

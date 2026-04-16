@@ -87,6 +87,18 @@
         />
       </div>
 
+      <div class="overview-label">最大次数</div>
+      <div class="overview-content">
+        <input
+          :value="taskExecMax"
+          class="app-input"
+          type="number"
+          min="0"
+          data-testid="editor-task-exec-max"
+          @input="$emit('update:task-exec-max', Number(($event.target as HTMLInputElement).value || 0))"
+        />
+      </div>
+
       <div class="overview-label">记录调度</div>
       <label class="overview-content overview-check">
         <input
@@ -161,6 +173,7 @@ defineProps<{
   defaultTaskCycleValue: string;
   defaultTaskCycleMode: 'named' | 'weekDay' | 'monthDay';
   defaultTaskCycleDay: number;
+  taskExecMax: number;
   showEnabledToggle: boolean;
   defaultEnabled: boolean;
   taskTone: TaskTone;
@@ -175,6 +188,7 @@ defineEmits<{
   'update:indent-level': [value: number];
   'update:default-task-cycle-value': [value: string];
   'update:default-task-cycle-day': [value: number];
+  'update:task-exec-max': [value: number];
   'update:show-enabled-toggle': [value: boolean];
   'update:default-enabled': [value: boolean];
   'update:task-tone': [value: TaskTone];

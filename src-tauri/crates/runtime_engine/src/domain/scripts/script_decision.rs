@@ -92,9 +92,6 @@ pub struct Step {
 
     #[serde(default)]
     pub skip_flag: bool,
-    #[serde(default)]
-    pub exec_cur: u32,
-    pub exec_max: u32,
 
     #[serde(flatten)]
     pub kind: StepKind,
@@ -110,8 +107,7 @@ pub enum StepKind {
     },
 
     Action{
-        cur_exec_num: u32,
-        max_exec_num: u32,
+        exec_max: u32,
         a: Action
     },
 
@@ -120,8 +116,6 @@ pub enum StepKind {
     },
 
     FlowControl{
-        cur_exec_num: u32,
-        max_exec_num: u32,
         a: FlowControl
     },
     TaskControl{

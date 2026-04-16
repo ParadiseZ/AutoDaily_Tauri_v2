@@ -188,6 +188,7 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
             section_id TEXT,
             indent_level INTEGER NOT NULL DEFAULT 0,
             default_task_cycle JSON NOT NULL DEFAULT '\"everyRun\"',
+            exec_max INTEGER NOT NULL DEFAULT 0,
             show_enabled_toggle BOOLEAN NOT NULL DEFAULT 1,
             default_enabled BOOLEAN NOT NULL DEFAULT 1,
             task_tone TEXT NOT NULL DEFAULT 'normal',
@@ -354,6 +355,13 @@ async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> 
 
     if !ensure_column("default_task_cycle") {
         sqlx::query("ALTER TABLE script_tasks ADD COLUMN default_task_cycle JSON NOT NULL DEFAULT '\"everyRun\"'")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+
+    if !ensure_column("exec_max") {
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN exec_max INTEGER NOT NULL DEFAULT 0")
             .execute(pool)
             .await
             .map_err(|e| e.to_string())?;
@@ -615,6 +623,7 @@ async fn rebuild_script_tasks_table(pool: &Pool<Sqlite>) -> Result<(), String> {
             section_id TEXT,
             indent_level INTEGER NOT NULL DEFAULT 0,
             default_task_cycle JSON NOT NULL DEFAULT '\"everyRun\"',
+            exec_max INTEGER NOT NULL DEFAULT 0,
             show_enabled_toggle BOOLEAN NOT NULL DEFAULT 1,
             default_enabled BOOLEAN NOT NULL DEFAULT 1,
             task_tone TEXT NOT NULL DEFAULT 'normal',
@@ -633,7 +642,7 @@ async fn rebuild_script_tasks_table(pool: &Pool<Sqlite>) -> Result<(), String> {
     .map_err(|e| e.to_string())?;
 
     sqlx::query(
-        "INSERT INTO script_tasks_v2 (id, script_id, `name`, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`)
+        "INSERT INTO script_tasks_v2 (id, script_id, `name`, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, exec_max, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`)
          SELECT
             id,
             script_id,
@@ -648,6 +657,7 @@ async fn rebuild_script_tasks_table(pool: &Pool<Sqlite>) -> Result<(), String> {
             section_id,
             COALESCE(indent_level, 0),
             COALESCE(default_task_cycle, '\"everyRun\"'),
+            COALESCE(exec_max, 0),
             COALESCE(show_enabled_toggle, 1),
             COALESCE(default_enabled, 1),
             COALESCE(NULLIF(task_tone, ''), 'normal'),

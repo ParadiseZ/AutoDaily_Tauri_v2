@@ -96,7 +96,7 @@
           <div class="editor-inline-label">目标类型</div>
           <div class="editor-inline-content">
             <EditorSelectField
-              :model-value="modelValue.a.type"
+              :model-value="modelValue.target.type"
               :options="stateTargetTypeOptions"
               placeholder="目标类型"
               @update:model-value="updateExecTargetType(String($event || 'task'))"
@@ -106,10 +106,20 @@
           <div class="editor-inline-label">目标资源</div>
           <div class="editor-inline-content md:col-span-3">
             <EditorSelectField
-              :model-value="modelValue.a.id || null"
+              :model-value="modelValue.target.id || null"
               :options="resolvedExecTargetOptions"
               placeholder="选择任务或策略"
               @update:model-value="updateExecTargetId(String($event || ''))"
+            />
+          </div>
+
+          <div class="editor-inline-label">比较方式</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
+              :model-value="modelValue.op"
+              :options="execCompareOpOptions"
+              placeholder="比较方式"
+              @update:model-value="updateExecCompareOp(String($event || 'ge'))"
             />
           </div>
         </div>
@@ -117,12 +127,12 @@
         <div class="flex flex-wrap gap-2">
           <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createExecTargetReference">
             <AppIcon name="plus" :size="14" />
-            新建{{ modelValue.a.type === 'task' ? '任务' : '策略' }}
+            新建{{ modelValue.target.type === 'task' ? '任务' : '策略' }}
           </button>
           <button
             class="app-button app-button-ghost app-toolbar-button"
             type="button"
-            :disabled="!modelValue.a.id"
+            :disabled="!modelValue.target.id"
             @click="jumpToExecTargetReference"
           >
             <AppIcon name="locate-fixed" :size="14" />
@@ -139,7 +149,7 @@
               :model-value="modelValue.a.type"
               :options="taskControlTypeOptions"
               placeholder="状态动作"
-              @update:model-value="updateTaskStatusField('type', String($event || 'getState'))"
+              @update:model-value="updateTaskStatusField('type', String($event || 'setState'))"
             />
           </div>
 
@@ -533,11 +543,14 @@ const filteredStateStatusTypeOptions = computed(() =>
 const resolvedExecTargetOptions = computed(() =>
   props.modelValue.type === 'execNumCompare'
     ? withResolvedReferenceOption(
-        props.modelValue.a.type === 'task' ? props.taskReferenceOptions : props.policyReferenceOptions,
-        props.modelValue.a.id,
-        props.modelValue.a.type === 'task' ? 'task' : 'policy',
+        props.modelValue.target.type === 'task' ? props.taskReferenceOptions : props.policyReferenceOptions,
+        props.modelValue.target.id,
+        props.modelValue.target.type === 'task' ? 'task' : 'policy',
       )
     : [],
+);
+const execCompareOpOptions = computed(() =>
+  compareOpOptions.filter((option) => ['eq', 'ne', 'lt', 'le', 'gt', 'ge'].includes(option.value)),
 );
 const resolvedTaskStatusTargetOptions = computed(() =>
   props.modelValue.type === 'taskStatus'
@@ -729,8 +742,8 @@ const updateExecTargetType = (type: string) => {
   if (props.modelValue.type !== 'execNumCompare') return;
   replaceNode({
     ...props.modelValue,
-    a: {
-      ...props.modelValue.a,
+    target: {
+      ...props.modelValue.target,
       type,
     },
   } as ConditionNode);
@@ -740,21 +753,29 @@ const updateExecTargetId = (id: string) => {
   if (props.modelValue.type !== 'execNumCompare') return;
   replaceNode({
     ...props.modelValue,
-    a: {
-      ...props.modelValue.a,
+    target: {
+      ...props.modelValue.target,
       id,
     },
   } as ConditionNode);
 };
 
+const updateExecCompareOp = (op: string) => {
+  if (props.modelValue.type !== 'execNumCompare') return;
+  replaceNode({
+    ...props.modelValue,
+    op: op as ConditionNode & { op: never }['op'],
+  } as ConditionNode);
+};
+
 const createExecTargetReference = async () => {
   if (props.modelValue.type !== 'execNumCompare' || !props.createReference) return;
-  updateExecTargetId(await props.createReference(props.modelValue.a.type === 'task' ? 'task' : 'policy'));
+  updateExecTargetId(await props.createReference(props.modelValue.target.type === 'task' ? 'task' : 'policy'));
 };
 
 const jumpToExecTargetReference = () => {
-  if (props.modelValue.type !== 'execNumCompare' || !props.jumpToReference || !props.modelValue.a.id) return;
-  props.jumpToReference(props.modelValue.a.type === 'task' ? 'task' : 'policy', props.modelValue.a.id);
+  if (props.modelValue.type !== 'execNumCompare' || !props.jumpToReference || !props.modelValue.target.id) return;
+  props.jumpToReference(props.modelValue.target.type === 'task' ? 'task' : 'policy', props.modelValue.target.id);
 };
 
 const updateTaskStatusField = (field: 'type', value: string) => {

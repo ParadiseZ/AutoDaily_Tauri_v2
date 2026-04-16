@@ -36,8 +36,7 @@ export const stateTargetTypeOptions = [
 ];
 
 export const taskControlTypeOptions = [
-  { label: '读取状态', value: 'getState', description: '检查目标当前状态。' },
-  { label: '设置状态', value: 'setState', description: '设置目标状态。' },
+  { label: '状态匹配', value: 'setState', description: '检查目标当前状态。' },
 ];
 
 export const stateStatusTypeOptions = [
@@ -80,16 +79,17 @@ export const createConditionNode = (type: string = 'rawExpr'): ConditionNode => 
     case 'execNumCompare':
       return castCondition({
         type: 'execNumCompare',
-        a: {
+        target: {
           type: 'task',
           id: '',
         },
+        op: 'ge',
       });
     case 'taskStatus':
       return castCondition({
         type: 'taskStatus',
         a: {
-          type: 'getState',
+          type: 'setState',
           target: {
             type: 'task',
             id: '',
@@ -149,9 +149,9 @@ export const describeConditionNode = (node: ConditionNode) => {
     case 'group':
       return `${node.op} · ${node.items.length} 项`;
     case 'execNumCompare':
-      return `执行次数 · ${node.a.type}:${node.a.id || '未指定'}`;
+      return `执行次数 · ${node.target.type}:${node.target.id || '未指定'} · ${node.op}`;
     case 'taskStatus':
-      return `${node.a.type === 'getState' ? '读取状态' : '设置状态'} · ${node.a.target.type}:${node.a.target.id || '未指定'}`;
+      return `状态匹配 · ${node.a.target.type}:${node.a.target.id || '未指定'}`;
     case 'colorCompare':
       return `${node.is_font ? '字体色' : '背景色'} · ${node.txt_target || '未指定目标'}`;
     case 'varCompare':

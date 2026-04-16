@@ -26,7 +26,6 @@ pub struct PolicyInfo {
     pub cur_pos: u16,
 
     pub skip_flag : bool,
-    pub exec_cur: u16,
     pub exec_max: u16,
 
     pub before_action: Vec<Step>,

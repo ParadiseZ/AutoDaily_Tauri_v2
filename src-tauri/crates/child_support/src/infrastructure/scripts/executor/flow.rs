@@ -1,14 +1,8 @@
 impl ScriptExecutor {
     async fn execute_flow_control_step(
         &mut self,
-        cur_exec_num: u32,
-        max_exec_num: u32,
         flow: &FlowControl,
     ) -> ExecuteResult<ControlFlow> {
-        if cur_exec_num > max_exec_num {
-            return Ok(ControlFlow::Next);
-        }
-
         match flow {
             FlowControl::If {
                 con,
@@ -89,10 +83,7 @@ impl ScriptExecutor {
             }
             FlowControl::Link { target } => Ok(ControlFlow::Link(*target)),
             FlowControl::AddPolicies { source, target } => {
-                Log::warn(&format!(
-                    "[ executor ] AddPolicies(source={}, target={}) 当前已裁剪为兼容空操作，请迁移到显式 HandlePolicySet / HandlePolicy 链路",
-                    source, target
-                ));
+                self.add_policy_overlay(*source, *target).await;
                 Ok(ControlFlow::Next)
             }
             FlowControl::HandlePolicySet {
@@ -209,15 +200,6 @@ impl ScriptExecutor {
                 self.set_state_value(target, status).await?;
                 Ok(ControlFlow::Next)
             }
-            TaskControl::GetState { target, status } => {
-                let matched = self.match_state_value(target, status).await;
-                Log::warn(&format!(
-                    "[ executor ] GetState(step) 当前按兼容空操作处理[target={}, matched={}]；请改用条件节点 TaskStatus",
-                    Self::state_target_label(target),
-                    matched
-                ));
-                Ok(ControlFlow::Next)
-            }
         }
     }
 
@@ -325,10 +307,9 @@ impl ScriptExecutor {
                         Ok(false)
                     }
                 }
-                ConditionNode::ExecNumCompare { .. } => Err(Self::execute_error(
-                    "condition.execNumCompare",
-                    "执行次数条件尚未定义比较阈值，当前不执行隐式推断".to_string(),
-                )),
+                ConditionNode::ExecNumCompare { target, op } => {
+                    self.match_exec_num_compare(target, op).await
+                }
                 ConditionNode::ColorCompare { .. } => Err(Self::execute_error(
                     "condition.colorCompare",
                     "颜色比较尚未接入视觉颜色分析".to_string(),
@@ -420,9 +401,7 @@ impl ScriptExecutor {
 
     async fn match_state_status(&mut self, task_control: &TaskControl) -> ExecuteResult<bool> {
         let (target, status) = match task_control {
-            TaskControl::GetState { target, status } | TaskControl::SetState { target, status } => {
-                (target, status)
-            }
+            TaskControl::SetState { target, status } => (target, status),
         };
 
         Ok(self.match_state_value(target, status).await)
@@ -457,6 +436,106 @@ impl ScriptExecutor {
                     StateStatus::Done { value } => state.done_flag == *value,
                 }
             }
+        }
+    }
+
+    async fn add_policy_overlay(&self, source: PolicySetId, target: PolicySetId) {
+        let mut ctx = self.runtime_ctx.write().await;
+        let entry = ctx.execution.policy_set_overlays.entry(target).or_default();
+        if !entry.contains(&source) {
+            entry.push(source);
+        }
+    }
+
+    async fn match_exec_num_compare(
+        &self,
+        target: &StateTarget,
+        op: &CompareOp,
+    ) -> ExecuteResult<bool> {
+        let exec_cur = self.current_exec_count(target).await;
+        let exec_max = self.resolve_exec_limit(target).await?;
+        Ok(Self::compare_exec_count(exec_cur, op, exec_max))
+    }
+
+    async fn current_exec_count(&self, target: &StateTarget) -> u32 {
+        let ctx = self.runtime_ctx.read().await;
+        match target {
+            StateTarget::Task { id } => ctx
+                .execution
+                .task_states
+                .get(id)
+                .map(|state| state.exec_cur)
+                .unwrap_or(0),
+            StateTarget::Policy { id } => ctx
+                .execution
+                .policy_states
+                .get(id)
+                .map(|state| state.exec_cur)
+                .unwrap_or(0),
+        }
+    }
+
+    async fn resolve_exec_limit(&self, target: &StateTarget) -> ExecuteResult<Option<u32>> {
+        let script_id = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.execution.script_id
+        };
+        let snapshot = get_script_bundle_snapshot(script_id).await.ok_or_else(|| {
+            Self::execute_error(
+                "condition.execNumCompare",
+                format!("当前 session 中不存在脚本[{}]的 bundle", script_id),
+            )
+        })?;
+
+        match target {
+            StateTarget::Task { id } => {
+                let tasks: Vec<ScriptTaskTable> =
+                    Self::parse_bundle_json("condition.execNumCompare", "tasks_json", &snapshot.tasks_json)?;
+                let task = tasks.into_iter().find(|task| task.id == *id).ok_or_else(|| {
+                    Self::execute_error(
+                        "condition.execNumCompare",
+                        format!("目标任务[{}]不存在", id),
+                    )
+                })?;
+                Ok((task.exec_max > 0).then_some(task.exec_max))
+            }
+            StateTarget::Policy { id } => {
+                let policies: Vec<PolicyTable> = Self::parse_bundle_json(
+                    "condition.execNumCompare",
+                    "policies_json",
+                    &snapshot.policies_json,
+                )?;
+                let policy = policies.into_iter().find(|policy| policy.id == *id).ok_or_else(|| {
+                    Self::execute_error(
+                        "condition.execNumCompare",
+                        format!("目标策略[{}]不存在", id),
+                    )
+                })?;
+                Ok((policy.data.0.exec_max > 0).then_some(u32::from(policy.data.0.exec_max)))
+            }
+        }
+    }
+
+    fn compare_exec_count(exec_cur: u32, op: &CompareOp, exec_max: Option<u32>) -> bool {
+        match exec_max {
+            Some(exec_max) => match op {
+                CompareOp::Eq => exec_cur == exec_max,
+                CompareOp::Ne => exec_cur != exec_max,
+                CompareOp::Lt => exec_cur < exec_max,
+                CompareOp::Le => exec_cur <= exec_max,
+                CompareOp::Gt => exec_cur > exec_max,
+                CompareOp::Ge => exec_cur >= exec_max,
+                CompareOp::Contains | CompareOp::NotContains => false,
+            },
+            None => match op {
+                CompareOp::Eq => false,
+                CompareOp::Ne => true,
+                CompareOp::Lt => true,
+                CompareOp::Le => true,
+                CompareOp::Gt => false,
+                CompareOp::Ge => false,
+                CompareOp::Contains | CompareOp::NotContains => false,
+            },
         }
     }
 }

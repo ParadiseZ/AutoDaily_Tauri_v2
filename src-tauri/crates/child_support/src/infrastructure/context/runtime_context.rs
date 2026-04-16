@@ -31,6 +31,11 @@ pub struct PolicyState {
     pub exec_cur: u32,
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct ActionState {
+    pub exec_cur: u32,
+}
+
 #[derive(Debug, Clone)]
 pub struct TaskState {
     pub enabled_flag: bool,
@@ -68,6 +73,12 @@ pub struct ExecutionState {
 
     /// 任务状态
     pub task_states: HashMap<TaskId, TaskState>,
+
+    /// 动作状态（按 action step id 计数）
+    pub action_states: HashMap<StepId, ActionState>,
+
+    /// 运行时策略集附加关系：target <- [source...]
+    pub policy_set_overlays: HashMap<PolicySetId, Vec<PolicySetId>>,
 }
 
 impl ExecutionState {
@@ -83,6 +94,8 @@ impl ExecutionState {
             var_map: HashMap::new(),
             policy_states: HashMap::new(),
             task_states: HashMap::new(),
+            action_states: HashMap::new(),
+            policy_set_overlays: HashMap::new(),
         }
     }
 }

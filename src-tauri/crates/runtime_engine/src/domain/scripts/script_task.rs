@@ -31,6 +31,7 @@ pub struct ScriptTaskTable {
     pub indent_level: u32,
     #[ts(as = "TaskCycle")]
     pub default_task_cycle: Json<TaskCycle>,
+    pub exec_max: u32,
     pub show_enabled_toggle: bool,
     pub default_enabled: bool,
     pub task_tone: TaskTone,

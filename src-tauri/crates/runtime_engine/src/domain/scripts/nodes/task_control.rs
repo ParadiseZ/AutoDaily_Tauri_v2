@@ -9,10 +9,6 @@ pub enum TaskControl{
         target: StateTarget,
         status: StateStatus,
     },
-    GetState {
-        target: StateTarget,
-        status: StateStatus,
-    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]

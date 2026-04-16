@@ -170,6 +170,16 @@ impl ScriptScheduler {
         skip_flag
     }
 
+    async fn mark_task_succeeded(
+        runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
+        task_id: crate::infrastructure::core::TaskId,
+    ) {
+        let mut ctx = runtime_ctx.write().await;
+        let state = ctx.execution.task_states.entry(task_id).or_default();
+        state.done_flag = true;
+        state.exec_cur = state.exec_cur.saturating_add(1);
+    }
+
     /// 用完整 session 替换当前队列
     pub async fn load_session(&self, session: RuntimeSessionSnapshot) {
         let mut queue = self.queue.write().await;
@@ -321,6 +331,8 @@ impl ScriptScheduler {
             ctx.execution.var_map.clear();
             ctx.execution.policy_states.clear();
             ctx.execution.task_states.clear();
+            ctx.execution.action_states.clear();
+            ctx.execution.policy_set_overlays.clear();
             ctx.observation.last_capture_image = None;
             ctx.observation.last_snapshot = None;
             ctx.observation.last_hits.clear();
@@ -423,6 +435,9 @@ impl ScriptScheduler {
             match task_result {
                 Ok(flow) => {
                     let task_skipped = Self::consume_task_skip_flag(&runtime_ctx, task.id).await;
+                    if !task_skipped {
+                        Self::mark_task_succeeded(&runtime_ctx, task.id).await;
+                    }
                     let linked_task = match flow {
                         crate::infrastructure::scripts::executor::ControlFlow::Link(target) => {
                             Some(
@@ -647,6 +662,8 @@ impl ScriptScheduler {
             ctx.execution.var_map.clear();
             ctx.execution.policy_states.clear();
             ctx.execution.task_states.clear();
+            ctx.execution.action_states.clear();
+            ctx.execution.policy_set_overlays.clear();
             ctx.observation.last_capture_image = None;
             ctx.observation.last_snapshot = None;
             ctx.observation.last_hits.clear();

@@ -1012,7 +1012,7 @@ const updateTaskControlType = (value: string) => {
     if (step.op !== STEP_OP.taskControl) return;
     step.a = {
       ...step.a,
-      type: value as typeof TASK_CONTROL_TYPE.setState | typeof TASK_CONTROL_TYPE.getState,
+      type: value as typeof TASK_CONTROL_TYPE.setState,
     };
   });
 };

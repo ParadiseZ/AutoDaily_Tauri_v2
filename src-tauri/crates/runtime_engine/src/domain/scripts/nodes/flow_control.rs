@@ -53,7 +53,8 @@ pub enum ConditionNode {
 
     /// 执行次数
     ExecNumCompare{
-        a: StateTarget,
+        target: StateTarget,
+        op: CompareOp,
     },
 
     /// 策略/任务状态是否完成/跳过

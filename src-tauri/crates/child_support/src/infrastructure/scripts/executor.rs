@@ -14,6 +14,7 @@ use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
 use crate::domain::scripts::script_decision::{Step, StepKind};
+use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit, VisionSnapshot};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
@@ -103,7 +104,8 @@ struct ActionProgressProbe {
     action_signature: String,
     task_id: Option<TaskId>,
     step_id: Option<StepId>,
-    recorded_at: Instant,
+    stagnant_since: Instant,
+    notified: bool,
 }
 
 pub struct ScriptExecutor {
@@ -218,23 +220,9 @@ impl ScriptExecutor {
     async fn execute_step_inner(&mut self, step: &Step) -> ExecuteResult<ControlFlow> {
         match &step.kind {
             StepKind::Sequence { steps } => self.execute_sequence(steps).await,
-            StepKind::Action {
-                cur_exec_num,
-                max_exec_num,
-                a,
-            } => {
-                self.execute_action_step(*cur_exec_num, *max_exec_num, a)
-                    .await
-            }
+            StepKind::Action { exec_max, a } => self.execute_action_step(step.id, *exec_max, a).await,
             StepKind::DataHanding { a } => self.execute_data_handling_step(a).await,
-            StepKind::FlowControl {
-                cur_exec_num,
-                max_exec_num,
-                a,
-            } => {
-                self.execute_flow_control_step(*cur_exec_num, *max_exec_num, a)
-                    .await
-            }
+            StepKind::FlowControl { a } => self.execute_flow_control_step(a).await,
             StepKind::TaskControl { a } => self.execute_task_control_step(a).await,
             StepKind::Vision { a } => self.execute_vision_step(a).await,
         }

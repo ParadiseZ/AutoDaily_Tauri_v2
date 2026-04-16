@@ -52,10 +52,9 @@ export const VISION_TYPE = {
   visionSearch: VISION_TYPES[0],
 } as const;
 
-export const TASK_CONTROL_TYPES = ['setState', 'getState'] as const;
+export const TASK_CONTROL_TYPES = ['setState'] as const;
 export const TASK_CONTROL_TYPE = {
   setState: TASK_CONTROL_TYPES[0],
-  getState: TASK_CONTROL_TYPES[1],
 } as const;
 
 export const STATE_TARGET_TYPES = ['policy', 'task'] as const;

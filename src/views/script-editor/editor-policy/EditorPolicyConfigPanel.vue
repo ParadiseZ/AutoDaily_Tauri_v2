@@ -41,11 +41,6 @@
             </label>
 
             <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">当前执行次数</span>
-              <input :value="String(policy.data.execCur)" class="app-input" type="number" @input="$emit('update:number-field', 'execCur', ($event.target as HTMLInputElement).value)" />
-            </label>
-
-            <label class="space-y-2">
               <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">最大执行次数</span>
               <input :value="String(policy.data.execMax)" class="app-input" type="number" @input="$emit('update:number-field', 'execMax', ($event.target as HTMLInputElement).value)" />
             </label>
@@ -125,7 +120,7 @@ defineEmits<{
   'update:policy-name': [value: string];
   'update:policy-note': [value: string];
   'update:policy-log-print': [value: string];
-  'update:number-field': [field: 'curPos' | 'execCur' | 'execMax', value: string];
+  'update:number-field': [field: 'curPos' | 'execMax', value: string];
   'update:boolean-field': [field: 'skipFlag', value: boolean];
   'append-template-step': [templateId: string];
 }>();

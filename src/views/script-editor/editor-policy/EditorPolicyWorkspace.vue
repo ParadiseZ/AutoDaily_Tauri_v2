@@ -33,16 +33,6 @@
           </div>
 
           <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">当前执行次数</p>
-            <input
-              :value="String(policy.data.execCur)"
-              class="app-input mt-2"
-              type="number"
-              @input="$emit('update:number-field', 'execCur', ($event.target as HTMLInputElement).value)"
-            />
-          </div>
-
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
             <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最大执行次数</p>
             <input
               :value="String(policy.data.execMax)"
@@ -137,7 +127,7 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  'update:number-field': [field: 'curPos' | 'execCur' | 'execMax', value: string];
+  'update:number-field': [field: 'curPos' | 'execMax', value: string];
   'update:boolean-field': [field: 'skipFlag', value: boolean];
   'update:condition': [value: SearchRule];
   'select-step-path': [path: StepPath];
