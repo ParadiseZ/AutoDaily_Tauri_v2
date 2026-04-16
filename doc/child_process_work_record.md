@@ -404,7 +404,7 @@
 当前仍未收口：
 
 - child 加载 `ResumeCheckpoint` 后，还不会按 `task / step` 真正恢复执行
-- `PolicyGroup / PolicySet` 运行目标仍未进入执行计划，当前由主进程和编辑器前置拒绝
+- `PolicyGroup / PolicySet / Policy` 现已进入调试运行主链，但仍不属于 `DeviceQueue` 正式任务计划
 - `ColorCompare` 等剩余条件/数据能力还没有接入真实执行
 
 建议继续看：

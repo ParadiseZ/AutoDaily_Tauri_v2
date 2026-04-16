@@ -47,6 +47,7 @@ struct LoadedScriptBundle {
     activity_name: Option<String>,
     recovery_task_id: Option<TaskId>,
     runnable_task_ids: HashSet<TaskId>,
+    policy_ids: HashSet<crate::infrastructure::core::PolicyId>,
     policy_group_ids: HashSet<crate::infrastructure::core::PolicyGroupId>,
     policy_set_ids: HashSet<crate::infrastructure::core::PolicySetId>,
     snapshot: ScriptBundleSnapshot,
@@ -278,6 +279,7 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
     let pkg_name = script.data.0.pkg_name.clone();
     let activity_name = script.data.0.activity_name.clone();
     let recovery_task_id = script.data.0.runtime_settings.recovery_task_id;
+    let policy_ids = policies.iter().map(|policy| policy.id).collect();
     let policy_group_ids = policy_groups.iter().map(|group| group.id).collect();
     let policy_set_ids = policy_sets.iter().map(|set| set.id).collect();
 
@@ -288,6 +290,7 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
         activity_name,
         recovery_task_id,
         runnable_task_ids,
+        policy_ids,
         policy_group_ids,
         policy_set_ids,
         snapshot: ScriptBundleSnapshot {
@@ -499,6 +502,21 @@ fn validate_run_target_support(
                 ))
             }
         }
+        RunTarget::Policy {
+            script_id,
+            policy_id,
+        } => {
+            let bundle = find_bundle(*script_id)
+                .ok_or_else(|| format!("运行目标中的脚本[{}]未装入当前 session", script_id))?;
+            if bundle.policy_ids.contains(policy_id) {
+                Ok(())
+            } else {
+                Err(format!(
+                    "脚本[{}]中的策略[{}]不存在",
+                    bundle.script_name, policy_id
+                ))
+            }
+        }
         RunTarget::PolicyGroup {
             script_id,
             policy_group_id,
@@ -512,10 +530,7 @@ fn validate_run_target_support(
                 ));
             }
 
-            Err(format!(
-                "策略组[{}]运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行",
-                policy_group_id
-            ))
+            Ok(())
         }
         RunTarget::PolicySet {
             script_id,
@@ -530,10 +545,7 @@ fn validate_run_target_support(
                 ));
             }
 
-            Err(format!(
-                "策略集[{}]运行目标的执行计划尚未接入，当前版本仅支持任务与整脚本运行",
-                policy_set_id
-            ))
+            Ok(())
         }
     }
 }

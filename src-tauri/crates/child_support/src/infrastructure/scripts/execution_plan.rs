@@ -129,12 +129,16 @@ impl ExecutionPlanAssembler {
             RunTarget::PolicyGroup {
                 policy_group_id, ..
             } => Err(format!(
-                "策略组目标[{}]的执行计划尚未接入，当前不执行降级推断",
+                "策略组目标[{}]走策略调试执行，不进入 task 执行计划",
                 policy_group_id
             )),
             RunTarget::PolicySet { policy_set_id, .. } => Err(format!(
-                "策略集目标[{}]的执行计划尚未接入，当前不执行降级推断",
+                "策略集目标[{}]走策略调试执行，不进入 task 执行计划",
                 policy_set_id
+            )),
+            RunTarget::Policy { policy_id, .. } => Err(format!(
+                "策略目标[{}]走策略调试执行，不进入 task 执行计划",
+                policy_id
             )),
         }
     }

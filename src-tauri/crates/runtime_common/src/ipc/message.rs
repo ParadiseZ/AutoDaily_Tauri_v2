@@ -1,8 +1,8 @@
 use bincode::{Decode, Encode};
 
 use crate::core::{
-    AccountId, Deserialize, DeviceId, ExecutionId, MessageId, PolicyGroupId, PolicySetId,
-    ScheduleId, ScriptId, Serialize, SessionId, StepId, TaskId, TemplateId,
+    AccountId, Deserialize, DeviceId, ExecutionId, MessageId, PolicyGroupId, PolicyId,
+    PolicySetId, ScheduleId, ScriptId, Serialize, SessionId, StepId, TaskId, TemplateId,
 };
 use crate::logging::LogLevel;
 
@@ -88,6 +88,10 @@ pub enum RunTarget {
         script_id: ScriptId,
         policy_set_id: PolicySetId,
     },
+    Policy {
+        script_id: ScriptId,
+        policy_id: PolicyId,
+    },
 }
 
 impl RunTarget {
@@ -97,7 +101,8 @@ impl RunTarget {
             Self::FullScript { script_id }
             | Self::Task { script_id, .. }
             | Self::PolicyGroup { script_id, .. }
-            | Self::PolicySet { script_id, .. } => Some(*script_id),
+            | Self::PolicySet { script_id, .. }
+            | Self::Policy { script_id, .. } => Some(*script_id),
         }
     }
 }

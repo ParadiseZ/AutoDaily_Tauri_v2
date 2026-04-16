@@ -317,9 +317,16 @@ impl ScriptScheduler {
         let script_name = script_info.name.clone();
         Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
-        let task_selection =
+        let is_policy_debug_target = matches!(
+            run_target,
+            RunTarget::Policy { .. } | RunTarget::PolicyGroup { .. } | RunTarget::PolicySet { .. }
+        );
+        let task_selection = if is_policy_debug_target {
+            crate::infrastructure::scripts::execution_plan::TaskSelection::default()
+        } else {
             ExecutionPlanAssembler::select_tasks(&run_target, device_id, &queue_item, &bundle.tasks)
-                .await?;
+                .await?
+        };
         let runnable_task_count = task_selection.root_tasks.len();
         let skipped_task_count = task_selection.skipped_tasks.len();
         let linkable_task_count = task_selection.linkable_tasks.len();
@@ -380,6 +387,17 @@ impl ScriptScheduler {
                 runnable_task_count, linkable_task_count, skipped_task_count
             )),
         );
+
+        if is_policy_debug_target {
+            return Self::execute_debug_policy_target(
+                &run_target,
+                assignment_id,
+                script_id,
+                &bundle,
+                &runtime_ctx,
+            )
+            .await;
+        }
 
         for skipped in &task_selection.skipped_tasks {
             emit_schedule_event(
@@ -639,6 +657,154 @@ impl ScriptScheduler {
 
         Ok(())
     }
+
+    async fn execute_debug_policy_target(
+        run_target: &RunTarget,
+        assignment_id: crate::infrastructure::core::ScheduleId,
+        script_id: ScriptId,
+        bundle: &ParsedScriptBundle,
+        runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
+    ) -> Result<(), String> {
+        emit_progress_event(
+            RuntimeProgressPhase::Executing,
+            Some(assignment_id),
+            Some(script_id),
+            None,
+            None,
+            Some("开始执行策略调试目标".to_string()),
+        );
+
+        let mut executor = ScriptExecutor::new(runtime_ctx.clone());
+        let result = match run_target {
+            RunTarget::Policy { policy_id, .. } => {
+                let policy = bundle
+                    .policies
+                    .iter()
+                    .find(|policy| policy.id == *policy_id)
+                    .ok_or_else(|| format!("策略[{}]不存在", policy_id))?;
+                Log::info(&format!(
+                    "[ scheduler ] 开始调试策略: {} ({})",
+                    policy.data.0.name, policy.id
+                ));
+                match executor
+                    .debug_execute_policy(*policy_id)
+                    .await
+                    .map_err(|error| error.to_string())
+                {
+                    Ok(result) => {
+                        emit_progress_event(
+                            RuntimeProgressPhase::Completed,
+                            Some(assignment_id),
+                            Some(script_id),
+                            None,
+                            None,
+                            Some(format!(
+                                "策略调试完成: {} matched={}",
+                                policy.data.0.name, result.matched
+                            )),
+                        );
+                        Ok(())
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            RunTarget::PolicyGroup {
+                policy_group_id, ..
+            } => {
+                let group = bundle
+                    .policy_groups
+                    .iter()
+                    .find(|group| group.id == *policy_group_id)
+                    .ok_or_else(|| format!("策略组[{}]不存在", policy_group_id))?;
+                Log::info(&format!(
+                    "[ scheduler ] 开始调试策略组: {} ({})",
+                    group.data.0.name, group.id
+                ));
+                match executor
+                    .debug_execute_policy_group(*policy_group_id)
+                    .await
+                    .map_err(|error| error.to_string())
+                {
+                    Ok(result) => {
+                        emit_progress_event(
+                            RuntimeProgressPhase::Completed,
+                            Some(assignment_id),
+                            Some(script_id),
+                            None,
+                            None,
+                            Some(format!(
+                                "策略组调试完成: {} matched={}",
+                                group.data.0.name, result.matched
+                            )),
+                        );
+                        Ok(())
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            RunTarget::PolicySet { policy_set_id, .. } => {
+                let set = bundle
+                    .policy_sets
+                    .iter()
+                    .find(|set| set.id == *policy_set_id)
+                    .ok_or_else(|| format!("策略集[{}]不存在", policy_set_id))?;
+                Log::info(&format!(
+                    "[ scheduler ] 开始调试策略集: {} ({})",
+                    set.data.0.name, set.id
+                ));
+                match executor
+                    .debug_execute_policy_set(*policy_set_id)
+                    .await
+                    .map_err(|error| error.to_string())
+                {
+                    Ok(result) => {
+                        emit_progress_event(
+                            RuntimeProgressPhase::Completed,
+                            Some(assignment_id),
+                            Some(script_id),
+                            None,
+                            None,
+                            Some(format!(
+                                "策略集调试完成: {} matched={}",
+                                set.data.0.name, result.matched
+                            )),
+                        );
+                        Ok(())
+                    }
+                    Err(error) => Err(error),
+                }
+            }
+            _ => Ok(()),
+        };
+
+        {
+            let mut ctx = runtime_ctx.write().await;
+            ctx.execution.current_execution_id = None;
+            ctx.execution.current_assignment_id = None;
+            ctx.execution.current_task = None;
+            ctx.execution.current_step_id = None;
+            if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
+                Log::warn(&format!(
+                    "[ scheduler ] 脚本[{}]调试执行后写回 OCR 文字缓存失败，已忽略: {}",
+                    script_id, error
+                ));
+            }
+        }
+
+        if let Err(error) = &result {
+            emit_progress_event(
+                RuntimeProgressPhase::Failed,
+                Some(assignment_id),
+                Some(script_id),
+                None,
+                None,
+                Some(error.clone()),
+            );
+        }
+
+        result
+    }
+
     /// 清空队列
     pub async fn clear_queue(&self) {
         self.queue.write().await.clear();

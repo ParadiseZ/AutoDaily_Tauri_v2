@@ -1,4 +1,33 @@
 impl ScriptExecutor {
+    pub async fn debug_execute_policy(
+        &mut self,
+        policy_id: PolicyId,
+    ) -> ExecuteResult<PolicyExecutionResult> {
+        let bundle = self.load_policy_bundle("debug.policy").await?;
+        let candidates = Self::resolve_policy_candidates(&bundle, &[policy_id])?;
+        self.debug_execute_policy_candidates("策略", candidates).await
+    }
+
+    pub async fn debug_execute_policy_group(
+        &mut self,
+        policy_group_id: PolicyGroupId,
+    ) -> ExecuteResult<PolicyExecutionResult> {
+        let bundle = self.load_policy_bundle("debug.policyGroup").await?;
+        let candidates = Self::resolve_policy_group_candidates(&bundle, policy_group_id)?;
+        self.debug_execute_policy_candidates("策略组", candidates).await
+    }
+
+    pub async fn debug_execute_policy_set(
+        &mut self,
+        policy_set_id: PolicySetId,
+    ) -> ExecuteResult<PolicyExecutionResult> {
+        let bundle = self.load_policy_bundle("debug.policySet").await?;
+        let candidates = self
+            .resolve_policy_set_candidates(&bundle, &[policy_set_id])
+            .await?;
+        self.debug_execute_policy_candidates("策略集", candidates).await
+    }
+
     async fn execute_handle_policy_set(
         &mut self,
         target: &[PolicySetId],
@@ -11,6 +40,49 @@ impl ScriptExecutor {
         let candidates = self.resolve_policy_set_candidates(&bundle, target).await?;
         self.execute_policy_candidates("flow.handlePolicySet", candidates, out_var)
             .await
+    }
+
+    async fn debug_execute_policy_candidates(
+        &mut self,
+        debug_target_label: &str,
+        candidates: Vec<PolicyCandidate>,
+    ) -> ExecuteResult<PolicyExecutionResult> {
+        self.capture_policy_debug_observation(debug_target_label).await?;
+        self.log_policy_debug_observation(debug_target_label).await?;
+        Log::info(&format!(
+            "[ policy_debug ] {}候选数: {}",
+            debug_target_label,
+            candidates.len()
+        ));
+        for (index, candidate) in candidates.iter().enumerate() {
+            Log::info(&format!(
+                "[ policy_debug ] 候选[{}] set={:?} group={:?} policy={}({})",
+                index,
+                candidate.policy_set_id,
+                candidate.policy_group_id,
+                candidate.policy.data.0.name,
+                candidate.policy.id
+            ));
+        }
+
+        self.execute_policy_candidates("debug.policy", candidates, "runtime.policyDebugResult")
+            .await?;
+        let value = self.read_runtime_var("runtime.policyDebugResult").await.ok_or_else(|| {
+            Self::execute_error(
+                "debug.policy",
+                "策略调试未产出 runtime.policyDebugResult".to_string(),
+            )
+        })?;
+        let result = Self::deserialize_dynamic_value::<PolicyExecutionResult>(&value).map_err(
+            |error| {
+                Self::execute_error(
+                    "debug.policy",
+                    format!("解析策略调试结果失败: {}", error),
+                )
+            },
+        )?;
+        self.log_policy_debug_result(&result);
+        Ok(result)
     }
 
     async fn execute_handle_policy(
@@ -382,6 +454,184 @@ impl ScriptExecutor {
         }
 
         Ok(candidates)
+    }
+
+    fn resolve_policy_group_candidates(
+        bundle: &PolicyBundle,
+        group_id: PolicyGroupId,
+    ) -> ExecuteResult<Vec<PolicyCandidate>> {
+        let group_exists = bundle.policy_groups.iter().any(|group| group.id == group_id);
+        if !group_exists {
+            return Err(Self::execute_error(
+                "debug.policyGroup",
+                format!("目标策略组[{}]不存在", group_id),
+            ));
+        }
+
+        let policy_map: HashMap<PolicyId, PolicyTable> = bundle
+            .policies
+            .iter()
+            .cloned()
+            .map(|policy| (policy.id, policy))
+            .collect();
+        let mut policy_relations: Vec<_> = bundle
+            .group_policies
+            .iter()
+            .filter(|relation| relation.group_id == group_id)
+            .cloned()
+            .collect();
+        policy_relations.sort_by_key(|relation| relation.order_index);
+
+        let mut candidates = Vec::new();
+        for policy_relation in policy_relations {
+            let Some(policy) = policy_map.get(&policy_relation.policy_id) else {
+                return Err(Self::execute_error(
+                    "debug.policyGroup",
+                    format!(
+                        "策略组[{}]引用的策略[{}]不存在",
+                        group_id, policy_relation.policy_id
+                    ),
+                ));
+            };
+
+            candidates.push(PolicyCandidate {
+                policy_set_id: None,
+                policy_group_id: Some(group_id),
+                policy: policy.clone(),
+            });
+        }
+
+        Ok(candidates)
+    }
+
+    async fn capture_policy_debug_observation(
+        &mut self,
+        debug_target_label: &str,
+    ) -> ExecuteResult<()> {
+        Log::info(&format!(
+            "[ policy_debug ] 开始{}调试截图与视觉分析",
+            debug_target_label
+        ));
+        let image = Arc::new(get_device_ctx().get_screenshot().await.ok_or_else(|| {
+            Self::execute_error("debug.policy", "获取设备截图失败".to_string())
+        })?);
+        self.activate_image_context("debug.policy", image, Some("runtime.policyDebugCapture"))
+            .await
+    }
+
+    async fn log_policy_debug_observation(
+        &self,
+        debug_target_label: &str,
+    ) -> ExecuteResult<()> {
+        let det_results = self
+            .read_runtime_result_vec::<DetResult>("runtime.detResults", "debug.policy", "检测")
+            .await?;
+        let ocr_results = self
+            .read_runtime_result_vec::<OcrResult>("runtime.ocrResults", "debug.policy", "OCR")
+            .await?;
+
+        Log::info(&format!(
+            "[ policy_debug ] {}截图完成: det={} ocr={}",
+            debug_target_label,
+            det_results.len(),
+            ocr_results.len()
+        ));
+
+        for (index, item) in det_results.iter().take(10).enumerate() {
+            let center = item.bounding_box.center();
+            Log::info(&format!(
+                "[ policy_debug ] DET[{}] label={} idx={} score={:.3} center=({}, {})",
+                index, item.label, item.index, item.score, center.x, center.y
+            ));
+        }
+        if det_results.len() > 10 {
+            Log::info(&format!(
+                "[ policy_debug ] DET 结果已截断展示，其余 {} 条省略",
+                det_results.len() - 10
+            ));
+        }
+
+        for (index, item) in ocr_results.iter().take(10).enumerate() {
+            let center = item.bounding_box.center();
+            Log::info(&format!(
+                "[ policy_debug ] OCR[{}] text=\"{}\" center=({}, {})",
+                index, item.txt, center.x, center.y
+            ));
+        }
+        if ocr_results.len() > 10 {
+            Log::info(&format!(
+                "[ policy_debug ] OCR 结果已截断展示，其余 {} 条省略",
+                ocr_results.len() - 10
+            ));
+        }
+
+        Ok(())
+    }
+
+    fn log_policy_debug_result(&self, result: &PolicyExecutionResult) {
+        Log::info(&format!(
+            "[ policy_debug ] 最终结果: matched={} policySet={:?} policyGroup={:?} policy={:?}",
+            result.matched, result.policy_set_id, result.policy_group_id, result.policy_id
+        ));
+
+        for (round_index, round) in result.rounds.iter().enumerate() {
+            Log::info(&format!(
+                "[ policy_debug ] round[{}]: matched={} set={:?} group={:?} policy={:?} pageFingerprints={} actionSignatures={}",
+                round_index,
+                round.matched,
+                round.policy_set_id,
+                round.policy_group_id,
+                round.policy_id,
+                round.page_fingerprints.len(),
+                round.action_signatures.len()
+            ));
+            if !round.page_fingerprints.is_empty() {
+                Log::info(&format!(
+                    "[ policy_debug ] round[{}] pageFingerprints={}",
+                    round_index,
+                    round.page_fingerprints.join(" -> ")
+                ));
+            }
+            for action in &round.actions {
+                Log::info(&format!(
+                    "[ policy_debug ] round[{}] action[{}]: kind={:?} source={:?} signature={} targets={}",
+                    round_index,
+                    action.action_index,
+                    action.kind,
+                    action.source,
+                    action.signature,
+                    Self::format_policy_action_targets(&action.targets)
+                ));
+            }
+        }
+    }
+
+    fn format_policy_action_targets(targets: &[PolicyActionTarget]) -> String {
+        if targets.is_empty() {
+            return "[]".to_string();
+        }
+
+        targets
+            .iter()
+            .map(|target| {
+                let point = target
+                    .point
+                    .as_ref()
+                    .map(|point| format!("point=({}, {})", point.x, point.y))
+                    .unwrap_or_else(|| "point=<none>".to_string());
+                let text = target
+                    .text
+                    .as_ref()
+                    .map(|text| format!("text=\"{}\"", text))
+                    .unwrap_or_else(|| "text=<none>".to_string());
+                let label = target
+                    .label_id
+                    .map(|label_id| format!("label={}", label_id))
+                    .unwrap_or_else(|| "label=<none>".to_string());
+                format!("{:?}({}; {}; {})", target.role, point, text, label)
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
     }
 
     async fn begin_active_policy_round_trace(&mut self) {

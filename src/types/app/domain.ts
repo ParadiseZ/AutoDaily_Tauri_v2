@@ -165,7 +165,8 @@ export type RunTarget =
     | { type: 'fullScript'; scriptId: string }
     | { type: 'task'; scriptId: string; taskId: string }
     | { type: 'policyGroup'; scriptId: string; policyGroupId: string }
-    | { type: 'policySet'; scriptId: string; policySetId: string };
+    | { type: 'policySet'; scriptId: string; policySetId: string }
+    | { type: 'policy'; scriptId: string; policyId: string };
 
 export interface RuntimeLifecycleEvent {
     deviceId: string;
