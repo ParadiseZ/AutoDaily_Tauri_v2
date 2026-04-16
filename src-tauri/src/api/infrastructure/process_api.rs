@@ -366,6 +366,50 @@ async fn load_script_bundles(
     Ok(bundles)
 }
 
+fn build_debug_template_values_json(
+    run_target: &RunTarget,
+    bundles: &[LoadedScriptBundle],
+) -> Result<Option<String>, String> {
+    if matches!(run_target, RunTarget::DeviceQueue) {
+        return Ok(None);
+    }
+
+    let Some(script_id) = run_target.script_id() else {
+        return Ok(None);
+    };
+    let Some(bundle) = bundles.iter().find(|bundle| bundle.script_id == script_id) else {
+        return Err(format!("调试运行脚本[{}]未装入当前 session bundle", script_id));
+    };
+
+    let tasks: Vec<ScriptTaskTable> =
+        serde_json::from_str(&bundle.snapshot.tasks_json).map_err(|error| {
+            format!(
+                "解析调试运行脚本[{}]任务定义失败: {}",
+                bundle.script_name, error
+            )
+        })?;
+
+    let mut task_settings = serde_json::Map::new();
+    for task in tasks
+        .into_iter()
+        .filter(|task| matches!(task.row_type, TaskRowType::Task))
+        .filter(|task| !task.is_deleted)
+    {
+        task_settings.insert(
+            task.id.to_string(),
+            serde_json::json!({
+                "taskCycle": "everyRun",
+            }),
+        );
+    }
+
+    serde_json::to_string(&serde_json::json!({
+        "taskSettings": task_settings,
+    }))
+    .map(Some)
+    .map_err(|error| format!("构造调试运行模板覆盖值失败: {}", error))
+}
+
 fn validate_recovery_task_config(
     run_target: &RunTarget,
     runtime_policy: &RuntimeExecutionPolicy,
@@ -607,7 +651,7 @@ async fn build_runtime_session_snapshot(
 ) -> Result<(RuntimeSessionSnapshot, Option<ResumeCheckpoint>), String> {
     let device_table = load_device_table(device_id).await?;
     validate_runtime_platform_supported(&device_table)?;
-    let queue = match &run_target {
+    let mut queue = match &run_target {
         RunTarget::DeviceQueue => load_runtime_queue(device_id).await?,
         target => target
             .script_id()
@@ -629,6 +673,13 @@ async fn build_runtime_session_snapshot(
     validate_run_target_support(&run_target, &loaded_script_bundles)?;
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     validate_restart_app_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
+    if let Some(template_values_json) =
+        build_debug_template_values_json(&run_target, &loaded_script_bundles)?
+    {
+        for item in &mut queue {
+            item.template_values_json = Some(template_values_json.clone());
+        }
+    }
     let compatible_script_ids: HashSet<ScriptId> =
         loaded_script_bundles.iter().map(|bundle| bundle.script_id).collect();
     let checkpoint = load_recovery_checkpoint(device_id, &run_target)

@@ -180,6 +180,12 @@ impl ScriptScheduler {
         state.exec_cur = state.exec_cur.saturating_add(1);
     }
 
+    fn should_record_schedule(run_target: &RunTarget, task: &ScriptTaskTable) -> bool {
+        matches!(run_target, RunTarget::DeviceQueue)
+            && task.record_schedule
+            && matches!(task.row_type, TaskRowType::Task)
+    }
+
     /// 用完整 session 替换当前队列
     pub async fn load_session(&self, session: RuntimeSessionSnapshot) {
         let mut queue = self.queue.write().await;
@@ -386,7 +392,7 @@ impl ScriptScheduler {
                 Some(skipped.reason.clone()),
             );
 
-            if skipped.task.record_schedule && matches!(skipped.task.row_type, TaskRowType::Task) {
+            if Self::should_record_schedule(&run_target, &skipped.task) {
                 let now = chrono::Utc::now().to_rfc3339();
                 ScheduleJournal::append_task_record(
                     device_id,
@@ -507,7 +513,7 @@ impl ScriptScheduler {
                         }),
                     );
 
-                    if task.record_schedule && matches!(task.row_type, TaskRowType::Task) {
+                    if Self::should_record_schedule(&run_target, &task) {
                         ScheduleJournal::append_task_record(
                             device_id,
                             execution_id,
@@ -562,7 +568,7 @@ impl ScriptScheduler {
                         Some(message.clone()),
                     );
 
-                    if task.record_schedule && matches!(task.row_type, TaskRowType::Task) {
+                    if Self::should_record_schedule(&run_target, &task) {
                         ScheduleJournal::append_task_record(
                             device_id,
                             execution_id,
@@ -633,80 +639,6 @@ impl ScriptScheduler {
 
         Ok(())
     }
-
-    /// 开发者调试执行 — 直接执行指定目标，不走队列
-    pub async fn debug_execute(
-        &self,
-        target: RunTarget,
-    ) -> Result<(), String> {
-        let script_id = target
-            .script_id()
-            .ok_or_else(|| "调试运行目标必须携带 script_id".to_string())?;
-        Log::info(&format!(
-            "[ scheduler ] 调试执行脚本[{}] target: {:?}",
-            script_id, target
-        ));
-
-        let bundle = Self::load_script_bundle(script_id).await?;
-        let runtime_ctx = get_runtime_ctx();
-        let script_info = bundle.script.data.0;
-        let script_name = script_info.name.clone();
-        Self::configure_visual_services(&runtime_ctx, &script_info).await?;
-        {
-            let mut ctx = runtime_ctx.write().await;
-            ctx.execution.script_id = script_id;
-            ctx.execution.target = target.clone();
-            ctx.execution.script_info = Some(script_info);
-            ctx.execution.current_task = None;
-            ctx.execution.current_step_id = None;
-            ctx.execution.var_map.clear();
-            ctx.execution.policy_states.clear();
-            ctx.execution.task_states.clear();
-            ctx.execution.action_states.clear();
-            ctx.execution.policy_set_overlays.clear();
-            ctx.observation.last_capture_image = None;
-            ctx.observation.last_snapshot = None;
-            ctx.observation.last_hits.clear();
-            if let Err(error) = ctx
-                .observation
-                .vision_text_cache
-                .load_for_script(script_id, &script_name)
-            {
-                Log::warn(&format!(
-                    "[ scheduler ] 调试执行脚本[{}]加载 OCR 文字缓存失败，已忽略: {}",
-                    script_id, error
-                ));
-            }
-        }
-
-        let _executor = ScriptExecutor::new(runtime_ctx.clone());
-
-        // TODO: M4 根据 target 装配 bundle 内对应的步骤。
-        // match target {
-        //     RunTarget::FullScript { script_id } => { ... }
-        //     RunTarget::Task { script_id, task_id } => { ... }
-        //     RunTarget::PolicyGroup { script_id, policy_group_id } => { ... }
-        //     RunTarget::PolicySet { script_id, policy_set_id } => { ... }
-        // }
-
-        Log::info(&format!(
-            "[ scheduler ] 调试执行脚本[{}]完成 (TODO: 实际执行逻辑)",
-            script_id
-        ));
-
-        {
-            let mut ctx = runtime_ctx.write().await;
-            if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
-                Log::warn(&format!(
-                    "[ scheduler ] 调试执行脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
-                    script_id, error
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
     /// 清空队列
     pub async fn clear_queue(&self) {
         self.queue.write().await.clear();

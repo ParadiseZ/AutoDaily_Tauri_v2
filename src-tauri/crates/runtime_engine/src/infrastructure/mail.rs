@@ -40,6 +40,8 @@ pub async fn send_email(
         return Err("SMTP 端口必须大于 0".to_string());
     }
 
+    validate_smtp_host_for_security(&smtp_server, &resolved_server.security)?;
+
     let username = config.username.trim().to_string();
     if username.is_empty() {
         return Err("SMTP 用户名不能为空".to_string());
@@ -133,6 +135,24 @@ fn build_transport(
         .credentials(credentials)
         .timeout(timeout)
         .build())
+}
+
+fn validate_smtp_host_for_security(
+    smtp_server: &str,
+    security: &EmailSecurity,
+) -> Result<(), String> {
+    let host = smtp_server.trim();
+    if host.is_empty() {
+        return Err("SMTP 服务器不能为空".to_string());
+    }
+
+    if matches!(security, EmailSecurity::None) {
+        return Ok(());
+    }
+
+    lettre::transport::smtp::client::TlsParameters::new(host.to_string())
+        .map(|_| ())
+        .map_err(|_| format!("SMTP 服务器[{host}]不是可用于 TLS 证书校验的有效域名"))
 }
 
 fn build_mailbox(

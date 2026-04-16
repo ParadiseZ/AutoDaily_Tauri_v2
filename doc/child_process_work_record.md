@@ -179,10 +179,11 @@
   - `Stop` -> 状态切到 `Idle`
   - `Pause` -> 状态切到 `Paused`
   - `Shutdown` -> 状态切到 `Stopping` 并触发取消
-- `ScriptTask`
-  - `Add` -> 加入调度队列
-  - `Remove` -> 从调度队列移除
-  - `Execute` -> 调试执行
+- `SessionControl`
+  - `LoadSession` -> 替换当前 `RuntimeSessionSnapshot`，同步 scheduler 队列，并发 `Loaded / Idle`
+  - `ReloadSession` -> 热更新当前 session 和 scheduler 队列
+  - `PrepareCheckpoint` -> 在安全点保存 checkpoint，并发 `CheckpointReady / RestartReady`
+  - `ClearSession` -> 清空当前 session 与 scheduler 队列
 - `ConfigUpdate`
   - 已接日志级别
   - 已接 ADB 路径 / 服务地址热更新
@@ -233,21 +234,26 @@
 当前已完成：
 
 - 队列管理
-  - `add_script`
-  - `remove_script`
-  - `clear_queue`
+  - `load_session`
+  - `clear_session`
 - 运行时查询
   - `current_script`
   - `queue_len`
 - 主循环调度
   - `tick`
-- 调试入口
-  - `debug_execute`
+- 正式执行入口
+  - `execute_script`
+  - 从当前 session bundle 加载脚本定义
+  - 通过 `ExecutionPlanAssembler` 组装 root/linkable/skipped task
+  - 逐 task 调用 `ScriptExecutor`
+  - 仅 `RunTarget::DeviceQueue` 且 `record_schedule = true` 时写 `ScheduleJournal`
+  - `FullScript / Task` 调试运行也走同一条主链，不再依赖独立 `debug_execute`
 
 当前未完成：
 
-- `execute_script()` 仍是占位逻辑
-- `debug_execute()` 仍未接真实目标加载
+- checkpoint 仍只做到“加载/保存/展示”，还不会按 `task / step` 真正恢复执行
+- `PolicyGroup / PolicySet` 仍未进入 child 执行计划
+- 非 `DeviceQueue` 运行目标仍使用临时 `RuntimeQueueItem`，作用域语义弱于正式调度
 
 ---
 
@@ -380,32 +386,51 @@
 
 ## 6. 仍未完成的工作（当前真实版本）
 
-## 6.1 脚本执行闭环
+## 6.1 脚本执行主链剩余边界
 
 位置：
 
 - `src-tauri/crates/child_support/src/infrastructure/scripts/scheduler.rs`
+- `src-tauri/crates/child_support/src/infrastructure/scripts/execution_plan.rs`
+- `src-tauri/crates/child_support/src/infrastructure/scripts/executor.rs`
 
-当前问题：
+当前状态：
 
-- `execute_script()` 还没有从数据库真正加载 `script_tasks`
-- 没有把 `nodes/edges` 转换成真实 `Step` 执行序列
-- 没有把脚本变量加载进运行时
+- `execute_script()` 已经从 session bundle 读取脚本定义
+- `ExecutionPlanAssembler` 已经参与 task 选择和跳过判定
+- `ScriptExecutor` 已真实执行动作、流程节点、策略节点的主链能力
+- runtime progress / schedule event 已进入正式执行链路
+
+当前仍未收口：
+
+- child 加载 `ResumeCheckpoint` 后，还不会按 `task / step` 真正恢复执行
+- `PolicyGroup / PolicySet` 运行目标仍未进入执行计划，当前由主进程和编辑器前置拒绝
+- `ColorCompare` 等剩余条件/数据能力还没有接入真实执行
 
 建议继续看：
 
 - `src-tauri/crates/runtime_engine/src/domain/scripts/`
 - `src-tauri/crates/child_support/src/infrastructure/scripts/executor.rs`
 
-## 6.2 调试执行目标未落地
+## 6.2 调试运行作用域仍弱于正式调度
 
 位置：
 
-- `debug_execute()`
+- `src-tauri/src/api/infrastructure/process_api.rs`
+- `build_runtime_session_snapshot()`
+- `build_debug_template_values_json()`
 
-当前问题：
+当前状态：
 
-- `ExecuteTarget::FullScript / Task / PolicyGroup / PolicySet` 都还没真正加载对应步骤
+- 编辑器调试运行 `FullScript / Task` 已走 `LoadSession -> Start -> scheduler.execute_script`
+- 运行时会为当前脚本任务强制注入 `everyRun` 的 task-cycle 覆盖
+- 调试运行不写 `device_script_schedules`，但保留运行日志与 runtime event
+
+当前仍未收口：
+
+- 非 `DeviceQueue` 目标仍使用临时 `RuntimeQueueItem`
+- `time_template_id / account_id / account_data_json` 仍未补成正式调度语义
+- 当前只补了最小 `template_values_json` 覆盖，不等于完整模板/账户作用域
 
 ## 6.3 运行时持久化还没做
 

@@ -334,7 +334,8 @@ Rust `ScriptTaskTable` 需要新增：
 后续运行时接入真实任务执行链路时：
 
 - 仅 `rowType = task` 的任务可执行
-- 是否写调度记录由 `recordSchedule` 控制
+- `DeviceQueue` 正式运行下，是否写调度记录由 `recordSchedule` 控制
+- 编辑器调试运行会在 runtime 强制注入 `everyRun` 的 task-cycle 覆盖，并且不写调度记录，只保留运行日志与 runtime event
 - `defaultTaskCycle` 或模板覆盖值用于最终调度判断
 
 ## 12. 前端落地建议
