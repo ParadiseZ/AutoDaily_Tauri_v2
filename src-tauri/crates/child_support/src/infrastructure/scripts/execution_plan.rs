@@ -10,6 +10,12 @@ use std::collections::HashMap;
 pub struct ExecutionPlanAssembler;
 
 #[derive(Debug, Clone)]
+pub enum ExecutionPlan {
+    Task(TaskSelection),
+    PolicyDebug,
+}
+
+#[derive(Debug, Clone)]
 pub struct PlannedTask {
     pub task: ScriptTaskTable,
     pub task_cycle: TaskCycle,
@@ -46,7 +52,34 @@ struct TemplateTaskSetting {
 }
 
 impl ExecutionPlanAssembler {
-    pub async fn select_tasks(
+    pub async fn assemble(
+        run_target: &RunTarget,
+        device_id: DeviceId,
+        queue_item: &RuntimeQueueItem,
+        tasks: &[ScriptTaskTable],
+    ) -> Result<ExecutionPlan, String> {
+        if Self::is_policy_debug_target(run_target) {
+            return Ok(ExecutionPlan::PolicyDebug);
+        }
+
+        let selection = Self::select_tasks(run_target, device_id, queue_item, tasks).await?;
+        Ok(ExecutionPlan::Task(selection))
+    }
+
+    pub fn is_policy_debug_target(run_target: &RunTarget) -> bool {
+        matches!(
+            run_target,
+            RunTarget::Policy { .. } | RunTarget::PolicyGroup { .. } | RunTarget::PolicySet { .. }
+        )
+    }
+
+    pub fn should_record_schedule(run_target: &RunTarget, task: &ScriptTaskTable) -> bool {
+        matches!(run_target, RunTarget::DeviceQueue)
+            && task.record_schedule
+            && matches!(task.row_type, TaskRowType::Task)
+    }
+
+    async fn select_tasks(
         run_target: &RunTarget,
         device_id: DeviceId,
         queue_item: &RuntimeQueueItem,
@@ -127,20 +160,9 @@ impl ExecutionPlanAssembler {
                     skipped_tasks: Vec::new(),
                 })
                 .ok_or_else(|| format!("运行目标中的任务[{}]不存在或不可执行", task_id)),
-            RunTarget::PolicyGroup {
-                policy_group_id, ..
-            } => Err(format!(
-                "策略组目标[{}]走策略调试执行，不进入 task 执行计划",
-                policy_group_id
-            )),
-            RunTarget::PolicySet { policy_set_id, .. } => Err(format!(
-                "策略集目标[{}]走策略调试执行，不进入 task 执行计划",
-                policy_set_id
-            )),
-            RunTarget::Policy { policy_id, .. } => Err(format!(
-                "策略目标[{}]走策略调试执行，不进入 task 执行计划",
-                policy_id
-            )),
+            RunTarget::PolicyGroup { .. }
+            | RunTarget::PolicySet { .. }
+            | RunTarget::Policy { .. } => Err("策略调试目标不进入 task 执行计划".to_string()),
         }
     }
 
@@ -301,5 +323,18 @@ impl ExecutionPlanAssembler {
             6 => "六",
             _ => "日",
         }
+    }
+}
+
+impl ExecutionPlan {
+    pub fn task_selection(self) -> TaskSelection {
+        match self {
+            ExecutionPlan::Task(selection) => selection,
+            ExecutionPlan::PolicyDebug => TaskSelection::default(),
+        }
+    }
+
+    pub fn is_policy_debug(&self) -> bool {
+        matches!(self, ExecutionPlan::PolicyDebug)
     }
 }

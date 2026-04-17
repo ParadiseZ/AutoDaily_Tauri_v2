@@ -6,7 +6,7 @@ use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
 use crate::domain::scripts::script_info::{ScriptInfo, ScriptTable};
-use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
+use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::infrastructure::context::runtime_context::get_runtime_ctx;
 use crate::infrastructure::core::ExecutionId;
 use crate::infrastructure::core::ScriptId;
@@ -187,12 +187,6 @@ impl ScriptScheduler {
         let state = ctx.execution.task_states.entry(task_id).or_default();
         state.done_flag = true;
         state.exec_cur = state.exec_cur.saturating_add(1);
-    }
-
-    fn should_record_schedule(run_target: &RunTarget, task: &ScriptTaskTable) -> bool {
-        matches!(run_target, RunTarget::DeviceQueue)
-            && task.record_schedule
-            && matches!(task.row_type, TaskRowType::Task)
     }
 
     async fn take_resume_checkpoint_for_execution(
@@ -498,16 +492,11 @@ impl ScriptScheduler {
         let script_name = script_info.name.clone();
         Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
-        let is_policy_debug_target = matches!(
-            run_target,
-            RunTarget::Policy { .. } | RunTarget::PolicyGroup { .. } | RunTarget::PolicySet { .. }
-        );
-        let task_selection = if is_policy_debug_target {
-            crate::infrastructure::scripts::execution_plan::TaskSelection::default()
-        } else {
-            ExecutionPlanAssembler::select_tasks(&run_target, device_id, &queue_item, &bundle.tasks)
-                .await?
-        };
+        let execution_plan =
+            ExecutionPlanAssembler::assemble(&run_target, device_id, &queue_item, &bundle.tasks)
+                .await?;
+        let is_policy_debug_target = execution_plan.is_policy_debug();
+        let task_selection = execution_plan.task_selection();
         let runnable_task_count = task_selection.root_tasks.len();
         let skipped_task_count = task_selection.skipped_tasks.len();
         let linkable_task_count = task_selection.linkable_tasks.len();
@@ -638,7 +627,7 @@ impl ScriptScheduler {
                 Some(skipped.reason.clone()),
             );
 
-            if Self::should_record_schedule(&run_target, &skipped.task) {
+            if ExecutionPlanAssembler::should_record_schedule(&run_target, &skipped.task) {
                 let now = chrono::Utc::now().to_rfc3339();
                 ScheduleJournal::append_task_record(
                     device_id,
@@ -815,7 +804,7 @@ impl ScriptScheduler {
                         }),
                     );
 
-                    if Self::should_record_schedule(&run_target, &task) {
+                    if ExecutionPlanAssembler::should_record_schedule(&run_target, &task) {
                         ScheduleJournal::append_task_record(
                             device_id,
                             execution_id,
@@ -871,7 +860,7 @@ impl ScriptScheduler {
                         Some(message.clone()),
                     );
 
-                    if Self::should_record_schedule(&run_target, &task) {
+                    if ExecutionPlanAssembler::should_record_schedule(&run_target, &task) {
                         ScheduleJournal::append_task_record(
                             device_id,
                             execution_id,
