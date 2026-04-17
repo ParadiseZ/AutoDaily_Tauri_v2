@@ -15,6 +15,9 @@ use crate::domain::scripts::policy::{
 };
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::scripts::script_task::ScriptTaskTable;
+use crate::domain::scripts::script_variable::{
+    ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace,
+};
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit, VisionSnapshot};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
@@ -23,7 +26,7 @@ use crate::infrastructure::core::{
 };
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
-    RuntimeLifecyclePhase, RuntimeProgressPhase, SessionCheckpointReason, TimeoutAction,
+    RunTarget, RuntimeLifecyclePhase, RuntimeProgressPhase, SessionCheckpointReason, TimeoutAction,
 };
 use crate::infrastructure::ipc::runtime_reporter::{emit_lifecycle_event, emit_progress_event};
 use crate::infrastructure::logging::log_trait::Log;
@@ -36,6 +39,7 @@ use image::{DynamicImage, RgbaImage};
 use rhai::serde::{from_dynamic, to_dynamic};
 use rhai::{Array, Dynamic, Engine, Map, Scope, FLOAT, INT};
 use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use serde::Serialize;
 use std::future::Future;
 use std::hash::Hasher;
@@ -58,6 +62,7 @@ const FILTER_INDEX_VAR: &str = "filter_index";
 const ITEM_VAR: &str = "item";
 const ITEM_INDEX_VAR: &str = "item_index";
 const MAX_LOOP_ITERATIONS: usize = 10_000;
+const WAIT_TIMEOUT_CHECK_SLICE_MS: u64 = 500;
 
 #[derive(Debug)]
 pub enum ControlFlow {
@@ -97,13 +102,20 @@ struct ActivePolicyRoundTrace {
 }
 
 #[derive(Debug, Clone)]
-struct ActionProgressProbe {
-    page_fingerprint: String,
-    action_signature: String,
+struct ProgressProbe {
+    page_fingerprint: Option<String>,
+    evidence_signature: String,
     task_id: Option<TaskId>,
     step_id: Option<StepId>,
     stagnant_since: Instant,
     notified: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeTemplateValuesSnapshot {
+    #[serde(default)]
+    variables: HashMap<String, serde_json::Value>,
 }
 
 pub struct ScriptExecutor {
@@ -112,7 +124,7 @@ pub struct ScriptExecutor {
     pub runtime_ctx: SharedRuntimeContext,
     pub node_indices: HashMap<StepId, usize>,
     active_policy_round: Option<ActivePolicyRoundTrace>,
-    last_progress_probe: Option<ActionProgressProbe>,
+    last_progress_probe: Option<ProgressProbe>,
 }
 
 impl ScriptExecutor {

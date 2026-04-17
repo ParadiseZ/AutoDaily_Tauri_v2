@@ -19,7 +19,21 @@ impl ScriptExecutor {
             }
             FlowControl::While { con, flow } => {
                 let mut iteration = 0usize;
-                while self.evaluate_condition(con).await? {
+                loop {
+                    if let Some(timeout_flow) = self
+                        .record_progress_evidence(
+                            "flow.while",
+                            "While 条件检查与循环推进",
+                        )
+                        .await?
+                    {
+                        return Ok(timeout_flow);
+                    }
+
+                    if !self.evaluate_condition(con).await? {
+                        break;
+                    }
+
                     iteration += 1;
                     if iteration > MAX_LOOP_ITERATIONS {
                         return Err(Self::execute_error(
@@ -56,6 +70,19 @@ impl ScriptExecutor {
                 };
 
                 for (index, item) in items.into_iter().enumerate() {
+                    if let Some(timeout_flow) = self
+                        .record_progress_evidence(
+                            "flow.forEach",
+                            format!(
+                                "ForEach 遍历推进: input_var={}, index={}",
+                                input_var, index
+                            ),
+                        )
+                        .await?
+                    {
+                        return Ok(timeout_flow);
+                    }
+
                     if !item_var.trim().is_empty() {
                         self.set_runtime_var(item_var, item).await?;
                     }
@@ -78,7 +105,16 @@ impl ScriptExecutor {
             FlowControl::Continue => Ok(ControlFlow::Continue),
             FlowControl::Break => Ok(ControlFlow::Break),
             FlowControl::WaitMs { ms } => {
-                tokio::time::sleep(Duration::from_millis(*ms)).await;
+                if let Some(timeout_flow) = self
+                    .sleep_with_progress_timeout(
+                        *ms,
+                        "flow.waitMs",
+                        format!("WaitMs 等待 {}ms", ms),
+                    )
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
                 Ok(ControlFlow::Next)
             }
             FlowControl::Link { target } => Ok(ControlFlow::Link(*target)),

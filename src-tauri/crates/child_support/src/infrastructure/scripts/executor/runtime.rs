@@ -29,6 +29,139 @@ impl ScriptExecutor {
         }
     }
 
+    async fn remove_runtime_var(&mut self, name: &str) {
+        if name.trim().is_empty() {
+            return;
+        }
+
+        let root = name.split('.').next().unwrap_or(name).trim().to_string();
+        let root_value = {
+            let mut ctx = self.runtime_ctx.write().await;
+            ctx.execution.var_map.remove(name);
+            Self::build_scope_root_value(&ctx.execution.var_map, &root)
+        };
+        self.scope.set_value(root, root_value);
+    }
+
+    pub(crate) async fn hydrate_input_scope(
+        &mut self,
+        variable_catalog: &ScriptVariableCatalog,
+        template_values_json: Option<&str>,
+        task: Option<&ScriptTaskTable>,
+    ) -> ExecuteResult<()> {
+        let template_values = Self::parse_runtime_template_values(template_values_json)?;
+        self.clear_input_scope(variable_catalog).await;
+
+        let run_target = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.execution.target.clone()
+        };
+
+        for variable in variable_catalog
+            .variables
+            .iter()
+            .filter(|variable| matches!(variable.namespace, ScriptVariableNamespace::Input))
+        {
+            if !Self::input_variable_visible_for_task(variable, task) {
+                continue;
+            }
+
+            let value = Self::resolve_input_variable_value(variable, template_values.as_ref(), task);
+            match value {
+                Some(value) => {
+                    let dynamic = to_dynamic(&value).map_err(|error| {
+                        Self::execute_error(
+                            "runtime.inputScope",
+                            format!("输入变量[{}]装入运行时失败: {}", variable.key, error),
+                        )
+                    })?;
+                    self.set_runtime_var(&variable.key, dynamic).await?;
+                }
+                None => {
+                    let prefix = if matches!(run_target, RunTarget::DeviceQueue) {
+                        "[ runtime ]"
+                    } else {
+                        "【调试】"
+                    };
+                    Log::debug(&format!(
+                        "{} 未取到目标值: variable={}, variableId={}",
+                        prefix, variable.key, variable.id
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn clear_input_scope(&mut self, variable_catalog: &ScriptVariableCatalog) {
+        for variable in variable_catalog
+            .variables
+            .iter()
+            .filter(|variable| matches!(variable.namespace, ScriptVariableNamespace::Input))
+        {
+            self.remove_runtime_var(&variable.key).await;
+        }
+    }
+
+    fn parse_runtime_template_values(
+        json: Option<&str>,
+    ) -> ExecuteResult<Option<RuntimeTemplateValuesSnapshot>> {
+        match json {
+            Some(content) if !content.trim().is_empty() && content.trim() != "null" => {
+                serde_json::from_str(content).map(Some).map_err(|error| {
+                    Self::execute_error(
+                        "runtime.inputScope",
+                        format!("解析模板覆盖值失败: {}", error),
+                    )
+                })
+            }
+            _ => Ok(None),
+        }
+    }
+
+    fn input_variable_visible_for_task(
+        variable: &ScriptVariableDef,
+        task: Option<&ScriptTaskTable>,
+    ) -> bool {
+        match (variable.owner_task_id, task.map(|task| task.id)) {
+            (None, _) => true,
+            (Some(owner_task_id), Some(task_id)) => owner_task_id == task_id,
+            (Some(_), None) => false,
+        }
+    }
+
+    fn resolve_input_variable_value(
+        variable: &ScriptVariableDef,
+        template_values: Option<&RuntimeTemplateValuesSnapshot>,
+        task: Option<&ScriptTaskTable>,
+    ) -> Option<serde_json::Value> {
+        template_values
+            .and_then(|snapshot| snapshot.variables.get(&variable.id).cloned())
+            .or_else(|| Self::resolve_task_default_variable_value(variable, task))
+            .or_else(|| variable.default_value.clone())
+    }
+
+    fn resolve_task_default_variable_value(
+        variable: &ScriptVariableDef,
+        task: Option<&ScriptTaskTable>,
+    ) -> Option<serde_json::Value> {
+        let task = task?;
+        let key = Self::input_variable_storage_key(variable);
+        task.data
+            .0
+            .variables
+            .as_object()
+            .and_then(|variables| variables.get(key).cloned())
+    }
+
+    fn input_variable_storage_key(variable: &ScriptVariableDef) -> &str {
+        variable
+            .key
+            .strip_prefix("input.")
+            .unwrap_or(variable.key.as_str())
+    }
+
     fn build_scope_root_value(var_map: &HashMap<String, Dynamic>, root: &str) -> Dynamic {
         let nested_prefix = format!("{}.", root);
         let mut nested = Map::new();
@@ -231,6 +364,7 @@ impl ScriptExecutor {
             .map_err(|error| Self::execute_error(step_type, error.to_string()))
     }
 
+    /// TODO 未确认此方法的使用场景
     fn state_target_label(target: &StateTarget) -> String {
         match target {
             StateTarget::Task { id } => format!("task:{}", id),

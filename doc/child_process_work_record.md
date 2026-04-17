@@ -251,7 +251,7 @@
 
 当前未完成：
 
-- `PolicyGroup / PolicySet` 仍未进入 child 执行计划
+- `PolicyGroup / PolicySet / Policy` 已进入 child 的调试运行主链，但仍不属于 `DeviceQueue` 正式执行计划
 - 非 `DeviceQueue` 运行目标仍使用临时 `RuntimeQueueItem`，作用域语义弱于正式调度
 
 补充记录：
@@ -408,10 +408,13 @@
 - `ExecutionPlanAssembler` 已经参与 task 选择和跳过判定
 - `ScriptExecutor` 已真实执行动作、流程节点、策略节点的主链能力
 - runtime progress / schedule event 已进入正式执行链路
+- timeout 前进证据已不再只挂在动作后：
+  - 已覆盖 `WaitMs / While / ForEach / HandlePolicySet / HandlePolicy`
+  - 策略调试候选扫描也会进入同一条 detector 链
 
 当前仍未收口：
 
-- child 加载 `ResumeCheckpoint` 后，还不会按 `task / step` 真正恢复执行
+- child 加载 `ResumeCheckpoint` 后，已经能按 `task / step` 做安全点恢复；当前剩余的是更细粒度作用域与恢复态展示继续补齐
 - `PolicyGroup / PolicySet / Policy` 现已进入调试运行主链，但仍不属于 `DeviceQueue` 正式任务计划
 - `ColorCompare` 等剩余条件/数据能力还没有接入真实执行
 

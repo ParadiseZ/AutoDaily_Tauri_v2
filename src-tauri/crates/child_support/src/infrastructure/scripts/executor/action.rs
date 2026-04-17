@@ -74,7 +74,7 @@ impl ScriptExecutor {
         }
 
         self.observe_refresh_hook(action, action_trace).await;
-        self.evaluate_progress_timeout(&runtime_policy, action_trace)
+        self.evaluate_action_progress_timeout(&runtime_policy, action, action_trace)
             .await
     }
 
@@ -818,20 +818,33 @@ impl ScriptExecutor {
         ));
     }
 
-    async fn evaluate_progress_timeout(
+    async fn evaluate_action_progress_timeout(
         &mut self,
         runtime_policy: &crate::infrastructure::ipc::message::RuntimeExecutionPolicy,
+        action: &Action,
         action_trace: Option<&PolicyActionTrace>,
     ) -> ExecuteResult<Option<ControlFlow>> {
         let Some(action_trace) = action_trace else {
-            self.last_progress_probe = None;
             return Ok(None);
         };
 
-        let Some(page_fingerprint) = self.current_page_fingerprint().await else {
-            self.last_progress_probe = None;
-            return Ok(None);
-        };
+        let page_fingerprint = self.current_page_fingerprint().await;
+        self.evaluate_progress_probe(
+            runtime_policy,
+            page_fingerprint,
+            action_trace.signature.clone(),
+            format!("动作后观测点: {:?}", action),
+        )
+        .await
+    }
+
+    async fn evaluate_progress_probe(
+        &mut self,
+        runtime_policy: &crate::infrastructure::ipc::message::RuntimeExecutionPolicy,
+        page_fingerprint: Option<String>,
+        evidence_signature: String,
+        detail: String,
+    ) -> ExecuteResult<Option<ControlFlow>> {
         let (_execution_id, _assignment_id, _script_id, task_id, step_id) =
             self.current_execution_locator().await;
         let now = Instant::now();
@@ -839,7 +852,7 @@ impl ScriptExecutor {
         let same_probe_chain = previous_probe
             .as_ref()
             .filter(|previous| previous.page_fingerprint == page_fingerprint)
-            .filter(|previous| previous.action_signature == action_trace.signature)
+            .filter(|previous| previous.evidence_signature == evidence_signature)
             .filter(|previous| previous.task_id == task_id)
             .filter(|previous| previous.step_id == step_id);
         let stagnant_since = same_probe_chain
@@ -849,9 +862,9 @@ impl ScriptExecutor {
             .map(|previous| previous.notified)
             .unwrap_or(false);
 
-        let mut probe = ActionProgressProbe {
+        let mut probe = ProgressProbe {
             page_fingerprint: page_fingerprint.clone(),
-            action_signature: action_trace.signature.clone(),
+            evidence_signature: evidence_signature.clone(),
             task_id,
             step_id,
             stagnant_since,
@@ -875,24 +888,78 @@ impl ScriptExecutor {
         self.last_progress_probe = Some(probe);
 
         let message = format!(
-            "检测到动作长时间无进展: task={:?}, step={:?}, action={}, page={}, stagnantFor={}ms, threshold={}ms",
+            "检测到长时间无进展: task={:?}, step={:?}, evidence={}, page={}, stagnantFor={}ms, threshold={}ms, detail={}",
             task_id,
             step_id,
-            action_trace.signature,
-            page_fingerprint,
+            evidence_signature,
+            page_fingerprint
+                .clone()
+                .unwrap_or_else(|| "<none>".to_string()),
             now.duration_since(stagnant_since).as_millis(),
-            runtime_policy.progress_timeout_ms
+            runtime_policy.progress_timeout_ms,
+            detail
         );
         self.emit_timeout_signals(
             runtime_policy.timeout_action.clone(),
             runtime_policy.timeout_notify_channels.clone(),
-            Some(page_fingerprint.clone()),
-            Some(action_trace.signature.clone()),
+            page_fingerprint,
+            Some(evidence_signature),
             message.clone(),
         )
         .await;
 
         self.handle_timeout_action(runtime_policy, message).await
+    }
+
+    async fn record_progress_evidence(
+        &mut self,
+        evidence_signature: impl Into<String>,
+        detail: impl Into<String>,
+    ) -> ExecuteResult<Option<ControlFlow>> {
+        let Some(runtime_policy) = get_runtime_execution_policy().await else {
+            return Ok(None);
+        };
+
+        self.evaluate_progress_probe(
+            &runtime_policy,
+            self.current_page_fingerprint().await,
+            evidence_signature.into(),
+            detail.into(),
+        )
+        .await
+    }
+
+    async fn sleep_with_progress_timeout(
+        &mut self,
+        ms: u64,
+        evidence_signature: impl Into<String>,
+        detail: impl Into<String>,
+    ) -> ExecuteResult<Option<ControlFlow>> {
+        let evidence_signature = evidence_signature.into();
+        let detail = detail.into();
+
+        if let Some(flow) = self
+            .record_progress_evidence(evidence_signature.clone(), detail.clone())
+            .await?
+        {
+            return Ok(Some(flow));
+        }
+
+        let mut remaining = Duration::from_millis(ms);
+        while !remaining.is_zero() {
+            let slice = remaining.min(Duration::from_millis(WAIT_TIMEOUT_CHECK_SLICE_MS));
+            tokio::time::sleep(slice).await;
+            remaining = remaining.saturating_sub(slice);
+
+            if let Some(flow) = self
+                .record_progress_evidence(evidence_signature.clone(), detail.clone())
+                .await?
+            {
+                return Ok(Some(flow));
+            }
+        }
+
+        Ok(None)
     }
 
     async fn handle_timeout_action(

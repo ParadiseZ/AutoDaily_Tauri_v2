@@ -621,6 +621,7 @@ impl ScriptScheduler {
                 assignment_id,
                 script_id,
                 &bundle,
+                queue_item.template_values_json.as_deref(),
                 &runtime_ctx,
             )
             .await;
@@ -729,6 +730,14 @@ impl ScriptScheduler {
             );
 
             executor.reset_node_indices();
+            executor
+                .hydrate_input_scope(
+                    &bundle.script.data.0.variable_catalog,
+                    queue_item.template_values_json.as_deref(),
+                    Some(&task),
+                )
+                .await
+                .map_err(|error| error.to_string())?;
             let task_steps = match task_resume_cursor.as_ref() {
                 Some(cursor) => &task.data.0.steps[cursor.start_index..],
                 None => task.data.0.steps.as_slice(),
@@ -949,6 +958,7 @@ impl ScriptScheduler {
         assignment_id: crate::infrastructure::core::ScheduleId,
         script_id: ScriptId,
         bundle: &ParsedScriptBundle,
+        template_values_json: Option<&str>,
         runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
     ) -> Result<(), String> {
         emit_progress_event(
@@ -961,6 +971,14 @@ impl ScriptScheduler {
         );
 
         let mut executor = ScriptExecutor::new(runtime_ctx.clone());
+        executor
+            .hydrate_input_scope(
+                &bundle.script.data.0.variable_catalog,
+                template_values_json,
+                None,
+            )
+            .await
+            .map_err(|error| error.to_string())?;
         let result = match run_target {
             RunTarget::Policy { policy_id, .. } => {
                 let policy = bundle

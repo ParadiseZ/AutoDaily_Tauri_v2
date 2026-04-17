@@ -34,6 +34,15 @@ impl ScriptExecutor {
         input_var: &str,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
+        if let Some(timeout_flow) = self
+            .record_progress_evidence(
+                "flow.handlePolicySet",
+                format!("HandlePolicySet 开始匹配，target_count={}", target.len()),
+            )
+            .await?
+        {
+            return Ok(timeout_flow);
+        }
         self.activate_image_var("flow.handlePolicySet", input_var)
             .await?;
         let bundle = self.load_policy_bundle("flow.handlePolicySet").await?;
@@ -91,6 +100,15 @@ impl ScriptExecutor {
         input_var: &str,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
+        if let Some(timeout_flow) = self
+            .record_progress_evidence(
+                "flow.handlePolicy",
+                format!("HandlePolicy 开始匹配，target_count={}", target.len()),
+            )
+            .await?
+        {
+            return Ok(timeout_flow);
+        }
         self.activate_image_var("flow.handlePolicy", input_var).await?;
         let bundle = self.load_policy_bundle("flow.handlePolicy").await?;
         let candidates = Self::resolve_policy_candidates(&bundle, target)?;
@@ -104,6 +122,16 @@ impl ScriptExecutor {
         candidates: Vec<PolicyCandidate>,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
+        if let Some(timeout_flow) = self
+            .record_progress_evidence(
+                format!("{}.scan", step_type),
+                format!("{} 扫描候选策略，candidate_count={}", step_type, candidates.len()),
+            )
+            .await?
+        {
+            return Ok(timeout_flow);
+        }
+
         let match_flags = {
             let ctx = self.runtime_ctx.read().await;
             ctx.observation
@@ -127,6 +155,7 @@ impl ScriptExecutor {
             return Ok(ControlFlow::Next);
         };
 
+        let total_candidates = candidates.len();
         let mut result = PolicyExecutionResult {
             matched: false,
             policy_set_id: None,
@@ -135,7 +164,26 @@ impl ScriptExecutor {
             rounds: Vec::new(),
         };
 
-        for (candidate, matched) in candidates.into_iter().zip(match_flags.into_iter()) {
+        for (index, (candidate, matched)) in candidates
+            .into_iter()
+            .zip(match_flags.into_iter())
+            .enumerate()
+        {
+            if let Some(timeout_flow) = self
+                .record_progress_evidence(
+                    format!("{}.candidate", step_type),
+                    format!(
+                        "{} 处理候选策略 {}/{}",
+                        step_type,
+                        index + 1,
+                        total_candidates
+                    ),
+                )
+                .await?
+            {
+                return Ok(timeout_flow);
+            }
+
             let skipped = self.policy_is_skipped(candidate.policy.id).await;
             let mut round = PolicyExecutionRound {
                 matched: matched && !skipped,

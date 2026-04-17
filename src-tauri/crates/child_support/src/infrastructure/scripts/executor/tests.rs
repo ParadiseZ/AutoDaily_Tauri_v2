@@ -1,8 +1,18 @@
 use super::ScriptExecutor;
+use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
+use crate::domain::scripts::script_task::{
+    ScriptTask, ScriptTaskTable, TaskRowType, TaskTone, TaskTriggerMode,
+};
+use crate::domain::scripts::script_variable::{
+    ScriptVariableDef, ScriptVariableNamespace, ScriptVariableSourceType, ScriptVariableValueType,
+};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
+use crate::infrastructure::core::{TaskId, UuidV7};
 use image::{Rgba, RgbaImage};
 use rhai::serde::to_dynamic;
+use serde_json::{json, Value};
+use sqlx::types::Json;
 
 fn build_ocr_result(txt: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> OcrResult {
     OcrResult::new(
@@ -122,4 +132,91 @@ fn compare_bool_supports_eq_and_ne() {
         &PolicySetResultCompareOp::Ne,
         false,
     ));
+}
+
+fn build_task_with_variables(task_id: TaskId, variables: Value) -> ScriptTaskTable {
+    ScriptTaskTable {
+        id: task_id,
+        script_id: UuidV7(1),
+        name: "task".to_string(),
+        row_type: TaskRowType::Task,
+        trigger_mode: TaskTriggerMode::RootOnly,
+        record_schedule: false,
+        section_id: None,
+        indent_level: 0,
+        default_task_cycle: Json(TaskCycle::EveryRun),
+        exec_max: 0,
+        show_enabled_toggle: true,
+        default_enabled: true,
+        task_tone: TaskTone::Normal,
+        is_hidden: false,
+        data: Json(ScriptTask {
+            ui_data: Value::Null,
+            variables,
+            steps: Vec::new(),
+        }),
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        deleted_at: None,
+        is_deleted: false,
+        index: 0,
+    }
+}
+
+fn build_input_variable(task_id: TaskId) -> ScriptVariableDef {
+    ScriptVariableDef {
+        id: "var_pkg_name_id".to_string(),
+        key: "input.pkg_name".to_string(),
+        name: "包名".to_string(),
+        namespace: ScriptVariableNamespace::Input,
+        value_type: ScriptVariableValueType::String,
+        owner_task_id: Some(task_id),
+        source_type: ScriptVariableSourceType::Manual,
+        source_step_id: None,
+        readable: true,
+        writable: true,
+        persisted: true,
+        ui_bindable: true,
+        default_value: Some(json!("default-from-catalog")),
+        description: String::new(),
+    }
+}
+
+#[test]
+fn input_variable_prefers_template_values_by_variable_id() {
+    let task_id = UuidV7(7);
+    let task = build_task_with_variables(
+        task_id,
+        json!({
+            "pkg_name": "default-from-task"
+        }),
+    );
+    let variable = build_input_variable(task_id);
+    let template_values = ScriptExecutor::parse_runtime_template_values(Some(
+        r#"{"variables":{"var_pkg_name_id":"templated-value"}}"#,
+    ))
+    .unwrap()
+    .unwrap();
+
+    let value = ScriptExecutor::resolve_input_variable_value(
+        &variable,
+        Some(&template_values),
+        Some(&task),
+    );
+    assert_eq!(value, Some(json!("templated-value")));
+}
+
+#[test]
+fn input_variable_falls_back_to_task_storage_key() {
+    let task_id = UuidV7(8);
+    let task = build_task_with_variables(
+        task_id,
+        json!({
+            "pkg_name": "default-from-task"
+        }),
+    );
+    let variable = build_input_variable(task_id);
+
+    let value = ScriptExecutor::resolve_input_variable_value(&variable, None, Some(&task));
+    assert_eq!(value, Some(json!("default-from-task")));
 }
