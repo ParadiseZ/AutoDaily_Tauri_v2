@@ -251,7 +251,6 @@
 
 当前未完成：
 
-- checkpoint 仍只做到“加载/保存/展示”，还不会按 `task / step` 真正恢复执行
 - `PolicyGroup / PolicySet` 仍未进入 child 执行计划
 - 非 `DeviceQueue` 运行目标仍使用临时 `RuntimeQueueItem`，作用域语义弱于正式调度
 

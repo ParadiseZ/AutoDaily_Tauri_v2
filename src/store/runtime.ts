@@ -117,7 +117,7 @@ export const useRuntimeStore = defineStore('runtime', () => {
             return;
         }
 
-        await listen('device-progress', (event) => {
+        await listen('device-progress', async (event) => {
             const payload = normalizeProgressEvent(event.payload);
             if (!payload) {
                 return;
@@ -127,6 +127,10 @@ export const useRuntimeStore = defineStore('runtime', () => {
                 ...latestProgressByDevice.value,
                 [payload.deviceId]: payload,
             };
+
+            if (payload.phase === 'Completed' || payload.phase === 'Failed') {
+                await loadRecoveryCheckpoint(payload.deviceId);
+            }
         });
 
         await listen('device-schedule', (event) => {
@@ -149,7 +153,11 @@ export const useRuntimeStore = defineStore('runtime', () => {
                 [payload.deviceId]: payload,
             };
 
-            if (payload.phase === 'CheckpointReady' || payload.phase === 'CheckpointLoaded') {
+            if (
+                payload.phase === 'CheckpointReady' ||
+                payload.phase === 'CheckpointLoaded' ||
+                payload.phase === 'RestartReady'
+            ) {
                 await loadRecoveryCheckpoint(payload.deviceId);
             }
         });

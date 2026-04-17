@@ -84,12 +84,17 @@
         :time-templates="taskStore.timeTemplates"
         :assignments="taskStore.assignmentsByDevice[activeDevice.id] ?? []"
         :schedules="taskStore.schedulesByDevice[activeDevice.id] ?? []"
+        :script-tasks-by-script-id="scriptStore.tasksByScriptId"
+        :script-task-loading="scriptStore.taskLoading"
+        :progress-event="runtimeStore.getLatestProgress(activeDevice.id)"
         :recovery-checkpoint="runtimeStore.getRecoveryCheckpoint(activeDevice.id)"
         :recovery-event="runtimeStore.getLatestRecovery(activeDevice.id)"
         :loading-assignments="Boolean(taskStore.loadingAssignments[activeDevice.id])"
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         @add-script="handleAddScript"
+        @ensure-script-tasks="handleEnsureScriptTasks"
         @remove-assignment="handleRemoveAssignment"
+        @run-target="handleRunTarget"
         @clear-schedules="handleClearSchedules"
         @start="handleStartDevice"
         @pause="deviceStore.pauseDevice"
@@ -101,18 +106,21 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
+import { confirm } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
+import { deviceService } from '@/services/deviceService';
+import { runtimeService } from '@/services/runtimeService';
 import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
 import { useDeviceStore } from '@/store/device';
 import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { showToast } from '@/utils/toast';
-import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform } from '@/utils/runtimePolicy';
-import type { AssignmentRecord } from '@/types/app/domain';
+import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
+import type { AssignmentRecord, RunTarget } from '@/types/app/domain';
 
 const deviceStore = useDeviceStore();
 const runtimeStore = useRuntimeStore();
@@ -139,12 +147,26 @@ const loadPageData = async () => {
   }
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const handleAddScript = async (deviceId: string, scriptId: string, timeTemplateId: string | null) => {
   try {
     await taskStore.createAssignment(deviceId, scriptId, timeTemplateId);
     showToast('脚本已加入设备队列', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '脚本追加失败', 'error');
+  }
+};
+
+const handleEnsureScriptTasks = async (scriptId: string) => {
+  if (!scriptId || scriptStore.tasksByScriptId[scriptId] || scriptStore.taskLoading[scriptId]) {
+    return;
+  }
+
+  try {
+    await scriptStore.loadScriptTasks(scriptId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '读取脚本任务失败', 'error');
   }
 };
 
@@ -183,6 +205,113 @@ const validateDeviceQueueStart = (deviceId: string) => {
     taskStore.assignmentsByDevice[deviceId] ?? [],
     scriptStore.sortedScripts,
   );
+};
+
+const validateTemporaryRun = async (deviceId: string, target: RunTarget) => {
+  const device = deviceStore.devices.find((item) => item.id === deviceId);
+  if (!device) {
+    return '目标设备不存在。';
+  }
+
+  const platformError = validateDeviceRuntimePlatform(device);
+  if (platformError) {
+    return platformError;
+  }
+
+  if (target.type !== 'fullScript' && target.type !== 'task') {
+    return '任务管理页当前只支持临时运行整脚本或单任务。';
+  }
+
+  const script = scriptStore.sortedScripts.find((item) => item.id === target.scriptId);
+  if (!script) {
+    return '目标脚本不存在。';
+  }
+
+  const tasks =
+    scriptStore.tasksByScriptId[target.scriptId] ?? (await scriptStore.loadScriptTasks(target.scriptId).catch(() => []));
+
+  if (
+    target.type === 'task' &&
+    !tasks.some((task) => task.id === target.taskId && task.rowType === 'task' && !task.isDeleted)
+  ) {
+    return '目标任务不存在，或不是可执行 Task。';
+  }
+
+  return validateRunTargetRecoveryForDevice(device, script, tasks);
+};
+
+const waitForCheckpointReady = async (deviceId: string, previousAt: string | null, timeoutMs = 5000) => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const latest = runtimeStore.getLatestRecovery(deviceId);
+    if (
+      latest &&
+      latest.at !== previousAt &&
+      (latest.phase === 'CheckpointReady' || latest.phase === 'RestartReady')
+    ) {
+      return latest;
+    }
+    await sleep(100);
+  }
+
+  return null;
+};
+
+const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
+  const status = deviceStore.getDeviceStatus(deviceId);
+  if (status.kind !== 'running' && status.kind !== 'paused') {
+    return true;
+  }
+
+  const device = deviceStore.devices.find((item) => item.id === deviceId);
+  const approved = await confirm('当前设备正在执行。暂停当前任务并创建恢复点后继续临时运行？', {
+    title: '确认切换运行目标',
+    okLabel: '继续',
+    cancelLabel: '取消',
+    kind: 'warning',
+  });
+  if (!approved) {
+    return false;
+  }
+
+  try {
+    if (status.kind === 'running') {
+      await deviceStore.pauseDevice(deviceId);
+    }
+
+    const previousAt = runtimeStore.getLatestRecovery(deviceId)?.at ?? null;
+    await deviceService.prepareCheckpoint(deviceId, 'manual');
+    const recoveryReady = await waitForCheckpointReady(deviceId, previousAt);
+    if (!recoveryReady) {
+      showToast(`设备「${device?.data.deviceName || deviceId}」恢复点准备超时，已取消临时运行`, 'warning');
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '准备恢复点失败', 'error');
+    return false;
+  }
+};
+
+const handleRunTarget = async (deviceId: string, target: RunTarget) => {
+  const error = await validateTemporaryRun(deviceId, target);
+  if (error) {
+    showToast(error, 'warning');
+    return;
+  }
+
+  const canProceed = await prepareCurrentRunForTemporaryTarget(deviceId);
+  if (!canProceed) {
+    return;
+  }
+
+  try {
+    const result = await runtimeService.runScriptTarget(deviceId, target);
+    showToast(result, 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '临时运行失败', 'error');
+  }
 };
 
 const handleStartDevice = async (deviceId: string) => {

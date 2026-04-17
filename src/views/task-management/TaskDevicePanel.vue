@@ -15,20 +15,40 @@
           <span v-if="status.currentScript">· 正在执行 {{ status.currentScript }}</span>
         </div>
         <p v-if="status.message" class="text-sm text-[var(--app-text-faint)]">{{ status.message }}</p>
-        <p v-if="recoveryCheckpoint" class="text-sm text-[var(--app-text-faint)]">
-          可恢复执行：{{ getScriptName(recoveryCheckpoint.scriptId) }}
-          <span v-if="recoveryCheckpoint.taskId"> · 任务 {{ recoveryCheckpoint.taskId }}</span>
-          · {{ formatDateTime(recoveryCheckpoint.updatedAt) }}
-        </p>
-        <p v-else-if="recoveryEvent?.message" class="text-sm text-[var(--app-text-faint)]">
-          {{ recoveryEvent.message }}
-        </p>
+        <div
+          v-if="showRecoveryPanel"
+          class="mt-3 space-y-3 rounded-[20px] border px-4 py-3"
+          :class="recoveryPanelClass"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="text-sm font-semibold text-[var(--app-text-strong)]">恢复状态</p>
+              <p class="text-xs text-[var(--app-text-faint)]">{{ recoveryHeadline }}</p>
+            </div>
+            <StatusBadge :label="recoveryBadgeLabel" :tone="recoveryBadgeTone" />
+          </div>
+
+          <div class="grid gap-2 text-xs text-[var(--app-text-soft)] md:grid-cols-2">
+            <p v-if="recoveryCheckpoint">
+              恢复目标：{{ getScriptName(recoveryCheckpoint.scriptId) }}
+              <span v-if="recoveryCheckpoint.taskId"> · 任务 {{ recoveryCheckpoint.taskId }}</span>
+              <span v-if="recoveryCheckpoint.stepId"> · 步骤 {{ recoveryCheckpoint.stepId }}</span>
+            </p>
+            <p v-if="recoveryCheckpoint">恢复模式：{{ formatResumeModeLabel(recoveryCheckpoint.resumeMode) }}</p>
+            <p v-if="recoveryCheckpoint">检查点时间：{{ formatDateTime(recoveryCheckpoint.updatedAt) }}</p>
+            <p v-if="recoveryEvent">最近恢复事件：{{ formatRecoveryPhaseLabel(recoveryEvent.phase) }} · {{ formatDateTime(recoveryEvent.at) }}</p>
+          </div>
+
+          <p v-if="recoveryDetailMessage" class="text-sm" :class="recoveryDetailClass">
+            {{ recoveryDetailMessage }}
+          </p>
+        </div>
       </div>
 
       <div class="flex flex-wrap gap-2">
         <button class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" @click="$emit('start', device.id)">
           <AppIcon name="play" :size="16" class="fill-current" />
-          启动
+          运行队列
         </button>
         <button class="app-button app-button-ghost group" type="button" @click="$emit('pause', device.id)">
           <AppIcon name="pause" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-text-strong)] transition-colors" />
@@ -85,6 +105,49 @@
             </button>
           </div>
         </div>
+
+        <div class="space-y-3 rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-[var(--app-text-strong)]">临时运行</p>
+              <p class="text-xs text-[var(--app-text-faint)]">
+                不改队列定义，按 `everyRun` 临时装填 `FullScript / Task`，不写正式调度记录，但会保留运行日志。
+              </p>
+            </div>
+          </div>
+
+          <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+            <AppSelect
+              v-model="selectedTemporaryScriptId"
+              :options="scriptOptions"
+              placeholder="选择要临时运行的脚本"
+            />
+            <AppSelect
+              v-model="selectedTemporaryTaskId"
+              :options="temporaryTaskOptions"
+              :placeholder="temporaryTaskPlaceholder"
+            />
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button class="app-button app-button-ghost group" type="button" @click="handleRunTemporaryScript">
+              <AppIcon
+                name="file-play"
+                :size="16"
+                class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors"
+              />
+              运行脚本
+            </button>
+            <button class="app-button app-button-ghost group" type="button" @click="handleRunTemporaryTask">
+              <AppIcon
+                name="list-checks"
+                :size="16"
+                class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors"
+              />
+              运行任务
+            </button>
+          </div>
+        </div>
       </SurfacePanel>
 
       <SurfacePanel tone="muted" padding="sm" class="space-y-4">
@@ -123,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -131,18 +194,23 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import type {
   AssignmentRecord,
   DeviceRuntimeStatus,
+  RunTarget,
+  RuntimeProgressEvent,
   ResumeCheckpointRecord,
   RuntimeRecoveryEvent,
   ScriptTableRecord,
 } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
+import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
 import {
   formatCaptureMethod,
   formatConnectLabel,
   formatDateTime,
   formatPlatformLabel,
+  formatRecoveryPhaseLabel,
+  formatResumeModeLabel,
   formatStatusLabel,
   formatStatusTone,
   formatTemplateWindow,
@@ -155,6 +223,9 @@ const props = defineProps<{
   timeTemplates: TimeTemplate[];
   assignments: AssignmentRecord[];
   schedules: DeviceScriptSchedule[];
+  scriptTasksByScriptId: Record<string, ScriptTaskTable[]>;
+  scriptTaskLoading: Record<string, boolean>;
+  progressEvent: RuntimeProgressEvent | null;
   recoveryCheckpoint: ResumeCheckpointRecord | null;
   recoveryEvent: RuntimeRecoveryEvent | null;
   loadingAssignments: boolean;
@@ -166,12 +237,16 @@ const emit = defineEmits<{
   pause: [deviceId: string];
   stop: [deviceId: string];
   addScript: [deviceId: string, scriptId: string, timeTemplateId: string | null];
+  ensureScriptTasks: [scriptId: string];
+  runTarget: [deviceId: string, target: RunTarget];
   removeAssignment: [deviceId: string, assignment: AssignmentRecord];
   clearSchedules: [deviceId: string];
 }>();
 
 const selectedScriptId = ref('');
 const selectedTemplateId = ref('');
+const selectedTemporaryScriptId = ref('');
+const selectedTemporaryTaskId = ref('');
 
 const devicePlatform = computed(() => props.device.data.platform ?? 'android');
 
@@ -204,6 +279,157 @@ const getScriptName = (scriptId: string) => {
 
 const getTemplateName = (templateId: string | null) => {
   return formatTemplateWindow(templateId ? templateMap.value[templateId] : null);
+};
+
+const temporaryTaskOptions = computed(() =>
+  (props.scriptTasksByScriptId[selectedTemporaryScriptId.value] ?? [])
+    .filter((task) => task.rowType === 'task' && !task.isDeleted)
+    .map((task) => ({
+      label: task.name,
+      value: task.id,
+      description: `触发方式：${task.triggerMode} · 执行次数上限：${task.execMax || '无限'}`,
+    })),
+);
+
+const temporaryTaskPlaceholder = computed(() => {
+  if (!selectedTemporaryScriptId.value) {
+    return '先选择脚本';
+  }
+  if (props.scriptTaskLoading[selectedTemporaryScriptId.value]) {
+    return '正在加载任务列表...';
+  }
+  return '选择要临时运行的任务';
+});
+
+const recoveryProgressMessage = computed(() => {
+  const message = props.progressEvent?.message?.trim();
+  if (!message) {
+    return null;
+  }
+
+  return /checkpoint|恢复|降级/u.test(message) ? message : null;
+});
+
+const recoveryDetailMessage = computed(() => {
+  return recoveryProgressMessage.value || props.recoveryEvent?.message?.trim() || null;
+});
+
+const recoveryBadgeTone = computed<'neutral' | 'info' | 'warning' | 'danger' | 'success'>(() => {
+  const message = recoveryDetailMessage.value ?? '';
+  if (/失败|失效|不可恢复/u.test(message)) {
+    return 'danger';
+  }
+  if (/降级/u.test(message)) {
+    return 'warning';
+  }
+
+  switch (props.recoveryEvent?.phase) {
+    case 'CheckpointPreparing':
+      return 'warning';
+    case 'CheckpointReady':
+    case 'RestartReady':
+      return 'success';
+    case 'CheckpointLoaded':
+      return 'info';
+    default:
+      return props.recoveryCheckpoint ? 'warning' : 'neutral';
+  }
+});
+
+const recoveryBadgeLabel = computed(() => {
+  if (props.recoveryEvent) {
+    return formatRecoveryPhaseLabel(props.recoveryEvent.phase);
+  }
+  if (props.recoveryCheckpoint) {
+    return '可恢复';
+  }
+  return '未恢复';
+});
+
+const recoveryHeadline = computed(() => {
+  if (props.recoveryEvent?.phase === 'CheckpointLoaded') {
+    return 'child 已装填恢复检查点，当前运行会消费安全点恢复信息。';
+  }
+  if (props.recoveryEvent?.phase === 'RestartReady') {
+    return '检查点已准备完成，主进程可以按恢复链重启 child。';
+  }
+  if (props.recoveryEvent?.phase === 'CheckpointReady') {
+    return '当前安全点已落库，可用于后续恢复。';
+  }
+  if (props.recoveryEvent?.phase === 'CheckpointPreparing') {
+    return '正在为当前执行链准备恢复检查点。';
+  }
+  if (props.recoveryCheckpoint) {
+    return '当前设备上存在可消费的恢复检查点。';
+  }
+  return '暂无恢复状态。';
+});
+
+const recoveryDetailClass = computed(() => {
+  if (recoveryBadgeTone.value === 'danger') {
+    return 'text-rose-600 dark:text-rose-300';
+  }
+  if (recoveryBadgeTone.value === 'warning') {
+    return 'text-amber-700 dark:text-amber-300';
+  }
+  if (recoveryBadgeTone.value === 'success') {
+    return 'text-emerald-700 dark:text-emerald-300';
+  }
+  return 'text-[var(--app-text-faint)]';
+});
+
+const recoveryPanelClass = computed(() => {
+  if (recoveryBadgeTone.value === 'danger') {
+    return 'border-rose-300/70 bg-rose-50/70 dark:border-rose-500/30 dark:bg-rose-500/10';
+  }
+  if (recoveryBadgeTone.value === 'warning') {
+    return 'border-amber-300/70 bg-amber-50/80 dark:border-amber-500/30 dark:bg-amber-500/10';
+  }
+  if (recoveryBadgeTone.value === 'success') {
+    return 'border-emerald-300/70 bg-emerald-50/80 dark:border-emerald-500/30 dark:bg-emerald-500/10';
+  }
+  if (recoveryBadgeTone.value === 'info') {
+    return 'border-sky-300/70 bg-sky-50/80 dark:border-sky-500/30 dark:bg-sky-500/10';
+  }
+  return 'border-[var(--app-border)] bg-white/30 dark:bg-white/5';
+});
+
+const showRecoveryPanel = computed(() => {
+  return Boolean(props.recoveryCheckpoint || props.recoveryEvent || recoveryProgressMessage.value);
+});
+
+watch(
+  selectedTemporaryScriptId,
+  (scriptId) => {
+    selectedTemporaryTaskId.value = '';
+    if (!scriptId) {
+      return;
+    }
+    emit('ensureScriptTasks', scriptId);
+  },
+);
+
+const handleRunTemporaryScript = () => {
+  if (!selectedTemporaryScriptId.value) {
+    return;
+  }
+
+  emit('runTarget', props.device.id, {
+    type: 'fullScript',
+    scriptId: selectedTemporaryScriptId.value,
+  });
+};
+
+const handleRunTemporaryTask = () => {
+  if (!selectedTemporaryScriptId.value || !selectedTemporaryTaskId.value) {
+    return;
+  }
+
+  emit('runTarget', props.device.id, {
+    type: 'task',
+    scriptId: selectedTemporaryScriptId.value,
+    taskId: selectedTemporaryTaskId.value,
+  });
 };
 
 const handleAddScript = () => {

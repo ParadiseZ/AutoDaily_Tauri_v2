@@ -40,6 +40,14 @@ fn platform_matches(device_platform: &DevicePlatform, script_platform: &ScriptPl
     )
 }
 
+fn is_checkpoint_expired(checkpoint: &ResumeCheckpoint) -> bool {
+    let Ok(updated_at) = chrono::DateTime::parse_from_rfc3339(&checkpoint.updated_at) else {
+        return true;
+    };
+
+    chrono::Utc::now() - updated_at.with_timezone(&chrono::Utc) > chrono::Duration::days(1)
+}
+
 async fn validate_assignment_platform(
     device_id: DeviceId,
     script_id: ScriptId,
@@ -239,12 +247,26 @@ pub async fn get_recovery_checkpoint_by_device_cmd(
          LIMIT 1",
         RECOVERY_CHECKPOINT_TABLE
     );
-    sqlx::query_as::<_, RecoveryCheckpointRow>(&query)
+    let checkpoint = sqlx::query_as::<_, RecoveryCheckpointRow>(&query)
         .bind(device_id.to_string())
         .fetch_optional(pool)
         .await
         .map(|row| row.map(RecoveryCheckpointRow::into_checkpoint))
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    if checkpoint.as_ref().is_some_and(is_checkpoint_expired) {
+        sqlx::query(&format!(
+            "DELETE FROM {} WHERE device_id = ?",
+            RECOVERY_CHECKPOINT_TABLE
+        ))
+        .bind(device_id.to_string())
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+        return Ok(None);
+    }
+
+    Ok(checkpoint)
 }
 
 // ========== 时间模板 ==========

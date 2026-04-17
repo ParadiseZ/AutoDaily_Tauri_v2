@@ -567,6 +567,26 @@ fn checkpoint_matches_run_target(run_target: &RunTarget, checkpoint: &ResumeChec
     }
 }
 
+fn is_checkpoint_expired(checkpoint: &ResumeCheckpoint) -> bool {
+    let Ok(updated_at) = chrono::DateTime::parse_from_rfc3339(&checkpoint.updated_at) else {
+        return true;
+    };
+
+    chrono::Utc::now() - updated_at.with_timezone(&chrono::Utc) > chrono::Duration::days(1)
+}
+
+async fn clear_recovery_checkpoint(device_id: DeviceId) -> Result<(), String> {
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE device_id = ?",
+        RECOVERY_CHECKPOINT_TABLE
+    ))
+    .bind(device_id.to_string())
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
 async fn load_recovery_checkpoint(
     device_id: DeviceId,
     run_target: &RunTarget,
@@ -592,6 +612,10 @@ async fn load_latest_recovery_checkpoint(
         .await
         .map_err(|e| e.to_string())?
         .map(RecoveryCheckpointRow::into_checkpoint);
+    if checkpoint.as_ref().is_some_and(is_checkpoint_expired) {
+        clear_recovery_checkpoint(device_id).await?;
+        return Ok(None);
+    }
     Ok(checkpoint)
 }
 

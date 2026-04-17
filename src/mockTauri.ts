@@ -481,6 +481,42 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return `已向设备[${String(args.deviceId)}]发送暂停命令`;
         case 'cmd_device_stop':
           return `已向设备[${String(args.deviceId)}]发送停止命令`;
+        case 'cmd_prepare_device_checkpoint':
+          updateState((current) => {
+            const deviceId = String(args.deviceId);
+            const existing = current.recoveryCheckpointsByDevice[deviceId] ?? null;
+            const firstAssignment = current.assignmentsByDevice[deviceId]?.[0] as
+              | { scriptId?: string | null }
+              | undefined;
+            const scriptId = existing?.scriptId ?? firstAssignment?.scriptId ?? '';
+            if (!scriptId) {
+              return current;
+            }
+
+            const updatedAt = new Date().toISOString();
+            return {
+              ...current,
+              recoveryCheckpointsByDevice: {
+                ...current.recoveryCheckpointsByDevice,
+                [deviceId]: {
+                  executionId: existing?.executionId ?? `mock-execution-${deviceId}`,
+                  sourceSessionId: existing?.sourceSessionId ?? `mock-session-${deviceId}`,
+                  deviceId,
+                  runTarget: existing?.runTarget ?? { type: 'deviceQueue' },
+                  assignmentId: existing?.assignmentId ?? null,
+                  scriptId,
+                  timeTemplateId: existing?.timeTemplateId ?? null,
+                  accountId: existing?.accountId ?? null,
+                  taskId: existing?.taskId ?? null,
+                  stepId: existing?.stepId ?? null,
+                  resumeMode: existing?.resumeMode ?? 'fromTaskStart',
+                  definitionFingerprint: existing?.definitionFingerprint ?? 'mock-fingerprint',
+                  updatedAt,
+                },
+              },
+            };
+          });
+          return `已向设备[${String(args.deviceId)}]发送 checkpoint 准备命令`;
         case 'cmd_sync_device_runtime_session':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateTimeoutPolicyForRun(readState(), String(args.deviceId));
@@ -575,7 +611,25 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         }
         case 'get_recovery_checkpoint_by_device_cmd': {
           const state = readState();
-          return state.recoveryCheckpointsByDevice[String(args.deviceId)] ?? null;
+          const checkpoint = state.recoveryCheckpointsByDevice[String(args.deviceId)] ?? null;
+          if (!checkpoint) {
+            return null;
+          }
+
+          const updatedAt = Date.parse(checkpoint.updatedAt);
+          if (Number.isNaN(updatedAt) || Date.now() - updatedAt > 24 * 60 * 60 * 1000) {
+            updateState((current) => ({
+              ...current,
+              recoveryCheckpointsByDevice: Object.fromEntries(
+                Object.entries(current.recoveryCheckpointsByDevice).filter(
+                  ([deviceId]) => deviceId !== String(args.deviceId),
+                ),
+              ),
+            }));
+            return null;
+          }
+
+          return checkpoint;
         }
         case 'get_all_time_templates_cmd':
           return readState().timeTemplates;
