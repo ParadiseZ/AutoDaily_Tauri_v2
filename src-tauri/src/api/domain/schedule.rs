@@ -9,10 +9,10 @@ use crate::constant::table_name::{
 };
 use crate::domain::devices::device_conf::{DevicePlatform, DeviceTable};
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
-use crate::domain::scripts::script_info::{ScriptPlatform, ScriptTable};
 use crate::domain::schedule::recovery_checkpoint::RecoveryCheckpointRow;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::schedule::time_template::TimeTemplate;
+use crate::domain::scripts::script_info::{ScriptPlatform, ScriptTable};
 use crate::infrastructure::core::{AccountId, DeviceId, ScheduleId, ScriptId, TemplateId};
 use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::ipc::message::ResumeCheckpoint;
@@ -40,7 +40,10 @@ fn platform_matches(device_platform: &DevicePlatform, script_platform: &ScriptPl
     )
 }
 
-async fn validate_assignment_platform(device_id: DeviceId, script_id: ScriptId) -> Result<(), String> {
+async fn validate_assignment_platform(
+    device_id: DeviceId,
+    script_id: ScriptId,
+) -> Result<(), String> {
     let device = DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string())
         .await?
         .ok_or_else(|| format!("设备不存在: {}", device_id.to_string()))?;
@@ -63,7 +66,9 @@ async fn validate_assignment_platform(device_id: DeviceId, script_id: ScriptId) 
 
 /// 获取指定设备的所有脚本分配（按 index 排序）
 #[command]
-pub async fn get_assignments_by_device_cmd(device_id: DeviceId) -> Result<Vec<DeviceScriptAssignment>, String> {
+pub async fn get_assignments_by_device_cmd(
+    device_id: DeviceId,
+) -> Result<Vec<DeviceScriptAssignment>, String> {
     let pool = get_pool();
     let query = format!(
         "SELECT id, device_id, script_id, time_template_id, account_data, `index` FROM {} WHERE device_id = ? ORDER BY `index` ASC",
@@ -159,7 +164,9 @@ pub async fn reorder_assignments_cmd(
 
 /// 获取指定设备的调度记录
 #[command]
-pub async fn get_schedules_by_device_cmd(device_id: DeviceId) -> Result<Vec<crate::domain::devices::device_schedule::DeviceScriptSchedule>, String> {
+pub async fn get_schedules_by_device_cmd(
+    device_id: DeviceId,
+) -> Result<Vec<crate::domain::devices::device_schedule::DeviceScriptSchedule>, String> {
     let pool = get_pool();
     let query = format!(
         "SELECT id, device_id, execution_id, assignment_id, script_id, task_id, task_cycle, status, started_at, completed_at, message FROM {} WHERE device_id = ? ORDER BY started_at DESC",
@@ -176,11 +183,14 @@ pub async fn get_schedules_by_device_cmd(device_id: DeviceId) -> Result<Vec<crat
 #[command]
 pub async fn clear_schedules_cmd(device_id: DeviceId) -> Result<(), String> {
     let pool = get_pool();
-    sqlx::query(&format!("DELETE FROM {} WHERE device_id = ?", SCHEDULE_TABLE))
-        .bind(device_id.to_string())
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE device_id = ?",
+        SCHEDULE_TABLE
+    ))
+    .bind(device_id.to_string())
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
     sqlx::query(&format!(
         "DELETE FROM {} WHERE device_id = ?",
         RECOVERY_CHECKPOINT_TABLE
@@ -196,11 +206,14 @@ pub async fn clear_schedules_cmd(device_id: DeviceId) -> Result<(), String> {
 #[command]
 pub async fn clear_schedules_by_script_cmd(script_id: ScriptId) -> Result<(), String> {
     let pool = get_pool();
-    sqlx::query(&format!("DELETE FROM {} WHERE script_id = ?", SCHEDULE_TABLE))
-        .bind(script_id.to_string())
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE script_id = ?",
+        SCHEDULE_TABLE
+    ))
+    .bind(script_id.to_string())
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
     sqlx::query(&format!(
         "DELETE FROM {} WHERE script_id = ?",
         RECOVERY_CHECKPOINT_TABLE
@@ -240,7 +253,10 @@ pub async fn get_recovery_checkpoint_by_device_cmd(
 #[command]
 pub async fn get_all_time_templates_cmd() -> Result<Vec<TimeTemplate>, String> {
     let pool = get_pool();
-    let query = format!("SELECT id, name, start_time, end_time FROM {}", TIME_TEMPLATE_TABLE);
+    let query = format!(
+        "SELECT id, name, start_time, end_time FROM {}",
+        TIME_TEMPLATE_TABLE
+    );
     sqlx::query_as::<_, TimeTemplate>(&query)
         .fetch_all(pool)
         .await
@@ -333,7 +349,8 @@ pub async fn get_script_time_template_values_cmd(
     time_template_id: TemplateId,
     account_id: Option<AccountId>,
 ) -> Result<Option<ScriptTimeTemplateValuesDto>, String> {
-    find_script_time_template_values_exact(Some(device_id), script_id, time_template_id, account_id).await
+    find_script_time_template_values_exact(Some(device_id), script_id, time_template_id, account_id)
+        .await
 }
 
 /// 保存（新增或更新）脚本时间模板变量值
@@ -397,7 +414,9 @@ pub async fn save_script_time_template_values_cmd(
 
     sync_device_session_if_online(
         &app_handle,
-        record.device_id.ok_or_else(|| "device_id 不能为空".to_string())?,
+        record
+            .device_id
+            .ok_or_else(|| "device_id 不能为空".to_string())?,
     )
     .await
 }

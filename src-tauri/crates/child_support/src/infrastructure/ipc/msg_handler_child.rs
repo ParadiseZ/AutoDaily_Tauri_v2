@@ -1,10 +1,10 @@
+use crate::infrastructure::context::child_process_sec::{
+    get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
+};
 use crate::infrastructure::ipc::message::{
     ConfigUpdateMessage, ConfigUpdateType, IpcMessage, MessagePayload, ProcessAction,
     ProcessControlMessage, RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeRecoveryPhase,
     RuntimeScheduleStatus, SessionControlMessage,
-};
-use crate::infrastructure::context::child_process_sec::{
-    get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
 use crate::infrastructure::ipc::runtime_reporter::{
     emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event, emit_recovery_event,
@@ -31,7 +31,10 @@ pub async fn handle_main_message(msg: IpcMessage) {
             handle_config_update(config);
         }
         _ => {
-            Log::warn(&format!("[ child ] 收到未处理的消息类型: {:?}", msg.message_type));
+            Log::warn(&format!(
+                "[ child ] 收到未处理的消息类型: {:?}",
+                msg.message_type
+            ));
         }
     }
 }
@@ -80,7 +83,7 @@ fn handle_process_control(ctrl: ProcessControlMessage) {
             set_running_status(RunningStatus::Stopping);
             emit_lifecycle_event(RuntimeLifecyclePhase::Stopping, None);
             trigger_cancel(); // 取消 CancellationToken，主循环立即退出
-            // TODO: 持久化运行时数据
+                              // TODO: 持久化运行时数据
         }
     }
 }
@@ -89,7 +92,10 @@ async fn handle_session_control(control: SessionControlMessage) {
     use crate::infrastructure::scripts::scheduler::get_scheduler;
 
     match control {
-        SessionControlMessage::LoadSession { session, checkpoint } => {
+        SessionControlMessage::LoadSession {
+            session,
+            checkpoint,
+        } => {
             let summary = replace_runtime_session(session.clone(), checkpoint.clone()).await;
             Log::info(&format!(
                 "[ child ] 加载 session[{}]，队列长度: {}，checkpoint: {}",
@@ -134,7 +140,10 @@ async fn handle_session_control(control: SessionControlMessage) {
                 );
             }
         }
-        SessionControlMessage::ReloadSession { session, checkpoint } => {
+        SessionControlMessage::ReloadSession {
+            session,
+            checkpoint,
+        } => {
             let summary = replace_runtime_session(session.clone(), checkpoint.clone()).await;
             Log::info(&format!(
                 "[ child ] 热更新 session[{}]，队列长度: {}，checkpoint: {}",
@@ -316,4 +325,3 @@ fn handle_config_update(config: ConfigUpdateMessage) {
         }
     }
 }
-

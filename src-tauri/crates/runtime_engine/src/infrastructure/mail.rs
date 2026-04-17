@@ -26,10 +26,7 @@ pub fn load_email_config(app_handle: &AppHandle) -> Result<EmailConfig, String> 
         .unwrap_or_default())
 }
 
-pub async fn send_email(
-    config: &EmailConfig,
-    payload: &EmailMessagePayload,
-) -> Result<(), String> {
+pub async fn send_email(config: &EmailConfig, payload: &EmailMessagePayload) -> Result<(), String> {
     let resolved_server = config.resolved_server();
     let smtp_server = resolved_server.smtp_server.trim().to_string();
     if smtp_server.is_empty() {
@@ -67,7 +64,9 @@ pub async fn send_email(
     }
 
     let from_mailbox = build_mailbox(config.sender_name_value(), &sender_email, "发件人")?;
-    let mut builder = Message::builder().from(from_mailbox).subject(payload.subject.trim());
+    let mut builder = Message::builder()
+        .from(from_mailbox)
+        .subject(payload.subject.trim());
     for recipient in &recipients {
         builder = builder.to(build_mailbox(None, recipient, "收件人")?);
     }
@@ -129,12 +128,14 @@ fn build_transport(
         EmailSecurity::None => Tls::None,
     };
 
-    Ok(AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(smtp_server)
-        .port(smtp_port)
-        .tls(tls)
-        .credentials(credentials)
-        .timeout(timeout)
-        .build())
+    Ok(
+        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(smtp_server)
+            .port(smtp_port)
+            .tls(tls)
+            .credentials(credentials)
+            .timeout(timeout)
+            .build(),
+    )
 }
 
 fn validate_smtp_host_for_security(
@@ -170,10 +171,7 @@ fn build_mailbox(
         .map_err(|e| format!("{}格式无效: {}", field_label, e))
 }
 
-pub fn send_timeout_email_in_background(
-    app_handle: AppHandle,
-    payload: EmailMessagePayload,
-) {
+pub fn send_timeout_email_in_background(app_handle: AppHandle, payload: EmailMessagePayload) {
     tauri::async_runtime::spawn(async move {
         if let Err(error) = send_stored_timeout_email(&app_handle, &payload).await {
             Log::warn(&format!("[ email ] 超时邮件发送失败: {}", error));

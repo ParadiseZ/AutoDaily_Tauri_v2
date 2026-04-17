@@ -1,9 +1,9 @@
 use crate::domain::devices::device_schedule::TaskCycle;
+use crate::domain::scripts::script_decision::Step;
 use crate::infrastructure::core::{Deserialize, ScriptId, Serialize, TaskId};
 use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::FromRow;
-use crate::domain::scripts::script_decision::Step;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
@@ -14,7 +14,7 @@ pub struct ScriptTask {
     /// 可更改的变量数据
     pub variables: Value,
     /// 任务数据
-    pub steps: Vec<Step>
+    pub steps: Vec<Step>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
@@ -36,7 +36,7 @@ pub struct ScriptTaskTable {
     pub default_enabled: bool,
     pub task_tone: TaskTone,
     pub is_hidden: bool,
-/*    #[ts(type = "Array<import('@vue-flow/core').Node>")]
+    /*    #[ts(type = "Array<import('@vue-flow/core').Node>")]
     pub nodes: Json<Value>,
     #[ts(type = "import('@vue-flow/core').Edge[]")]
     pub edges: Json<Value>,*/
@@ -49,7 +49,7 @@ pub struct ScriptTaskTable {
     #[ts(type = "string | null")]
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
     pub is_deleted: bool,
-    pub index: u32,//排序
+    pub index: u32, //排序
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, sqlx::Type, ts_rs::TS)]

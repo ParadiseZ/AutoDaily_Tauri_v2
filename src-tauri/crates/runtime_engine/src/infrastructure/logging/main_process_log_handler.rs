@@ -121,11 +121,20 @@ pub fn get_child_log_receiver() -> Option<Arc<ChildLogReceiver>> {
 
 impl ChildLogReceiver {
     /// 注册一个设备（子进程连接时调用）
-    pub async fn register_device(&self, device_id: DeviceId, device_name: String, log_to_file: bool) {
+    pub async fn register_device(
+        &self,
+        device_id: DeviceId,
+        device_name: String,
+        log_to_file: bool,
+    ) {
         let log_dir = LOG_DIR.read().await.clone();
         let writer = DeviceLogWriter::new(device_name.clone(), log_dir, log_to_file);
         self.writers.write().await.insert(device_id, writer);
-        tracing::info!("[ log ] 已注册设备[{}]的日志写入器 (写入文件: {})", device_name, log_to_file);
+        tracing::info!(
+            "[ log ] 已注册设备[{}]的日志写入器 (写入文件: {})",
+            device_name,
+            log_to_file
+        );
     }
 
     /// 注销一个设备（子进程断开时调用）
@@ -140,7 +149,11 @@ impl ChildLogReceiver {
         let mut writers = self.writers.write().await;
         if let Some(writer) = writers.get_mut(device_id) {
             writer.set_log_to_file(enabled);
-            tracing::info!("[ log ] 设备[{}]日志写入文件: {}", writer.device_name, enabled);
+            tracing::info!(
+                "[ log ] 设备[{}]日志写入文件: {}",
+                writer.device_name,
+                enabled
+            );
         }
     }
 

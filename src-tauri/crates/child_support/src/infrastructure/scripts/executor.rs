@@ -25,9 +25,7 @@ use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
     RuntimeLifecyclePhase, RuntimeProgressPhase, SessionCheckpointReason, TimeoutAction,
 };
-use crate::infrastructure::ipc::runtime_reporter::{
-    emit_lifecycle_event, emit_progress_event,
-};
+use crate::infrastructure::ipc::runtime_reporter::{emit_lifecycle_event, emit_progress_event};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::infrastructure::session::recovery_checkpoint_store::prepare_and_persist_checkpoint;
@@ -220,7 +218,9 @@ impl ScriptExecutor {
     async fn execute_step_inner(&mut self, step: &Step) -> ExecuteResult<ControlFlow> {
         match &step.kind {
             StepKind::Sequence { steps } => self.execute_sequence(steps).await,
-            StepKind::Action { exec_max, a } => self.execute_action_step(step.id, *exec_max, a).await,
+            StepKind::Action { exec_max, a } => {
+                self.execute_action_step(step.id, *exec_max, a).await
+            }
             StepKind::DataHanding { a } => self.execute_data_handling_step(a).await,
             StepKind::FlowControl { a } => self.execute_flow_control_step(a).await,
             StepKind::TaskControl { a } => self.execute_task_control_step(a).await,

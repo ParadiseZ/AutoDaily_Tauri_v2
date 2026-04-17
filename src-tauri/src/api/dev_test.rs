@@ -11,7 +11,7 @@ use crate::infrastructure::image::save_image::save_screenshot;
 use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::rec::RecognizerType;
 use image::DynamicImage;
-use std::sync::{Arc};
+use std::sync::Arc;
 use tauri::command;
 use tokio::sync::RwLock;
 
@@ -29,17 +29,16 @@ pub async fn dev_capture_test(
     let device_ctx = DeviceCtx::new(
         Arc::new(RwLock::new(device_conf)),
         CaptureMethod::from(method),
-        title
-        //Arc::new(RwLock::new(adb_ctx)),
+        title, //Arc::new(RwLock::new(adb_ctx)),
     );
 
     if !device_ctx.valid_capture().await {
         return Err("验证截图功能失败！".to_string());
     }
     match device_ctx.get_screenshot().await {
-        Some(image_data) => {
-            Ok(dynamic_image_to_base64(&DynamicImage::ImageRgba8(image_data))?)
-        }
+        Some(image_data) => Ok(dynamic_image_to_base64(&DynamicImage::ImageRgba8(
+            image_data,
+        ))?),
         _ => Err("截图失败！".to_string()),
     }
 }

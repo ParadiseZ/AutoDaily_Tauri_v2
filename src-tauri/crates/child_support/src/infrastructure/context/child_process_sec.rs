@@ -1,8 +1,8 @@
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::ipc::chanel_client::IpcClient;
 use crate::infrastructure::logging::LogLevel;
-use runtime_engine::infrastructure::context::init_error::{InitError, InitResult};
 pub use runtime_engine::infrastructure::context::child_process_sec::RunningStatus;
+use runtime_engine::infrastructure::context::init_error::{InitError, InitResult};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
 
@@ -31,7 +31,9 @@ pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitRes
     manager.clone().spawn_reconnect_task();
     IPC_CLIENT
         .set(manager)
-        .map_err(|e| InitError::InitChildIpcClientFailed { e: e.clone().to_string() })
+        .map_err(|e| InitError::InitChildIpcClientFailed {
+            e: e.clone().to_string(),
+        })
 }
 
 pub fn get_ipc_client() -> Option<Arc<IpcClient>> {

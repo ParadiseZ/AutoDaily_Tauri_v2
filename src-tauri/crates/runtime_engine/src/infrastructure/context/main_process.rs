@@ -4,8 +4,8 @@ use crate::infrastructure::ipc::chanel_server::IpcClientState;
 use crate::infrastructure::ipc::message::RuntimeRecoveryPhase;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
-use std::sync::{Arc, RwLock};
 use std::sync::atomic::AtomicU64;
+use std::sync::{Arc, RwLock};
 use tokio::sync::Notify;
 
 #[derive(Debug, Clone)]
@@ -54,7 +54,9 @@ impl RecoveryRuntimeState {
         execution_id: Option<ExecutionId>,
         checkpoint_updated_at: Option<String>,
     ) {
-        let sequence = self.next_sequence.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let sequence = self
+            .next_sequence
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         if let Ok(mut guard) = self.latest_by_device.write() {
             guard.insert(
                 device_id,
@@ -101,8 +103,7 @@ impl MainProcessCtx {
 
     /// 搜索脚本数据
     pub async fn init_(
-        &mut self
-        //request: crate::infrastructure::scripts::script_info_model::ScriptPageReq,
+        &mut self, //request: crate::infrastructure::scripts::script_info_model::ScriptPageReq,
     ) -> Result<
         //crate::infrastructure::scripts::script_info_model::ScriptPageResp,
         (),

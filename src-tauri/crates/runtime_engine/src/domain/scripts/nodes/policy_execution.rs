@@ -1,7 +1,7 @@
 use crate::domain::scripts::point::PointU16;
 use crate::domain::vision::result::BoundingBox;
-use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId};
 use crate::infrastructure::core::{Deserialize, Serialize};
+use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId};
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]

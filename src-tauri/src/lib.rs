@@ -9,63 +9,65 @@ mod constant;
 mod domain;
 pub mod infrastructure;
 
-
+use crate::api::backend_cmd::{
+    backend_check_update, backend_download_model, backend_download_script,
+    backend_get_auth_session, backend_get_profile, backend_login, backend_logout,
+    backend_redeem_sponsor_code, backend_register, backend_reset_password, backend_search_scripts,
+    backend_send_verification_code, backend_update_username, backend_upload_model,
+    backend_upload_script,
+};
 use crate::api::dev_test::{
     dev_capture_test, paddle_ocr_inference_test, save_captured_image, yolo_inference_test,
+};
+use crate::api::domain::devices::{
+    delete_device_cmd, get_all_devices_cmd, get_cpu_count_cmd, get_device_by_id_cmd,
+    save_device_cmd,
+};
+use crate::api::domain::policy::*;
+use crate::api::domain::schedule::{
+    clear_schedules_by_script_cmd, clear_schedules_cmd, delete_assignment_cmd,
+    delete_script_time_template_values_cmd, delete_time_template_cmd, get_all_time_templates_cmd,
+    get_assignments_by_device_cmd, get_recovery_checkpoint_by_device_cmd,
+    get_schedules_by_device_cmd, get_script_time_template_values_cmd, reorder_assignments_cmd,
+    save_assignment_cmd, save_script_time_template_values_cmd, save_time_template_cmd,
+};
+use crate::api::domain::scripts::{
+    clone_local_script_cmd, delete_script_cmd, get_all_scripts_cmd, get_script_by_id_cmd,
+    get_script_tasks_cmd, get_yolo_labels_cmd, save_script_cmd, save_script_tasks_cmd,
 };
 use crate::api::infrastructure::config::email::{
     get_email_config_cmd, send_test_email_cmd, set_email_config_cmd,
 };
 use crate::api::infrastructure::config::log_api::{
-    update_log_level_cmd, update_log_dir_cmd, update_retention_days_cmd,
-    get_log_config_cmd, clean_logs_now_cmd, update_child_log_level_cmd,
+    clean_logs_now_cmd, get_log_config_cmd, update_child_log_level_cmd, update_log_dir_cmd,
+    update_log_level_cmd, update_retention_days_cmd,
 };
-use crate::api::infrastructure::config::sys_conf::{set_system_settings_cmd};
+use crate::api::infrastructure::config::sys_conf::set_system_settings_cmd;
 use crate::api::infrastructure::config::vision_cache::{
     get_vision_text_cache_config_cmd, set_vision_text_cache_config_cmd,
 };
-use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::frontend_debug::frontend_debug_log_cmd;
 use crate::api::infrastructure::get_uuid_v7;
-use crate::api::domain::devices::{get_all_devices_cmd, get_device_by_id_cmd, save_device_cmd, delete_device_cmd, get_cpu_count_cmd};
-use crate::api::domain::scripts::{get_all_scripts_cmd, get_script_by_id_cmd, save_script_cmd, delete_script_cmd,
-                                  get_script_tasks_cmd,save_script_tasks_cmd, get_yolo_labels_cmd, clone_local_script_cmd};
-use crate::api::domain::policy::*;
+use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::process_api::{
-    cmd_device_start, cmd_device_stop, cmd_device_pause,
-    cmd_sync_device_runtime_session, cmd_run_script_target,
-    cmd_device_shutdown, cmd_get_running_devices, cmd_prepare_device_checkpoint,
-    cmd_restart_device_runtime,
-    cmd_spawn_device, cmd_is_device_running,
-};
-use crate::api::domain::schedule::{
-    get_assignments_by_device_cmd, save_assignment_cmd, delete_assignment_cmd, reorder_assignments_cmd,
-    get_schedules_by_device_cmd, clear_schedules_cmd, clear_schedules_by_script_cmd,
-    get_recovery_checkpoint_by_device_cmd,
-    get_all_time_templates_cmd, save_time_template_cmd, delete_time_template_cmd,
-    get_script_time_template_values_cmd, save_script_time_template_values_cmd, delete_script_time_template_values_cmd,
+    cmd_device_pause, cmd_device_shutdown, cmd_device_start, cmd_device_stop,
+    cmd_get_running_devices, cmd_is_device_running, cmd_prepare_device_checkpoint,
+    cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
+    cmd_sync_device_runtime_session,
 };
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::context::main_process::MainProcessCtx;
 use tauri::{App, Emitter, Manager};
-use crate::api::backend_cmd::{
-    backend_send_verification_code, backend_register, backend_login, backend_logout,
-    backend_get_auth_session, backend_get_profile, backend_search_scripts, backend_redeem_sponsor_code,
-    backend_check_update, backend_download_script, backend_upload_model, backend_download_model,
-    backend_reset_password, backend_update_username, backend_upload_script,
-};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(MainProcessCtx::new())
-        .plugin(
-            tauri_plugin_single_instance::init(|app, argv, cwd| {
-                println!("{}, {argv:?}, {cwd}", app.package_info().name);
-                let _ = app.emit("single-instance", ());
-            })
-        )
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            println!("{}, {argv:?}, {cwd}", app.package_info().name);
+            let _ = app.emit("single-instance", ());
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -139,8 +141,8 @@ pub fn run() {
             get_set_groups_cmd,
             update_set_groups_cmd,
             // 空闲监控
-                                  //start_idle_monitoring_cmd,stop_idle_monitoring_cmd,update_activity_cmd,cancel_shutdown_cmd,
-                                  // 进程管理
+            //start_idle_monitoring_cmd,stop_idle_monitoring_cmd,update_activity_cmd,cancel_shutdown_cmd,
+            // 进程管理
             cmd_device_start,
             cmd_device_stop,
             cmd_device_pause,
@@ -186,7 +188,5 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-    ort::init()
-        .with_telemetry(false)
-        .commit();
+    ort::init().with_telemetry(false).commit();
 }

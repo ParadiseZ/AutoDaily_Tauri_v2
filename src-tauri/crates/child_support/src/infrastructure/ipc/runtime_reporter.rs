@@ -40,10 +40,7 @@ fn emit_runtime_event(event: RuntimeEventMessage, log_label: &str) {
     }
 }
 
-pub fn emit_lifecycle_event(
-    phase: RuntimeLifecyclePhase,
-    message: Option<String>,
-) {
+pub fn emit_lifecycle_event(phase: RuntimeLifecyclePhase, message: Option<String>) {
     emit_lifecycle_event_with(phase, current_session_id(), current_script_id(), message);
 }
 

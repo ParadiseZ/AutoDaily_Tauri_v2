@@ -86,20 +86,10 @@ fn capture_cache_key_changes_with_signature_grid_size() {
 fn capture_cache_key_changes_with_model_config() {
     let image = RgbaImage::from_pixel(4, 4, Rgba([12, 34, 56, 255]));
 
-    let key_a = ScriptExecutor::build_capture_cache_key(
-        &image,
-        4,
-        "{\"model\":\"a\"}",
-        "null",
-        "null",
-    );
-    let key_b = ScriptExecutor::build_capture_cache_key(
-        &image,
-        4,
-        "{\"model\":\"b\"}",
-        "null",
-        "null",
-    );
+    let key_a =
+        ScriptExecutor::build_capture_cache_key(&image, 4, "{\"model\":\"a\"}", "null", "null");
+    let key_b =
+        ScriptExecutor::build_capture_cache_key(&image, 4, "{\"model\":\"b\"}", "null", "null");
 
     assert_ne!(key_a, key_b);
 }

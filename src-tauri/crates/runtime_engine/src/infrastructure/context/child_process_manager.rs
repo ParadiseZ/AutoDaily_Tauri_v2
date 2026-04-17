@@ -42,10 +42,7 @@ pub fn get_process_manager() -> Option<Arc<ChildProcessManager>> {
 
 impl ChildProcessManager {
     /// 启动一个子进程
-    pub async fn spawn_child(
-        &self,
-        init_data: ChildProcessInitData,
-    ) -> Result<(), String> {
+    pub async fn spawn_child(&self, init_data: ChildProcessInitData) -> Result<(), String> {
         let device_id = init_data.device_id;
         let device_name = init_data.device_config.device_name.clone();
 
@@ -64,8 +61,8 @@ impl ChildProcessManager {
             .map_err(|e| format!("序列化初始化数据失败: {}", e))?;
 
         // 获取当前可执行文件路径（子进程使用同一个二进制，通过参数区分）
-        let exe_path = std::env::current_exe()
-            .map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
+        let exe_path =
+            std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
 
         // 启动子进程
         let child = Command::new(&exe_path)
@@ -147,7 +144,9 @@ impl ChildProcessManager {
     /// 检查子进程是否在运行
     pub async fn is_running(&self, device_id: &DeviceId) -> bool {
         let processes = self.processes.read().await;
-        processes.get(device_id).map_or(false, |h| h.process.is_some())
+        processes
+            .get(device_id)
+            .map_or(false, |h| h.process.is_some())
     }
 
     /// 获取所有运行中的子进程设备ID

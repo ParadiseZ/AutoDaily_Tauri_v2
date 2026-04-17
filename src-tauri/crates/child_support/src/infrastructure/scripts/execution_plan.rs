@@ -52,7 +52,8 @@ impl ExecutionPlanAssembler {
         queue_item: &RuntimeQueueItem,
         tasks: &[ScriptTaskTable],
     ) -> Result<TaskSelection, String> {
-        let template_values = Self::parse_template_values(queue_item.template_values_json.as_deref())?;
+        let template_values =
+            Self::parse_template_values(queue_item.template_values_json.as_deref())?;
         let mut root_tasks = Vec::new();
         let mut linkable_tasks = HashMap::new();
         let mut skipped_tasks = Vec::new();
@@ -220,7 +221,10 @@ impl ExecutionPlanAssembler {
                 if today == *day {
                     None
                 } else {
-                    Some(format!("任务仅在周{}执行，今日不在执行日", Self::weekday_label(*day)))
+                    Some(format!(
+                        "任务仅在周{}执行，今日不在执行日",
+                        Self::weekday_label(*day)
+                    ))
                 }
             }
             TaskCycle::MonthDay(day) => {
@@ -258,7 +262,10 @@ impl ExecutionPlanAssembler {
             TaskCycle::WeekDay(day) => {
                 let today = now.weekday().number_from_monday() as u8;
                 if today != *day {
-                    Some(format!("任务仅在周{}执行，今日不在执行日", Self::weekday_label(*day)))
+                    Some(format!(
+                        "任务仅在周{}执行，今日不在执行日",
+                        Self::weekday_label(*day)
+                    ))
                 } else if now.date_naive() == last_success.date_naive() {
                     Some("任务今日已执行成功，按 WeekDay 周期跳过".to_string())
                 } else {

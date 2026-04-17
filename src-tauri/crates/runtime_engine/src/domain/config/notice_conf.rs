@@ -108,11 +108,13 @@ impl EmailProviderPreset {
 
 impl EmailConfig {
     pub fn resolved_server(&self) -> ResolvedSmtpServer {
-        self.provider.preset_server().unwrap_or_else(|| ResolvedSmtpServer {
-            smtp_server: self.smtp_server.trim().to_string(),
-            smtp_port: self.smtp_port,
-            security: self.security.clone(),
-        })
+        self.provider
+            .preset_server()
+            .unwrap_or_else(|| ResolvedSmtpServer {
+                smtp_server: self.smtp_server.trim().to_string(),
+                smtp_port: self.smtp_port,
+                security: self.security.clone(),
+            })
     }
 
     pub fn sender_email_value(&self) -> String {

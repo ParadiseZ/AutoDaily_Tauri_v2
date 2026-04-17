@@ -8,16 +8,24 @@ use std::sync::atomic::Ordering;
 pub struct LogChild;
 impl LogTrait for LogChild {
     fn debug(&self, msg: &str) {
-        if let Some(client) = get_ipc_client() { client.debug(msg); }
+        if let Some(client) = get_ipc_client() {
+            client.debug(msg);
+        }
     }
     fn info(&self, msg: &str) {
-        if let Some(client) = get_ipc_client() { client.info(msg); }
+        if let Some(client) = get_ipc_client() {
+            client.info(msg);
+        }
     }
     fn warn(&self, msg: &str) {
-        if let Some(client) = get_ipc_client() { client.warn(msg); }
+        if let Some(client) = get_ipc_client() {
+            client.warn(msg);
+        }
     }
     fn error(&self, msg: &str) {
-        if let Some(client) = get_ipc_client() { client.error(msg); }
+        if let Some(client) = get_ipc_client() {
+            client.error(msg);
+        }
     }
 }
 

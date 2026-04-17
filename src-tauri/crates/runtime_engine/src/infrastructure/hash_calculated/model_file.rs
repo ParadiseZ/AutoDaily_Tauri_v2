@@ -16,15 +16,21 @@ pub async fn get_hasher(model_path: &str) -> HashResult<u64> {
 
     let mut file = File::open(&model_path)
         .await
-        .map_err(|_| HashError::FileNotFound { path: model_path.to_string() })?;
+        .map_err(|_| HashError::FileNotFound {
+            path: model_path.to_string(),
+        })?;
 
     // 缓冲区大小，可以根据需要调整
     let mut buffer = [0u8; 8192];
     let mut hasher = XxHash3_64::default();
     // 逐块读取文件并更新哈希
     loop {
-        let bytes_read = file.read(&mut buffer).await
-            .map_err(|_| HashError::FileReadFailed { path: model_path.to_string()})?;
+        let bytes_read = file
+            .read(&mut buffer)
+            .await
+            .map_err(|_| HashError::FileReadFailed {
+                path: model_path.to_string(),
+            })?;
         if bytes_read == 0 {
             break; // 文件读取完毕
         }

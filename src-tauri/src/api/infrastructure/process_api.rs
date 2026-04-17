@@ -1,26 +1,26 @@
 // 子进程管理 API — 供前端调用
+use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, DEVICE_TABLE, GROUP_POLICIES, POLICY_GROUP_TABLE, POLICY_SET_TABLE,
     POLICY_TABLE, RECOVERY_CHECKPOINT_TABLE, SCRIPT_TABLE, SCRIPT_TASK_TABLE,
     SCRIPT_TIME_TEMPLATE_VALUES_TABLE, SET_GROUPS,
 };
-use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use crate::domain::devices::device_conf::{
     DevicePlatform, DeviceTable, TimeoutAction as DeviceTimeoutAction,
     TimeoutNotifyChannel as DeviceTimeoutNotifyChannel,
 };
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
-use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::schedule::recovery_checkpoint::RecoveryCheckpointRow;
+use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
 use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
-use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
+use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::{
     AccountId, DeviceId, ScheduleId, ScriptId, SessionId, TaskId, TemplateId,
 };
@@ -29,10 +29,10 @@ use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
-    ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
-    RuntimeRecoveryPhase, RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy,
-    ScriptBundleSnapshot, SessionCheckpointReason, SessionControlMessage,
-    TimeoutAction as RuntimeTimeoutAction, TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
+    ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeRecoveryPhase,
+    RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, ScriptBundleSnapshot,
+    SessionCheckpointReason, SessionControlMessage, TimeoutAction as RuntimeTimeoutAction,
+    TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
 };
 use serde::Serialize;
 use std::collections::HashSet;
@@ -381,7 +381,10 @@ fn build_debug_template_values_json(
         return Ok(None);
     };
     let Some(bundle) = bundles.iter().find(|bundle| bundle.script_id == script_id) else {
-        return Err(format!("调试运行脚本[{}]未装入当前 session bundle", script_id));
+        return Err(format!(
+            "调试运行脚本[{}]未装入当前 session bundle",
+            script_id
+        ));
     };
 
     let tasks: Vec<ScriptTaskTable> =
@@ -418,7 +421,10 @@ fn validate_recovery_task_config(
     runtime_policy: &RuntimeExecutionPolicy,
     bundles: &[LoadedScriptBundle],
 ) -> Result<(), String> {
-    if !matches!(runtime_policy.timeout_action, RuntimeTimeoutAction::RunRecoveryTask) {
+    if !matches!(
+        runtime_policy.timeout_action,
+        RuntimeTimeoutAction::RunRecoveryTask
+    ) {
         return Ok(());
     }
 
@@ -454,7 +460,10 @@ fn validate_restart_app_config(
     runtime_policy: &RuntimeExecutionPolicy,
     bundles: &[LoadedScriptBundle],
 ) -> Result<(), String> {
-    if !matches!(runtime_policy.timeout_action, RuntimeTimeoutAction::RestartApp) {
+    if !matches!(
+        runtime_policy.timeout_action,
+        RuntimeTimeoutAction::RestartApp
+    ) {
         return Ok(());
     }
 
@@ -486,7 +495,8 @@ fn validate_run_target_support(
     run_target: &RunTarget,
     bundles: &[LoadedScriptBundle],
 ) -> Result<(), String> {
-    let find_bundle = |script_id: ScriptId| bundles.iter().find(|bundle| bundle.script_id == script_id);
+    let find_bundle =
+        |script_id: ScriptId| bundles.iter().find(|bundle| bundle.script_id == script_id);
 
     match run_target {
         RunTarget::DeviceQueue | RunTarget::FullScript { .. } => Ok(()),
@@ -608,8 +618,7 @@ async fn restart_device_runtime_internal(
     device_id: DeviceId,
     reason: SessionCheckpointReason,
 ) -> Result<String, String> {
-    let manager = get_process_manager()
-        .ok_or_else(|| "进程管理器未初始化".to_string())?;
+    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
     let was_running = manager.is_running(&device_id).await;
 
     let previous_checkpoint = latest_checkpoint_updated_at(device_id).await?;
@@ -679,8 +688,10 @@ async fn build_runtime_session_snapshot(
             .into_iter()
             .collect(),
     };
-    let runtime_policy =
-        to_runtime_policy(&device_table, load_vision_text_cache_runtime_config(app_handle)?);
+    let runtime_policy = to_runtime_policy(
+        &device_table,
+        load_vision_text_cache_runtime_config(app_handle)?,
+    );
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
     validate_run_target_support(&run_target, &loaded_script_bundles)?;
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
@@ -692,8 +703,10 @@ async fn build_runtime_session_snapshot(
             item.template_values_json = Some(template_values_json.clone());
         }
     }
-    let compatible_script_ids: HashSet<ScriptId> =
-        loaded_script_bundles.iter().map(|bundle| bundle.script_id).collect();
+    let compatible_script_ids: HashSet<ScriptId> = loaded_script_bundles
+        .iter()
+        .map(|bundle| bundle.script_id)
+        .collect();
     let checkpoint = load_recovery_checkpoint(device_id, &run_target)
         .await?
         .filter(|item| compatible_script_ids.contains(&item.script_id));
@@ -701,15 +714,18 @@ async fn build_runtime_session_snapshot(
         .into_iter()
         .map(|bundle| bundle.snapshot)
         .collect();
-    Ok((RuntimeSessionSnapshot {
-        session_id: SessionId::new_v7(),
-        device_id,
-        run_target,
-        runtime_policy,
-        queue,
-        script_bundles,
-        issued_at: chrono::Local::now().to_rfc3339(),
-    }, checkpoint))
+    Ok((
+        RuntimeSessionSnapshot {
+            session_id: SessionId::new_v7(),
+            device_id,
+            run_target,
+            runtime_policy,
+            queue,
+            script_bundles,
+            issued_at: chrono::Local::now().to_rfc3339(),
+        },
+        checkpoint,
+    ))
 }
 
 async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
@@ -812,7 +828,10 @@ async fn wait_for_ipc_client(
             let guard = ipc_servers
                 .read()
                 .map_err(|_| "读取 IPC 状态失败".to_string())?;
-            if guard.iter().any(|(registered_device_id, _)| **registered_device_id == device_id) {
+            if guard
+                .iter()
+                .any(|(registered_device_id, _)| **registered_device_id == device_id)
+            {
                 return Ok(());
             }
         }
@@ -862,8 +881,7 @@ async fn ensure_device_online(
 ) -> Result<(), String> {
     let device_table = load_device_table(device_id).await?;
     validate_runtime_platform_supported(&device_table)?;
-    let manager = get_process_manager()
-        .ok_or_else(|| "进程管理器未初始化".to_string())?;
+    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
 
     if !manager.is_running(&device_id).await {
         let init_data = build_child_init_data(app_handle, device_id).await?;
@@ -940,7 +958,9 @@ pub async fn cmd_prepare_device_checkpoint(
 ) -> Result<String, String> {
     send_session_control(
         device_id,
-        SessionControlMessage::PrepareCheckpoint { reason: reason.clone() },
+        SessionControlMessage::PrepareCheckpoint {
+            reason: reason.clone(),
+        },
     )
     .await;
     Ok(format!(
@@ -989,15 +1009,11 @@ pub async fn cmd_spawn_device(
 ) -> Result<String, String> {
     let init_data = build_child_init_data(&app_handle, device_id).await?;
     let device_name = init_data.device_config.device_name.clone();
-    let manager = get_process_manager()
-        .ok_or_else(|| "进程管理器未初始化".to_string())?;
+    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
 
-    Ok(format!(
-        "设备[{}]({})子进程已启动",
-        device_name, device_id
-    ))
+    Ok(format!("设备[{}]({})子进程已启动", device_name, device_id))
 }
 
 /// 检查设备子进程是否在运行

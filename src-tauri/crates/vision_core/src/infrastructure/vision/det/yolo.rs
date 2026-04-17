@@ -204,17 +204,15 @@ impl YoloDet {
     ) -> Vec<DetResult> {
         candidates
             .into_iter()
-            .map(|candidate| DetResult::new(
-                self.candidate_to_bounding_box(
-                    &candidate,
-                    scale_factor,
-                    origin_shape,
-                ),
-                candidate.class_id as i32,
-                self.resolve_label(candidate.class_id),
-                candidate.score,
-                8,
-            ))
+            .map(|candidate| {
+                DetResult::new(
+                    self.candidate_to_bounding_box(&candidate, scale_factor, origin_shape),
+                    candidate.class_id as i32,
+                    self.resolve_label(candidate.class_id),
+                    candidate.score,
+                    8,
+                )
+            })
             .collect()
     }
 

@@ -63,7 +63,10 @@ pub async fn get_script_tasks_cmd(script_id: ScriptId) -> Result<Vec<ScriptTaskT
 /// 批量保存脚本任务逻辑
 /// 这里采用简单策略：先删除该脚本的所有任务，再重新插入
 #[command]
-pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTable>) -> Result<(), String> {
+pub async fn save_script_tasks_cmd(
+    script_id: ScriptId,
+    tasks: Vec<ScriptTaskTable>,
+) -> Result<(), String> {
     let pool = get_pool();
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
@@ -113,12 +116,15 @@ pub async fn save_script_tasks_cmd(script_id: ScriptId, tasks: Vec<ScriptTaskTab
 
 /// 读取 YOLO 标签文件
 #[command]
-pub async fn get_yolo_labels_cmd(path: String) -> Result<std::collections::HashMap<u16, String>, String> {
+pub async fn get_yolo_labels_cmd(
+    path: String,
+) -> Result<std::collections::HashMap<u16, String>, String> {
     let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let values: serde_yaml::Value = serde_yaml::from_str(&content).map_err(|e| e.to_string())?;
-    
+
     if let Some(names) = values.get("names") {
-        let labels: std::collections::HashMap<u16, String> = serde_yaml::from_value(names.clone()).map_err(|e| e.to_string())?;
+        let labels: std::collections::HashMap<u16, String> =
+            serde_yaml::from_value(names.clone()).map_err(|e| e.to_string())?;
         Ok(labels)
     } else {
         Err("Yolo标签文件格式错误：未找到 names 属性".to_string())
@@ -139,21 +145,21 @@ pub async fn clone_local_script_cmd(
     use crate::domain::scripts::script_info::ScriptType;
     use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, TaskId, UserId};
     let pool = get_pool();
-    
+
     // 1. Fetch Script
     let script: Option<ScriptTable> = sqlx::query_as("SELECT id, `data` FROM scripts WHERE id = ?")
         .bind(&source_script_id)
         .fetch_optional(pool)
         .await
         .unwrap_or(None);
-        
+
     let mut script = match script {
         Some(s) => s,
         None => return ApiResponse::error(Some("源脚本不存在".to_string())),
     };
 
     let user_id = current_user_id.unwrap_or_else(|| "".to_string());
-    
+
     // 2. Permission Check
     if !script.data.allow_clone && script.data.user_id.to_string() != user_id {
         return ApiResponse::error(Some("该脚本作者未开放克隆权限".to_string()));
@@ -161,16 +167,19 @@ pub async fn clone_local_script_cmd(
 
     // 3. Setup cloning IDs mappings
     let new_script_id = ScriptId::new_v7();
-    let mut policy_map: std::collections::HashMap<PolicyId, PolicyId> = std::collections::HashMap::new();
-    let mut group_map: std::collections::HashMap<PolicyGroupId, PolicyGroupId> = std::collections::HashMap::new();
-    let mut set_map: std::collections::HashMap<PolicySetId, PolicySetId> = std::collections::HashMap::new();
+    let mut policy_map: std::collections::HashMap<PolicyId, PolicyId> =
+        std::collections::HashMap::new();
+    let mut group_map: std::collections::HashMap<PolicyGroupId, PolicyGroupId> =
+        std::collections::HashMap::new();
+    let mut set_map: std::collections::HashMap<PolicySetId, PolicySetId> =
+        std::collections::HashMap::new();
 
     // 4. Handle cloud_id and script_type updates
     let is_published = script.data.script_type == ScriptType::Published;
-    
+
     script.data.name = format!("{} (Clone)", script.data.name);
     script.data.script_type = ScriptType::Dev;
-    
+
     if let Ok(uuid) = uuid::Uuid::parse_str(&user_id) {
         script.data.user_id = UserId::from(uuid);
     }
@@ -187,7 +196,7 @@ pub async fn clone_local_script_cmd(
             if let Some(existing) = existing_dev {
                 // If the user wants to overwrite their local Dev clone of this Published cloud_id
                 target_delete_id = Some(existing.id);
-            } 
+            }
             // Keep the cloud_id
             if script.data.cloud_id.is_none() {
                 script.data.cloud_id = Some(script.id);
@@ -204,33 +213,84 @@ pub async fn clone_local_script_cmd(
     script.id = new_script_id.clone();
 
     // 5. Gather all tables
-    let mut policies: Vec<PolicyTable> = sqlx::query_as("SELECT id, script_id, order_index, `data` FROM policies WHERE script_id = ?").bind(&source_script_id).fetch_all(pool).await.unwrap_or_default();
-    let mut policy_groups: Vec<PolicyGroupTable> = sqlx::query_as("SELECT id, script_id, order_index, `data` FROM policy_groups WHERE script_id = ?").bind(&source_script_id).fetch_all(pool).await.unwrap_or_default();
-    let mut policy_sets: Vec<PolicySetTable> = sqlx::query_as("SELECT id, script_id, order_index, `data` FROM policy_sets WHERE script_id = ?").bind(&source_script_id).fetch_all(pool).await.unwrap_or_default();
-    let mut tasks: Vec<ScriptTaskTable> = sqlx::query_as("SELECT * FROM script_tasks WHERE script_id = ?").bind(&source_script_id).fetch_all(pool).await.unwrap_or_default();
+    let mut policies: Vec<PolicyTable> = sqlx::query_as(
+        "SELECT id, script_id, order_index, `data` FROM policies WHERE script_id = ?",
+    )
+    .bind(&source_script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let mut policy_groups: Vec<PolicyGroupTable> = sqlx::query_as(
+        "SELECT id, script_id, order_index, `data` FROM policy_groups WHERE script_id = ?",
+    )
+    .bind(&source_script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let mut policy_sets: Vec<PolicySetTable> = sqlx::query_as(
+        "SELECT id, script_id, order_index, `data` FROM policy_sets WHERE script_id = ?",
+    )
+    .bind(&source_script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let mut tasks: Vec<ScriptTaskTable> =
+        sqlx::query_as("SELECT * FROM script_tasks WHERE script_id = ?")
+            .bind(&source_script_id)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
     let mut group_policies: Vec<GroupPolicyRelation> = sqlx::query_as("SELECT gp.group_id, gp.policy_id, gp.order_index FROM group_policies gp JOIN policy_groups g ON gp.group_id = g.id WHERE g.script_id = ?").bind(&source_script_id).fetch_all(pool).await.unwrap_or_default();
     let mut set_groups: Vec<SetGroupRelation> = sqlx::query_as("SELECT sg.set_id, sg.group_id, sg.order_index FROM set_groups sg JOIN policy_sets s ON sg.set_id = s.id WHERE s.script_id = ?").bind(&source_script_id).fetch_all(pool).await.unwrap_or_default();
 
     // 6. Rewrite UUIDs
-    for p in policies.iter_mut() { let n = PolicyId::new_v7(); policy_map.insert(p.id.clone(), n.clone()); p.id = n; p.script_id = new_script_id.clone(); }
-    for g in policy_groups.iter_mut() { let n = PolicyGroupId::new_v7(); group_map.insert(g.id.clone(), n.clone()); g.id = n; g.script_id = new_script_id.clone(); }
-    for s in policy_sets.iter_mut() { let n = PolicySetId::new_v7(); set_map.insert(s.id.clone(), n.clone()); s.id = n; s.script_id = new_script_id.clone(); }
-    for t in tasks.iter_mut() { t.id = TaskId::new_v7(); t.script_id = new_script_id.clone(); }
+    for p in policies.iter_mut() {
+        let n = PolicyId::new_v7();
+        policy_map.insert(p.id.clone(), n.clone());
+        p.id = n;
+        p.script_id = new_script_id.clone();
+    }
+    for g in policy_groups.iter_mut() {
+        let n = PolicyGroupId::new_v7();
+        group_map.insert(g.id.clone(), n.clone());
+        g.id = n;
+        g.script_id = new_script_id.clone();
+    }
+    for s in policy_sets.iter_mut() {
+        let n = PolicySetId::new_v7();
+        set_map.insert(s.id.clone(), n.clone());
+        s.id = n;
+        s.script_id = new_script_id.clone();
+    }
+    for t in tasks.iter_mut() {
+        t.id = TaskId::new_v7();
+        t.script_id = new_script_id.clone();
+    }
     for gp in group_policies.iter_mut() {
-        if let Some(n) = group_map.get(&gp.group_id) { gp.group_id = n.clone(); }
-        if let Some(n) = policy_map.get(&gp.policy_id) { gp.policy_id = n.clone(); }
+        if let Some(n) = group_map.get(&gp.group_id) {
+            gp.group_id = n.clone();
+        }
+        if let Some(n) = policy_map.get(&gp.policy_id) {
+            gp.policy_id = n.clone();
+        }
     }
     for sg in set_groups.iter_mut() {
-        if let Some(n) = set_map.get(&sg.set_id) { sg.set_id = n.clone(); }
-        if let Some(n) = group_map.get(&sg.group_id) { sg.group_id = n.clone(); }
+        if let Some(n) = set_map.get(&sg.set_id) {
+            sg.set_id = n.clone();
+        }
+        if let Some(n) = group_map.get(&sg.group_id) {
+            sg.group_id = n.clone();
+        }
     }
 
     // 7. Push to Transaction
     let affected_device_ids = match target_delete_id {
-        Some(target_script_id) => match load_assigned_device_ids_by_script(target_script_id).await {
-            Ok(device_ids) => device_ids,
-            Err(error) => return ApiResponse::error(Some(error)),
-        },
+        Some(target_script_id) => {
+            match load_assigned_device_ids_by_script(target_script_id).await {
+                Ok(device_ids) => device_ids,
+                Err(error) => return ApiResponse::error(Some(error)),
+            }
+        }
         None => Vec::new(),
     };
 
@@ -250,14 +310,30 @@ pub async fn clone_local_script_cmd(
     }
 
     if let Err(e) = crate::api::domain::script_batch_insert::batch_insert_script_related(
-        &mut tx, &script, &policies, &policy_groups, &policy_sets, &group_policies, &set_groups, &tasks,
-    ).await { return ApiResponse::error(Some(e)); }
+        &mut tx,
+        &script,
+        &policies,
+        &policy_groups,
+        &policy_sets,
+        &group_policies,
+        &set_groups,
+        &tasks,
+    )
+    .await
+    {
+        return ApiResponse::error(Some(e));
+    }
 
-    if let Err(e) = tx.commit().await { return ApiResponse::error(Some(e.to_string())); }
+    if let Err(e) = tx.commit().await {
+        return ApiResponse::error(Some(e.to_string()));
+    }
 
     if let Err(error) = sync_device_sessions_if_online(&app_handle, affected_device_ids).await {
         return ApiResponse::error(Some(error));
     }
-    
-    ApiResponse::success(Some(new_script_id.to_string()), Some("复制成功".to_string()))
+
+    ApiResponse::success(
+        Some(new_script_id.to_string()),
+        Some("复制成功".to_string()),
+    )
 }

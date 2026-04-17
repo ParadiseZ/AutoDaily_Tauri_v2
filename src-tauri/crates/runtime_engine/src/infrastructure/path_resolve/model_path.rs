@@ -1,12 +1,12 @@
+use crate::constant::sys_conf_path::{APP_STORE, SCRIPTS_CONFIG_KEY};
 use crate::domain::config::scripts_conf::ScriptsConfig;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::path_resolve::path_error::PathError;
+use crate::infrastructure::store_local::config_store::get_or_init_config;
 use std::path::PathBuf;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
-use crate::constant::sys_conf_path::{APP_STORE, SCRIPTS_CONFIG_KEY};
-use crate::infrastructure::store_local::config_store::get_or_init_config;
 
 /// 解析模型路径
 /*async fn resolve_model_path(path_type: &ModelPathType) -> Result<String, PathError> {
@@ -54,14 +54,17 @@ impl PathUtil {
                 ));
                 Ok(absolute_path)
             }
-            "custom" => {
-                tokio::runtime::Handle::current()
-                    .block_on(async {
-                        let absolute_path = get_or_init_config::<ScriptsConfig>(app_handle.store(APP_STORE).unwrap(), SCRIPTS_CONFIG_KEY).dir.join("/").join(path) ;
-                        Log::debug(&format!("自定义模型路径转换[{:?}]", absolute_path));
-                        Ok(PathBuf::from(absolute_path))
-                    })
-            }
+            "custom" => tokio::runtime::Handle::current().block_on(async {
+                let absolute_path = get_or_init_config::<ScriptsConfig>(
+                    app_handle.store(APP_STORE).unwrap(),
+                    SCRIPTS_CONFIG_KEY,
+                )
+                .dir
+                .join("/")
+                .join(path);
+                Log::debug(&format!("自定义模型路径转换[{:?}]", absolute_path));
+                Ok(PathBuf::from(absolute_path))
+            }),
             _ => Ok(PathBuf::from(path)),
         }
     }

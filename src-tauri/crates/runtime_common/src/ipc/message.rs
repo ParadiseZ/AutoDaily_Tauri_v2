@@ -1,8 +1,8 @@
 use bincode::{Decode, Encode};
 
 use crate::core::{
-    AccountId, Deserialize, DeviceId, ExecutionId, MessageId, PolicyGroupId, PolicyId,
-    PolicySetId, ScheduleId, ScriptId, Serialize, SessionId, StepId, TaskId, TemplateId,
+    AccountId, Deserialize, DeviceId, ExecutionId, MessageId, PolicyGroupId, PolicyId, PolicySetId,
+    ScheduleId, ScriptId, Serialize, SessionId, StepId, TaskId, TemplateId,
 };
 use crate::logging::LogLevel;
 

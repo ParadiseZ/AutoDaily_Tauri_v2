@@ -1,18 +1,21 @@
-use std::sync::Arc;
 use crate::app::config::short_cut::register_short_cut_by_config;
 use crate::constant::project::MAIN_WINDOW;
-use crate::constant::sys_conf_path::{APP_STORE, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY, VISION_TEXT_CACHE_CONFIG_KEY};
+use crate::constant::sys_conf_path::{
+    APP_STORE, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY,
+    VISION_TEXT_CACHE_CONFIG_KEY,
+};
+use crate::domain::config::notice_conf::EmailConfig;
+use crate::domain::config::scripts_conf::ScriptsConfig;
 use crate::domain::config::sys_conf::{StartMode, SystemConfig};
 use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
-use crate::infrastructure::app_handle::{init_app_handle};
+use crate::infrastructure::app_handle::init_app_handle;
+use crate::infrastructure::logging::config::LogMain;
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::store_local::config_store::get_or_init_config;
+use std::sync::Arc;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_store::{Store, StoreExt};
-use crate::domain::config::notice_conf::EmailConfig;
-use crate::domain::config::scripts_conf::ScriptsConfig;
-use crate::infrastructure::logging::config::LogMain;
-use crate::infrastructure::store_local::config_store::get_or_init_config;
 
 pub async fn init_at_start(app_handle: &AppHandle) {
     //初始化app_handle
@@ -22,7 +25,7 @@ pub async fn init_at_start(app_handle: &AppHandle) {
         panic!("初始化数据库失败: {}", e);
     }
     //初始化store
-    let store = match app_handle.store(APP_STORE){
+    let store = match app_handle.store(APP_STORE) {
         Ok(store) => store,
         Err(e) => {
             panic!("初始化store失败: {}", e);
@@ -48,7 +51,7 @@ pub async fn init_at_start(app_handle: &AppHandle) {
     // 初始化子进程管理器
     crate::infrastructure::context::child_process_manager::init_process_manager();
     // 初始化系统设置
-    let sys_conf : SystemConfig = get_or_init_config(store.clone(), SYSTEM_SETTINGS_KEY);
+    let sys_conf: SystemConfig = get_or_init_config(store.clone(), SYSTEM_SETTINGS_KEY);
     // 处理开机自启动
     init_autostart(app_handle, &sys_conf);
     // 初始化快捷键设置
@@ -173,7 +176,6 @@ pub fn init_start_model(app_handel: &AppHandle, sys_conf: &SystemConfig) {
     }
 }
 
-
 pub fn init_conf_async(store: Arc<Store<Wry>>) {
     tokio::spawn(async move {
         let mut changed = false;
@@ -182,17 +184,23 @@ pub fn init_conf_async(store: Arc<Store<Wry>>) {
             store.set(DEVICES_CONFIG_KEY, serde_json::to_value(&HashMap::<DeviceId, DeviceConfig>::default()).unwrap_or_default());
         };*/
         // 脚本设置
-        if !store.has(SCRIPTS_CONFIG_KEY){
-            store.set(SCRIPTS_CONFIG_KEY, serde_json::to_value(&ScriptsConfig::default()).unwrap_or_default());
+        if !store.has(SCRIPTS_CONFIG_KEY) {
+            store.set(
+                SCRIPTS_CONFIG_KEY,
+                serde_json::to_value(&ScriptsConfig::default()).unwrap_or_default(),
+            );
             changed = true;
         };
         // 通知设置
-        if !store.has(EMAIL_CONFIG_KEY){
-            store.set(EMAIL_CONFIG_KEY, serde_json::to_value(&EmailConfig::default()).unwrap_or_default());
+        if !store.has(EMAIL_CONFIG_KEY) {
+            store.set(
+                EMAIL_CONFIG_KEY,
+                serde_json::to_value(&EmailConfig::default()).unwrap_or_default(),
+            );
             changed = true;
         };
         // OCR 文字缓存设置
-        if !store.has(VISION_TEXT_CACHE_CONFIG_KEY){
+        if !store.has(VISION_TEXT_CACHE_CONFIG_KEY) {
             store.set(
                 VISION_TEXT_CACHE_CONFIG_KEY,
                 serde_json::to_value(&VisionTextCacheConfig::default()).unwrap_or_default(),

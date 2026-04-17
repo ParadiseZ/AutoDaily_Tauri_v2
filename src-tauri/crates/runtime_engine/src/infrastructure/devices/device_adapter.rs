@@ -180,7 +180,12 @@ impl DeviceAdapter for DesktopDeviceAdapter {
         Err(Self::unsupported("click"))
     }
 
-    async fn swipe(&self, _from: Point<u16>, _to: Point<u16>, _duration: u64) -> Result<(), String> {
+    async fn swipe(
+        &self,
+        _from: Point<u16>,
+        _to: Point<u16>,
+        _duration: u64,
+    ) -> Result<(), String> {
         Err(Self::unsupported("swipe"))
     }
 

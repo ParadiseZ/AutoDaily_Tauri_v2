@@ -1,13 +1,13 @@
-use crate::constant::table_name::DEVICE_TABLE;
 use crate::api::infrastructure::process_api::{
     cmd_device_shutdown, cmd_restart_device_runtime, cmd_sync_device_runtime_session,
 };
+use crate::constant::table_name::DEVICE_TABLE;
+use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::message::SessionCheckpointReason;
 use tauri::command;
-use crate::domain::devices::device_conf::DeviceTable;
 
 async fn reconcile_runtime_after_device_save(
     app_handle: &tauri::AppHandle,

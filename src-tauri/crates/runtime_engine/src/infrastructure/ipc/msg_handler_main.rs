@@ -5,10 +5,10 @@ use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::RuntimeEventMessage;
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use crate::infrastructure::mail::{
     load_email_config, send_timeout_email_in_background, EmailMessagePayload,
 };
-use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use tauri::{Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 

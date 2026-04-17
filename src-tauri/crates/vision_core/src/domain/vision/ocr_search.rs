@@ -3,9 +3,9 @@ use crate::infrastructure::vision::vision_error::VisionResult;
 use aho_corasick::AhoCorasick;
 use image::RgbaImage;
 use regex::Regex;
-use std::collections::HashSet;
-use std::cmp::Ordering;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, ts_rs::TS)]
 #[ts(export)]
@@ -156,7 +156,9 @@ impl VisionSnapshot {
 
     /// 根据字符偏移量查找关联的 OcrResult
     pub fn find_ocr_at(&self, offset: usize) -> Option<(usize, &OcrResult)> {
-        let idx = self.offset_map.binary_search_by(|(off, _)| off.cmp(&offset))
+        let idx = self
+            .offset_map
+            .binary_search_by(|(off, _)| off.cmp(&offset))
             .unwrap_or_else(|x| if x > 0 { x - 1 } else { 0 });
 
         self.offset_map
@@ -190,13 +192,9 @@ pub enum SearchScope {
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum SearchRule {
     /// OCR 文本包含
-    Txt {
-        pattern: String
-    },
+    Txt { pattern: String },
     /// 检测标签匹配
-    DetLabel{
-        idx: i32,
-    },
+    DetLabel { idx: i32 },
     /// 逻辑组
     Group {
         op: LogicOp,
@@ -275,7 +273,10 @@ impl OcrSearcher {
         } else {
             Some(AhoCorasick::new(&keywords).unwrap())
         };
-        Self { automaton, patterns: keywords }
+        Self {
+            automaton,
+            patterns: keywords,
+        }
     }
 
     /// 在文本快照中搜索，返回所有文本命中结果
@@ -314,47 +315,36 @@ impl SearchRule {
     /// 两者在 Group 逻辑中可自由组合。
     pub fn evaluate(&self, hits: &[SearchHit], det_results: &[DetResult]) -> bool {
         match self {
-            SearchRule::Txt { pattern } => {
-                hits.iter().any(|h| &h.pattern == pattern)
-            }
-            SearchRule::DetLabel { idx } => {
-                det_results.iter().any(|d| d.index == *idx )
-            }
-            SearchRule::Group { op, scope, items } => {
-                match scope {
-                    SearchScope::Global => {
-                        match op {
-                            LogicOp::And => items.iter().all(|r| r.evaluate(hits, det_results)),
-                            LogicOp::Or => items.iter().any(|r| r.evaluate(hits, det_results)),
-                            LogicOp::Not => {
-                                if items.is_empty() { true }
-                                else { !items[0].evaluate(hits, det_results) }
-                            }
+            SearchRule::Txt { pattern } => hits.iter().any(|h| &h.pattern == pattern),
+            SearchRule::DetLabel { idx } => det_results.iter().any(|d| d.index == *idx),
+            SearchRule::Group { op, scope, items } => match scope {
+                SearchScope::Global => match op {
+                    LogicOp::And => items.iter().all(|r| r.evaluate(hits, det_results)),
+                    LogicOp::Or => items.iter().any(|r| r.evaluate(hits, det_results)),
+                    LogicOp::Not => {
+                        if items.is_empty() {
+                            true
+                        } else {
+                            !items[0].evaluate(hits, det_results)
                         }
                     }
-                    SearchScope::Item => {
-                        use std::collections::HashMap;
-                        let mut item_hits: HashMap<String, Vec<SearchHit>> = HashMap::new();
-                        for hit in hits {
-                            let key = hit.ocr_item.txt.clone();
-                            item_hits.entry(key).or_default().push(hit.clone());
-                        }
+                },
+                SearchScope::Item => {
+                    use std::collections::HashMap;
+                    let mut item_hits: HashMap<String, Vec<SearchHit>> = HashMap::new();
+                    for hit in hits {
+                        let key = hit.ocr_item.txt.clone();
+                        item_hits.entry(key).or_default().push(hit.clone());
+                    }
 
-                        match op {
-                            LogicOp::And => {
-                                item_hits.values().any(|sub_hits| {
-                                    items.iter().all(|r| r.evaluate(sub_hits, det_results))
-                                })
-                            }
-                            LogicOp::Or => {
-                                items.iter().any(|r| r.evaluate(hits, det_results))
-                            }
-                            LogicOp::Not => {
-                                !item_hits.values().any(|sub_hits| {
-                                    items.iter().any(|r| r.evaluate(sub_hits, det_results))
-                                })
-                            }
-                        }
+                    match op {
+                        LogicOp::And => item_hits.values().any(|sub_hits| {
+                            items.iter().all(|r| r.evaluate(sub_hits, det_results))
+                        }),
+                        LogicOp::Or => items.iter().any(|r| r.evaluate(hits, det_results)),
+                        LogicOp::Not => !item_hits.values().any(|sub_hits| {
+                            items.iter().any(|r| r.evaluate(sub_hits, det_results))
+                        }),
                     }
                 }
             },
@@ -372,7 +362,7 @@ impl SearchRule {
     fn collect_keywords(&self, keywords: &mut Vec<String>) {
         match self {
             SearchRule::Txt { pattern } => keywords.push(pattern.clone()),
-            SearchRule::DetLabel { .. } => {},
+            SearchRule::DetLabel { .. } => {}
             SearchRule::Group { items, .. } => {
                 for item in items {
                     item.collect_keywords(keywords);
@@ -442,7 +432,12 @@ fn compare_det_items(left: &DetResult, right: &DetResult) -> Ordering {
     )
 }
 
-fn compare_layout(left: &StablePoint, right: &StablePoint, left_tail: &str, right_tail: &str) -> Ordering {
+fn compare_layout(
+    left: &StablePoint,
+    right: &StablePoint,
+    left_tail: &str,
+    right_tail: &str,
+) -> Ordering {
     left.y
         .cmp(&right.y)
         .then_with(|| left.x.cmp(&right.x))
@@ -480,7 +475,11 @@ fn build_layout_items(ocr_items: &[OcrResult], det_items: &[DetResult]) -> Vec<V
             &left.stable_center,
             &right.stable_center,
             left.text.as_deref().or(left.label.as_deref()).unwrap_or(""),
-            right.text.as_deref().or(right.label.as_deref()).unwrap_or(""),
+            right
+                .text
+                .as_deref()
+                .or(right.label.as_deref())
+                .unwrap_or(""),
         )
         .then_with(|| left.source.cmp(&right.source))
         .then_with(|| left.item_index.cmp(&right.item_index))
@@ -510,10 +509,24 @@ fn evaluate_relative_rule(
         })
 }
 
-fn match_anchor(item: &VisionLayoutItem, anchor_type: RelativeAnchorType, anchor_text: &str, anchor_idx: i32) -> bool {
+fn match_anchor(
+    item: &VisionLayoutItem,
+    anchor_type: RelativeAnchorType,
+    anchor_text: &str,
+    anchor_idx: i32,
+) -> bool {
     match anchor_type {
-        RelativeAnchorType::OcrText => item.source == VisionLayoutSource::Ocr && item.text.as_deref().map(|text| text.contains(anchor_text)).unwrap_or(false),
-        RelativeAnchorType::DetLabel => item.source == VisionLayoutSource::Det && item.label_index == Some(anchor_idx),
+        RelativeAnchorType::OcrText => {
+            item.source == VisionLayoutSource::Ocr
+                && item
+                    .text
+                    .as_deref()
+                    .map(|text| text.contains(anchor_text))
+                    .unwrap_or(false)
+        }
+        RelativeAnchorType::DetLabel => {
+            item.source == VisionLayoutSource::Det && item.label_index == Some(anchor_idx)
+        }
     }
 }
 
@@ -526,7 +539,9 @@ fn select_relative_target<'a>(
     snapshot
         .layout_items
         .iter()
-        .filter(|candidate| candidate.item_index != anchor.item_index || candidate.source != anchor.source)
+        .filter(|candidate| {
+            candidate.item_index != anchor.item_index || candidate.source != anchor.source
+        })
         .filter(|candidate| matches_target_kind(candidate, target_kind))
         .filter_map(|candidate| {
             relative_score(anchor, candidate, direction).map(|score| (score, candidate))
@@ -543,7 +558,11 @@ fn matches_target_kind(candidate: &VisionLayoutItem, target_kind: RelativeTarget
     }
 }
 
-fn relative_score(anchor: &VisionLayoutItem, candidate: &VisionLayoutItem, direction: RelativeDirection) -> Option<(i32, i32)> {
+fn relative_score(
+    anchor: &VisionLayoutItem,
+    candidate: &VisionLayoutItem,
+    direction: RelativeDirection,
+) -> Option<(i32, i32)> {
     let dx = candidate.stable_center.x - anchor.stable_center.x;
     let dy = candidate.stable_center.y - anchor.stable_center.y;
 
@@ -564,12 +583,36 @@ fn compare_relative_value(
     expected: &str,
 ) -> bool {
     match value_type {
-        RelativeValueType::Text => compare_text(candidate.text.as_deref().unwrap_or_default(), compare, expected),
-        RelativeValueType::Label => compare_text(candidate.label.as_deref().unwrap_or_default(), compare, expected),
-        RelativeValueType::LabelIndex => compare_number(candidate.label_index.map(|item| item as f64), compare, expected),
-        RelativeValueType::Number => compare_number(extract_number(candidate.text.as_deref().unwrap_or_default()), compare, expected),
-        RelativeValueType::FractionLeftNumber => compare_number(extract_fraction_number(candidate.text.as_deref().unwrap_or_default(), true), compare, expected),
-        RelativeValueType::FractionRightNumber => compare_number(extract_fraction_number(candidate.text.as_deref().unwrap_or_default(), false), compare, expected),
+        RelativeValueType::Text => compare_text(
+            candidate.text.as_deref().unwrap_or_default(),
+            compare,
+            expected,
+        ),
+        RelativeValueType::Label => compare_text(
+            candidate.label.as_deref().unwrap_or_default(),
+            compare,
+            expected,
+        ),
+        RelativeValueType::LabelIndex => compare_number(
+            candidate.label_index.map(|item| item as f64),
+            compare,
+            expected,
+        ),
+        RelativeValueType::Number => compare_number(
+            extract_number(candidate.text.as_deref().unwrap_or_default()),
+            compare,
+            expected,
+        ),
+        RelativeValueType::FractionLeftNumber => compare_number(
+            extract_fraction_number(candidate.text.as_deref().unwrap_or_default(), true),
+            compare,
+            expected,
+        ),
+        RelativeValueType::FractionRightNumber => compare_number(
+            extract_fraction_number(candidate.text.as_deref().unwrap_or_default(), false),
+            compare,
+            expected,
+        ),
     }
 }
 
@@ -617,7 +660,11 @@ fn extract_fraction_number(text: &str, left: bool) -> Option<f64> {
     let mut parts = normalized.split('/');
     let lhs = parts.next()?.parse::<f64>().ok()?;
     let rhs = parts.next()?.parse::<f64>().ok()?;
-    if left { Some(lhs) } else { Some(rhs) }
+    if left {
+        Some(lhs)
+    } else {
+        Some(rhs)
+    }
 }
 
 #[cfg(test)]
@@ -645,15 +692,13 @@ mod tests {
                 8,
             ),
         ];
-        let det = vec![
-            DetResult::new(
-                BoundingBox::new(100, 100, 150, 150),
-                5,
-                "button".into(),
-                0.8,
-                8,
-            )
-        ];
+        let det = vec![DetResult::new(
+            BoundingBox::new(100, 100, 150, 150),
+            5,
+            "button".into(),
+            0.8,
+            8,
+        )];
 
         // 构建快照 (不带图像则不分析颜色)
         let snapshot = VisionSnapshot::new(ocr, det.clone(), None, 8).unwrap();
@@ -668,9 +713,11 @@ mod tests {
             op: LogicOp::And,
             scope: SearchScope::Global,
             items: vec![
-                SearchRule::Txt { pattern: "Confirm".into() },
+                SearchRule::Txt {
+                    pattern: "Confirm".into(),
+                },
                 SearchRule::DetLabel { idx: 5 },
-            ]
+            ],
         };
 
         let searcher = OcrSearcher::new(&[rule.clone()]);
@@ -687,15 +734,13 @@ mod tests {
     #[test]
     fn test_yolo_only_rule_no_text_hit() {
         let ocr = vec![];
-        let det = vec![
-            DetResult::new(
-                BoundingBox::new(100, 100, 150, 150),
-                3,
-                "icon".into(),
-                0.9,
-                8,
-            )
-        ];
+        let det = vec![DetResult::new(
+            BoundingBox::new(100, 100, 150, 150),
+            3,
+            "icon".into(),
+            0.9,
+            8,
+        )];
 
         let snapshot = VisionSnapshot::new(ocr, det.clone(), None, 8).unwrap();
 
@@ -727,19 +772,19 @@ mod tests {
 
     #[test]
     fn test_deduplication() {
-        let ocr = vec![
-            OcrResult::new(
-                BoundingBox::new(10, 10, 100, 30),
-                "Hello Hello".to_string(),
-                vec![0.9, 0.9],
-                vec![0, 1],
-                vec!["H".into()],
-                8,
-            ),
-        ];
+        let ocr = vec![OcrResult::new(
+            BoundingBox::new(10, 10, 100, 30),
+            "Hello Hello".to_string(),
+            vec![0.9, 0.9],
+            vec![0, 1],
+            vec!["H".into()],
+            8,
+        )];
         let snapshot = VisionSnapshot::new(ocr, vec![], None, 8).unwrap();
 
-        let rule = SearchRule::Txt { pattern: "Hello".into() };
+        let rule = SearchRule::Txt {
+            pattern: "Hello".into(),
+        };
         let searcher = OcrSearcher::new(&[rule]);
         let hits = searcher.search(&snapshot);
 

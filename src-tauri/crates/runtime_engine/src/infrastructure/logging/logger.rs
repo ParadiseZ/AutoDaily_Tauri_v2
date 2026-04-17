@@ -96,14 +96,10 @@ impl LogMain {
         }
 
         let date_str = Local::now().format("%y%m%d").to_string();
-        let log_file = format!("{}_{}.log",app_name, date_str);
+        let log_file = format!("{}_{}.log", app_name, date_str);
 
         // 创建文件日志 appender（按天滚动）
-        let file_appender = RollingFileAppender::new(
-            Rotation::NEVER,
-            &log_dir_path,
-            log_file,
-        );
+        let file_appender = RollingFileAppender::new(Rotation::NEVER, &log_dir_path, log_file);
 
         // 创建可 reload 的级别过滤器
         let (filter, reload_handle) = reload::Layer::new(log_level_filter);
@@ -132,18 +128,24 @@ impl LogMain {
             .with(stdout_layer)
             .with(file_layer);
 
-        set_global_default(subscriber).map_err(|e| LogError::SetRegistryErr { e: e.to_string() })?;
+        set_global_default(subscriber)
+            .map_err(|e| LogError::SetRegistryErr { e: e.to_string() })?;
 
         // 记录启动日志
         //tracing::info!("===== {} 启动 =====", app_name);
-        tracing::info!("level: {:?}, Dir: {}", log_level_filter, log_dir_path.display());
+        tracing::info!(
+            "level: {:?}, Dir: {}",
+            log_level_filter,
+            log_dir_path.display()
+        );
 
         // 启动日志清理器
         if conf.retention_days > 0 {
             let cleaner_dir = log_dir_path.clone();
             let days = conf.retention_days;
             tokio::spawn(async move {
-                crate::infrastructure::logging::log_cleaner::LogCleaner::start(cleaner_dir, days).await;
+                crate::infrastructure::logging::log_cleaner::LogCleaner::start(cleaner_dir, days)
+                    .await;
             });
         }
 

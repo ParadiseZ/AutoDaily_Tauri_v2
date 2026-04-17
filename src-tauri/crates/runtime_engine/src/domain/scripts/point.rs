@@ -1,8 +1,8 @@
 //! A 2d point type.
 
+use crate::infrastructure::core::{Deserialize, Serialize};
 use num::{Num, NumCast};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
-use crate::infrastructure::core::{Deserialize, Serialize};
 
 /// A 2d point.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -149,8 +149,14 @@ impl Line {
 // ts-rs 具体类型别名（泛型 Point<T> 不能直接导出）
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
-pub struct PointU16 { pub x: u16, pub y: u16 }
+pub struct PointU16 {
+    pub x: u16,
+    pub y: u16,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
-pub struct PointF32 { pub x: f32, pub y: f32 }
+pub struct PointF32 {
+    pub x: f32,
+    pub y: f32,
+}

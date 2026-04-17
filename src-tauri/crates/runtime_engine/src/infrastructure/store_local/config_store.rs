@@ -8,7 +8,7 @@ use tauri_plugin_store::Store;
 /// 安全获取配置，失败时自动回填默认值
 pub fn get_or_init_config<T: Serialize + DeserializeOwned + Clone + Default>(
     store: Arc<Store<Wry>>,
-    key: &str
+    key: &str,
 ) -> T {
     // 尝试获取并解析
     if let Some(value) = store.get(key) {

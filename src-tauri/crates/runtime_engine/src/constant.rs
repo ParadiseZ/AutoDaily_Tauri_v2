@@ -39,15 +39,15 @@ pub mod scripts_files {
     pub const SUBFLOW_FILE: &str = "subflows.json";
 }
 
-pub mod table_name{
+pub mod table_name {
     pub const DEVICE_TABLE: &str = "devices";
     pub const SCRIPT_TABLE: &str = "scripts";
     pub const POLICY_TABLE: &str = "policies";
     pub const POLICY_GROUP_TABLE: &str = "policy_groups";
     pub const POLICY_SET_TABLE: &str = "policy_sets";
 
-    pub const GROUP_POLICIES:&str =  "group_policies";
-    pub const SET_GROUPS:&str =  "set_groups";
+    pub const GROUP_POLICIES: &str = "group_policies";
+    pub const SET_GROUPS: &str = "set_groups";
     pub const SCRIPT_TASK_TABLE: &str = "script_tasks";
 
     pub const ASSIGNMENT_TABLE: &str = "device_script_assignments";

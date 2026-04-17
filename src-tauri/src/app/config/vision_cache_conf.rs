@@ -4,11 +4,15 @@ use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
-pub async fn get_vision_text_cache_config_app(app_handle: &AppHandle) -> AppResult<VisionTextCacheConfig> {
-    let store = app_handle.store(APP_STORE).map_err(|e| AppError::SetConfigFailed {
-        detail: "读取 OCR 文字缓存设置失败".to_string(),
-        e: e.to_string(),
-    })?;
+pub async fn get_vision_text_cache_config_app(
+    app_handle: &AppHandle,
+) -> AppResult<VisionTextCacheConfig> {
+    let store = app_handle
+        .store(APP_STORE)
+        .map_err(|e| AppError::SetConfigFailed {
+            detail: "读取 OCR 文字缓存设置失败".to_string(),
+            e: e.to_string(),
+        })?;
 
     Ok(store
         .get(VISION_TEXT_CACHE_CONFIG_KEY)
@@ -20,10 +24,12 @@ pub async fn set_vision_text_cache_config_app(
     app_handle: &AppHandle,
     config: &VisionTextCacheConfig,
 ) -> AppResult<()> {
-    let store = app_handle.store(APP_STORE).map_err(|e| AppError::SetConfigFailed {
-        detail: "写入 OCR 文字缓存设置失败".to_string(),
-        e: e.to_string(),
-    })?;
+    let store = app_handle
+        .store(APP_STORE)
+        .map_err(|e| AppError::SetConfigFailed {
+            detail: "写入 OCR 文字缓存设置失败".to_string(),
+            e: e.to_string(),
+        })?;
 
     let value = serde_json::to_value(config).map_err(|e| AppError::SerializeConfErr {
         detail: "OCR 文字缓存设置".to_string(),

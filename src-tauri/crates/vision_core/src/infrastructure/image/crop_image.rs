@@ -16,29 +16,29 @@ pub fn get_crop_images(
 
     let cropped_images = results
         .par_iter()
-        .filter_map(|det_res| {
-            get_crop_image(img, det_res).ok()
-        })
+        .filter_map(|det_res| get_crop_image(img, det_res).ok())
         .collect();
     Ok(cropped_images)
 }
 pub fn get_crop_image(img: &DynamicImage, det_res: &DetResult) -> ImageResult<DynamicImage> {
     let res = &det_res.bounding_box;
     let box_width = (res.x2 as f32 - res.x1 as f32).abs().max(1.0) as u32;
-    if box_width < 8u32 { // crnn至少为8
+    if box_width < 8u32 {
+        // crnn至少为8
         Log::error("图像裁剪错误：box_width < 8,图像区域太小！");
         return Err(ImageError::CropErr {
             detail: det_res.to_string(),
             e: "".to_string(),
-        })
+        });
     }
     let box_height = (res.y2 as f32 - res.y1 as f32).abs().max(1.0) as u32;
-    if box_height < 8u32 { // crnn至少为8
+    if box_height < 8u32 {
+        // crnn至少为8
         Log::error("图像裁剪错误：box_height < 8,图像区域太小！");
         return Err(ImageError::CropErr {
             detail: det_res.to_string(),
             e: "".to_string(),
-        })
+        });
     }
     Ok(img.crop_imm(res.x1 as u32, res.y1 as u32, box_width, box_height))
 }

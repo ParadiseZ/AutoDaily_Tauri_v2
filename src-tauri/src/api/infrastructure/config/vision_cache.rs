@@ -5,7 +5,9 @@ use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use tauri::{command, AppHandle};
 
 #[command]
-pub async fn get_vision_text_cache_config_cmd(app_handle: AppHandle) -> Result<VisionTextCacheConfig, String> {
+pub async fn get_vision_text_cache_config_cmd(
+    app_handle: AppHandle,
+) -> Result<VisionTextCacheConfig, String> {
     get_vision_text_cache_config_app(&app_handle)
         .await
         .map_err(|e| format!("读取 OCR 文字缓存设置失败: {}", e))

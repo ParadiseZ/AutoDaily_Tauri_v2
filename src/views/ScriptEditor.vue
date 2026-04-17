@@ -48,9 +48,9 @@
             </button>
             <div class="min-w-[280px]">
               <AppSelect
-                v-model="activeTargetValue"
-                :options="activeTargetSelectOptions"
-                :placeholder="activeTargetSelectPlaceholder"
+                v-model="selectedRunTargetKey"
+                :options="runTargetSelectOptions"
+                :placeholder="runTargetSelectPlaceholder"
                 test-id="editor-header-target-item"
               />
             </div>
@@ -639,6 +639,7 @@ const editingDeviceId = ref<string | null>(null);
 const textDetLabelOptions = ref<Array<{ label: string; value: number; description?: string }>>([]);
 const textDetLabelHint = ref<string | null>('请先在脚本信息里设置文字检测模型的标签文件。');
 const textDetLabelLoading = ref(false);
+const selectedRunTargetKey = ref<string | null>(null);
 
 const MAX_CONSOLE_LINES = 300;
 let detachChildLogListener: null | (() => void) = null;
@@ -776,24 +777,75 @@ const activeModeFocusName = computed(() => {
   }
 });
 
-const activeTargetSelectPlaceholder = computed(() => `选择${activeModeLabel.value}`);
+const buildRunTargetKey = (
+  kind: 'fullScript' | 'task' | 'policy' | 'policyGroup' | 'policySet',
+  id?: string | null,
+) => `${kind}:${id ?? ''}`;
 
-const activeTargetSelectOptions = computed(() => {
+const runTargetSelectPlaceholder = computed(() => '选择运行目标');
+
+const runTargetSelectOptions = computed(() => {
+  const options: Array<{ label: string; value: string; description?: string }> = [];
+
+  if (draftScript.value && scriptId.value) {
+    options.push({
+      label: `整脚本 · ${draftScript.value.data.name || scriptId.value}`,
+      value: buildRunTargetKey('fullScript', scriptId.value),
+      description: '调试运行整个脚本',
+    });
+  }
+
+  options.push(
+    ...draftTasks.value.map((task) => ({
+      label: `任务 · ${task.name}`,
+      value: buildRunTargetKey('task', task.id),
+      description: `${task.rowType === 'title' ? '标题行' : '任务行'} · ${task.index + 1}`,
+    })),
+  );
+  options.push(
+    ...policyItems.value.map((item) => ({
+      label: `策略 · ${item.title}`,
+      value: buildRunTargetKey('policy', item.id),
+      description: item.subtitle,
+    })),
+  );
+  options.push(
+    ...policyGroupItems.value.map((item) => ({
+      label: `策略组 · ${item.title}`,
+      value: buildRunTargetKey('policyGroup', item.id),
+      description: item.subtitle,
+    })),
+  );
+  options.push(
+    ...policySetItems.value.map((item) => ({
+      label: `策略集 · ${item.title}`,
+      value: buildRunTargetKey('policySet', item.id),
+      description: item.subtitle,
+    })),
+  );
+
+  return options;
+});
+
+const currentEditorRunTargetKey = computed(() => {
+  if (!scriptId.value) {
+    return null;
+  }
   if (activeMode.value === 'policy') {
-    return policyItems.value.map((item) => ({ label: item.title, value: item.id, description: item.subtitle }));
+    return selectedPolicyId.value ? buildRunTargetKey('policy', selectedPolicyId.value) : null;
   }
   if (activeMode.value === 'policyGroup') {
-    return policyGroupItems.value.map((item) => ({ label: item.title, value: item.id, description: item.subtitle }));
+    return selectedPolicyGroupId.value ? buildRunTargetKey('policyGroup', selectedPolicyGroupId.value) : null;
   }
   if (activeMode.value === 'policySet') {
-    return policySetItems.value.map((item) => ({ label: item.title, value: item.id, description: item.subtitle }));
+    return selectedPolicySetId.value ? buildRunTargetKey('policySet', selectedPolicySetId.value) : null;
   }
-  return draftTasks.value.map((task) => ({
-    label: task.name,
-    value: task.id,
-    description: `${task.rowType === 'title' ? '标题行' : '任务行'} · ${task.index + 1}`,
-  }));
+  return selectedTaskId.value ? buildRunTargetKey('task', selectedTaskId.value) : buildRunTargetKey('fullScript', scriptId.value);
 });
+
+const selectedRunTargetOption = computed(
+  () => runTargetSelectOptions.value.find((option) => option.value === selectedRunTargetKey.value) ?? null,
+);
 
 const scriptRecoveryTaskOptions = computed(() =>
   draftTasks.value
@@ -830,7 +882,7 @@ const activeTargetValue = computed<string | null>({
 });
 
 const runSelectionDisabledReason = computed(() => {
-  if (!selectedPreviewDeviceId.value || !activeTargetValue.value) {
+  if (!selectedPreviewDeviceId.value || !selectedRunTargetKey.value) {
     return '请先选择设备和目标对象。';
   }
 
@@ -2112,39 +2164,53 @@ const savePreviewDevice = async (form: DeviceFormState) => {
 };
 
 const buildActiveRunTarget = (): RunTarget | null => {
-  if (!scriptId.value || !activeTargetValue.value) {
+  if (!scriptId.value || !selectedRunTargetKey.value) {
     return null;
   }
 
-  if (activeMode.value === 'policy') {
+  const [kind, rawId] = selectedRunTargetKey.value.split(':', 2);
+  const targetId = rawId?.trim() || '';
+
+  if (kind === 'fullScript') {
+    return {
+      type: 'fullScript',
+      scriptId: scriptId.value,
+    };
+  }
+
+  if (!targetId) {
+    return null;
+  }
+
+  if (kind === 'policy') {
     return {
       type: 'policy',
       scriptId: scriptId.value,
-      policyId: activeTargetValue.value,
+      policyId: targetId,
     };
   }
 
-  if (activeMode.value === 'policyGroup') {
+  if (kind === 'policyGroup') {
     return {
       type: 'policyGroup',
       scriptId: scriptId.value,
-      policyGroupId: activeTargetValue.value,
+      policyGroupId: targetId,
     };
   }
 
-  if (activeMode.value === 'policySet') {
+  if (kind === 'policySet') {
     return {
       type: 'policySet',
       scriptId: scriptId.value,
-      policySetId: activeTargetValue.value,
+      policySetId: targetId,
     };
   }
 
-  if (activeMode.value === 'task') {
+  if (kind === 'task') {
     return {
       type: 'task',
       scriptId: scriptId.value,
-      taskId: activeTargetValue.value,
+      taskId: targetId,
     };
   }
 
@@ -2152,7 +2218,7 @@ const buildActiveRunTarget = (): RunTarget | null => {
 };
 
 const handleRunSelection = async () => {
-  if (!selectedPreviewDevice.value || !selectedPreviewDeviceId.value || !activeTargetValue.value) {
+  if (!selectedPreviewDevice.value || !selectedPreviewDeviceId.value || !selectedRunTargetKey.value) {
     showToast('请先选择设备和目标对象。', 'warning');
     return;
   }
@@ -2191,7 +2257,9 @@ const handleRunSelection = async () => {
     }
   }
 
-  appendConsoleLine(`请求运行：设备=${selectedPreviewDevice.value.data.deviceName}，目标=${activeModeLabel.value} ${activeModeFocusName.value || activeTargetValue.value}`);
+  appendConsoleLine(
+    `请求运行：设备=${selectedPreviewDevice.value.data.deviceName}，目标=${selectedRunTargetOption.value?.label || selectedRunTargetKey.value}`,
+  );
 
   try {
     const result = await runtimeService.runScriptTarget(selectedPreviewDeviceId.value, runTarget);
@@ -3337,6 +3405,18 @@ watch(
   () => scriptId.value,
   async () => {
     await loadEditor();
+  },
+  { immediate: true },
+);
+
+watch(
+  [currentEditorRunTargetKey, runTargetSelectOptions],
+  () => {
+    const hasCurrent = runTargetSelectOptions.value.some((option) => option.value === selectedRunTargetKey.value);
+    if (hasCurrent) {
+      return;
+    }
+    selectedRunTargetKey.value = currentEditorRunTargetKey.value;
   },
   { immediate: true },
 );

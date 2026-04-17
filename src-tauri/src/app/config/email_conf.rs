@@ -6,10 +6,12 @@ use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
 pub async fn get_email_config_app(app_handle: &AppHandle) -> AppResult<EmailConfig> {
-    let store = app_handle.store(APP_STORE).map_err(|e| AppError::SetConfigFailed {
-        detail: "读取邮件配置失败".to_string(),
-        e: e.to_string(),
-    })?;
+    let store = app_handle
+        .store(APP_STORE)
+        .map_err(|e| AppError::SetConfigFailed {
+            detail: "读取邮件配置失败".to_string(),
+            e: e.to_string(),
+        })?;
 
     Ok(store
         .get(EMAIL_CONFIG_KEY)
@@ -17,14 +19,13 @@ pub async fn get_email_config_app(app_handle: &AppHandle) -> AppResult<EmailConf
         .unwrap_or_default())
 }
 
-pub async fn set_email_config_app(
-    app_handle: &AppHandle,
-    config: &EmailConfig,
-) -> AppResult<()> {
-    let store = app_handle.store(APP_STORE).map_err(|e| AppError::SetConfigFailed {
-        detail: "写入邮件配置失败".to_string(),
-        e: e.to_string(),
-    })?;
+pub async fn set_email_config_app(app_handle: &AppHandle, config: &EmailConfig) -> AppResult<()> {
+    let store = app_handle
+        .store(APP_STORE)
+        .map_err(|e| AppError::SetConfigFailed {
+            detail: "写入邮件配置失败".to_string(),
+            e: e.to_string(),
+        })?;
 
     let normalized = normalize_email_config(config.clone());
     let value = serde_json::to_value(&normalized).map_err(|e| AppError::SerializeConfErr {

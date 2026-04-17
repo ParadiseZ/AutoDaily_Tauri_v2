@@ -1,6 +1,8 @@
 use crate::domain::scripts::script_decision::Step;
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchRule, VisionSnapshot};
-use crate::infrastructure::core::{Deserialize, PolicyGroupId, PolicyId, PolicySetId, ScriptId, Serialize};
+use crate::infrastructure::core::{
+    Deserialize, PolicyGroupId, PolicyId, PolicySetId, ScriptId, Serialize,
+};
 use sqlx::types::Json;
 use sqlx::FromRow;
 
@@ -25,7 +27,7 @@ pub struct PolicyInfo {
 
     pub cur_pos: u16,
 
-    pub skip_flag : bool,
+    pub skip_flag: bool,
     pub exec_max: u16,
 
     pub before_action: Vec<Step>,
@@ -118,12 +120,13 @@ impl<'a> PolicySetEvaluator<'a> {
 
         let rules: Vec<SearchRule> = self.policies.iter().map(|p| p.cond.clone()).collect();
         let searcher = OcrSearcher::new(&rules);
-        
+
         // 3. 执行单次视觉搜索
         let hits = searcher.search(snapshot);
 
         // 4. 返回所有满足条件的策略
-        self.policies.iter()
+        self.policies
+            .iter()
             .filter(|p| p.cond.evaluate(&hits, &snapshot.det_items))
             .copied()
             .collect()

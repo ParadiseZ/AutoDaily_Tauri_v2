@@ -10,7 +10,9 @@ fn parse_device_id(value: String) -> Result<DeviceId, String> {
         .map_err(|error| error.to_string())
 }
 
-pub async fn load_assigned_device_ids_by_script(script_id: ScriptId) -> Result<Vec<DeviceId>, String> {
+pub async fn load_assigned_device_ids_by_script(
+    script_id: ScriptId,
+) -> Result<Vec<DeviceId>, String> {
     let query = format!(
         "SELECT DISTINCT device_id FROM {} WHERE script_id = ? ORDER BY device_id ASC",
         ASSIGNMENT_TABLE

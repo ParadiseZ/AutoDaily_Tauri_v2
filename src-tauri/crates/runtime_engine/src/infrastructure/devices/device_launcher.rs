@@ -5,10 +5,10 @@ use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::logging::log_trait::Log;
 
-use std::net::SocketAddr;
-use std::time::Duration;
 use adb_client::server::ADBServer;
 use adb_client::tcp::ADBTcpDevice;
+use std::net::SocketAddr;
+use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::sleep;
 
@@ -28,10 +28,7 @@ const RETRY_INTERVAL: Duration = Duration::from_secs(3);
 pub async fn launch_device(config: &DeviceConfig) -> Result<(), String> {
     // 1. 启动模拟器进程
     if let Some(exe_path) = &config.exe_path {
-        Log::info(&format!(
-            "[ launcher ] 正在启动模拟器: {}",
-            exe_path
-        ));
+        Log::info(&format!("[ launcher ] 正在启动模拟器: {}", exe_path));
 
         let mut cmd = Command::new(exe_path);
 
@@ -108,7 +105,10 @@ fn probe_connection(adb_connect: &ADBConnectConfig) -> Result<(), String> {
     match adb_connect {
         ADBConnectConfig::ServerConnectByName(dev) => {
             if !dev.valid() {
-                return Err("ServerConnectByName 配置无效（缺少 adb_path / server_connect / device_name）".into());
+                return Err(
+                    "ServerConnectByName 配置无效（缺少 adb_path / server_connect / device_name）"
+                        .into(),
+                );
             }
             let mut server = ADBServer::new_from_path(
                 dev.adb_config.server_connect.unwrap(),
@@ -121,7 +121,10 @@ fn probe_connection(adb_connect: &ADBConnectConfig) -> Result<(), String> {
         }
         ADBConnectConfig::ServerConnectByIp(dev) => {
             if !dev.valid() {
-                return Err("ServerConnectByIp 配置无效（缺少 adb_path / server_connect / client_connect）".into());
+                return Err(
+                    "ServerConnectByIp 配置无效（缺少 adb_path / server_connect / client_connect）"
+                        .into(),
+                );
             }
             let mut adb_server = ADBServer::new_from_path(
                 dev.adb_config.server_connect.unwrap(),
@@ -141,8 +144,6 @@ fn probe_connection(adb_connect: &ADBConnectConfig) -> Result<(), String> {
                 .map_err(|e| format!("DirectTcp 连接失败 ({}): {}", addr, e))?;
             Ok(())
         }
-        ADBConnectConfig::DirectUsb(_) => {
-            Err("DirectUsb 暂不支持".into())
-        }
+        ADBConnectConfig::DirectUsb(_) => Err("DirectUsb 暂不支持".into()),
     }
 }

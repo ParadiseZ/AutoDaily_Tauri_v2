@@ -29,7 +29,12 @@ pub struct IpcClient {
 
 impl std::fmt::Display for IpcClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "IpcClient id:{}, log_level:{}",self.device_id.as_uuid(), LogLevel::from(self.log_level.load(Ordering::Acquire)))
+        write!(
+            f,
+            "IpcClient id:{}, log_level:{}",
+            self.device_id.as_uuid(),
+            LogLevel::from(self.log_level.load(Ordering::Acquire))
+        )
     }
 }
 
@@ -48,7 +53,10 @@ impl IpcClient {
         let stream = LocalSocketStream::connect(
             SOCKET_NAME
                 .to_ns_name::<interprocess::local_socket::GenericNamespaced>()
-                .map_err(|e| ChannelError::ConnectErr { device_id: self.device_id.clone().to_string(), e: e.to_string(), })?
+                .map_err(|e| ChannelError::ConnectErr {
+                    device_id: self.device_id.clone().to_string(),
+                    e: e.to_string(),
+                })?,
         )
         .await
         .map_err(|e| ChannelError::ConnectErr {
@@ -103,7 +111,7 @@ impl IpcClient {
                         set_running_status(RunningStatus::Error);
                         break;
                     }
-                }else {
+                } else {
                     connect_num = 0;
                 }
             }
@@ -213,7 +221,10 @@ impl IpcClient {
     pub async fn send_ensure(&self, msg: IpcMessage) -> ChannelResult<()> {
         let tx = self.ensure_sender.lock().await;
         if let Some(sender) = tx.as_ref() {
-            sender.send(msg).await.map_err(|e| ChannelError::SendErr{e: e.to_string()})
+            sender
+                .send(msg)
+                .await
+                .map_err(|e| ChannelError::SendErr { e: e.to_string() })
         } else {
             Err(ChannelError::ChannelClosed {
                 device_id: self.device_id.clone().to_string(),
@@ -229,7 +240,8 @@ impl IpcClient {
                     if let Ok((msg, _)) =
                         decode_from_slice::<IpcMessage, _>(&buffer, serialize_config())
                     {
-                        crate::infrastructure::ipc::msg_handler_child::handle_main_message(msg).await;
+                        crate::infrastructure::ipc::msg_handler_child::handle_main_message(msg)
+                            .await;
                     }
                 }
                 Err(_) => break, // 连接断开

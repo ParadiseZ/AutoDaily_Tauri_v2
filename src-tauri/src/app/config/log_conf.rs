@@ -10,7 +10,11 @@ use crate::infrastructure::logging::LogLevel;
 use tauri_plugin_store::StoreExt;
 
 /// 持久化日志配置到 store
-fn persist_log_config_to_store(log_level: Option<&LogLevel>, log_dir: Option<&str>, retention_days: Option<u32>) {
+fn persist_log_config_to_store(
+    log_level: Option<&LogLevel>,
+    log_dir: Option<&str>,
+    retention_days: Option<u32>,
+) {
     let app = get_app_handle();
     if let Ok(store) = app.store(APP_STORE) {
         // 读取当前配置
@@ -80,11 +84,15 @@ pub async fn clean_logs_now_app() -> AppResult<()> {
 }
 
 /// 更新子进程日志级别（通过 IPC 发送 + 持久化到数据库 device_config）
-pub async fn update_child_log_level_app(device_id: DeviceId, log_level: &LogLevel) -> AppResult<()> {
+pub async fn update_child_log_level_app(
+    device_id: DeviceId,
+    log_level: &LogLevel,
+) -> AppResult<()> {
     // TODO: 第二阶段 - 通过 IPC 发送 ConfigUpdate 消息到子进程
     // 当前先记录日志，IPC 实现将在子进程功能完成时补充
-    Log::info(
-        &format!("[ log ] 子进程[{}]日志级别更新为: {} (IPC发送待第二阶段实现)", device_id, log_level)
-    );
+    Log::info(&format!(
+        "[ log ] 子进程[{}]日志级别更新为: {} (IPC发送待第二阶段实现)",
+        device_id, log_level
+    ));
     Ok(())
 }

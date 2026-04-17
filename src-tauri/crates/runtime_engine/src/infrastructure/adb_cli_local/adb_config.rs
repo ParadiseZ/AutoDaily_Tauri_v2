@@ -1,6 +1,6 @@
+use crate::infrastructure::core::{Deserialize, Serialize};
 use std::net::SocketAddrV4;
 use std::path::PathBuf;
-use crate::infrastructure::core::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize, ts_rs::TS)]
 #[ts(export)]
@@ -69,29 +69,45 @@ pub enum ADBConnectConfig {
 impl std::fmt::Display for ADBConnectConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ADBConnectConfig::ServerConnectByName(config) =>
-                write!(f,
-                       "ServerConnectByName-→ name:{},ip:{},adb_path:{}",
-                       config.device_name.as_deref().unwrap_or(""),
-                       config.adb_config.server_connect.map(|addr| addr.to_string())
-                           .as_deref()
-                           .unwrap_or(""),
-                       config.adb_config.adb_path.as_deref().unwrap_or("")),
-            ADBConnectConfig::ServerConnectByIp(config) =>
-                write!(f, "ServerConnectByIp-→ device_ip:{},server_ip:{},adb_path:{}",
-                    config.client_connect.map(|addr| addr.to_string())
-                        .as_deref()
-                        .unwrap_or(""),
-                    config.adb_config.server_connect.map(|addr| addr.to_string())
-                        .as_deref()
-                        .unwrap_or(""),
-                    config.adb_config.adb_path.as_deref().unwrap_or("")),
-            ADBConnectConfig::DirectTcp(config) => write!(f, "DirectTcp--> {}", config.map(|addr| addr.to_string()).as_deref().unwrap_or("")),
-            ADBConnectConfig::DirectUsb(config) => write!(f, "DirectUsb: {}:{}", config.vendor_id, config.product_id),
+            ADBConnectConfig::ServerConnectByName(config) => write!(
+                f,
+                "ServerConnectByName-→ name:{},ip:{},adb_path:{}",
+                config.device_name.as_deref().unwrap_or(""),
+                config
+                    .adb_config
+                    .server_connect
+                    .map(|addr| addr.to_string())
+                    .as_deref()
+                    .unwrap_or(""),
+                config.adb_config.adb_path.as_deref().unwrap_or("")
+            ),
+            ADBConnectConfig::ServerConnectByIp(config) => write!(
+                f,
+                "ServerConnectByIp-→ device_ip:{},server_ip:{},adb_path:{}",
+                config
+                    .client_connect
+                    .map(|addr| addr.to_string())
+                    .as_deref()
+                    .unwrap_or(""),
+                config
+                    .adb_config
+                    .server_connect
+                    .map(|addr| addr.to_string())
+                    .as_deref()
+                    .unwrap_or(""),
+                config.adb_config.adb_path.as_deref().unwrap_or("")
+            ),
+            ADBConnectConfig::DirectTcp(config) => write!(
+                f,
+                "DirectTcp--> {}",
+                config.map(|addr| addr.to_string()).as_deref().unwrap_or("")
+            ),
+            ADBConnectConfig::DirectUsb(config) => {
+                write!(f, "DirectUsb: {}:{}", config.vendor_id, config.product_id)
+            }
         }
     }
 }
-
 
 impl ADBConnectConfig {
     pub fn valid(&self) -> bool {
@@ -121,9 +137,8 @@ impl ADBConnectConfig {
     /// 更新 server_connect 地址（仅对 Server 类型有效）
     pub fn update_server_addr(&mut self, addr: Option<String>) {
         use std::net::SocketAddrV4;
-        let parsed: Option<SocketAddrV4> = addr
-            .as_deref()
-            .and_then(|s| s.parse::<SocketAddrV4>().ok());
+        let parsed: Option<SocketAddrV4> =
+            addr.as_deref().and_then(|s| s.parse::<SocketAddrV4>().ok());
         match self {
             ADBConnectConfig::ServerConnectByName(config) => {
                 config.adb_config.server_connect = parsed;
@@ -137,4 +152,3 @@ impl ADBConnectConfig {
         }
     }
 }
-

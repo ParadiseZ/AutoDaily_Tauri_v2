@@ -6,9 +6,9 @@ use tauri::{command, AppHandle};
 #[command]
 pub async fn set_system_settings_cmd(
     app_handle: AppHandle,
-    system_config: SystemConfig
+    system_config: SystemConfig,
 ) -> Result<String, String> {
-    match set_system_settings_app(  &app_handle,system_config).await {
+    match set_system_settings_app(&app_handle, system_config).await {
         Ok(_) => Ok("设置成功！".to_string()),
         Err(e) => Err(format!("设置失败:{}", e.to_string())),
     }

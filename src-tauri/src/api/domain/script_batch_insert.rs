@@ -1,7 +1,6 @@
 use crate::domain::scripts::policy::*;
 /// 脚本及关联数据的批量插入工具
 /// 用于统一 backend_download_script 和 clone_local_script_cmd 中的重复插入逻辑
-
 use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use sqlx::{Sqlite, Transaction};
@@ -38,7 +37,8 @@ pub async fn batch_insert_script_related(
     // 2. Batch insert policies (4 bind params each)
     if !policies.is_empty() {
         for chunk in policies.chunks(50) {
-            let placeholders: Vec<String> = chunk.iter().map(|_| "(?, ?, ?, ?)".to_string()).collect();
+            let placeholders: Vec<String> =
+                chunk.iter().map(|_| "(?, ?, ?, ?)".to_string()).collect();
             let sql = format!(
                 "INSERT INTO policies (id, script_id, order_index, `data`) VALUES {}",
                 placeholders.join(", ")
@@ -47,14 +47,18 @@ pub async fn batch_insert_script_related(
             for p in chunk {
                 query = bind_chunk!(query, p);
             }
-            query.execute(&mut **tx).await.map_err(|e| format!("批量写入 policies 失败: {}", e))?;
+            query
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| format!("批量写入 policies 失败: {}", e))?;
         }
     }
 
     // 3. Batch insert policy_groups (4 bind params each)
     if !policy_groups.is_empty() {
         for chunk in policy_groups.chunks(50) {
-            let placeholders: Vec<String> = chunk.iter().map(|_| "(?, ?, ?, ?)".to_string()).collect();
+            let placeholders: Vec<String> =
+                chunk.iter().map(|_| "(?, ?, ?, ?)".to_string()).collect();
             let sql = format!(
                 "INSERT INTO policy_groups (id, script_id, order_index, `data`) VALUES {}",
                 placeholders.join(", ")
@@ -63,14 +67,18 @@ pub async fn batch_insert_script_related(
             for g in chunk {
                 query = bind_chunk!(query, g);
             }
-            query.execute(&mut **tx).await.map_err(|e| format!("批量写入 policy_groups 失败: {}", e))?;
+            query
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| format!("批量写入 policy_groups 失败: {}", e))?;
         }
     }
 
     // 4. Batch insert policy_sets (4 bind params each)
     if !policy_sets.is_empty() {
         for chunk in policy_sets.chunks(50) {
-            let placeholders: Vec<String> = chunk.iter().map(|_| "(?, ?, ?, ?)".to_string()).collect();
+            let placeholders: Vec<String> =
+                chunk.iter().map(|_| "(?, ?, ?, ?)".to_string()).collect();
             let sql = format!(
                 "INSERT INTO policy_sets (id, script_id, order_index, `data`) VALUES {}",
                 placeholders.join(", ")
@@ -79,7 +87,10 @@ pub async fn batch_insert_script_related(
             for s in chunk {
                 query = bind_chunk!(query, s);
             }
-            query.execute(&mut **tx).await.map_err(|e| format!("批量写入 policy_sets 失败: {}", e))?;
+            query
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| format!("批量写入 policy_sets 失败: {}", e))?;
         }
     }
 
@@ -98,7 +109,10 @@ pub async fn batch_insert_script_related(
                     .bind(gp.policy_id.to_string())
                     .bind(gp.order_index);
             }
-            query.execute(&mut **tx).await.map_err(|e| format!("批量写入 group_policies 失败: {}", e))?;
+            query
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| format!("批量写入 group_policies 失败: {}", e))?;
         }
     }
 
@@ -117,7 +131,10 @@ pub async fn batch_insert_script_related(
                     .bind(sg.group_id.to_string())
                     .bind(sg.order_index);
             }
-            query.execute(&mut **tx).await.map_err(|e| format!("批量写入 set_groups 失败: {}", e))?;
+            query
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| format!("批量写入 set_groups 失败: {}", e))?;
         }
     }
 
@@ -156,7 +173,10 @@ pub async fn batch_insert_script_related(
                     .bind(t.is_deleted)
                     .bind(t.index as i64);
             }
-            query.execute(&mut **tx).await.map_err(|e| format!("批量写入 script_tasks 失败: {}", e))?;
+            query
+                .execute(&mut **tx)
+                .await
+                .map_err(|e| format!("批量写入 script_tasks 失败: {}", e))?;
         }
     }
 

@@ -1,5 +1,5 @@
-use crate::domain::devices::device_conf::DeviceConfig;
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
+use crate::domain::devices::device_conf::DeviceConfig;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::logging::LogLevel;
 use serde::{Deserialize, Serialize};

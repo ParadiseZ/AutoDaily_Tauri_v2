@@ -4,7 +4,7 @@ use crate::infrastructure::core::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
-pub enum DataHanding{
+pub enum DataHanding {
     SetVar {
         name: String,
         val: Option<VarValue>, // 如果有提供，则设置静态值
@@ -14,13 +14,13 @@ pub enum DataHanding{
         name: String,
         default_val: Option<VarValue>, // 如果找不到该值时的默认值
     },
-    Filter{
-        input_var: String,  
-        out_name: String, 
-        mode: FilterMode,     // Filter 或是 Map 模式
-        logic_expr: String, 
+    Filter {
+        input_var: String,
+        out_name: String,
+        mode: FilterMode, // Filter 或是 Map 模式
+        logic_expr: String,
         then_steps: Vec<Step>,
-    }
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
@@ -28,7 +28,7 @@ pub enum DataHanding{
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum FilterMode {
     Filter,
-    Map
+    Map,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]

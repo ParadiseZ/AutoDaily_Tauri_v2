@@ -1,7 +1,7 @@
-use std::ops::Add;
-use image::RgbaImage;
 use crate::domain::scripts::point::Point;
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use image::RgbaImage;
+use std::ops::Add;
 
 // Constants
 pub const BACK: &str = "input keyevent 4";
@@ -19,45 +19,27 @@ pub fn sleep_cmd(interval: u64) -> String {
 }
 
 pub fn click_cmd(p: &Point<u16>) -> String {
-    format!("{} {},{}", CLICK, p.x,p.y)
+    format!("{} {},{}", CLICK, p.x, p.y)
 }
 pub fn long_click_cmd(p1: &Point<u16>) -> String {
     let p2 = p1.add(Point::new(1, 1));
     format!(
         "{} {},{} {},{} {}",
-        TOUCH_SCREEN,
-        p1.x,
-        p1.y,
-        p2.x,
-        p2.y,
-        1500
+        TOUCH_SCREEN, p1.x, p1.y, p2.x, p2.y, 1500
     )
 }
-pub fn long_click_and_swipe(p1: &Point<u16>,p2: &Point<u16>, duration: &u64) -> String {
+pub fn long_click_and_swipe(p1: &Point<u16>, p2: &Point<u16>, duration: &u64) -> String {
     format!(
         "{} {},{} {},{} {}",
-        TOUCH_SCREEN,
-        p1.x,
-        p1.y,
-        p2.x,
-        p2.y,
-        duration
+        TOUCH_SCREEN, p1.x, p1.y, p2.x, p2.y, duration
     )
 }
 pub fn swipe_cmd(p1: &Point<u16>, p2: &Point<u16>) -> String {
-    format!("{} {},{} {},{},{}", SWIPE, p1.x,p1.y, p2.x,p2.y, 1000)
+    format!("{} {},{} {},{},{}", SWIPE, p1.x, p1.y, p2.x, p2.y, 1000)
 }
 
 pub fn swipe_duration_cmd(p1: &Point<u16>, p2: &Point<u16>, duration: &u64) -> String {
-    format!(
-        "{} {},{} {},{} {}",
-        SWIPE,
-        p1.x,
-        p1.y,
-        p2.x,
-        p2.y,
-        duration
-    )
+    format!("{} {},{} {},{} {}", SWIPE, p1.x, p1.y, p2.x, p2.y, duration)
 }
 
 pub fn press_cmd(key: &str) -> String {
@@ -105,22 +87,34 @@ impl std::fmt::Display for ADBCommand {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ADBCommand::Click(p) => write!(f, "{} {} {}", CLICK, p.x, p.y),
-            ADBCommand::LongClick(p) => write!(f, "{}",long_click_cmd(p)),
-            ADBCommand::LongClickAndSwipe(p1, p2, duration) => write!(f, "{}", long_click_and_swipe(p1, p2, duration)),
+            ADBCommand::LongClick(p) => write!(f, "{}", long_click_cmd(p)),
+            ADBCommand::LongClickAndSwipe(p1, p2, duration) => {
+                write!(f, "{}", long_click_and_swipe(p1, p2, duration))
+            }
             ADBCommand::Swipe(p1, p2) => write!(f, "{}", swipe_cmd(p1, p2)),
-            ADBCommand::SwipeWithDuration(p1, p2, duration) => write!(f, "{}", swipe_duration_cmd(p1, p2, duration)),
+            ADBCommand::SwipeWithDuration(p1, p2, duration) => {
+                write!(f, "{}", swipe_duration_cmd(p1, p2, duration))
+            }
             ADBCommand::Reboot => write!(f, "reboot:{}", POWER),
-            ADBCommand::StartActivity(package_name, activity_name) => write!(f, "am start -n {}/{}", package_name, activity_name),
+            ADBCommand::StartActivity(package_name, activity_name) => {
+                write!(f, "am start -n {}/{}", package_name, activity_name)
+            }
             ADBCommand::Capture(_) => write!(f, "capture"),
             ADBCommand::StopApp(package_name) => write!(f, "{} {}", STOP_APP, package_name),
             ADBCommand::InputText(text) => write!(f, "input:{}", text),
             ADBCommand::Back => write!(f, "back:{}", BACK),
             ADBCommand::Home => write!(f, "home:{}", HOME),
-            ADBCommand::Sequence(commands) => write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str()),
+            ADBCommand::Sequence(commands) => {
+                write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str())
+            }
             ADBCommand::Duration(duration) => write!(f, "{}", duration),
-            ADBCommand::Loop(commands) => write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str()),
+            ADBCommand::Loop(commands) => {
+                write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str())
+            }
             ADBCommand::StopLoop(is_stop) => write!(f, "stop_loop:{}", is_stop),
-            ADBCommand::ChangeConnectConfig(config) => write!(f, "change_connect_config:{}", config),
+            ADBCommand::ChangeConnectConfig(config) => {
+                write!(f, "change_connect_config:{}", config)
+            }
             ADBCommand::Pause => write!(f, "pause"),
             ADBCommand::Resume => write!(f, "resume"),
         }
@@ -137,7 +131,7 @@ fn adb_cmd_vec_to_string(commands: &Vec<ADBCommand>) -> String {
     cmds
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum ADBCmdConv {
     ADBShellCommand(String),
     ADBClientCommand(ADBCommand),

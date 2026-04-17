@@ -1,23 +1,25 @@
-use crate::app::app_error::{AppError, AppResult};
 use crate::api::backend_dto::{AuthRes, BackendApiRes, RefreshTokenReq};
+use crate::app::app_error::{AppError, AppResult};
 use crate::constant::sys_conf_path::{APP_STORE, AUTH_SESSION_KEY};
 use crate::infrastructure::logging::log_trait::Log;
+use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 use serde::{de::DeserializeOwned, Serialize};
+use std::sync::OnceLock;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
-use std::sync::OnceLock;
-use machineid_rs::{IdBuilder, Encryption, HWIDComponent};
 
 pub fn get_machine_code() -> String {
     static MACHINE_CODE: OnceLock<String> = OnceLock::new();
-    MACHINE_CODE.get_or_init(|| {
-        IdBuilder::new(Encryption::MD5)
-            .add_component(HWIDComponent::SystemID)
-            .add_component(HWIDComponent::MacAddress)
-            .build("auto_daily")
-            .unwrap_or_else(|_| "unknown_machine_val".to_string())
-    }).clone()
+    MACHINE_CODE
+        .get_or_init(|| {
+            IdBuilder::new(Encryption::MD5)
+                .add_component(HWIDComponent::SystemID)
+                .add_component(HWIDComponent::MacAddress)
+                .build("auto_daily")
+                .unwrap_or_else(|_| "unknown_machine_val".to_string())
+        })
+        .clone()
 }
 
 // 可以在正式环境使用环境变量或配置
@@ -133,18 +135,26 @@ impl HttpClient {
 
         if !status.is_success() {
             let _ = self.clear_auth_session();
-            Log::error(&format!("刷新登录态失败, status: {}, text: {}", status, text));
+            Log::error(&format!(
+                "刷新登录态失败, status: {}, text: {}",
+                status, text
+            ));
             return Ok(false);
         }
 
-        let api_res = serde_json::from_str::<BackendApiRes<AuthRes>>(&text).map_err(|e| AppError::HttpErr {
-            detail: "解析刷新登录态响应失败".to_string(),
-            e: e.to_string(),
+        let api_res = serde_json::from_str::<BackendApiRes<AuthRes>>(&text).map_err(|e| {
+            AppError::HttpErr {
+                detail: "解析刷新登录态响应失败".to_string(),
+                e: e.to_string(),
+            }
         })?;
 
         if api_res.code != 200 {
             let _ = self.clear_auth_session();
-            Log::error(&format!("刷新登录态失败, code: {}, message: {}", api_res.code, api_res.message));
+            Log::error(&format!(
+                "刷新登录态失败, code: {}, message: {}",
+                api_res.code, api_res.message
+            ));
             return Ok(false);
         }
 
@@ -204,20 +214,31 @@ impl HttpClient {
         self.execute(request).await
     }
 
-    pub async fn post<T: DeserializeOwned, B: Serialize>(&self, endpoint: &str, body: &B) -> AppResult<T> {
+    pub async fn post<T: DeserializeOwned, B: Serialize>(
+        &self,
+        endpoint: &str,
+        body: &B,
+    ) -> AppResult<T> {
         let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
         let request = self.client.post(&url).json(body);
         self.execute(request).await
     }
 
-    pub async fn download_file(&self, endpoint: &str, target_path: &std::path::Path) -> AppResult<()> {
+    pub async fn download_file(
+        &self,
+        endpoint: &str,
+        target_path: &std::path::Path,
+    ) -> AppResult<()> {
         use std::io::Write;
         let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
         let request = self.client.get(&url);
-        let response = self.send_with_retry(request).await.map_err(|e| AppError::HttpErr {
-            detail: "请求下载文件失败".to_string(),
-            e: e.to_string(),
-        })?;
+        let response = self
+            .send_with_retry(request)
+            .await
+            .map_err(|e| AppError::HttpErr {
+                detail: "请求下载文件失败".to_string(),
+                e: e.to_string(),
+            })?;
 
         if !response.status().is_success() {
             if response.status() == StatusCode::UNAUTHORIZED {
@@ -260,9 +281,8 @@ impl HttpClient {
             e: e.to_string(),
         })?;
 
-        let part = reqwest::multipart::Part::bytes(file_contents)
-            .file_name(file_name.to_string());
-        
+        let part = reqwest::multipart::Part::bytes(file_contents).file_name(file_name.to_string());
+
         let form = reqwest::multipart::Form::new().part(file_part_name.to_string(), part);
         let request = self.client.post(&url).multipart(form);
 

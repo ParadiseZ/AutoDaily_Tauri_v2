@@ -1,6 +1,6 @@
+use chrono::Local;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
-use chrono::Local;
 use tracing;
 
 /// 日志自动清理器

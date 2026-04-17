@@ -14,7 +14,6 @@ pub struct ScriptRuntime {
     pub script_start_time: String,
     pub script_end_time: String,
     pub script_duration: String,
-
     //模型
     //运行策略
 }

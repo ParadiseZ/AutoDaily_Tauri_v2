@@ -9,18 +9,18 @@ pub enum SwipeMode {
         from: PointF32,
         to: PointF32,
     },
-    Point{
-        from : PointU16,
+    Point {
+        from: PointU16,
         to: PointU16,
     },
-    LabelIdx{
+    LabelIdx {
         input_var: String,
-        from : u16,
+        from: u16,
         to: u16,
     },
-    Txt{
+    Txt {
         input_var: String,
-        from : Option<String>,
+        from: Option<String>,
         to: Option<String>,
     },
 }
@@ -30,18 +30,18 @@ pub enum SwipeMode {
 #[serde(rename_all = "camelCase", tag = "mode")]
 pub enum ClickMode {
     Point {
-        p: PointU16
+        p: PointU16,
     },
     Percent {
-        p: PointF32
+        p: PointF32,
     },
     Txt {
         input_var: String,
-        txt: Option<String>
+        txt: Option<String>,
     },
     LabelIdx {
         input_var: String,
-        idx: Option<u32>
+        idx: Option<u32>,
     },
 }
 
@@ -58,15 +58,15 @@ pub enum Action {
         #[serde(flatten)]
         mode: SwipeMode,
     },
-    Capture{
+    Capture {
         output_var: String,
     },
     Reboot,
-    LaunchApp{
+    LaunchApp {
         pkg_name: String,
         activity_name: String,
     },
-    StopApp{
+    StopApp {
         pkg_name: String,
     },
 }

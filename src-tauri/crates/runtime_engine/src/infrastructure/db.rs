@@ -9,7 +9,8 @@ use tauri::AppHandle;
 use tauri::Manager;
 use tokio::sync::OnceCell;
 
-const SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS script_time_template_values (
+const SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL: &str =
+    "CREATE TABLE IF NOT EXISTS script_time_template_values (
             id TEXT PRIMARY KEY,
             device_id TEXT,
             script_id TEXT NOT NULL,
@@ -23,7 +24,8 @@ const SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS 
             FOREIGN KEY (time_template_id) REFERENCES time_templates(id) ON DELETE CASCADE
         )";
 
-const SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL: &str = "CREATE UNIQUE INDEX IF NOT EXISTS idx_script_time_template_values_scope
+const SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL: &str =
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_script_time_template_values_scope
         ON script_time_template_values (
             ifnull(device_id, ''),
             script_id,
@@ -31,7 +33,8 @@ const SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL: &str = "CREATE UNIQUE INDEX I
             ifnull(account_id, '')
         )";
 
-const RECOVERY_CHECKPOINT_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS device_runtime_checkpoints (
+const RECOVERY_CHECKPOINT_TABLE_SQL: &str =
+    "CREATE TABLE IF NOT EXISTS device_runtime_checkpoints (
             execution_id TEXT PRIMARY KEY,
             source_session_id TEXT NOT NULL,
             device_id TEXT NOT NULL UNIQUE,
@@ -57,24 +60,29 @@ pub async fn init_db_with_path(db_dir: &PathBuf) -> Result<(), String> {
     let db_path = db_dir.join("autodaily.db");
 
     // 关键：开启 WAL 模式和同步模式，提升多进程性能
-    let connect_options = SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.display()))
-        .map_err(|e| e.to_string())?
-        .create_if_missing(true)
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal) // 开启 WAL
-        .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
-        .pragma("foreign_keys", "ON"); // 开启外键支持
+    let connect_options =
+        SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.display()))
+            .map_err(|e| e.to_string())?
+            .create_if_missing(true)
+            .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal) // 开启 WAL
+            .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
+            .pragma("foreign_keys", "ON"); // 开启外键支持
 
     let pool = SqlitePool::connect_with(connect_options)
         .await
         .map_err(|e| e.to_string())?;
 
-    POOL.set(pool).map_err(|_| "Failed to set DB pool".to_string())?;
+    POOL.set(pool)
+        .map_err(|_| "Failed to set DB pool".to_string())?;
     Ok(())
 }
 
 /// 主进程初始化数据库 (通过 AppHandle)
 pub async fn init_db(app_handle: &AppHandle) -> Result<(), String> {
-    let db_path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
+    let db_path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
     init_db_with_path(&db_path).await?;
     init_tables(POOL.get().unwrap()).await?;
     Ok(())
@@ -326,17 +334,21 @@ async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> 
     }
 
     if !ensure_column("trigger_mode") {
-        sqlx::query("ALTER TABLE script_tasks ADD COLUMN trigger_mode TEXT NOT NULL DEFAULT 'rootOnly'")
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "ALTER TABLE script_tasks ADD COLUMN trigger_mode TEXT NOT NULL DEFAULT 'rootOnly'",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     }
 
     if !ensure_column("record_schedule") {
-        sqlx::query("ALTER TABLE script_tasks ADD COLUMN record_schedule BOOLEAN NOT NULL DEFAULT 1")
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "ALTER TABLE script_tasks ADD COLUMN record_schedule BOOLEAN NOT NULL DEFAULT 1",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     }
 
     if !ensure_column("section_id") {
@@ -368,17 +380,21 @@ async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> 
     }
 
     if !ensure_column("show_enabled_toggle") {
-        sqlx::query("ALTER TABLE script_tasks ADD COLUMN show_enabled_toggle BOOLEAN NOT NULL DEFAULT 1")
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "ALTER TABLE script_tasks ADD COLUMN show_enabled_toggle BOOLEAN NOT NULL DEFAULT 1",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     }
 
     if !ensure_column("default_enabled") {
-        sqlx::query("ALTER TABLE script_tasks ADD COLUMN default_enabled BOOLEAN NOT NULL DEFAULT 1")
-            .execute(pool)
-            .await
-            .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "ALTER TABLE script_tasks ADD COLUMN default_enabled BOOLEAN NOT NULL DEFAULT 1",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     }
 
     if !ensure_column("task_tone") {
@@ -455,10 +471,12 @@ async fn ensure_script_time_template_values_schema(pool: &Pool<Sqlite>) -> Resul
     if !has_device_id || !has_account_id {
         let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-        sqlx::query("ALTER TABLE script_time_template_values RENAME TO script_time_template_values_legacy")
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "ALTER TABLE script_time_template_values RENAME TO script_time_template_values_legacy",
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
 
         sqlx::query(SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL)
             .execute(&mut *tx)
@@ -537,10 +555,12 @@ async fn ensure_recovery_checkpoint_schema(pool: &Pool<Sqlite>) -> Result<(), St
     {
         let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
-        sqlx::query("ALTER TABLE device_runtime_checkpoints RENAME TO device_runtime_checkpoints_legacy")
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| e.to_string())?;
+        sqlx::query(
+            "ALTER TABLE device_runtime_checkpoints RENAME TO device_runtime_checkpoints_legacy",
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| e.to_string())?;
 
         sqlx::query(RECOVERY_CHECKPOINT_TABLE_SQL)
             .execute(&mut *tx)
@@ -715,11 +735,11 @@ impl DbRepo {
     /// 根据 ID 获取单个记录
     pub async fn get_by_id<T>(table: &str, id: &str) -> Result<Option<T>, String>
     where
-        T: for<'r> FromRow<'r, sqlx::sqlite::SqliteRow> + Unpin  + Send + Sync,
+        T: for<'r> FromRow<'r, sqlx::sqlite::SqliteRow> + Unpin + Send + Sync,
     {
         let pool = get_pool();
         let query = format!("SELECT id,`data` FROM {} WHERE id = ?", table);
-        let row:Option<T> = sqlx::query_as(&query)
+        let row: Option<T> = sqlx::query_as(&query)
             .bind(id)
             .fetch_optional(pool)
             .await
@@ -740,7 +760,7 @@ impl DbRepo {
              ON CONFLICT(id) DO UPDATE SET `data` = excluded.`data`",
             table
         );
-        
+
         sqlx::query(&query)
             .bind(id)
             .bind(data) // 这里就是自动转换！

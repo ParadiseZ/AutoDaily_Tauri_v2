@@ -1,6 +1,6 @@
-use core::fmt;
 use crate::infrastructure::core::{Deserialize, Serialize};
 use bincode::{Decode, Encode};
+use core::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode, PartialEq, ts_rs::TS)]
 #[ts(export)]
@@ -29,7 +29,13 @@ impl fmt::Display for DetResult {
 }
 
 impl DetResult {
-    pub fn new(bounding_box: BoundingBox, index: i32, label: String, score: f32, grid_size: u16) -> Self {
+    pub fn new(
+        bounding_box: BoundingBox,
+        index: i32,
+        label: String,
+        score: f32,
+        grid_size: u16,
+    ) -> Self {
         Self {
             stable_box: bounding_box.to_stable_box(grid_size),
             stable_center: bounding_box.to_stable_center(grid_size),

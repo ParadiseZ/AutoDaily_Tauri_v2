@@ -2,11 +2,11 @@ use crate::api::api_response::ApiResponse;
 use crate::api::backend_dto::*;
 use crate::app::app_error::AppResult;
 use crate::constant::table_name::SCRIPT_TABLE;
-use crate::infrastructure::http_client::HttpClient;
-use crate::infrastructure::db::DbRepo;
-use tauri::{command, AppHandle};
 use crate::infrastructure::core::Serialize;
 use crate::infrastructure::core::UserId;
+use crate::infrastructure::db::DbRepo;
+use crate::infrastructure::http_client::HttpClient;
+use tauri::{command, AppHandle};
 
 #[derive(Debug)]
 struct UploadAuthor {
@@ -26,10 +26,7 @@ pub async fn backend_send_verification_code(
 }
 
 #[command]
-pub async fn backend_register(
-    app_handle: AppHandle,
-    req: RegisterReq,
-) -> ApiResponse<String> {
+pub async fn backend_register(app_handle: AppHandle, req: RegisterReq) -> ApiResponse<String> {
     let client = HttpClient::new(app_handle);
     let res: AppResult<BackendApiRes<String>> = client.post("/auth/register", &req).await;
     trans_api_res(res)
@@ -46,13 +43,10 @@ pub async fn backend_reset_password(
 }
 
 #[command]
-pub async fn backend_login(
-    app_handle: AppHandle,
-    req: LoginReq,
-) -> ApiResponse<AuthRes> {
+pub async fn backend_login(app_handle: AppHandle, req: LoginReq) -> ApiResponse<AuthRes> {
     let client = HttpClient::new(app_handle);
     let res: AppResult<BackendApiRes<AuthRes>> = client.post("/auth/login", &req).await;
-    trans_api_res_token(client,res)
+    trans_api_res_token(client, res)
 }
 
 #[command]
@@ -81,8 +75,9 @@ pub async fn backend_search_scripts(
     req: ScriptSearchReq,
 ) -> ApiResponse<PageRes<serde_json::Value>> {
     let client = HttpClient::new(app_handle);
-    let res: AppResult<BackendApiRes<PageRes<serde_json::Value>>> = client.post("/scripts/search", &req).await;
-    trans_api_res( res)
+    let res: AppResult<BackendApiRes<PageRes<serde_json::Value>>> =
+        client.post("/scripts/search", &req).await;
+    trans_api_res(res)
 }
 
 #[command]
@@ -102,7 +97,7 @@ pub async fn backend_update_username(
 ) -> ApiResponse<AuthRes> {
     let client = HttpClient::new(app_handle);
     let res: AppResult<BackendApiRes<AuthRes>> = client.post("/user/username", &req).await;
-    trans_api_res_token(client,res)
+    trans_api_res_token(client, res)
 }
 
 #[command]
@@ -116,15 +111,21 @@ pub async fn backend_check_update(app_handle: AppHandle) -> ApiResponse<TauriUpd
 }
 
 #[command]
-pub async fn backend_download_script(app_handle: AppHandle, script_id: String, current_user_id: Option<String>) -> ApiResponse<String> {
-    use crate::infrastructure::db::get_pool;
+pub async fn backend_download_script(
+    app_handle: AppHandle,
+    script_id: String,
+    current_user_id: Option<String>,
+) -> ApiResponse<String> {
     use crate::domain::scripts::script_info::ScriptType;
-    use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, ScriptId, TaskId, UserId};
+    use crate::infrastructure::core::{
+        PolicyGroupId, PolicyId, PolicySetId, ScriptId, TaskId, UserId,
+    };
+    use crate::infrastructure::db::get_pool;
     let client = HttpClient::new(app_handle);
     let url = format!("/scripts/download/{}", script_id);
     // 1. Fetch from backend
     let res: AppResult<BackendApiRes<ScriptUploadRequest>> = client.get(&url).await;
-    
+
     let mut download_data = match res {
         Ok(api_res) => {
             if api_res.code == 200 {
@@ -143,12 +144,15 @@ pub async fn backend_download_script(app_handle: AppHandle, script_id: String, c
     // 2. ID Regeneration mapping
     let old_script_id = download_data.script.id.clone();
     let new_script_id = ScriptId::new_v7();
-    
+
     // Create maps to track old -> new IDs for foreign keys
-    let mut policy_map: std::collections::HashMap<PolicyId, PolicyId> = std::collections::HashMap::new();
-    let mut group_map: std::collections::HashMap<PolicyGroupId, PolicyGroupId> = std::collections::HashMap::new();
-    let mut set_map: std::collections::HashMap<PolicySetId, PolicySetId> = std::collections::HashMap::new();
-    
+    let mut policy_map: std::collections::HashMap<PolicyId, PolicyId> =
+        std::collections::HashMap::new();
+    let mut group_map: std::collections::HashMap<PolicyGroupId, PolicyGroupId> =
+        std::collections::HashMap::new();
+    let mut set_map: std::collections::HashMap<PolicySetId, PolicySetId> =
+        std::collections::HashMap::new();
+
     // Update Script
     download_data.script.id = new_script_id.clone();
     download_data.script.data.cloud_id = Some(old_script_id);
@@ -193,13 +197,21 @@ pub async fn backend_download_script(app_handle: AppHandle, script_id: String, c
 
     // Re-map relation tables
     for gp in download_data.group_policies.iter_mut() {
-        if let Some(new_gid) = group_map.get(&gp.group_id) { gp.group_id = new_gid.clone(); }
-        if let Some(new_pid) = policy_map.get(&gp.policy_id) { gp.policy_id = new_pid.clone(); }
+        if let Some(new_gid) = group_map.get(&gp.group_id) {
+            gp.group_id = new_gid.clone();
+        }
+        if let Some(new_pid) = policy_map.get(&gp.policy_id) {
+            gp.policy_id = new_pid.clone();
+        }
     }
 
     for sg in download_data.set_groups.iter_mut() {
-        if let Some(new_sid) = set_map.get(&sg.set_id) { sg.set_id = new_sid.clone(); }
-        if let Some(new_gid) = group_map.get(&sg.group_id) { sg.group_id = new_gid.clone(); }
+        if let Some(new_sid) = set_map.get(&sg.set_id) {
+            sg.set_id = new_sid.clone();
+        }
+        if let Some(new_gid) = group_map.get(&sg.group_id) {
+            sg.group_id = new_gid.clone();
+        }
     }
 
     // 3. Save to local SQLite in Transaction
@@ -219,7 +231,9 @@ pub async fn backend_download_script(app_handle: AppHandle, script_id: String, c
         &download_data.group_policies,
         &download_data.set_groups,
         &download_data.tasks,
-    ).await {
+    )
+    .await
+    {
         return ApiResponse::error(Some(e));
     }
 
@@ -227,7 +241,10 @@ pub async fn backend_download_script(app_handle: AppHandle, script_id: String, c
         return ApiResponse::error(Some(format!("提交事务失败: {}", e)));
     }
 
-    ApiResponse::success(Some(new_script_id.to_string()), Some("脚本下载并写入成功".to_string()))
+    ApiResponse::success(
+        Some(new_script_id.to_string()),
+        Some("脚本下载并写入成功".to_string()),
+    )
 }
 
 #[command]
@@ -235,20 +252,20 @@ pub async fn backend_upload_script(
     app_handle: AppHandle,
     script_id: String,
 ) -> ApiResponse<String> {
-    use crate::infrastructure::db::get_pool;
-    use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
     use crate::domain::scripts::policy::*;
+    use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
     use crate::domain::scripts::script_task::ScriptTaskTable;
-    
+    use crate::infrastructure::db::get_pool;
+
     let pool = get_pool();
-    
+
     // 1. 获取主脚本
     let script: Option<ScriptTable> = sqlx::query_as("SELECT id, `data` FROM scripts WHERE id = ?")
         .bind(&script_id)
         .fetch_optional(pool)
         .await
         .unwrap_or(None);
-        
+
     let mut script = match script {
         Some(s) => s,
         None => return ApiResponse::error(Some("脚本不存在".to_string())),
@@ -270,7 +287,10 @@ pub async fn backend_upload_script(
     }
 
     let script_user_name = script.data.user_name.as_deref().unwrap_or("").trim();
-    if auth_session.username == "Guest" || script_user_name.is_empty() || script_user_name == "Guest" {
+    if auth_session.username == "Guest"
+        || script_user_name.is_empty()
+        || script_user_name == "Guest"
+    {
         let author = match fetch_upload_author(&client).await {
             Ok(author) => author,
             Err(error) => return ApiResponse::error(Some(error)),
@@ -279,35 +299,64 @@ pub async fn backend_upload_script(
         script.data.user_id = author.id;
         script.data.user_name = Some(author.username);
 
-        if let Err(error) = DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await {
+        if let Err(error) =
+            DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await
+        {
             return ApiResponse::error(Some(format!("更新本地脚本作者信息失败: {}", error)));
         }
     }
 
     // 2. 收集关联数据
-    let policies: Vec<PolicyTable> = sqlx::query_as("SELECT id, script_id, order_index, `data` FROM policies WHERE script_id = ?")
-        .bind(&script_id).fetch_all(pool).await.unwrap_or_default();
-        
-    let policy_groups: Vec<PolicyGroupTable> = sqlx::query_as("SELECT id, script_id, order_index, `data` FROM policy_groups WHERE script_id = ?")
-        .bind(&script_id).fetch_all(pool).await.unwrap_or_default();
-        
-    let policy_sets: Vec<PolicySetTable> = sqlx::query_as("SELECT id, script_id, order_index, `data` FROM policy_sets WHERE script_id = ?")
-        .bind(&script_id).fetch_all(pool).await.unwrap_or_default();
+    let policies: Vec<PolicyTable> = sqlx::query_as(
+        "SELECT id, script_id, order_index, `data` FROM policies WHERE script_id = ?",
+    )
+    .bind(&script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
 
-    let tasks: Vec<ScriptTaskTable> = sqlx::query_as("SELECT * FROM script_tasks WHERE script_id = ? AND is_deleted = false")
-        .bind(&script_id).fetch_all(pool).await.unwrap_or_default();
+    let policy_groups: Vec<PolicyGroupTable> = sqlx::query_as(
+        "SELECT id, script_id, order_index, `data` FROM policy_groups WHERE script_id = ?",
+    )
+    .bind(&script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let policy_sets: Vec<PolicySetTable> = sqlx::query_as(
+        "SELECT id, script_id, order_index, `data` FROM policy_sets WHERE script_id = ?",
+    )
+    .bind(&script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let tasks: Vec<ScriptTaskTable> =
+        sqlx::query_as("SELECT * FROM script_tasks WHERE script_id = ? AND is_deleted = false")
+            .bind(&script_id)
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
 
     // 关联表 (Group <-> Policy)
     let group_policies: Vec<GroupPolicyRelation> = sqlx::query_as(
         "SELECT gp.group_id, gp.policy_id, gp.order_index FROM group_policies gp 
-         JOIN policy_groups g ON gp.group_id = g.id WHERE g.script_id = ?"
-    ).bind(&script_id).fetch_all(pool).await.unwrap_or_default();
+         JOIN policy_groups g ON gp.group_id = g.id WHERE g.script_id = ?",
+    )
+    .bind(&script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
 
     // 关联表 (Set <-> Group)
     let set_groups: Vec<SetGroupRelation> = sqlx::query_as(
         "SELECT sg.set_id, sg.group_id, sg.order_index FROM set_groups sg 
-         JOIN policy_sets s ON sg.set_id = s.id WHERE s.script_id = ?"
-    ).bind(&script_id).fetch_all(pool).await.unwrap_or_default();
+         JOIN policy_sets s ON sg.set_id = s.id WHERE s.script_id = ?",
+    )
+    .bind(&script_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
 
     let upload_req = ScriptUploadRequest {
         script,
@@ -319,8 +368,9 @@ pub async fn backend_upload_script(
         set_groups,
     };
 
-    let res: AppResult<BackendApiRes<serde_json::Value>> = client.post("/scripts/upload", &upload_req).await;
-    
+    let res: AppResult<BackendApiRes<serde_json::Value>> =
+        client.post("/scripts/upload", &upload_req).await;
+
     match res {
         Ok(api_res) => {
             if api_res.code == 200 {
@@ -343,20 +393,26 @@ pub async fn backend_upload_model(
 ) -> ApiResponse<String> {
     let client = HttpClient::new(app_handle);
     let url = format!("/scripts/upload/model/{}/{}", script_id, model_type);
-    
+
     let path = std::path::Path::new(&local_file_path);
     if !path.exists() {
-        return ApiResponse::error(Some(format!("File {} does not exist locally", local_file_path)));
+        return ApiResponse::error(Some(format!(
+            "File {} does not exist locally",
+            local_file_path
+        )));
     }
-    
-    let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("model.onnx");
 
-    let res: AppResult<BackendApiRes<String>> = client.upload_file(
-        &url,
-        path,
-        "file", // must match Spring Boot RequestParam "file"
-        file_name
-    ).await;
+    let file_name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("model.onnx");
+
+    let res: AppResult<BackendApiRes<String>> = client
+        .upload_file(
+            &url, path, "file", // must match Spring Boot RequestParam "file"
+            file_name,
+        )
+        .await;
 
     trans_api_res(res)
 }
@@ -370,7 +426,7 @@ pub async fn backend_download_model(
 ) -> ApiResponse<String> {
     let client = HttpClient::new(app_handle);
     let url = format!("/scripts/download/model/{}/{}", script_id, model_type);
-    
+
     // Construct local save path
     let file_name = format!("{}_model.onnx", model_type);
     let dir_path = std::path::Path::new(&save_dir);
@@ -379,13 +435,13 @@ pub async fn backend_download_model(
             return ApiResponse::error(Some(format!("Failed to create save directory: {}", e)));
         }
     }
-    
+
     let target_path = dir_path.join(file_name);
 
     match client.download_file(&url, &target_path).await {
         Ok(_) => ApiResponse::success(
             Some(target_path.to_string_lossy().to_string()),
-            Some("Model downloaded successfully".to_string())
+            Some("Model downloaded successfully".to_string()),
         ),
         Err(e) => ApiResponse::error(Some(e.to_string())),
     }
@@ -404,7 +460,10 @@ fn trans_api_res<T: Serialize>(api_res: AppResult<BackendApiRes<T>>) -> ApiRespo
     }
 }
 
-fn trans_api_res_token(client: HttpClient,api_res: AppResult<BackendApiRes<AuthRes>>) -> ApiResponse<AuthRes> {
+fn trans_api_res_token(
+    client: HttpClient,
+    api_res: AppResult<BackendApiRes<AuthRes>>,
+) -> ApiResponse<AuthRes> {
     match api_res {
         Ok(api_res) => {
             if api_res.code == 200 {

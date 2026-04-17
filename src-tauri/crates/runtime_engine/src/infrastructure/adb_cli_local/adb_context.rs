@@ -16,12 +16,19 @@ pub fn get_adb_ctx() -> &'static ADBCtx {
 impl std::fmt::Display for ADBCtx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         tokio::runtime::Handle::current().block_on(async move {
-            write!(f,
-                   "ADB_CONTEXT config:{:?},cmd_channel:{},cmd_loop_channel:{},cmd_cur_queue:{}",
-                   self.adb_executor.adb_config.clone().lock().await,
-                   self.cmd_sender.len(),
-                   self.cmd_loop_sender.len(),
-                   self.adb_executor.cmds_after_conversion.clone().lock().await.iter().len()
+            write!(
+                f,
+                "ADB_CONTEXT config:{:?},cmd_channel:{},cmd_loop_channel:{},cmd_cur_queue:{}",
+                self.adb_executor.adb_config.clone().lock().await,
+                self.cmd_sender.len(),
+                self.cmd_loop_sender.len(),
+                self.adb_executor
+                    .cmds_after_conversion
+                    .clone()
+                    .lock()
+                    .await
+                    .iter()
+                    .len()
             )
         })
     }
@@ -36,7 +43,7 @@ pub struct ADBCtx {
 }
 
 impl ADBCtx {
-    pub async fn new(adb_connect_conf: ADBConnectConfig){
+    pub async fn new(adb_connect_conf: ADBConnectConfig) {
         if let Some(adb_ctx) = ADB_CONTEXT.get() {
             adb_ctx.send_adb_cmd(&ADBCommand::ChangeConnectConfig(adb_connect_conf));
             return;
@@ -50,13 +57,11 @@ impl ADBCtx {
                 Log::error(format!("ADB执行错误:{:?}", cmd).as_str())
             }
         });
-        ADB_CONTEXT.get_or_init( ||
-            ADBCtx {
-                adb_executor: executor,
-                cmd_sender,
-                cmd_loop_sender,
-            }
-        );
+        ADB_CONTEXT.get_or_init(|| ADBCtx {
+            adb_executor: executor,
+            cmd_sender,
+            cmd_loop_sender,
+        });
     }
 
     pub fn send_adb_cmd(&self, adb_command: &ADBCommand) {

@@ -82,11 +82,11 @@ pub struct SubFlowDef {
     pub steps: Vec<Step>,
 }
 */
-#[derive(Debug, Serialize, Deserialize,Clone, ts_rs::TS)]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 pub struct Step {
     pub id: Option<StepId>,
-    pub source_id : Option<StepId>,
+    pub source_id: Option<StepId>,
     pub target_id: Option<StepId>,
     pub label: Option<String>,
 
@@ -97,33 +97,20 @@ pub struct Step {
     pub kind: StepKind,
 }
 
-#[derive(Debug, Serialize, Deserialize,Clone, ts_rs::TS)]
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase", tag="op")]
+#[serde(rename_all = "camelCase", tag = "op")]
 pub enum StepKind {
     //Router { to: Option<Uuid> },
-    Sequence {
-        steps: Vec<Step>,
-    },
+    Sequence { steps: Vec<Step> },
 
-    Action{
-        exec_max: u32,
-        a: Action
-    },
+    Action { exec_max: u32, a: Action },
 
-    DataHanding{
-        a: DataHanding
-    },
+    DataHanding { a: DataHanding },
 
-    FlowControl{
-        a: FlowControl
-    },
-    TaskControl{
-        a: TaskControl,
-    },
-    Vision{
-        a:VisionNode
-    }
+    FlowControl { a: FlowControl },
+    TaskControl { a: TaskControl },
+    Vision { a: VisionNode },
 }
 
 /*// DDD 仓储接口（同步，便于简化依赖；调用方如需并发可自行 spawn）

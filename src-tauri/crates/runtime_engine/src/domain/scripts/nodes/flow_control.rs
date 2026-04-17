@@ -7,13 +7,16 @@ use crate::infrastructure::core::{Deserialize, PolicyId, PolicySetId, Serialize,
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
-pub enum FlowControl{
+pub enum FlowControl {
     If {
         con: ConditionNode,
         then: Vec<Step>,
         else_steps: Option<Vec<Step>>,
     },
-    While{ con: ConditionNode,flow: Vec<Step> },
+    While {
+        con: ConditionNode,
+        flow: Vec<Step>,
+    },
     ForEach {
         input_var: String,
         item_var: String,
@@ -28,16 +31,16 @@ pub enum FlowControl{
     Link {
         target: TaskId,
     },
-    AddPolicies{
+    AddPolicies {
         source: PolicySetId,
         target: PolicySetId,
     },
-    HandlePolicySet{
+    HandlePolicySet {
         target: Vec<PolicySetId>,
         input_var: String,
         out_var: String,
     },
-    HandlePolicy{
+    HandlePolicy {
         target: Vec<PolicyId>,
         input_var: String,
         out_var: String,
@@ -52,19 +55,14 @@ pub enum ConditionNode {
     RawExpr { expr: String },
 
     /// 执行次数
-    ExecNumCompare{
-        target: StateTarget,
-        op: CompareOp,
-    },
+    ExecNumCompare { target: StateTarget, op: CompareOp },
 
     /// 策略/任务状态是否完成/跳过
-    TaskStatus {
-        a: TaskControl,
-    },
+    TaskStatus { a: TaskControl },
 
     /// ocr字体颜色/背景色判断
-    ColorCompare{
-        txt_target : String,
+    ColorCompare {
+        txt_target: String,
         is_font: bool,
         r: u8,
         g: u8,
@@ -72,7 +70,11 @@ pub enum ConditionNode {
     },
 
     /// 变量比较
-    VarCompare { var_name: String, op: CompareOp, value: VarValue },
+    VarCompare {
+        var_name: String,
+        op: CompareOp,
+        value: VarValue,
+    },
 
     /// 策略集处理结果判断
     PolicySetResult {

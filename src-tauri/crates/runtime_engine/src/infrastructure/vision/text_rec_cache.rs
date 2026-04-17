@@ -90,7 +90,11 @@ impl ScriptTextRecCacheRuntime {
         }
     }
 
-    pub fn load_for_script(&mut self, script_id: ScriptId, script_name: &str) -> TextRecCacheResult<()> {
+    pub fn load_for_script(
+        &mut self,
+        script_id: ScriptId,
+        script_name: &str,
+    ) -> TextRecCacheResult<()> {
         if !self.is_enabled() {
             self.reset_runtime_state();
             return Ok(());
@@ -166,9 +170,8 @@ impl ScriptTextRecCacheRuntime {
         ensure_parent_dir(&path)?;
         document.updated_at = unix_timestamp_string();
 
-        let text = serde_json::to_string_pretty(document).map_err(|e| TextRecCacheError::SerializeFailed {
-            e: e.to_string(),
-        })?;
+        let text = serde_json::to_string_pretty(document)
+            .map_err(|e| TextRecCacheError::SerializeFailed { e: e.to_string() })?;
 
         fs::write(&path, text).map_err(|e| TextRecCacheError::WriteFailed {
             path: path.display().to_string(),
@@ -189,7 +192,10 @@ impl ScriptTextRecCacheRuntime {
             .cloned();
 
         if entry.is_some() {
-            self.session_stats.entry(cache_key.to_string()).or_default().hit_count += 1;
+            self.session_stats
+                .entry(cache_key.to_string())
+                .or_default()
+                .hit_count += 1;
         }
 
         entry
@@ -212,7 +218,11 @@ impl ScriptTextRecCacheRuntime {
         let cache_key = cache_key.into();
         let updated_at = unix_timestamp_string();
 
-        if let Some(entry) = document.entries.iter_mut().find(|entry| entry.cache_key == cache_key) {
+        if let Some(entry) = document
+            .entries
+            .iter_mut()
+            .find(|entry| entry.cache_key == cache_key)
+        {
             entry.det_results = det_results;
             entry.ocr_results = ocr_results;
             entry.updated_at = updated_at;
@@ -234,8 +244,16 @@ impl ScriptTextRecCacheRuntime {
         self.document.as_ref()
     }
 
-    fn resolve_cache_file_path(&self, script_id: ScriptId, script_name: &str) -> TextRecCacheResult<PathBuf> {
-        let dir = self.config.dir.as_ref().ok_or(TextRecCacheError::MissingDir)?;
+    fn resolve_cache_file_path(
+        &self,
+        script_id: ScriptId,
+        script_name: &str,
+    ) -> TextRecCacheResult<PathBuf> {
+        let dir = self
+            .config
+            .dir
+            .as_ref()
+            .ok_or(TextRecCacheError::MissingDir)?;
         fs::create_dir_all(dir).map_err(|e| TextRecCacheError::CreateDirFailed {
             path: dir.display().to_string(),
             e: e.to_string(),
@@ -267,9 +285,11 @@ impl ScriptTextRecCacheRuntime {
             e: e.to_string(),
         })?;
 
-        serde_json::from_str::<TextRecCacheDocument>(&text).map_err(|e| TextRecCacheError::ParseFailed {
-            path: path.display().to_string(),
-            e: e.to_string(),
+        serde_json::from_str::<TextRecCacheDocument>(&text).map_err(|e| {
+            TextRecCacheError::ParseFailed {
+                path: path.display().to_string(),
+                e: e.to_string(),
+            }
         })
     }
 
@@ -300,11 +320,7 @@ fn unix_timestamp_string() -> String {
 }
 
 fn short_script_id(script_id: ScriptId) -> String {
-    script_id
-        .to_string()
-        .chars()
-        .take(8)
-        .collect::<String>()
+    script_id.to_string().chars().take(8).collect::<String>()
 }
 
 fn sanitize_script_file_name(input: &str) -> String {
@@ -329,8 +345,8 @@ fn sanitize_script_file_name(input: &str) -> String {
 
     let upper = sanitized.to_ascii_uppercase();
     let reserved = [
-        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7",
-        "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8",
+        "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
     ];
 
     if reserved.contains(&upper.as_str()) {
@@ -358,6 +374,9 @@ mod tests {
 
     #[test]
     fn sanitize_illegal_chars() {
-        assert_eq!(sanitize_script_file_name("Daily:Login/Run"), "Daily_Login_Run");
+        assert_eq!(
+            sanitize_script_file_name("Daily:Login/Run"),
+            "Daily_Login_Run"
+        );
     }
 }

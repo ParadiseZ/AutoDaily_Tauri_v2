@@ -1,11 +1,13 @@
-use child_support::infrastructure::context::child_process::{init_environment, ChildProcessInitData};
+use child_support::infrastructure::context::child_process::{
+    init_environment, ChildProcessInitData,
+};
 use child_support::infrastructure::context::child_process_sec::{
     get_running_status, process_need_stop, set_running_status, RunningStatus,
 };
 use child_support::infrastructure::context::init_error::InitError;
 use child_support::infrastructure::core::{Deserialize, Error, Serialize};
-use child_support::infrastructure::ipc::runtime_reporter::emit_lifecycle_event;
 use child_support::infrastructure::ipc::message::RuntimeLifecyclePhase;
+use child_support::infrastructure::ipc::runtime_reporter::emit_lifecycle_event;
 use child_support::infrastructure::logging::log_trait::Log;
 use child_support::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
 use tokio_util::sync::CancellationToken;
@@ -39,17 +41,15 @@ async fn main() {
 /// 子进程运行函数
 async fn run_child_process() -> ChildProcessResult<()> {
     // 1. 从环境变量获取序列化的上下文数据
-    let context_data = std::env::var("CHILD_CONTEXT_DATA").map_err(|_| {
-        ChildProcessError::FailedToInitialize {
+    let context_data =
+        std::env::var("CHILD_CONTEXT_DATA").map_err(|_| ChildProcessError::FailedToInitialize {
             e: "缺少子进程上下文数据环境变量".to_string(),
-        }
-    })?;
+        })?;
 
-    let init_data: ChildProcessInitData = serde_json::from_str(&context_data).map_err(|e| {
-        ChildProcessError::FailedToInitialize {
+    let init_data: ChildProcessInitData =
+        serde_json::from_str(&context_data).map_err(|e| ChildProcessError::FailedToInitialize {
             e: format!("反序列化上下文数据失败: {}", e),
-        }
-    })?;
+        })?;
 
     // 2. 初始化子进程环境（CPU亲和性、日志、数据库、IPC、ADB、运行时上下文）
     init_environment(&init_data)
@@ -60,7 +60,9 @@ async fn run_child_process() -> ChildProcessResult<()> {
 
     // 3. 创建 CancellationToken 用于优雅停止，并注册到全局
     let cancel_token = CancellationToken::new();
-    child_support::infrastructure::context::child_process_sec::init_cancel_token(cancel_token.clone());
+    child_support::infrastructure::context::child_process_sec::init_cancel_token(
+        cancel_token.clone(),
+    );
 
     // 4. 启动信号处理器
     {

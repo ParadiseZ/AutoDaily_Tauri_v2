@@ -1,20 +1,23 @@
-use crate::infrastructure::adb_cli_local::adb_command::{click_cmd, input_text_cmd, long_click_and_swipe, long_click_cmd, sleep_cmd, stop_app_cmd, swipe_cmd, swipe_duration_cmd, ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME};
+use crate::infrastructure::adb_cli_local::adb_command::{
+    click_cmd, input_text_cmd, long_click_and_swipe, long_click_cmd, sleep_cmd, stop_app_cmd,
+    swipe_cmd, swipe_duration_cmd, ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME,
+};
 
+use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
+use crate::infrastructure::logging::log_trait::Log;
+use adb_client::server::ADBServer;
+use adb_client::tcp::ADBTcpDevice;
 use adb_client::{ADBDeviceExt, RebootType};
 use crossbeam_channel::bounded;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc};
+use std::sync::Arc;
 use std::time::Duration;
-use adb_client::server::ADBServer;
-use adb_client::tcp::ADBTcpDevice;
 use tokio::sync::Mutex;
 use tokio::time::sleep;
-use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
-use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
-use crate::infrastructure::logging::log_trait::Log;
 
 pub struct ADBExecutor {
     device: Option<Box<dyn ADBDeviceExt + Send + Sync>>,
@@ -34,7 +37,12 @@ pub struct ADBExecutor {
 
 impl std::fmt::Debug for ADBExecutor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f,"device_connected:{},executor_is_looping:{}",self.device.is_some(),self.executor_is_looping)
+        write!(
+            f,
+            "device_connected:{},executor_is_looping:{}",
+            self.device.is_some(),
+            self.executor_is_looping
+        )
     }
 }
 impl ADBExecutor {
@@ -82,11 +90,9 @@ impl ADBExecutor {
         }
     }
     pub fn validate_config(&self) -> bool {
-        tokio::runtime::Handle::current().block_on(async {
-            self.adb_config.clone().lock().await.valid()
-        })
+        tokio::runtime::Handle::current()
+            .block_on(async { self.adb_config.clone().lock().await.valid() })
     }
-
 
     pub async fn run(mut self) {
         let (tx, rx) = bounded(1);
@@ -103,16 +109,16 @@ impl ADBExecutor {
                     if let Ok(cmd_high) = msg.as_ref() {
                         // 收到循环命令，先清空之前的转换队列
                         self.cmds_after_conversion.lock().await.clear();
-                        
+
                         // 命令中睡眠命令和其他命令数量不一致，则启动默认睡眠
                         if !self.high_speed_cmd(cmd_high).await{
                             self.need_duration.store(true, Ordering::Release);
                         }
-                        
+
                         // 如果当前没有在循环，且转换后队列为空（可能是空Loop命令？），发送启动信号可能没意义，但原逻辑似乎是想触发循环
                         // 原逻辑：if !self.executor_is_looping.load(Ordering::Acquire) && self.cmds_after_conversion.lock().await.is_empty()
                         // 这里简化逻辑：只要收到Loop命令，就尝试启动循环逻辑（通过发送到rx）
-                        
+
                         if let Err(_) = tx.send(true){
                             self.error_tx.send(ADBCommandResult::Failed("发送启动循环信号失败！".to_string())).unwrap();
                         }
@@ -220,11 +226,10 @@ impl ADBExecutor {
             ADBCommand::Resume => {}
             _ => {
                 if let Err(e) = self.execute_adb_command(cmd_low).await {
-                    let _ = self.error_tx
-                        .send(ADBCommandResult::Failed(format!(
-                            "执行操作{}失败：{}",
-                            cmd_low, e
-                        )));
+                    let _ = self.error_tx.send(ADBCommandResult::Failed(format!(
+                        "执行操作{}失败：{}",
+                        cmd_low, e
+                    )));
                 }
             }
         }
@@ -250,9 +255,9 @@ impl ADBExecutor {
             ADBCommand::Click(point) => {
                 cmds_str.push_back(ADBCmdConv::ADBShellCommand(click_cmd(point).to_string()))
             }
-            ADBCommand::LongClick(point) => {
-                cmds_str.push_back(ADBCmdConv::ADBShellCommand(long_click_cmd(point).to_string()))
-            }
+            ADBCommand::LongClick(point) => cmds_str.push_back(ADBCmdConv::ADBShellCommand(
+                long_click_cmd(point).to_string(),
+            )),
             ADBCommand::LongClickAndSwipe(point1, point2, duration) => {
                 cmds_str.push_back(ADBCmdConv::ADBShellCommand(
                     long_click_and_swipe(point1, point2, duration).to_string(),
@@ -261,9 +266,11 @@ impl ADBExecutor {
             ADBCommand::Swipe(point1, point2) => cmds_str.push_back(ADBCmdConv::ADBShellCommand(
                 swipe_cmd(point1, point2).to_string(),
             )),
-            ADBCommand::SwipeWithDuration(point1, point2, duration) => cmds_str.push_back(ADBCmdConv::ADBShellCommand(
-                swipe_duration_cmd(point1, point2, duration).to_string(),
-            )),
+            ADBCommand::SwipeWithDuration(point1, point2, duration) => {
+                cmds_str.push_back(ADBCmdConv::ADBShellCommand(
+                    swipe_duration_cmd(point1, point2, duration).to_string(),
+                ))
+            }
             ADBCommand::StopApp(pkg_name) => cmds_str.push_back(ADBCmdConv::ADBShellCommand(
                 stop_app_cmd(&pkg_name).to_string(),
             )),
@@ -284,7 +291,7 @@ impl ADBExecutor {
 
     /// 转换命令序列为单条命令
     /// 注意： 有忽略其他命令的行为，新增时记得是否更新代码
-    fn translate_sequence_cmd(cmds: &[ADBCommand])-> String {
+    fn translate_sequence_cmd(cmds: &[ADBCommand]) -> String {
         let mut cmd_string = String::new();
         for sub_cmd in cmds.iter() {
             match sub_cmd {
@@ -305,7 +312,7 @@ impl ADBExecutor {
                     cmd_string.push_str(&swipe_cmd(point1, point2));
                     cmd_string.push_str(" &&");
                 }
-                ADBCommand::SwipeWithDuration(point1, point2,duration) => {
+                ADBCommand::SwipeWithDuration(point1, point2, duration) => {
                     cmd_string.push_str(&swipe_duration_cmd(point1, point2, duration));
                     cmd_string.push_str(" &&");
                 }
@@ -372,7 +379,7 @@ impl ADBExecutor {
     async fn execute_adb_command(&mut self, cmd: &ADBCommand) -> AdbResult<ADBCommandResult> {
         match cmd {
             ADBCommand::Reboot => {
-                if let Some(device) = self.device.as_mut(){
+                if let Some(device) = self.device.as_mut() {
                     let res = device
                         .reboot(RebootType::System)
                         .map(|_| ADBCommandResult::Success)
@@ -388,9 +395,7 @@ impl ADBExecutor {
                 Ok(ADBCommandResult::Success)
             }
 
-            ADBCommand::LongClick( point)=>{
-                self.execute_shell(&long_click_cmd(point)).await
-            }
+            ADBCommand::LongClick(point) => self.execute_shell(&long_click_cmd(point)).await,
 
             ADBCommand::LongClickAndSwipe(point1, point2, duration) => {
                 self.execute_shell(&long_click_and_swipe(point1, point2, duration))
@@ -401,17 +406,18 @@ impl ADBExecutor {
                 self.execute_shell(&swipe_cmd(point1, point2)).await
             }
             ADBCommand::SwipeWithDuration(point1, point2, duration) => {
-                self.execute_shell(&swipe_duration_cmd(point1, point2,duration)).await
+                self.execute_shell(&swipe_duration_cmd(point1, point2, duration))
+                    .await
             }
 
             ADBCommand::StartActivity(package_name, activity_name) => {
-                if let Some(device) =  self.device.as_mut(){
+                if let Some(device) = self.device.as_mut() {
                     let res = device
                         .run_activity(package_name, activity_name)
                         .map(|_| ADBCommandResult::Success)
                         .unwrap_or_else(|e| ADBCommandResult::Failed(e.to_string()));
                     Ok(res)
-                }else {
+                } else {
                     Err(AdbError::ConfigErr {
                         detail: "Device not connected".to_string(),
                     })
@@ -419,7 +425,7 @@ impl ADBExecutor {
             }
 
             ADBCommand::Capture(sender) => {
-                if let Some(device) =  self.device.as_mut(){
+                if let Some(device) = self.device.as_mut() {
                     if let Ok(data) = device.framebuffer_inner() {
                         if let Ok(_) = sender.send(data) {
                             Ok(ADBCommandResult::Success)
@@ -432,7 +438,7 @@ impl ADBExecutor {
                             e: "".to_string(),
                         })
                     }
-                }else {
+                } else {
                     Err(AdbError::ConfigErr {
                         detail: "Device not connected".to_string(),
                     })
@@ -461,7 +467,7 @@ impl ADBExecutor {
             //此类命令在此不执行
             ADBCommand::Pause | ADBCommand::Resume => Ok(ADBCommandResult::Success),
 
-            ADBCommand::ChangeConnectConfig( config)=>{
+            ADBCommand::ChangeConnectConfig(config) => {
                 {
                     self.device = None;
                     let mut old_conf = self.adb_config.lock().await;
@@ -476,9 +482,9 @@ impl ADBExecutor {
     /// 封装的三方的shell命令
     async fn execute_shell(&mut self, cmd: &str) -> AdbResult<ADBCommandResult> {
         //let mut buffer = Vec::new();
-        if let Some(device) =  self.device.as_mut(){
+        if let Some(device) = self.device.as_mut() {
             let res = device
-                .shell_command(&cmd,None,None)
+                .shell_command(&cmd, None, None)
                 .map(|_| ADBCommandResult::Success)
                 .unwrap_or_else(|e| ADBCommandResult::Failed(e.to_string()));
             //let _ = self.resp_tx.send(res);
@@ -510,7 +516,7 @@ impl ADBExecutor {
                         dev.adb_config.server_connect.unwrap(),
                         dev.adb_config.adb_path.clone(),
                     )
-                        .get_device_by_name(dev.device_name.as_ref().unwrap().as_str());
+                    .get_device_by_name(dev.device_name.as_ref().unwrap().as_str());
                     match device {
                         Ok(device) => Some(Box::new(device)),
                         Err(e) => {
@@ -534,16 +540,24 @@ impl ADBExecutor {
                     //连接设备
                     match adb_server.connect_device(dev.client_connect.unwrap()) {
                         Ok(_) => {
-                            match adb_server.get_device_by_name(&dev.client_connect.unwrap().to_string()) {
+                            match adb_server
+                                .get_device_by_name(&dev.client_connect.unwrap().to_string())
+                            {
                                 Ok(device) => Some(Box::new(device)),
                                 Err(e) => {
-                                    Log::warn(&format!("[ ADB ] ServerConnectByIp 获取设备失败: {}", e));
+                                    Log::warn(&format!(
+                                        "[ ADB ] ServerConnectByIp 获取设备失败: {}",
+                                        e
+                                    ));
                                     None
                                 }
                             }
                         }
                         Err(e) => {
-                            Log::warn(&format!("[ ADB ] ServerConnectByIp connect_device 失败: {}", e));
+                            Log::warn(&format!(
+                                "[ ADB ] ServerConnectByIp connect_device 失败: {}",
+                                e
+                            ));
                             None
                         }
                     }
@@ -558,7 +572,11 @@ impl ADBExecutor {
                     match ADBTcpDevice::new(SocketAddr::V4(dev.unwrap())) {
                         Ok(device) => Some(Box::new(device)),
                         Err(e) => {
-                            Log::warn(&format!("[ ADB ] DirectTcp 连接失败 ({}): {}", dev.unwrap(), e));
+                            Log::warn(&format!(
+                                "[ ADB ] DirectTcp 连接失败 ({}): {}",
+                                dev.unwrap(),
+                                e
+                            ));
                             None
                         }
                     }

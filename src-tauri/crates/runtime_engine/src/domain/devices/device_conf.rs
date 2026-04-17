@@ -1,10 +1,10 @@
-use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use sqlx::types::Json;
 use sqlx::FromRow;
-// 
+//
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -93,9 +93,9 @@ pub enum TimeoutNotifyChannel {
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
-pub enum  CapMethod {
+pub enum CapMethod {
     Window(String),
-    Adb
+    Adb,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
@@ -113,7 +113,7 @@ impl Default for DeviceConfig {
             platform: DevicePlatform::default(),
             exe_path: None,
             exe_args: None,
-            cores: vec![0,1],
+            cores: vec![0, 1],
             log_level: LogLevel::Off,
             log_to_file: true,
             adb_connect: None,

@@ -91,8 +91,7 @@ impl IpcServer {
                                                         Arc::new(IpcClientState {
                                                             pid,
                                                             device_id: device_id.clone(),
-                                                            last_heartbeat:
-                                                                LocalTimer::DayStamp,
+                                                            last_heartbeat: LocalTimer::DayStamp,
                                                             writer: writer.take().map(|w| {
                                                                 Arc::new(TokioRwLock::new(
                                                                     BufWriter::new(w),

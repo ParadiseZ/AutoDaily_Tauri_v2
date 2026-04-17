@@ -9,9 +9,8 @@ pub struct ScriptInfo {
 
     // 设置的变量
     pub script_args: HashMap<String, String>,
-
     // 设置的策略
-/*    pub decision: Vec<Step>,
+    /*    pub decision: Vec<Step>,
     pub back_decision: Vec<Step>,
     pub global_decision: Vec<Step>, //设置的任务信息
 
@@ -40,6 +39,6 @@ pub enum ScriptType {
 pub struct ScriptShow {
     pub script_id: ScriptId,
     pub script_info: ScriptInfo,
-    pub target_device : Option<Vec<DeviceId>>,
+    pub target_device: Option<Vec<DeviceId>>,
     pub device_account: Option<HashMap<DeviceId, HashMap<String, String>>>,
 }
