@@ -254,6 +254,15 @@
 - `PolicyGroup / PolicySet` 仍未进入 child 执行计划
 - 非 `DeviceQueue` 运行目标仍使用临时 `RuntimeQueueItem`，作用域语义弱于正式调度
 
+补充记录：
+
+- 任务管理页开始区分：
+  - `运行队列`：正式 `DeviceQueue`
+  - `临时运行脚本 / 临时运行任务`：临时 `FullScript / Task`
+- 临时运行目标不改 assignment 队列定义。
+- 设备运行中切到临时目标时，前端会先确认，再发 `Pause + PrepareCheckpoint(manual)`。
+- checkpoint 的 `updated_at` 视为恢复点设置时间；超过 1 天默认失效并清理。
+
 ---
 
 ## 4. 前端接入现状
