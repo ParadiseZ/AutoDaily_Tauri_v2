@@ -1,10 +1,10 @@
+use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::scripts::script_info::ScriptInfo;
 use crate::domain::scripts::script_task::ScriptTaskTable;
-use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{
-    ExecutionId, HashMap, PolicyId, ScheduleId, ScriptId, StepId, TaskId,
+    ExecutionId, HashMap, PolicyId, PolicySetId, ScheduleId, ScriptId, StepId, TaskId,
 };
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
@@ -16,11 +16,18 @@ use tokio::sync::{Mutex, RwLock};
 static RUNTIME_CTX: OnceLock<SharedRuntimeContext> = OnceLock::new();
 
 pub fn get_runtime_ctx() -> SharedRuntimeContext {
-    RUNTIME_CTX.get().expect("RuntimeContext not initialized").clone()
+    RUNTIME_CTX
+        .get()
+        .expect("RuntimeContext not initialized")
+        .clone()
 }
 
-pub fn init_runtime_ctx(ctx: SharedRuntimeContext)->InitResult<()>  {
-    RUNTIME_CTX.set(ctx).map_err(|_| InitError::InitChildAppCtxFailed { e: "RuntimeContext already initialized".to_string() })?;
+pub fn init_runtime_ctx(ctx: SharedRuntimeContext) -> InitResult<()> {
+    RUNTIME_CTX
+        .set(ctx)
+        .map_err(|_| InitError::InitChildAppCtxFailed {
+            e: "RuntimeContext already initialized".to_string(),
+        })?;
     Ok(())
 }
 

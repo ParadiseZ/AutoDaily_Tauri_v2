@@ -10,7 +10,7 @@ use crate::infrastructure::session::runtime_session::{
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
-async fn build_definition_fingerprint(
+pub async fn build_definition_fingerprint(
     script_id: crate::infrastructure::core::ScriptId,
 ) -> Result<String, String> {
     let mut hasher = DefaultHasher::new();
@@ -27,6 +27,21 @@ async fn build_definition_fingerprint(
     bundle.set_groups_json.hash(&mut hasher);
 
     Ok(format!("{:016x}", hasher.finish()))
+}
+
+pub async fn clear_checkpoint_by_device(
+    device_id: crate::infrastructure::core::DeviceId,
+) -> Result<(), String> {
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE device_id = ?",
+        RECOVERY_CHECKPOINT_TABLE
+    ))
+    .bind(device_id.to_string())
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(())
 }
 
 pub async fn persist_checkpoint(checkpoint: &ResumeCheckpoint) -> Result<(), String> {

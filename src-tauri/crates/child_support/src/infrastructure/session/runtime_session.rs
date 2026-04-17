@@ -1,7 +1,7 @@
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId, SessionId};
 use crate::infrastructure::ipc::message::{
-    ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
-    RuntimeSessionSnapshot, ScriptBundleSnapshot,
+    ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
+    ScriptBundleSnapshot,
 };
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
@@ -56,7 +56,10 @@ impl ChildRuntimeSession {
         self.bundles_by_script.get(&script_id).cloned()
     }
 
-    pub fn queue_item(&self, assignment_id: crate::infrastructure::core::ScheduleId) -> Option<RuntimeQueueItem> {
+    pub fn queue_item(
+        &self,
+        assignment_id: crate::infrastructure::core::ScheduleId,
+    ) -> Option<RuntimeQueueItem> {
         self.snapshot
             .queue
             .iter()
@@ -109,13 +112,21 @@ pub async fn get_runtime_queue_item(
 ) -> Option<RuntimeQueueItem> {
     let store = get_runtime_session_store();
     let guard = store.read().await;
-    guard.as_ref().and_then(|session| session.queue_item(assignment_id))
+    guard
+        .as_ref()
+        .and_then(|session| session.queue_item(assignment_id))
 }
 
 pub async fn get_loaded_checkpoint() -> Option<ResumeCheckpoint> {
     let store = get_runtime_session_store();
     let guard = store.read().await;
     guard.as_ref().and_then(ChildRuntimeSession::checkpoint)
+}
+
+pub async fn take_loaded_checkpoint() -> Option<ResumeCheckpoint> {
+    let store = get_runtime_session_store();
+    let mut guard = store.write().await;
+    guard.as_mut().and_then(|session| session.checkpoint.take())
 }
 
 pub async fn get_runtime_execution_policy() -> Option<RuntimeExecutionPolicy> {
