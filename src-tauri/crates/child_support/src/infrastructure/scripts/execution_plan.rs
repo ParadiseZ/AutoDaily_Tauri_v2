@@ -11,8 +11,19 @@ pub struct ExecutionPlanAssembler;
 
 #[derive(Debug, Clone)]
 pub enum ExecutionPlan {
+    DeviceQueue(TaskSelection),
+    FullScript(TaskSelection),
     Task(TaskSelection),
     PolicyDebug,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ExecutionPlanSummary {
+    pub label: &'static str,
+    pub is_policy_debug: bool,
+    pub root_task_count: usize,
+    pub linkable_task_count: usize,
+    pub skipped_task_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +32,7 @@ pub struct PlannedTask {
     pub task_cycle: TaskCycle,
     pub allow_root: bool,
     pub allow_link: bool,
+    pub record_schedule: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -28,9 +40,10 @@ pub struct SkippedTask {
     pub task: ScriptTaskTable,
     pub task_cycle: TaskCycle,
     pub reason: String,
+    pub record_schedule: bool,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct TaskSelection {
     pub root_tasks: Vec<PlannedTask>,
     pub linkable_tasks: HashMap<TaskId, PlannedTask>,
@@ -63,7 +76,14 @@ impl ExecutionPlanAssembler {
         }
 
         let selection = Self::select_tasks(run_target, device_id, queue_item, tasks).await?;
-        Ok(ExecutionPlan::Task(selection))
+        Ok(match run_target {
+            RunTarget::DeviceQueue => ExecutionPlan::DeviceQueue(selection),
+            RunTarget::FullScript { .. } => ExecutionPlan::FullScript(selection),
+            RunTarget::Task { .. } => ExecutionPlan::Task(selection),
+            RunTarget::Policy { .. }
+            | RunTarget::PolicyGroup { .. }
+            | RunTarget::PolicySet { .. } => ExecutionPlan::PolicyDebug,
+        })
     }
 
     pub fn is_policy_debug_target(run_target: &RunTarget) -> bool {
@@ -107,11 +127,13 @@ impl ExecutionPlanAssembler {
             }
             let task_cycle = Self::resolve_task_cycle(&task, template_values.as_ref());
             let (allow_root, allow_link) = Self::resolve_trigger_mode(&task);
+            let record_schedule = Self::should_record_schedule(run_target, &task);
             let planned_task = PlannedTask {
                 task: task.clone(),
                 task_cycle: task_cycle.clone(),
                 allow_root,
                 allow_link,
+                record_schedule,
             };
 
             if allow_link {
@@ -140,6 +162,7 @@ impl ExecutionPlanAssembler {
                     task,
                     task_cycle,
                     reason,
+                    record_schedule,
                 });
                 continue;
             }
@@ -327,14 +350,80 @@ impl ExecutionPlanAssembler {
 }
 
 impl ExecutionPlan {
-    pub fn task_selection(self) -> TaskSelection {
+    pub fn task_selection(&self) -> TaskSelection {
         match self {
-            ExecutionPlan::Task(selection) => selection,
+            ExecutionPlan::DeviceQueue(selection)
+            | ExecutionPlan::FullScript(selection)
+            | ExecutionPlan::Task(selection) => selection.clone(),
             ExecutionPlan::PolicyDebug => TaskSelection::default(),
         }
     }
 
     pub fn is_policy_debug(&self) -> bool {
         matches!(self, ExecutionPlan::PolicyDebug)
+    }
+
+    pub fn summary(&self) -> ExecutionPlanSummary {
+        match self {
+            ExecutionPlan::DeviceQueue(selection) => ExecutionPlanSummary {
+                label: "deviceQueue",
+                is_policy_debug: false,
+                root_task_count: selection.root_tasks.len(),
+                linkable_task_count: selection.linkable_tasks.len(),
+                skipped_task_count: selection.skipped_tasks.len(),
+            },
+            ExecutionPlan::FullScript(selection) => ExecutionPlanSummary {
+                label: "fullScript",
+                is_policy_debug: false,
+                root_task_count: selection.root_tasks.len(),
+                linkable_task_count: selection.linkable_tasks.len(),
+                skipped_task_count: selection.skipped_tasks.len(),
+            },
+            ExecutionPlan::Task(selection) => ExecutionPlanSummary {
+                label: "task",
+                is_policy_debug: false,
+                root_task_count: selection.root_tasks.len(),
+                linkable_task_count: selection.linkable_tasks.len(),
+                skipped_task_count: selection.skipped_tasks.len(),
+            },
+            ExecutionPlan::PolicyDebug => ExecutionPlanSummary {
+                label: "policyDebug",
+                is_policy_debug: true,
+                root_task_count: 0,
+                linkable_task_count: 0,
+                skipped_task_count: 0,
+            },
+        }
+    }
+
+    pub fn progress_message(&self) -> String {
+        self.summary().progress_message()
+    }
+}
+
+impl ExecutionPlanSummary {
+    pub fn progress_message(&self) -> String {
+        if self.is_policy_debug {
+            "执行计划已装配：策略调试模式".to_string()
+        } else {
+            format!(
+                "执行计划已装配，一级任务 {} 个，可跳转任务 {} 个，跳过 {} 个",
+                self.root_task_count, self.linkable_task_count, self.skipped_task_count
+            )
+        }
+    }
+
+    pub fn mode_label(&self) -> &'static str {
+        self.label
+    }
+}
+
+impl Default for TaskSelection {
+    fn default() -> Self {
+        Self {
+            root_tasks: Vec::new(),
+            linkable_tasks: HashMap::new(),
+            skipped_tasks: Vec::new(),
+        }
     }
 }

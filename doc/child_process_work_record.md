@@ -244,9 +244,17 @@
 - 正式执行入口
   - `execute_script`
   - 从当前 session bundle 加载脚本定义
-  - 通过 `ExecutionPlanAssembler` 组装 root/linkable/skipped task
+  - 通过 `ExecutionPlanAssembler::assemble(...)` 直接装配 `ExecutionPlan`
+  - `ExecutionPlan` 当前区分：
+    - `DeviceQueue(TaskSelection)`
+    - `FullScript(TaskSelection)`
+    - `Task(TaskSelection)`
+    - `PolicyDebug`
+  - `TaskSelection` 内部继续携带 root/linkable/skipped task
+  - `ExecutionPlanSummary` 与 `PlannedTask / SkippedTask.record_schedule` 也在装配期生成
   - 逐 task 调用 `ScriptExecutor`
-  - 仅 `RunTarget::DeviceQueue` 且 `record_schedule = true` 时写 `ScheduleJournal`
+  - `scheduler` 直接消费 plan summary，并使用计划结果里的 `record_schedule`
+  - 仅正式 `DeviceQueue` 且 `record_schedule = true` 时写 `ScheduleJournal`
   - `FullScript / Task` 调试运行也走同一条主链，不再依赖独立 `debug_execute`
 
 当前未完成：
@@ -405,7 +413,10 @@
 当前状态：
 
 - `execute_script()` 已经从 session bundle 读取脚本定义
-- `ExecutionPlanAssembler` 已经参与 task 选择和跳过判定
+- `ExecutionPlanAssembler` 已经收口为执行计划装配层：
+  - 直接返回 `ExecutionPlan`
+  - 统一提供 `ExecutionPlanSummary`
+  - 在装配期确定 `record_schedule`
 - `ScriptExecutor` 已真实执行动作、流程节点、策略节点的主链能力
 - runtime progress / schedule event 已进入正式执行链路
 - timeout 前进证据已不再只挂在动作后：
@@ -417,6 +428,10 @@
 - child 加载 `ResumeCheckpoint` 后，已经能按 `task / step` 做安全点恢复；当前剩余的是更细粒度作用域与恢复态展示继续补齐
 - `PolicyGroup / PolicySet / Policy` 现已进入调试运行主链，但仍不属于 `DeviceQueue` 正式任务计划
 - `ColorCompare` 等剩余条件/数据能力还没有接入真实执行
+- `ExecutionPlanAssembler` 的剩余工作已经不是“把过滤器变成计划器”，而是继续补：
+  - 恢复任务注入
+  - 更复杂的补跑/跳过规则
+  - 调试目标与正式运行目标更完整的语义统一
 
 建议继续看：
 
@@ -436,12 +451,15 @@
 - 编辑器调试运行 `FullScript / Task` 已走 `LoadSession -> Start -> scheduler.execute_script`
 - 运行时会为当前脚本任务强制注入 `everyRun` 的 task-cycle 覆盖
 - 调试运行不写 `device_script_schedules`，但保留运行日志与 runtime event
+- `DeviceQueue` 正式运行已经真实消费 `RuntimeQueueItem.template_values_json`：
+  - `ExecutionPlanAssembler` 会读取 `taskSettings.enabled / taskSettings.taskCycle`
+  - `ScriptExecutor` 会读取 `variables` 并装入 input scope
 
 当前仍未收口：
 
 - 非 `DeviceQueue` 目标仍使用临时 `RuntimeQueueItem`
 - `time_template_id / account_id / account_data_json` 仍未补成正式调度语义
-- 当前只补了最小 `template_values_json` 覆盖，不等于完整模板/账户作用域
+- `build_debug_template_values_json()` 当前只补了最小 `everyRun` task-cycle 覆盖，不等于完整模板/账户作用域
 
 ## 6.3 运行时持久化还没做
 

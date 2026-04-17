@@ -495,11 +495,9 @@ impl ScriptScheduler {
         let execution_plan =
             ExecutionPlanAssembler::assemble(&run_target, device_id, &queue_item, &bundle.tasks)
                 .await?;
+        let plan_summary = execution_plan.summary();
         let is_policy_debug_target = execution_plan.is_policy_debug();
         let task_selection = execution_plan.task_selection();
-        let runnable_task_count = task_selection.root_tasks.len();
-        let skipped_task_count = task_selection.skipped_tasks.len();
-        let linkable_task_count = task_selection.linkable_tasks.len();
         let mut resume_checkpoint = if is_policy_debug_target {
             None
         } else {
@@ -549,8 +547,16 @@ impl ScriptScheduler {
             )),
         );
         Log::info(&format!(
-            "[ scheduler ] 脚本[{}] bundle 已加载，task={}, root_task={}, linkable_task={}, skipped_task={}, policy={}, group_relation={}, set_relation={}",
-            script_id, tasks_len, runnable_task_count, linkable_task_count, skipped_task_count, policy_count, group_policy_count, set_group_count
+            "[ scheduler ] 脚本[{}] bundle 已加载，mode={}, task={}, root_task={}, linkable_task={}, skipped_task={}, policy={}, group_relation={}, set_relation={}",
+            script_id,
+            plan_summary.mode_label(),
+            tasks_len,
+            plan_summary.root_task_count,
+            plan_summary.linkable_task_count,
+            plan_summary.skipped_task_count,
+            policy_count,
+            group_policy_count,
+            set_group_count
         ));
         emit_progress_event(
             RuntimeProgressPhase::Executing,
@@ -558,10 +564,7 @@ impl ScriptScheduler {
             Some(script_id),
             None,
             None,
-            Some(format!(
-                "执行计划已装配，一级任务 {} 个，可跳转任务 {} 个，跳过 {} 个",
-                runnable_task_count, linkable_task_count, skipped_task_count
-            )),
+            Some(execution_plan.progress_message()),
         );
 
         if let Some(checkpoint) = resume_checkpoint.as_ref() {
@@ -627,7 +630,7 @@ impl ScriptScheduler {
                 Some(skipped.reason.clone()),
             );
 
-            if ExecutionPlanAssembler::should_record_schedule(&run_target, &skipped.task) {
+            if skipped.record_schedule {
                 let now = chrono::Utc::now().to_rfc3339();
                 ScheduleJournal::append_task_record(
                     device_id,
@@ -693,6 +696,7 @@ impl ScriptScheduler {
         while let Some(planned_task) = pending_tasks.pop_front() {
             let task_cycle = planned_task.task_cycle;
             let task = planned_task.task;
+            let record_schedule = planned_task.record_schedule;
             let task_started_at = chrono::Utc::now().to_rfc3339();
             let task_resume_cursor = resume_checkpoint
                 .as_ref()
@@ -804,7 +808,7 @@ impl ScriptScheduler {
                         }),
                     );
 
-                    if ExecutionPlanAssembler::should_record_schedule(&run_target, &task) {
+                    if record_schedule {
                         ScheduleJournal::append_task_record(
                             device_id,
                             execution_id,
@@ -860,7 +864,7 @@ impl ScriptScheduler {
                         Some(message.clone()),
                     );
 
-                    if ExecutionPlanAssembler::should_record_schedule(&run_target, &task) {
+                    if record_schedule {
                         ScheduleJournal::append_task_record(
                             device_id,
                             execution_id,
@@ -915,7 +919,10 @@ impl ScriptScheduler {
             Some(script_id),
             None,
             None,
-            Some(format!("脚本执行完成，共 {} 个任务", runnable_task_count)),
+            Some(format!(
+                "脚本执行完成，共 {} 个任务",
+                plan_summary.root_task_count
+            )),
         );
         emit_schedule_event(
             RuntimeScheduleStatus::Success,
@@ -926,7 +933,7 @@ impl ScriptScheduler {
             None,
             Some(format!(
                 "脚本执行完成，成功执行 {} 个任务，跳过 {} 个任务",
-                runnable_task_count, skipped_task_count
+                plan_summary.root_task_count, plan_summary.skipped_task_count
             )),
         );
 
@@ -1206,18 +1213,21 @@ mod tests {
                 task_cycle: TaskCycle::EveryRun,
                 allow_root: true,
                 allow_link: false,
+                record_schedule: false,
             },
             crate::infrastructure::scripts::execution_plan::PlannedTask {
                 task: task_b.clone(),
                 task_cycle: TaskCycle::EveryRun,
                 allow_root: true,
                 allow_link: false,
+                record_schedule: false,
             },
             crate::infrastructure::scripts::execution_plan::PlannedTask {
                 task: task_c.clone(),
                 task_cycle: TaskCycle::EveryRun,
                 allow_root: true,
                 allow_link: false,
+                record_schedule: false,
             },
         ]);
 
@@ -1245,12 +1255,14 @@ mod tests {
                 task_cycle: TaskCycle::EveryRun,
                 allow_root: true,
                 allow_link: false,
+                record_schedule: false,
             },
             crate::infrastructure::scripts::execution_plan::PlannedTask {
                 task: task_c.clone(),
                 task_cycle: TaskCycle::EveryRun,
                 allow_root: true,
                 allow_link: false,
+                record_schedule: false,
             },
         ]);
         let mut linkable = std::collections::HashMap::new();
@@ -1261,6 +1273,7 @@ mod tests {
                 task_cycle: TaskCycle::EveryRun,
                 allow_root: false,
                 allow_link: true,
+                record_schedule: false,
             },
         );
 
