@@ -1,4 +1,5 @@
 use super::ScriptExecutor;
+use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
 use crate::domain::scripts::script_task::{
@@ -8,11 +9,20 @@ use crate::domain::scripts::script_variable::{
     ScriptVariableDef, ScriptVariableNamespace, ScriptVariableSourceType, ScriptVariableValueType,
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
+use crate::infrastructure::context::runtime_context::RuntimeContext;
 use crate::infrastructure::core::{TaskId, UuidV7};
+use crate::infrastructure::ipc::message::{
+    RunTarget, RuntimeExecutionPolicy, RuntimeVisionTextCachePolicy, TimeoutAction,
+};
+use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{Rgba, RgbaImage};
 use rhai::serde::to_dynamic;
 use serde_json::{json, Value};
 use sqlx::types::Json;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 fn build_ocr_result(txt: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> OcrResult {
     OcrResult::new(
@@ -201,6 +211,23 @@ fn build_script_level_input_variable() -> ScriptVariableDef {
     }
 }
 
+fn build_executor() -> ScriptExecutor {
+    let runtime_ctx = Arc::new(RwLock::new(RuntimeContext::new(
+        UuidV7(1),
+        RunTarget::FullScript {
+            script_id: UuidV7(1),
+        },
+        Arc::new(Mutex::new(OcrService::new())),
+        Arc::new(Mutex::new(OcrService::new())),
+        VisionTextCacheRuntimeConfig {
+            enabled: false,
+            dir: None,
+            signature_grid_size: 8,
+        },
+    )));
+    ScriptExecutor::new(runtime_ctx)
+}
+
 #[test]
 fn input_variable_prefers_template_values_by_variable_id() {
     let task_id = UuidV7(7);
@@ -256,4 +283,43 @@ fn task_owned_input_variable_is_hidden_without_task_context() {
     assert!(!ScriptExecutor::input_variable_visible_for_task(
         &variable, None
     ));
+}
+
+#[tokio::test]
+async fn timeout_handling_resets_progress_probe_after_notify_only() {
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: Some("page:v1:deadbeef".to_string()),
+        evidence_signature: "evidence:v1".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let runtime_policy = RuntimeExecutionPolicy {
+        ocr_text_cache: RuntimeVisionTextCachePolicy {
+            enabled: false,
+            dir: None,
+            signature_grid_size: 8,
+        },
+        action_wait_ms: 0,
+        progress_timeout_enabled: true,
+        progress_timeout_ms: 1_000,
+        timeout_action: TimeoutAction::NotifyOnly,
+        timeout_notify_channels: Vec::new(),
+    };
+
+    let result = executor
+        .evaluate_progress_probe(
+            &runtime_policy,
+            Some("page:v1:deadbeef".to_string()),
+            "evidence:v1".to_string(),
+            "unit-test timeout".to_string(),
+        )
+        .await
+        .unwrap();
+
+    assert!(result.is_none());
+    assert!(executor.last_progress_probe.is_none());
 }

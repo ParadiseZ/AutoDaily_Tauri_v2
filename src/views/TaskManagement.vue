@@ -87,6 +87,7 @@
         :script-tasks-by-script-id="scriptStore.tasksByScriptId"
         :script-task-loading="scriptStore.taskLoading"
         :progress-event="runtimeStore.getLatestProgress(activeDevice.id)"
+        :timeout-event="runtimeStore.getLatestTimeout(activeDevice.id)"
         :loading-assignments="Boolean(taskStore.loadingAssignments[activeDevice.id])"
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         @add-script="handleAddScript"
@@ -242,6 +243,7 @@ const handleOpenAssignmentSettings = async (assignment: AssignmentRecord) => {
 const handleClearSchedules = async (deviceId: string) => {
   try {
     await taskStore.clearSchedules(deviceId);
+    runtimeStore.clearTimeoutState(deviceId);
     showToast('运行记录已清空', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '清空失败', 'error');

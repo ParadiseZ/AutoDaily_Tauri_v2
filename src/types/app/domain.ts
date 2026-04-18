@@ -202,6 +202,17 @@ export interface RuntimeScheduleEvent {
     at: string;
 }
 
+export interface RuntimeTimeoutEvent {
+    deviceId: string;
+    sessionId?: string | null;
+    assignmentId?: string | null;
+    scriptId?: string | null;
+    taskId?: string | null;
+    stepId?: string | null;
+    message: string;
+    at: string;
+}
+
 export interface ScriptTimeTemplateValuesDto {
     id: string;
     deviceId?: string | null;

@@ -907,8 +907,9 @@ impl ScriptExecutor {
             message.clone(),
         )
         .await;
-
-        self.handle_timeout_action(runtime_policy, message).await
+        let timeout_result = self.handle_timeout_action(runtime_policy, message).await;
+        self.reset_progress_probe();
+        timeout_result
     }
 
     async fn record_progress_evidence(
@@ -1184,6 +1185,10 @@ impl ScriptExecutor {
             })?;
 
         Ok((script_info.name.clone(), pkg_name, activity_name))
+    }
+
+    fn reset_progress_probe(&mut self) {
+        self.last_progress_probe = None;
     }
 
     fn build_page_fingerprint(snapshot: &VisionSnapshot) -> String {

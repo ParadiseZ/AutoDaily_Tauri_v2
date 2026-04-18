@@ -63,27 +63,41 @@
           <div
             v-for="assignment in assignments"
             :key="assignment.id"
-            class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-white/20 px-4 py-3 dark:bg-white/5"
+            class="rounded-[18px] border bg-white/20 px-4 py-3 dark:bg-white/5"
+            :class="assignmentWarning(assignment) ? 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-[var(--app-border)]'"
           >
-            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--app-accent-soft)] text-xs font-semibold text-[var(--app-accent)]">
-              {{ assignment.index + 1 }}
+            <div class="flex items-center gap-3">
+              <div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--app-accent-soft)] text-xs font-semibold text-[var(--app-accent)]">
+                {{ assignment.index + 1 }}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ getScriptName(assignment.scriptId) }}</p>
+                  <span
+                    v-if="assignmentWarning(assignment)"
+                    class="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                  >
+                    最近超时
+                  </span>
+                </div>
+                <p class="text-xs text-[var(--app-text-faint)]">{{ getTemplateName(assignment.timeTemplateId) }}</p>
+              </div>
+              <button
+                class="app-button app-button-ghost h-8 px-3 text-sm group"
+                type="button"
+                :disabled="!assignment.timeTemplateId"
+                :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
+                @click="$emit('openAssignmentSettings', assignment)"
+              >
+                <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
+              </button>
+              <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
+                <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
+              </button>
             </div>
-            <div class="min-w-0 flex-1">
-              <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ getScriptName(assignment.scriptId) }}</p>
-              <p class="text-xs text-[var(--app-text-faint)]">{{ getTemplateName(assignment.timeTemplateId) }}</p>
-            </div>
-            <button
-              class="app-button app-button-ghost h-8 px-3 text-sm group"
-              type="button"
-              :disabled="!assignment.timeTemplateId"
-              :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
-              @click="$emit('openAssignmentSettings', assignment)"
-            >
-              <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
-            </button>
-            <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
-              <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
-            </button>
+            <p v-if="assignmentWarning(assignment)" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
+              {{ assignmentWarning(assignment) }}
+            </p>
           </div>
         </div>
 
@@ -128,6 +142,9 @@
               运行任务
             </button>
           </div>
+          <p v-if="temporaryWarningMessage" class="text-xs text-amber-700 dark:text-amber-300">
+            最近超时：{{ temporaryWarningMessage }}
+          </p>
         </div>
       </SurfacePanel>
 
@@ -177,6 +194,7 @@ import type {
   DeviceRuntimeStatus,
   RunTarget,
   RuntimeProgressEvent,
+  RuntimeTimeoutEvent,
   ScriptTableRecord,
 } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
@@ -203,6 +221,7 @@ const props = defineProps<{
   scriptTasksByScriptId: Record<string, ScriptTaskTable[]>;
   scriptTaskLoading: Record<string, boolean>;
   progressEvent: RuntimeProgressEvent | null;
+  timeoutEvent: RuntimeTimeoutEvent | null;
   loadingAssignments: boolean;
   loadingSchedules: boolean;
 }>();
@@ -275,6 +294,53 @@ const temporaryTaskPlaceholder = computed(() => {
     return '正在加载任务列表...';
   }
   return '选择要临时运行的任务';
+});
+
+const normalizeWarningMessage = (message?: string | null) => message?.trim() || null;
+
+const buildTimeoutWarningMessage = (timeoutEvent: RuntimeTimeoutEvent | null) => {
+  if (!timeoutEvent) {
+    return null;
+  }
+
+  const reason = normalizeWarningMessage(timeoutEvent.message);
+  if (!reason) {
+    return null;
+  }
+
+  return `${formatDateTime(timeoutEvent.at)} · ${reason}`;
+};
+
+const assignmentWarning = (assignment: AssignmentRecord) => {
+  const timeoutEvent = props.timeoutEvent;
+  if (!timeoutEvent) {
+    return null;
+  }
+
+  const matchesAssignment = timeoutEvent.assignmentId === assignment.id;
+  const matchesScript = !timeoutEvent.assignmentId && timeoutEvent.scriptId === assignment.scriptId;
+  if (!matchesAssignment && !matchesScript) {
+    return null;
+  }
+
+  return buildTimeoutWarningMessage(timeoutEvent);
+};
+
+const temporaryWarningMessage = computed(() => {
+  const timeoutEvent = props.timeoutEvent;
+  if (!timeoutEvent || !selectedTemporaryScriptId.value) {
+    return null;
+  }
+
+  if (timeoutEvent.scriptId !== selectedTemporaryScriptId.value) {
+    return null;
+  }
+
+  if (selectedTemporaryTaskId.value && timeoutEvent.taskId && timeoutEvent.taskId !== selectedTemporaryTaskId.value) {
+    return null;
+  }
+
+  return buildTimeoutWarningMessage(timeoutEvent);
 });
 
 watch(
