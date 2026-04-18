@@ -182,6 +182,25 @@ fn build_input_variable(task_id: TaskId) -> ScriptVariableDef {
     }
 }
 
+fn build_script_level_input_variable() -> ScriptVariableDef {
+    ScriptVariableDef {
+        id: "script_level_input_id".to_string(),
+        key: "input.shared_flag".to_string(),
+        name: "共享开关".to_string(),
+        namespace: ScriptVariableNamespace::Input,
+        value_type: ScriptVariableValueType::Bool,
+        owner_task_id: None,
+        source_type: ScriptVariableSourceType::Manual,
+        source_step_id: None,
+        readable: true,
+        writable: true,
+        persisted: true,
+        ui_bindable: true,
+        default_value: Some(json!(true)),
+        description: String::new(),
+    }
+}
+
 #[test]
 fn input_variable_prefers_template_values_by_variable_id() {
     let task_id = UuidV7(7);
@@ -219,4 +238,22 @@ fn input_variable_falls_back_to_task_storage_key() {
 
     let value = ScriptExecutor::resolve_input_variable_value(&variable, None, Some(&task));
     assert_eq!(value, Some(json!("default-from-task")));
+}
+
+#[test]
+fn input_variable_falls_back_to_catalog_default_without_template_or_task_value() {
+    let variable = build_script_level_input_variable();
+
+    let value = ScriptExecutor::resolve_input_variable_value(&variable, None, None);
+    assert_eq!(value, Some(json!(true)));
+}
+
+#[test]
+fn task_owned_input_variable_is_hidden_without_task_context() {
+    let task_id = UuidV7(9);
+    let variable = build_input_variable(task_id);
+
+    assert!(!ScriptExecutor::input_variable_visible_for_task(
+        &variable, None
+    ));
 }

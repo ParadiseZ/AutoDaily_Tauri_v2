@@ -33,25 +33,6 @@ const SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL: &str =
             ifnull(account_id, '')
         )";
 
-const RECOVERY_CHECKPOINT_TABLE_SQL: &str =
-    "CREATE TABLE IF NOT EXISTS device_runtime_checkpoints (
-            execution_id TEXT PRIMARY KEY,
-            source_session_id TEXT NOT NULL,
-            device_id TEXT NOT NULL UNIQUE,
-            run_target_json JSON NOT NULL,
-            assignment_id TEXT,
-            script_id TEXT NOT NULL,
-            time_template_id TEXT,
-            account_id TEXT,
-            task_id TEXT,
-            step_id TEXT,
-            resume_mode JSON NOT NULL,
-            definition_fingerprint TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
-            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
-        )";
-
 pub static POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
 /// 子进程初始化数据库
@@ -274,13 +255,6 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     ensure_script_time_template_values_schema(pool).await?;
-
-    // 13. 设备恢复检查点
-    sqlx::query(RECOVERY_CHECKPOINT_TABLE_SQL)
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    ensure_recovery_checkpoint_schema(pool).await?;
 
     Ok(())
 }
@@ -527,99 +501,6 @@ async fn ensure_script_time_template_values_schema(pool: &Pool<Sqlite>) -> Resul
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-async fn ensure_recovery_checkpoint_schema(pool: &Pool<Sqlite>) -> Result<(), String> {
-    let rows = sqlx::query("PRAGMA table_info(device_runtime_checkpoints)")
-        .fetch_all(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let column_names: Vec<String> = rows
-        .iter()
-        .filter_map(|row| row.try_get::<String, _>("name").ok())
-        .collect();
-
-    let has_device_unique = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(1) FROM pragma_index_list('device_runtime_checkpoints') WHERE name = 'idx_device_runtime_checkpoints_device_id'",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(|e| e.to_string())?
-        > 0;
-
-    if !column_names.iter().any(|column| column == "device_id")
-        || !column_names.iter().any(|column| column == "resume_mode")
-    {
-        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-
-        sqlx::query(
-            "ALTER TABLE device_runtime_checkpoints RENAME TO device_runtime_checkpoints_legacy",
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?;
-
-        sqlx::query(RECOVERY_CHECKPOINT_TABLE_SQL)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        sqlx::query(
-            "INSERT INTO device_runtime_checkpoints (
-                execution_id,
-                source_session_id,
-                device_id,
-                run_target_json,
-                assignment_id,
-                script_id,
-                time_template_id,
-                account_id,
-                task_id,
-                step_id,
-                resume_mode,
-                definition_fingerprint,
-                updated_at
-            )
-            SELECT
-                execution_id,
-                source_session_id,
-                device_id,
-                run_target_json,
-                assignment_id,
-                script_id,
-                time_template_id,
-                account_id,
-                task_id,
-                step_id,
-                COALESCE(resume_mode, '\"fromTaskStart\"'),
-                definition_fingerprint,
-                updated_at
-            FROM device_runtime_checkpoints_legacy",
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?;
-
-        sqlx::query("DROP TABLE device_runtime_checkpoints_legacy")
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| e.to_string())?;
-
-        tx.commit().await.map_err(|e| e.to_string())?;
-    }
-
-    if !has_device_unique {
-        sqlx::query(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_device_runtime_checkpoints_device_id
-             ON device_runtime_checkpoints (device_id)",
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    }
 
     Ok(())
 }

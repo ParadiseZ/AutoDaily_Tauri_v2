@@ -183,61 +183,9 @@ pub struct RuntimeSessionSnapshot {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub enum ResumeMode {
-    FromTaskStart,
-    FromStepStart,
-    FromNextStep,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ResumeCheckpoint {
-    pub execution_id: ExecutionId,
-    pub source_session_id: SessionId,
-    pub device_id: DeviceId,
-    pub run_target: RunTarget,
-    pub assignment_id: Option<ScheduleId>,
-    pub script_id: ScriptId,
-    pub time_template_id: Option<TemplateId>,
-    pub account_id: Option<AccountId>,
-    pub task_id: Option<TaskId>,
-    pub step_id: Option<StepId>,
-    pub resume_mode: ResumeMode,
-    pub definition_fingerprint: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum SessionCheckpointReason {
-    Restart,
-    Shutdown,
-    Manual,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub enum RuntimeRecoveryPhase {
-    CheckpointPreparing,
-    CheckpointReady,
-    RestartReady,
-    CheckpointLoaded,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub enum SessionControlMessage {
-    LoadSession {
-        session: RuntimeSessionSnapshot,
-        checkpoint: Option<ResumeCheckpoint>,
-    },
-    ReloadSession {
-        session: RuntimeSessionSnapshot,
-        checkpoint: Option<ResumeCheckpoint>,
-    },
-    PrepareCheckpoint {
-        reason: SessionCheckpointReason,
-    },
+    LoadSession { session: RuntimeSessionSnapshot },
+    ReloadSession { session: RuntimeSessionSnapshot },
     ClearSession,
 }
 
@@ -315,26 +263,10 @@ pub struct RuntimeScheduleEvent {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct RuntimeRecoveryEvent {
-    pub session_id: Option<SessionId>,
-    pub execution_id: Option<ExecutionId>,
-    pub assignment_id: Option<ScheduleId>,
-    pub script_id: Option<ScriptId>,
-    pub task_id: Option<TaskId>,
-    pub step_id: Option<StepId>,
-    pub phase: RuntimeRecoveryPhase,
-    pub checkpoint_updated_at: Option<String>,
-    pub message: Option<String>,
-    pub at: String,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub enum RuntimeEventMessage {
     Lifecycle(RuntimeLifecycleEvent),
     Progress(RuntimeProgressEvent),
     Schedule(RuntimeScheduleEvent),
-    Recovery(RuntimeRecoveryEvent),
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]

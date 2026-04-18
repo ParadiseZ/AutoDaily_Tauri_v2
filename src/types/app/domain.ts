@@ -202,36 +202,6 @@ export interface RuntimeScheduleEvent {
     at: string;
 }
 
-export interface RuntimeRecoveryEvent {
-    deviceId: string;
-    sessionId?: string | null;
-    executionId?: string | null;
-    assignmentId?: string | null;
-    scriptId?: string | null;
-    taskId?: string | null;
-    stepId?: string | null;
-    phase: string;
-    checkpointUpdatedAt?: string | null;
-    message?: string | null;
-    at: string;
-}
-
-export interface ResumeCheckpointRecord {
-    executionId: string;
-    sourceSessionId: string;
-    deviceId: string;
-    runTarget: RunTarget;
-    assignmentId?: string | null;
-    scriptId: string;
-    timeTemplateId?: string | null;
-    accountId?: string | null;
-    taskId?: string | null;
-    stepId?: string | null;
-    resumeMode: 'fromTaskStart' | 'fromStepStart' | 'fromNextStep';
-    definitionFingerprint: string;
-    updatedAt: string;
-}
-
 export interface ScriptTimeTemplateValuesDto {
     id: string;
     deviceId?: string | null;

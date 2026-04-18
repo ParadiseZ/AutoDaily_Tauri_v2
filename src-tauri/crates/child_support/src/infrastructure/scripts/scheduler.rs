@@ -11,21 +11,15 @@ use crate::infrastructure::context::runtime_context::get_runtime_ctx;
 use crate::infrastructure::core::ExecutionId;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::ipc::message::{
-    ResumeCheckpoint, ResumeMode, RunTarget, RuntimeProgressPhase, RuntimeQueueItem,
-    RuntimeScheduleStatus, RuntimeSessionSnapshot,
+    RunTarget, RuntimeProgressPhase, RuntimeQueueItem, RuntimeScheduleStatus,
+    RuntimeSessionSnapshot,
 };
 use crate::infrastructure::ipc::runtime_reporter::{emit_progress_event, emit_schedule_event};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::execution_plan::{ExecutionPlanAssembler, PlannedTask};
 use crate::infrastructure::scripts::executor::ScriptExecutor;
 use crate::infrastructure::scripts::schedule_journal::ScheduleJournal;
-use crate::infrastructure::session::recovery_checkpoint_store::{
-    build_definition_fingerprint, clear_checkpoint_by_device,
-};
-use crate::infrastructure::session::runtime_session::{
-    get_loaded_checkpoint, get_script_bundle_snapshot, take_loaded_checkpoint,
-    try_current_session_summary,
-};
+use crate::infrastructure::session::runtime_session::{get_script_bundle_snapshot, try_current_session_summary};
 use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use crate::infrastructure::vision::rec::RecognizerType;
@@ -44,12 +38,6 @@ struct ParsedScriptBundle {
     policy_sets: Vec<PolicySetTable>,
     group_policies: Vec<GroupPolicyRelation>,
     set_groups: Vec<SetGroupRelation>,
-}
-
-#[derive(Debug, Clone)]
-struct TaskResumeCursor {
-    start_index: usize,
-    message: String,
 }
 
 /// 脚本调度器
@@ -189,178 +177,6 @@ impl ScriptScheduler {
         state.exec_cur = state.exec_cur.saturating_add(1);
     }
 
-    async fn take_resume_checkpoint_for_execution(
-        run_target: &RunTarget,
-        queue_item: &RuntimeQueueItem,
-    ) -> Option<ResumeCheckpoint> {
-        let checkpoint = get_loaded_checkpoint().await?;
-        let should_take = match run_target {
-            RunTarget::DeviceQueue => checkpoint.assignment_id == Some(queue_item.assignment_id),
-            RunTarget::FullScript { .. } | RunTarget::Task { .. } => {
-                checkpoint.script_id == queue_item.script_id
-            }
-            _ => false,
-        };
-
-        if should_take {
-            take_loaded_checkpoint().await
-        } else {
-            None
-        }
-    }
-
-    async fn validate_resume_checkpoint(
-        run_target: &RunTarget,
-        queue_item: &RuntimeQueueItem,
-        checkpoint: &ResumeCheckpoint,
-    ) -> Result<(), String> {
-        let expected_fingerprint = build_definition_fingerprint(checkpoint.script_id).await?;
-        if checkpoint.definition_fingerprint != expected_fingerprint {
-            return Err("checkpoint 定义指纹已失效，已降级为普通执行".to_string());
-        }
-
-        match run_target {
-            RunTarget::DeviceQueue => {
-                if checkpoint.assignment_id != Some(queue_item.assignment_id) {
-                    return Err(format!(
-                        "checkpoint assignment[{:?}] 与当前队列项[{}]不一致，已降级为普通执行",
-                        checkpoint.assignment_id, queue_item.assignment_id
-                    ));
-                }
-            }
-            RunTarget::Task { task_id, .. } => {
-                if checkpoint.task_id != Some(*task_id) {
-                    return Err(format!(
-                        "checkpoint task[{:?}] 与当前调试任务[{}]不一致，已降级为普通执行",
-                        checkpoint.task_id, task_id
-                    ));
-                }
-            }
-            RunTarget::FullScript { .. } => {}
-            _ => {
-                return Err("当前运行目标不支持 checkpoint 恢复执行".to_string());
-            }
-        }
-
-        Ok(())
-    }
-
-    fn apply_resume_checkpoint_to_pending_tasks(
-        pending_tasks: &mut VecDeque<PlannedTask>,
-        linkable_tasks: &std::collections::HashMap<
-            crate::infrastructure::core::TaskId,
-            PlannedTask,
-        >,
-        checkpoint: &ResumeCheckpoint,
-    ) -> Result<String, String> {
-        let Some(task_id) = checkpoint.task_id else {
-            return Ok("checkpoint 未记录 task，已降级为从脚本起点恢复".to_string());
-        };
-
-        if let Some(position) = pending_tasks
-            .iter()
-            .position(|planned| planned.task.id == task_id)
-        {
-            for _ in 0..position {
-                pending_tasks.pop_front();
-            }
-            return Ok(format!("将从 checkpoint 任务[{}]继续恢复", task_id));
-        }
-
-        let planned_task = linkable_tasks.get(&task_id).cloned().ok_or_else(|| {
-            format!(
-                "checkpoint 任务[{}]不在当前执行计划里，已降级为普通执行",
-                task_id
-            )
-        })?;
-        let target_index = planned_task.task.index;
-        let trimmed: VecDeque<_> = pending_tasks
-            .drain(..)
-            .filter(|planned| planned.task.id != task_id && planned.task.index >= target_index)
-            .collect();
-        *pending_tasks = trimmed;
-        pending_tasks.push_front(planned_task);
-
-        Ok(format!(
-            "checkpoint 命中的任务[{}]不是 root task，已按任务安全点插回队首恢复",
-            task_id
-        ))
-    }
-
-    fn resolve_task_resume_cursor(
-        task: &ScriptTaskTable,
-        checkpoint: &ResumeCheckpoint,
-    ) -> TaskResumeCursor {
-        match checkpoint.resume_mode {
-            ResumeMode::FromTaskStart => TaskResumeCursor {
-                start_index: 0,
-                message: format!("任务[{}]按 checkpoint 从任务起点恢复", task.name),
-            },
-            ResumeMode::FromStepStart => match checkpoint.step_id {
-                Some(step_id) => match task
-                    .data
-                    .0
-                    .steps
-                    .iter()
-                    .position(|step| step.id == Some(step_id))
-                {
-                    Some(index) => TaskResumeCursor {
-                        start_index: index,
-                        message: format!(
-                            "任务[{}]按 checkpoint 从步骤[{}]起点恢复",
-                            task.name, step_id
-                        ),
-                    },
-                    None => TaskResumeCursor {
-                        start_index: 0,
-                        message: format!(
-                            "checkpoint 步骤[{}]不在任务[{}]顶层步骤中，已降级为从任务起点恢复",
-                            step_id, task.name
-                        ),
-                    },
-                },
-                None => TaskResumeCursor {
-                    start_index: 0,
-                    message: format!(
-                        "checkpoint 未记录步骤游标，任务[{}]已降级为从任务起点恢复",
-                        task.name
-                    ),
-                },
-            },
-            ResumeMode::FromNextStep => match checkpoint.step_id {
-                Some(step_id) => match task
-                    .data
-                    .0
-                    .steps
-                    .iter()
-                    .position(|step| step.id == Some(step_id))
-                {
-                    Some(index) => TaskResumeCursor {
-                        start_index: (index + 1).min(task.data.0.steps.len()),
-                        message: format!(
-                            "任务[{}]按 checkpoint 从步骤[{}]之后继续恢复",
-                            task.name, step_id
-                        ),
-                    },
-                    None => TaskResumeCursor {
-                        start_index: 0,
-                        message: format!(
-                            "checkpoint 步骤[{}]不在任务[{}]顶层步骤中，已降级为从任务起点恢复",
-                            step_id, task.name
-                        ),
-                    },
-                },
-                None => TaskResumeCursor {
-                    start_index: 0,
-                    message: format!(
-                        "checkpoint 未记录步骤游标，任务[{}]已降级为从任务起点恢复",
-                        task.name
-                    ),
-                },
-            },
-        }
-    }
-
     /// 用完整 session 替换当前队列
     pub async fn load_session(&self, session: RuntimeSessionSnapshot) {
         let mut queue = self.queue.write().await;
@@ -498,13 +314,6 @@ impl ScriptScheduler {
         let plan_summary = execution_plan.summary();
         let is_policy_debug_target = execution_plan.is_policy_debug();
         let task_selection = execution_plan.task_selection();
-        let mut resume_checkpoint = if is_policy_debug_target {
-            None
-        } else {
-            Self::take_resume_checkpoint_for_execution(&run_target, &queue_item).await
-        };
-        let mut clear_checkpoint_on_success = false;
-
         // 更新运行时上下文的 script_id
         {
             let mut ctx = runtime_ctx.write().await;
@@ -567,46 +376,6 @@ impl ScriptScheduler {
             Some(execution_plan.progress_message()),
         );
 
-        if let Some(checkpoint) = resume_checkpoint.as_ref() {
-            match Self::validate_resume_checkpoint(&run_target, &queue_item, checkpoint).await {
-                Ok(()) => {
-                    clear_checkpoint_on_success = true;
-                    emit_progress_event(
-                        RuntimeProgressPhase::Executing,
-                        Some(assignment_id),
-                        Some(script_id),
-                        checkpoint.task_id,
-                        checkpoint.step_id,
-                        Some(format!(
-                            "已加载 checkpoint，准备按 {:?} 恢复执行",
-                            checkpoint.resume_mode
-                        )),
-                    );
-                }
-                Err(reason) => {
-                    Log::warn(&format!(
-                        "[ scheduler ] 脚本[{}] checkpoint 不可恢复，已降级: {}",
-                        script_id, reason
-                    ));
-                    emit_progress_event(
-                        RuntimeProgressPhase::Executing,
-                        Some(assignment_id),
-                        Some(script_id),
-                        checkpoint.task_id,
-                        checkpoint.step_id,
-                        Some(reason),
-                    );
-                    if let Err(error) = clear_checkpoint_by_device(device_id).await {
-                        Log::warn(&format!(
-                            "[ scheduler ] 清理失效 checkpoint 失败，已忽略: {}",
-                            error
-                        ));
-                    }
-                    resume_checkpoint = None;
-                }
-            }
-        }
-
         if is_policy_debug_target {
             return Self::execute_debug_policy_target(
                 &run_target,
@@ -652,56 +421,11 @@ impl ScriptScheduler {
         let mut executor = ScriptExecutor::new(runtime_ctx.clone());
         let mut pending_tasks: VecDeque<_> = root_tasks.clone().into_iter().collect();
         let linkable_tasks = task_selection.linkable_tasks;
-        if let Some(checkpoint) = resume_checkpoint.as_ref() {
-            match Self::apply_resume_checkpoint_to_pending_tasks(
-                &mut pending_tasks,
-                &linkable_tasks,
-                checkpoint,
-            ) {
-                Ok(message) => {
-                    emit_progress_event(
-                        RuntimeProgressPhase::Executing,
-                        Some(assignment_id),
-                        Some(script_id),
-                        checkpoint.task_id,
-                        checkpoint.step_id,
-                        Some(message),
-                    );
-                }
-                Err(reason) => {
-                    Log::warn(&format!(
-                        "[ scheduler ] 脚本[{}] checkpoint 任务恢复失败，已降级: {}",
-                        script_id, reason
-                    ));
-                    emit_progress_event(
-                        RuntimeProgressPhase::Executing,
-                        Some(assignment_id),
-                        Some(script_id),
-                        checkpoint.task_id,
-                        checkpoint.step_id,
-                        Some(reason),
-                    );
-                    if let Err(error) = clear_checkpoint_by_device(device_id).await {
-                        Log::warn(&format!(
-                            "[ scheduler ] 清理不可恢复 checkpoint 失败，已忽略: {}",
-                            error
-                        ));
-                    }
-                    resume_checkpoint = None;
-                    clear_checkpoint_on_success = false;
-                    pending_tasks = root_tasks.clone().into_iter().collect();
-                }
-            }
-        }
         while let Some(planned_task) = pending_tasks.pop_front() {
             let task_cycle = planned_task.task_cycle;
             let task = planned_task.task;
             let record_schedule = planned_task.record_schedule;
             let task_started_at = chrono::Utc::now().to_rfc3339();
-            let task_resume_cursor = resume_checkpoint
-                .as_ref()
-                .filter(|checkpoint| checkpoint.task_id == Some(task.id))
-                .map(|checkpoint| Self::resolve_task_resume_cursor(&task, checkpoint));
             {
                 let mut ctx = runtime_ctx.write().await;
                 ctx.execution.current_task = Some(task.clone());
@@ -714,12 +438,7 @@ impl ScriptScheduler {
                 Some(script_id),
                 Some(task.id),
                 None,
-                Some(
-                    task_resume_cursor
-                        .as_ref()
-                        .map(|cursor| cursor.message.clone())
-                        .unwrap_or_else(|| format!("开始执行任务: {}", task.name)),
-                ),
+                Some(format!("开始执行任务: {}", task.name)),
             );
 
             executor.reset_node_indices();
@@ -731,14 +450,7 @@ impl ScriptScheduler {
                 )
                 .await
                 .map_err(|error| error.to_string())?;
-            let task_steps = match task_resume_cursor.as_ref() {
-                Some(cursor) => &task.data.0.steps[cursor.start_index..],
-                None => task.data.0.steps.as_slice(),
-            };
-            let task_result = executor.execute(task_steps).await;
-            if task_resume_cursor.is_some() {
-                resume_checkpoint = None;
-            }
+            let task_result = executor.execute(&task.data.0.steps).await;
 
             let completion_at = chrono::Utc::now().to_rfc3339();
             match task_result {
@@ -937,15 +649,6 @@ impl ScriptScheduler {
             )),
         );
 
-        if clear_checkpoint_on_success {
-            if let Err(error) = clear_checkpoint_by_device(device_id).await {
-                Log::warn(&format!(
-                    "[ scheduler ] 脚本[{}]恢复执行成功后清理 checkpoint 失败，已忽略: {}",
-                    script_id, error
-                ));
-            }
-        }
-
         Ok(())
     }
 
@@ -1116,221 +819,5 @@ impl ScriptScheduler {
         self.clear_queue().await;
         *self.current_script.write().await = None;
         Log::info("[ scheduler ] 当前 session 已清空");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ScriptScheduler;
-    use crate::domain::devices::device_schedule::TaskCycle;
-    use crate::domain::scripts::script_decision::{Step, StepKind};
-    use crate::domain::scripts::script_task::{
-        ScriptTask, ScriptTaskTable, TaskRowType, TaskTone, TaskTriggerMode,
-    };
-    use crate::infrastructure::core::{StepId, TaskId, UuidV7};
-    use crate::infrastructure::ipc::message::{ResumeCheckpoint, ResumeMode, RunTarget};
-    use serde_json::Value;
-    use sqlx::types::Json;
-    use std::collections::VecDeque;
-
-    fn build_step(id: StepId) -> Step {
-        Step {
-            id: Some(id),
-            source_id: None,
-            target_id: None,
-            label: None,
-            skip_flag: false,
-            kind: StepKind::Sequence { steps: Vec::new() },
-        }
-    }
-
-    fn build_task(
-        id: TaskId,
-        index: u32,
-        trigger_mode: TaskTriggerMode,
-        steps: Vec<Step>,
-    ) -> ScriptTaskTable {
-        ScriptTaskTable {
-            id,
-            script_id: UuidV7(1),
-            name: format!("task-{}", index),
-            row_type: TaskRowType::Task,
-            trigger_mode,
-            record_schedule: false,
-            section_id: None,
-            indent_level: 0,
-            default_task_cycle: Json(TaskCycle::EveryRun),
-            exec_max: 0,
-            show_enabled_toggle: true,
-            default_enabled: true,
-            task_tone: TaskTone::Normal,
-            is_hidden: false,
-            data: Json(ScriptTask {
-                ui_data: Value::Null,
-                variables: Value::Null,
-                steps,
-            }),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-            deleted_at: None,
-            is_deleted: false,
-            index,
-        }
-    }
-
-    fn build_checkpoint(
-        task_id: TaskId,
-        step_id: Option<StepId>,
-        resume_mode: ResumeMode,
-    ) -> ResumeCheckpoint {
-        ResumeCheckpoint {
-            execution_id: UuidV7(1),
-            source_session_id: UuidV7(1),
-            device_id: UuidV7(1),
-            run_target: RunTarget::FullScript {
-                script_id: UuidV7(1),
-            },
-            assignment_id: None,
-            script_id: UuidV7(1),
-            time_template_id: None,
-            account_id: None,
-            task_id: Some(task_id),
-            step_id,
-            resume_mode,
-            definition_fingerprint: "fp".to_string(),
-            updated_at: chrono::Utc::now().to_rfc3339(),
-        }
-    }
-
-    #[test]
-    fn apply_resume_checkpoint_trims_root_tasks_before_target() {
-        let task_a = build_task(UuidV7(11), 10, TaskTriggerMode::RootOnly, Vec::new());
-        let task_b = build_task(UuidV7(22), 20, TaskTriggerMode::RootOnly, Vec::new());
-        let task_c = build_task(UuidV7(33), 30, TaskTriggerMode::RootOnly, Vec::new());
-        let mut pending = VecDeque::from(vec![
-            crate::infrastructure::scripts::execution_plan::PlannedTask {
-                task: task_a,
-                task_cycle: TaskCycle::EveryRun,
-                allow_root: true,
-                allow_link: false,
-                record_schedule: false,
-            },
-            crate::infrastructure::scripts::execution_plan::PlannedTask {
-                task: task_b.clone(),
-                task_cycle: TaskCycle::EveryRun,
-                allow_root: true,
-                allow_link: false,
-                record_schedule: false,
-            },
-            crate::infrastructure::scripts::execution_plan::PlannedTask {
-                task: task_c.clone(),
-                task_cycle: TaskCycle::EveryRun,
-                allow_root: true,
-                allow_link: false,
-                record_schedule: false,
-            },
-        ]);
-
-        let message = ScriptScheduler::apply_resume_checkpoint_to_pending_tasks(
-            &mut pending,
-            &std::collections::HashMap::new(),
-            &build_checkpoint(task_b.id, None, ResumeMode::FromTaskStart),
-        )
-        .unwrap();
-
-        assert!(message.contains(&format!("{}", task_b.id)));
-        assert_eq!(pending.len(), 2);
-        assert_eq!(pending.front().map(|task| task.task.id), Some(task_b.id));
-        assert_eq!(pending.back().map(|task| task.task.id), Some(task_c.id));
-    }
-
-    #[test]
-    fn apply_resume_checkpoint_can_restore_link_only_task() {
-        let task_a = build_task(UuidV7(11), 10, TaskTriggerMode::RootOnly, Vec::new());
-        let task_b = build_task(UuidV7(22), 20, TaskTriggerMode::LinkOnly, Vec::new());
-        let task_c = build_task(UuidV7(33), 30, TaskTriggerMode::RootOnly, Vec::new());
-        let mut pending = VecDeque::from(vec![
-            crate::infrastructure::scripts::execution_plan::PlannedTask {
-                task: task_a,
-                task_cycle: TaskCycle::EveryRun,
-                allow_root: true,
-                allow_link: false,
-                record_schedule: false,
-            },
-            crate::infrastructure::scripts::execution_plan::PlannedTask {
-                task: task_c.clone(),
-                task_cycle: TaskCycle::EveryRun,
-                allow_root: true,
-                allow_link: false,
-                record_schedule: false,
-            },
-        ]);
-        let mut linkable = std::collections::HashMap::new();
-        linkable.insert(
-            task_b.id,
-            crate::infrastructure::scripts::execution_plan::PlannedTask {
-                task: task_b.clone(),
-                task_cycle: TaskCycle::EveryRun,
-                allow_root: false,
-                allow_link: true,
-                record_schedule: false,
-            },
-        );
-
-        ScriptScheduler::apply_resume_checkpoint_to_pending_tasks(
-            &mut pending,
-            &linkable,
-            &build_checkpoint(task_b.id, None, ResumeMode::FromTaskStart),
-        )
-        .unwrap();
-
-        assert_eq!(pending.len(), 2);
-        assert_eq!(pending.front().map(|task| task.task.id), Some(task_b.id));
-        assert_eq!(pending.back().map(|task| task.task.id), Some(task_c.id));
-    }
-
-    #[test]
-    fn resolve_task_resume_cursor_supports_step_start_and_next_step() {
-        let step_a = UuidV7(101);
-        let step_b = UuidV7(102);
-        let step_c = UuidV7(103);
-        let task = build_task(
-            UuidV7(22),
-            20,
-            TaskTriggerMode::RootOnly,
-            vec![build_step(step_a), build_step(step_b), build_step(step_c)],
-        );
-
-        let from_step = ScriptScheduler::resolve_task_resume_cursor(
-            &task,
-            &build_checkpoint(task.id, Some(step_b), ResumeMode::FromStepStart),
-        );
-        let from_next = ScriptScheduler::resolve_task_resume_cursor(
-            &task,
-            &build_checkpoint(task.id, Some(step_b), ResumeMode::FromNextStep),
-        );
-
-        assert_eq!(from_step.start_index, 1);
-        assert_eq!(from_next.start_index, 2);
-        assert!(from_step.message.contains(&format!("{}", step_b)));
-        assert!(from_next.message.contains(&format!("{}", step_b)));
-    }
-
-    #[test]
-    fn resolve_task_resume_cursor_falls_back_to_task_start_when_step_missing() {
-        let task = build_task(
-            UuidV7(22),
-            20,
-            TaskTriggerMode::RootOnly,
-            vec![build_step(UuidV7(101))],
-        );
-
-        let cursor = ScriptScheduler::resolve_task_resume_cursor(
-            &task,
-            &build_checkpoint(task.id, Some(UuidV7(999)), ResumeMode::FromStepStart),
-        );
-
-        assert_eq!(cursor.start_index, 0);
-        assert!(cursor.message.contains("降级"));
     }
 }

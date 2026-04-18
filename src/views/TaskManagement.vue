@@ -87,8 +87,6 @@
         :script-tasks-by-script-id="scriptStore.tasksByScriptId"
         :script-task-loading="scriptStore.taskLoading"
         :progress-event="runtimeStore.getLatestProgress(activeDevice.id)"
-        :recovery-checkpoint="runtimeStore.getRecoveryCheckpoint(activeDevice.id)"
-        :recovery-event="runtimeStore.getLatestRecovery(activeDevice.id)"
         :loading-assignments="Boolean(taskStore.loadingAssignments[activeDevice.id])"
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         @add-script="handleAddScript"
@@ -111,7 +109,6 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
-import { deviceService } from '@/services/deviceService';
 import { runtimeService } from '@/services/runtimeService';
 import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
 import { useDeviceStore } from '@/store/device';
@@ -141,13 +138,10 @@ const totalAssignments = computed(() =>
 const loadPageData = async () => {
   await Promise.all([deviceStore.refreshAll(), scriptStore.loadScripts()]);
   await taskStore.hydrateForDevices(deviceIds.value);
-  await runtimeStore.hydrateRecoveryCheckpoints(deviceIds.value);
   if (!deviceStore.selectedDeviceId && orderedDevices.value.length) {
     deviceStore.selectedDeviceId = orderedDevices.value[0].id;
   }
 };
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const handleAddScript = async (deviceId: string, scriptId: string, timeTemplateId: string | null) => {
   try {
@@ -182,8 +176,7 @@ const handleRemoveAssignment = async (deviceId: string, assignment: AssignmentRe
 const handleClearSchedules = async (deviceId: string) => {
   try {
     await taskStore.clearSchedules(deviceId);
-    runtimeStore.clearRecoveryState(deviceId);
-    showToast('运行记录与恢复检查点已清空', 'success');
+    showToast('运行记录已清空', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '清空失败', 'error');
   }
@@ -240,23 +233,6 @@ const validateTemporaryRun = async (deviceId: string, target: RunTarget) => {
   return validateRunTargetRecoveryForDevice(device, script, tasks);
 };
 
-const waitForCheckpointReady = async (deviceId: string, previousAt: string | null, timeoutMs = 5000) => {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const latest = runtimeStore.getLatestRecovery(deviceId);
-    if (
-      latest &&
-      latest.at !== previousAt &&
-      (latest.phase === 'CheckpointReady' || latest.phase === 'RestartReady')
-    ) {
-      return latest;
-    }
-    await sleep(100);
-  }
-
-  return null;
-};
-
 const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
   const status = deviceStore.getDeviceStatus(deviceId);
   if (status.kind !== 'running' && status.kind !== 'paused') {
@@ -264,7 +240,7 @@ const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
   }
 
   const device = deviceStore.devices.find((item) => item.id === deviceId);
-  const approved = await confirm('当前设备正在执行。暂停当前任务并创建恢复点后继续临时运行？', {
+  const approved = await confirm('当前设备正在执行。暂停当前任务后继续临时运行？', {
     title: '确认切换运行目标',
     okLabel: '继续',
     cancelLabel: '取消',
@@ -278,18 +254,10 @@ const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
     if (status.kind === 'running') {
       await deviceStore.pauseDevice(deviceId);
     }
-
-    const previousAt = runtimeStore.getLatestRecovery(deviceId)?.at ?? null;
-    await deviceService.prepareCheckpoint(deviceId, 'manual');
-    const recoveryReady = await waitForCheckpointReady(deviceId, previousAt);
-    if (!recoveryReady) {
-      showToast(`设备「${device?.data.deviceName || deviceId}」恢复点准备超时，已取消临时运行`, 'warning');
-      return false;
-    }
-
+    showToast(`设备「${device?.data.deviceName || deviceId}」已暂停，开始临时运行`, 'success');
     return true;
   } catch (error) {
-    showToast(error instanceof Error ? error.message : '准备恢复点失败', 'error');
+    showToast(error instanceof Error ? error.message : '暂停当前运行失败', 'error');
     return false;
   }
 };

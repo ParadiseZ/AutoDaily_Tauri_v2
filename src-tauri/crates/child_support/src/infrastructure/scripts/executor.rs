@@ -26,12 +26,11 @@ use crate::infrastructure::core::{
 };
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
-    RunTarget, RuntimeLifecyclePhase, RuntimeProgressPhase, SessionCheckpointReason, TimeoutAction,
+    RunTarget, RuntimeLifecyclePhase, RuntimeProgressPhase, TimeoutAction,
 };
 use crate::infrastructure::ipc::runtime_reporter::{emit_lifecycle_event, emit_progress_event};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
-use crate::infrastructure::session::recovery_checkpoint_store::prepare_and_persist_checkpoint;
 use crate::infrastructure::session::runtime_session::{
     get_runtime_execution_policy, get_script_bundle_snapshot,
 };

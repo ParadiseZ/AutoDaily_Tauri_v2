@@ -142,34 +142,6 @@ export const formatTemplateWindow = (template: TimeTemplate | null | undefined) 
     return template.name;
 };
 
-export const formatRecoveryPhaseLabel = (phase?: string | null) => {
-    switch (phase) {
-        case 'CheckpointPreparing':
-            return '准备检查点';
-        case 'CheckpointReady':
-            return '检查点已保存';
-        case 'RestartReady':
-            return '可按检查点重启';
-        case 'CheckpointLoaded':
-            return '检查点已加载';
-        default:
-            return phase || '恢复事件';
-    }
-};
-
-export const formatResumeModeLabel = (mode?: string | null) => {
-    switch (mode) {
-        case 'fromTaskStart':
-            return '从任务起点';
-        case 'fromStepStart':
-            return '从步骤起点';
-        case 'fromNextStep':
-            return '从下一步骤';
-        default:
-            return mode || '未记录';
-    }
-};
-
 export const formatTaskCycleLabel = (value: TaskCycle) => {
     if (value === 'everyRun') return '每次';
     if (value === 'daily') return '每日';

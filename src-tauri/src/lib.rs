@@ -27,9 +27,9 @@ use crate::api::domain::policy::*;
 use crate::api::domain::schedule::{
     clear_schedules_by_script_cmd, clear_schedules_cmd, delete_assignment_cmd,
     delete_script_time_template_values_cmd, delete_time_template_cmd, get_all_time_templates_cmd,
-    get_assignments_by_device_cmd, get_recovery_checkpoint_by_device_cmd,
-    get_schedules_by_device_cmd, get_script_time_template_values_cmd, reorder_assignments_cmd,
-    save_assignment_cmd, save_script_time_template_values_cmd, save_time_template_cmd,
+    get_assignments_by_device_cmd, get_schedules_by_device_cmd,
+    get_script_time_template_values_cmd, reorder_assignments_cmd, save_assignment_cmd,
+    save_script_time_template_values_cmd, save_time_template_cmd,
 };
 use crate::api::domain::scripts::{
     clone_local_script_cmd, delete_script_cmd, get_all_scripts_cmd, get_script_by_id_cmd,
@@ -51,9 +51,8 @@ use crate::api::infrastructure::get_uuid_v7;
 use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::process_api::{
     cmd_device_pause, cmd_device_shutdown, cmd_device_start, cmd_device_stop,
-    cmd_get_running_devices, cmd_is_device_running, cmd_prepare_device_checkpoint,
-    cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
-    cmd_sync_device_runtime_session,
+    cmd_get_running_devices, cmd_is_device_running, cmd_restart_device_runtime,
+    cmd_run_script_target, cmd_spawn_device, cmd_sync_device_runtime_session,
 };
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::context::main_process::MainProcessCtx;
@@ -149,7 +148,6 @@ pub fn run() {
             cmd_sync_device_runtime_session,
             cmd_run_script_target,
             cmd_device_shutdown,
-            cmd_prepare_device_checkpoint,
             cmd_restart_device_runtime,
             cmd_get_running_devices,
             cmd_spawn_device,
@@ -162,7 +160,6 @@ pub fn run() {
             get_schedules_by_device_cmd,
             clear_schedules_cmd,
             clear_schedules_by_script_cmd,
-            get_recovery_checkpoint_by_device_cmd,
             get_all_time_templates_cmd,
             save_time_template_cmd,
             delete_time_template_cmd,

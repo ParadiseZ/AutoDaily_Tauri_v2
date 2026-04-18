@@ -52,7 +52,6 @@ pub mod table_name {
 
     pub const ASSIGNMENT_TABLE: &str = "device_script_assignments";
     pub const SCHEDULE_TABLE: &str = "device_script_schedules";
-    pub const RECOVERY_CHECKPOINT_TABLE: &str = "device_runtime_checkpoints";
     pub const TIME_TEMPLATE_TABLE: &str = "time_templates";
     pub const SCRIPT_TIME_TEMPLATE_VALUES_TABLE: &str = "script_time_template_values";
 }

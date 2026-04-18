@@ -983,7 +983,6 @@ impl ScriptExecutor {
                 Ok(Some(ControlFlow::Link(recovery_task_id)))
             }
             TimeoutAction::StopExecution => {
-                self.prepare_timeout_checkpoint_if_needed().await;
                 crate::infrastructure::context::child_process_sec::set_running_status(
                     crate::infrastructure::context::child_process_sec::RunningStatus::Idle,
                 );
@@ -999,7 +998,6 @@ impl ScriptExecutor {
                 Err(Self::execute_error("action.timeout", message))
             }
             TimeoutAction::PauseExecution => {
-                self.prepare_timeout_checkpoint_if_needed().await;
                 crate::infrastructure::context::child_process_sec::set_running_status(
                     crate::infrastructure::context::child_process_sec::RunningStatus::Paused,
                 );
@@ -1015,7 +1013,6 @@ impl ScriptExecutor {
                 Err(Self::execute_error("action.timeout", message))
             }
             TimeoutAction::RestartApp => {
-                self.prepare_timeout_checkpoint_if_needed().await;
                 let (script_name, pkg_name, activity_name) =
                     self.current_script_launch_target().await?;
                 if let Err(error) = get_device_ctx().stop_app(&pkg_name).await {
@@ -1187,15 +1184,6 @@ impl ScriptExecutor {
             })?;
 
         Ok((script_info.name.clone(), pkg_name, activity_name))
-    }
-
-    async fn prepare_timeout_checkpoint_if_needed(&self) {
-        if let Err(error) = prepare_and_persist_checkpoint(SessionCheckpointReason::Manual).await {
-            Log::warn(&format!(
-                "[ executor ] timeout 后写入 checkpoint 失败，已忽略: {}",
-                error
-            ));
-        }
     }
 
     fn build_page_fingerprint(snapshot: &VisionSnapshot) -> String {

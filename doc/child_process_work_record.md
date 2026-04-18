@@ -2,7 +2,28 @@
 
 > 首轮实现日期: 2026-03-03 ~ 2026-03-05
 > 本次更新目的: 补充分包拆解后的实际归属，修正文档中过时路径与“前端未接入”描述
-> 当前状态: 子进程基础设施、日志链路、前端接入已完成主链路；执行器闭环仍未完成
+> 当前状态: 子进程基础设施、日志链路、前端接入已完成主链路；恢复执行设计目标已删除，执行器继续围绕正式执行与调试运行收口
+
+## 0. 2026-04-17 更新
+
+本轮已明确删除“checkpoint / 恢复执行”设计目标，并同步删除相关代码。后续阅读本文件时，以这条更新为准：
+
+- child 不再处理 `PrepareCheckpoint`
+- `SessionControl` 只保留：
+  - `LoadSession`
+  - `ReloadSession`
+  - `ClearSession`
+- `ChildRuntimeSession` 只保存 `RuntimeSessionSnapshot + bundle index`
+- 主进程不再装填 `ResumeCheckpoint`，也不再维护 `device-recovery` 事件投影
+- 任务管理页临时运行改为：
+  - 若设备正在执行，先确认并暂停当前运行
+  - 然后直接切换到临时 `FullScript / Task`
+  - 不再等待 checkpoint 安全点
+- “未完成任务”的补跑语义，回到调度记录模型：
+  - 没有成功调度记录，就视为后续仍可重新完整执行
+- 保留项只有超时策略里的 `RunRecoveryTask`
+  - 这里的 `recovery_task_id` 只是脚本级 timeout 落点
+  - 不再代表通用的中断后恢复执行能力
 
 ---
 
@@ -182,7 +203,6 @@
 - `SessionControl`
   - `LoadSession` -> 替换当前 `RuntimeSessionSnapshot`，同步 scheduler 队列，并发 `Loaded / Idle`
   - `ReloadSession` -> 热更新当前 session 和 scheduler 队列
-  - `PrepareCheckpoint` -> 在安全点保存 checkpoint，并发 `CheckpointReady / RestartReady`
   - `ClearSession` -> 清空当前 session 与 scheduler 队列
 - `ConfigUpdate`
   - 已接日志级别
@@ -268,8 +288,8 @@
   - `运行队列`：正式 `DeviceQueue`
   - `临时运行脚本 / 临时运行任务`：临时 `FullScript / Task`
 - 临时运行目标不改 assignment 队列定义。
-- 设备运行中切到临时目标时，前端会先确认，再发 `Pause + PrepareCheckpoint(manual)`。
-- checkpoint 的 `updated_at` 视为恢复点设置时间；超过 1 天默认失效并清理。
+- 设备运行中切到临时目标时，前端会先确认并暂停当前运行，再直接切换目标。
+- 临时运行仍不写正式调度记录，但保留运行日志与 runtime event。
 
 ---
 
@@ -425,7 +445,6 @@
 
 当前仍未收口：
 
-- child 加载 `ResumeCheckpoint` 后，已经能按 `task / step` 做安全点恢复；当前剩余的是更细粒度作用域与恢复态展示继续补齐
 - `PolicyGroup / PolicySet / Policy` 现已进入调试运行主链，但仍不属于 `DeviceQueue` 正式任务计划
 - `ColorCompare` 等剩余条件/数据能力还没有接入真实执行
 - `ExecutionPlanAssembler` 的剩余工作已经不是“把过滤器变成计划器”，而是继续补：
@@ -454,14 +473,56 @@
 - `DeviceQueue` 正式运行已经真实消费 `RuntimeQueueItem.template_values_json`：
   - `ExecutionPlanAssembler` 会读取 `taskSettings.enabled / taskSettings.taskCycle`
   - `ScriptExecutor` 会读取 `variables` 并装入 input scope
+- `FullScript / Task` 调试运行当前也会回退到开发期输入：
+  - 输入变量装配顺序是 `template_values_json.variables -> task.data.variables -> variableCatalog.defaultValue`
+- `Policy / PolicyGroup / PolicySet` 调试运行当前不自动装填 task 级 UI 输入值：
+  - 当前调用 `hydrate_input_scope(..., task=None)`
+  - `owner_task_id != null` 的 input 变量不会进入调试 scope
+  - 未取到值时只输出调试日志，不自动补无意义占位值
 
 当前仍未收口：
 
 - 非 `DeviceQueue` 目标仍使用临时 `RuntimeQueueItem`
 - `time_template_id / account_id / account_data_json` 仍未补成正式调度语义
 - `build_debug_template_values_json()` 当前只补了最小 `everyRun` task-cycle 覆盖，不等于完整模板/账户作用域
+- 前端 UI 设置值完整保存到 `script_time_template_values.values_json.variables` 的链路还未补齐
+- 这条链补齐后，在线变更也需要继续触发 runtime session reload，让后续任务装填到新变量值
 
-## 6.3 运行时持久化还没做
+## 6.3 在线 reload 的当前边界
+
+位置：
+
+- `src-tauri/src/api/domain/scripts.rs`
+- `src-tauri/src/api/infrastructure/runtime_sync.rs`
+- `src-tauri/crates/child_support/src/infrastructure/ipc/msg_handler_child.rs`
+- `src-tauri/crates/child_support/src/infrastructure/scripts/scheduler.rs`
+
+当前状态：
+
+- 编辑器最终保存会走 `save_script_cmd -> sync_device_sessions_if_online -> cmd_sync_device_runtime_session -> ReloadSession`
+- 模板值保存/删除也会走同一条在线 session reload
+- `ReloadSession` 当前会直接替换 child session 和 scheduler queue
+
+当前边界：
+
+- 已经开始执行的当前 task 不会在执行中途被热替换成新定义
+- `scheduler.execute_script()` 在开头就把当前 script bundle 解析到本地执行上下文
+- 因此 reload 主要影响：
+  - 后续 pending queue
+  - 下一次 task 选择
+  - 下一轮脚本执行
+  - 之后重新装填的输入变量
+- 当前 running task 仍会按 reload 前已解析的 bundle 跑完
+
+注意：
+
+- 这意味着“新增任务 / 改变量 / 改步骤”在设备在线时，当前并不是对正在跑到一半的 task 做热替换
+- 如果后续需要把某类结构变更收口到“当前运行中立刻严格生效”，那应单独走：
+  - `Pause`
+  - `ReloadSession`
+  - 再重新发起运行
+
+## 6.4 运行时持久化还没做
 
 位置：
 
@@ -483,7 +544,7 @@
 - 保存运行时变量
 - 补完整调度结果
 
-## 6.4 子进程打包策略仍需最终验证
+## 6.5 子进程打包策略仍需最终验证
 
 当前现状：
 

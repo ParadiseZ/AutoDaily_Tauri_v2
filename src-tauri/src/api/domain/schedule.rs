@@ -4,18 +4,16 @@ use crate::api::infrastructure::runtime_sync::{
     sync_device_sessions_if_online,
 };
 use crate::constant::table_name::{
-    ASSIGNMENT_TABLE, DEVICE_TABLE, RECOVERY_CHECKPOINT_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
-    SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
+    ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE, SCRIPT_TIME_TEMPLATE_VALUES_TABLE,
+    TIME_TEMPLATE_TABLE,
 };
 use crate::domain::devices::device_conf::{DevicePlatform, DeviceTable};
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
-use crate::domain::schedule::recovery_checkpoint::RecoveryCheckpointRow;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::schedule::time_template::TimeTemplate;
 use crate::domain::scripts::script_info::{ScriptPlatform, ScriptTable};
 use crate::infrastructure::core::{AccountId, DeviceId, ScheduleId, ScriptId, TemplateId};
 use crate::infrastructure::db::{get_pool, DbRepo};
-use crate::infrastructure::ipc::message::ResumeCheckpoint;
 use tauri::command;
 
 fn device_platform_label(platform: &DevicePlatform) -> &'static str {
@@ -38,14 +36,6 @@ fn platform_matches(device_platform: &DevicePlatform, script_platform: &ScriptPl
         (DevicePlatform::Android, ScriptPlatform::Android)
             | (DevicePlatform::Desktop, ScriptPlatform::Desktop)
     )
-}
-
-fn is_checkpoint_expired(checkpoint: &ResumeCheckpoint) -> bool {
-    let Ok(updated_at) = chrono::DateTime::parse_from_rfc3339(&checkpoint.updated_at) else {
-        return true;
-    };
-
-    chrono::Utc::now() - updated_at.with_timezone(&chrono::Utc) > chrono::Duration::days(1)
 }
 
 async fn validate_assignment_platform(
@@ -199,14 +189,6 @@ pub async fn clear_schedules_cmd(device_id: DeviceId) -> Result<(), String> {
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    sqlx::query(&format!(
-        "DELETE FROM {} WHERE device_id = ?",
-        RECOVERY_CHECKPOINT_TABLE
-    ))
-    .bind(device_id.to_string())
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -222,51 +204,7 @@ pub async fn clear_schedules_by_script_cmd(script_id: ScriptId) -> Result<(), St
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    sqlx::query(&format!(
-        "DELETE FROM {} WHERE script_id = ?",
-        RECOVERY_CHECKPOINT_TABLE
-    ))
-    .bind(script_id.to_string())
-    .execute(pool)
-    .await
-    .map_err(|e| e.to_string())?;
     Ok(())
-}
-
-/// 获取指定设备最近一次可恢复检查点
-#[command]
-pub async fn get_recovery_checkpoint_by_device_cmd(
-    device_id: DeviceId,
-) -> Result<Option<ResumeCheckpoint>, String> {
-    let pool = get_pool();
-    let query = format!(
-        "SELECT execution_id, source_session_id, device_id, run_target_json, assignment_id, script_id, time_template_id, account_id, task_id, step_id, resume_mode, definition_fingerprint, updated_at
-         FROM {}
-         WHERE device_id = ?
-         ORDER BY updated_at DESC
-         LIMIT 1",
-        RECOVERY_CHECKPOINT_TABLE
-    );
-    let checkpoint = sqlx::query_as::<_, RecoveryCheckpointRow>(&query)
-        .bind(device_id.to_string())
-        .fetch_optional(pool)
-        .await
-        .map(|row| row.map(RecoveryCheckpointRow::into_checkpoint))
-        .map_err(|e| e.to_string())?;
-
-    if checkpoint.as_ref().is_some_and(is_checkpoint_expired) {
-        sqlx::query(&format!(
-            "DELETE FROM {} WHERE device_id = ?",
-            RECOVERY_CHECKPOINT_TABLE
-        ))
-        .bind(device_id.to_string())
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
-        return Ok(None);
-    }
-
-    Ok(checkpoint)
 }
 
 // ========== 时间模板 ==========

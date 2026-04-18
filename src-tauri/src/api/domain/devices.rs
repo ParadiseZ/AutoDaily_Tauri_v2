@@ -6,7 +6,6 @@ use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::DbRepo;
-use crate::infrastructure::ipc::message::SessionCheckpointReason;
 use tauri::command;
 
 async fn reconcile_runtime_after_device_save(
@@ -26,12 +25,7 @@ async fn reconcile_runtime_after_device_save(
     }
 
     if previous.data.0.cores != device.data.0.cores {
-        cmd_restart_device_runtime(
-            app_handle.clone(),
-            device.id,
-            SessionCheckpointReason::Restart,
-        )
-        .await?;
+        cmd_restart_device_runtime(app_handle.clone(), device.id).await?;
         return Ok(());
     }
 

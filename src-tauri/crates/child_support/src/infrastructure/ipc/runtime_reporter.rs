@@ -2,8 +2,8 @@ use crate::infrastructure::context::child_process_sec::get_ipc_client;
 use crate::infrastructure::core::{ExecutionId, ScheduleId, ScriptId, SessionId, StepId, TaskId};
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, RuntimeEventMessage, RuntimeLifecycleEvent,
-    RuntimeLifecyclePhase, RuntimeProgressEvent, RuntimeProgressPhase, RuntimeRecoveryEvent,
-    RuntimeRecoveryPhase, RuntimeScheduleEvent, RuntimeScheduleStatus,
+    RuntimeLifecyclePhase, RuntimeProgressEvent, RuntimeProgressPhase, RuntimeScheduleEvent,
+    RuntimeScheduleStatus,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::scheduler::get_scheduler;
@@ -107,32 +107,5 @@ pub fn emit_schedule_event(
             at: now_millis_string(),
         }),
         "调度事件",
-    );
-}
-
-pub fn emit_recovery_event(
-    phase: RuntimeRecoveryPhase,
-    execution_id: Option<ExecutionId>,
-    assignment_id: Option<ScheduleId>,
-    script_id: Option<ScriptId>,
-    task_id: Option<TaskId>,
-    step_id: Option<StepId>,
-    checkpoint_updated_at: Option<String>,
-    message: Option<String>,
-) {
-    emit_runtime_event(
-        RuntimeEventMessage::Recovery(RuntimeRecoveryEvent {
-            session_id: current_session_id(),
-            execution_id,
-            assignment_id,
-            script_id,
-            task_id,
-            step_id,
-            phase,
-            checkpoint_updated_at,
-            message,
-            at: now_millis_string(),
-        }),
-        "恢复事件",
     );
 }

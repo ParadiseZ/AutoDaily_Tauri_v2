@@ -1,6 +1,5 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::infrastructure::app_handle::get_app_handle;
-use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::RuntimeEventMessage;
@@ -157,31 +156,6 @@ fn handle_runtime_event(
                     "at": schedule.at,
                 });
                 let _ = main_window.emit("device-schedule", emit_data);
-            }
-            RuntimeEventMessage::Recovery(recovery) => {
-                get_app_handle()
-                    .state::<MainProcessCtx>()
-                    .recovery_runtime
-                    .record(
-                        device_id,
-                        recovery.phase.clone(),
-                        recovery.execution_id,
-                        recovery.checkpoint_updated_at.clone(),
-                    );
-                let emit_data = serde_json::json!({
-                    "deviceId": device_id.to_string(),
-                    "sessionId": recovery.session_id.map(|id| id.to_string()),
-                    "executionId": recovery.execution_id.map(|id| id.to_string()),
-                    "assignmentId": recovery.assignment_id.map(|id| id.to_string()),
-                    "scriptId": recovery.script_id.map(|id| id.to_string()),
-                    "taskId": recovery.task_id.map(|id| id.to_string()),
-                    "stepId": recovery.step_id.map(|id| id.to_string()),
-                    "phase": format!("{:?}", recovery.phase),
-                    "checkpointUpdatedAt": recovery.checkpoint_updated_at,
-                    "message": recovery.message,
-                    "at": recovery.at,
-                });
-                let _ = main_window.emit("device-recovery", emit_data);
             }
         }
     }

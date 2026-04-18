@@ -1,7 +1,6 @@
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId, SessionId};
 use crate::infrastructure::ipc::message::{
-    ResumeCheckpoint, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
-    ScriptBundleSnapshot,
+    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot, ScriptBundleSnapshot,
 };
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
@@ -9,7 +8,6 @@ use tokio::sync::RwLock;
 #[derive(Debug, Clone)]
 pub struct ChildRuntimeSession {
     snapshot: RuntimeSessionSnapshot,
-    checkpoint: Option<ResumeCheckpoint>,
     bundles_by_script: HashMap<ScriptId, ScriptBundleSnapshot>,
 }
 
@@ -19,7 +17,6 @@ pub struct ChildRuntimeSessionSummary {
     pub device_id: DeviceId,
     pub run_target: RunTarget,
     pub queue_len: usize,
-    pub has_checkpoint: bool,
 }
 
 type SharedChildRuntimeSession = Arc<RwLock<Option<ChildRuntimeSession>>>;
@@ -27,7 +24,7 @@ type SharedChildRuntimeSession = Arc<RwLock<Option<ChildRuntimeSession>>>;
 static RUNTIME_SESSION: OnceLock<SharedChildRuntimeSession> = OnceLock::new();
 
 impl ChildRuntimeSession {
-    pub fn new(snapshot: RuntimeSessionSnapshot, checkpoint: Option<ResumeCheckpoint>) -> Self {
+    pub fn new(snapshot: RuntimeSessionSnapshot) -> Self {
         let bundles_by_script = snapshot
             .script_bundles
             .iter()
@@ -35,11 +32,7 @@ impl ChildRuntimeSession {
             .map(|bundle| (bundle.script_id, bundle))
             .collect();
 
-        Self {
-            snapshot,
-            checkpoint,
-            bundles_by_script,
-        }
+        Self { snapshot, bundles_by_script }
     }
 
     pub fn summary(&self) -> ChildRuntimeSessionSummary {
@@ -48,7 +41,6 @@ impl ChildRuntimeSession {
             device_id: self.snapshot.device_id,
             run_target: self.snapshot.run_target.clone(),
             queue_len: self.snapshot.queue.len(),
-            has_checkpoint: self.checkpoint.is_some(),
         }
     }
 
@@ -67,10 +59,6 @@ impl ChildRuntimeSession {
             .cloned()
     }
 
-    pub fn checkpoint(&self) -> Option<ResumeCheckpoint> {
-        self.checkpoint.clone()
-    }
-
     pub fn runtime_policy(&self) -> RuntimeExecutionPolicy {
         self.snapshot.runtime_policy.clone()
     }
@@ -84,9 +72,8 @@ pub fn get_runtime_session_store() -> SharedChildRuntimeSession {
 
 pub async fn replace_runtime_session(
     snapshot: RuntimeSessionSnapshot,
-    checkpoint: Option<ResumeCheckpoint>,
 ) -> ChildRuntimeSessionSummary {
-    let session = ChildRuntimeSession::new(snapshot, checkpoint);
+    let session = ChildRuntimeSession::new(snapshot);
     let summary = session.summary();
     let store = get_runtime_session_store();
     *store.write().await = Some(session);
@@ -115,18 +102,6 @@ pub async fn get_runtime_queue_item(
     guard
         .as_ref()
         .and_then(|session| session.queue_item(assignment_id))
-}
-
-pub async fn get_loaded_checkpoint() -> Option<ResumeCheckpoint> {
-    let store = get_runtime_session_store();
-    let guard = store.read().await;
-    guard.as_ref().and_then(ChildRuntimeSession::checkpoint)
-}
-
-pub async fn take_loaded_checkpoint() -> Option<ResumeCheckpoint> {
-    let store = get_runtime_session_store();
-    let mut guard = store.write().await;
-    guard.as_mut().and_then(|session| session.checkpoint.take())
 }
 
 pub async fn get_runtime_execution_policy() -> Option<RuntimeExecutionPolicy> {
