@@ -91,6 +91,7 @@
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         @add-script="handleAddScript"
         @ensure-script-tasks="handleEnsureScriptTasks"
+        @open-assignment-settings="handleOpenAssignmentSettings"
         @remove-assignment="handleRemoveAssignment"
         @run-target="handleRunTarget"
         @clear-schedules="handleClearSchedules"
@@ -99,25 +100,44 @@
         @stop="deviceStore.stopDevice"
       />
     </div>
+
+    <AppDialog
+      :open="assignmentSettingsOpen"
+      title="脚本模板设置"
+      description="快速编辑当前设备队列里这条脚本分配对应的模板变量。"
+      width-class="max-w-4xl"
+      @close="assignmentSettingsOpen = false"
+    >
+      <ScriptTemplateValuePanel
+        v-if="assignmentSettingsScope && assignmentSettingsScript"
+        :script="assignmentSettingsScript"
+        :tasks="assignmentSettingsTasks"
+        :scope="assignmentSettingsScope"
+      />
+    </AppDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import AppDialog from '@/components/shared/AppDialog.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import { runtimeService } from '@/services/runtimeService';
 import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
+import ScriptTemplateValuePanel from '@/views/script-template-values/ScriptTemplateValuePanel.vue';
 import { useDeviceStore } from '@/store/device';
 import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
+import { formatTemplateWindow } from '@/utils/presenters';
 import { showToast } from '@/utils/toast';
 import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
 import type { AssignmentRecord, RunTarget } from '@/types/app/domain';
+import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 
 const deviceStore = useDeviceStore();
 const runtimeStore = useRuntimeStore();
@@ -133,6 +153,22 @@ const activeDevice = computed(() =>
 );
 const totalAssignments = computed(() =>
   Object.values(taskStore.assignmentsByDevice).reduce((count, items) => count + items.length, 0),
+);
+const assignmentSettingsOpen = ref(false);
+const assignmentSettingsScriptId = ref<string | null>(null);
+const assignmentSettingsTasks = ref<ScriptTaskTable[]>([]);
+const assignmentSettingsScope = ref<{
+  deviceId: string;
+  deviceName: string;
+  timeTemplateId: string;
+  templateLabel: string;
+  accountId?: string | null;
+} | null>(null);
+
+const assignmentSettingsScript = computed(() =>
+  assignmentSettingsScriptId.value
+    ? scriptStore.sortedScripts.find((item) => item.id === assignmentSettingsScriptId.value) ?? null
+    : null,
 );
 
 const loadPageData = async () => {
@@ -171,6 +207,36 @@ const handleRemoveAssignment = async (deviceId: string, assignment: AssignmentRe
   } catch (error) {
     showToast(error instanceof Error ? error.message : '移除失败', 'error');
   }
+};
+
+const handleOpenAssignmentSettings = async (assignment: AssignmentRecord) => {
+  if (!assignment.timeTemplateId) {
+    showToast('请先为这条脚本分配选择时间模板。', 'warning');
+    return;
+  }
+
+  const device = deviceStore.devices.find((item) => item.id === assignment.deviceId);
+  const script = scriptStore.sortedScripts.find((item) => item.id === assignment.scriptId);
+  const template = taskStore.timeTemplates.find((item) => item.id === assignment.timeTemplateId);
+
+  if (!device || !script || !template) {
+    showToast('当前分配缺少设备、脚本或时间模板信息。', 'error');
+    return;
+  }
+
+  const tasks =
+    scriptStore.tasksByScriptId[assignment.scriptId] ?? (await scriptStore.loadScriptTasks(assignment.scriptId).catch(() => []));
+
+  assignmentSettingsScriptId.value = script.id;
+  assignmentSettingsTasks.value = tasks;
+  assignmentSettingsScope.value = {
+    deviceId: assignment.deviceId,
+    deviceName: device.data.deviceName,
+    timeTemplateId: assignment.timeTemplateId,
+    templateLabel: formatTemplateWindow(template),
+    accountId: null,
+  };
+  assignmentSettingsOpen.value = true;
 };
 
 const handleClearSchedules = async (deviceId: string) => {

@@ -72,6 +72,15 @@
               <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ getScriptName(assignment.scriptId) }}</p>
               <p class="text-xs text-[var(--app-text-faint)]">{{ getTemplateName(assignment.timeTemplateId) }}</p>
             </div>
+            <button
+              class="app-button app-button-ghost h-8 px-3 text-sm group"
+              type="button"
+              :disabled="!assignment.timeTemplateId"
+              :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
+              @click="$emit('openAssignmentSettings', assignment)"
+            >
+              <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
+            </button>
             <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
               <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
             </button>
@@ -205,6 +214,7 @@ const emit = defineEmits<{
   addScript: [deviceId: string, scriptId: string, timeTemplateId: string | null];
   ensureScriptTasks: [scriptId: string];
   runTarget: [deviceId: string, target: RunTarget];
+  openAssignmentSettings: [assignment: AssignmentRecord];
   removeAssignment: [deviceId: string, assignment: AssignmentRecord];
   clearSchedules: [deviceId: string];
 }>();

@@ -8,12 +8,46 @@
       <div class="rounded-[18px] border border-[var(--app-border)] px-4 py-4">
         <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">设备关联</p>
         <div v-if="usageItems.length" class="mt-3 space-y-2">
-          <div v-for="item in usageItems" :key="`${item.deviceId}-${item.assignmentId}`" class="flex items-center justify-between gap-3 text-sm">
-            <span class="truncate text-[var(--app-text-strong)]">{{ item.deviceName }}</span>
-            <span class="truncate text-[var(--app-text-soft)]">{{ item.templateLabel }}</span>
+          <div
+            v-for="item in usageItems"
+            :key="`${item.deviceId}-${item.assignmentId}`"
+            class="flex items-center justify-between gap-3 rounded-[14px] border border-transparent px-2 py-2 text-sm transition-colors"
+            :class="item.scopeKey === selectedScopeKey ? 'border-[var(--app-border)] bg-[var(--app-panel-muted)]' : ''"
+          >
+            <div class="min-w-0">
+              <p class="truncate text-[var(--app-text-strong)]">{{ item.deviceName }}</p>
+              <p class="truncate text-xs text-[var(--app-text-faint)]">{{ item.templateLabel }}</p>
+            </div>
+            <button
+              v-if="item.timeTemplateId"
+              class="app-button app-button-ghost h-8 px-3 text-xs"
+              type="button"
+              @click="selectedScopeKey = item.scopeKey"
+            >
+              设置
+            </button>
+            <span v-else class="text-xs text-[var(--app-text-faint)]">无模板</span>
           </div>
         </div>
         <p v-else class="mt-3 text-sm text-[var(--app-text-soft)]">未挂载到任何设备队列上。</p>
+      </div>
+
+      <div v-if="selectedScope" class="space-y-3">
+        <div>
+          <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">当前模板范围</p>
+        </div>
+        <ScriptTemplateValuePanel
+          :script="script"
+          :tasks="tasks"
+          :scope="selectedScope"
+        />
+      </div>
+
+      <div
+        v-else-if="usageItems.some((item) => item.timeTemplateId === null)"
+        class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)]"
+      >
+        当前脚本虽然已挂到设备，但这些分配还没有选择时间模板，因此还没有独立的模板变量作用域。
       </div>
 
       <div class="space-y-3">
@@ -87,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -95,6 +129,7 @@ import type { AssignmentRecord, JsonValue, ScriptTableRecord } from '@/types/app
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
+import ScriptTemplateValuePanel from '@/views/script-template-values/ScriptTemplateValuePanel.vue';
 import {
   formatTaskCycleLabel,
   formatTaskRowTypeLabel,
@@ -116,6 +151,8 @@ const templateMap = computed(() =>
   Object.fromEntries(props.timeTemplates.map((template) => [template.id, template])),
 );
 
+const selectedScopeKey = ref<string | null>(null);
+
 const usageItems = computed(() => {
   if (!props.script) {
     return [];
@@ -128,12 +165,48 @@ const usageItems = computed(() => {
         assignmentId: assignment.id,
         deviceId: device.id,
         deviceName: device.data.deviceName,
+        timeTemplateId: assignment.timeTemplateId,
+        accountId: null,
+        scopeKey: [device.id, assignment.timeTemplateId ?? '', ''].join('::'),
         templateLabel: formatTemplateWindow(
           assignment.timeTemplateId ? templateMap.value[assignment.timeTemplateId] : null,
         ),
       })),
   );
 });
+
+const selectedScope = computed<{
+  deviceId: string;
+  deviceName: string;
+  timeTemplateId: string;
+  templateLabel: string;
+  accountId: null;
+} | null>(() => {
+  const item = usageItems.value.find((candidate) => candidate.timeTemplateId && candidate.scopeKey === selectedScopeKey.value);
+  if (!item || !item.timeTemplateId) {
+    return null;
+  }
+
+  return {
+    deviceId: item.deviceId,
+    deviceName: item.deviceName,
+    timeTemplateId: item.timeTemplateId,
+    templateLabel: item.templateLabel,
+    accountId: item.accountId,
+  };
+});
+
+watch(
+  usageItems,
+  (items) => {
+    const hasCurrent = items.some((item) => item.scopeKey === selectedScopeKey.value && item.timeTemplateId);
+    if (hasCurrent) {
+      return;
+    }
+    selectedScopeKey.value = items.find((item) => item.timeTemplateId)?.scopeKey ?? null;
+  },
+  { immediate: true },
+);
 
 const extractVariables = (value: JsonValue) => {
   if (!value || Array.isArray(value) || typeof value !== 'object') {

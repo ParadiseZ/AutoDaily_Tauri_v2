@@ -318,33 +318,67 @@ async fn load_runtime_queue(device_id: DeviceId) -> Result<Vec<RuntimeQueueItem>
 
     let mut queue = Vec::with_capacity(assignments.len());
     for assignment in assignments {
-        let account_data_json =
-            serde_json::to_string(&assignment.account_data.0).map_err(|e| e.to_string())?;
-        let account_id = None;
-        let template_values_json = match assignment.time_template_id {
-            Some(time_template_id) => find_template_values_with_fallback(
-                device_id,
-                assignment.script_id,
-                time_template_id,
-                account_id.clone(),
-            )
-            .await?
-            .map(|record| serde_json::to_string(&record.values_json.0).map_err(|e| e.to_string()))
-            .transpose()?,
-            None => None,
-        };
-        queue.push(RuntimeQueueItem {
-            assignment_id: assignment.id,
-            script_id: assignment.script_id,
-            time_template_id: assignment.time_template_id,
-            account_id,
-            account_data_json: Some(account_data_json),
-            order_index: assignment.index,
-            template_values_json,
-        });
+        queue.push(build_runtime_queue_item(device_id, assignment).await?);
     }
 
     Ok(queue)
+}
+
+async fn build_runtime_queue_item(
+    device_id: DeviceId,
+    assignment: DeviceScriptAssignment,
+) -> Result<RuntimeQueueItem, String> {
+    let account_data_json =
+        serde_json::to_string(&assignment.account_data.0).map_err(|e| e.to_string())?;
+    let account_id = None;
+    let template_values_json = match assignment.time_template_id {
+        Some(time_template_id) => find_template_values_with_fallback(
+            device_id,
+            assignment.script_id,
+            time_template_id,
+            account_id.clone(),
+        )
+        .await?
+        .map(|record| serde_json::to_string(&record.values_json.0).map_err(|e| e.to_string()))
+        .transpose()?,
+        None => None,
+    };
+
+    Ok(RuntimeQueueItem {
+        assignment_id: assignment.id,
+        script_id: assignment.script_id,
+        time_template_id: assignment.time_template_id,
+        account_id,
+        account_data_json: Some(account_data_json),
+        order_index: assignment.index,
+        template_values_json,
+    })
+}
+
+async fn load_debug_scope_queue_item(
+    device_id: DeviceId,
+    script_id: ScriptId,
+) -> Result<Option<RuntimeQueueItem>, String> {
+    let query = format!(
+        "SELECT id, device_id, script_id, time_template_id, account_data, `index`
+         FROM {}
+         WHERE device_id = ?1 AND script_id = ?2
+         ORDER BY `index` ASC
+         LIMIT 1",
+        ASSIGNMENT_TABLE
+    );
+
+    let assignment = sqlx::query_as::<_, DeviceScriptAssignment>(&query)
+        .bind(device_id.to_string())
+        .bind(script_id.to_string())
+        .fetch_optional(get_pool())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    match assignment {
+        Some(assignment) => build_runtime_queue_item(device_id, assignment).await.map(Some),
+        None => Ok(None),
+    }
 }
 
 async fn load_script_bundles(
@@ -370,6 +404,7 @@ async fn load_script_bundles(
 
 fn build_debug_template_values_json(
     run_target: &RunTarget,
+    queue_item: Option<&RuntimeQueueItem>,
     bundles: &[LoadedScriptBundle],
 ) -> Result<Option<String>, String> {
     if matches!(run_target, RunTarget::DeviceQueue) {
@@ -394,23 +429,58 @@ fn build_debug_template_values_json(
             )
         })?;
 
-    let mut task_settings = serde_json::Map::new();
+    let mut root = match queue_item.and_then(|item| item.template_values_json.as_deref()) {
+        Some(content) if !content.trim().is_empty() && content.trim() != "null" => {
+            match serde_json::from_str::<serde_json::Value>(content).map_err(|error| {
+                format!(
+                    "解析调试运行脚本[{}]模板覆盖值失败: {}",
+                    bundle.script_name, error
+                )
+            })? {
+                serde_json::Value::Object(map) => map,
+                _ => {
+                    return Err(format!(
+                        "调试运行脚本[{}]模板覆盖值必须是对象",
+                        bundle.script_name
+                    ))
+                }
+            }
+        }
+        _ => serde_json::Map::new(),
+    };
+
+    let mut task_settings = match root.remove("taskSettings") {
+        Some(serde_json::Value::Object(map)) => map,
+        Some(_) => {
+            return Err(format!(
+                "调试运行脚本[{}]的 taskSettings 必须是对象",
+                bundle.script_name
+            ))
+        }
+        None => serde_json::Map::new(),
+    };
+
     for task in tasks
         .into_iter()
         .filter(|task| matches!(task.row_type, TaskRowType::Task))
         .filter(|task| !task.is_deleted)
     {
-        task_settings.insert(
-            task.id.to_string(),
-            serde_json::json!({
-                "taskCycle": "everyRun",
-            }),
-        );
+        let task_key = task.id.to_string();
+        let mut task_override = match task_settings.remove(&task_key) {
+            Some(serde_json::Value::Object(map)) => map,
+            Some(_) => serde_json::Map::new(),
+            None => serde_json::Map::new(),
+        };
+        task_override.insert("taskCycle".to_string(), serde_json::json!("everyRun"));
+        task_settings.insert(task_key, serde_json::Value::Object(task_override));
     }
 
-    serde_json::to_string(&serde_json::json!({
-        "taskSettings": task_settings,
-    }))
+    root.insert(
+        "taskSettings".to_string(),
+        serde_json::Value::Object(task_settings),
+    );
+
+    serde_json::to_string(&serde_json::Value::Object(root))
     .map(Some)
     .map_err(|error| format!("构造调试运行模板覆盖值失败: {}", error))
 }
@@ -597,19 +667,26 @@ async fn build_runtime_session_snapshot(
     validate_runtime_platform_supported(&device_table)?;
     let mut queue = match &run_target {
         RunTarget::DeviceQueue => load_runtime_queue(device_id).await?,
-        target => target
-            .script_id()
-            .map(|script_id| RuntimeQueueItem {
-                assignment_id: ScheduleId::new_v7(),
-                script_id,
-                time_template_id: None,
-                account_id: None,
-                account_data_json: None,
-                order_index: 0,
-                template_values_json: None,
-            })
-            .into_iter()
-            .collect(),
+        target => {
+            let mut queue = Vec::new();
+            if let Some(script_id) = target.script_id() {
+                queue.push(
+                    match load_debug_scope_queue_item(device_id, script_id).await? {
+                        Some(item) => item,
+                        None => RuntimeQueueItem {
+                            assignment_id: ScheduleId::new_v7(),
+                            script_id,
+                            time_template_id: None,
+                            account_id: None,
+                            account_data_json: None,
+                            order_index: 0,
+                            template_values_json: None,
+                        },
+                    },
+                );
+            }
+            queue
+        }
     };
     let runtime_policy = to_runtime_policy(
         &device_table,
@@ -620,7 +697,7 @@ async fn build_runtime_session_snapshot(
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     validate_restart_app_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     if let Some(template_values_json) =
-        build_debug_template_values_json(&run_target, &loaded_script_bundles)?
+        build_debug_template_values_json(&run_target, queue.first(), &loaded_script_bundles)?
     {
         for item in &mut queue {
             item.template_values_json = Some(template_values_json.clone());
