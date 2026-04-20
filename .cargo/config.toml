@@ -1,7 +1,9 @@
 [build]
 # sccache 编译缓存加速 - 首次编译后，相同代码重编译速度提升 5-10 倍
 # 如果没有安装 sccache，运行: cargo install sccache
-rustc-wrapper = "D:\\Database\\Rust\\cargo\\bin\\sccache.exe"
+# 这里不直接调用 sccache.exe，经过一层 cmd wrapper 可避免当前 Windows 环境下
+# cargo 直接拉起 sccache 时偶发的 server startup timeout。
+rustc-wrapper = "D:\\Database\\Project\\VisualStudioCode\\AutoDaily\\.cargo\\sccache-wrapper.cmd"
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
 
