@@ -5,6 +5,8 @@ export const defaultRouterKey = 'routerStart';
 export const editorThemeKey = 'editorTheme';
 export const appThemeKey = 'appTheme';
 export const systemPreferencesKey = 'systemPreferences';
+export const visionLabPreferencesKey = 'visionLabPreferences';
+export const visionLabLaunchPresetKey = 'visionLabLaunchPreset';
 
 export const deviceKey = 'editorDevice';
 export async function getFromStore<T>(key: string): Promise<T | null | undefined> {

@@ -22,6 +22,10 @@
                   <AppIcon name="file-text" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
                   编辑脚本信息
                 </button>
+                <button class="app-button app-button-ghost group" type="button" data-testid="editor-open-vision-lab" :disabled="!draftScript" @click="handleOpenVisionLab">
+                  <AppIcon name="scan-search" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+                  视觉测试
+                </button>
                 <span
                   class="rounded-full px-3 py-1 text-xs font-medium"
                   :class="hasValidationErrors ? 'bg-red-500/12 text-red-700' : dirty ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
@@ -517,6 +521,7 @@ import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
 import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
 import { validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
+import { openVisionLabWindow } from '@/utils/visionLabWindow';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import EditorJsonDialog from '@/views/script-editor/EditorJsonDialog.vue';
 import EditorConsolePanel from '@/views/script-editor/EditorConsolePanel.vue';
@@ -2955,6 +2960,28 @@ const applyScriptInfo = (script: ScriptTableRecord) => {
   draftScript.value = cloneJson(script);
   infoDialogOpen.value = false;
   showToast('脚本信息已写入当前草稿，顶部保存后生效。', 'success');
+};
+
+const handleOpenVisionLab = async () => {
+  if (!draftScript.value) {
+    showToast('当前没有可用的脚本草稿', 'warning');
+    return;
+  }
+
+  try {
+    await openVisionLabWindow({
+      source: 'editor',
+      scriptId: draftScript.value.id,
+      scriptName: draftScript.value.data.name || null,
+      selectedDeviceId: selectedPreviewDeviceId.value,
+      imgDetModel: cloneJson(draftScript.value.data.imgDetModel),
+      txtDetModel: cloneJson(draftScript.value.data.txtDetModel),
+      txtRecModel: cloneJson(draftScript.value.data.txtRecModel),
+      createdAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '打开视觉测试窗口失败', 'error');
+  }
 };
 
 const buildSavePayload = () =>

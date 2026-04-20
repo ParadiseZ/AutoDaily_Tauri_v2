@@ -6,6 +6,7 @@ pub mod frontend_debug;
 pub mod img;
 pub mod process_api;
 pub mod runtime_sync;
+pub mod vision_lab;
 
 /// 设备配置表名
 #[command]

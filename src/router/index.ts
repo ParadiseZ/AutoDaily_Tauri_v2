@@ -52,6 +52,13 @@ const routes = [
         component: () => import('../views/Settings.vue')
     },
     {
+        path: '/vision-lab',
+        name: 'VisionLab',
+        label: "视觉测试",
+        icon: 'scan-search',
+        component: () => import('../views/VisionLab.vue')
+    },
+    {
         path: '/about',
         name: 'About',
         label: "关于项目",

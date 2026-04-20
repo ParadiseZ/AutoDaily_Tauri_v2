@@ -90,8 +90,9 @@ const route = useRoute();
 const userStore = useUserStore();
 const deviceStore = useDeviceStore();
 
-const primaryRoutes = computed(() => routesMenu.filter((item) => !['/settings', '/about'].includes(item.path)));
-const secondaryRoutes = computed(() => routesMenu.filter((item) => ['/settings', '/about'].includes(item.path)));
+const secondaryRoutePaths = ['/vision-lab', '/settings', '/about'];
+const primaryRoutes = computed(() => routesMenu.filter((item) => !secondaryRoutePaths.includes(item.path)));
+const secondaryRoutes = computed(() => routesMenu.filter((item) => secondaryRoutePaths.includes(item.path)));
 
 
 const userInitial = computed(() => userStore.userProfile?.username?.slice(0, 1).toUpperCase() || 'A');

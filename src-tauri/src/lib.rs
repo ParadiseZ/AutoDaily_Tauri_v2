@@ -54,6 +54,9 @@ use crate::api::infrastructure::process_api::{
     cmd_get_running_devices, cmd_is_device_running, cmd_restart_device_runtime,
     cmd_run_script_target, cmd_spawn_device, cmd_sync_device_runtime_session,
 };
+use crate::api::infrastructure::vision_lab::{
+    vision_list_image_files_cmd, vision_save_staged_image_cmd, vision_stage_capture_image_cmd,
+};
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::context::main_process::MainProcessCtx;
 use tauri::{App, Emitter, Manager};
@@ -105,6 +108,9 @@ pub fn run() {
             //uuid
             get_uuid_v7,
             frontend_debug_log_cmd,
+            vision_list_image_files_cmd,
+            vision_stage_capture_image_cmd,
+            vision_save_staged_image_cmd,
             // 常规/系统设置
             set_system_settings_cmd,
             // 设备配置

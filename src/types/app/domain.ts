@@ -14,7 +14,7 @@ import type { JsonValue as StoreJsonValue } from '@/types/bindings/serde_json/Js
 export type JsonValue = StoreJsonValue;
 
 export type AppTheme = 'light' | 'dark' | 'system';
-export type DefaultRoute = '/' | '/tasks' | '/devices' | '/scripts' | '/market' | '/logs' | '/settings' | '/about';
+export type DefaultRoute = '/' | '/tasks' | '/devices' | '/scripts' | '/market' | '/logs' | '/settings' | '/about' | '/vision-lab';
 export type StartMode = 'normal' | 'minimized' | 'tray';
 export type IdleAction = 'none' | 'shutdown' | 'sleep' | 'hibernate';
 export type DeviceStatusKind = 'idle' | 'running' | 'paused' | 'stopped' | 'error' | 'unknown';
@@ -81,6 +81,23 @@ export interface VisionTextCacheConfig {
     enabled: boolean;
     dir: string;
     signatureGridSize: number;
+}
+
+export interface VisionLabPreferences {
+    imageDir: string;
+    saveDir: string;
+    filterText: string;
+}
+
+export interface VisionLabLaunchPreset {
+    source: 'editor';
+    scriptId: string | null;
+    scriptName: string | null;
+    selectedDeviceId: string | null;
+    imgDetModel: DetectorType | null;
+    txtDetModel: DetectorType | null;
+    txtRecModel: RecognizerType | null;
+    createdAt: string;
 }
 
 export interface UserProfile {
@@ -343,6 +360,12 @@ export const DEFAULT_LOG_CONFIG: LogConfig = {
     logLevel: 'Info',
     logDir: 'logs',
     retentionDays: 7,
+};
+
+export const DEFAULT_VISION_LAB_PREFERENCES: VisionLabPreferences = {
+    imageDir: '',
+    saveDir: '',
+    filterText: '',
 };
 
 export const DEFAULT_EMAIL_CONFIG: EmailConfig = {
