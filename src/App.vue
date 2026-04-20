@@ -27,8 +27,7 @@ const logsStore = useLogsStore();
 const runtimeStore = useRuntimeStore();
 
 const layout = computed(() => {
-  const standaloneVisionLab = route.path === '/vision-lab' && route.query.standalone === '1';
-  return route.path === '/editor' || standaloneVisionLab ? 'div' : MainLayout;
+  return route.path === '/editor' || route.path === '/vision-lab' ? 'div' : MainLayout;
 });
 
 onMounted(async () => {

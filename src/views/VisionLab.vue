@@ -1,6 +1,6 @@
 <template>
   <div class="vision-lab-shell h-[100svh] overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
-    <div class="mx-auto flex h-full max-w-[1880px] flex-col gap-4">
+    <div class="mx-auto flex h-full max-w-[1900px] flex-col gap-4">
       <header class="vision-lab-header rounded-[28px] border border-[var(--app-border)] px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="space-y-2">
@@ -8,14 +8,14 @@
               <span class="rounded-full border border-[var(--app-border)] bg-white/55 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-text-faint)]">
                 Vision Lab
               </span>
-              <span v-if="isStandalone" class="rounded-full bg-[var(--app-accent-soft)] px-3 py-1 text-xs font-medium text-[var(--app-accent)]">
+              <span class="rounded-full bg-[var(--app-accent-soft)] px-3 py-1 text-xs font-medium text-[var(--app-accent)]">
                 独立窗口
               </span>
             </div>
             <div class="space-y-1">
               <h1 class="text-2xl font-semibold tracking-[-0.05em] text-[var(--app-text-strong)] lg:text-3xl">视觉测试工作台</h1>
               <p class="max-w-3xl text-sm leading-6 text-[var(--app-text-soft)]">
-                左侧组织图片与设备截图，中间做叠加预览和取色采样，右侧维护模型参数、分析动作与结果过滤。
+                左侧管理图像和设备截图，中间负责预览、缩放、拖拽和平移，右侧按目标检测 / OCR / 组合分析三个 tab 工作。
               </p>
             </div>
           </div>
@@ -37,24 +37,16 @@
         </div>
       </header>
 
-      <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_420px]">
+      <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_440px]">
         <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-[var(--app-border)] bg-[var(--app-panel)]">
           <div class="flex h-full flex-col">
             <div class="border-b border-[var(--app-border)] px-4 py-4">
               <div class="space-y-3">
                 <div>
                   <p class="text-xs uppercase tracking-[0.2em] text-[var(--app-text-faint)]">数据源</p>
-                  <p class="mt-1 text-sm text-[var(--app-text-soft)]">目录图像会长期保留，当前采集区用来管理设备截图和暂存图。</p>
+                  <p class="mt-1 text-sm text-[var(--app-text-soft)]">目录图像长期保留，当前采集只保存在内存里，显式保存时才写到本地目录。</p>
                 </div>
-                <label class="space-y-2">
-                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">文件名筛选</span>
-                  <input
-                    v-model.trim="preferences.filterText"
-                    class="app-input"
-                    placeholder="按文件名筛选图片"
-                    @change="persistPreferences"
-                  />
-                </label>
+
                 <div class="space-y-2">
                   <span class="text-xs font-semibold text-[var(--app-text-faint)]">设备</span>
                   <AppSelect
@@ -64,14 +56,25 @@
                     test-id="vision-lab-device"
                   />
                 </div>
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between text-xs text-[var(--app-text-faint)]">
+
+                <label class="space-y-2">
+                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">文件名筛选</span>
+                  <input
+                    v-model.trim="preferences.filterText"
+                    class="app-input"
+                    placeholder="按文件名筛选图片"
+                    @change="persistPreferences"
+                  />
+                </label>
+
+                <div class="space-y-2 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70 px-3 py-3 text-xs text-[var(--app-text-faint)]">
+                  <div class="flex items-start justify-between gap-3">
                     <span>图片目录</span>
-                    <span class="truncate pl-3 text-right">{{ preferences.imageDir || '未选择' }}</span>
+                    <span class="truncate text-right">{{ preferences.imageDir || '未选择' }}</span>
                   </div>
-                  <div class="flex items-center justify-between text-xs text-[var(--app-text-faint)]">
+                  <div class="flex items-start justify-between gap-3">
                     <span>保存目录</span>
-                    <span class="truncate pl-3 text-right">{{ preferences.saveDir || '未设置' }}</span>
+                    <span class="truncate text-right">{{ preferences.saveDir || '未设置' }}</span>
                   </div>
                 </div>
               </div>
@@ -84,13 +87,13 @@
                     <p class="text-sm font-semibold text-[var(--app-text-strong)]">目录图像</p>
                     <p class="text-xs text-[var(--app-text-faint)]">{{ filteredFolderItems.length }} 张</p>
                   </div>
-                  <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="reloadImageDirectory" :disabled="!preferences.imageDir">
+                  <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" :disabled="!preferences.imageDir" @click="reloadImageDirectory">
                     刷新
                   </button>
                 </div>
 
                 <div v-if="!filteredFolderItems.length" class="rounded-[22px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
-                  先选择一个图像目录，或调整筛选条件。
+                  先选择一个图像目录。
                 </div>
 
                 <button
@@ -120,7 +123,7 @@
                 </div>
 
                 <div v-if="!captureItems.length" class="rounded-[22px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
-                  使用设备截图后，这里会显示当前工作台的暂存图像。
+                  当前还没有设备截图。
                 </div>
 
                 <div
@@ -169,31 +172,62 @@
         <main class="min-h-0 overflow-hidden rounded-[26px] border border-[var(--app-border)] bg-[var(--app-panel)]">
           <div class="flex h-full flex-col">
             <div class="border-b border-[var(--app-border)] px-4 py-4">
-              <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div class="min-w-0">
-                  <p class="truncate text-lg font-semibold text-[var(--app-text-strong)]">{{ selectedItem?.name || '未选择图像' }}</p>
-                  <p class="mt-1 truncate text-sm text-[var(--app-text-soft)]">{{ selectedItem?.path || selectedItem?.savedPath || '请从左侧选择图像或先截图' }}</p>
+              <div class="flex flex-col gap-4">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div class="min-w-0">
+                    <p class="truncate text-lg font-semibold text-[var(--app-text-strong)]">{{ selectedItem?.name || '未选择图像' }}</p>
+                    <p class="mt-1 truncate text-sm text-[var(--app-text-soft)]">{{ selectedItem?.path || selectedItem?.savedPath || '请从左侧选择图像或先截图' }}</p>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      v-for="tool in previewTools"
+                      :key="tool.value"
+                      class="app-button app-button-ghost px-3 py-2 text-xs"
+                      type="button"
+                      :class="activeTool === tool.value ? '!border-[var(--app-accent)] !text-[var(--app-accent)]' : ''"
+                      @click="activeTool = tool.value"
+                    >
+                      {{ tool.label }}
+                    </button>
+                    <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="fitPreview">适配</button>
+                    <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="resetZoom">原始大小</button>
+                    <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomOut">-</button>
+                    <span class="rounded-full border border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-text-soft)]">{{ Math.round(zoom * 100) }}%</span>
+                    <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomIn">+</button>
+                  </div>
                 </div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <button
-                    v-for="tool in previewTools"
-                    :key="tool.value"
-                    class="app-button app-button-ghost px-3 py-2 text-xs"
-                    type="button"
-                    :class="activeTool === tool.value ? '!border-[var(--app-accent)] !text-[var(--app-accent)]' : ''"
-                    @click="activeTool = tool.value"
-                  >
-                    {{ tool.label }}
-                  </button>
-                  <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="fitPreview">适配</button>
-                  <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomOut">-</button>
-                  <span class="rounded-full border border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-text-soft)]">{{ Math.round(zoom * 100) }}%</span>
-                  <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomIn">+</button>
+
+                <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+                  <div class="grid gap-3 sm:grid-cols-2">
+                    <div class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs text-[var(--app-text-soft)]">
+                      <p class="font-semibold text-[var(--app-text-strong)]">点取色</p>
+                      <template v-if="pickedPoint">
+                        <p class="mt-2">坐标：({{ pickedPoint.x }}, {{ pickedPoint.y }})</p>
+                        <p>HEX：{{ pickedPoint.hex }}</p>
+                        <p>RGB：{{ pickedPoint.rgb.r }}, {{ pickedPoint.rgb.g }}, {{ pickedPoint.rgb.b }}</p>
+                      </template>
+                      <p v-else class="mt-2">切到“点取色”后点击图像。</p>
+                    </div>
+                    <div class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs text-[var(--app-text-soft)]">
+                      <p class="font-semibold text-[var(--app-text-strong)]">区域采样</p>
+                      <template v-if="regionSample">
+                        <p class="mt-2">区域：{{ formatBox(regionSample.box) }}</p>
+                        <p>HEX：{{ regionSample.hex }}</p>
+                        <p>RGB：{{ regionSample.rgb.r }}, {{ regionSample.rgb.g }}, {{ regionSample.rgb.b }}</p>
+                      </template>
+                      <p v-else class="mt-2">切到“区域采样”后拖拽选框。</p>
+                    </div>
+                  </div>
+                  <div class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs text-[var(--app-text-soft)]">
+                    <p class="font-semibold text-[var(--app-text-strong)]">目标颜色</p>
+                    <input v-model="targetColorHex" class="mt-2 h-11 w-full rounded-[14px] border border-[var(--app-border)] bg-transparent px-3" type="color" />
+                    <p class="mt-2">用于点取色和区域采样的差异对比。</p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div ref="previewContainerRef" class="min-h-0 flex-1 overflow-auto px-4 py-4">
+            <div ref="previewContainerRef" class="vision-preview-scroll min-h-0 flex-1 overflow-auto px-4 py-4">
               <div
                 v-if="selectedPreviewUrl"
                 class="vision-preview-frame mx-auto w-max rounded-[28px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] p-4"
@@ -201,6 +235,7 @@
                 <div
                   ref="previewSurfaceRef"
                   class="relative overflow-hidden rounded-[20px] bg-[#111827]"
+                  :class="previewSurfaceClass"
                   :style="previewSurfaceStyle"
                   @mousedown="handlePreviewPointerDown"
                   @mousemove="handlePreviewPointerMove"
@@ -222,7 +257,7 @@
                       v-for="entry in overlayEntries"
                       :key="entry.key"
                       class="absolute rounded-[10px] border text-[10px] font-semibold shadow-lg"
-                      :class="entry.kind === 'ocr' ? 'border-cyan-300/90 bg-cyan-500/15 text-cyan-50' : 'border-amber-300/90 bg-amber-500/18 text-amber-50'"
+                      :class="entry.kind === 'ocr' ? 'border-cyan-300/90 bg-cyan-500/15 text-cyan-50' : entry.kind === 'textDet' ? 'border-fuchsia-300/90 bg-fuchsia-500/16 text-fuchsia-50' : 'border-amber-300/90 bg-amber-500/18 text-amber-50'"
                       :style="getBoxStyle(entry.box)"
                     >
                       <span class="absolute left-1 top-1 rounded-full bg-black/55 px-1.5 py-0.5 backdrop-blur-sm">
@@ -259,240 +294,292 @@
         <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-[var(--app-border)] bg-[var(--app-panel)]">
           <div class="flex h-full flex-col">
             <div class="border-b border-[var(--app-border)] px-4 py-4">
-              <div class="flex items-center justify-between">
-                <div>
-                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">分析控制台</p>
-                  <p class="mt-1 text-xs text-[var(--app-text-faint)]">按模型参数运行检测、OCR、筛选与颜色采样。</p>
+              <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm font-semibold text-[var(--app-text-strong)]">分析控制台</p>
+                    <p class="mt-1 text-xs text-[var(--app-text-faint)]">右侧通过 tab 切换不同分析任务。</p>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-2">
+                  <button
+                    v-for="tab in tabOptions"
+                    :key="tab.value"
+                    class="rounded-[16px] border px-3 py-2 text-sm font-semibold transition"
+                    :class="activeTab === tab.value ? 'border-[var(--app-accent)] bg-[var(--app-accent-soft)] text-[var(--app-accent)]' : 'border-[var(--app-border)] text-[var(--app-text-soft)] hover:border-[var(--app-accent)]/35'"
+                    type="button"
+                    @click="activeTab = tab.value"
+                  >
+                    {{ tab.label }}
+                  </button>
                 </div>
               </div>
             </div>
 
             <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-              <section class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">动作</p>
-                  <div class="flex items-center gap-2 text-xs text-[var(--app-text-faint)]">
-                    <label class="inline-flex items-center gap-1">
-                      <input v-model="showDetOverlay" type="checkbox" />
-                      <span>Det</span>
-                    </label>
-                    <label class="inline-flex items-center gap-1">
-                      <input v-model="showOcrOverlay" type="checkbox" />
-                      <span>OCR</span>
-                    </label>
-                  </div>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button class="app-button app-button-ghost justify-center" type="button" :disabled="!canRunDetection || isRunningDet" @click="runDetection">
-                    {{ isRunningDet ? '检测中...' : '目标检测' }}
+              <section v-if="activeTab === 'det'" class="space-y-5">
+                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                  <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.detConfig = !panelOpen.detConfig">
+                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">检测模型配置</span>
+                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.detConfig ? '收起' : '展开' }}</span>
                   </button>
-                  <button class="app-button app-button-primary justify-center" type="button" :disabled="!canRunOcr || isRunningOcr" @click="runOcr">
-                    {{ isRunningOcr ? 'OCR 中...' : '完整 OCR' }}
+                  <div v-if="panelOpen.detConfig" class="space-y-3 border-t border-[var(--app-border)] px-4 py-4">
+                    <label class="space-y-2">
+                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
+                      <AppSelect :model-value="imgDetKind" :options="detectorOptions" placeholder="选择模型" test-id="vision-lab-img-det-kind" @update:model-value="setImgDetKind" />
+                    </label>
+                    <template v-if="imgDetYolo">
+                      <label class="space-y-2">
+                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
+                        <input v-model.trim="imgDetYolo.baseModel.modelPath" class="app-input" placeholder="D:\\models\\img-det.onnx" />
+                      </label>
+                      <div class="grid grid-cols-2 gap-3">
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">类别数量</span>
+                          <input v-model.number="imgDetYolo.classCount" class="app-input" min="1" type="number" />
+                        </label>
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
+                          <input v-model.trim="imgDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
+                        </label>
+                      </div>
+                      <div class="grid grid-cols-2 gap-3">
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">置信度</span>
+                          <input v-model.number="imgDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
+                        </label>
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">IOU</span>
+                          <input v-model.number="imgDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
+                        </label>
+                      </div>
+                    </template>
+                    <template v-else-if="imgDetDbNet">
+                      <label class="space-y-2">
+                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
+                        <input v-model.trim="imgDetDbNet.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-dbnet.onnx" />
+                      </label>
+                    </template>
+                    <button class="app-button app-button-primary w-full justify-center" type="button" :disabled="!canRunDetection || isRunningDet" @click="runDetection">
+                      {{ isRunningDet ? '检测中...' : '目标检测' }}
+                    </button>
+                  </div>
+                </section>
+
+                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                  <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.detResults = !panelOpen.detResults">
+                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">检测结果集</span>
+                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.detResults ? '收起' : '展开' }}</span>
                   </button>
-                </div>
-              </section>
-
-              <section class="mt-6 space-y-3">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">目标检测模型</p>
-                <label class="space-y-2">
-                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
-                  <AppSelect
-                    :model-value="imgDetKind"
-                    :options="detectorOptions"
-                    placeholder="选择模型"
-                    test-id="vision-lab-img-det-kind"
-                    @update:model-value="setImgDetKind"
-                  />
-                </label>
-                <template v-if="imgDetYolo">
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                    <input v-model.trim="imgDetYolo.baseModel.modelPath" class="app-input" placeholder="D:\\models\\img-det.onnx" />
-                  </label>
-                  <div class="grid grid-cols-2 gap-3">
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">类别数量</span>
-                      <input v-model.number="imgDetYolo.classCount" class="app-input" min="1" type="number" />
-                    </label>
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
-                      <input v-model.trim="imgDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
-                    </label>
-                  </div>
-                  <div class="grid grid-cols-2 gap-3">
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">置信度</span>
-                      <input v-model.number="imgDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                    </label>
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">IOU</span>
-                      <input v-model.number="imgDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                    </label>
-                  </div>
-                </template>
-                <template v-else-if="imgDetDbNet">
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                    <input v-model.trim="imgDetDbNet.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-dbnet.onnx" />
-                  </label>
-                  <div class="grid grid-cols-2 gap-3">
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">二值化阈值</span>
-                      <input v-model.number="imgDetDbNet.dbThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                    </label>
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">框阈值</span>
-                      <input v-model.number="imgDetDbNet.dbBoxThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                    </label>
-                  </div>
-                </template>
-              </section>
-
-              <section class="mt-6 space-y-3">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字检测 / 识别</p>
-                <label class="space-y-2">
-                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">文字检测类型</span>
-                  <AppSelect
-                    :model-value="txtDetKind"
-                    :options="detectorOptions"
-                    placeholder="选择模型"
-                    test-id="vision-lab-txt-det-kind"
-                    @update:model-value="setTxtDetKind"
-                  />
-                </label>
-                <template v-if="txtDetYolo">
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                    <input v-model.trim="txtDetYolo.baseModel.modelPath" class="app-input" placeholder="D:\\models\\txt-det.onnx" />
-                  </label>
-                  <div class="grid grid-cols-2 gap-3">
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
-                      <input v-model.trim="txtDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
-                    </label>
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">文本索引</span>
-                      <input v-model.number="txtDetYolo.txtIdx" class="app-input" min="0" type="number" />
-                    </label>
-                  </div>
-                </template>
-                <template v-else-if="txtDetDbNet">
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                    <input v-model.trim="txtDetDbNet.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-dbnet.onnx" />
-                  </label>
-                </template>
-
-                <label class="space-y-2">
-                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">文字识别类型</span>
-                  <AppSelect
-                    :model-value="txtRecKind"
-                    :options="recognizerOptions"
-                    placeholder="选择识别模型"
-                    test-id="vision-lab-txt-rec-kind"
-                    @update:model-value="setTxtRecKind"
-                  />
-                </label>
-                <template v-if="txtRecCrnn">
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                    <input v-model.trim="txtRecCrnn.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-rec.onnx" />
-                  </label>
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">字典路径</span>
-                    <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
-                  </label>
-                </template>
-              </section>
-
-              <section class="mt-6 space-y-3">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">结果过滤</p>
-                <label class="space-y-2">
-                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">OCR 文本</span>
-                  <input v-model.trim="ocrFilterText" class="app-input" placeholder="包含关键字" />
-                </label>
-                <div class="grid grid-cols-2 gap-3">
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">背景色</span>
-                    <AppSelect v-model="ocrBgFilter" :options="colorFilterOptions" placeholder="全部" test-id="vision-lab-bg-filter" />
-                  </label>
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">文字色</span>
-                    <AppSelect v-model="ocrFgFilter" :options="colorFilterOptions" placeholder="全部" test-id="vision-lab-fg-filter" />
-                  </label>
-                </div>
-              </section>
-
-              <section class="mt-6 space-y-3">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">取色 / 比对</p>
-                <div class="grid grid-cols-2 gap-3">
-                  <label class="space-y-2">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">目标颜色</span>
-                    <input v-model="targetColorHex" class="h-11 w-full rounded-[14px] border border-[var(--app-border)] bg-transparent px-3" type="color" />
-                  </label>
-                  <div class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs text-[var(--app-text-soft)]">
-                    <p>点取色：{{ pickedPoint?.hex || '--' }}</p>
-                    <p>区域均色：{{ regionSample?.hex || '--' }}</p>
-                  </div>
-                </div>
-                <div v-if="pickedPoint" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs leading-6 text-[var(--app-text-soft)]">
-                  <p>点坐标：({{ pickedPoint.x }}, {{ pickedPoint.y }})</p>
-                  <p>RGB：{{ pickedPoint.rgb.r }}, {{ pickedPoint.rgb.g }}, {{ pickedPoint.rgb.b }}</p>
-                  <p>HSV：{{ pickedPoint.hsv.h }} / {{ pickedPoint.hsv.s }} / {{ pickedPoint.hsv.v }}</p>
-                  <p>与目标色距离：{{ pickedPoint.deltaToTarget.toFixed(2) }}</p>
-                </div>
-                <div v-if="regionSample" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs leading-6 text-[var(--app-text-soft)]">
-                  <p>区域：({{ regionSample.box.x1 }}, {{ regionSample.box.y1 }}) - ({{ regionSample.box.x2 }}, {{ regionSample.box.y2 }})</p>
-                  <p>均值 RGB：{{ regionSample.rgb.r }}, {{ regionSample.rgb.g }}, {{ regionSample.rgb.b }}</p>
-                  <p>HEX：{{ regionSample.hex }}</p>
-                  <p>与目标色距离：{{ regionSample.deltaToTarget.toFixed(2) }}</p>
-                </div>
-              </section>
-
-              <section class="mt-6 space-y-3">
-                <div class="flex items-center justify-between">
-                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">OCR 结果</p>
-                  <span class="text-xs text-[var(--app-text-faint)]">{{ filteredOcrResults.length }}/{{ ocrResults.length }}</span>
-                </div>
-                <div v-if="!ocrResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
-                  运行 OCR 后，这里会展示文本结果以及背景色/文字色分析。
-                </div>
-                <div v-for="(item, index) in filteredOcrResults" :key="`ocr-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.txt || '(空文本)' }}</p>
-                      <p class="mt-1 text-xs text-[var(--app-text-faint)]">框：{{ formatBox(item.bounding_box) }}</p>
+                  <div v-if="panelOpen.detResults" class="space-y-3 border-t border-[var(--app-border)] px-4 py-4">
+                    <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
+                      <label class="space-y-2">
+                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">名称筛选</span>
+                        <input v-model.trim="detSearchText" class="app-input" placeholder="标签或名称" />
+                      </label>
+                      <label class="space-y-2">
+                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签筛选</span>
+                        <AppSelect v-model="detLabelFilter" :options="detLabelFilterOptions" placeholder="全部" test-id="vision-lab-det-label-filter" />
+                      </label>
                     </div>
-                    <span class="rounded-full bg-cyan-500/12 px-2 py-1 text-[11px] font-medium text-cyan-700">
-                      {{ averageScore(item).toFixed(3) }}
-                    </span>
+
+                    <div v-if="!filteredDetResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                      运行目标检测后，这里展示结果。
+                    </div>
+                    <div v-for="(item, index) in filteredDetResults" :key="`det-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.label }}</p>
+                          <p class="mt-1 text-xs text-[var(--app-text-faint)]">类目 #{{ item.index }} · {{ formatBox(item.bounding_box) }}</p>
+                        </div>
+                        <span class="rounded-full bg-amber-500/12 px-2 py-1 text-[11px] font-medium text-amber-700">{{ item.score.toFixed(3) }}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="mt-2 flex flex-wrap gap-2 text-[11px]">
-                    <span class="rounded-full bg-slate-500/10 px-2 py-1 text-slate-700">背景 {{ item.bgColor }}</span>
-                    <span class="rounded-full bg-slate-500/10 px-2 py-1 text-slate-700">文字 {{ item.fgColor }}</span>
-                  </div>
-                </div>
+                </section>
               </section>
 
-              <section class="mt-6 space-y-3 pb-4">
-                <div class="flex items-center justify-between">
-                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">检测结果</p>
-                  <span class="text-xs text-[var(--app-text-faint)]">{{ detResults.length }}</span>
-                </div>
-                <div v-if="!detResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
-                  运行目标检测后，这里会展示目标框与标签。
-                </div>
-                <div v-for="(item, index) in detResults" :key="`det-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.label }}</p>
-                      <p class="mt-1 text-xs text-[var(--app-text-faint)]">类目 #{{ item.index }} · {{ formatBox(item.bounding_box) }}</p>
+              <section v-else-if="activeTab === 'ocr'" class="space-y-5">
+                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                  <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.ocrConfig = !panelOpen.ocrConfig">
+                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">OCR 模型配置</span>
+                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.ocrConfig ? '收起' : '展开' }}</span>
+                  </button>
+                  <div v-if="panelOpen.ocrConfig" class="space-y-4 border-t border-[var(--app-border)] px-4 py-4">
+                    <div class="space-y-3 rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字检测</p>
+                      <label class="space-y-2">
+                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
+                        <AppSelect :model-value="txtDetKind" :options="detectorOptions" placeholder="选择模型" test-id="vision-lab-txt-det-kind" @update:model-value="setTxtDetKind" />
+                      </label>
+                      <template v-if="txtDetYolo">
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
+                          <input v-model.trim="txtDetYolo.baseModel.modelPath" class="app-input" placeholder="D:\\models\\txt-det.onnx" />
+                        </label>
+                        <div class="grid grid-cols-2 gap-3">
+                          <label class="space-y-2">
+                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
+                            <input v-model.trim="txtDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
+                          </label>
+                          <label class="space-y-2">
+                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">文本索引</span>
+                            <input v-model.number="txtDetYolo.txtIdx" class="app-input" min="0" type="number" />
+                          </label>
+                        </div>
+                      </template>
+                      <template v-else-if="txtDetDbNet">
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
+                          <input v-model.trim="txtDetDbNet.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-dbnet.onnx" />
+                        </label>
+                      </template>
                     </div>
-                    <span class="rounded-full bg-amber-500/12 px-2 py-1 text-[11px] font-medium text-amber-700">
-                      {{ item.score.toFixed(3) }}
-                    </span>
+
+                    <div class="space-y-3 rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字识别</p>
+                      <label class="space-y-2">
+                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
+                        <AppSelect :model-value="txtRecKind" :options="recognizerOptions" placeholder="选择模型" test-id="vision-lab-txt-rec-kind" @update:model-value="setTxtRecKind" />
+                      </label>
+                      <template v-if="txtRecCrnn">
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
+                          <input v-model.trim="txtRecCrnn.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-rec.onnx" />
+                        </label>
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">字典路径</span>
+                          <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
+                        </label>
+                      </template>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                      <button class="app-button app-button-ghost justify-center" type="button" :disabled="!canRunTextDetection || isRunningTextDet" @click="runTextDetection">
+                        {{ isRunningTextDet ? '检测中...' : '文字检测' }}
+                      </button>
+                      <button class="app-button app-button-primary justify-center" type="button" :disabled="!canRunOcr || isRunningOcr" @click="runOcr">
+                        {{ isRunningOcr ? 'OCR 中...' : '完整 OCR' }}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </section>
+
+                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                  <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.ocrResults = !panelOpen.ocrResults">
+                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">OCR 结果集</span>
+                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.ocrResults ? '收起' : '展开' }}</span>
+                  </button>
+                  <div v-if="panelOpen.ocrResults" class="space-y-4 border-t border-[var(--app-border)] px-4 py-4">
+                    <label class="space-y-2">
+                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">文本筛选</span>
+                      <input v-model.trim="ocrFilterText" class="app-input" placeholder="包含关键字" />
+                    </label>
+
+                    <div class="space-y-3">
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-faint)]">文字检测结果</p>
+                        <span class="text-xs text-[var(--app-text-faint)]">{{ textDetResults.length }}</span>
+                      </div>
+                      <div v-if="!textDetResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                        运行文字检测后，这里显示文本框。
+                      </div>
+                      <div v-for="(item, index) in textDetResults" :key="`text-det-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                        <p class="text-xs text-[var(--app-text-faint)]">文本框 {{ index + 1 }} · {{ formatBox(item.bounding_box) }}</p>
+                        <p class="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{{ item.label }}</p>
+                      </div>
+                    </div>
+
+                    <div class="space-y-3">
+                      <div class="flex items-center justify-between">
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-faint)]">OCR 结果</p>
+                        <span class="text-xs text-[var(--app-text-faint)]">{{ filteredOcrResults.length }}/{{ ocrResults.length }}</span>
+                      </div>
+                      <div v-if="!filteredOcrResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                        运行 OCR 后，这里展示文本识别结果。
+                      </div>
+                      <div v-for="(item, index) in filteredOcrResults" :key="`ocr-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.txt || '(空文本)' }}</p>
+                            <p class="mt-1 text-xs text-[var(--app-text-faint)]">框：{{ formatBox(item.bounding_box) }}</p>
+                          </div>
+                          <span class="rounded-full bg-cyan-500/12 px-2 py-1 text-[11px] font-medium text-cyan-700">{{ averageScore(item).toFixed(3) }}</span>
+                        </div>
+                        <div class="mt-2 grid gap-2 text-[11px] text-[var(--app-text-soft)] sm:grid-cols-2">
+                          <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                            <span class="mr-2">背景色</span>
+                            <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.bgColorHex }" />
+                            <span class="ml-2">{{ item.bgColorHex }}</span>
+                          </div>
+                          <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                            <span class="mr-2">文字色</span>
+                            <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.fgColorHex }" />
+                            <span class="ml-2">{{ item.fgColorHex }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </section>
+
+              <section v-else class="space-y-5">
+                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70 px-4 py-4">
+                  <div class="space-y-3">
+                    <div>
+                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">组合分析</p>
+                      <p class="mt-1 text-xs text-[var(--app-text-faint)]">同时运行目标检测和 OCR，并为结果区域提取真实颜色值。</p>
+                    </div>
+                    <button class="app-button app-button-primary w-full justify-center" type="button" :disabled="!canRunCombo || isRunningCombo" @click="runComboAnalysis">
+                      {{ isRunningCombo ? '分析中...' : '视觉分析' }}
+                    </button>
+                  </div>
+                </section>
+
+                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                  <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.comboResults = !panelOpen.comboResults">
+                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">视觉结果集</span>
+                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.comboResults ? '收起' : '展开' }}</span>
+                  </button>
+                  <div v-if="panelOpen.comboResults" class="space-y-3 border-t border-[var(--app-border)] px-4 py-4">
+                    <div v-if="!comboResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                      点击“视觉分析”后，这里展示目标检测区和 OCR 区的颜色结果。
+                    </div>
+                    <div v-for="item in comboResults" :key="item.key" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                            {{ item.kind === 'ocr' ? item.text || '(空文本)' : item.label || '检测框' }}
+                          </p>
+                          <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ item.kind === 'ocr' ? 'OCR' : 'Det' }} · {{ formatBox(item.box) }}</p>
+                        </div>
+                        <span class="rounded-full px-2 py-1 text-[11px] font-medium" :class="item.kind === 'ocr' ? 'bg-cyan-500/12 text-cyan-700' : 'bg-amber-500/12 text-amber-700'">
+                          {{ item.score.toFixed(3) }}
+                        </span>
+                      </div>
+                      <div class="mt-2 grid gap-2 text-[11px] text-[var(--app-text-soft)] sm:grid-cols-2">
+                        <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                          <span class="mr-2">背景色</span>
+                          <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.bgColorHex }" />
+                          <span class="ml-2">{{ item.bgColorHex }}</span>
+                        </div>
+                        <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                          <template v-if="item.fgColorHex">
+                            <span class="mr-2">文字色</span>
+                            <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.fgColorHex }" />
+                            <span class="ml-2">{{ item.fgColorHex }}</span>
+                          </template>
+                          <template v-else>
+                            <span>文字色</span>
+                            <span class="ml-2 text-[var(--app-text-faint)]">目标检测区域不提取</span>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </section>
             </div>
           </div>
@@ -505,21 +592,26 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import { scriptService } from '@/services/scriptService';
+import { visionLabConfigService } from '@/services/visionLabConfigService';
 import { visionLabService } from '@/services/visionLabService';
 import { useDeviceStore } from '@/store/device';
-import { getFromStore, setToStore, visionLabLaunchPresetKey, visionLabPreferencesKey } from '@/store/store';
+import {
+  deviceKey,
+  getFromStore,
+  setToStore,
+  visionLabActiveTabKey,
+  visionLabLaunchPresetKey,
+  visionLabPreferencesKey,
+} from '@/store/store';
 import { showToast } from '@/utils/toast';
 import {
   createDetectorByKind,
   createRecognizerByKind,
-  ensureDetectorModel,
-  ensureRecognizerModel,
   extractCrnn,
   extractDbNet,
   extractYoloDetector,
@@ -528,7 +620,12 @@ import {
   type DetectorKind,
   type RecognizerKind,
 } from '@/utils/visionModelPresets';
-import { DEFAULT_VISION_LAB_PREFERENCES, type VisionLabLaunchPreset, type VisionLabPreferences } from '@/types/app/domain';
+import {
+  DEFAULT_VISION_LAB_PREFERENCES,
+  type VisionLabLaunchPreset,
+  type VisionLabModelConfig,
+  type VisionLabPreferences,
+} from '@/types/app/domain';
 import type { BoundingBox } from '@/types/bindings/BoundingBox';
 import type { DetResult } from '@/types/bindings/DetResult';
 import type { DetectorType } from '@/types/bindings/DetectorType';
@@ -538,7 +635,7 @@ import type { DeviceTable } from '@/types/bindings/DeviceTable';
 
 type VisionItemKind = 'folder' | 'capture';
 type PreviewTool = 'browse' | 'pick' | 'region';
-type ColorTag = 'RED' | 'ORANGE' | 'YELLOW' | 'GREEN' | 'CYAN' | 'BLUE' | 'PURPLE' | 'PINK' | 'BLACK' | 'WHITE' | 'GRAY' | 'OTHER';
+type VisionTab = 'det' | 'ocr' | 'combo';
 
 interface VisionSourceItem {
   id: string;
@@ -558,17 +655,10 @@ interface RgbColor {
   b: number;
 }
 
-interface HsvColor {
-  h: number;
-  s: number;
-  v: number;
-}
-
 interface PointSample {
   x: number;
   y: number;
   rgb: RgbColor;
-  hsv: HsvColor;
   hex: string;
   deltaToTarget: number;
 }
@@ -576,57 +666,34 @@ interface PointSample {
 interface RegionSample {
   box: BoundingBox;
   rgb: RgbColor;
-  hsv: HsvColor;
   hex: string;
   deltaToTarget: number;
 }
 
 interface VisionOcrResult extends OcrResult {
-  bgColor: ColorTag;
-  fgColor: ColorTag;
+  bgColorHex: string;
+  fgColorHex: string;
+}
+
+interface ComboResultItem {
+  key: string;
+  kind: 'det' | 'ocr';
+  label?: string;
+  text?: string;
+  box: BoundingBox;
+  score: number;
+  bgColorHex: string;
+  fgColorHex?: string | null;
 }
 
 interface OverlayEntry {
   key: string;
-  kind: 'ocr' | 'det';
+  kind: 'det' | 'textDet' | 'ocr';
   label: string;
   box: BoundingBox;
 }
 
-const route = useRoute();
 const deviceStore = useDeviceStore();
-const isStandalone = computed(() => route.query.standalone === '1');
-
-const detectorOptions = [
-  { label: '不设置', value: 'none', description: '当前字段留空。' },
-  { label: 'YOLO11', value: 'Yolo11', description: '通用目标检测方案。' },
-  { label: 'Paddle DBNet', value: 'PaddleDbNet', description: '适合文本区域检测。' },
-  { label: 'YOLO26', value: 'Yolo26', description: '端到端检测方案。' },
-];
-const recognizerOptions = [
-  { label: '不设置', value: 'none', description: '不启用识别模型。' },
-  { label: 'Paddle CRNN', value: 'PaddleCrnn', description: '当前绑定里可用的文本识别模型。' },
-];
-const colorFilterOptions = [
-  { label: '全部', value: 'ALL' },
-  { label: 'RED', value: 'RED' },
-  { label: 'ORANGE', value: 'ORANGE' },
-  { label: 'YELLOW', value: 'YELLOW' },
-  { label: 'GREEN', value: 'GREEN' },
-  { label: 'CYAN', value: 'CYAN' },
-  { label: 'BLUE', value: 'BLUE' },
-  { label: 'PURPLE', value: 'PURPLE' },
-  { label: 'PINK', value: 'PINK' },
-  { label: 'BLACK', value: 'BLACK' },
-  { label: 'WHITE', value: 'WHITE' },
-  { label: 'GRAY', value: 'GRAY' },
-  { label: 'OTHER', value: 'OTHER' },
-];
-const previewTools = [
-  { label: '浏览', value: 'browse' as const },
-  { label: '点取色', value: 'pick' as const },
-  { label: '区域采样', value: 'region' as const },
-];
 
 const preferences = reactive<VisionLabPreferences>({ ...DEFAULT_VISION_LAB_PREFERENCES });
 const folderItems = ref<VisionSourceItem[]>([]);
@@ -634,20 +701,30 @@ const captureItems = ref<VisionSourceItem[]>([]);
 const selectedItemId = ref<string | null>(null);
 const selectedPreviewUrl = ref<string | null>(null);
 const selectedDeviceId = ref<string | null>(null);
-const imgDetModel = ref<DetectorType | null>(ensureDetectorModel(null, false));
-const txtDetModel = ref<DetectorType | null>(ensureDetectorModel(null, true));
-const txtRecModel = ref<RecognizerType | null>(ensureRecognizerModel(null));
+const activeTab = ref<VisionTab>('det');
+
+const imgDetModel = ref<DetectorType | null>(null);
+const txtDetModel = ref<DetectorType | null>(null);
+const txtRecModel = ref<RecognizerType | null>(null);
+
 const isRunningDet = ref(false);
+const isRunningTextDet = ref(false);
 const isRunningOcr = ref(false);
+const isRunningCombo = ref(false);
 const savingCaptureId = ref<string | null>(null);
+const hydratingModelConfig = ref(true);
+
 const detResults = ref<DetResult[]>([]);
+const textDetResults = ref<DetResult[]>([]);
 const ocrResults = ref<VisionOcrResult[]>([]);
+const comboResults = ref<ComboResultItem[]>([]);
+
+const detSearchText = ref('');
+const detLabelFilter = ref<string>('ALL');
 const ocrFilterText = ref('');
-const ocrBgFilter = ref<'ALL' | ColorTag>('ALL');
-const ocrFgFilter = ref<'ALL' | ColorTag>('ALL');
+const imgDetLabelOptions = ref<Array<{ label: string; value: string; description?: string }>>([]);
+
 const activeTool = ref<PreviewTool>('browse');
-const showDetOverlay = ref(true);
-const showOcrOverlay = ref(true);
 const zoom = ref(1);
 const naturalSize = reactive({ width: 0, height: 0 });
 const previewContainerRef = ref<HTMLElement | null>(null);
@@ -660,28 +737,52 @@ const regionDraft = ref<BoundingBox | null>(null);
 const regionStart = ref<{ x: number; y: number } | null>(null);
 const targetColorHex = ref('#ffffff');
 
-const filteredFolderItems = computed(() => {
-  const keyword = preferences.filterText.trim().toLowerCase();
-  if (!keyword) {
-    return folderItems.value;
-  }
-  return folderItems.value.filter((item) => item.name.toLowerCase().includes(keyword));
+const panState = reactive({
+  active: false,
+  startClientX: 0,
+  startClientY: 0,
+  startScrollLeft: 0,
+  startScrollTop: 0,
 });
 
-const selectedItem = computed(() => {
-  const all = [...captureItems.value, ...folderItems.value];
-  return all.find((item) => item.id === selectedItemId.value) ?? null;
+const panelOpen = reactive({
+  detConfig: true,
+  detResults: true,
+  ocrConfig: true,
+  ocrResults: true,
+  comboResults: true,
 });
 
-const selectedDevice = computed<DeviceTable | null>(() =>
-  deviceStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null,
-);
+const tabOptions = [
+  { label: '目标检测', value: 'det' as const },
+  { label: 'OCR', value: 'ocr' as const },
+  { label: '组合', value: 'combo' as const },
+];
+const detectorOptions = [
+  { label: '不设置', value: 'none', description: '当前字段留空。' },
+  { label: 'YOLO11', value: 'Yolo11', description: '通用目标检测方案。' },
+  { label: 'Paddle DBNet', value: 'PaddleDbNet', description: '适合文本区域检测。' },
+  { label: 'YOLO26', value: 'Yolo26', description: '端到端检测方案。' },
+];
+const recognizerOptions = [
+  { label: '不设置', value: 'none', description: '不启用识别模型。' },
+  { label: 'Paddle CRNN', value: 'PaddleCrnn', description: '当前绑定里可用的文本识别模型。' },
+];
+const previewTools = [
+  { label: '浏览', value: 'browse' as const },
+  { label: '点取色', value: 'pick' as const },
+  { label: '区域采样', value: 'region' as const },
+];
 
+const selectedItem = computed(() => [...captureItems.value, ...folderItems.value].find((item) => item.id === selectedItemId.value) ?? null);
+const selectedDevice = computed<DeviceTable | null>(() => deviceStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null);
 const selectedImagePath = computed(() => selectedItem.value?.path ?? null);
 const selectedImageData = computed(() => selectedItem.value?.imageData ?? null);
 const canRunVision = computed(() => Boolean(selectedImagePath.value || selectedImageData.value));
 const canRunDetection = computed(() => canRunVision.value && Boolean(imgDetModel.value));
+const canRunTextDetection = computed(() => canRunVision.value && Boolean(txtDetModel.value));
 const canRunOcr = computed(() => canRunVision.value && Boolean(txtDetModel.value) && Boolean(txtRecModel.value));
+const canRunCombo = computed(() => canRunDetection.value && canRunOcr.value);
 
 const imgDetKind = computed<DetectorKind>(() => resolveDetectorKind(imgDetModel.value));
 const txtDetKind = computed<DetectorKind>(() => resolveDetectorKind(txtDetModel.value));
@@ -692,45 +793,50 @@ const txtDetYolo = computed(() => extractYoloDetector(txtDetModel.value));
 const txtDetDbNet = computed(() => extractDbNet(txtDetModel.value));
 const txtRecCrnn = computed(() => extractCrnn(txtRecModel.value));
 
-const filteredOcrResults = computed(() => {
-  const keyword = ocrFilterText.value.trim();
-  return ocrResults.value.filter((item) => {
-    if (keyword && !item.txt.includes(keyword)) {
+const filteredFolderItems = computed(() => {
+  const keyword = preferences.filterText.trim().toLowerCase();
+  if (!keyword) return folderItems.value;
+  return folderItems.value.filter((item) => item.name.toLowerCase().includes(keyword));
+});
+
+const filteredDetResults = computed(() => {
+  const keyword = detSearchText.value.trim().toLowerCase();
+  return detResults.value.filter((item) => {
+    if (detLabelFilter.value !== 'ALL' && item.label !== detLabelFilter.value) {
       return false;
     }
-    if (ocrBgFilter.value !== 'ALL' && item.bgColor !== ocrBgFilter.value) {
-      return false;
-    }
-    if (ocrFgFilter.value !== 'ALL' && item.fgColor !== ocrFgFilter.value) {
+    if (keyword && !item.label.toLowerCase().includes(keyword) && !String(item.index).includes(keyword)) {
       return false;
     }
     return true;
   });
 });
 
+const filteredOcrResults = computed(() => {
+  const keyword = ocrFilterText.value.trim();
+  if (!keyword) return ocrResults.value;
+  return ocrResults.value.filter((item) => item.txt.includes(keyword));
+});
+
 const overlayEntries = computed<OverlayEntry[]>(() => {
   const entries: OverlayEntry[] = [];
-  if (showDetOverlay.value) {
-    detResults.value.forEach((item, index) => {
-      entries.push({
-        key: `det-${index}`,
-        kind: 'det',
-        label: item.label,
-        box: item.bounding_box,
-      });
-    });
-  }
-  if (showOcrOverlay.value) {
-    filteredOcrResults.value.forEach((item, index) => {
-      entries.push({
-        key: `ocr-${index}`,
-        kind: 'ocr',
-        label: item.txt || '(空)',
-        box: item.bounding_box,
-      });
-    });
-  }
+  detResults.value.forEach((item, index) => {
+    entries.push({ key: `det-${index}`, kind: 'det', label: item.label, box: item.bounding_box });
+  });
+  textDetResults.value.forEach((item, index) => {
+    entries.push({ key: `text-det-${index}`, kind: 'textDet', label: item.label || `文本框 ${index + 1}`, box: item.bounding_box });
+  });
+  ocrResults.value.forEach((item, index) => {
+    entries.push({ key: `ocr-${index}`, kind: 'ocr', label: item.txt || '(空)', box: item.bounding_box });
+  });
   return entries;
+});
+
+const detLabelFilterOptions = computed(() => {
+  const labels = imgDetLabelOptions.value.length
+    ? imgDetLabelOptions.value.map((item) => ({ label: item.label, value: item.label }))
+    : Array.from(new Set(detResults.value.map((item) => item.label))).map((label) => ({ label, value: label }));
+  return [{ label: '全部', value: 'ALL' }, ...labels];
 });
 
 const deviceOptions = computed(() =>
@@ -749,15 +855,17 @@ const previewImageStyle = computed(() => ({
 const previewSurfaceStyle = computed(() => ({
   width: `${Math.max(1, naturalSize.width * zoom.value)}px`,
   height: `${Math.max(1, naturalSize.height * zoom.value)}px`,
-  cursor: activeTool.value === 'pick' ? 'crosshair' : activeTool.value === 'region' ? 'crosshair' : 'default',
 }));
+
+const previewSurfaceClass = computed(() => {
+  if (activeTool.value === 'browse') {
+    return panState.active ? 'cursor-grabbing' : 'cursor-grab';
+  }
+  return 'cursor-crosshair';
+});
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-async function persistPreferences() {
-  await setToStore(visionLabPreferencesKey, clone(preferences));
 }
 
 function normalizeItemName(path: string) {
@@ -765,9 +873,7 @@ function normalizeItemName(path: string) {
 }
 
 function averageScore(item: OcrResult) {
-  if (!item.score.length) {
-    return 0;
-  }
+  if (!item.score.length) return 0;
   return item.score.reduce((sum, value) => sum + value, 0) / item.score.length;
 }
 
@@ -785,25 +891,13 @@ function formatRelativeTime(value: string) {
   return `${Math.round(hours / 24)} 天前`;
 }
 
-function getBoxStyle(box: BoundingBox) {
-  return {
-    left: `${box.x1 * zoom.value}px`,
-    top: `${box.y1 * zoom.value}px`,
-    width: `${Math.max(1, (box.x2 - box.x1) * zoom.value)}px`,
-    height: `${Math.max(1, (box.y2 - box.y1) * zoom.value)}px`,
-  };
-}
-
 function rgbToHex(color: RgbColor) {
   return `#${[color.r, color.g, color.b].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
 }
 
 function parseHexColor(value: string): RgbColor {
   const normalized = value.replace('#', '');
-  const raw = normalized.length === 3
-    ? normalized.split('').map((char) => `${char}${char}`).join('')
-    : normalized.padEnd(6, '0').slice(0, 6);
-
+  const raw = normalized.length === 3 ? normalized.split('').map((char) => `${char}${char}`).join('') : normalized.padEnd(6, '0').slice(0, 6);
   return {
     r: parseInt(raw.slice(0, 2), 16),
     g: parseInt(raw.slice(2, 4), 16),
@@ -818,73 +912,46 @@ function rgbDistance(left: RgbColor, right: RgbColor) {
   return Math.sqrt(dr * dr + dg * dg + db * db);
 }
 
-function rgbToHsv(color: RgbColor): HsvColor {
-  const r = color.r / 255;
-  const g = color.g / 255;
-  const b = color.b / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-
-  let h = 0;
-  if (delta !== 0) {
-    if (max === r) h = ((g - b) / delta) % 6;
-    else if (max === g) h = (b - r) / delta + 2;
-    else h = (r - g) / delta + 4;
-    h *= 60;
-    if (h < 0) h += 360;
-  }
-
-  const s = max === 0 ? 0 : delta / max;
-  const v = max;
-
+function getBoxStyle(box: BoundingBox) {
   return {
-    h: Math.round(h),
-    s: Number(s.toFixed(3)),
-    v: Number(v.toFixed(3)),
+    left: `${box.x1 * zoom.value}px`,
+    top: `${box.y1 * zoom.value}px`,
+    width: `${Math.max(1, (box.x2 - box.x1) * zoom.value)}px`,
+    height: `${Math.max(1, (box.y2 - box.y1) * zoom.value)}px`,
   };
 }
 
-function rgbToTag(color: RgbColor): ColorTag {
-  const r = color.r / 255;
-  const g = color.g / 255;
-  const b = color.b / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const delta = max - min;
-  const l = (max + min) / 2;
-  const s = max === 0 ? 0 : delta / max;
-
-  if (l < 0.15) return 'BLACK';
-  if (l > 0.85 && s < 0.1) return 'WHITE';
-  if (s < 0.1) return 'GRAY';
-
-  let h = 0;
-  if (delta === 0) h = 0;
-  else if (max === r) h = ((g - b) / delta) % 6;
-  else if (max === g) h = (b - r) / delta + 2;
-  else h = (r - g) / delta + 4;
-  h *= 60;
-  if (h < 0) h += 360;
-
-  if (h < 20 || h >= 330) return 'RED';
-  if (h < 45) return 'ORANGE';
-  if (h < 75) return 'YELLOW';
-  if (h < 150) return 'GREEN';
-  if (h < 200) return 'CYAN';
-  if (h < 260) return 'BLUE';
-  if (h < 300) return 'PURPLE';
-  return 'PINK';
+async function persistPreferences() {
+  await setToStore(visionLabPreferencesKey, clone(preferences));
 }
 
-function ensureCanvasContext() {
+async function persistActiveTab() {
+  await setToStore(visionLabActiveTabKey, activeTab.value);
+}
+
+let persistModelTimer: number | null = null;
+function queuePersistModelConfig() {
+  if (hydratingModelConfig.value) return;
+  if (persistModelTimer) {
+    window.clearTimeout(persistModelTimer);
+  }
+  persistModelTimer = window.setTimeout(() => {
+    void visionLabConfigService.setModelConfig({
+      imgDetModel: clone(imgDetModel.value),
+      txtDetModel: clone(txtDetModel.value),
+      txtRecModel: clone(txtRecModel.value),
+    });
+  }, 200);
+}
+
+function getCanvasContext() {
   const canvas = hiddenCanvasRef.value;
   if (!canvas) return null;
   return canvas.getContext('2d', { willReadFrequently: true });
 }
 
 function getCanvasPixel(x: number, y: number): RgbColor | null {
-  const ctx = ensureCanvasContext();
+  const ctx = getCanvasContext();
   if (!ctx || !naturalSize.width || !naturalSize.height) return null;
   const clampedX = Math.max(0, Math.min(naturalSize.width - 1, Math.round(x)));
   const clampedY = Math.max(0, Math.min(naturalSize.height - 1, Math.round(y)));
@@ -893,15 +960,13 @@ function getCanvasPixel(x: number, y: number): RgbColor | null {
 }
 
 function sampleRegionAverage(box: BoundingBox): RgbColor | null {
-  const ctx = ensureCanvasContext();
+  const ctx = getCanvasContext();
   if (!ctx) return null;
   const x1 = Math.max(0, Math.min(naturalSize.width - 1, box.x1));
   const y1 = Math.max(0, Math.min(naturalSize.height - 1, box.y1));
   const x2 = Math.max(x1 + 1, Math.min(naturalSize.width, box.x2));
   const y2 = Math.max(y1 + 1, Math.min(naturalSize.height, box.y2));
-  const width = Math.max(1, x2 - x1);
-  const height = Math.max(1, y2 - y1);
-  const imageData = ctx.getImageData(x1, y1, width, height).data;
+  const imageData = ctx.getImageData(x1, y1, Math.max(1, x2 - x1), Math.max(1, y2 - y1)).data;
 
   let sumR = 0;
   let sumG = 0;
@@ -913,7 +978,6 @@ function sampleRegionAverage(box: BoundingBox): RgbColor | null {
     sumB += imageData[index + 2];
     count += 1;
   }
-
   if (!count) return null;
   return {
     r: Math.round(sumR / count),
@@ -922,56 +986,53 @@ function sampleRegionAverage(box: BoundingBox): RgbColor | null {
   };
 }
 
-function analyzeOcrBoxColors(box: BoundingBox): { bgColor: ColorTag; fgColor: ColorTag } {
-  const ctx = ensureCanvasContext();
-  if (!ctx) {
-    return { bgColor: 'OTHER', fgColor: 'OTHER' };
-  }
-
+function analyzeOcrColors(box: BoundingBox) {
   const x1 = Math.max(0, Math.min(naturalSize.width - 1, box.x1));
   const y1 = Math.max(0, Math.min(naturalSize.height - 1, box.y1));
   const x2 = Math.max(0, Math.min(naturalSize.width - 1, box.x2));
   const y2 = Math.max(0, Math.min(naturalSize.height - 1, box.y2));
-  if (x1 >= x2 || y1 >= y2) {
-    return { bgColor: 'OTHER', fgColor: 'OTHER' };
-  }
+  const stepX = Math.max(1, Math.floor((x2 - x1) / 3));
+  const stepY = Math.max(1, Math.floor((y2 - y1) / 3));
 
-  const width = x2 - x1;
-  const height = y2 - y1;
-  const stepX = Math.max(1, Math.floor(width / 3));
-  const stepY = Math.max(1, Math.floor(height / 3));
-  const tags: ColorTag[] = [];
-
+  const samples: RgbColor[] = [];
   for (let y = y1; y <= y2; y += stepY) {
     for (let x = x1; x <= x2; x += stepX) {
       const pixel = getCanvasPixel(x, y);
-      if (pixel) {
-        tags.push(rgbToTag(pixel));
-      }
+      if (pixel) samples.push(pixel);
     }
   }
 
-  if (!tags.length) {
-    return { bgColor: 'OTHER', fgColor: 'OTHER' };
+  const bgColor = sampleRegionAverage(box) ?? { r: 255, g: 255, b: 255 };
+  if (!samples.length) {
+    return {
+      bgColorHex: rgbToHex(bgColor),
+      fgColorHex: rgbToHex(bgColor),
+    };
   }
 
-  const counts = new Map<ColorTag, number>();
-  tags.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1));
-  const sorted = [...counts.entries()].sort((left, right) => right[1] - left[1]);
-  const bgColor = sorted[0]?.[0] ?? 'OTHER';
-  const fgColor = sorted.find(([tag]) => tag !== bgColor)?.[0] ?? bgColor;
-  return { bgColor, fgColor };
+  let farthest = samples[0];
+  let farthestDistance = rgbDistance(samples[0], bgColor);
+  for (const sample of samples) {
+    const distance = rgbDistance(sample, bgColor);
+    if (distance > farthestDistance) {
+      farthest = sample;
+      farthestDistance = distance;
+    }
+  }
+
+  return {
+    bgColorHex: rgbToHex(bgColor),
+    fgColorHex: rgbToHex(farthest),
+  };
 }
 
 function buildPointSample(x: number, y: number): PointSample | null {
   const rgb = getCanvasPixel(x, y);
   if (!rgb) return null;
-  const hsv = rgbToHsv(rgb);
   return {
     x,
     y,
     rgb,
-    hsv,
     hex: rgbToHex(rgb),
     deltaToTarget: rgbDistance(rgb, parseHexColor(targetColorHex.value)),
   };
@@ -980,11 +1041,9 @@ function buildPointSample(x: number, y: number): PointSample | null {
 function buildRegionSample(box: BoundingBox): RegionSample | null {
   const rgb = sampleRegionAverage(box);
   if (!rgb) return null;
-  const hsv = rgbToHsv(rgb);
   return {
     box,
     rgb,
-    hsv,
     hex: rgbToHex(rgb),
     deltaToTarget: rgbDistance(rgb, parseHexColor(targetColorHex.value)),
   };
@@ -993,9 +1052,10 @@ function buildRegionSample(box: BoundingBox): RegionSample | null {
 function getPointerPosition(event: MouseEvent) {
   const rect = previewSurfaceRef.value?.getBoundingClientRect();
   if (!rect || !zoom.value) return null;
-  const x = Math.max(0, Math.min(naturalSize.width, Math.round((event.clientX - rect.left) / zoom.value)));
-  const y = Math.max(0, Math.min(naturalSize.height, Math.round((event.clientY - rect.top) / zoom.value)));
-  return { x, y };
+  return {
+    x: Math.max(0, Math.min(naturalSize.width, Math.round((event.clientX - rect.left) / zoom.value))),
+    y: Math.max(0, Math.min(naturalSize.height, Math.round((event.clientY - rect.top) / zoom.value))),
+  };
 }
 
 function setImgDetKind(value: string | number | null) {
@@ -1026,9 +1086,7 @@ async function loadImageDirectory(dirPath: string) {
 }
 
 async function reloadImageDirectory() {
-  if (!preferences.imageDir) {
-    return;
-  }
+  if (!preferences.imageDir) return;
   try {
     await loadImageDirectory(preferences.imageDir);
   } catch (error) {
@@ -1038,9 +1096,7 @@ async function reloadImageDirectory() {
 
 async function pickImageDirectory() {
   const value = await open({ directory: true, multiple: false });
-  if (typeof value !== 'string' || !value) {
-    return;
-  }
+  if (typeof value !== 'string' || !value) return;
   preferences.imageDir = value;
   await persistPreferences();
   await reloadImageDirectory();
@@ -1048,9 +1104,7 @@ async function pickImageDirectory() {
 
 async function pickSaveDirectory() {
   const value = await open({ directory: true, multiple: false });
-  if (typeof value !== 'string' || !value) {
-    return;
-  }
+  if (typeof value !== 'string' || !value) return;
   preferences.saveDir = value;
   await persistPreferences();
   showToast('保存目录已更新', 'success');
@@ -1058,8 +1112,7 @@ async function pickSaveDirectory() {
 
 async function selectItem(item: VisionSourceItem) {
   selectedItemId.value = item.id;
-  detResults.value = [];
-  ocrResults.value = [];
+  clearVisionResults();
   pickedPoint.value = null;
   regionSample.value = null;
   regionDraft.value = null;
@@ -1070,29 +1123,32 @@ async function selectItem(item: VisionSourceItem) {
   if (item.path) {
     selectedPreviewUrl.value = await scriptService.convertLocalImageToDataUrl(item.path);
     item.previewUrl = selectedPreviewUrl.value;
-  } else if (item.savedPath) {
+    return;
+  }
+  if (item.savedPath) {
     selectedPreviewUrl.value = await scriptService.convertLocalImageToDataUrl(item.savedPath);
     item.previewUrl = selectedPreviewUrl.value;
   }
 }
 
+function clearVisionResults() {
+  detResults.value = [];
+  textDetResults.value = [];
+  ocrResults.value = [];
+  comboResults.value = [];
+}
+
 async function ensureSaveDirectory() {
-  if (preferences.saveDir) {
-    return preferences.saveDir;
-  }
+  if (preferences.saveDir) return preferences.saveDir;
   const value = await open({ directory: true, multiple: false });
-  if (typeof value !== 'string' || !value) {
-    return null;
-  }
+  if (typeof value !== 'string' || !value) return null;
   preferences.saveDir = value;
   await persistPreferences();
   return value;
 }
 
 async function saveCaptureItem(item: VisionSourceItem) {
-  if (!item.imageData || item.saved) {
-    return;
-  }
+  if (!item.imageData || item.saved) return;
   const saveDir = await ensureSaveDirectory();
   if (!saveDir) {
     showToast('未设置保存目录', 'warning');
@@ -1122,13 +1178,12 @@ async function captureFromDevice() {
   try {
     const capture = await visionLabService.captureDevice(selectedDevice.value);
     const suggestedName = `${selectedDevice.value.data.deviceName}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-    const previewUrl = `data:image/png;base64,${capture.imageData}`;
     const item: VisionSourceItem = {
       id: `capture:${suggestedName}:${Date.now()}`,
       kind: 'capture',
       name: normalizeItemName(suggestedName),
       path: null,
-      previewUrl,
+      previewUrl: `data:image/png;base64,${capture.imageData}`,
       imageData: capture.imageData,
       savedPath: null,
       createdAt: new Date().toISOString(),
@@ -1143,9 +1198,7 @@ async function captureFromDevice() {
 }
 
 async function runDetection() {
-  if ((!selectedImagePath.value && !selectedImageData.value) || !imgDetModel.value) {
-    return;
-  }
+  if (!imgDetModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
   isRunningDet.value = true;
   try {
     detResults.value = selectedImagePath.value
@@ -1159,10 +1212,23 @@ async function runDetection() {
   }
 }
 
-async function runOcr() {
-  if ((!selectedImagePath.value && !selectedImageData.value) || !txtDetModel.value || !txtRecModel.value) {
-    return;
+async function runTextDetection() {
+  if (!txtDetModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
+  isRunningTextDet.value = true;
+  try {
+    textDetResults.value = selectedImagePath.value
+      ? await visionLabService.runDetection(clone(txtDetModel.value), selectedImagePath.value)
+      : await visionLabService.runDetectionForImageData(clone(txtDetModel.value), selectedImageData.value!);
+    showToast(`文字检测完成，共 ${textDetResults.value.length} 个文本框`, 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '文字检测失败', 'error');
+  } finally {
+    isRunningTextDet.value = false;
   }
+}
+
+async function runOcr() {
+  if (!txtDetModel.value || !txtRecModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
   isRunningOcr.value = true;
   try {
     const results = selectedImagePath.value
@@ -1170,7 +1236,7 @@ async function runOcr() {
       : await visionLabService.runOcrForImageData(clone(txtDetModel.value), clone(txtRecModel.value), selectedImageData.value!);
     ocrResults.value = results.map((item) => ({
       ...item,
-      ...analyzeOcrBoxColors(item.bounding_box),
+      ...analyzeOcrColors(item.bounding_box),
     }));
     showToast(`OCR 完成，共 ${ocrResults.value.length} 条文本`, 'success');
   } catch (error) {
@@ -1180,15 +1246,48 @@ async function runOcr() {
   }
 }
 
-function fitPreview() {
-  if (!previewContainerRef.value || !naturalSize.width || !naturalSize.height) {
-    return;
+async function runComboAnalysis() {
+  if (!canRunCombo.value) return;
+  isRunningCombo.value = true;
+  try {
+    await Promise.all([runDetection(), runOcr()]);
+    comboResults.value = [
+      ...detResults.value.map((item, index) => ({
+        key: `combo-det-${index}`,
+        kind: 'det' as const,
+        label: item.label,
+        box: item.bounding_box,
+        score: item.score,
+        bgColorHex: rgbToHex(sampleRegionAverage(item.bounding_box) ?? { r: 255, g: 255, b: 255 }),
+        fgColorHex: null,
+      })),
+      ...ocrResults.value.map((item, index) => ({
+        key: `combo-ocr-${index}`,
+        kind: 'ocr' as const,
+        text: item.txt,
+        box: item.bounding_box,
+        score: averageScore(item),
+        bgColorHex: item.bgColorHex,
+        fgColorHex: item.fgColorHex,
+      })),
+    ];
+    showToast(`视觉分析完成，共 ${comboResults.value.length} 条结果`, 'success');
+  } finally {
+    isRunningCombo.value = false;
   }
+}
+
+function fitPreview() {
+  if (!previewContainerRef.value || !naturalSize.width || !naturalSize.height) return;
   const containerWidth = previewContainerRef.value.clientWidth - 48;
   const containerHeight = previewContainerRef.value.clientHeight - 48;
   const widthRatio = containerWidth / naturalSize.width;
   const heightRatio = containerHeight / naturalSize.height;
   zoom.value = Math.max(0.2, Math.min(1, widthRatio, heightRatio));
+}
+
+function resetZoom() {
+  zoom.value = 1;
 }
 
 function zoomIn() {
@@ -1217,40 +1316,56 @@ function handleImageLoaded() {
     if (ocrResults.value.length) {
       ocrResults.value = ocrResults.value.map((item) => ({
         ...item,
-        ...analyzeOcrBoxColors(item.bounding_box),
+        ...analyzeOcrColors(item.bounding_box),
+      }));
+    }
+    if (comboResults.value.length) {
+      comboResults.value = comboResults.value.map((item) => ({
+        ...item,
+        bgColorHex: item.kind === 'det'
+          ? rgbToHex(sampleRegionAverage(item.box) ?? { r: 255, g: 255, b: 255 })
+          : analyzeOcrColors(item.box).bgColorHex,
+        fgColorHex: item.kind === 'ocr' ? analyzeOcrColors(item.box).fgColorHex : null,
       }));
     }
   });
 }
 
 function handlePreviewClick(event: MouseEvent) {
-  if (activeTool.value !== 'pick') {
-    return;
-  }
+  if (activeTool.value !== 'pick' || panState.active) return;
   const position = getPointerPosition(event);
   if (!position) return;
   pickedPoint.value = buildPointSample(position.x, position.y);
 }
 
 function handlePreviewPointerDown(event: MouseEvent) {
-  if (activeTool.value !== 'region') {
+  if (activeTool.value === 'browse') {
+    if (!previewContainerRef.value) return;
+    panState.active = true;
+    panState.startClientX = event.clientX;
+    panState.startClientY = event.clientY;
+    panState.startScrollLeft = previewContainerRef.value.scrollLeft;
+    panState.startScrollTop = previewContainerRef.value.scrollTop;
     return;
   }
+
+  if (activeTool.value !== 'region') return;
   const position = getPointerPosition(event);
   if (!position) return;
   regionStart.value = position;
-  regionDraft.value = {
-    x1: position.x,
-    y1: position.y,
-    x2: position.x,
-    y2: position.y,
-  };
+  regionDraft.value = { x1: position.x, y1: position.y, x2: position.x, y2: position.y };
 }
 
 function handlePreviewPointerMove(event: MouseEvent) {
-  if (activeTool.value !== 'region' || !regionStart.value) {
+  if (activeTool.value === 'browse' && panState.active && previewContainerRef.value) {
+    const dx = event.clientX - panState.startClientX;
+    const dy = event.clientY - panState.startClientY;
+    previewContainerRef.value.scrollLeft = panState.startScrollLeft - dx;
+    previewContainerRef.value.scrollTop = panState.startScrollTop - dy;
     return;
   }
+
+  if (activeTool.value !== 'region' || !regionStart.value) return;
   const position = getPointerPosition(event);
   if (!position) return;
   regionDraft.value = {
@@ -1262,6 +1377,11 @@ function handlePreviewPointerMove(event: MouseEvent) {
 }
 
 function handlePreviewPointerUp() {
+  if (activeTool.value === 'browse') {
+    panState.active = false;
+    return;
+  }
+
   if (activeTool.value !== 'region' || !regionDraft.value) {
     regionStart.value = null;
     return;
@@ -1270,32 +1390,104 @@ function handlePreviewPointerUp() {
   regionStart.value = null;
 }
 
-async function loadPreferences() {
-  const saved = await getFromStore<VisionLabPreferences>(visionLabPreferencesKey);
-  if (saved) {
-    Object.assign(preferences, { ...DEFAULT_VISION_LAB_PREFERENCES, ...saved });
+async function loadImgDetLabels() {
+  const labelPath = imgDetYolo.value?.labelPath?.trim();
+  if (!labelPath) {
+    imgDetLabelOptions.value = [];
+    detLabelFilter.value = 'ALL';
+    return;
+  }
+  try {
+    const labels = await scriptService.getYoloLabels(labelPath);
+    imgDetLabelOptions.value = labels.map((item) => ({
+      label: item.label,
+      value: item.label,
+      description: `索引 #${item.index}`,
+    }));
+  } catch {
+    imgDetLabelOptions.value = [];
   }
 }
 
-async function applyLaunchPreset() {
-  if (!isStandalone.value) {
-    return;
-  }
-  const preset = await getFromStore<VisionLabLaunchPreset | null>(visionLabLaunchPresetKey);
+async function hydrateFromLocalConfig() {
+  const config = await visionLabConfigService.getModelConfig().catch(() => null);
+  imgDetModel.value = clone(config?.imgDetModel ?? createDetectorByKind('Yolo11', false));
+  txtDetModel.value = clone(config?.txtDetModel ?? createDetectorByKind('PaddleDbNet', true));
+  txtRecModel.value = clone(config?.txtRecModel ?? createRecognizerByKind('PaddleCrnn'));
+}
+
+async function hydrateFromLaunchPreset() {
+  const preset = await getFromStore<VisionLabLaunchPreset | null>(visionLabLaunchPresetKey).catch(() => null);
   if (!preset) {
+    await hydrateFromLocalConfig();
     return;
   }
-  imgDetModel.value = ensureDetectorModel(preset.imgDetModel, false);
-  txtDetModel.value = ensureDetectorModel(preset.txtDetModel, true);
-  txtRecModel.value = ensureRecognizerModel(preset.txtRecModel);
-  selectedDeviceId.value = preset.selectedDeviceId;
+  imgDetModel.value = clone(preset.imgDetModel ?? createDetectorByKind('Yolo11', false));
+  txtDetModel.value = clone(preset.txtDetModel ?? createDetectorByKind('PaddleDbNet', true));
+  txtRecModel.value = clone(preset.txtRecModel ?? createRecognizerByKind('PaddleCrnn'));
+  if (preset.selectedDeviceId) {
+    selectedDeviceId.value = preset.selectedDeviceId;
+  }
   await setToStore(visionLabLaunchPresetKey, null);
 }
 
+async function loadPreferences() {
+  const saved = await getFromStore<VisionLabPreferences>(visionLabPreferencesKey).catch(() => null);
+  if (saved) {
+    Object.assign(preferences, { ...DEFAULT_VISION_LAB_PREFERENCES, ...saved });
+  }
+  const savedTab = await getFromStore<VisionTab>(visionLabActiveTabKey).catch(() => null);
+  if (savedTab) {
+    activeTab.value = savedTab;
+  }
+}
+
+watch(activeTab, () => {
+  void persistActiveTab();
+});
+
+watch(
+  () => [imgDetModel.value, txtDetModel.value, txtRecModel.value],
+  () => {
+    queuePersistModelConfig();
+  },
+  { deep: true },
+);
+
+watch(selectedDeviceId, (value) => {
+  if (!value) return;
+  void setToStore(deviceKey, value);
+});
+
+watch(
+  () => deviceStore.devices.map((device) => device.id).join('|'),
+  async () => {
+    const storedDeviceId = await getFromStore<string>(deviceKey).catch(() => null);
+    if (!selectedDeviceId.value && storedDeviceId && deviceStore.devices.some((device) => device.id === storedDeviceId)) {
+      selectedDeviceId.value = storedDeviceId;
+      return;
+    }
+    if (selectedDeviceId.value && deviceStore.devices.some((device) => device.id === selectedDeviceId.value)) {
+      return;
+    }
+    selectedDeviceId.value = deviceStore.devices[0]?.id ?? null;
+  },
+  { immediate: true },
+);
+
+watch(
+  () => imgDetYolo.value?.labelPath,
+  () => {
+    void loadImgDetLabels();
+  },
+  { immediate: true },
+);
+
 onMounted(async () => {
   await Promise.all([deviceStore.refreshAll(), loadPreferences()]);
-  selectedDeviceId.value = selectedDeviceId.value || deviceStore.devices[0]?.id || null;
-  await applyLaunchPreset();
+  await hydrateFromLaunchPreset();
+  hydratingModelConfig.value = false;
+  await loadImgDetLabels();
   if (preferences.imageDir) {
     await reloadImageDirectory();
   }

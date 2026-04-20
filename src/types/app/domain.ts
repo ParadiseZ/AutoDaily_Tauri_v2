@@ -89,6 +89,12 @@ export interface VisionLabPreferences {
     filterText: string;
 }
 
+export interface VisionLabModelConfig {
+    imgDetModel: DetectorType | null;
+    txtDetModel: DetectorType | null;
+    txtRecModel: RecognizerType | null;
+}
+
 export interface VisionLabLaunchPreset {
     source: 'editor';
     scriptId: string | null;

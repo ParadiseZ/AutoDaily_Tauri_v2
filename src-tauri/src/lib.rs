@@ -56,6 +56,7 @@ use crate::api::infrastructure::process_api::{
     cmd_run_script_target, cmd_spawn_device, cmd_sync_device_runtime_session,
 };
 use crate::api::infrastructure::vision_lab::{
+    get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd,
     vision_list_image_files_cmd, vision_save_capture_image_cmd,
 };
 use crate::app::init_start::init_at_start;
@@ -111,6 +112,8 @@ pub fn run() {
             //uuid
             get_uuid_v7,
             frontend_debug_log_cmd,
+            get_vision_lab_model_config_cmd,
+            set_vision_lab_model_config_cmd,
             vision_list_image_files_cmd,
             vision_save_capture_image_cmd,
             // 常规/系统设置

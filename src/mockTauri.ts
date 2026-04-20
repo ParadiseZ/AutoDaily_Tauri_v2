@@ -435,6 +435,14 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             dir: '',
             signatureGridSize: 8,
           };
+        case 'get_vision_lab_model_config_cmd':
+          return {
+            imgDetModel: null,
+            txtDetModel: null,
+            txtRecModel: null,
+          };
+        case 'set_vision_lab_model_config_cmd':
+          return '视觉测试模型配置已保存';
         case 'convert_img_to_base64_cmd':
         case 'dev_capture_test':
           return MOCK_PNG_BASE64;

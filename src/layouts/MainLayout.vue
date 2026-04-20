@@ -27,31 +27,51 @@
         </div>
 
         <nav class="space-y-2">
-          <RouterLink
-            v-for="route in primaryRoutes"
-            :key="route.path"
-            :to="route.path"
-            class="app-sidebar-link group my-1 py-3"
-            :class="{ 'app-sidebar-link-active': isActive(route.path) }"
-          >
-            <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
-            <span class="font-medium tracking-wide">{{ route.label }}</span>
-          </RouterLink>
+          <template v-for="route in primaryRoutes" :key="route.path">
+            <button
+              v-if="route.path === '/vision-lab'"
+              type="button"
+              class="app-sidebar-link group my-1 w-full py-3 text-left"
+              @click="handleOpenVisionLab"
+            >
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <span class="font-medium tracking-wide">{{ route.label }}</span>
+            </button>
+            <RouterLink
+              v-else
+              :to="route.path"
+              class="app-sidebar-link group my-1 py-3"
+              :class="{ 'app-sidebar-link-active': isActive(route.path) }"
+            >
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
+              <span class="font-medium tracking-wide">{{ route.label }}</span>
+            </RouterLink>
+          </template>
         </nav>
       </div>
 
       <div class="space-y-3 border-t border-[var(--app-border)] pt-4">
         <nav class="space-y-2">
-          <RouterLink
-            v-for="route in secondaryRoutes"
-            :key="route.path"
-            :to="route.path"
-            class="app-sidebar-link group my-1 py-3"
-            :class="{ 'app-sidebar-link-active': isActive(route.path) }"
-          >
-            <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
-            <span class="font-medium tracking-wide">{{ route.label }}</span>
-          </RouterLink>
+          <template v-for="route in secondaryRoutes" :key="route.path">
+            <button
+              v-if="route.path === '/vision-lab'"
+              type="button"
+              class="app-sidebar-link group my-1 w-full py-3 text-left"
+              @click="handleOpenVisionLab"
+            >
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <span class="font-medium tracking-wide">{{ route.label }}</span>
+            </button>
+            <RouterLink
+              v-else
+              :to="route.path"
+              class="app-sidebar-link group my-1 py-3"
+              :class="{ 'app-sidebar-link-active': isActive(route.path) }"
+            >
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
+              <span class="font-medium tracking-wide">{{ route.label }}</span>
+            </RouterLink>
+          </template>
         </nav>
 
         <button class="app-panel flex w-full items-center gap-3 p-3 text-left" type="button" @click="handleUserClick">
@@ -85,6 +105,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import { routesMenu } from '@/router';
 import { useUserStore } from '@/store/user';
 import { useDeviceStore } from '@/store/device';
+import { openVisionLabWindow } from '@/utils/visionLabWindow';
 
 const route = useRoute();
 const userStore = useUserStore();
@@ -115,6 +136,10 @@ const handleUserClick = () => {
   if (!userStore.isLoggedIn) {
     userStore.openAuthModal();
   }
+};
+
+const handleOpenVisionLab = () => {
+  void openVisionLabWindow();
 };
 </script>
 

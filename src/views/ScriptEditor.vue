@@ -499,6 +499,7 @@ import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
 import { useScriptStore } from '@/store/script';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
+import { deviceKey, getFromStore, setToStore } from '@/store/store';
 import { runtimeService } from '@/services/runtimeService';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
@@ -3254,13 +3255,28 @@ watch(
 
 watch(
   () => deviceStore.devices.map((device) => device.id).join('|'),
-  () => {
+  async () => {
+    const storedDeviceId = await getFromStore<string>(deviceKey).catch(() => null);
+    if (!selectedPreviewDeviceId.value && storedDeviceId && deviceStore.devices.some((device) => device.id === storedDeviceId)) {
+      selectedPreviewDeviceId.value = storedDeviceId;
+      return;
+    }
     if (selectedPreviewDeviceId.value && deviceStore.devices.some((device) => device.id === selectedPreviewDeviceId.value)) {
       return;
     }
     selectedPreviewDeviceId.value = deviceStore.devices[0]?.id ?? null;
   },
   { immediate: true },
+);
+
+watch(
+  selectedPreviewDeviceId,
+  (value) => {
+    if (!value) {
+      return;
+    }
+    void setToStore(deviceKey, value);
+  },
 );
 
 watch(activeMode, (value) => {
