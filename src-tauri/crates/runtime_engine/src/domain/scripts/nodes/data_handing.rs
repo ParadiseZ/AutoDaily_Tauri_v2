@@ -21,6 +21,14 @@ pub enum DataHanding {
         logic_expr: String,
         then_steps: Vec<Step>,
     },
+    ColorCompare {
+        input_var: String,
+        out_var: String,
+        target_text: Option<String>,
+        is_font: bool,
+        target_color: ColorRgb,
+        method: ColorCompareMethod,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
@@ -29,6 +37,22 @@ pub enum DataHanding {
 pub enum FilterMode {
     Filter,
     Map,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct ColorRgb {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum ColorCompareMethod {
+    OklabDistance { threshold: f32 },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]

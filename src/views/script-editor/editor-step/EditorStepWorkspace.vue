@@ -117,6 +117,10 @@
                 :selected-filter-input-entry="selectedFilterInputEntry"
                 :selected-filter-output-target="selectedFilterOutputTarget"
                 :selected-filter-output-input-entry="selectedFilterOutputInputEntry"
+                :selected-color-compare-input-target="selectedColorCompareInputTarget"
+                :selected-color-compare-input-entry="selectedColorCompareInputEntry"
+                :selected-color-compare-output-target="selectedColorCompareOutputTarget"
+                :selected-color-compare-output-input-entry="selectedColorCompareOutputInputEntry"
                 :selected-set-var-kind="selectedSetVarKind"
                 :set-var-uses-expression="setVarUsesExpression"
                 :set-var-can-switch-mode="setVarCanSwitchMode"
@@ -127,6 +131,7 @@
                 :writable-catalog-variable-options="writableCatalogVariableOptions"
                 :readable-catalog-variable-options="readableCatalogVariableOptions"
                 :filter-mode-options="filterModeOptions"
+                :color-compare-method-options="colorCompareMethodOptions"
                 :filter-branch-target="filterBranchTarget"
                 :variable-datalist-id="variableDatalistId"
                 :create-variable="createVariable"
@@ -144,6 +149,10 @@
                 @update-get-var-text="updateGetVarText"
                 @update-get-var-bool="updateGetVarBool"
                 @update-filter-mode="updateFilterMode"
+                @update-color-compare-channel="updateColorCompareChannel"
+                @update-color-compare-threshold="updateColorCompareThreshold"
+                @update-color-compare-method="updateColorCompareMethod"
+                @update-color-compare-boolean="updateColorCompareBoolean"
                 @create-variable="handleCreateDataVariable"
                 @jump-to-variable="handleJumpToDataVariable"
                 @navigate-branch="$emit('navigate-branch', $event)"
@@ -247,6 +256,7 @@ import { createConditionNode } from '@/views/script-editor/editorCondition';
 import {
   ACTION_MODE,
   ACTION_TYPE,
+  COLOR_COMPARE_METHOD_TYPE,
   DATA_TYPE,
   FILTER_MODE_TYPE,
   FLOW_TYPE,
@@ -429,6 +439,9 @@ const filterModeOptions = [
   { label: '过滤', value: FILTER_MODE_TYPE.filter, description: '保留符合条件的元素。' },
   { label: '映射', value: FILTER_MODE_TYPE.map, description: '将输入映射为新结果。' },
 ];
+const colorCompareMethodOptions = [
+  { label: 'OKLab 距离', value: COLOR_COMPARE_METHOD_TYPE.oklabDistance, description: '在 OKLab 空间比较颜色距离。' },
+];
 const taskControlTypeOptions = [
   { label: '设置状态', value: TASK_CONTROL_TYPE.setState, description: '写入目标状态。' },
 ];
@@ -535,6 +548,12 @@ const selectedActionInputTarget = computed(() =>
 );
 const currentFilterInputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.input_var : ''));
 const currentFilterOutputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.out_name : ''));
+const currentColorCompareInputName = computed(() =>
+  selectedData.value?.type === DATA_TYPE.colorCompare ? selectedData.value.input_var : '',
+);
+const currentColorCompareOutputName = computed(() =>
+  selectedData.value?.type === DATA_TYPE.colorCompare ? selectedData.value.out_var : '',
+);
 const selectedFilterInputTarget = computed(() =>
   currentFilterInputName.value ? props.variableOptions.find((item) => item.key === currentFilterInputName.value) ?? null : null,
 );
@@ -544,6 +563,18 @@ const selectedFilterOutputTarget = computed(() =>
 const selectedFilterInputEntry = computed(() => (selectedFilterInputTarget.value ? findInputEntryByVariableKey(selectedFilterInputTarget.value.key) : null));
 const selectedFilterOutputInputEntry = computed(() =>
   selectedFilterOutputTarget.value ? findInputEntryByVariableKey(selectedFilterOutputTarget.value.key) : null,
+);
+const selectedColorCompareInputTarget = computed(() =>
+  currentColorCompareInputName.value ? props.variableOptions.find((item) => item.key === currentColorCompareInputName.value) ?? null : null,
+);
+const selectedColorCompareOutputTarget = computed(() =>
+  currentColorCompareOutputName.value ? props.variableOptions.find((item) => item.key === currentColorCompareOutputName.value) ?? null : null,
+);
+const selectedColorCompareInputEntry = computed(() =>
+  selectedColorCompareInputTarget.value ? findInputEntryByVariableKey(selectedColorCompareInputTarget.value.key) : null,
+);
+const selectedColorCompareOutputInputEntry = computed(() =>
+  selectedColorCompareOutputTarget.value ? findInputEntryByVariableKey(selectedColorCompareOutputTarget.value.key) : null,
 );
 const currentVisionOutputName = computed(() =>
   selectedVision.value?.type === VISION_TYPE.visionSearch ? selectedVision.value.out_var ?? '' : '',
@@ -812,15 +843,19 @@ const updateSetVarTarget = (value: string) => {
   });
 };
 
-const handleCreateDataVariable = async (target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput') => {
+const handleCreateDataVariable = async (
+  target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput',
+) => {
   if (!props.createVariable) {
     return;
   }
 
   const key =
-    target === 'filterOutput'
+    target === 'filterOutput' || target === 'colorCompareOutput'
       ? await props.createVariable('runtime', 'json')
-      : target === 'filterInput'
+      : target === 'colorCompareInput'
+        ? await props.createVariable('runtime', 'json')
+        : target === 'filterInput'
         ? await props.createVariable('input', 'json')
         : await props.createVariable('input', 'int');
   if (!key) {
@@ -839,6 +874,16 @@ const handleCreateDataVariable = async (target: 'setVar' | 'getVar' | 'filterInp
 
   if (target === 'filterOutput') {
     updateDataField('out_name', key);
+    return;
+  }
+
+  if (target === 'colorCompareInput') {
+    updateDataField('input_var', key);
+    return;
+  }
+
+  if (target === 'colorCompareOutput') {
+    updateDataField('out_var', key);
     return;
   }
 
@@ -1003,6 +1048,56 @@ const updateFilterMode = (value: string) => {
       mode: {
         type: value as typeof FILTER_MODE_TYPE.filter | typeof FILTER_MODE_TYPE.map,
       },
+    };
+  });
+};
+
+const updateColorCompareChannel = (channel: 'r' | 'g' | 'b', value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.colorCompare) return;
+    step.a = {
+      ...step.a,
+      target_color: {
+        ...step.a.target_color,
+        [channel]: Math.max(0, Math.min(255, Number(value) || 0)),
+      },
+    };
+  });
+};
+
+const updateColorCompareThreshold = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.colorCompare) return;
+    const threshold = Math.max(0, Number(value) || 0);
+    step.a = {
+      ...step.a,
+      method: {
+        ...step.a.method,
+        threshold,
+      },
+    };
+  });
+};
+
+const updateColorCompareMethod = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.colorCompare) return;
+    step.a = {
+      ...step.a,
+      method: {
+        type: value as typeof COLOR_COMPARE_METHOD_TYPE.oklabDistance,
+        threshold: step.a.method.threshold,
+      },
+    };
+  });
+};
+
+const updateColorCompareBoolean = (field: 'is_font', value: boolean) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.colorCompare) return;
+    step.a = {
+      ...step.a,
+      [field]: value,
     };
   });
 };

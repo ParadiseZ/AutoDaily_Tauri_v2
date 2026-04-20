@@ -1612,6 +1612,16 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
         collectVariableReferencesFromSteps(step.a.then_steps, bucket);
         continue;
       }
+
+      if (step.a.type === 'colorCompare') {
+        if (step.a.input_var?.trim()) {
+          bucket.add(step.a.input_var.trim());
+        }
+        if (step.a.out_var?.trim()) {
+          bucket.add(step.a.out_var.trim());
+        }
+        continue;
+      }
     }
 
     if (step.op === 'vision' && step.a.type === 'visionSearch') {
@@ -1757,6 +1767,16 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
           nextStep.a.out_name = nextKey;
         }
         nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
+        return nextStep;
+      }
+
+      if (nextStep.a.type === 'colorCompare') {
+        if (nextStep.a.input_var === previousKey) {
+          nextStep.a.input_var = nextKey;
+        }
+        if (nextStep.a.out_var === previousKey) {
+          nextStep.a.out_var = nextKey;
+        }
         return nextStep;
       }
 
@@ -2584,6 +2604,24 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
     nextStep.a.out_name = await createVariableResource('runtime', 'json', {
       preferredKey: 'filteredItems',
       name: '过滤结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'color-compare' && nextStep.op === 'dataHanding' && nextStep.a.type === 'colorCompare') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'ocrResults',
+      name: 'OCR结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'colorMatchedResults',
+      name: '颜色命中结果',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,

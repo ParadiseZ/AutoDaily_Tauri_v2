@@ -21,7 +21,6 @@ export const conditionTypeOptions = [
   { label: '变量比较', value: 'varCompare', description: '比较运行时变量或输入变量。' },
   { label: '策略集结果', value: 'policySetResult', description: '按策略集处理步骤输出的结果对象判断。' },
   { label: '策略条件', value: 'policyCondition', description: '基于图像做视觉精判，可用于策略或任务步骤。' },
-  { label: '颜色匹配', value: 'colorCompare', description: '按 OCR 目标的颜色判断。' },
 ];
 
 export const logicOpOptions = [

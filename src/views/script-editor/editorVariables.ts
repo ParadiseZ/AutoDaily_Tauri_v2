@@ -275,6 +275,14 @@ const collectDerivedRuntimeVariables = (
       continue;
     }
 
+    if (step.op === 'dataHanding' && step.a.type === 'colorCompare') {
+      if (step.a.out_var?.trim()) {
+        const key = step.a.out_var.trim();
+        bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
+      }
+      continue;
+    }
+
     if (step.op === 'flowControl') {
       if ((step.a.type === 'handlePolicySet' || step.a.type === 'handlePolicy') && step.a.out_var?.trim()) {
         const key = step.a.out_var.trim();

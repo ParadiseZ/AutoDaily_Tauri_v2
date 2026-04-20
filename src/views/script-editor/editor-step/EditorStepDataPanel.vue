@@ -308,6 +308,185 @@
         </label>
       </div>
     </template>
+
+    <template v-else-if="selectedData.type === DATA_TYPE.colorCompare">
+      <div class="grid gap-3 md:grid-cols-2">
+        <div class="space-y-3">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入结果集</span>
+            <EditorSelectField
+              :model-value="selectedData.input_var || null"
+              :options="resolvedColorCompareInputOptions"
+              :show-description="true"
+              placeholder="选择 OCR 或过滤结果变量"
+              test-id="editor-color-compare-input-var"
+              @update:model-value="$emit('update-data-field', 'input_var', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedColorCompareInputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+            <button
+              v-if="createVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-color-compare-input-create"
+              @click="$emit('create-variable', 'colorCompareInput')"
+            >
+              <AppIcon name="plus" :size="14" />
+              新建变量
+            </button>
+            <button
+              v-if="selectedColorCompareInputTarget && jumpToVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-color-compare-input-locate"
+              @click="$emit('jump-to-variable', selectedColorCompareInputTarget)"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+          <EditorVariableMetaCard
+            v-if="selectedColorCompareInputTarget"
+            :variable="selectedColorCompareInputTarget"
+            :input-entry="selectedColorCompareInputEntry"
+            editable
+            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
+          />
+        </div>
+
+        <div class="space-y-3">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出结果集</span>
+            <EditorSelectField
+              :model-value="selectedData.out_var || null"
+              :options="resolvedColorCompareOutputOptions"
+              :show-description="true"
+              placeholder="选择或创建输出变量"
+              test-id="editor-color-compare-output-var"
+              @update:model-value="$emit('update-data-field', 'out_var', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedColorCompareOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+            <button
+              v-if="createVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-color-compare-output-create"
+              @click="$emit('create-variable', 'colorCompareOutput')"
+            >
+              <AppIcon name="plus" :size="14" />
+              新建 Runtime 变量
+            </button>
+            <button
+              v-if="selectedColorCompareOutputTarget && jumpToVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              data-testid="editor-color-compare-output-locate"
+              @click="$emit('jump-to-variable', selectedColorCompareOutputTarget)"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+          <EditorVariableMetaCard
+            v-if="selectedColorCompareOutputTarget"
+            :variable="selectedColorCompareOutputTarget"
+            :input-entry="selectedColorCompareOutputInputEntry"
+            editable
+            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
+          />
+        </div>
+
+        <label class="space-y-2 md:col-span-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标文字</span>
+          <input
+            :value="selectedData.target_text ?? ''"
+            class="app-input"
+            placeholder="留空则比较输入结果集中的全部 OCR 区域"
+            data-testid="editor-color-compare-target-text"
+            @input="$emit('update-data-nullable-field', 'target_text', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3 md:col-span-2">
+          <input
+            :checked="selectedData.is_font"
+            type="checkbox"
+            class="h-4 w-4"
+            data-testid="editor-color-compare-is-font"
+            style="accent-color: var(--app-accent)"
+            @change="$emit('update-color-compare-boolean', 'is_font', ($event.target as HTMLInputElement).checked)"
+          />
+          <span class="text-sm text-[var(--app-text-soft)]">比较字体颜色</span>
+        </label>
+
+        <div class="editor-inline-grid md:col-span-2">
+          <div class="editor-inline-label">比较方法</div>
+          <div class="editor-inline-content">
+            <EditorSelectField
+              :model-value="selectedData.method.type"
+              :options="colorCompareMethodOptions"
+              placeholder="比较方法"
+              test-id="editor-color-compare-method"
+              @update:model-value="$emit('update-color-compare-method', String($event || 'oklabDistance'))"
+            />
+          </div>
+
+          <div class="editor-inline-label">阈值</div>
+          <div class="editor-inline-content">
+            <input
+              :value="String(selectedData.method.threshold)"
+              class="app-input"
+              type="number"
+              min="0"
+              max="1"
+              step="0.01"
+              data-testid="editor-color-compare-threshold"
+              @input="$emit('update-color-compare-threshold', ($event.target as HTMLInputElement).value)"
+            />
+          </div>
+        </div>
+
+        <div class="grid gap-3 md:col-span-2 md:grid-cols-3">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">R</span>
+            <input
+              :value="String(selectedData.target_color.r)"
+              class="app-input"
+              type="number"
+              min="0"
+              max="255"
+              data-testid="editor-color-compare-r"
+              @input="$emit('update-color-compare-channel', 'r', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">G</span>
+            <input
+              :value="String(selectedData.target_color.g)"
+              class="app-input"
+              type="number"
+              min="0"
+              max="255"
+              data-testid="editor-color-compare-g"
+              @input="$emit('update-color-compare-channel', 'g', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">B</span>
+            <input
+              :value="String(selectedData.target_color.b)"
+              class="app-input"
+              type="number"
+              min="0"
+              max="255"
+              data-testid="editor-color-compare-b"
+              @input="$emit('update-color-compare-channel', 'b', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -334,6 +513,10 @@ const props = defineProps<{
   selectedFilterInputEntry?: EditorInputEntry | null;
   selectedFilterOutputTarget?: EditorVariableOption | null;
   selectedFilterOutputInputEntry?: EditorInputEntry | null;
+  selectedColorCompareInputTarget?: EditorVariableOption | null;
+  selectedColorCompareInputEntry?: EditorInputEntry | null;
+  selectedColorCompareOutputTarget?: EditorVariableOption | null;
+  selectedColorCompareOutputInputEntry?: EditorInputEntry | null;
   selectedSetVarKind: VarValueKind | null;
   setVarUsesExpression: boolean;
   setVarCanSwitchMode: boolean;
@@ -344,6 +527,7 @@ const props = defineProps<{
   writableCatalogVariableOptions: Array<{ label: string; value: string; description: string }>;
   readableCatalogVariableOptions: Array<{ label: string; value: string; description: string }>;
   filterModeOptions: Array<{ label: string; value: string; description: string }>;
+  colorCompareMethodOptions: Array<{ label: string; value: string; description: string }>;
   filterBranchTarget: { count: number; path: StepBranchPath } | null;
   variableDatalistId: string;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
@@ -363,8 +547,12 @@ const emit = defineEmits<{
   'update-get-var-text': [value: string];
   'update-get-var-bool': [value: boolean];
   'update-filter-mode': [value: string];
+  'update-color-compare-channel': [channel: 'r' | 'g' | 'b', value: string];
+  'update-color-compare-threshold': [value: string];
+  'update-color-compare-method': [value: string];
+  'update-color-compare-boolean': [field: 'is_font', value: boolean];
   'navigate-branch': [branchPath: StepBranchPath];
-  'create-variable': [target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput'];
+  'create-variable': [target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput'];
   'jump-to-variable': [option: EditorVariableOption];
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
@@ -396,6 +584,18 @@ const resolvedFilterInputOptions = computed(() =>
 const resolvedFilterOutputOptions = computed(() =>
   props.selectedData.type === DATA_TYPE.filter
     ? withCurrentVariableOption(props.writableCatalogVariableOptions, props.selectedData.out_name)
+    : props.writableCatalogVariableOptions,
+);
+
+const resolvedColorCompareInputOptions = computed(() =>
+  props.selectedData.type === DATA_TYPE.colorCompare
+    ? withCurrentVariableOption(props.readableCatalogVariableOptions, props.selectedData.input_var)
+    : props.readableCatalogVariableOptions,
+);
+
+const resolvedColorCompareOutputOptions = computed(() =>
+  props.selectedData.type === DATA_TYPE.colorCompare
+    ? withCurrentVariableOption(props.writableCatalogVariableOptions, props.selectedData.out_var)
     : props.writableCatalogVariableOptions,
 );
 </script>

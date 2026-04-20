@@ -13,6 +13,8 @@ export type { BoundingBox } from './BoundingBox';
 export type { CapMethod } from './CapMethod';
 export type { Click } from './Click';
 export type { ClickMode } from './ClickMode';
+export type { ColorCompareMethod } from './ColorCompareMethod';
+export type { ColorRgb } from './ColorRgb';
 export type { CompareOp } from './CompareOp';
 export type { ConditionNode } from './ConditionNode';
 export type { DataHanding } from './DataHanding';

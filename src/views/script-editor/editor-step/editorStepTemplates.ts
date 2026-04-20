@@ -5,6 +5,7 @@ import {
   DATA_TYPE,
   FILTER_MODE_TYPE,
   FLOW_TYPE,
+  COLOR_COMPARE_METHOD_TYPE,
   STATE_STATUS_TYPE,
   STATE_TARGET_TYPE,
   STEP_OP,
@@ -434,6 +435,33 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'color-compare',
+    label: '颜色比较',
+    description: '按 OCR 结果区域比较字体色或背景色，并输出命中结果集。',
+    group: '数据',
+    create: () =>
+      createBaseStep({
+        label: '颜色比较',
+        op: STEP_OP.dataHanding,
+        a: {
+          type: DATA_TYPE.colorCompare,
+          input_var: 'runtime.ocrResults',
+          out_var: 'runtime.colorMatchedResults',
+          target_text: null,
+          is_font: true,
+          target_color: {
+            r: 255,
+            g: 255,
+            b: 255,
+          },
+          method: {
+            type: COLOR_COMPARE_METHOD_TYPE.oklabDistance,
+            threshold: 0.05,
+          },
+        },
+      }),
+  },
+  {
     id: 'vision-search',
     label: '视觉搜索',
     description: '基于 OCR / YOLO 规则搜索目标并输出结果变量。',
@@ -551,6 +579,7 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === DATA_TYPE.setVar) return '设置变量';
     if (step.a.type === DATA_TYPE.getVar) return '读取变量';
     if (step.a.type === DATA_TYPE.filter) return '过滤变量';
+    if (step.a.type === DATA_TYPE.colorCompare) return '颜色比较';
     return '数据处理';
   }
 
@@ -619,6 +648,8 @@ export const describeStepMeta = (step: Step) => {
         return `读取变量 ${step.a.name || '未命名变量'}`;
       case DATA_TYPE.filter:
         return `过滤 ${step.a.input_var || '未命名输入'} -> ${step.a.out_name || '未命名输出'}`;
+      case DATA_TYPE.colorCompare:
+        return `颜色比较 ${step.a.input_var || '未命名输入'} -> ${step.a.out_var || '未命名输出'}`;
       default:
         return '数据处理';
     }

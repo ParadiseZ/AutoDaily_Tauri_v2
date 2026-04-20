@@ -1,6 +1,7 @@
 use super::ScriptExecutor;
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::devices::device_schedule::TaskCycle;
+use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
 use crate::domain::scripts::script_task::{
     ScriptTask, ScriptTaskTable, TaskRowType, TaskTone, TaskTriggerMode,
@@ -43,6 +44,14 @@ fn build_det_result(index: i32, label: &str, x1: i32, y1: i32, x2: i32, y2: i32)
         0.9,
         8,
     )
+}
+
+fn fill_rect(image: &mut RgbaImage, bbox: &BoundingBox, color: [u8; 4]) {
+    for y in bbox.y1..=bbox.y2 {
+        for x in bbox.x1..=bbox.x2 {
+            image.put_pixel(x as u32, y as u32, Rgba(color));
+        }
+    }
 }
 
 #[test]
@@ -322,4 +331,49 @@ async fn timeout_handling_resets_progress_probe_after_notify_only() {
 
     assert!(result.is_none());
     assert!(executor.last_progress_probe.is_none());
+}
+
+#[test]
+fn color_compare_matches_background_ring_color() {
+    let mut image = RgbaImage::from_pixel(64, 32, Rgba([250, 250, 250, 255]));
+    let bbox = BoundingBox::new(12, 8, 28, 20);
+    fill_rect(&mut image, &bbox, [210, 30, 30, 255]);
+    let item = build_ocr_result("开始", bbox.x1, bbox.y1, bbox.x2, bbox.y2);
+
+    assert!(ScriptExecutor::ocr_item_matches_color(
+        &image,
+        &item,
+        false,
+        ScriptExecutor::rgb_to_oklab(&ColorRgb {
+            r: 250,
+            g: 250,
+            b: 250,
+        }),
+        &ColorCompareMethod::OklabDistance { threshold: 0.03 },
+    ));
+}
+
+#[test]
+fn color_compare_matches_font_color_against_top_three_clusters() {
+    let mut image = RgbaImage::from_pixel(96, 48, Rgba([245, 245, 245, 255]));
+    let bbox = BoundingBox::new(18, 10, 48, 30);
+    let left = BoundingBox::new(18, 10, 27, 30);
+    let middle = BoundingBox::new(28, 10, 37, 30);
+    let right = BoundingBox::new(38, 10, 48, 30);
+    fill_rect(&mut image, &left, [220, 40, 40, 255]);
+    fill_rect(&mut image, &middle, [40, 180, 70, 255]);
+    fill_rect(&mut image, &right, [40, 90, 220, 255]);
+    let item = build_ocr_result("开始", bbox.x1, bbox.y1, bbox.x2, bbox.y2);
+
+    assert!(ScriptExecutor::ocr_item_matches_color(
+        &image,
+        &item,
+        true,
+        ScriptExecutor::rgb_to_oklab(&ColorRgb {
+            r: 40,
+            g: 90,
+            b: 220,
+        }),
+        &ColorCompareMethod::OklabDistance { threshold: 0.04 },
+    ));
 }

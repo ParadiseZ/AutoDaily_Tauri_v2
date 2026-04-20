@@ -1,5 +1,7 @@
 use crate::domain::scripts::nodes::action::{Action, ClickMode, SwipeMode};
-use crate::domain::scripts::nodes::data_handing::{DataHanding, FilterMode, VarValue};
+use crate::domain::scripts::nodes::data_handing::{
+    ColorCompareMethod, ColorRgb, DataHanding, FilterMode, VarValue,
+};
 use crate::domain::scripts::nodes::flow_control::{
     CompareOp, ConditionNode, FlowControl, PolicySetResultCompareOp, PolicySetResultField,
 };
@@ -108,6 +110,20 @@ struct ProgressProbe {
     step_id: Option<StepId>,
     stagnant_since: Instant,
     notified: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct OklabColor {
+    l: f32,
+    a: f32,
+    b: f32,
+}
+
+#[derive(Debug, Clone)]
+struct ColorCluster {
+    center: OklabColor,
+    count: usize,
+    mean_distance: f32,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

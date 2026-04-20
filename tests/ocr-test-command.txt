@@ -2,4 +2,4 @@ $env:AUTODAILY_OCR_TEST_CONFIG_PATH="D:\Database\Project\VisualStudioCode\AutoDa
 
 cd D:\\Database\\Project\\VisualStudioCode\\AutoDaily\\src-tauri && cargo test -p vision_core real_paths_detector_init_and_detect -- --ignored --nocapture
 
-cargo test -p vision_core real_paths_ocr_init_and_recognize -- --ignored --nocapture
+cargo test -p vision_core real_paths_ocr_init_and_recognize --release -- --ignored --nocapture
