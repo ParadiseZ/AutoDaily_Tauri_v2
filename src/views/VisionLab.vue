@@ -546,7 +546,7 @@ interface VisionSourceItem {
   name: string;
   path: string | null;
   previewUrl: string | null;
-  stagedPath: string | null;
+  imageData: string | null;
   savedPath: string | null;
   createdAt: string;
   saved: boolean;
@@ -677,8 +677,9 @@ const selectedDevice = computed<DeviceTable | null>(() =>
   deviceStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null,
 );
 
-const selectedImagePath = computed(() => selectedItem.value?.path ?? selectedItem.value?.stagedPath ?? null);
-const canRunVision = computed(() => Boolean(selectedImagePath.value));
+const selectedImagePath = computed(() => selectedItem.value?.path ?? null);
+const selectedImageData = computed(() => selectedItem.value?.imageData ?? null);
+const canRunVision = computed(() => Boolean(selectedImagePath.value || selectedImageData.value));
 const canRunDetection = computed(() => canRunVision.value && Boolean(imgDetModel.value));
 const canRunOcr = computed(() => canRunVision.value && Boolean(txtDetModel.value) && Boolean(txtRecModel.value));
 
@@ -1017,7 +1018,7 @@ async function loadImageDirectory(dirPath: string) {
     name: normalizeItemName(path),
     path,
     previewUrl: null,
-    stagedPath: null,
+    imageData: null,
     savedPath: path,
     createdAt: new Date().toISOString(),
     saved: true,
@@ -1089,7 +1090,7 @@ async function ensureSaveDirectory() {
 }
 
 async function saveCaptureItem(item: VisionSourceItem) {
-  if (!item.stagedPath || item.saved) {
+  if (!item.imageData || item.saved) {
     return;
   }
   const saveDir = await ensureSaveDirectory();
@@ -1099,7 +1100,7 @@ async function saveCaptureItem(item: VisionSourceItem) {
   }
   savingCaptureId.value = item.id;
   try {
-    const savedPath = await visionLabService.saveStagedImage(item.stagedPath, saveDir, item.name);
+    const savedPath = await visionLabService.saveCaptureImage(item.imageData, saveDir, item.name);
     item.saved = true;
     item.savedPath = savedPath;
     showToast('截图已保存到本地', 'success');
@@ -1121,15 +1122,14 @@ async function captureFromDevice() {
   try {
     const capture = await visionLabService.captureDevice(selectedDevice.value);
     const suggestedName = `${selectedDevice.value.data.deviceName}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-    const stagedPath = await visionLabService.stageCaptureImage(capture.imageData, suggestedName);
     const previewUrl = `data:image/png;base64,${capture.imageData}`;
     const item: VisionSourceItem = {
-      id: `capture:${stagedPath}`,
+      id: `capture:${suggestedName}:${Date.now()}`,
       kind: 'capture',
       name: normalizeItemName(suggestedName),
       path: null,
       previewUrl,
-      stagedPath,
+      imageData: capture.imageData,
       savedPath: null,
       createdAt: new Date().toISOString(),
       saved: false,
@@ -1143,12 +1143,14 @@ async function captureFromDevice() {
 }
 
 async function runDetection() {
-  if (!selectedImagePath.value || !imgDetModel.value) {
+  if ((!selectedImagePath.value && !selectedImageData.value) || !imgDetModel.value) {
     return;
   }
   isRunningDet.value = true;
   try {
-    detResults.value = await visionLabService.runDetection(clone(imgDetModel.value), selectedImagePath.value);
+    detResults.value = selectedImagePath.value
+      ? await visionLabService.runDetection(clone(imgDetModel.value), selectedImagePath.value)
+      : await visionLabService.runDetectionForImageData(clone(imgDetModel.value), selectedImageData.value!);
     showToast(`检测完成，共 ${detResults.value.length} 条结果`, 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '目标检测失败', 'error');
@@ -1158,12 +1160,14 @@ async function runDetection() {
 }
 
 async function runOcr() {
-  if (!selectedImagePath.value || !txtDetModel.value || !txtRecModel.value) {
+  if ((!selectedImagePath.value && !selectedImageData.value) || !txtDetModel.value || !txtRecModel.value) {
     return;
   }
   isRunningOcr.value = true;
   try {
-    const results = await visionLabService.runOcr(clone(txtDetModel.value), clone(txtRecModel.value), selectedImagePath.value);
+    const results = selectedImagePath.value
+      ? await visionLabService.runOcr(clone(txtDetModel.value), clone(txtRecModel.value), selectedImagePath.value)
+      : await visionLabService.runOcrForImageData(clone(txtDetModel.value), clone(txtRecModel.value), selectedImageData.value!);
     ocrResults.value = results.map((item) => ({
       ...item,
       ...analyzeOcrBoxColors(item.bounding_box),

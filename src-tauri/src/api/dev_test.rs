@@ -1,4 +1,6 @@
-use crate::app::dev_test::{paddle_ocr_infer, yolo_infer_test};
+use crate::app::dev_test::{
+    paddle_ocr_base64_infer, paddle_ocr_infer, yolo_infer_base64_test, yolo_infer_test,
+};
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 
@@ -65,6 +67,14 @@ pub async fn yolo_inference_test(
 }
 
 #[command]
+pub async fn yolo_inference_image_data_test(
+    detector_conf: DetectorType,
+    image_data: &str,
+) -> Result<Vec<DetResult>, String> {
+    yolo_infer_base64_test(image_data, detector_conf).await
+}
+
+#[command]
 pub async fn paddle_ocr_inference_test(
     det_model: DetectorType,
     rec_model: RecognizerType,
@@ -74,4 +84,13 @@ pub async fn paddle_ocr_inference_test(
         Ok(result) => Ok(result),
         Err(e) => Err(e.to_string()),
     }
+}
+
+#[command]
+pub async fn paddle_ocr_inference_image_data_test(
+    det_model: DetectorType,
+    rec_model: RecognizerType,
+    image_data: &str,
+) -> Result<Vec<OcrResult>, String> {
+    paddle_ocr_base64_infer(det_model, rec_model, image_data).await
 }

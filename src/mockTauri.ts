@@ -440,12 +440,12 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return MOCK_PNG_BASE64;
         case 'vision_list_image_files_cmd':
           return [];
-        case 'vision_stage_capture_image_cmd':
-          return `mock://vision/${Date.now()}.png`;
-        case 'vision_save_staged_image_cmd':
+        case 'vision_save_capture_image_cmd':
           return `mock://saved/${Date.now()}.png`;
         case 'yolo_inference_test':
+        case 'yolo_inference_image_data_test':
         case 'paddle_ocr_inference_test':
+        case 'paddle_ocr_inference_image_data_test':
           return [];
         case 'get_all_devices_cmd':
           return readState().devices;

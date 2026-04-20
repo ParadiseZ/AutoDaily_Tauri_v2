@@ -37,13 +37,6 @@ fn sanitize_file_name(value: &str) -> String {
     }
 }
 
-fn strip_base64_prefix(value: &str) -> &str {
-    value
-        .split_once("base64,")
-        .map(|(_, base64)| base64)
-        .unwrap_or(value)
-}
-
 fn ensure_unique_path(mut path: PathBuf) -> PathBuf {
     if !path.exists() {
         return path;
@@ -95,12 +88,6 @@ fn build_output_name(file_name: Option<&str>) -> String {
     }
 }
 
-fn vision_stage_dir() -> Result<PathBuf, String> {
-    let dir = std::env::temp_dir().join("auto_daily").join("vision_lab");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("创建视觉测试缓存目录失败: {}", e))?;
-    Ok(dir)
-}
-
 #[command]
 pub async fn vision_list_image_files_cmd(dir_path: String) -> Result<Vec<String>, String> {
     let dir = PathBuf::from(&dir_path);
@@ -123,45 +110,24 @@ pub async fn vision_list_image_files_cmd(dir_path: String) -> Result<Vec<String>
 }
 
 #[command]
-pub async fn vision_stage_capture_image_cmd(
+pub async fn vision_save_capture_image_cmd(
     image_data: String,
-    suggested_name: Option<String>,
-) -> Result<String, String> {
-    let stage_dir = vision_stage_dir()?;
-    let file_name = build_output_name(suggested_name.as_deref());
-    let file_path = ensure_unique_path(stage_dir.join(file_name));
-    let bytes = general_purpose::STANDARD
-        .decode(strip_base64_prefix(&image_data))
-        .map_err(|e| format!("截图数据解码失败: {}", e))?;
-
-    fs::write(&file_path, bytes)
-        .await
-        .map_err(|e| format!("写入缓存图片失败: {}", e))?;
-
-    Ok(file_path.to_string_lossy().to_string())
-}
-
-#[command]
-pub async fn vision_save_staged_image_cmd(
-    staged_path: String,
     save_dir: String,
     file_name: Option<String>,
 ) -> Result<String, String> {
-    let source = PathBuf::from(&staged_path);
-    if !source.exists() || !source.is_file() {
-        return Err(format!("暂存文件不存在: {}", staged_path));
-    }
-
     let target_dir = PathBuf::from(&save_dir);
     std::fs::create_dir_all(&target_dir).map_err(|e| format!("创建保存目录失败: {}", e))?;
 
-    let resolved_name = file_name
-        .as_deref()
-        .map(Some)
-        .unwrap_or_else(|| source.file_name().and_then(OsStr::to_str));
-    let target = ensure_unique_path(target_dir.join(build_output_name(resolved_name)));
+    let base64 = image_data
+        .split_once("base64,")
+        .map(|(_, value)| value)
+        .unwrap_or(image_data.as_str());
+    let bytes = general_purpose::STANDARD
+        .decode(base64)
+        .map_err(|e| format!("截图数据解码失败: {}", e))?;
+    let target = ensure_unique_path(target_dir.join(build_output_name(file_name.as_deref())));
 
-    fs::copy(&source, &target)
+    fs::write(&target, bytes)
         .await
         .map_err(|e| format!("保存图片失败: {}", e))?;
 

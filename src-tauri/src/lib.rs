@@ -17,7 +17,8 @@ use crate::api::backend_cmd::{
     backend_upload_script,
 };
 use crate::api::dev_test::{
-    dev_capture_test, paddle_ocr_inference_test, save_captured_image, yolo_inference_test,
+    dev_capture_test, paddle_ocr_inference_image_data_test, paddle_ocr_inference_test,
+    save_captured_image, yolo_inference_image_data_test, yolo_inference_test,
 };
 use crate::api::domain::devices::{
     delete_device_cmd, get_all_devices_cmd, get_cpu_count_cmd, get_device_by_id_cmd,
@@ -55,7 +56,7 @@ use crate::api::infrastructure::process_api::{
     cmd_run_script_target, cmd_spawn_device, cmd_sync_device_runtime_session,
 };
 use crate::api::infrastructure::vision_lab::{
-    vision_list_image_files_cmd, vision_save_staged_image_cmd, vision_stage_capture_image_cmd,
+    vision_list_image_files_cmd, vision_save_capture_image_cmd,
 };
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::context::main_process::MainProcessCtx;
@@ -90,7 +91,9 @@ pub fn run() {
             dev_capture_test,
             save_captured_image,
             yolo_inference_test,
+            yolo_inference_image_data_test,
             paddle_ocr_inference_test,
+            paddle_ocr_inference_image_data_test,
             //日志更新级别
             update_log_level_cmd,
             update_log_dir_cmd,
@@ -109,8 +112,7 @@ pub fn run() {
             get_uuid_v7,
             frontend_debug_log_cmd,
             vision_list_image_files_cmd,
-            vision_stage_capture_image_cmd,
-            vision_save_staged_image_cmd,
+            vision_save_capture_image_cmd,
             // 常规/系统设置
             set_system_settings_cmd,
             // 设备配置
