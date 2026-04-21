@@ -346,7 +346,12 @@
                         </label>
                         <label class="space-y-2">
                           <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
-                          <input v-model.trim="imgDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
+                          <div class="vision-path-row">
+                            <input v-model.trim="imgDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
+                            <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickImgDetLabelPath">
+                              <AppIcon name="folder-open" :size="16" />
+                            </button>
+                          </div>
                         </label>
                       </div>
                       <div class="grid gap-3 sm:grid-cols-2">
@@ -421,7 +426,12 @@
                           </label>
                           <label class="space-y-2">
                             <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
-                            <input v-model.trim="txtDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
+                            <div class="vision-path-row">
+                              <input v-model.trim="txtDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
+                              <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickTxtDetLabelPath">
+                                <AppIcon name="folder-open" :size="16" />
+                              </button>
+                            </div>
                           </label>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
@@ -464,7 +474,12 @@
                         <ModelBaseFields :model="txtRecCrnn.baseModel" compact path-placeholder="例如：D:\\models\\ocr-rec.onnx" test-id-prefix="vision-lab-txt-rec-base" />
                         <label class="space-y-2">
                           <span class="text-xs font-semibold text-[var(--app-text-faint)]">字典路径</span>
-                          <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
+                          <div class="vision-path-row">
+                            <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
+                            <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickTxtRecDictPath">
+                              <AppIcon name="folder-open" :size="16" />
+                            </button>
+                          </div>
                         </label>
                         <p class="text-xs text-[var(--app-text-faint)]">切换为内置后会保留内置模型来源配置；如需覆盖字典，继续填写自定义字典路径即可。</p>
                       </template>
@@ -608,10 +623,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { open } from '@tauri-apps/plugin-dialog';
+import { confirm, open } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
+import { deviceService } from '@/services/deviceService';
 import { scriptService } from '@/services/scriptService';
 import { visionLabConfigService } from '@/services/visionLabConfigService';
 import { visionLabService } from '@/services/visionLabService';
@@ -1179,6 +1195,13 @@ async function pickSaveDirectory() {
   showToast('保存目录已更新', 'success');
 }
 
+async function pickFileValue(assign: (value: string) => void) {
+  const value = await open({ multiple: false, directory: false });
+  if (typeof value === 'string' && value) {
+    assign(value);
+  }
+}
+
 async function selectItem(item: VisionSourceItem) {
   selectedItemId.value = item.id;
   clearVisionResults();
@@ -1245,6 +1268,20 @@ async function captureFromDevice() {
     return;
   }
   try {
+    const running = await deviceService.isRunning(selectedDevice.value.id);
+    if (!running) {
+      const approved = await confirm('设备未启动。是否先启动设备并完成连接准备后再截图？', {
+        title: '设备截图',
+        kind: 'warning',
+      });
+      if (!approved) {
+        return;
+      }
+      const message = await deviceService.prepareCapture(selectedDevice.value.id);
+      await deviceStore.refreshRunningDevices();
+      showToast(message, 'success');
+    }
+
     const capture = await visionLabService.captureDevice(selectedDevice.value);
     const suggestedName = `${selectedDevice.value.data.deviceName}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
     const item: VisionSourceItem = {
@@ -1262,9 +1299,22 @@ async function captureFromDevice() {
     await selectItem(item);
     showToast('设备截图已加入当前采集区', 'success');
   } catch (error) {
+    console.log(error);
     showToast(error instanceof Error ? error.message : '设备截图失败', 'error');
   }
 }
+
+const pickImgDetLabelPath = () => pickFileValue((value) => {
+  if (imgDetYolo.value) imgDetYolo.value.labelPath = value;
+});
+
+const pickTxtDetLabelPath = () => pickFileValue((value) => {
+  if (txtDetYolo.value) txtDetYolo.value.labelPath = value;
+});
+
+const pickTxtRecDictPath = () => pickFileValue((value) => {
+  if (txtRecCrnn.value) txtRecCrnn.value.dictPath = value;
+});
 
 async function runDetection() {
   if (!imgDetModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
@@ -1679,5 +1729,18 @@ onMounted(async () => {
 .editor-panel-tab-active {
   border-bottom-color: var(--app-accent);
   color: var(--app-text-strong);
+}
+
+.vision-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.vision-path-button {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
 }
 </style>

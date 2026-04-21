@@ -118,10 +118,7 @@ pub struct RuntimeVisionTextCachePolicy {
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum TimeoutAction {
-    NotifyOnly,
-    PauseExecution,
     StopExecution,
-    RestartApp,
     RunRecoveryTask,
     SkipCurrentTask,
 }

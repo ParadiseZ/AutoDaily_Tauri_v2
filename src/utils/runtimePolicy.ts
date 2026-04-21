@@ -7,11 +7,7 @@ const normalizePlatform = (value: unknown) => (value === 'desktop' ? 'desktop' :
 const isRunRecoveryTaskEnabled = (device: DeviceTable) =>
     device.data.executionPolicy?.timeoutAction === 'runRecoveryTask';
 
-const isRestartAppEnabled = (device: DeviceTable) =>
-    device.data.executionPolicy?.timeoutAction === 'restartApp';
-
 const isRunnableTask = (task: ScriptTaskTable) => task.rowType === 'task' && !task.isDeleted;
-const hasTextValue = (value: string | null | undefined) => Boolean(value?.trim());
 
 export const validateDeviceRuntimePlatform = (device: DeviceTable): string | null => {
     if (normalizePlatform(device.data.platform) !== 'desktop') {
@@ -42,14 +38,6 @@ export const validateScriptRecoveryTask = (
     return null;
 };
 
-export const validateScriptRestartApp = (script: ScriptTableRecord): string | null => {
-    if (hasTextValue(script.data.pkgName) && hasTextValue(script.data.activityName)) {
-        return null;
-    }
-
-    return `脚本「${script.data.name}」未配置全局包名或 Activity，当前设备不能使用“重启应用”策略启动。`;
-};
-
 export const validateRunTargetRecoveryForDevice = (
     device: DeviceTable,
     script: ScriptTableRecord,
@@ -57,10 +45,6 @@ export const validateRunTargetRecoveryForDevice = (
 ): string | null => {
     if (isRunRecoveryTaskEnabled(device)) {
         return validateScriptRecoveryTask(script, tasks);
-    }
-
-    if (isRestartAppEnabled(device)) {
-        return validateScriptRestartApp(script);
     }
 
     return null;
@@ -71,7 +55,7 @@ export const validateDeviceQueueRecoveryForDevice = (
     assignments: AssignmentRecord[],
     scripts: ScriptTableRecord[],
 ): string | null => {
-    if (!isRunRecoveryTaskEnabled(device) && !isRestartAppEnabled(device)) {
+    if (!isRunRecoveryTaskEnabled(device)) {
         return null;
     }
 
@@ -81,9 +65,7 @@ export const validateDeviceQueueRecoveryForDevice = (
             continue;
         }
 
-        const error = isRunRecoveryTaskEnabled(device)
-            ? validateScriptRecoveryTask(script)
-            : validateScriptRestartApp(script);
+        const error = validateScriptRecoveryTask(script);
         if (error) {
             return error;
         }

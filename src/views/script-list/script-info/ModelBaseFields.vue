@@ -14,7 +14,12 @@
 
     <label v-if="model.modelSource === 'Custom'" class="dialog-form-row dialog-form-row-wide" :class="{ 'dialog-form-row-compact': compact }">
       <span class="dialog-form-label">模型路径</span>
-      <input v-model.trim="model.modelPath" class="app-input" :data-testid="resolveTestId('model-path')" :placeholder="pathPlaceholder" />
+      <div class="dialog-path-row">
+        <input v-model.trim="model.modelPath" class="app-input" :data-testid="resolveTestId('model-path')" :placeholder="pathPlaceholder" />
+        <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickModelPath">
+          <AppIcon name="folder-open" :size="16" />
+        </button>
+      </div>
     </label>
 
     <div class="dialog-form-grid" :class="{ 'dialog-form-grid-compact': compact }">
@@ -101,6 +106,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { open } from '@tauri-apps/plugin-dialog';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import type { BaseModel } from '@/types/bindings/BaseModel';
 
@@ -134,6 +141,13 @@ const providerOptions = [
 ];
 
 const compact = computed(() => props.compact);
+
+const pickModelPath = async () => {
+  const value = await open({ multiple: false, directory: false });
+  if (typeof value === 'string' && value) {
+    props.model.modelPath = value;
+  }
+};
 </script>
 
 <style scoped>
@@ -188,6 +202,19 @@ const compact = computed(() => props.compact);
   font-size: 0.8rem;
   line-height: 1.45;
   color: var(--app-text-soft);
+}
+
+.dialog-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.dialog-path-button {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
 }
 
 @media (min-width: 768px) {

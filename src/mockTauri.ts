@@ -254,9 +254,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       (task) => task.id === taskId && task.rowType === 'task' && !task.isDeleted,
     );
 
-  const normalizeOptionalText = (value: unknown) =>
-    typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
-
   const validateRecoveryPolicyForScript = (state: MockState, scriptId: string) => {
     const script = findScript(state, scriptId);
     if (!script) {
@@ -273,19 +270,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     }
   };
 
-  const validateRestartAppPolicyForScript = (state: MockState, scriptId: string) => {
-    const script = findScript(state, scriptId);
-    if (!script) {
-      return;
-    }
-
-    const pkgName = normalizeOptionalText(script.data.pkgName);
-    const activityName = normalizeOptionalText((script.data as { activityName?: unknown }).activityName);
-    if (!pkgName || !activityName) {
-      throw new Error(`脚本「${script.data.name}」未配置全局包名或 Activity，无法使用 RestartApp 策略`);
-    }
-  };
-
   const validateTimeoutPolicyForRun = (state: MockState, deviceId: string, target?: unknown) => {
     const device = findDevice(state, deviceId);
     if (!device) {
@@ -293,7 +277,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     }
 
     const timeoutAction = device.data.executionPolicy?.timeoutAction;
-    if (timeoutAction !== 'runRecoveryTask' && timeoutAction !== 'restartApp') {
+    if (timeoutAction !== 'runRecoveryTask') {
       return;
     }
 
@@ -306,11 +290,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           ? String((assignment as { scriptId?: unknown }).scriptId)
           : null;
         if (scriptId) {
-          if (timeoutAction === 'runRecoveryTask') {
-            validateRecoveryPolicyForScript(state, scriptId);
-          } else {
-            validateRestartAppPolicyForScript(state, scriptId);
-          }
+          validateRecoveryPolicyForScript(state, scriptId);
         }
       }
       return;
@@ -318,11 +298,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
 
     const scriptId = typeof targetRecord?.scriptId === 'string' ? targetRecord.scriptId : null;
     if (scriptId) {
-      if (timeoutAction === 'runRecoveryTask') {
-        validateRecoveryPolicyForScript(state, scriptId);
-      } else {
-        validateRestartAppPolicyForScript(state, scriptId);
-      }
+      validateRecoveryPolicyForScript(state, scriptId);
     }
   };
 
@@ -461,6 +437,14 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return readState().runningDeviceIds;
         case 'cmd_is_device_running':
           return readState().runningDeviceIds.includes(String(args.deviceId));
+        case 'cmd_prepare_device_capture':
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
+              ? current.runningDeviceIds
+              : [...current.runningDeviceIds, String(args.deviceId)],
+          }));
+          return `设备[${String(args.deviceId)}]已启动并完成连接准备`;
         case 'cmd_spawn_device':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
           updateState((current) => ({

@@ -70,16 +70,33 @@ pub struct DeviceExecutionPolicy {
     pub timeout_notify_channels: Vec<TimeoutNotifyChannel>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, PartialEq, Eq, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub enum TimeoutAction {
-    NotifyOnly,
-    PauseExecution,
     StopExecution,
-    RestartApp,
     RunRecoveryTask,
     SkipCurrentTask,
+}
+
+impl<'de> serde::Deserialize<'de> for TimeoutAction {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        match value.as_str() {
+            "stopExecution" | "notifyOnly" | "pauseExecution" | "restartApp" => {
+                Ok(Self::StopExecution)
+            }
+            "runRecoveryTask" => Ok(Self::RunRecoveryTask),
+            "skipCurrentTask" => Ok(Self::SkipCurrentTask),
+            other => Err(serde::de::Error::unknown_variant(
+                other,
+                &["stopExecution", "runRecoveryTask", "skipCurrentTask"],
+            )),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]

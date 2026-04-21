@@ -42,8 +42,6 @@ use tauri_plugin_store::StoreExt;
 struct LoadedScriptBundle {
     script_id: ScriptId,
     script_name: String,
-    pkg_name: Option<String>,
-    activity_name: Option<String>,
     recovery_task_id: Option<TaskId>,
     runnable_task_ids: HashSet<TaskId>,
     policy_ids: HashSet<crate::infrastructure::core::PolicyId>,
@@ -117,10 +115,7 @@ fn to_runtime_policy(
 
 fn map_timeout_action(action: &DeviceTimeoutAction) -> RuntimeTimeoutAction {
     match action {
-        DeviceTimeoutAction::NotifyOnly => RuntimeTimeoutAction::NotifyOnly,
-        DeviceTimeoutAction::PauseExecution => RuntimeTimeoutAction::PauseExecution,
         DeviceTimeoutAction::StopExecution => RuntimeTimeoutAction::StopExecution,
-        DeviceTimeoutAction::RestartApp => RuntimeTimeoutAction::RestartApp,
         DeviceTimeoutAction::RunRecoveryTask => RuntimeTimeoutAction::RunRecoveryTask,
         DeviceTimeoutAction::SkipCurrentTask => RuntimeTimeoutAction::SkipCurrentTask,
     }
@@ -148,10 +143,6 @@ fn normalize_account_id(account_id: Option<AccountId>) -> Option<AccountId> {
 
 fn serialize_to_json_string<T: Serialize>(value: &T) -> Result<String, String> {
     serde_json::to_string(value).map_err(|e| e.to_string())
-}
-
-fn has_non_empty_text(value: Option<&str>) -> bool {
-    value.map(str::trim).is_some_and(|text| !text.is_empty())
 }
 
 async fn find_template_values_with_fallback(
@@ -275,8 +266,6 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
         .collect();
 
     let script_name = script.data.0.name.clone();
-    let pkg_name = script.data.0.pkg_name.clone();
-    let activity_name = script.data.0.activity_name.clone();
     let recovery_task_id = script.data.0.runtime_settings.recovery_task_id;
     let policy_ids = policies.iter().map(|policy| policy.id).collect();
     let policy_group_ids = policy_groups.iter().map(|group| group.id).collect();
@@ -285,8 +274,6 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
     Ok(LoadedScriptBundle {
         script_id,
         script_name,
-        pkg_name,
-        activity_name,
         recovery_task_id,
         runnable_task_ids,
         policy_ids,
@@ -524,42 +511,6 @@ fn validate_recovery_task_config(
     Ok(())
 }
 
-fn validate_restart_app_config(
-    run_target: &RunTarget,
-    runtime_policy: &RuntimeExecutionPolicy,
-    bundles: &[LoadedScriptBundle],
-) -> Result<(), String> {
-    if !matches!(
-        runtime_policy.timeout_action,
-        RuntimeTimeoutAction::RestartApp
-    ) {
-        return Ok(());
-    }
-
-    let required_script_ids: HashSet<ScriptId> = match run_target {
-        RunTarget::DeviceQueue => bundles.iter().map(|bundle| bundle.script_id).collect(),
-        _ => run_target.script_id().into_iter().collect(),
-    };
-
-    for bundle in bundles
-        .iter()
-        .filter(|bundle| required_script_ids.contains(&bundle.script_id))
-    {
-        if has_non_empty_text(bundle.pkg_name.as_deref())
-            && has_non_empty_text(bundle.activity_name.as_deref())
-        {
-            continue;
-        }
-
-        return Err(format!(
-            "脚本[{}]未配置全局包名或 Activity，无法使用 RestartApp 策略",
-            bundle.script_name
-        ));
-    }
-
-    Ok(())
-}
-
 fn validate_run_target_support(
     run_target: &RunTarget,
     bundles: &[LoadedScriptBundle],
@@ -650,7 +601,7 @@ async fn restart_device_runtime_internal(
         manager.stop_child(&device_id).await?;
     }
 
-    let init_data = build_child_init_data(app_handle, device_id).await?;
+    let init_data = build_child_init_data(app_handle, device_id, false).await?;
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
     load_runtime_session_for_target(app_handle, device_id, RunTarget::DeviceQueue).await?;
@@ -695,7 +646,6 @@ async fn build_runtime_session_snapshot(
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
     validate_run_target_support(&run_target, &loaded_script_bundles)?;
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
-    validate_restart_app_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     if let Some(template_values_json) =
         build_debug_template_values_json(&run_target, queue.first(), &loaded_script_bundles)?
     {
@@ -766,20 +716,47 @@ async fn wait_for_ipc_client(
     }
 }
 
+async fn prepare_device_launch(
+    device_config: &crate::domain::devices::device_conf::DeviceConfig,
+    force_prepare: bool,
+) -> Result<(), String> {
+    if force_prepare {
+        launch_device(device_config).await.map_err(|error| {
+            if device_config
+                .exe_path
+                .as_deref()
+                .is_none_or(|path| path.trim().is_empty())
+            {
+                format!(
+                    "启动设备失败: {}。当前未填写模拟器程序路径；如需自动启动，请先在设备编辑中补全路径。",
+                    error
+                )
+            } else {
+                format!("启动设备失败: {}", error)
+            }
+        })?;
+        return Ok(());
+    }
+
+    if device_config.auto_start && device_config.exe_path.is_some() {
+        launch_device(device_config)
+            .await
+            .map_err(|e| format!("自动启动设备失败: {}", e))?;
+    }
+
+    Ok(())
+}
+
 async fn build_child_init_data(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
+    force_prepare_device: bool,
 ) -> Result<ChildProcessInitData, String> {
     let device_table = load_device_table(device_id).await?;
     validate_runtime_platform_supported(&device_table)?;
 
     let device_config = device_table.data.0;
-
-    if device_config.auto_start && device_config.exe_path.is_some() {
-        launch_device(&device_config)
-            .await
-            .map_err(|e| format!("自动启动设备失败: {}", e))?;
-    }
+    prepare_device_launch(&device_config, force_prepare_device).await?;
 
     let db_path = app_handle
         .path()
@@ -806,7 +783,7 @@ async fn ensure_device_online(
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
 
     if !manager.is_running(&device_id).await {
-        let init_data = build_child_init_data(app_handle, device_id).await?;
+        let init_data = build_child_init_data(app_handle, device_id, false).await?;
         manager.spawn_child(init_data).await?;
     }
 
@@ -901,13 +878,31 @@ pub async fn cmd_spawn_device(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    let init_data = build_child_init_data(&app_handle, device_id).await?;
+    let init_data = build_child_init_data(&app_handle, device_id, false).await?;
     let device_name = init_data.device_config.device_name.clone();
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
 
     Ok(format!("设备[{}]({})子进程已启动", device_name, device_id))
+}
+
+#[command]
+pub async fn cmd_prepare_device_capture(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<String, String> {
+    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
+    if manager.is_running(&device_id).await {
+        return Ok(format!("设备[{}]子进程已在运行", device_id));
+    }
+
+    let init_data = build_child_init_data(&app_handle, device_id, true).await?;
+    let device_name = init_data.device_config.device_name.clone();
+    manager.spawn_child(init_data).await?;
+    wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+
+    Ok(format!("设备[{}]({})已启动并完成连接准备", device_name, device_id))
 }
 
 /// 检查设备子进程是否在运行

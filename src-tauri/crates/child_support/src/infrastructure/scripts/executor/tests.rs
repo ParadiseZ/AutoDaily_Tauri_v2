@@ -295,7 +295,7 @@ fn task_owned_input_variable_is_hidden_without_task_context() {
 }
 
 #[tokio::test]
-async fn timeout_handling_resets_progress_probe_after_notify_only() {
+async fn timeout_handling_resets_progress_probe_after_stop_execution() {
     let mut executor = build_executor();
     executor.last_progress_probe = Some(super::ProgressProbe {
         page_fingerprint: Some("page:v1:deadbeef".to_string()),
@@ -315,11 +315,11 @@ async fn timeout_handling_resets_progress_probe_after_notify_only() {
         action_wait_ms: 0,
         progress_timeout_enabled: true,
         progress_timeout_ms: 1_000,
-        timeout_action: TimeoutAction::NotifyOnly,
+        timeout_action: TimeoutAction::StopExecution,
         timeout_notify_channels: Vec::new(),
     };
 
-    let result = executor
+    let error = executor
         .evaluate_progress_probe(
             &runtime_policy,
             Some("page:v1:deadbeef".to_string()),
@@ -327,9 +327,9 @@ async fn timeout_handling_resets_progress_probe_after_notify_only() {
             "unit-test timeout".to_string(),
         )
         .await
-        .unwrap();
+        .unwrap_err();
 
-    assert!(result.is_none());
+    assert!(error.to_string().contains("unit-test timeout"));
     assert!(executor.last_progress_probe.is_none());
 }
 

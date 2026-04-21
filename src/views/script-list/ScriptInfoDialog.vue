@@ -83,7 +83,7 @@
               </div>
 
               <p class="text-xs leading-5 text-[var(--app-text-faint)]">
-                当设备超时行为选择 `RestartApp` 时，运行时会使用这里的 `包名 + Activity` 执行 `stop_app / start_activity`。
+                `包名 + Activity` 会作为脚本全局应用入口信息，供运行时和调试链路复用。
               </p>
 
               <div class="dialog-form-grid">
@@ -187,12 +187,17 @@
                   </label>
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">标签路径</span>
-                    <input
-                      v-model.trim="imgLabelPathValue"
-                      class="app-input"
-                      data-testid="script-models-img-det-label-path"
-                      placeholder="例如：D:\\models\\labels.yaml"
-                    />
+                    <div class="dialog-path-row">
+                      <input
+                        v-model.trim="imgLabelPathValue"
+                        class="app-input"
+                        data-testid="script-models-img-det-label-path"
+                        placeholder="例如：D:\\models\\labels.yaml"
+                      />
+                      <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickImgLabelPath">
+                        <AppIcon name="folder-open" :size="16" />
+                      </button>
+                    </div>
                   </label>
                 </div>
                 <div class="dialog-form-grid">
@@ -248,7 +253,12 @@
                   </label>
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">标签路径</span>
-                    <input v-model.trim="txtLabelPathValue" class="app-input" data-testid="script-models-txt-det-label-path" placeholder="例如：D:\\models\\labels.yaml" />
+                    <div class="dialog-path-row">
+                      <input v-model.trim="txtLabelPathValue" class="app-input" data-testid="script-models-txt-det-label-path" placeholder="例如：D:\\models\\labels.yaml" />
+                      <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickTxtLabelPath">
+                        <AppIcon name="folder-open" :size="16" />
+                      </button>
+                    </div>
                   </label>
                 </div>
                 <div class="dialog-form-grid">
@@ -349,12 +359,17 @@
                 <div class="dialog-form-grid">
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">字典路径</span>
-                    <input
-                      v-model.trim="dictPathValue"
-                      class="app-input"
-                      data-testid="script-models-txt-rec-dict-path"
-                      placeholder="例如：D:\\models\\keys.txt"
-                    />
+                    <div class="dialog-path-row">
+                      <input
+                        v-model.trim="dictPathValue"
+                        class="app-input"
+                        data-testid="script-models-txt-rec-dict-path"
+                        placeholder="例如：D:\\models\\keys.txt"
+                      />
+                      <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickDictPath">
+                        <AppIcon name="folder-open" :size="16" />
+                      </button>
+                    </div>
                   </label>
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">缩放插值</span>
@@ -478,7 +493,9 @@
 
 <script setup lang="ts">
 import { computed, ref, toRaw, watch } from 'vue';
+import { open as dialogOpen } from '@tauri-apps/plugin-dialog';
 import AppDialog from '@/components/shared/AppDialog.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { BaseModel } from '@/types/bindings/BaseModel';
@@ -844,6 +861,17 @@ const dictPathValue = computed({
   },
 });
 
+async function pickFilePath(setter: (value: string) => void) {
+  const value = await dialogOpen({ multiple: false, directory: false });
+  if (typeof value === 'string' && value) {
+    setter(value);
+  }
+}
+
+const pickImgLabelPath = () => pickFilePath((value) => { imgLabelPathValue.value = value; });
+const pickTxtLabelPath = () => pickFilePath((value) => { txtLabelPathValue.value = value; });
+const pickDictPath = () => pickFilePath((value) => { dictPathValue.value = value; });
+
 function cloneScriptRecord(script: unknown): ScriptTableRecord {
   return JSON.parse(JSON.stringify(toRaw(script))) as ScriptTableRecord;
 }
@@ -923,6 +951,19 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
+}
+
+.dialog-path-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.dialog-path-button {
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
 }
 
 .editor-panel-tabs {
