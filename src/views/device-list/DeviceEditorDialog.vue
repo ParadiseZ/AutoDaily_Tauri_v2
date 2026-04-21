@@ -331,7 +331,11 @@ const toggleCore = (core: number) => {
 };
 
 const pickExePath = async () => {
-  const value = await dialogOpen({ multiple: false, directory: false });
+  const value = await dialogOpen({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Executable Files', extensions: ['exe', 'bat', 'cmd', 'lnk'] }],
+  });
   if (typeof value === 'string' && value) {
     form.exePath = value;
   }

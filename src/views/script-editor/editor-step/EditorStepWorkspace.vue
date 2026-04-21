@@ -56,6 +56,7 @@
               <EditorStepActionPanel
                 v-if="selectedStep.op === STEP_OP.action && selectedAction"
                 :selected-action="selectedAction"
+                :action-exec-max="selectedStep.exec_max"
                 :variable-datalist-id="variableDatalistId"
                 :writable-catalog-variable-options="writableCatalogVariableOptions"
                 :result-catalog-variable-options="resultCatalogVariableOptions"
@@ -70,6 +71,7 @@
                 :create-variable="createVariable"
                 :jump-to-variable="jumpToVariable"
                 @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
+                @update-exec-max="updateActionExecMax"
                 @update-field="updateActionField"
                 @update-mode="updateActionMode"
                 @update-point-field="updateActionPointField"
@@ -689,6 +691,13 @@ const updateActionField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.action) return;
     step.a = { ...(step.a ?? {}), [field]: value } as Action;
+  });
+};
+
+const updateActionExecMax = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.action) return;
+    step.exec_max = Math.max(0, Number(value) || 0);
   });
 };
 

@@ -143,7 +143,11 @@ const providerOptions = [
 const compact = computed(() => props.compact);
 
 const pickModelPath = async () => {
-  const value = await open({ multiple: false, directory: false });
+  const value = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'ONNX Model', extensions: ['onnx'] }],
+  });
   if (typeof value === 'string' && value) {
     props.model.modelPath = value;
   }

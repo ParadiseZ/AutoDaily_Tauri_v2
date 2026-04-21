@@ -1,5 +1,23 @@
 <template>
   <div class="space-y-3">
+    <div class="editor-inline-grid">
+      <div class="editor-inline-label">最大执行次数</div>
+      <div class="editor-inline-content">
+        <input
+          :value="String(actionExecMax)"
+          class="app-input"
+          type="number"
+          min="0"
+          data-testid="editor-action-exec-max"
+          @input="$emit('update-exec-max', ($event.target as HTMLInputElement).value)"
+        />
+      </div>
+      <div class="editor-inline-label">说明</div>
+      <div class="editor-inline-content text-sm text-[var(--app-text-soft)]">
+        `0` 表示无限次。
+      </div>
+    </div>
+
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
       <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
         <label class="space-y-2">
@@ -288,6 +306,7 @@ defineOptions({ name: 'EditorStepActionPanel' });
 
 const props = defineProps<{
   selectedAction: Action;
+  actionExecMax: number;
   variableDatalistId: string;
   writableCatalogVariableOptions?: Array<{ label: string; value: string; description: string; disabled?: boolean }>;
   resultCatalogVariableOptions?: SelectOption[];
@@ -304,6 +323,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
+  'update-exec-max': [value: string];
   'update-field': [field: string, value: string];
   'update-mode': [mode: string];
   'update-point-field': [field: 'p' | 'from' | 'to', axis: 'x' | 'y', value: string];

@@ -861,16 +861,38 @@ const dictPathValue = computed({
   },
 });
 
-async function pickFilePath(setter: (value: string) => void) {
-  const value = await dialogOpen({ multiple: false, directory: false });
+const pickImgLabelPath = async () => {
+  const value = await dialogOpen({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Label Files', extensions: ['yaml', 'yml', 'json', 'txt'] }],
+  });
   if (typeof value === 'string' && value) {
-    setter(value);
+    imgLabelPathValue.value = value;
   }
-}
+};
 
-const pickImgLabelPath = () => pickFilePath((value) => { imgLabelPathValue.value = value; });
-const pickTxtLabelPath = () => pickFilePath((value) => { txtLabelPathValue.value = value; });
-const pickDictPath = () => pickFilePath((value) => { dictPathValue.value = value; });
+const pickTxtLabelPath = async () => {
+  const value = await dialogOpen({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Label Files', extensions: ['yaml', 'yml', 'json', 'txt'] }],
+  });
+  if (typeof value === 'string' && value) {
+    txtLabelPathValue.value = value;
+  }
+};
+
+const pickDictPath = async () => {
+  const value = await dialogOpen({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Dictionary Files', extensions: ['txt', 'dict'] }],
+  });
+  if (typeof value === 'string' && value) {
+    dictPathValue.value = value;
+  }
+};
 
 function cloneScriptRecord(script: unknown): ScriptTableRecord {
   return JSON.parse(JSON.stringify(toRaw(script))) as ScriptTableRecord;

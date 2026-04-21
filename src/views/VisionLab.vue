@@ -1195,13 +1195,6 @@ async function pickSaveDirectory() {
   showToast('保存目录已更新', 'success');
 }
 
-async function pickFileValue(assign: (value: string) => void) {
-  const value = await open({ multiple: false, directory: false });
-  if (typeof value === 'string' && value) {
-    assign(value);
-  }
-}
-
 async function selectItem(item: VisionSourceItem) {
   selectedItemId.value = item.id;
   clearVisionResults();
@@ -1316,17 +1309,38 @@ async function captureFromDevice() {
   }
 }
 
-const pickImgDetLabelPath = () => pickFileValue((value) => {
-  if (imgDetYolo.value) imgDetYolo.value.labelPath = value;
-});
+const pickImgDetLabelPath = async () => {
+  const value = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Label Files', extensions: ['yaml', 'yml', 'json', 'txt'] }],
+  });
+  if (typeof value === 'string' && value && imgDetYolo.value) {
+    imgDetYolo.value.labelPath = value;
+  }
+};
 
-const pickTxtDetLabelPath = () => pickFileValue((value) => {
-  if (txtDetYolo.value) txtDetYolo.value.labelPath = value;
-});
+const pickTxtDetLabelPath = async () => {
+  const value = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Label Files', extensions: ['yaml', 'yml', 'json', 'txt'] }],
+  });
+  if (typeof value === 'string' && value && txtDetYolo.value) {
+    txtDetYolo.value.labelPath = value;
+  }
+};
 
-const pickTxtRecDictPath = () => pickFileValue((value) => {
-  if (txtRecCrnn.value) txtRecCrnn.value.dictPath = value;
-});
+const pickTxtRecDictPath = async () => {
+  const value = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Dictionary Files', extensions: ['txt', 'dict'] }],
+  });
+  if (typeof value === 'string' && value && txtRecCrnn.value) {
+    txtRecCrnn.value.dictPath = value;
+  }
+};
 
 async function runDetection() {
   if (!imgDetModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
