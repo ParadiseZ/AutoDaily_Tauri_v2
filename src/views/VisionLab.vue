@@ -48,13 +48,19 @@
                 </div>
 
                 <div class="space-y-2">
-                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">设备</span>
-                  <AppSelect
-                    v-model="selectedDeviceId"
-                    :options="deviceOptions"
-                    placeholder="请选择设备"
-                    test-id="vision-lab-device"
-                  />
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">设备</span>
+                    <span class="text-[11px] text-[var(--app-text-faint)]">{{ deviceOptions.length }} 台</span>
+                  </div>
+                  <div class="min-w-0">
+                    <AppSelect
+                      v-model="selectedDeviceId"
+                      :options="deviceOptions"
+                      placeholder="请选择设备"
+                      test-id="vision-lab-device"
+                    />
+                  </div>
+                  <p v-if="!deviceOptions.length" class="text-xs text-[var(--app-text-faint)]">当前没有可用设备，请先在设备列表中配置。</p>
                 </div>
 
                 <label class="space-y-2">
@@ -302,17 +308,19 @@
                   </div>
                 </div>
 
-                <div class="grid grid-cols-3 gap-2">
+                <div class="overflow-x-auto">
+                  <div class="editor-panel-tabs min-w-max">
                   <button
                     v-for="tab in tabOptions"
                     :key="tab.value"
-                    class="rounded-[16px] border px-3 py-2 text-sm font-semibold transition"
-                    :class="activeTab === tab.value ? 'border-[var(--app-accent)] bg-[var(--app-accent-soft)] text-[var(--app-accent)]' : 'border-[var(--app-border)] text-[var(--app-text-soft)] hover:border-[var(--app-accent)]/35'"
+                    class="editor-panel-tab"
+                    :class="{ 'editor-panel-tab-active': activeTab === tab.value }"
                     type="button"
                     @click="activeTab = tab.value"
                   >
                     {{ tab.label }}
                   </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -327,13 +335,10 @@
                   <div v-if="panelOpen.detConfig" class="space-y-3 border-t border-[var(--app-border)] px-4 py-4">
                     <label class="space-y-2">
                       <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
-                      <AppSelect :model-value="imgDetKind" :options="detectorOptions" placeholder="选择模型" test-id="vision-lab-img-det-kind" @update:model-value="setImgDetKind" />
+                      <AppSelect :model-value="imgDetKind" :options="imgDetectorOptions" placeholder="选择模型" test-id="vision-lab-img-det-kind" @update:model-value="setImgDetKind" />
                     </label>
                     <template v-if="imgDetYolo">
-                      <label class="space-y-2">
-                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                        <input v-model.trim="imgDetYolo.baseModel.modelPath" class="app-input" placeholder="D:\\models\\img-det.onnx" />
-                      </label>
+                      <ModelBaseFields :model="imgDetYolo.baseModel" :built-in-enabled="false" path-placeholder="例如：D:\\models\\img-det.onnx" test-id-prefix="vision-lab-img-det-base" />
                       <div class="grid grid-cols-2 gap-3">
                         <label class="space-y-2">
                           <span class="text-xs font-semibold text-[var(--app-text-faint)]">类别数量</span>
@@ -354,12 +359,6 @@
                           <input v-model.number="imgDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
                         </label>
                       </div>
-                    </template>
-                    <template v-else-if="imgDetDbNet">
-                      <label class="space-y-2">
-                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                        <input v-model.trim="imgDetDbNet.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-dbnet.onnx" />
-                      </label>
                     </template>
                     <button class="app-button app-button-primary w-full justify-center" type="button" :disabled="!canRunDetection || isRunningDet" @click="runDetection">
                       {{ isRunningDet ? '检测中...' : '目标检测' }}
@@ -411,13 +410,10 @@
                       <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字检测</p>
                       <label class="space-y-2">
                         <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
-                        <AppSelect :model-value="txtDetKind" :options="detectorOptions" placeholder="选择模型" test-id="vision-lab-txt-det-kind" @update:model-value="setTxtDetKind" />
+                        <AppSelect :model-value="txtDetKind" :options="txtDetectorOptions" placeholder="选择模型" test-id="vision-lab-txt-det-kind" @update:model-value="setTxtDetKind" />
                       </label>
                       <template v-if="txtDetYolo">
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                          <input v-model.trim="txtDetYolo.baseModel.modelPath" class="app-input" placeholder="D:\\models\\txt-det.onnx" />
-                        </label>
+                        <ModelBaseFields :model="txtDetYolo.baseModel" :built-in-enabled="false" path-placeholder="例如：D:\\models\\txt-det.onnx" test-id-prefix="vision-lab-txt-det-base" />
                         <div class="grid grid-cols-2 gap-3">
                           <label class="space-y-2">
                             <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
@@ -430,10 +426,7 @@
                         </div>
                       </template>
                       <template v-else-if="txtDetDbNet">
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                          <input v-model.trim="txtDetDbNet.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-dbnet.onnx" />
-                        </label>
+                        <ModelBaseFields :model="txtDetDbNet.baseModel" :built-in-enabled="false" path-placeholder="例如：D:\\models\\ocr-dbnet.onnx" test-id-prefix="vision-lab-txt-det-base" />
                       </template>
                     </div>
 
@@ -444,14 +437,12 @@
                         <AppSelect :model-value="txtRecKind" :options="recognizerOptions" placeholder="选择模型" test-id="vision-lab-txt-rec-kind" @update:model-value="setTxtRecKind" />
                       </label>
                       <template v-if="txtRecCrnn">
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型路径</span>
-                          <input v-model.trim="txtRecCrnn.baseModel.modelPath" class="app-input" placeholder="D:\\models\\ocr-rec.onnx" />
-                        </label>
+                        <ModelBaseFields :model="txtRecCrnn.baseModel" path-placeholder="例如：D:\\models\\ocr-rec.onnx" test-id-prefix="vision-lab-txt-rec-base" />
                         <label class="space-y-2">
                           <span class="text-xs font-semibold text-[var(--app-text-faint)]">字典路径</span>
                           <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
                         </label>
+                        <p class="text-xs text-[var(--app-text-faint)]">切换为内置后会保留内置模型来源配置；如需覆盖字典，继续填写自定义字典路径即可。</p>
                       </template>
                     </div>
 
@@ -460,7 +451,7 @@
                         {{ isRunningTextDet ? '检测中...' : '文字检测' }}
                       </button>
                       <button class="app-button app-button-primary justify-center" type="button" :disabled="!canRunOcr || isRunningOcr" @click="runOcr">
-                        {{ isRunningOcr ? 'OCR 中...' : '完整 OCR' }}
+                        {{ isRunningOcr ? 'OCR 中...' : '完整OCR' }}
                       </button>
                     </div>
                   </div>
@@ -596,6 +587,7 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
+import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import { scriptService } from '@/services/scriptService';
 import { visionLabConfigService } from '@/services/visionLabConfigService';
 import { visionLabService } from '@/services/visionLabService';
@@ -636,6 +628,7 @@ import type { DeviceTable } from '@/types/bindings/DeviceTable';
 type VisionItemKind = 'folder' | 'capture';
 type PreviewTool = 'browse' | 'pick' | 'region';
 type VisionTab = 'det' | 'ocr' | 'combo';
+type VisionImgDetectorKind = Exclude<DetectorKind, 'PaddleDbNet'>;
 
 interface VisionSourceItem {
   id: string;
@@ -758,9 +751,14 @@ const tabOptions = [
   { label: 'OCR', value: 'ocr' as const },
   { label: '组合', value: 'combo' as const },
 ];
-const detectorOptions = [
+const imgDetectorOptions = [
   { label: '不设置', value: 'none', description: '当前字段留空。' },
   { label: 'YOLO11', value: 'Yolo11', description: '通用目标检测方案。' },
+  { label: 'YOLO26', value: 'Yolo26', description: '端到端检测方案。' },
+];
+const txtDetectorOptions = [
+  { label: '不设置', value: 'none', description: '当前字段留空。' },
+  { label: 'YOLO11', value: 'Yolo11', description: '适合文本框或字符框检测。' },
   { label: 'Paddle DBNet', value: 'PaddleDbNet', description: '适合文本区域检测。' },
   { label: 'YOLO26', value: 'Yolo26', description: '端到端检测方案。' },
 ];
@@ -784,11 +782,13 @@ const canRunTextDetection = computed(() => canRunVision.value && Boolean(txtDetM
 const canRunOcr = computed(() => canRunVision.value && Boolean(txtDetModel.value) && Boolean(txtRecModel.value));
 const canRunCombo = computed(() => canRunDetection.value && canRunOcr.value);
 
-const imgDetKind = computed<DetectorKind>(() => resolveDetectorKind(imgDetModel.value));
+const imgDetKind = computed<VisionImgDetectorKind>(() => {
+  const kind = resolveDetectorKind(imgDetModel.value);
+  return kind === 'PaddleDbNet' ? 'none' : kind;
+});
 const txtDetKind = computed<DetectorKind>(() => resolveDetectorKind(txtDetModel.value));
 const txtRecKind = computed<RecognizerKind>(() => resolveRecognizerKind(txtRecModel.value));
 const imgDetYolo = computed(() => extractYoloDetector(imgDetModel.value));
-const imgDetDbNet = computed(() => extractDbNet(imgDetModel.value));
 const txtDetYolo = computed(() => extractYoloDetector(txtDetModel.value));
 const txtDetDbNet = computed(() => extractDbNet(txtDetModel.value));
 const txtRecCrnn = computed(() => extractCrnn(txtRecModel.value));
@@ -1058,8 +1058,37 @@ function getPointerPosition(event: MouseEvent) {
   };
 }
 
+function sanitizeImageDetector(model: DetectorType | null): DetectorType | null {
+  if (!model || 'PaddleDbNet' in model) {
+    return null;
+  }
+  const yolo = extractYoloDetector(model);
+  if (yolo && yolo.baseModel.modelSource === 'BuiltIn') {
+    yolo.baseModel.modelSource = 'Custom';
+  }
+  return model;
+}
+
+function sanitizeTextDetector(model: DetectorType | null): DetectorType | null {
+  if (!model) {
+    return null;
+  }
+  if ('PaddleDbNet' in model) {
+    if (model.PaddleDbNet.baseModel.modelSource === 'BuiltIn') {
+      model.PaddleDbNet.baseModel.modelSource = 'Custom';
+    }
+    return model;
+  }
+  const yolo = extractYoloDetector(model);
+  if (yolo && yolo.baseModel.modelSource === 'BuiltIn') {
+    yolo.baseModel.modelSource = 'Custom';
+  }
+  return model;
+}
+
 function setImgDetKind(value: string | number | null) {
-  imgDetModel.value = createDetectorByKind(String(value ?? 'none') as DetectorKind, false);
+  const kind = String(value ?? 'none') as VisionImgDetectorKind;
+  imgDetModel.value = kind === 'none' ? null : createDetectorByKind(kind, false);
 }
 
 function setTxtDetKind(value: string | number | null) {
@@ -1206,6 +1235,7 @@ async function runDetection() {
       : await visionLabService.runDetectionForImageData(clone(imgDetModel.value), selectedImageData.value!);
     showToast(`检测完成，共 ${detResults.value.length} 条结果`, 'success');
   } catch (error) {
+    console.log(error)
     showToast(error instanceof Error ? error.message : '目标检测失败', 'error');
   } finally {
     isRunningDet.value = false;
@@ -1221,6 +1251,7 @@ async function runTextDetection() {
       : await visionLabService.runDetectionForImageData(clone(txtDetModel.value), selectedImageData.value!);
     showToast(`文字检测完成，共 ${textDetResults.value.length} 个文本框`, 'success');
   } catch (error) {
+    console.log(error);
     showToast(error instanceof Error ? error.message : '文字检测失败', 'error');
   } finally {
     isRunningTextDet.value = false;
@@ -1411,8 +1442,8 @@ async function loadImgDetLabels() {
 
 async function hydrateFromLocalConfig() {
   const config = await visionLabConfigService.getModelConfig().catch(() => null);
-  imgDetModel.value = clone(config?.imgDetModel ?? createDetectorByKind('Yolo11', false));
-  txtDetModel.value = clone(config?.txtDetModel ?? createDetectorByKind('PaddleDbNet', true));
+  imgDetModel.value = sanitizeImageDetector(clone(config?.imgDetModel ?? createDetectorByKind('Yolo11', false)));
+  txtDetModel.value = sanitizeTextDetector(clone(config?.txtDetModel ?? createDetectorByKind('PaddleDbNet', true)));
   txtRecModel.value = clone(config?.txtRecModel ?? createRecognizerByKind('PaddleCrnn'));
 }
 
@@ -1422,8 +1453,8 @@ async function hydrateFromLaunchPreset() {
     await hydrateFromLocalConfig();
     return;
   }
-  imgDetModel.value = clone(preset.imgDetModel ?? createDetectorByKind('Yolo11', false));
-  txtDetModel.value = clone(preset.txtDetModel ?? createDetectorByKind('PaddleDbNet', true));
+  imgDetModel.value = sanitizeImageDetector(clone(preset.imgDetModel ?? createDetectorByKind('Yolo11', false)));
+  txtDetModel.value = sanitizeTextDetector(clone(preset.txtDetModel ?? createDetectorByKind('PaddleDbNet', true)));
   txtRecModel.value = clone(preset.txtRecModel ?? createRecognizerByKind('PaddleCrnn'));
   if (preset.selectedDeviceId) {
     selectedDeviceId.value = preset.selectedDeviceId;
@@ -1522,5 +1553,32 @@ onMounted(async () => {
 
 .vision-list-item {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.18));
+}
+
+.editor-panel-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.editor-panel-tab {
+  position: relative;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  padding: 0.75rem 0.35rem 0.85rem;
+  color: var(--app-text-faint);
+  font-size: 0.93rem;
+  font-weight: 600;
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.editor-panel-tab:hover {
+  color: var(--app-text-soft);
+}
+
+.editor-panel-tab-active {
+  border-bottom-color: var(--app-accent);
+  color: var(--app-text-strong);
 }
 </style>

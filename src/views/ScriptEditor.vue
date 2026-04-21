@@ -522,6 +522,10 @@ import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
 import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
 import { validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
+import {
+  rewritePublishedDetectorModelPath,
+  rewritePublishedRecognizerModelPath,
+} from '@/utils/visionModelPresets';
 import { openVisionLabWindow } from '@/utils/visionLabWindow';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import EditorJsonDialog from '@/views/script-editor/EditorJsonDialog.vue';
@@ -2970,14 +2974,22 @@ const handleOpenVisionLab = async () => {
   }
 
   try {
+    const scriptId = draftScript.value.id;
+    const isPublished = draftScript.value.data.scriptType === 'published';
     await openVisionLabWindow({
       source: 'editor',
-      scriptId: draftScript.value.id,
+      scriptId,
       scriptName: draftScript.value.data.name || null,
       selectedDeviceId: selectedPreviewDeviceId.value,
-      imgDetModel: cloneJson(draftScript.value.data.imgDetModel),
-      txtDetModel: cloneJson(draftScript.value.data.txtDetModel),
-      txtRecModel: cloneJson(draftScript.value.data.txtRecModel),
+      imgDetModel: isPublished
+        ? rewritePublishedDetectorModelPath(cloneJson(draftScript.value.data.imgDetModel), scriptId, 'det.onnx')
+        : cloneJson(draftScript.value.data.imgDetModel),
+      txtDetModel: isPublished
+        ? rewritePublishedDetectorModelPath(cloneJson(draftScript.value.data.txtDetModel), scriptId, 'txt_det.onnx')
+        : cloneJson(draftScript.value.data.txtDetModel),
+      txtRecModel: isPublished
+        ? rewritePublishedRecognizerModelPath(cloneJson(draftScript.value.data.txtRecModel), scriptId)
+        : cloneJson(draftScript.value.data.txtRecModel),
       createdAt: new Date().toISOString(),
     });
   } catch (error) {

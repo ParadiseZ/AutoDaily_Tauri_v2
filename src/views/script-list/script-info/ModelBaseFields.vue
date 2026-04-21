@@ -74,22 +74,30 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import type { BaseModel } from '@/types/bindings/BaseModel';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   model: BaseModel;
   pathPlaceholder: string;
   testIdPrefix?: string;
-}>();
+  builtInEnabled?: boolean;
+}>(), {
+  builtInEnabled: true,
+});
 
 const resolveTestId = (suffix: string) =>
   props.testIdPrefix ? `${props.testIdPrefix}-${suffix}` : undefined;
 
-const modelSourceOptions = [
-  { label: '内置', value: 'BuiltIn', description: '由客户端按脚本和内置资源解析。' },
-  { label: '自定义', value: 'Custom', description: '手动指定本地模型文件。' },
-];
+const modelSourceOptions = computed(() =>
+  props.builtInEnabled
+    ? [
+        { label: '内置', value: 'BuiltIn', description: '由客户端按脚本和内置资源解析。' },
+        { label: '自定义', value: 'Custom', description: '手动指定本地模型文件。' },
+      ]
+    : [{ label: '自定义', value: 'Custom', description: '手动指定本地模型文件。' }],
+);
 
 const providerOptions = [
   { label: 'CPU', value: 'CPU', description: '通用兼容，部署门槛最低。' },

@@ -12,7 +12,12 @@ function clone<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
 }
 
-export function createBaseModel(modelType: BaseModel['modelType'], width: number, height: number): BaseModel {
+export function createBaseModel(
+    modelType: BaseModel['modelType'],
+    width: number,
+    height: number,
+    modelSource: BaseModel['modelSource'] = 'Custom',
+): BaseModel {
     return {
         intraThreadNum: 4,
         intraSpinning: true,
@@ -21,7 +26,7 @@ export function createBaseModel(modelType: BaseModel['modelType'], width: number
         executionProvider: 'CPU',
         inputWidth: width,
         inputHeight: height,
-        modelSource: 'BuiltIn',
+        modelSource,
         modelPath: '',
         modelType,
     };
@@ -29,7 +34,7 @@ export function createBaseModel(modelType: BaseModel['modelType'], width: number
 
 export function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
     return {
-        baseModel: createBaseModel(kind, 640, 640),
+        baseModel: createBaseModel(kind, 640, 640, 'Custom'),
         classCount: textMode ? 1 : 80,
         confidenceThresh: 0.25,
         iouThresh: 0.45,
@@ -40,7 +45,7 @@ export function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): Yol
 
 export function createDbNet(): PaddleDetDbNet {
     return {
-        baseModel: createBaseModel('PaddleDet5', 640, 640),
+        baseModel: createBaseModel('PaddleDet5', 640, 640, 'Custom'),
         dbThresh: 0.3,
         dbBoxThresh: 0.5,
         unclipRatio: 1.5,
@@ -50,7 +55,7 @@ export function createDbNet(): PaddleDetDbNet {
 
 export function createCrnn(): PaddleRecCrnn {
     return {
-        baseModel: createBaseModel('PaddleCrnn5', 320, 48),
+        baseModel: createBaseModel('PaddleCrnn5', 320, 48, 'BuiltIn'),
         dictPath: null,
         resizeFilter: 'Triangle',
         processingMode: 'Single',
@@ -118,4 +123,45 @@ export function createDetectorByKind(kind: DetectorKind, textMode: boolean): Det
 export function createRecognizerByKind(kind: RecognizerKind): RecognizerType | null {
     if (kind === 'none') return null;
     return { PaddleCrnn: createCrnn() };
+}
+
+export function rewritePublishedDetectorModelPath(
+    model: DetectorType | null,
+    scriptId: string,
+    fileName: 'det.onnx' | 'txt_det.onnx',
+): DetectorType | null {
+    if (!model) {
+        return null;
+    }
+    const next = clone(model);
+    if ('Yolo11' in next) {
+        if (next.Yolo11.baseModel.modelSource === 'Custom') {
+            next.Yolo11.baseModel.modelPath = `${scriptId}/${fileName}`;
+        }
+        return next;
+    }
+    if ('Yolo26' in next) {
+        if (next.Yolo26.baseModel.modelSource === 'Custom') {
+            next.Yolo26.baseModel.modelPath = `${scriptId}/${fileName}`;
+        }
+        return next;
+    }
+    if (next.PaddleDbNet.baseModel.modelSource === 'Custom') {
+        next.PaddleDbNet.baseModel.modelPath = `${scriptId}/${fileName}`;
+    }
+    return next;
+}
+
+export function rewritePublishedRecognizerModelPath(
+    model: RecognizerType | null,
+    scriptId: string,
+): RecognizerType | null {
+    if (!model) {
+        return null;
+    }
+    const next = clone(model);
+    if ('PaddleCrnn' in next && next.PaddleCrnn.baseModel.modelSource === 'Custom') {
+        next.PaddleCrnn.baseModel.modelPath = `${scriptId}/rec.onnx`;
+    }
+    return next;
 }

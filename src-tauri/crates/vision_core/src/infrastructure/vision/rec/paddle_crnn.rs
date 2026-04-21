@@ -2,7 +2,7 @@ use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::image::crop_image::get_crop_image;
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::base_model::BaseModel;
+use crate::infrastructure::vision::base_model::{BaseModel, ModelSource};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infrastructure::vision::tensor_view::select_batch_and_squeeze_to_2d;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
@@ -112,6 +112,41 @@ impl PaddleRecCrnn {
             .map(|value| value / step * step)
             .unwrap_or(target_width)
             .max(step)
+    }
+
+    fn resolve_dict_path(&self) -> VisionResult<PathBuf> {
+        if let Some(path) = self.dict_path.clone() {
+            return Ok(path);
+        }
+
+        if self.base_model.model_source == ModelSource::BuiltIn {
+            let relative = PathBuf::from("ppocr").join("ch_v5_dict.txt");
+            let mut candidates = vec![
+                PathBuf::from("src-tauri").join("models").join(&relative),
+                PathBuf::from("models").join(&relative),
+                PathBuf::from("resources").join("models").join(&relative),
+            ];
+
+            if let Ok(current_exe) = std::env::current_exe() {
+                if let Some(exe_dir) = current_exe.parent() {
+                    candidates.push(exe_dir.join("models").join(&relative));
+                    candidates.push(exe_dir.join("resources").join("models").join(&relative));
+                }
+            }
+
+            return candidates
+                .into_iter()
+                .find(|path| path.exists())
+                .ok_or_else(|| VisionError::IoError {
+                    path: relative.to_string_lossy().to_string(),
+                    e: "未找到内置识别字典文件".to_string(),
+                });
+        }
+
+        Err(VisionError::IoError {
+            path: "".to_string(),
+            e: "字典路径为空".to_string(),
+        })
     }
 
     fn fill_image_tensor(
@@ -285,22 +320,12 @@ impl PaddleRecCrnn {
     ///
     /// 会保留原始行内容，只在首行移除 BOM，避免把空格字符误删。
     pub async fn load_dict(&mut self) -> VisionResult<()> {
-        if self.dict_path.is_none() {
-            return Err(VisionError::IoError {
-                path: "".to_string(),
-                e: "字典路径为空".to_string(),
-            });
-        }
+        let dict_path = self.resolve_dict_path()?;
 
-        let content = read_to_string(self.dict_path.clone().unwrap())
+        let content = read_to_string(dict_path.clone())
             .await
             .map_err(|e| VisionError::IoError {
-                path: self
-                    .dict_path
-                    .clone()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
+                path: dict_path.to_string_lossy().to_string(),
                 e: e.to_string(),
             })?;
 
@@ -316,15 +341,11 @@ impl PaddleRecCrnn {
 
         if dict.is_empty() {
             return Err(VisionError::IoError {
-                path: self
-                    .dict_path
-                    .clone()
-                    .unwrap()
-                    .to_string_lossy()
-                    .to_string(),
+                path: dict_path.to_string_lossy().to_string(),
                 e: "字典文件为空".to_string(),
             });
         }
+        self.dict_path = Some(dict_path);
         self.dict = dict;
 
         Ok(())

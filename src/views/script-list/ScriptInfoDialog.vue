@@ -162,7 +162,7 @@
                 <span class="dialog-form-label">模型类型</span>
                 <AppSelect
                   :model-value="imgDetKind"
-                  :options="detectorOptions"
+                  :options="imgDetectorOptions"
                   test-id="script-models-img-det-kind"
                   @update:model-value="setDetectorKind('imgDetModel', $event)"
                 />
@@ -170,6 +170,7 @@
               <template v-if="imgYoloModel">
                 <ModelBaseFields
                   :model="imgYoloModel.baseModel"
+                  :built-in-enabled="false"
                   path-placeholder="例如：D:\\models\\img-det.onnx"
                   test-id-prefix="script-models-img-det-base"
                 />
@@ -221,36 +222,6 @@
                   </label>
                 </div>
               </template>
-              <template v-else-if="imgDetKind === 'PaddleDbNet' && form.data.imgDetModel && 'PaddleDbNet' in form.data.imgDetModel">
-                <ModelBaseFields
-                  :model="form.data.imgDetModel.PaddleDbNet.baseModel"
-                  path-placeholder="例如：D:\\models\\dbnet.onnx"
-                  test-id-prefix="script-models-img-det-base"
-                />
-                <div class="dialog-form-grid">
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">二值化阈值</span>
-                    <input v-model.number="form.data.imgDetModel.PaddleDbNet.dbThresh" class="app-input" max="1" min="0" step="0.01" type="number" />
-                  </label>
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">框阈值</span>
-                    <input v-model.number="form.data.imgDetModel.PaddleDbNet.dbBoxThresh" class="app-input" max="1" min="0" step="0.01" type="number" />
-                  </label>
-                </div>
-                <div class="dialog-form-grid">
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">扩张比例</span>
-                    <input v-model.number="form.data.imgDetModel.PaddleDbNet.unclipRatio" class="app-input" min="0" step="0.1" type="number" />
-                  </label>
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">启用膨胀</span>
-                    <span class="dialog-form-inline-toggle">
-                      <input v-model="form.data.imgDetModel.PaddleDbNet.useDilation" type="checkbox" class="h-4 w-4" style="accent-color: var(--app-accent)" />
-                      <span class="text-sm text-[var(--app-text-soft)]">适合文本区域边缘需要扩张的场景。</span>
-                    </span>
-                  </label>
-                </div>
-              </template>
             </SurfacePanel>
 
             <SurfacePanel v-else-if="activeModelTab === 'txtDet'" tone="muted" padding="sm" class="space-y-4">
@@ -258,7 +229,7 @@
                 <span class="dialog-form-label">模型类型</span>
                 <AppSelect
                   :model-value="txtDetKind"
-                  :options="detectorOptions"
+                  :options="txtDetectorOptions"
                   test-id="script-models-txt-det-kind"
                   @update:model-value="setDetectorKind('txtDetModel', $event)"
                 />
@@ -266,6 +237,7 @@
               <template v-if="txtYoloModel">
                 <ModelBaseFields
                   :model="txtYoloModel.baseModel"
+                  :built-in-enabled="false"
                   path-placeholder="例如：D:\\models\\txt-det.onnx"
                   test-id-prefix="script-models-txt-det-base"
                 />
@@ -299,6 +271,7 @@
               <template v-else-if="txtDetKind === 'PaddleDbNet' && form.data.txtDetModel && 'PaddleDbNet' in form.data.txtDetModel">
                 <ModelBaseFields
                   :model="form.data.txtDetModel.PaddleDbNet.baseModel"
+                  :built-in-enabled="false"
                   path-placeholder="例如：D:\\models\\ocr-dbnet.onnx"
                   test-id-prefix="script-models-txt-det-base"
                 />
@@ -515,6 +488,10 @@ import type { PaddleRecCrnn } from '@/types/bindings/PaddleRecCrnn';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { ScriptTableRecord } from '@/types/app/domain';
 import type { YoloDet } from '@/types/bindings/YoloDet';
+import {
+  rewritePublishedDetectorModelPath,
+  rewritePublishedRecognizerModelPath,
+} from '@/utils/visionModelPresets';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import SponsorshipQrField from '@/views/script-list/script-info/SponsorshipQrField.vue';
 
@@ -559,9 +536,15 @@ const platformOptions = [
   { label: '桌面程序', value: 'desktop', description: '用于桌面端脚本归类与分配约束，执行适配器后续再接。' },
 ];
 
-const detectorOptions = [
+const imgDetectorOptions = [
   { label: '不设置', value: 'none', description: '当前字段留空，不启用该类模型。' },
   { label: 'YOLO11', value: 'Yolo11', description: '通用目标检测方案。' },
+  { label: 'YOLO26', value: 'Yolo26', description: '端到端 NMS-free 检测方案。' },
+];
+
+const txtDetectorOptions = [
+  { label: '不设置', value: 'none', description: '当前字段留空，不启用该类模型。' },
+  { label: 'YOLO11', value: 'Yolo11', description: '适合文本区域检测或字符框检测。' },
   { label: 'Paddle DBNet', value: 'PaddleDbNet', description: '适合文本区域检测。' },
   { label: 'YOLO26', value: 'Yolo26', description: '端到端 NMS-free 检测方案。' },
 ];
@@ -591,7 +574,12 @@ const imgDetKind = ref<DetectorKind>('none');
 const txtDetKind = ref<DetectorKind>('none');
 const txtRecKind = ref<RecognizerKind>('none');
 
-function createBaseModel(modelType: BaseModel['modelType'], width: number, height: number): BaseModel {
+function createBaseModel(
+  modelType: BaseModel['modelType'],
+  width: number,
+  height: number,
+  modelSource: BaseModel['modelSource'] = 'Custom',
+): BaseModel {
   return {
     intraThreadNum: 4,
     intraSpinning: true,
@@ -600,7 +588,7 @@ function createBaseModel(modelType: BaseModel['modelType'], width: number, heigh
     executionProvider: 'CPU',
     inputWidth: width,
     inputHeight: height,
-    modelSource: 'BuiltIn',
+    modelSource,
     modelPath: '',
     modelType,
   };
@@ -608,7 +596,7 @@ function createBaseModel(modelType: BaseModel['modelType'], width: number, heigh
 
 function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
   return {
-    baseModel: createBaseModel(kind, 640, 640),
+    baseModel: createBaseModel(kind, 640, 640, 'Custom'),
     classCount: textMode ? 1 : 80,
     confidenceThresh: 0.25,
     iouThresh: 0.45,
@@ -619,7 +607,7 @@ function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
 
 function createDbNet(): PaddleDetDbNet {
   return {
-    baseModel: createBaseModel('PaddleDet5', 640, 640),
+    baseModel: createBaseModel('PaddleDet5', 640, 640, 'Custom'),
     dbThresh: 0.3,
     dbBoxThresh: 0.5,
     unclipRatio: 1.5,
@@ -629,7 +617,7 @@ function createDbNet(): PaddleDetDbNet {
 
 function createCrnn(): PaddleRecCrnn {
   return {
-    baseModel: createBaseModel('PaddleCrnn5', 320, 48),
+    baseModel: createBaseModel('PaddleCrnn5', 320, 48, 'BuiltIn'),
     dictPath: null,
     resizeFilter: 'Triangle',
     processingMode: 'Single',
@@ -662,6 +650,22 @@ function resolveRecognizerKind(model: RecognizerType | null): RecognizerKind {
 
 function syncKinds() {
   if (!form.value) return;
+  if (form.value.data.imgDetModel && 'PaddleDbNet' in form.value.data.imgDetModel) {
+    form.value.data.imgDetModel = null;
+  }
+  const imgYolo = extractYoloDetector(form.value.data.imgDetModel);
+  if (imgYolo && imgYolo.baseModel.modelSource === 'BuiltIn') {
+    imgYolo.baseModel.modelSource = 'Custom';
+  }
+  if (form.value.data.txtDetModel) {
+    if ('PaddleDbNet' in form.value.data.txtDetModel && form.value.data.txtDetModel.PaddleDbNet.baseModel.modelSource === 'BuiltIn') {
+      form.value.data.txtDetModel.PaddleDbNet.baseModel.modelSource = 'Custom';
+    }
+    const txtYolo = extractYoloDetector(form.value.data.txtDetModel);
+    if (txtYolo && txtYolo.baseModel.modelSource === 'BuiltIn') {
+      txtYolo.baseModel.modelSource = 'Custom';
+    }
+  }
   imgDetKind.value = resolveDetectorKind(form.value.data.imgDetModel);
   txtDetKind.value = resolveDetectorKind(form.value.data.txtDetModel);
   txtRecKind.value = resolveRecognizerKind(form.value.data.txtRecModel);
@@ -686,6 +690,12 @@ function setDetectorKind(field: EditableDetectorField, nextValue: string | numbe
 
   if (kind === 'Yolo26') {
     form.value.data[field] = { Yolo26: createYoloDet('Yolo26', field === 'txtDetModel') };
+    return;
+  }
+
+  if (field === 'imgDetModel') {
+    form.value.data[field] = null;
+    imgDetKind.value = 'none';
     return;
   }
 
@@ -853,6 +863,11 @@ function submit() {
   form.value.data.verName = form.value.data.verName.trim() || '0.1.0';
   form.value.data.updateTime = new Date().toISOString();
   const nextScript = cloneScriptRecord(form.value);
+  if (nextScript.data.scriptType === 'published') {
+    nextScript.data.imgDetModel = rewritePublishedDetectorModelPath(nextScript.data.imgDetModel, nextScript.id, 'det.onnx');
+    nextScript.data.txtDetModel = rewritePublishedDetectorModelPath(nextScript.data.txtDetModel, nextScript.id, 'txt_det.onnx');
+    nextScript.data.txtRecModel = rewritePublishedRecognizerModelPath(nextScript.data.txtRecModel, nextScript.id);
+  }
   emit('save', nextScript);
 }
 

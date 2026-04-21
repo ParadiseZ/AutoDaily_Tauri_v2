@@ -12,6 +12,7 @@ use ort::logging::LogLevel;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
 use ort::value::TensorRef;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 /// 基础模型结构 - 包含所有模型的通用字段
@@ -89,6 +90,40 @@ pub enum ModelType {
     PaddleCrnn5,
 }
 impl BaseModel {
+    fn resolve_builtin_model_path(&self) -> VisionResult<PathBuf> {
+        let relative = match self.model_type {
+            ModelType::PaddleDet5 => PathBuf::from("ppocr").join("ch_mobile_v5_det.onnx"),
+            ModelType::PaddleCrnn5 => PathBuf::from("ppocr").join("ch_mobile_v5_rec.onnx"),
+            ModelType::Yolo11 | ModelType::Yolo26 => {
+                return Err(VisionError::IoError {
+                    path: "[built-in-detector]".to_string(),
+                    e: "当前不提供内置目标检测/文字检测模型，请切换为自定义路径".to_string(),
+                })
+            }
+        };
+
+        let mut candidates = vec![
+            PathBuf::from("src-tauri").join("models").join(&relative),
+            PathBuf::from("models").join(&relative),
+            PathBuf::from("resources").join("models").join(&relative),
+        ];
+
+        if let Ok(current_exe) = std::env::current_exe() {
+            if let Some(exe_dir) = current_exe.parent() {
+                candidates.push(exe_dir.join("models").join(&relative));
+                candidates.push(exe_dir.join("resources").join("models").join(&relative));
+            }
+        }
+
+        candidates
+            .into_iter()
+            .find(|path| path.exists())
+            .ok_or_else(|| VisionError::IoError {
+                path: relative.to_string_lossy().to_string(),
+                e: "未找到内置模型文件".to_string(),
+            })
+    }
+
     pub fn new(
         input_width: u32,
         input_height: u32,
@@ -126,12 +161,7 @@ impl BaseModel {
     pub fn load_model_base<T: ModelHandler>(&mut self, model_type_name: &str) -> VisionResult<()> {
         // 1. 解析模型路径
         let final_path = match self.model_source {
-            ModelSource::BuiltIn => {
-                // TODO: 在生产环境中可能需要使用 Tauri 的 PathResolver 获取资源路径
-                // 目前假设 resources/models 位于当前工作目录或包内
-                std::path::PathBuf::from("resources/models")
-                    .join(format!("{}.onnx", model_type_name))
-            }
+            ModelSource::BuiltIn => self.resolve_builtin_model_path()?,
             ModelSource::Custom => self.model_path.clone(),
         };
 
