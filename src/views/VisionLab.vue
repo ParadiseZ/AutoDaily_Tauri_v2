@@ -37,7 +37,7 @@
         </div>
       </header>
 
-      <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_440px]">
+      <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_minmax(460px,540px)] 2xl:grid-cols-[320px_minmax(0,1fr)_minmax(500px,580px)]">
         <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-[var(--app-border)] bg-[var(--app-panel)]">
           <div class="flex h-full flex-col">
             <div class="border-b border-[var(--app-border)] px-4 py-4">
@@ -233,7 +233,7 @@
               </div>
             </div>
 
-            <div ref="previewContainerRef" class="vision-preview-scroll min-h-0 flex-1 overflow-auto px-4 py-4">
+            <div ref="previewContainerRef" class="vision-preview-scroll min-h-0 flex-1 overflow-auto px-4 py-4" @wheel="handlePreviewWheel">
               <div
                 v-if="selectedPreviewUrl"
                 class="vision-preview-frame mx-auto w-max rounded-[28px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] p-4"
@@ -338,8 +338,8 @@
                       <AppSelect :model-value="imgDetKind" :options="imgDetectorOptions" placeholder="选择模型" test-id="vision-lab-img-det-kind" @update:model-value="setImgDetKind" />
                     </label>
                     <template v-if="imgDetYolo">
-                      <ModelBaseFields :model="imgDetYolo.baseModel" :built-in-enabled="false" path-placeholder="例如：D:\\models\\img-det.onnx" test-id-prefix="vision-lab-img-det-base" />
-                      <div class="grid grid-cols-2 gap-3">
+                      <ModelBaseFields :model="imgDetYolo.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\img-det.onnx" test-id-prefix="vision-lab-img-det-base" />
+                      <div class="grid gap-3 sm:grid-cols-2">
                         <label class="space-y-2">
                           <span class="text-xs font-semibold text-[var(--app-text-faint)]">类别数量</span>
                           <input v-model.number="imgDetYolo.classCount" class="app-input" min="1" type="number" />
@@ -349,7 +349,7 @@
                           <input v-model.trim="imgDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
                         </label>
                       </div>
-                      <div class="grid grid-cols-2 gap-3">
+                      <div class="grid gap-3 sm:grid-cols-2">
                         <label class="space-y-2">
                           <span class="text-xs font-semibold text-[var(--app-text-faint)]">置信度</span>
                           <input v-model.number="imgDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
@@ -389,7 +389,7 @@
                     <div v-for="(item, index) in filteredDetResults" :key="`det-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
                       <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                          <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.label }}</p>
+                          <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.index }}: {{ item.label }}</p>
                           <p class="mt-1 text-xs text-[var(--app-text-faint)]">类目 #{{ item.index }} · {{ formatBox(item.bounding_box) }}</p>
                         </div>
                         <span class="rounded-full bg-amber-500/12 px-2 py-1 text-[11px] font-medium text-amber-700">{{ item.score.toFixed(3) }}</span>
@@ -413,20 +413,44 @@
                         <AppSelect :model-value="txtDetKind" :options="txtDetectorOptions" placeholder="选择模型" test-id="vision-lab-txt-det-kind" @update:model-value="setTxtDetKind" />
                       </label>
                       <template v-if="txtDetYolo">
-                        <ModelBaseFields :model="txtDetYolo.baseModel" :built-in-enabled="false" path-placeholder="例如：D:\\models\\txt-det.onnx" test-id-prefix="vision-lab-txt-det-base" />
-                        <div class="grid grid-cols-2 gap-3">
+                        <ModelBaseFields :model="txtDetYolo.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\txt-det.onnx" test-id-prefix="vision-lab-txt-det-base" />
+                        <div class="grid gap-3 sm:grid-cols-2">
+                          <label class="space-y-2">
+                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">类别数量</span>
+                            <input v-model.number="txtDetYolo.classCount" class="app-input" min="1" type="number" />
+                          </label>
                           <label class="space-y-2">
                             <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
                             <input v-model.trim="txtDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
                           </label>
+                        </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
                           <label class="space-y-2">
                             <span class="text-xs font-semibold text-[var(--app-text-faint)]">文本索引</span>
-                            <input v-model.number="txtDetYolo.txtIdx" class="app-input" min="0" type="number" />
+                            <AppSelect
+                              v-if="txtDetLabelOptions.length"
+                              v-model="txtDetLabelSelectValue"
+                              :options="txtDetLabelOptions"
+                              placeholder="选择标签"
+                              test-id="vision-lab-txt-det-label-idx"
+                            />
+                            <input v-else v-model.number="txtDetYolo.txtIdx" class="app-input" min="0" type="number" placeholder="未加载标签时手动输入 idx" />
+                          </label>
+                          <label class="space-y-2">
+                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">置信度</span>
+                            <input v-model.number="txtDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
                           </label>
                         </div>
+                        <div class="grid gap-3 sm:grid-cols-2">
+                          <label class="space-y-2">
+                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">IOU</span>
+                            <input v-model.number="txtDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
+                          </label>
+                        </div>
+                        <p v-if="txtDetLabelHint" class="text-xs text-[var(--app-text-faint)]">{{ txtDetLabelHint }}</p>
                       </template>
                       <template v-else-if="txtDetDbNet">
-                        <ModelBaseFields :model="txtDetDbNet.baseModel" :built-in-enabled="false" path-placeholder="例如：D:\\models\\ocr-dbnet.onnx" test-id-prefix="vision-lab-txt-det-base" />
+                        <ModelBaseFields :model="txtDetDbNet.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\ocr-dbnet.onnx" test-id-prefix="vision-lab-txt-det-base" />
                       </template>
                     </div>
 
@@ -437,7 +461,7 @@
                         <AppSelect :model-value="txtRecKind" :options="recognizerOptions" placeholder="选择模型" test-id="vision-lab-txt-rec-kind" @update:model-value="setTxtRecKind" />
                       </label>
                       <template v-if="txtRecCrnn">
-                        <ModelBaseFields :model="txtRecCrnn.baseModel" path-placeholder="例如：D:\\models\\ocr-rec.onnx" test-id-prefix="vision-lab-txt-rec-base" />
+                        <ModelBaseFields :model="txtRecCrnn.baseModel" compact path-placeholder="例如：D:\\models\\ocr-rec.onnx" test-id-prefix="vision-lab-txt-rec-base" />
                         <label class="space-y-2">
                           <span class="text-xs font-semibold text-[var(--app-text-faint)]">字典路径</span>
                           <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
@@ -446,7 +470,7 @@
                       </template>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2">
+                    <div class="grid gap-2 sm:grid-cols-2">
                       <button class="app-button app-button-ghost justify-center" type="button" :disabled="!canRunTextDetection || isRunningTextDet" @click="runTextDetection">
                         {{ isRunningTextDet ? '检测中...' : '文字检测' }}
                       </button>
@@ -478,7 +502,7 @@
                       </div>
                       <div v-for="(item, index) in textDetResults" :key="`text-det-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
                         <p class="text-xs text-[var(--app-text-faint)]">文本框 {{ index + 1 }} · {{ formatBox(item.bounding_box) }}</p>
-                        <p class="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{{ item.label }}</p>
+                        <p class="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{{ item.index }}: {{ item.label }}</p>
                       </div>
                     </div>
 
@@ -716,6 +740,8 @@ const detSearchText = ref('');
 const detLabelFilter = ref<string>('ALL');
 const ocrFilterText = ref('');
 const imgDetLabelOptions = ref<Array<{ label: string; value: string; description?: string }>>([]);
+const txtDetLabelOptions = ref<Array<{ label: string; value: string; description?: string }>>([]);
+const txtDetLabelHint = ref<string | null>('请先设置文字检测标签路径，或选择“不过滤”验证原始检测输出。');
 
 const activeTool = ref<PreviewTool>('browse');
 const zoom = ref(1);
@@ -802,7 +828,7 @@ const filteredFolderItems = computed(() => {
 const filteredDetResults = computed(() => {
   const keyword = detSearchText.value.trim().toLowerCase();
   return detResults.value.filter((item) => {
-    if (detLabelFilter.value !== 'ALL' && item.label !== detLabelFilter.value) {
+    if (detLabelFilter.value !== 'ALL' && String(item.index) !== detLabelFilter.value) {
       return false;
     }
     if (keyword && !item.label.toLowerCase().includes(keyword) && !String(item.index).includes(keyword)) {
@@ -834,9 +860,23 @@ const overlayEntries = computed<OverlayEntry[]>(() => {
 
 const detLabelFilterOptions = computed(() => {
   const labels = imgDetLabelOptions.value.length
-    ? imgDetLabelOptions.value.map((item) => ({ label: item.label, value: item.label }))
-    : Array.from(new Set(detResults.value.map((item) => item.label))).map((label) => ({ label, value: label }));
+    ? imgDetLabelOptions.value
+    : Array.from(new Map(detResults.value.map((item) => [String(item.index), item.label])).entries()).map(([index, label]) => ({
+        label: `${index}: ${label}`,
+        value: index,
+      }));
   return [{ label: '全部', value: 'ALL' }, ...labels];
+});
+
+const txtDetLabelSelectValue = computed<string>({
+  get: () => {
+    const value = txtDetYolo.value?.txtIdx;
+    return value == null ? '__ALL__' : String(value);
+  },
+  set: (value) => {
+    if (!txtDetYolo.value) return;
+    txtDetYolo.value.txtIdx = value === '__ALL__' ? null : Number(value);
+  },
 });
 
 const deviceOptions = computed(() =>
@@ -1235,7 +1275,6 @@ async function runDetection() {
       : await visionLabService.runDetectionForImageData(clone(imgDetModel.value), selectedImageData.value!);
     showToast(`检测完成，共 ${detResults.value.length} 条结果`, 'success');
   } catch (error) {
-    console.log(error)
     showToast(error instanceof Error ? error.message : '目标检测失败', 'error');
   } finally {
     isRunningDet.value = false;
@@ -1251,7 +1290,6 @@ async function runTextDetection() {
       : await visionLabService.runDetectionForImageData(clone(txtDetModel.value), selectedImageData.value!);
     showToast(`文字检测完成，共 ${textDetResults.value.length} 个文本框`, 'success');
   } catch (error) {
-    console.log(error);
     showToast(error instanceof Error ? error.message : '文字检测失败', 'error');
   } finally {
     isRunningTextDet.value = false;
@@ -1327,6 +1365,35 @@ function zoomIn() {
 
 function zoomOut() {
   zoom.value = Math.max(0.2, Number((zoom.value - 0.1).toFixed(2)));
+}
+
+function handlePreviewWheel(event: WheelEvent) {
+  if (!event.ctrlKey || !previewContainerRef.value || !previewSurfaceRef.value || !naturalSize.width || !naturalSize.height) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const container = previewContainerRef.value;
+  const surfaceRect = previewSurfaceRef.value.getBoundingClientRect();
+  const offsetX = event.clientX - surfaceRect.left;
+  const offsetY = event.clientY - surfaceRect.top;
+  const imageX = offsetX / zoom.value;
+  const imageY = offsetY / zoom.value;
+
+  const delta = event.deltaY < 0 ? 0.12 : -0.12;
+  const nextZoom = Math.max(0.2, Math.min(5, Number((zoom.value + delta).toFixed(2))));
+
+  if (nextZoom === zoom.value) {
+    return;
+  }
+
+  zoom.value = nextZoom;
+
+  nextTick(() => {
+    container.scrollLeft = Math.max(0, imageX * nextZoom - (event.clientX - container.getBoundingClientRect().left));
+    container.scrollTop = Math.max(0, imageY * nextZoom - (event.clientY - container.getBoundingClientRect().top));
+  });
 }
 
 function handleImageLoaded() {
@@ -1431,12 +1498,36 @@ async function loadImgDetLabels() {
   try {
     const labels = await scriptService.getYoloLabels(labelPath);
     imgDetLabelOptions.value = labels.map((item) => ({
-      label: item.label,
-      value: item.label,
-      description: `索引 #${item.index}`,
+      label: `${item.index}: ${item.label}`,
+      value: String(item.index),
+      description: item.label,
     }));
   } catch {
     imgDetLabelOptions.value = [];
+  }
+}
+
+async function loadTxtDetLabels() {
+  const labelPath = txtDetYolo.value?.labelPath?.trim();
+  if (!labelPath) {
+    txtDetLabelOptions.value = [];
+    txtDetLabelHint.value = '当前未设置文字检测标签路径，可先选择“不过滤”验证模型输出。';
+    return;
+  }
+  try {
+    const labels = await scriptService.getYoloLabels(labelPath);
+    txtDetLabelOptions.value = [
+      { label: '不过滤', value: '__ALL__', description: '先查看所有检测结果' },
+      ...labels.map((item) => ({
+        label: `${item.index}: ${item.label}`,
+        value: String(item.index),
+        description: `idx ${item.index}`,
+      })),
+    ];
+    txtDetLabelHint.value = labels.length ? null : '标签文件已读取，但未解析到 names。';
+  } catch (error) {
+    txtDetLabelOptions.value = [{ label: '不过滤', value: '__ALL__', description: '先查看所有检测结果' }];
+    txtDetLabelHint.value = error instanceof Error ? `标签文件读取失败：${error.message}` : '标签文件读取失败，请检查路径或格式。';
   }
 }
 
@@ -1514,11 +1605,19 @@ watch(
   { immediate: true },
 );
 
+watch(
+  () => txtDetYolo.value?.labelPath,
+  () => {
+    void loadTxtDetLabels();
+  },
+  { immediate: true },
+);
+
 onMounted(async () => {
   await Promise.all([deviceStore.refreshAll(), loadPreferences()]);
   await hydrateFromLaunchPreset();
   hydratingModelConfig.value = false;
-  await loadImgDetLabels();
+  await Promise.all([loadImgDetLabels(), loadTxtDetLabels()]);
   if (preferences.imageDir) {
     await reloadImageDirectory();
   }

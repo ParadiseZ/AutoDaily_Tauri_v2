@@ -35,7 +35,7 @@ export function createBaseModel(
 export function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
     return {
         baseModel: createBaseModel(kind, 640, 640, 'Custom'),
-        classCount: textMode ? 1 : 80,
+        classCount: 80,
         confidenceThresh: 0.25,
         iouThresh: 0.45,
         labelPath: null,

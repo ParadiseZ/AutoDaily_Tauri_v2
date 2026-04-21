@@ -385,7 +385,6 @@ impl YoloDet {
                     };
 
                     if prob < self.confidence_thresh
-                        || class_id >= self.class_count
                         || !self.allow_class(class_id)
                     {
                         continue;
@@ -408,7 +407,6 @@ impl YoloDet {
                     };
 
                     if prob < self.confidence_thresh
-                        || class_id >= self.class_count
                         || !self.allow_class(class_id)
                     {
                         continue;
@@ -466,7 +464,6 @@ impl YoloDet {
                     let score = row[4];
 
                     if score < self.confidence_thresh
-                        || class_id >= self.class_count
                         || !self.allow_class(class_id)
                     {
                         continue;
@@ -490,7 +487,6 @@ impl YoloDet {
                     let score = col[4];
 
                     if score < self.confidence_thresh
-                        || class_id >= self.class_count
                         || !self.allow_class(class_id)
                     {
                         continue;
