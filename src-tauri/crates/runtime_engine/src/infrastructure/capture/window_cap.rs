@@ -11,13 +11,17 @@ pub struct WindowInfo {
 
 impl WindowInfo {
     pub(crate) fn init(window_name: Option<String>) -> Self {
-        if window_name.is_none() {
+        let Some(window_name) = window_name
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        else {
             Log::error("窗口名称未设置！");
             return Self {
                 window: Arc::new(RwLock::new(None)),
                 title: Arc::new(RwLock::new(None)),
             };
-        }
+        };
+        let target_name = window_name.to_lowercase();
         // 获取所有窗口
         let windows = Window::all();
         if let Err(e) = windows {
@@ -37,7 +41,7 @@ impl WindowInfo {
             let title = window.title().unwrap_or_else(|_| "无标题".to_string());
             //Log::info(&format!("发现窗口: {}", title));
             // 检查是否是目标窗口
-            if title.contains(window_name.clone().unwrap().as_str()) {
+            if title.to_lowercase().contains(target_name.as_str()) {
                 //Log::info(&format!("找到目标窗口: {}", title));
                 // 找到并截图后退出循环
                 return Self {

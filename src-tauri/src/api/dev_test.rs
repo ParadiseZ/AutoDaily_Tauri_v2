@@ -23,6 +23,70 @@ use tauri_plugin_store::StoreExt;
 use vision_core::infrastructure::vision::base_model::ModelSource;
 use tokio::sync::RwLock;
 
+fn describe_adb_config_issue(adb_conf: &ADBConnectConfig) -> Option<String> {
+    match adb_conf {
+        ADBConnectConfig::DirectTcp(addr) => {
+            if addr.is_none() {
+                Some("未设置直连地址".to_string())
+            } else {
+                None
+            }
+        }
+        ADBConnectConfig::DirectUsb(_) => Some("当前暂不支持 DirectUsb 截图".to_string()),
+        ADBConnectConfig::ServerConnectByIp(config) => {
+            if config.adb_config.adb_path.as_deref().is_none_or(|value| value.trim().is_empty()) {
+                return Some("未设置 adb 程序路径".to_string());
+            }
+            if !config.adb_config.valid() {
+                return Some("ADB 服务配置无效，请检查 adb 路径和服务地址".to_string());
+            }
+            if config.client_connect.is_none() {
+                return Some("未设置设备连接地址".to_string());
+            }
+            None
+        }
+        ADBConnectConfig::ServerConnectByName(config) => {
+            if config.adb_config.adb_path.as_deref().is_none_or(|value| value.trim().is_empty()) {
+                return Some("未设置 adb 程序路径".to_string());
+            }
+            if !config.adb_config.valid() {
+                return Some("ADB 服务配置无效，请检查 adb 路径和服务地址".to_string());
+            }
+            if config
+                .device_name
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+            {
+                return Some("未设置设备名称".to_string());
+            }
+            None
+        }
+    }
+}
+
+fn validate_capture_request(
+    capture_method: &CaptureMethod,
+    device_conf: &DeviceConfig,
+    adb_conf: &ADBConnectConfig,
+) -> Result<(), String> {
+    match capture_method {
+        CaptureMethod::Window => match &device_conf.cap_method {
+            CapMethod::Window(title) => {
+                let title = title.trim();
+                if title.is_empty() {
+                    Err("窗口截图未配置窗口标题".to_string())
+                } else {
+                    Ok(())
+                }
+            }
+            CapMethod::Adb => Err("当前设备保存的截图方式是 ADB，但本次请求走了窗口截图".to_string()),
+        },
+        CaptureMethod::Adb => describe_adb_config_issue(adb_conf)
+            .map(|issue| format!("ADB 截图配置无效：{}", issue))
+            .map_or(Ok(()), Err),
+    }
+}
+
 fn resolve_scripts_dir(app_handle: &AppHandle) -> PathBuf {
     app_handle
         .store(APP_STORE)
@@ -105,6 +169,10 @@ pub async fn dev_capture_test(
     adb_conf: ADBConnectConfig,
 ) -> Result<String, String> {
     let capture_method = CaptureMethod::from(method);
+    validate_capture_request(&capture_method, &device_conf, &adb_conf)?;
+    let capture_method_for_error = capture_method.clone();
+    let device_conf_for_error = device_conf.clone();
+    let adb_conf_for_error = adb_conf.clone();
     if matches!(capture_method, CaptureMethod::Adb) {
         ADBCtx::new(adb_conf).await;
     }
@@ -120,7 +188,20 @@ pub async fn dev_capture_test(
     .await;
 
     if !device_ctx.valid_capture().await {
-        return Err("验证截图功能失败！".to_string());
+        let reason = match capture_method_for_error {
+            CaptureMethod::Window => match &device_conf_for_error.cap_method {
+                CapMethod::Window(title) => format!(
+                    "窗口截图校验失败：未找到标题包含“{}”的可截图窗口，或目标窗口已最小化",
+                    title.trim()
+                ),
+                CapMethod::Adb => "窗口截图校验失败：当前设备截图方式配置不一致".to_string(),
+            },
+            CaptureMethod::Adb => match describe_adb_config_issue(&adb_conf_for_error) {
+                Some(issue) => format!("ADB 截图校验失败：{}", issue),
+                None => "ADB 截图校验失败：请检查设备连接状态、ADB 服务和截图通道".to_string(),
+            },
+        };
+        return Err(reason);
     }
     match device_ctx.get_screenshot().await {
         Some(image_data) => Ok(dynamic_image_to_base64(&DynamicImage::ImageRgba8(

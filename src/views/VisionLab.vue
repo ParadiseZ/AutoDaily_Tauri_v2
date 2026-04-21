@@ -1268,21 +1268,33 @@ async function captureFromDevice() {
     return;
   }
   try {
-    const running = await deviceService.isRunning(selectedDevice.value.id);
-    if (!running) {
-      const approved = await confirm('设备未启动。是否先启动设备并完成连接准备后再截图？', {
+    let capture;
+    try {
+      capture = await visionLabService.captureDevice(selectedDevice.value);
+    } catch (initialError) {
+      if (selectedDevice.value.data.capMethod !== 'adb') {
+        throw initialError;
+      }
+
+      const running = await deviceService.isRunning(selectedDevice.value.id);
+      if (running) {
+        throw initialError;
+      }
+
+      const approved = await confirm('设备当前未完成运行时准备。是否先启动设备并尝试连接后再截图？', {
         title: '设备截图',
         kind: 'warning',
       });
       if (!approved) {
         return;
       }
+
       const message = await deviceService.prepareCapture(selectedDevice.value.id);
       await deviceStore.refreshRunningDevices();
       showToast(message, 'success');
+      capture = await visionLabService.captureDevice(selectedDevice.value);
     }
 
-    const capture = await visionLabService.captureDevice(selectedDevice.value);
     const suggestedName = `${selectedDevice.value.data.deviceName}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
     const item: VisionSourceItem = {
       id: `capture:${suggestedName}:${Date.now()}`,
