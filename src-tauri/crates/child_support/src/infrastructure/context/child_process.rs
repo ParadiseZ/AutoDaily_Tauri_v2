@@ -61,7 +61,8 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
         Arc::new(RwLock::new(init_data.device_config.clone())),
         cap_method,
         title,
-    ));
+    )
+    .await);
     init_device_ctx(device_ctx)?;
 
     Ok(())

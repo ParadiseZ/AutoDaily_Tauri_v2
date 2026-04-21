@@ -17,12 +17,12 @@
         </label>
       </div>
 
-      <div class="grid gap-4 md:grid-cols-2">
+<!--      <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
-          <span class="text-sm text-[var(--app-text-soft)]">运行平台</span>
+          <span class="text-sm text-[var(&#45;&#45;app-text-soft)]">运行平台</span>
           <AppSelect v-model="form.platform" :options="platformOptions" />
         </label>
-      </div>
+      </div>-->
 
       <div class="grid gap-4 md:grid-cols-2">
         <label class="grid gap-2">
@@ -78,7 +78,7 @@
           <span class="text-sm font-medium text-[var(--app-text-strong)]">CPU 核心绑定</span>
           <span class="text-xs text-[var(--app-text-faint)]">影响执行效率</span>
         </div>
-        <div class="flex flex-wrap gap-10">
+        <div class="flex flex-wrap gap-2">
           <label v-for="index in cpuCount" :key="index-1" class="flex items-center gap-2">
             <input
                 type="checkbox"
@@ -87,7 +87,7 @@
                 :class="{ 'app-button-primary': form.cores.includes(index - 1) }"
                 @click="toggleCore(index - 1)"
             />
-            <span class="text-sm">{{ index }}</span>
+            <span class="text-sm">{{ index - 1 }}</span>
           </label>
         </div>
       </div>
@@ -233,10 +233,10 @@ const connectOptions = [
   { label: 'ADB 服务（按名称）', value: 'serverConnectByName' },
 ];
 
-const platformOptions = [
+/*const platformOptions = [
   { label: 'Android', value: 'android' },
   { label: '桌面程序', value: 'desktop' },
-];
+];*/
 
 const timeoutActionOptions = [
   { label: '只通知', value: 'notifyOnly', description: '只发通知，不改变执行流。' },

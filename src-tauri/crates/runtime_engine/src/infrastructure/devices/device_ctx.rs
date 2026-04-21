@@ -32,13 +32,13 @@ pub struct DeviceCtx {
 }
 
 impl DeviceCtx {
-    pub fn new(
+    pub async fn new(
         device_config: Arc<RwLock<DeviceConfig>>,
         capture_method: CaptureMethod,
         window_title: Option<String>,
     ) -> DeviceCtx {
         Log::debug("初始化设备上下文数据...");
-        let platform = device_config.blocking_read().platform.clone();
+        let platform = device_config.read().await.platform.clone();
         let adapter: Arc<dyn DeviceAdapter> = match platform {
             DevicePlatform::Android => {
                 Arc::new(AndroidDeviceAdapter::new(capture_method, window_title))

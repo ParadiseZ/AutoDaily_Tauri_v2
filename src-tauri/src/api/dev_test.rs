@@ -104,16 +104,20 @@ pub async fn dev_capture_test(
     device_conf: DeviceConfig,
     adb_conf: ADBConnectConfig,
 ) -> Result<String, String> {
-    ADBCtx::new(adb_conf).await;
+    let capture_method = CaptureMethod::from(method);
+    if matches!(capture_method, CaptureMethod::Adb) {
+        ADBCtx::new(adb_conf).await;
+    }
     let title = match device_conf.cap_method.clone() {
         CapMethod::Window(title) => Some(title),
         CapMethod::Adb => None,
     };
     let device_ctx = DeviceCtx::new(
         Arc::new(RwLock::new(device_conf)),
-        CaptureMethod::from(method),
+        capture_method,
         title, //Arc::new(RwLock::new(adb_ctx)),
-    );
+    )
+    .await;
 
     if !device_ctx.valid_capture().await {
         return Err("验证截图功能失败！".to_string());
