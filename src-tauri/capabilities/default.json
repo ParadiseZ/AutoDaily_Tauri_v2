@@ -4,7 +4,8 @@
   "description": "Capability for the main window",
   "windows": [
     "AutoDaily",
-    "script-editor"
+    "script-editor",
+    "vision-lab"
   ],
   "permissions": [
     "core:default",
