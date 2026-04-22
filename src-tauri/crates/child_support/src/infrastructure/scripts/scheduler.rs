@@ -16,7 +16,7 @@ use crate::infrastructure::ipc::message::{
 };
 use crate::infrastructure::ipc::runtime_reporter::{emit_progress_event, emit_schedule_event};
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::scripts::execution_plan::{ExecutionPlanAssembler, PlannedTask};
+use crate::infrastructure::scripts::execution_plan::ExecutionPlanAssembler;
 use crate::infrastructure::scripts::executor::ScriptExecutor;
 use crate::infrastructure::scripts::schedule_journal::ScheduleJournal;
 use crate::infrastructure::session::runtime_session::{get_script_bundle_snapshot, try_current_session_summary};

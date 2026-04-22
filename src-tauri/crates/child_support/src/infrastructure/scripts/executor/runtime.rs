@@ -380,14 +380,6 @@ impl ScriptExecutor {
             .map_err(|error| Self::execute_error(step_type, error.to_string()))
     }
 
-    /// TODO 未确认此方法的使用场景
-    fn state_target_label(target: &StateTarget) -> String {
-        match target {
-            StateTarget::Task { id } => format!("task:{}", id),
-            StateTarget::Policy { id } => format!("policy:{}", id),
-        }
-    }
-
     fn execute_error(step_type: &str, e: String) -> ScriptError {
         ScriptError::ExecuteErr {
             step_type: step_type.to_string(),
