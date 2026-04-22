@@ -7,7 +7,8 @@ use crate::domain::scripts::script_task::{
     ScriptTask, ScriptTaskTable, TaskRowType, TaskTone, TaskTriggerMode,
 };
 use crate::domain::scripts::script_variable::{
-    ScriptVariableDef, ScriptVariableNamespace, ScriptVariableSourceType, ScriptVariableValueType,
+    ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace, ScriptVariableSourceType,
+    ScriptVariableValueType,
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::RuntimeContext;
@@ -220,12 +221,10 @@ fn build_script_level_input_variable() -> ScriptVariableDef {
     }
 }
 
-fn build_executor() -> ScriptExecutor {
+fn build_executor_with_target(run_target: RunTarget) -> ScriptExecutor {
     let runtime_ctx = Arc::new(RwLock::new(RuntimeContext::new(
         UuidV7(1),
-        RunTarget::FullScript {
-            script_id: UuidV7(1),
-        },
+        run_target,
         Arc::new(Mutex::new(OcrService::new())),
         Arc::new(Mutex::new(OcrService::new())),
         VisionTextCacheRuntimeConfig {
@@ -235,6 +234,19 @@ fn build_executor() -> ScriptExecutor {
         },
     )));
     ScriptExecutor::new(runtime_ctx)
+}
+
+fn build_executor() -> ScriptExecutor {
+    build_executor_with_target(RunTarget::FullScript {
+        script_id: UuidV7(1),
+    })
+}
+
+fn build_input_catalog(task_id: TaskId) -> ScriptVariableCatalog {
+    ScriptVariableCatalog {
+        version: 1,
+        variables: vec![build_input_variable(task_id), build_script_level_input_variable()],
+    }
 }
 
 #[test]
@@ -292,6 +304,75 @@ fn task_owned_input_variable_is_hidden_without_task_context() {
     assert!(!ScriptExecutor::input_variable_visible_for_task(
         &variable, None
     ));
+}
+
+#[test]
+fn policy_debug_target_exposes_task_owned_input_without_task_context() {
+    let task_id = UuidV7(10);
+    let variable = build_input_variable(task_id);
+
+    assert!(ScriptExecutor::input_variable_visible_for_target(
+        &variable,
+        &RunTarget::Policy {
+            script_id: UuidV7(1),
+            policy_id: UuidV7(2),
+        },
+        None,
+    ));
+    assert!(!ScriptExecutor::input_variable_visible_for_target(
+        &variable,
+        &RunTarget::FullScript {
+            script_id: UuidV7(1),
+        },
+        None,
+    ));
+}
+
+#[tokio::test]
+async fn hydrate_input_scope_loads_task_owned_defaults_for_policy_debug_target() {
+    let task_id = UuidV7(11);
+    let mut executor = build_executor_with_target(RunTarget::Policy {
+        script_id: UuidV7(1),
+        policy_id: UuidV7(2),
+    });
+
+    executor
+        .hydrate_input_scope(&build_input_catalog(task_id), None, None)
+        .await
+        .unwrap();
+
+    let task_owned = executor.read_runtime_var("input.pkg_name").await.unwrap();
+    let script_owned = executor.read_runtime_var("input.shared_flag").await.unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&task_owned).unwrap(),
+        "default-from-catalog"
+    );
+    assert!(ScriptExecutor::deserialize_dynamic_value::<bool>(&script_owned).unwrap());
+}
+
+#[tokio::test]
+async fn hydrate_input_scope_prefers_template_values_for_policy_debug_target() {
+    let task_id = UuidV7(12);
+    let mut executor = build_executor_with_target(RunTarget::PolicySet {
+        script_id: UuidV7(1),
+        policy_set_id: UuidV7(3),
+    });
+
+    executor
+        .hydrate_input_scope(
+            &build_input_catalog(task_id),
+            Some(r#"{"variables":{"var_pkg_name_id":"templated-from-policy-debug"}}"#),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let task_owned = executor.read_runtime_var("input.pkg_name").await.unwrap();
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&task_owned).unwrap(),
+        "templated-from-policy-debug"
+    );
 }
 
 #[tokio::test]

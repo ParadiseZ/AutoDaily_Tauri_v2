@@ -62,7 +62,7 @@ impl ScriptExecutor {
             .iter()
             .filter(|variable| matches!(variable.namespace, ScriptVariableNamespace::Input))
         {
-            if !Self::input_variable_visible_for_task(variable, task) {
+            if !Self::input_variable_visible_for_target(variable, &run_target, task) {
                 continue;
             }
 
@@ -129,6 +129,22 @@ impl ScriptExecutor {
             (Some(owner_task_id), Some(task_id)) => owner_task_id == task_id,
             (Some(_), None) => false,
         }
+    }
+
+    fn input_variable_visible_for_target(
+        variable: &ScriptVariableDef,
+        run_target: &RunTarget,
+        task: Option<&ScriptTaskTable>,
+    ) -> bool {
+        if Self::input_variable_visible_for_task(variable, task) {
+            return true;
+        }
+
+        matches!(
+            run_target,
+            RunTarget::Policy { .. } | RunTarget::PolicyGroup { .. } | RunTarget::PolicySet { .. }
+        ) && task.is_none()
+            && variable.owner_task_id.is_some()
     }
 
     fn resolve_input_variable_value(
