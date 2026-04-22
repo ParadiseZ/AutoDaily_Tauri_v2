@@ -2,6 +2,8 @@ use super::ScriptExecutor;
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
+use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
+use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
 use crate::domain::scripts::script_task::{
     ScriptTask, ScriptTaskTable, TaskRowType, TaskTone, TaskTriggerMode,
@@ -10,9 +12,10 @@ use crate::domain::scripts::script_variable::{
     ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace, ScriptVariableSourceType,
     ScriptVariableValueType,
 };
+use crate::domain::vision::ocr_search::{SearchRule, VisionSnapshot};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::RuntimeContext;
-use crate::infrastructure::core::{TaskId, UuidV7};
+use crate::infrastructure::core::{PolicyId, TaskId, UuidV7};
 use crate::infrastructure::ipc::message::{
     RunTarget, RuntimeExecutionPolicy, RuntimeVisionTextCachePolicy, TimeoutAction,
 };
@@ -249,6 +252,49 @@ fn build_input_catalog(task_id: TaskId) -> ScriptVariableCatalog {
     }
 }
 
+fn build_set_var_step(name: &str, expr: &str) -> Step {
+    Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: None,
+        skip_flag: false,
+        kind: StepKind::DataHanding {
+            a: crate::domain::scripts::nodes::data_handing::DataHanding::SetVar {
+                name: name.to_string(),
+                val: None,
+                expr: Some(expr.to_string()),
+            },
+        },
+    }
+}
+
+fn build_policy_table(
+    policy_id: PolicyId,
+    script_id: UuidV7,
+    before_action: Vec<Step>,
+    after_action: Vec<Step>,
+) -> PolicyTable {
+    PolicyTable {
+        id: policy_id,
+        script_id,
+        order_index: 0,
+        data: Json(PolicyInfo {
+            name: "policy-debug".to_string(),
+            note: String::new(),
+            log_print: None,
+            cur_pos: 0,
+            skip_flag: false,
+            exec_max: 0,
+            before_action,
+            cond: SearchRule::Txt {
+                pattern: "开始".to_string(),
+            },
+            after_action,
+        }),
+    }
+}
+
 #[test]
 fn input_variable_prefers_template_values_by_variable_id() {
     let task_id = UuidV7(7);
@@ -372,6 +418,73 @@ async fn hydrate_input_scope_prefers_template_values_for_policy_debug_target() {
     assert_eq!(
         ScriptExecutor::deserialize_dynamic_value::<String>(&task_owned).unwrap(),
         "templated-from-policy-debug"
+    );
+}
+
+#[tokio::test]
+async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration() {
+    let script_id = UuidV7(1);
+    let task_id = UuidV7(13);
+    let policy_id = UuidV7(21);
+    let policy_group_id = UuidV7(31);
+    let policy_set_id = UuidV7(41);
+    let mut executor = build_executor_with_target(RunTarget::PolicyGroup {
+        script_id,
+        policy_group_id,
+    });
+
+    executor
+        .hydrate_input_scope(
+            &build_input_catalog(task_id),
+            Some(r#"{"variables":{"var_pkg_name_id":"templated-from-group-debug"}}"#),
+            None,
+        )
+        .await
+        .unwrap();
+
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.observation.last_snapshot = Some(
+            VisionSnapshot::new(
+                vec![build_ocr_result("开始", 0, 0, 30, 12)],
+                Vec::new(),
+                None,
+                8,
+            )
+            .unwrap(),
+        );
+    }
+
+    let candidate = super::PolicyCandidate {
+        policy_set_id: Some(policy_set_id),
+        policy_group_id: Some(policy_group_id),
+        policy: build_policy_table(
+            policy_id,
+            script_id,
+            vec![build_set_var_step("runtime.beforeValue", "input.pkg_name")],
+            vec![build_set_var_step(
+                "runtime.afterValue",
+                r#"if input.shared_flag { input.pkg_name + "-after" } else { "disabled" }"#,
+            )],
+        ),
+    };
+
+    let flow = executor
+        .execute_policy_candidates("debug.policy", vec![candidate], "runtime.policyDebugResult")
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Next));
+    let before_value = executor.read_runtime_var("runtime.beforeValue").await.unwrap();
+    let after_value = executor.read_runtime_var("runtime.afterValue").await.unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&before_value).unwrap(),
+        "templated-from-group-debug"
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&after_value).unwrap(),
+        "templated-from-group-debug-after"
     );
 }
 
