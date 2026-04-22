@@ -9,6 +9,12 @@ impl ScriptExecutor {
                 then,
                 else_steps,
             } => {
+                if let Some(timeout_flow) = self
+                    .record_progress_evidence("flow.if", "If 条件检查")
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
                 if self.evaluate_condition(con).await? {
                     self.execute(then).await
                 } else if let Some(else_steps) = else_steps {
@@ -141,6 +147,15 @@ impl ScriptExecutor {
     ) -> ExecuteResult<ControlFlow> {
         match data {
             DataHanding::SetVar { name, val, expr } => {
+                if let Some(timeout_flow) = self
+                    .record_progress_evidence(
+                        "data.setVar",
+                        format!("SetVar 写入变量 {}", name),
+                    )
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
                 let value =
                     if let Some(expr) = expr.as_ref().filter(|value| !value.trim().is_empty()) {
                         self.eval_dynamic(expr, "data.setVar")?
@@ -153,6 +168,15 @@ impl ScriptExecutor {
                 Ok(ControlFlow::Next)
             }
             DataHanding::GetVar { name, default_val } => {
+                if let Some(timeout_flow) = self
+                    .record_progress_evidence(
+                        "data.getVar",
+                        format!("GetVar 读取变量 {}", name),
+                    )
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
                 if self.read_runtime_var(name).await.is_none() {
                     if let Some(default_val) = default_val {
                         self.set_runtime_var(name, Self::var_value_to_dynamic(default_val))
@@ -168,6 +192,15 @@ impl ScriptExecutor {
                 logic_expr,
                 then_steps,
             } => {
+                if let Some(timeout_flow) = self
+                    .record_progress_evidence(
+                        "data.filter",
+                        format!("Filter 准备处理输入变量 {}", input_var),
+                    )
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
                 let Some(input) = self.read_runtime_var(input_var).await else {
                     self.set_runtime_var(out_name, Dynamic::from(Array::new()))
                         .await?;
@@ -183,6 +216,15 @@ impl ScriptExecutor {
 
                 let mut output = Array::new();
                 for (index, item) in items.into_iter().enumerate() {
+                    if let Some(timeout_flow) = self
+                        .record_progress_evidence(
+                            "data.filter.item",
+                            format!("Filter 处理条目 {} -> {}", input_var, index),
+                        )
+                        .await?
+                    {
+                        return Ok(timeout_flow);
+                    }
                     self.scope.set_value(FILTER_ITEM_VAR, item.clone());
                     self.scope.set_value(ITEM_VAR, item.clone());
                     self.scope.set_value(FILTER_INDEX_VAR, index as i64);
@@ -254,6 +296,18 @@ impl ScriptExecutor {
         target_color: &ColorRgb,
         method: &ColorCompareMethod,
     ) -> ExecuteResult<ControlFlow> {
+        if let Some(timeout_flow) = self
+            .record_progress_evidence(
+                "data.colorCompare",
+                format!(
+                    "ColorCompare 比较输入变量 {} 到输出变量 {}",
+                    input_var, out_var
+                ),
+            )
+            .await?
+        {
+            return Ok(timeout_flow);
+        }
         let Some(input) = self.read_runtime_var(input_var).await else {
             self.set_runtime_var(out_var, Dynamic::from(Array::new()))
                 .await?;
@@ -645,6 +699,15 @@ impl ScriptExecutor {
                 out_var,
                 then_steps,
             } => {
+                if let Some(timeout_flow) = self
+                    .record_progress_evidence(
+                        "vision.search",
+                        format!("VisionSearch 搜索并写入 {}", out_var),
+                    )
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
                 let (hits, matched) = {
                     let ctx = self.runtime_ctx.read().await;
                     if let Some(snapshot) = ctx.observation.last_snapshot.as_ref() {

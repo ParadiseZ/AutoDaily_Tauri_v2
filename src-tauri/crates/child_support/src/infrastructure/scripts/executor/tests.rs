@@ -3,6 +3,7 @@ use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
 use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
+use crate::domain::scripts::nodes::flow_control::{ConditionNode, FlowControl};
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
 use crate::domain::scripts::script_task::{
@@ -17,8 +18,10 @@ use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::RuntimeContext;
 use crate::infrastructure::core::{PolicyId, TaskId, UuidV7};
 use crate::infrastructure::ipc::message::{
-    RunTarget, RuntimeExecutionPolicy, RuntimeVisionTextCachePolicy, TimeoutAction,
+    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
+    RuntimeVisionTextCachePolicy, TimeoutAction,
 };
+use crate::infrastructure::session::runtime_session::{clear_runtime_session, replace_runtime_session};
 use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{Rgba, RgbaImage};
 use rhai::serde::to_dynamic;
@@ -250,6 +253,41 @@ fn build_input_catalog(task_id: TaskId) -> ScriptVariableCatalog {
         version: 1,
         variables: vec![build_input_variable(task_id), build_script_level_input_variable()],
     }
+}
+
+async fn install_runtime_policy_for_test(timeout_action: TimeoutAction) {
+    clear_runtime_session().await;
+    replace_runtime_session(RuntimeSessionSnapshot {
+        session_id: UuidV7(501),
+        device_id: UuidV7(502),
+        run_target: RunTarget::FullScript {
+            script_id: UuidV7(1),
+        },
+        runtime_policy: RuntimeExecutionPolicy {
+            ocr_text_cache: RuntimeVisionTextCachePolicy {
+                enabled: false,
+                dir: None,
+                signature_grid_size: 8,
+            },
+            action_wait_ms: 0,
+            progress_timeout_enabled: true,
+            progress_timeout_ms: 1_000,
+            timeout_action,
+            timeout_notify_channels: Vec::new(),
+        },
+        queue: vec![RuntimeQueueItem {
+            assignment_id: UuidV7(503),
+            script_id: UuidV7(1),
+            time_template_id: None,
+            account_id: None,
+            account_data_json: None,
+            order_index: 0,
+            template_values_json: None,
+        }],
+        script_bundles: Vec::new(),
+        issued_at: chrono::Utc::now().to_rfc3339(),
+    })
+    .await;
 }
 
 fn build_set_var_step(name: &str, expr: &str) -> Step {
@@ -525,6 +563,102 @@ async fn timeout_handling_resets_progress_probe_after_stop_execution() {
 
     assert!(error.to_string().contains("unit-test timeout"));
     assert!(executor.last_progress_probe.is_none());
+}
+
+#[tokio::test]
+async fn if_condition_path_triggers_timeout_detector() {
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "flow.if".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_flow_control_step(&FlowControl::If {
+            con: ConditionNode::RawExpr {
+                expr: "true".to_string(),
+            },
+            then: Vec::new(),
+            else_steps: None,
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn data_set_var_path_triggers_timeout_detector() {
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "data.setVar".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_data_handling_step(
+            &crate::domain::scripts::nodes::data_handing::DataHanding::SetVar {
+                name: "runtime.timeoutProbe".to_string(),
+                val: None,
+                expr: Some("1 + 1".to_string()),
+            },
+        )
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn vision_search_path_triggers_timeout_detector() {
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    let snapshot = VisionSnapshot::new(
+        vec![build_ocr_result("开始", 0, 0, 24, 12)],
+        Vec::new(),
+        None,
+        8,
+    )
+    .unwrap();
+    let page_fingerprint = super::ScriptExecutor::build_page_fingerprint(&snapshot);
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: Some(page_fingerprint),
+        evidence_signature: "vision.search".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.observation.last_snapshot = Some(snapshot);
+    }
+
+    let flow = executor
+        .execute_vision_step(&crate::domain::scripts::nodes::vision_node::VisionNode::VisionSearch {
+            rule: SearchRule::Txt {
+                pattern: "开始".to_string(),
+            },
+            out_var: "runtime.visionHits".to_string(),
+            then_steps: Vec::new(),
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
 }
 
 #[test]
