@@ -24,6 +24,13 @@ const routes = [
         component: () => import('../views/Logs.vue')
     },
     {
+        path: '/time-templates',
+        name: 'TimeTemplates',
+        label: "时间模板",
+        icon: 'calendar-range',
+        component: () => import('../views/TimeTemplates.vue')
+    },
+    {
         path: '/scripts',
         name: 'LocalScriptList',
         label: "本地列表",

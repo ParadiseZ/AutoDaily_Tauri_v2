@@ -90,9 +90,38 @@ export const useTaskStore = defineStore('task', () => {
         return normalizeAssignment(assignment);
     };
 
+    const updateAssignment = async (assignment: DeviceScriptAssignment) => {
+        await taskService.saveAssignment(assignment);
+        await loadAssignments(assignment.deviceId);
+        return normalizeAssignment(assignment);
+    };
+
     const removeAssignment = async (deviceId: string, assignment: AssignmentRecord) => {
         await taskService.deleteAssignment(assignment.id);
         await loadAssignments(deviceId);
+    };
+
+    const detachAssignmentTemplate = async (assignment: AssignmentRecord) => {
+        await updateAssignment({
+            id: assignment.id,
+            deviceId: assignment.deviceId,
+            scriptId: assignment.scriptId,
+            timeTemplateId: null,
+            accountData: assignment.accountData ?? null,
+            index: assignment.index,
+        });
+    };
+
+    const saveTimeTemplate = async (template: TimeTemplate) => {
+        await taskService.saveTimeTemplate(template);
+        await loadTimeTemplates();
+    };
+
+    const deleteTimeTemplate = async (templateId: string) => {
+        await taskService.deleteTimeTemplate(templateId);
+        await loadTimeTemplates();
+        const deviceIds = Object.keys(assignmentsByDevice.value);
+        await Promise.all(deviceIds.map((deviceId) => loadAssignments(deviceId)));
     };
 
     const clearSchedules = async (deviceId: string) => {
@@ -112,6 +141,8 @@ export const useTaskStore = defineStore('task', () => {
         clearSchedules,
         clearSchedulesByScript,
         createAssignment,
+        deleteTimeTemplate,
+        detachAssignmentTemplate,
         hasTemplates,
         hydrateForDevices,
         loadAssignments,
@@ -120,7 +151,9 @@ export const useTaskStore = defineStore('task', () => {
         loadSchedules,
         loadTimeTemplates,
         removeAssignment,
+        saveTimeTemplate,
         schedulesByDevice,
         timeTemplates,
+        updateAssignment,
     };
 });

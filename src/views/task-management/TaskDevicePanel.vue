@@ -35,117 +35,219 @@
 
     <div class="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
       <SurfacePanel tone="muted" padding="sm" class="space-y-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">脚本队列</p>
-            <p class="text-xs text-[var(--app-text-faint)]">队列改动会同步到本地调度表，在线设备会立即收到更新。</p>
-          </div>
-          <StatusBadge :label="`${assignments.length} 条`" tone="neutral" />
-        </div>
-
-        <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
-          <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择要追加的脚本" />
-          <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
-          <button class="app-button app-button-ghost group" type="button" @click="handleAddScript">
-            <AppIcon name="list-plus" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
-            追加
+        <div class="editor-panel-tabs min-w-max">
+          <button
+            v-for="tab in modeTabs"
+            :key="tab.id"
+            type="button"
+            class="editor-panel-tab"
+            :class="{ 'editor-panel-tab-active': activeMode === tab.id }"
+            @click="activeMode = tab.id"
+          >
+            {{ tab.label }}
           </button>
         </div>
-        <p v-if="!scriptOptions.length" class="text-xs text-[var(--app-text-faint)]">
-          当前没有与设备平台匹配的脚本。设备平台为 {{ formatPlatformLabel(device.data.platform) }}。
-        </p>
 
-        <div v-if="loadingAssignments" class="py-10 text-sm text-[var(--app-text-soft)]">正在读取队列...</div>
-        <div v-else-if="assignments.length === 0" class="rounded-[20px] border border-dashed border-[var(--app-border)] p-6 text-sm text-[var(--app-text-soft)]">
-          当前设备为空闲状态。为它追加脚本后，就可以直接从这里启动或暂停执行。
-        </div>
-        <div v-else class="space-y-2">
-          <div
-            v-for="assignment in assignments"
-            :key="assignment.id"
-            class="rounded-[18px] border bg-white/20 px-4 py-3 dark:bg-white/5"
-            :class="assignmentWarning(assignment) ? 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-[var(--app-border)]'"
-          >
-            <div class="flex items-center gap-3">
-              <div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--app-accent-soft)] text-xs font-semibold text-[var(--app-accent)]">
-                {{ assignment.index + 1 }}
+        <template v-if="activeMode === 'queue'">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-semibold text-[var(--app-text-strong)]">总队列</p>
+                <p class="text-xs text-[var(--app-text-faint)]">追加到这里的是正式设备队列，在线设备会立即同步。</p>
               </div>
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2">
-                  <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ getScriptName(assignment.scriptId) }}</p>
-                  <span
-                    v-if="assignmentWarning(assignment)"
-                    class="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                  >
-                    最近超时
-                  </span>
-                </div>
-                <p class="text-xs text-[var(--app-text-faint)]">{{ getTemplateName(assignment.timeTemplateId) }}</p>
-              </div>
-              <button
-                class="app-button app-button-ghost h-8 px-3 text-sm group"
-                type="button"
-                :disabled="!assignment.timeTemplateId"
-                :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
-                @click="$emit('openAssignmentSettings', assignment)"
-              >
-                <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
-              </button>
-              <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
-                <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
+              <StatusBadge :label="`${assignments.length} 条`" tone="neutral" />
+            </div>
+
+            <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
+              <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择要追加的脚本" />
+              <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
+              <button class="app-button app-button-ghost group" type="button" @click="handleAddScript">
+                <AppIcon name="list-plus" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
+                追加
               </button>
             </div>
-            <p v-if="assignmentWarning(assignment)" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
-              {{ assignmentWarning(assignment) }}
+            <p v-if="!scriptOptions.length" class="text-xs text-[var(--app-text-faint)]">
+              当前没有与设备平台匹配的脚本。设备平台为 {{ formatPlatformLabel(device.data.platform) }}。
             </p>
-          </div>
-        </div>
 
-        <div class="space-y-3 rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-[var(--app-text-strong)]">临时运行</p>
-              <p class="text-xs text-[var(--app-text-faint)]">
-                不改队列定义，按 `everyRun` 临时装填 `FullScript / Task`，不写正式调度记录，但会保留运行日志。
-              </p>
+            <div class="space-y-3 rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">待运行队列</p>
+                  <p class="text-xs text-[var(--app-text-faint)]">今天还未调度，且当前时间尚未超过模板窗口结束时间的队列项。</p>
+                </div>
+                <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-faint)]">
+                  {{ pendingAssignments.length }} 条
+                </span>
+              </div>
+
+              <div v-if="!pendingAssignments.length" class="text-sm text-[var(--app-text-soft)]">
+                当前没有待运行队列项。
+              </div>
+
+              <div v-else class="space-y-2">
+                <div
+                  v-for="item in pendingAssignments"
+                  :key="item.assignment.id"
+                  class="rounded-[16px] border border-[var(--app-border)] bg-white/70 px-4 py-3 dark:bg-white/5"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ getScriptName(item.assignment.scriptId) }}</p>
+                      <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ getTemplateName(item.assignment.timeTemplateId) }}</p>
+                    </div>
+                    <span class="rounded-full px-3 py-1 text-xs" :class="item.waiting ? 'bg-sky-500/12 text-sky-700' : 'bg-emerald-500/12 text-emerald-700'">
+                      {{ item.waiting ? '未到时段' : '待执行' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="loadingAssignments" class="py-10 text-sm text-[var(--app-text-soft)]">正在读取队列...</div>
+            <div v-else-if="assignments.length === 0" class="rounded-[20px] border border-dashed border-[var(--app-border)] p-6 text-sm text-[var(--app-text-soft)]">
+              当前设备为空闲状态。为它追加脚本后，就可以直接从这里启动或暂停执行。
+            </div>
+            <div v-else class="space-y-2">
+              <div
+                v-for="assignment in assignments"
+                :key="assignment.id"
+                class="rounded-[18px] border bg-white/20 px-4 py-3 dark:bg-white/5"
+                :class="assignmentWarning(assignment) ? 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-[var(--app-border)]'"
+              >
+                <div class="flex items-center gap-3">
+                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--app-accent-soft)] text-xs font-semibold text-[var(--app-accent)]">
+                    {{ assignment.index + 1 }}
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ getScriptName(assignment.scriptId) }}</p>
+                      <span
+                        v-if="assignmentWarning(assignment)"
+                        class="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                      >
+                        最近超时
+                      </span>
+                    </div>
+                    <p class="text-xs text-[var(--app-text-faint)]">{{ getTemplateName(assignment.timeTemplateId) }}</p>
+                  </div>
+                  <button
+                    class="app-button app-button-ghost h-8 px-3 text-sm group"
+                    type="button"
+                    :disabled="!assignment.timeTemplateId"
+                    :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
+                    @click="$emit('openAssignmentSettings', assignment)"
+                  >
+                    <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
+                  </button>
+                  <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
+                    <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
+                  </button>
+                </div>
+                <p v-if="assignmentWarning(assignment)" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                  {{ assignmentWarning(assignment) }}
+                </p>
+              </div>
             </div>
           </div>
+        </template>
 
-          <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <AppSelect
-              v-model="selectedTemporaryScriptId"
-              :options="scriptOptions"
-              placeholder="选择要临时运行的脚本"
-            />
-            <AppSelect
-              v-model="selectedTemporaryTaskId"
-              :options="temporaryTaskOptions"
-              :placeholder="temporaryTaskPlaceholder"
-            />
-          </div>
+        <template v-else>
+          <div class="grid min-h-[420px] gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div class="space-y-2">
+              <div>
+                <p class="text-sm font-semibold text-[var(--app-text-strong)]">临时运行</p>
+                <p class="text-xs text-[var(--app-text-faint)]">这里只做临时调试，不读时间模板，不写正式调度记录。</p>
+              </div>
 
-          <div class="flex flex-wrap gap-2">
-            <button class="app-button app-button-ghost group" type="button" @click="handleRunTemporaryScript">
-              <AppIcon
-                name="file-play"
-                :size="16"
-                class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors"
-              />
-              运行脚本
-            </button>
-            <button class="app-button app-button-ghost group" type="button" @click="handleRunTemporaryTask">
-              <AppIcon
-                name="list-checks"
-                :size="16"
-                class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors"
-              />
-              运行任务
-            </button>
+              <div v-if="!temporaryScriptItems.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+                当前没有可用脚本。
+              </div>
+
+              <button
+                v-for="script in temporaryScriptItems"
+                :key="script.id"
+                type="button"
+                class="temporary-script-item"
+                :class="{ 'temporary-script-item-active': selectedTemporaryScriptId === script.id }"
+                @click="selectedTemporaryScriptId = script.id"
+              >
+                {{ script.name }}
+              </button>
+            </div>
+
+            <div class="space-y-4 rounded-[18px] border border-[var(--app-border)] bg-white/45 px-4 py-4 dark:bg-white/5">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">
+                    {{ selectedTemporaryScriptName || '选择左侧脚本' }}
+                  </p>
+                  <p class="text-xs text-[var(--app-text-faint)]">右侧直接列出任务，不显示时间模板和任务周期。</p>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  <button class="app-button app-button-ghost group" type="button" :disabled="!selectedTemporaryScriptId" @click="handleRunTemporaryScript">
+                    <AppIcon
+                      name="file-play"
+                      :size="16"
+                      class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors"
+                    />
+                    运行脚本
+                  </button>
+                  <button class="app-button app-button-ghost group" type="button" :disabled="!selectedTemporaryTaskId" @click="handleRunTemporaryTask">
+                    <AppIcon
+                      name="list-checks"
+                      :size="16"
+                      class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors"
+                    />
+                    运行任务
+                  </button>
+                </div>
+              </div>
+
+              <p v-if="temporaryWarningMessage" class="text-xs text-amber-700 dark:text-amber-300">
+                最近超时：{{ temporaryWarningMessage }}
+              </p>
+
+              <div v-if="!selectedTemporaryScriptId" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+                左侧选择一个脚本后，这里显示它的全部任务。
+              </div>
+              <div v-else-if="props.scriptTaskLoading[selectedTemporaryScriptId]" class="py-10 text-sm text-[var(--app-text-soft)]">
+                正在加载任务列表...
+              </div>
+              <div v-else-if="!temporaryRows.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+                当前脚本没有任务。
+              </div>
+              <div v-else class="space-y-2">
+                <template v-for="row in temporaryRows" :key="row.id">
+                  <div v-if="row.rowType === 'title'" class="rounded-[16px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)]">
+                    {{ row.name }}
+                  </div>
+                  <div
+                    v-else
+                    class="temporary-task-row w-full text-left"
+                    :class="{ 'temporary-task-row-active': selectedTemporaryTaskId === row.id }"
+                    role="button"
+                    tabindex="0"
+                    @click="selectedTemporaryTaskId = row.id"
+                    @keydown.enter.prevent="selectedTemporaryTaskId = row.id"
+                    @keydown.space.prevent="selectedTemporaryTaskId = row.id"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-medium text-[var(--app-text-strong)]">{{ row.name }}</p>
+                        <p class="mt-1 text-xs text-[var(--app-text-faint)]">Task</p>
+                      </div>
+                      <button class="app-button app-button-ghost h-8 px-3 text-sm" type="button" @click.stop="runSpecificTemporaryTask(row.id)">
+                        运行
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </div>
           </div>
-          <p v-if="temporaryWarningMessage" class="text-xs text-amber-700 dark:text-amber-300">
-            最近超时：{{ temporaryWarningMessage }}
-          </p>
-        </div>
+        </template>
       </SurfacePanel>
 
       <SurfacePanel tone="muted" padding="sm" class="space-y-4">
@@ -184,7 +286,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -238,10 +340,20 @@ const emit = defineEmits<{
   clearSchedules: [deviceId: string];
 }>();
 
+const modeTabs = [
+  { id: 'queue', label: '队列任务' },
+  { id: 'temporary', label: '临时运行' },
+] as const;
+
+const activeMode = ref<'queue' | 'temporary'>('queue');
 const selectedScriptId = ref('');
 const selectedTemplateId = ref('');
 const selectedTemporaryScriptId = ref('');
 const selectedTemporaryTaskId = ref('');
+const nowTick = ref(Date.now());
+const timer = window.setInterval(() => {
+  nowTick.value = Date.now();
+}, 60_000);
 
 const devicePlatform = computed(() => props.device.data.platform ?? 'android');
 
@@ -252,6 +364,15 @@ const scriptOptions = computed(() =>
       label: script.data.name,
       value: script.id,
       description: script.data.description || formatPlatformLabel(script.data.platform),
+    })),
+);
+
+const temporaryScriptItems = computed(() =>
+  props.scripts
+    .filter((script) => (script.data.platform ?? 'android') === devicePlatform.value)
+    .map((script) => ({
+      id: script.id,
+      name: script.data.name,
     })),
 );
 
@@ -268,33 +389,15 @@ const templateMap = computed(() =>
   Object.fromEntries(props.timeTemplates.map((template) => [template.id, template])),
 );
 
-const getScriptName = (scriptId: string) => {
-  return props.scripts.find((script) => script.id === scriptId)?.data.name || '未知脚本';
-};
-
-const getTemplateName = (templateId: string | null) => {
-  return formatTemplateWindow(templateId ? templateMap.value[templateId] : null);
-};
-
-const temporaryTaskOptions = computed(() =>
-  (props.scriptTasksByScriptId[selectedTemporaryScriptId.value] ?? [])
-    .filter((task) => task.rowType === 'task' && !task.isDeleted)
-    .map((task) => ({
-      label: task.name,
-      value: task.id,
-      description: `触发方式：${task.triggerMode} · 执行次数上限：${task.execMax || '无限'}`,
-    })),
+const selectedTemporaryScriptName = computed(() =>
+  temporaryScriptItems.value.find((script) => script.id === selectedTemporaryScriptId.value)?.name ?? '',
 );
 
-const temporaryTaskPlaceholder = computed(() => {
-  if (!selectedTemporaryScriptId.value) {
-    return '先选择脚本';
-  }
-  if (props.scriptTaskLoading[selectedTemporaryScriptId.value]) {
-    return '正在加载任务列表...';
-  }
-  return '选择要临时运行的任务';
-});
+const temporaryRows = computed(() =>
+  [...(props.scriptTasksByScriptId[selectedTemporaryScriptId.value] ?? [])]
+    .filter((task) => !task.isDeleted)
+    .sort((left, right) => left.index - right.index),
+);
 
 const normalizeWarningMessage = (message?: string | null) => message?.trim() || null;
 
@@ -343,15 +446,72 @@ const temporaryWarningMessage = computed(() => {
   return buildTimeoutWarningMessage(timeoutEvent);
 });
 
-watch(
-  selectedTemporaryScriptId,
-  (scriptId) => {
-    selectedTemporaryTaskId.value = '';
-    if (!scriptId) {
-      return;
-    }
-    emit('ensureScriptTasks', scriptId);
-  },
+const getScriptName = (scriptId: string) => {
+  return props.scripts.find((script) => script.id === scriptId)?.data.name || '未知脚本';
+};
+
+const getTemplateName = (templateId: string | null) => {
+  return formatTemplateWindow(templateId ? templateMap.value[templateId] : null);
+};
+
+const parseTimeToMinutes = (value: string | null | undefined) => {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) {
+    return null;
+  }
+  const [hours, minutes] = value.split(':').map((item) => Number(item));
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+    return null;
+  }
+  return hours * 60 + minutes;
+};
+
+const currentDayKey = computed(() => {
+  const current = new Date(nowTick.value);
+  return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+});
+
+const currentMinuteOfDay = computed(() => {
+  const current = new Date(nowTick.value);
+  return current.getHours() * 60 + current.getMinutes();
+});
+
+const scheduleDayKey = (value: string) => {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const ranAssignmentIdsToday = computed(() =>
+  new Set(
+    props.schedules
+      .filter((schedule) => schedule.assignmentId && scheduleDayKey(schedule.startedAt) === currentDayKey.value)
+      .map((schedule) => String(schedule.assignmentId)),
+  ),
+);
+
+const pendingAssignments = computed(() =>
+  props.assignments
+    .map((assignment) => {
+      if (!assignment.timeTemplateId || ranAssignmentIdsToday.value.has(assignment.id)) {
+        return null;
+      }
+
+      const template = templateMap.value[assignment.timeTemplateId];
+      if (!template) {
+        return null;
+      }
+
+      const startMinute = parseTimeToMinutes(template.startTime);
+      const endMinute = parseTimeToMinutes(template.endTime);
+      if (endMinute !== null && currentMinuteOfDay.value > endMinute) {
+        return null;
+      }
+
+      return {
+        assignment,
+        waiting: startMinute !== null && currentMinuteOfDay.value < startMinute,
+      };
+    })
+    .filter((item): item is { assignment: AssignmentRecord; waiting: boolean } => Boolean(item)),
 );
 
 const handleRunTemporaryScript = () => {
@@ -377,6 +537,11 @@ const handleRunTemporaryTask = () => {
   });
 };
 
+const runSpecificTemporaryTask = (taskId: string) => {
+  selectedTemporaryTaskId.value = taskId;
+  handleRunTemporaryTask();
+};
+
 const handleAddScript = () => {
   if (!selectedScriptId.value) {
     return;
@@ -386,4 +551,97 @@ const handleAddScript = () => {
   selectedScriptId.value = '';
   selectedTemplateId.value = '';
 };
+
+watch(
+  selectedTemporaryScriptId,
+  (scriptId) => {
+    if (!scriptId) {
+      selectedTemporaryTaskId.value = '';
+      return;
+    }
+    emit('ensureScriptTasks', scriptId);
+  },
+);
+
+watch(
+  temporaryScriptItems,
+  (items) => {
+    if (items.some((item) => item.id === selectedTemporaryScriptId.value)) {
+      return;
+    }
+    selectedTemporaryScriptId.value = items[0]?.id ?? '';
+  },
+  { immediate: true },
+);
+
+watch(
+  temporaryRows,
+  (rows) => {
+    if (rows.some((row) => row.id === selectedTemporaryTaskId.value && row.rowType === 'task')) {
+      return;
+    }
+    selectedTemporaryTaskId.value = rows.find((row) => row.rowType === 'task')?.id ?? '';
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  window.clearInterval(timer);
+});
 </script>
+
+<style scoped>
+.editor-panel-tabs {
+  display: inline-flex;
+  gap: 0.4rem;
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.3rem;
+}
+
+.editor-panel-tab {
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--app-text-soft);
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.editor-panel-tab:hover {
+  color: var(--app-text-strong);
+}
+
+.editor-panel-tab-active {
+  border-color: color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
+  background: color-mix(in srgb, var(--app-accent-soft) 58%, white);
+  color: var(--app-text-strong);
+}
+
+.temporary-script-item,
+.temporary-task-row {
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 0.85rem 1rem;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.temporary-script-item {
+  width: 100%;
+  text-align: left;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--app-text-strong);
+}
+
+.temporary-script-item-active,
+.temporary-task-row-active {
+  border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border));
+  background: color-mix(in srgb, var(--app-accent-soft) 58%, white);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 16%, transparent);
+}
+</style>

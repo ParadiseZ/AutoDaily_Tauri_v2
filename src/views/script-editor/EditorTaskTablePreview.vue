@@ -29,13 +29,14 @@
               :show-enabled-toggle="task.showEnabledToggle"
               :default-enabled="task.defaultEnabled"
               :task-tone="task.taskTone"
+              :show-task-cycle="showTaskCycle"
               :embedded="true"
               :readonly="selectedTaskId !== task.id"
               :active="selectedTaskId === task.id"
               :indent-level="task.indentLevel"
               :ui-schema="selectedTaskId === task.id ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
               :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
-              :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : []"
+              :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : sharedInputEntries"
               @select-ui-field="$emit('select-ui-field', $event)"
               @update-input="forwardUpdateInput"
               @update:default-enabled="$emit('update:default-enabled', $event)"
@@ -74,13 +75,14 @@
                 :show-enabled-toggle="task.showEnabledToggle"
                 :default-enabled="task.defaultEnabled"
                 :task-tone="task.taskTone"
+                :show-task-cycle="showTaskCycle"
                 :embedded="true"
                 :readonly="selectedTaskId !== task.id"
                 :active="selectedTaskId === task.id"
                 :indent-level="task.indentLevel"
                 :ui-schema="selectedTaskId === task.id ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
                 :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
-                :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : []"
+                :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : sharedInputEntries"
                 @select-ui-field="$emit('select-ui-field', $event)"
                 @update-input="forwardUpdateInput"
                 @update:default-enabled="$emit('update:default-enabled', $event)"
@@ -112,16 +114,21 @@ import EditorUiPreviewPanel from '@/views/script-editor/EditorUiPreviewPanel.vue
 
 defineOptions({ name: 'EditorTaskTablePreview' });
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   tasks: ScriptTaskTable[];
   selectedTaskId: string | null;
   selectedTaskUiSchema: EditorUiSchema;
   selectedTaskInputEntries: EditorInputEntry[];
+  sharedInputEntries?: EditorInputEntry[];
   selectedUiFieldId: string | null;
   selectedTaskCycleValue: string;
   selectedTaskCycleMode: 'named' | 'weekDay' | 'monthDay';
   selectedTaskCycleDay: number;
-}>();
+  showTaskCycle?: boolean;
+}>(), {
+  sharedInputEntries: () => [],
+  showTaskCycle: true,
+});
 
 const emit = defineEmits<{
   'select-task': [taskId: string];

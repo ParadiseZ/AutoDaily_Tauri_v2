@@ -2,6 +2,7 @@ import type { JsonValue, ScriptTableRecord } from '@/types/app/domain';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { ScriptVariableDef } from '@/types/bindings/ScriptVariableDef';
 import type { ScriptVariableValueType } from '@/types/bindings/ScriptVariableValueType';
+import type { EditorInputEntry, EditorInputType } from '@/views/script-editor/editorVariables';
 import { getVariableDisplayKey } from '@/views/script-editor/editorVariables';
 
 export interface TemplateVariableEntry {
@@ -138,6 +139,62 @@ export const createTemplateVariableEntries = (
 
 export const buildTemplateVariablePayload = (entries: TemplateVariableEntry[]) =>
   Object.fromEntries(entries.map((entry) => [entry.id, parseValue(entry)] satisfies [string, JsonValue]));
+
+const mapTemplateValueTypeToInputType = (valueType: ScriptVariableValueType): EditorInputType => {
+  switch (valueType) {
+    case 'int':
+      return 'int';
+    case 'float':
+      return 'float';
+    case 'bool':
+      return 'bool';
+    case 'image':
+      return 'image';
+    case 'json':
+    case 'list':
+    case 'object':
+      return 'json';
+    default:
+      return 'string';
+  }
+};
+
+export const buildTemplateEditorInputs = (entries: TemplateVariableEntry[]): EditorInputEntry[] =>
+  entries.map((entry) => ({
+    id: entry.id,
+    key: entry.displayKey,
+    name: entry.name,
+    description: entry.description,
+    namespace: 'input',
+    type: mapTemplateValueTypeToInputType(entry.valueType),
+    stringValue: entry.stringValue,
+    booleanValue: entry.booleanValue,
+    sourceStepId: null,
+  }));
+
+export const updateTemplateEntryFromEditorInput = (
+  entries: TemplateVariableEntry[],
+  entryId: string,
+  field: 'stringValue' | 'booleanValue',
+  value: string | boolean,
+) =>
+  entries.map((entry) => {
+    if (entry.id !== entryId) {
+      return entry;
+    }
+
+    if (field === 'booleanValue') {
+      return {
+        ...entry,
+        booleanValue: Boolean(value),
+      };
+    }
+
+    return {
+      ...entry,
+      stringValue: String(value),
+    };
+  });
 
 export const formatTemplateVariableDefault = (value: JsonValue | null) => {
   if (value === null) {

@@ -146,24 +146,26 @@
       </div>
 
       <div class="editor-ui-task-cycle-shell" @click.stop>
-        <EditorSelectField
-          v-if="editableCycle"
-          :model-value="selectedTaskCycleValue"
-          :options="taskCycleOptions"
-          placeholder="选择默认周期"
-          test-id="editor-ui-preview-task-cycle"
-          @update:model-value="$emit('update:default-task-cycle-value', String($event || 'everyRun'))"
-        />
-        <span v-else class="editor-ui-task-cycle">{{ taskCycleLabel }}</span>
-        <input
-          v-if="editableCycle && (defaultTaskCycleMode === 'weekDay' || defaultTaskCycleMode === 'monthDay')"
-          :value="defaultTaskCycleDay"
-          class="editor-ui-cycle-day-input"
-          type="number"
-          :min="1"
-          :max="defaultTaskCycleMode === 'weekDay' ? 7 : 31"
-          @input="$emit('update:default-task-cycle-day', Number(($event.target as HTMLInputElement).value || 1))"
-        />
+        <template v-if="showTaskCycle">
+          <EditorSelectField
+            v-if="editableCycle"
+            :model-value="selectedTaskCycleValue"
+            :options="taskCycleOptions"
+            placeholder="选择默认周期"
+            test-id="editor-ui-preview-task-cycle"
+            @update:model-value="$emit('update:default-task-cycle-value', String($event || 'everyRun'))"
+          />
+          <span v-else class="editor-ui-task-cycle">{{ taskCycleLabel }}</span>
+          <input
+            v-if="editableCycle && (defaultTaskCycleMode === 'weekDay' || defaultTaskCycleMode === 'monthDay')"
+            :value="defaultTaskCycleDay"
+            class="editor-ui-cycle-day-input"
+            type="number"
+            :min="1"
+            :max="defaultTaskCycleMode === 'weekDay' ? 7 : 31"
+            @input="$emit('update:default-task-cycle-day', Number(($event.target as HTMLInputElement).value || 1))"
+          />
+        </template>
       </div>
     </div>
   </div>
@@ -182,7 +184,7 @@ import { findBoundInputEntry, parseFieldOptions, resolvePreviewValue } from '@/v
 
 defineOptions({ name: 'EditorUiPreviewPanel' });
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   taskName: string;
   defaultTaskCycle: TaskCycle;
   defaultTaskCycleValue?: string;
@@ -192,6 +194,7 @@ const props = defineProps<{
   showEnabledToggle: boolean;
   defaultEnabled: boolean;
   taskTone: TaskTone;
+  showTaskCycle?: boolean;
   embedded?: boolean;
   readonly?: boolean;
   active?: boolean;
@@ -199,7 +202,9 @@ const props = defineProps<{
   uiSchema: EditorUiSchema;
   selectedUiFieldId: string | null;
   inputEntries: EditorInputEntry[];
-}>();
+}>(), {
+  showTaskCycle: true,
+});
 
 const emit = defineEmits<{
   'select-ui-field': [fieldId: string];

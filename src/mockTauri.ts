@@ -572,6 +572,27 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         }
         case 'get_all_time_templates_cmd':
           return readState().timeTemplates;
+        case 'save_time_template_cmd':
+          updateState((current) => {
+            const template = args.template as { id: string };
+            return {
+              ...current,
+              timeTemplates: upsertById(current.timeTemplates as Array<{ id: string }>, template),
+            };
+          });
+          return null;
+        case 'delete_time_template_cmd':
+          updateState((current) => {
+            const templateId = String(args.templateId);
+            return {
+              ...current,
+              timeTemplates: (current.timeTemplates as Array<{ id: string }>).filter((template) => template.id !== templateId),
+              scriptTemplateValues: Object.fromEntries(
+                Object.entries(current.scriptTemplateValues).filter(([, record]) => record.timeTemplateId !== templateId),
+              ),
+            };
+          });
+          return null;
         case 'get_script_time_template_values_cmd': {
           const state = readState();
           return state.scriptTemplateValues[

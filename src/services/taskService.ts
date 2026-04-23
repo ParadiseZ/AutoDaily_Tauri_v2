@@ -19,5 +19,9 @@ export const taskService = {
     clearSchedulesByScript: (scriptId: string) =>
         invoke('clear_schedules_by_script_cmd', { scriptId }) as Promise<void>,
     listTimeTemplates: () => invoke('get_all_time_templates_cmd') as Promise<TimeTemplate[]>,
+    saveTimeTemplate: (template: TimeTemplate) =>
+        invoke('save_time_template_cmd', { template }) as Promise<void>,
+    deleteTimeTemplate: (templateId: string) =>
+        invoke('delete_time_template_cmd', { templateId }) as Promise<void>,
     requestUuid: () => invoke('get_uuid_v7') as Promise<string>,
 };
