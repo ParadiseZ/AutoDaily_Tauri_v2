@@ -4,6 +4,8 @@ use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
 use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
 use crate::domain::scripts::nodes::flow_control::{ConditionNode, FlowControl};
+use crate::domain::scripts::nodes::action::Action;
+use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
 use crate::domain::scripts::script_task::{
@@ -28,9 +30,12 @@ use rhai::serde::to_dynamic;
 use serde_json::{json, Value};
 use sqlx::types::Json;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::Instant;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio::sync::RwLock;
+
+static RUNTIME_SESSION_TEST_MUTEX: OnceLock<Arc<Mutex<()>>> = OnceLock::new();
 
 fn build_ocr_result(txt: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> OcrResult {
     OcrResult::new(
@@ -288,6 +293,14 @@ async fn install_runtime_policy_for_test(timeout_action: TimeoutAction) {
         issued_at: chrono::Utc::now().to_rfc3339(),
     })
     .await;
+}
+
+async fn acquire_runtime_session_test_guard() -> OwnedMutexGuard<()> {
+    RUNTIME_SESSION_TEST_MUTEX
+        .get_or_init(|| Arc::new(Mutex::new(())))
+        .clone()
+        .lock_owned()
+        .await
 }
 
 fn build_set_var_step(name: &str, expr: &str) -> Step {
@@ -567,6 +580,7 @@ async fn timeout_handling_resets_progress_probe_after_stop_execution() {
 
 #[tokio::test]
 async fn if_condition_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
     install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
     let mut executor = build_executor();
     executor.last_progress_probe = Some(super::ProgressProbe {
@@ -595,6 +609,7 @@ async fn if_condition_path_triggers_timeout_detector() {
 
 #[tokio::test]
 async fn data_set_var_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
     install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
     let mut executor = build_executor();
     executor.last_progress_probe = Some(super::ProgressProbe {
@@ -623,6 +638,7 @@ async fn data_set_var_path_triggers_timeout_detector() {
 
 #[tokio::test]
 async fn vision_search_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
     install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
     let mut executor = build_executor();
     let snapshot = VisionSnapshot::new(
@@ -653,6 +669,62 @@ async fn vision_search_path_triggers_timeout_detector() {
             },
             out_var: "runtime.visionHits".to_string(),
             then_steps: Vec::new(),
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn action_prepare_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "action.prepare".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_action_step(
+            None,
+            0,
+            &Action::LaunchApp {
+                pkg_name: String::new(),
+                activity_name: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn task_control_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "taskControl.setState".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_task_control_step(&TaskControl::SetState {
+            target: StateTarget::Task { id: UuidV7(700) },
+            status: StateStatus::Skip { value: true },
         })
         .await
         .unwrap();

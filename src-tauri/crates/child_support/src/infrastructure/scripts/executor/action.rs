@@ -9,6 +9,13 @@ impl ScriptExecutor {
             return Ok(ControlFlow::Next);
         }
 
+        if let Some(timeout_flow) = self
+            .record_progress_evidence("action.prepare", format!("准备执行动作 {:?}", action))
+            .await?
+        {
+            return Ok(timeout_flow);
+        }
+
         self.before_action(action).await?;
         let (flow, action_trace) = self.dispatch_action(action).await?;
         if let Some(action_trace) = action_trace.as_ref() {

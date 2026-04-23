@@ -684,6 +684,12 @@ impl ScriptExecutor {
         &mut self,
         task_control: &TaskControl,
     ) -> ExecuteResult<ControlFlow> {
+        if let Some(timeout_flow) = self
+            .record_progress_evidence("taskControl.setState", "TaskControl 状态写入")
+            .await?
+        {
+            return Ok(timeout_flow);
+        }
         match task_control {
             TaskControl::SetState { target, status } => {
                 self.set_state_value(target, status).await?;
