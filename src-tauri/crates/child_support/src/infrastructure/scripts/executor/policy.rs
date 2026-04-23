@@ -560,9 +560,7 @@ impl ScriptExecutor {
             "[ policy_debug ] 开始{}调试截图与视觉分析",
             debug_target_label
         ));
-        let image = Arc::new(get_device_ctx().get_screenshot().await.ok_or_else(|| {
-            Self::execute_error("debug.policy", "获取设备截图失败".to_string())
-        })?);
+        let image = Arc::new(self.capture_device_screenshot("debug.policy").await?);
         self.activate_image_context("debug.policy", image, Some("runtime.policyDebugCapture"))
             .await
     }

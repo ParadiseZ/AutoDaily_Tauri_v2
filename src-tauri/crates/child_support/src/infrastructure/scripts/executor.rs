@@ -36,6 +36,7 @@ use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::infrastructure::session::runtime_session::{
     get_runtime_execution_policy, get_script_bundle_snapshot,
 };
+use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{DynamicImage, RgbaImage};
 use rhai::serde::{from_dynamic, to_dynamic};
 use rhai::{Array, Dynamic, Engine, Map, Scope, FLOAT, INT};
@@ -47,6 +48,7 @@ use std::hash::Hasher;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::sync::Mutex;
 use tokio::time::Duration;
 use twox_hash::XxHash3_64;
 

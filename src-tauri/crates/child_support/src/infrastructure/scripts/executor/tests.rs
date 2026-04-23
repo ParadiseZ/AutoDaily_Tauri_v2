@@ -579,6 +579,41 @@ async fn timeout_handling_resets_progress_probe_after_stop_execution() {
 }
 
 #[tokio::test]
+async fn device_operation_helper_times_out() {
+    let error = ScriptExecutor::await_device_result_with_timeout(
+        "unit.deviceTimeout",
+        "设备操作",
+        10,
+        async {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            Ok::<(), String>(())
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.to_string().contains("设备操作超时"));
+}
+
+#[tokio::test]
+async fn vision_inference_helper_times_out() {
+    let error = ScriptExecutor::run_ocr_service_with_timeout(
+        "unit.visionTimeout",
+        "OCR",
+        10,
+        Arc::new(Mutex::new(OcrService::new())),
+        |_service| {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            Ok::<(), String>(())
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.to_string().contains("OCR超时"));
+}
+
+#[tokio::test]
 async fn if_condition_path_triggers_timeout_detector() {
     let _guard = acquire_runtime_session_test_guard().await;
     install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;

@@ -1,3 +1,6 @@
+const DEVICE_EXTERNAL_TIMEOUT_MS: u64 = 5_000;
+const VISION_INFERENCE_TIMEOUT_MS: u64 = 10_000;
+
 impl ScriptExecutor {
     async fn execute_action_step(
         &mut self,
@@ -91,9 +94,7 @@ impl ScriptExecutor {
     ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
         match action {
             Action::Capture { output_var } => {
-                let image = Arc::new(get_device_ctx().get_screenshot().await.ok_or_else(|| {
-                    Self::execute_error("action.capture", "获取设备截图失败".to_string())
-                })?);
+                let image = Arc::new(self.capture_device_screenshot("action.capture").await?);
                 self.activate_image_context("action.capture", image, Some(output_var))
                     .await?;
                 Ok((ControlFlow::Next, None))
@@ -101,10 +102,13 @@ impl ScriptExecutor {
             Action::Click { mode } => self.execute_click(mode).await,
             Action::Swipe { duration, mode } => self.execute_swipe(mode, *duration).await,
             Action::Reboot => {
-                get_device_ctx()
-                    .reboot()
-                    .await
-                    .map_err(|e| Self::execute_error("action.reboot", e))?;
+                Self::await_device_result_with_timeout(
+                    "action.reboot",
+                    "设备重启",
+                    DEVICE_EXTERNAL_TIMEOUT_MS,
+                    get_device_ctx().reboot(),
+                )
+                .await?;
                 Ok((
                     ControlFlow::Next,
                     Some(Self::build_simple_action_trace(PolicyActionKind::Reboot)),
@@ -120,20 +124,26 @@ impl ScriptExecutor {
                         "LaunchApp 需要同时提供 pkg_name 和 activity_name".to_string(),
                     ));
                 }
-                get_device_ctx()
-                    .launch_app(pkg_name, activity_name)
-                    .await
-                    .map_err(|e| Self::execute_error("action.launchApp", e))?;
+                Self::await_device_result_with_timeout(
+                    "action.launchApp",
+                    "启动应用",
+                    DEVICE_EXTERNAL_TIMEOUT_MS,
+                    get_device_ctx().launch_app(pkg_name, activity_name),
+                )
+                .await?;
                 Ok((
                     ControlFlow::Next,
                     Some(Self::build_simple_action_trace(PolicyActionKind::StartApp)),
                 ))
             }
             Action::StopApp { pkg_name } => {
-                get_device_ctx()
-                    .stop_app(pkg_name)
-                    .await
-                    .map_err(|e| Self::execute_error("action.stopApp", e))?;
+                Self::await_device_result_with_timeout(
+                    "action.stopApp",
+                    "停止应用",
+                    DEVICE_EXTERNAL_TIMEOUT_MS,
+                    get_device_ctx().stop_app(pkg_name),
+                )
+                .await?;
                 Ok((
                     ControlFlow::Next,
                     Some(Self::build_simple_action_trace(PolicyActionKind::StopApp)),
@@ -209,10 +219,13 @@ impl ScriptExecutor {
                 )
             }
         };
-        get_device_ctx()
-            .click(point)
-            .await
-            .map_err(|e| Self::execute_error("action.click", e))?;
+        Self::await_device_result_with_timeout(
+            "action.click",
+            "设备点击",
+            DEVICE_EXTERNAL_TIMEOUT_MS,
+            get_device_ctx().click(point),
+        )
+        .await?;
         Ok((ControlFlow::Next, Some(trace)))
     }
 
@@ -381,10 +394,13 @@ impl ScriptExecutor {
                 )
             }
         };
-        get_device_ctx()
-            .swipe(from, to, duration)
-            .await
-            .map_err(|e| Self::execute_error("action.swipe", e))?;
+        Self::await_device_result_with_timeout(
+            "action.swipe",
+            "设备滑动",
+            DEVICE_EXTERNAL_TIMEOUT_MS,
+            get_device_ctx().swipe(from, to, duration),
+        )
+        .await?;
         Ok((ControlFlow::Next, Some(trace)))
     }
 
@@ -514,19 +530,37 @@ impl ScriptExecutor {
         }
 
         let capture_image = DynamicImage::ImageRgba8(image.clone());
+        let det_capture_image = capture_image.clone();
+        let ocr_capture_image = capture_image.clone();
         let det_results = if has_img_det_model {
-            let mut service = img_det_service.lock().await;
-            service.detect(&capture_image).map_err(|error| {
-                Self::execute_error("action.capture", format!("目标检测执行失败: {}", error))
-            })?
+            Self::run_ocr_service_with_timeout(
+                "action.capture",
+                "目标检测",
+                VISION_INFERENCE_TIMEOUT_MS,
+                img_det_service,
+                move |service| {
+                    service
+                        .detect(&det_capture_image)
+                        .map_err(|error| format!("目标检测执行失败: {}", error))
+                },
+            )
+            .await?
         } else {
             Vec::new()
         };
         let ocr_results = if has_txt_det_model {
-            let mut service = ocr_service.lock().await;
-            service.ocr_batch(&capture_image).map_err(|error| {
-                Self::execute_error("action.capture", format!("OCR 执行失败: {}", error))
-            })?
+            Self::run_ocr_service_with_timeout(
+                "action.capture",
+                "OCR",
+                VISION_INFERENCE_TIMEOUT_MS,
+                ocr_service,
+                move |service| {
+                    service
+                        .ocr_batch(&ocr_capture_image)
+                        .map_err(|error| format!("OCR 执行失败: {}", error))
+                },
+            )
+            .await?
         } else {
             Vec::new()
         };
@@ -634,9 +668,7 @@ impl ScriptExecutor {
             ctx.observation.screen_size = screen_size;
             return Ok(screen_size);
         }
-        let image = get_device_ctx().get_screenshot().await.ok_or_else(|| {
-            Self::execute_error("action.screenSize", "获取屏幕尺寸失败".to_string())
-        })?;
+        let image = self.capture_device_screenshot("action.screenSize").await?;
         let screen_size = (image.width(), image.height());
         let mut ctx = self.runtime_ctx.write().await;
         ctx.observation.last_capture_image = Some(Arc::new(image));
@@ -1104,6 +1136,84 @@ impl ScriptExecutor {
             .script_info
             .as_ref()
             .and_then(|info| info.runtime_settings.recovery_task_id)
+    }
+
+    async fn capture_device_screenshot(&self, step_type: &str) -> ExecuteResult<RgbaImage> {
+        Self::await_device_option_with_timeout(
+            step_type,
+            "设备截图",
+            DEVICE_EXTERNAL_TIMEOUT_MS,
+            get_device_ctx().get_screenshot(),
+        )
+        .await
+    }
+
+    async fn await_device_result_with_timeout<T, F>(
+        step_type: &str,
+        label: &str,
+        timeout_ms: u64,
+        future: F,
+    ) -> ExecuteResult<T>
+    where
+        F: Future<Output = Result<T, String>>,
+    {
+        match tokio::time::timeout(Duration::from_millis(timeout_ms), future).await {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(error)) => Err(Self::execute_error(step_type, error)),
+            Err(_) => Err(Self::execute_error(
+                step_type,
+                format!("{}超时，超过{}ms", label, timeout_ms),
+            )),
+        }
+    }
+
+    async fn await_device_option_with_timeout<T, F>(
+        step_type: &str,
+        label: &str,
+        timeout_ms: u64,
+        future: F,
+    ) -> ExecuteResult<T>
+    where
+        F: Future<Output = Option<T>>,
+    {
+        match tokio::time::timeout(Duration::from_millis(timeout_ms), future).await {
+            Ok(Some(value)) => Ok(value),
+            Ok(None) => Err(Self::execute_error(step_type, format!("{}失败", label))),
+            Err(_) => Err(Self::execute_error(
+                step_type,
+                format!("{}超时，超过{}ms", label, timeout_ms),
+            )),
+        }
+    }
+
+    async fn run_ocr_service_with_timeout<T, F>(
+        step_type: &str,
+        label: &str,
+        timeout_ms: u64,
+        service: Arc<Mutex<OcrService>>,
+        operation: F,
+    ) -> ExecuteResult<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&mut OcrService) -> Result<T, String> + Send + 'static,
+    {
+        let task = tokio::task::spawn_blocking(move || {
+            let mut service = service.blocking_lock();
+            operation(&mut service)
+        });
+
+        match tokio::time::timeout(Duration::from_millis(timeout_ms), task).await {
+            Ok(Ok(Ok(value))) => Ok(value),
+            Ok(Ok(Err(error))) => Err(Self::execute_error(step_type, error)),
+            Ok(Err(error)) => Err(Self::execute_error(
+                step_type,
+                format!("{}任务执行失败: {}", label, error),
+            )),
+            Err(_) => Err(Self::execute_error(
+                step_type,
+                format!("{}超时，超过{}ms", label, timeout_ms),
+            )),
+        }
     }
 
     fn reset_progress_probe(&mut self) {
