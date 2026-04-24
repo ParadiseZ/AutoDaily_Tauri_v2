@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="flex min-h-full flex-col gap-6">
     <AppPageHeader title="时间模板">
       <template #actions>
         <button class="app-button app-button-primary" type="button" @click="openCreateTemplateDialog">
@@ -9,8 +9,8 @@
       </template>
     </AppPageHeader>
 
-    <div class="grid gap-4 xl:grid-cols-[300px_360px_minmax(0,1fr)]">
-      <SurfacePanel class="space-y-4">
+    <div class="grid flex-1 auto-rows-fr items-stretch gap-4 xl:min-h-[calc(100dvh-220px)] xl:grid-cols-[300px_360px_minmax(0,1fr)]">
+      <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="text-sm font-semibold text-[var(--app-text-strong)]">模板定义</p>
@@ -21,11 +21,14 @@
           </span>
         </div>
 
-        <div v-if="!taskStore.timeTemplates.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+        <div
+          v-if="!taskStore.timeTemplates.length"
+          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+        >
           还没有时间模板。
         </div>
 
-        <div v-else class="space-y-2">
+        <div v-else class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
           <div
             v-for="template in taskStore.timeTemplates"
             :key="template.id"
@@ -59,7 +62,7 @@
         </div>
       </SurfacePanel>
 
-      <SurfacePanel class="space-y-4">
+      <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="text-sm font-semibold text-[var(--app-text-strong)]">模板作用域</p>
@@ -70,15 +73,21 @@
           </button>
         </div>
 
-        <div v-if="!selectedTemplate" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+        <div
+          v-if="!selectedTemplate"
+          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+        >
           先从左侧选择一个模板。
         </div>
 
-        <div v-else-if="!selectedScopes.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+        <div
+          v-else-if="!selectedScopes.length"
+          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+        >
           当前模板还没有挂到任何总队列项上。
         </div>
 
-        <div v-else class="space-y-2">
+        <div v-else class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
           <div
             v-for="scope in selectedScopes"
             :key="scope.scopeKey"
@@ -108,15 +117,16 @@
         </div>
       </SurfacePanel>
 
-      <SurfacePanel class="overflow-hidden">
+      <SurfacePanel class="flex h-full min-h-0 flex-col overflow-hidden">
         <template v-if="selectedScope && selectedScopeScript">
           <ScriptTemplateValuePanel
+            class="min-h-0 flex-1"
             :script="selectedScopeScript"
             :tasks="selectedScopeTasks"
             :scope="selectedScope.scope"
           />
         </template>
-        <div v-else class="flex min-h-[480px] items-center justify-center rounded-[18px] border border-dashed border-[var(--app-border)] text-sm text-[var(--app-text-soft)]">
+        <div v-else class="flex min-h-0 flex-1 items-center justify-center rounded-[18px] border border-dashed border-[var(--app-border)] text-sm text-[var(--app-text-soft)]">
           选择一个作用域后，这里显示模板变量编辑。
         </div>
       </SurfacePanel>

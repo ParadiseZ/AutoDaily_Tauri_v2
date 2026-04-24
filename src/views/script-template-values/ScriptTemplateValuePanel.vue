@@ -1,10 +1,10 @@
 <template>
-  <div class="space-y-4">
-    <div v-if="loading" class="rounded-[18px] border border-[var(--app-border)] px-4 py-8 text-sm text-[var(--app-text-soft)]">
+  <div class="flex h-full min-h-0 flex-col gap-4">
+    <div v-if="loading" class="flex min-h-0 flex-1 items-center rounded-[18px] border border-[var(--app-border)] px-4 py-8 text-sm text-[var(--app-text-soft)]">
       正在读取模板变量...
     </div>
 
-    <div v-else-if="loadError" class="rounded-[18px] border border-red-500/18 bg-red-500/8 px-4 py-4 text-sm text-red-700">
+    <div v-else-if="loadError" class="flex min-h-0 flex-1 items-center rounded-[18px] border border-red-500/18 bg-red-500/8 px-4 py-4 text-sm text-red-700">
       {{ loadError }}
     </div>
 
@@ -34,6 +34,7 @@
       <EditorTaskTablePreview
         v-if="previewTasks.length"
         :key="previewKey"
+        class="min-h-0 flex-1"
         :tasks="previewTasks"
         :selected-task-id="selectedTaskId"
         :selected-task-ui-schema="selectedTaskUiSchema"
@@ -56,7 +57,7 @@
 
       <div
         v-else
-        class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+        class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
       >
         当前脚本没有可预览任务。
       </div>

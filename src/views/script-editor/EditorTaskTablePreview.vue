@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-[22px] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,247,252,0.88))] px-5 py-5 shadow-[var(--app-shadow-soft)]">
+  <div class="flex h-full min-h-0 flex-col rounded-[22px] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,247,252,0.88))] px-5 py-5 shadow-[var(--app-shadow-soft)]">
     <div v-if="showHeader" class="flex items-center justify-between gap-3">
       <div>
         <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Script Preview</p>
@@ -10,7 +10,7 @@
       </span>
     </div>
 
-    <div class="min-h-0 space-y-4 overflow-y-auto pr-1 custom-scrollbar" :class="showHeader ? 'mt-4' : ''">
+    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar" :class="showHeader ? 'mt-4' : ''">
       <div v-if="ungroupedTasks.length" class="space-y-2">
         <p class="text-[11px] uppercase tracking-[0.14em] text-[var(--app-text-faint)]">未分组任务</p>
         <template v-for="task in ungroupedTasks" :key="task.id">
