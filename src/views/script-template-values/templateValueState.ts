@@ -20,6 +20,12 @@ export interface TemplateVariableEntry {
   booleanValue: boolean;
 }
 
+export interface TemplateTaskSettingEntry {
+  taskId: string;
+  enabled: boolean;
+  defaultEnabled: boolean;
+}
+
 const isRecord = (value: unknown): value is Record<string, JsonValue> =>
   Boolean(value) && !Array.isArray(value) && typeof value === 'object';
 
@@ -115,16 +121,19 @@ export const createTemplateVariableEntries = (
     .filter((variable) => variable.namespace === 'input' && variable.persisted)
     .sort((left, right) => sortVariables(tasks, left, right))
     .map((variable) => {
+      const displayKey = getVariableDisplayKey(variable.key, variable.namespace);
+      const candidateKeys = [variable.id, variable.key, displayKey, `input.${displayKey}`];
+      const storedKey = candidateKeys.find((key) => Object.prototype.hasOwnProperty.call(stored, key));
       const value =
-        Object.prototype.hasOwnProperty.call(stored, variable.id)
-          ? stored[variable.id]
+        storedKey
+          ? stored[storedKey]
           : variable.defaultValue ?? fallbackValueByType(variable.valueType);
 
       return {
         id: variable.id,
         key: variable.key,
-        displayKey: getVariableDisplayKey(variable.key, variable.namespace),
-        name: variable.name || getVariableDisplayKey(variable.key, variable.namespace),
+        displayKey,
+        name: variable.name || displayKey,
         description: variable.description || '',
         ownerTaskId: variable.ownerTaskId,
         ownerTaskName: variable.ownerTaskId ? taskNameMap.get(variable.ownerTaskId) ?? '未命名任务' : '脚本级',
@@ -139,6 +148,38 @@ export const createTemplateVariableEntries = (
 
 export const buildTemplateVariablePayload = (entries: TemplateVariableEntry[]) =>
   Object.fromEntries(entries.map((entry) => [entry.id, parseValue(entry)] satisfies [string, JsonValue]));
+
+export const createTemplateTaskSettingEntries = (
+  tasks: ScriptTaskTable[],
+  storedSettings: JsonValue,
+): TemplateTaskSettingEntry[] => {
+  const stored = isRecord(storedSettings) ? storedSettings : {};
+
+  return tasks
+    .filter((task) => task.rowType === 'task' && !task.isDeleted)
+    .map((task) => {
+      const rawSetting = stored[task.id];
+      const setting = isRecord(rawSetting) ? rawSetting : {};
+      return {
+        taskId: task.id,
+        enabled: typeof setting.enabled === 'boolean' ? setting.enabled : task.defaultEnabled,
+        defaultEnabled: task.defaultEnabled,
+      };
+    });
+};
+
+export const buildTemplateTaskSettingsPayload = (entries: TemplateTaskSettingEntry[]) =>
+  Object.fromEntries(
+    entries
+      .filter((entry) => entry.enabled !== entry.defaultEnabled)
+      .map((entry) => [entry.taskId, { enabled: entry.enabled }] satisfies [string, JsonValue]),
+  );
+
+export const updateTemplateTaskSetting = (
+  entries: TemplateTaskSettingEntry[],
+  taskId: string,
+  enabled: boolean,
+) => entries.map((entry) => (entry.taskId === taskId ? { ...entry, enabled } : entry));
 
 const mapTemplateValueTypeToInputType = (valueType: ScriptVariableValueType): EditorInputType => {
   switch (valueType) {

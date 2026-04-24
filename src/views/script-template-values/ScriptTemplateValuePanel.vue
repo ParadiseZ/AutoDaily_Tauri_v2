@@ -8,13 +8,6 @@
       {{ loadError }}
     </div>
 
-    <div
-      v-else-if="!entries.length"
-      class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
-    >
-      当前脚本还没有可持久化的 input 变量。
-    </div>
-
     <template v-else>
       <div class="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
         <div class="flex flex-wrap items-center gap-2 text-xs text-[var(--app-text-faint)]">
@@ -22,9 +15,9 @@
           <span v-if="recordUpdatedAt" class="rounded-full border border-[var(--app-border)] px-3 py-1">上次保存 {{ recordUpdatedAt }}</span>
           <span
             class="rounded-full px-3 py-1"
-            :class="dirty ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
+            :class="hasDirtyChanges ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
           >
-            {{ dirty ? '未保存' : '已同步' }}
+            {{ hasDirtyChanges ? '未保存' : '已同步' }}
           </span>
         </div>
 
@@ -40,18 +33,24 @@
 
       <EditorTaskTablePreview
         v-if="previewTasks.length"
+        :key="previewKey"
         :tasks="previewTasks"
         :selected-task-id="selectedTaskId"
         :selected-task-ui-schema="selectedTaskUiSchema"
         :selected-task-input-entries="previewInputEntries"
         :shared-input-entries="previewInputEntries"
+        :task-enabled-by-id="taskEnabledById"
         :selected-ui-field-id="null"
         :selected-task-cycle-value="'everyRun'"
         :selected-task-cycle-mode="'named'"
         :selected-task-cycle-day="1"
+        :edit-all-tasks="true"
+        :require-bound-input="true"
+        :show-header="false"
         :show-task-cycle="false"
         @select-task="selectedTaskId = $event"
         @update-input="handlePreviewInputUpdate"
+        @update:task-enabled="handleTaskEnabledUpdate"
       />
 
       <div
@@ -131,9 +130,13 @@ import { getVariableValueTypeLabel } from '@/views/script-editor/editorVariables
 import EditorTaskTablePreview from '@/views/script-editor/EditorTaskTablePreview.vue';
 import {
   buildTemplateEditorInputs,
+  buildTemplateTaskSettingsPayload,
   buildTemplateVariablePayload,
+  createTemplateTaskSettingEntries,
   createTemplateVariableEntries,
+  type TemplateTaskSettingEntry,
   type TemplateVariableEntry,
+  updateTemplateTaskSetting,
   updateTemplateEntryFromEditorInput,
 } from '@/views/script-template-values/templateValueState';
 import { showToast } from '@/utils/toast';
@@ -151,12 +154,15 @@ const props = defineProps<{
 }>();
 
 const entries = shallowRef<TemplateVariableEntry[]>([]);
+const taskSettings = shallowRef<TemplateTaskSettingEntry[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const loadError = ref<string | null>(null);
 const record = shallowRef<ScriptTimeTemplateValuesDto | null>(null);
 const loadedSnapshot = ref('');
+const taskSettingsSnapshot = ref('');
 const selectedTaskId = ref<string | null>(null);
+const previewVersion = ref(0);
 
 const recordUpdatedAt = computed(() => {
   if (!record.value?.updatedAt) {
@@ -172,9 +178,15 @@ const recordUpdatedAt = computed(() => {
 });
 
 const dirty = computed(() => stableStringify(entries.value) !== loadedSnapshot.value);
+const taskSettingsDirty = computed(() => stableStringify(taskSettings.value) !== taskSettingsSnapshot.value);
+const hasDirtyChanges = computed(() => dirty.value || taskSettingsDirty.value);
+const previewKey = computed(() => `${props.script.id}:${props.scope.deviceId}:${props.scope.timeTemplateId}:${previewVersion.value}`);
 const previewTasks = computed(() => props.tasks.filter((task) => !task.isDeleted));
 const selectableTasks = computed(() => previewTasks.value.filter((task) => task.rowType === 'task'));
 const previewInputEntries = computed(() => buildTemplateEditorInputs(entries.value));
+const taskEnabledById = computed(() =>
+  Object.fromEntries(taskSettings.value.map((entry) => [entry.taskId, entry.enabled])),
+);
 
 const referencedVariableKeys = computed(() => {
   const ids = new Set<string>();
@@ -188,6 +200,9 @@ const referencedVariableKeys = computed(() => {
       }
       if (field.inputKey?.trim()) {
         keys.add(field.inputKey.trim());
+      }
+      if (field.key?.trim()) {
+        keys.add(field.key.trim());
       }
     }
   }
@@ -217,6 +232,30 @@ const isRecord = (value: unknown): value is Record<string, JsonValue> =>
 const buildEntriesFromStored = (storedVariables: JsonValue) =>
   createTemplateVariableEntries(props.script, props.tasks, storedVariables);
 
+const extractStoredVariables = (recordValue: ScriptTimeTemplateValuesDto | null) => {
+  const valuesRoot = isRecord(recordValue?.valuesJson) ? recordValue.valuesJson : {};
+  return isRecord(valuesRoot.variables) ? valuesRoot.variables : {};
+};
+
+const extractStoredTaskSettings = (recordValue: ScriptTimeTemplateValuesDto | null) => {
+  const valuesRoot = isRecord(recordValue?.valuesJson) ? recordValue.valuesJson : {};
+  return isRecord(valuesRoot.taskSettings) ? valuesRoot.taskSettings : {};
+};
+
+const rebuildTaskSettings = (storedTaskSettings: JsonValue, resetSnapshot: boolean) => {
+  const currentByTaskId = new Map(taskSettings.value.map((entry) => [entry.taskId, entry.enabled]));
+  const nextSettings = createTemplateTaskSettingEntries(props.tasks, storedTaskSettings).map((entry) =>
+    !resetSnapshot && currentByTaskId.has(entry.taskId)
+      ? { ...entry, enabled: currentByTaskId.get(entry.taskId) ?? entry.enabled }
+      : entry,
+  );
+
+  taskSettings.value = nextSettings;
+  if (resetSnapshot) {
+    taskSettingsSnapshot.value = stableStringify(nextSettings);
+  }
+};
+
 const loadValues = async () => {
   loading.value = true;
   loadError.value = null;
@@ -228,11 +267,13 @@ const loadValues = async () => {
       props.scope.timeTemplateId,
       props.scope.accountId ?? null,
     );
-    const valuesRoot = isRecord(nextRecord?.valuesJson) ? nextRecord.valuesJson : {};
-    const storedVariables = isRecord(valuesRoot.variables) ? valuesRoot.variables : {};
+    const storedVariables = extractStoredVariables(nextRecord);
+    const storedTaskSettings = extractStoredTaskSettings(nextRecord);
     record.value = nextRecord;
     entries.value = buildEntriesFromStored(storedVariables);
+    rebuildTaskSettings(storedTaskSettings, true);
     loadedSnapshot.value = stableStringify(entries.value);
+    previewVersion.value += 1;
   } catch (error) {
     loadError.value = error instanceof Error ? error.message : '读取模板变量失败';
   } finally {
@@ -256,8 +297,27 @@ const handlePreviewInputUpdate = (
   entries.value = updateTemplateEntryFromEditorInput(entries.value, entryId, field, value);
 };
 
+const handleTaskEnabledUpdate = (taskId: string, enabled: boolean) => {
+  const task = props.tasks.find((item) => item.id === taskId);
+  if (!taskSettings.value.some((entry) => entry.taskId === taskId)) {
+    taskSettings.value = [
+      ...taskSettings.value,
+      {
+        taskId,
+        enabled,
+        defaultEnabled: task?.defaultEnabled ?? true,
+      },
+    ];
+    return;
+  }
+
+  taskSettings.value = updateTemplateTaskSetting(taskSettings.value, taskId, enabled);
+};
+
 const resetToDefaults = () => {
   entries.value = buildEntriesFromStored({});
+  taskSettings.value = createTemplateTaskSettingEntries(props.tasks, {});
+  previewVersion.value += 1;
 };
 
 const saveValues = async () => {
@@ -265,8 +325,12 @@ const saveValues = async () => {
 
   try {
     const variables = buildTemplateVariablePayload(entries.value);
+    const taskSettingsPayload = buildTemplateTaskSettingsPayload(taskSettings.value);
     const currentRoot = isRecord(record.value?.valuesJson) ? record.value.valuesJson : {};
-    const nextValuesJson = Object.assign({}, currentRoot, { variables }) as JsonValue;
+    const nextValuesJson = Object.assign({}, currentRoot, {
+      variables,
+      taskSettings: taskSettingsPayload,
+    }) as JsonValue;
     const now = new Date().toISOString();
     const nextRecord: ScriptTimeTemplateValuesDto = {
       id: record.value?.id ?? (await taskService.requestUuid()),
@@ -280,8 +344,31 @@ const saveValues = async () => {
     };
 
     await scriptTemplateValueService.save(nextRecord);
-    record.value = nextRecord;
+    const savedRecord = await scriptTemplateValueService.get(
+      props.scope.deviceId,
+      props.script.id,
+      props.scope.timeTemplateId,
+      props.scope.accountId ?? null,
+    );
+    const savedVariables = extractStoredVariables(savedRecord);
+    const savedTaskSettings = extractStoredTaskSettings(savedRecord);
+    const expectedSnapshot = stableStringify(variables);
+    const actualSnapshot = stableStringify(
+      Object.fromEntries(Object.keys(variables).map((key) => [key, savedVariables[key]])),
+    );
+    const expectedTaskSettingsSnapshot = stableStringify(taskSettingsPayload);
+    const actualTaskSettingsSnapshot = stableStringify(
+      Object.fromEntries(Object.keys(taskSettingsPayload).map((key) => [key, savedTaskSettings[key]])),
+    );
+    if (actualSnapshot !== expectedSnapshot || actualTaskSettingsSnapshot !== expectedTaskSettingsSnapshot) {
+      throw new Error('保存后读取到的模板变量仍是旧值，请检查当前作用域是否存在重复记录。');
+    }
+    record.value = savedRecord;
+    entries.value = buildEntriesFromStored(savedVariables);
+    taskSettings.value = createTemplateTaskSettingEntries(props.tasks, savedTaskSettings);
     loadedSnapshot.value = stableStringify(entries.value);
+    taskSettingsSnapshot.value = stableStringify(taskSettings.value);
+    previewVersion.value += 1;
     showToast('模板变量已保存', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '模板变量保存失败', 'error');
@@ -299,6 +386,17 @@ watch(
     selectedTaskId.value = tasks[0]?.id ?? null;
   },
   { immediate: true },
+);
+
+watch(
+  previewTasks,
+  () => {
+    const wasDirty = taskSettingsDirty.value;
+    rebuildTaskSettings(extractStoredTaskSettings(record.value), false);
+    if (!wasDirty) {
+      taskSettingsSnapshot.value = stableStringify(taskSettings.value);
+    }
+  },
 );
 
 watch(

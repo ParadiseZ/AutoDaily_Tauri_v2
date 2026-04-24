@@ -7,28 +7,14 @@
     <template v-if="script">
       <div class="rounded-[18px] border border-[var(--app-border)] px-4 py-4">
         <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">设备关联</p>
-        <div v-if="usageItems.length" class="mt-3 space-y-2">
-          <div
-            v-for="item in usageItems"
-            :key="`${item.deviceId}-${item.assignmentId}`"
-            class="flex items-center justify-between gap-3 rounded-[14px] border border-transparent px-2 py-2 text-sm transition-colors"
-            :class="item.scopeKey === selectedScopeKey ? 'border-[var(--app-border)] bg-[var(--app-panel-muted)]' : ''"
-          >
-            <div class="min-w-0">
-              <p class="truncate text-[var(--app-text-strong)]">{{ item.deviceName }}</p>
-              <p class="truncate text-xs text-[var(--app-text-faint)]">{{ item.templateLabel }}</p>
-            </div>
-            <button
-              v-if="item.timeTemplateId"
-              class="app-button app-button-ghost h-8 px-3 text-xs"
-              type="button"
-              @click="selectedScopeKey = item.scopeKey"
-            >
-              设置
-            </button>
-            <span v-else class="text-xs text-[var(--app-text-faint)]">无模板</span>
-          </div>
-        </div>
+        <AppSelect
+          v-if="usageItems.length"
+          v-model="selectedScopeKey"
+          class="mt-3"
+          :options="usageOptions"
+          placeholder="选择设备关联"
+          :show-description="true"
+        />
         <p v-else class="mt-3 text-sm text-[var(--app-text-soft)]">未挂载到任何设备队列上。</p>
       </div>
 
@@ -122,6 +108,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -174,6 +161,15 @@ const usageItems = computed(() => {
       })),
   );
 });
+
+const usageOptions = computed(() =>
+  usageItems.value.map((item) => ({
+    label: item.deviceName,
+    value: item.timeTemplateId ? item.scopeKey : `${item.scopeKey}::disabled`,
+    description: item.templateLabel,
+    disabled: !item.timeTemplateId,
+  })),
+);
 
 const selectedScope = computed<{
   deviceId: string;

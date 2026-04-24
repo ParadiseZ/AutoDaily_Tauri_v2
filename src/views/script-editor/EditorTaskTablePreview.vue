@@ -1,6 +1,6 @@
 <template>
   <div class="rounded-[22px] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,247,252,0.88))] px-5 py-5 shadow-[var(--app-shadow-soft)]">
-    <div class="flex items-center justify-between gap-3">
+    <div v-if="showHeader" class="flex items-center justify-between gap-3">
       <div>
         <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Script Preview</p>
         <h3 class="text-lg font-semibold text-[var(--app-text-strong)]">整表任务预览</h3>
@@ -10,7 +10,7 @@
       </span>
     </div>
 
-    <div class="mt-4 min-h-0 space-y-4 overflow-y-auto pr-1 custom-scrollbar">
+    <div class="min-h-0 space-y-4 overflow-y-auto pr-1 custom-scrollbar" :class="showHeader ? 'mt-4' : ''">
       <div v-if="ungroupedTasks.length" class="space-y-2">
         <p class="text-[11px] uppercase tracking-[0.14em] text-[var(--app-text-faint)]">未分组任务</p>
         <template v-for="task in ungroupedTasks" :key="task.id">
@@ -25,21 +25,22 @@
               :default-task-cycle-value="selectedTaskId === task.id ? selectedTaskCycleValue : undefined"
               :default-task-cycle-mode="selectedTaskId === task.id ? selectedTaskCycleMode : 'named'"
               :default-task-cycle-day="selectedTaskId === task.id ? selectedTaskCycleDay : 1"
-              :editable-cycle="selectedTaskId === task.id"
+              :editable-cycle="!editAllTasks && selectedTaskId === task.id"
               :show-enabled-toggle="task.showEnabledToggle"
-              :default-enabled="task.defaultEnabled"
+              :default-enabled="resolveTaskEnabled(task)"
               :task-tone="task.taskTone"
+              :require-bound-input="requireBoundInput"
               :show-task-cycle="showTaskCycle"
               :embedded="true"
-              :readonly="selectedTaskId !== task.id"
+              :readonly="!editAllTasks && selectedTaskId !== task.id"
               :active="selectedTaskId === task.id"
               :indent-level="task.indentLevel"
-              :ui-schema="selectedTaskId === task.id ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
+              :ui-schema="selectedTaskId === task.id && !editAllTasks ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
               :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
-              :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : sharedInputEntries"
+              :input-entries="selectedTaskId === task.id && !editAllTasks ? selectedTaskInputEntries : sharedInputEntries"
               @select-ui-field="$emit('select-ui-field', $event)"
               @update-input="forwardUpdateInput"
-              @update:default-enabled="$emit('update:default-enabled', $event)"
+              @update:default-enabled="forwardTaskEnabled(task.id, $event)"
               @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
               @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
             />
@@ -71,21 +72,22 @@
                 :default-task-cycle-value="selectedTaskId === task.id ? selectedTaskCycleValue : undefined"
                 :default-task-cycle-mode="selectedTaskId === task.id ? selectedTaskCycleMode : 'named'"
                 :default-task-cycle-day="selectedTaskId === task.id ? selectedTaskCycleDay : 1"
-                :editable-cycle="selectedTaskId === task.id"
+                :editable-cycle="!editAllTasks && selectedTaskId === task.id"
                 :show-enabled-toggle="task.showEnabledToggle"
-                :default-enabled="task.defaultEnabled"
+                :default-enabled="resolveTaskEnabled(task)"
                 :task-tone="task.taskTone"
+                :require-bound-input="requireBoundInput"
                 :show-task-cycle="showTaskCycle"
                 :embedded="true"
-                :readonly="selectedTaskId !== task.id"
+                :readonly="!editAllTasks && selectedTaskId !== task.id"
                 :active="selectedTaskId === task.id"
                 :indent-level="task.indentLevel"
-                :ui-schema="selectedTaskId === task.id ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
+                :ui-schema="selectedTaskId === task.id && !editAllTasks ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
                 :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
-                :input-entries="selectedTaskId === task.id ? selectedTaskInputEntries : sharedInputEntries"
+                :input-entries="selectedTaskId === task.id && !editAllTasks ? selectedTaskInputEntries : sharedInputEntries"
                 @select-ui-field="$emit('select-ui-field', $event)"
                 @update-input="forwardUpdateInput"
-                @update:default-enabled="$emit('update:default-enabled', $event)"
+                @update:default-enabled="forwardTaskEnabled(task.id, $event)"
                 @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
                 @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
               />
@@ -120,13 +122,21 @@ const props = withDefaults(defineProps<{
   selectedTaskUiSchema: EditorUiSchema;
   selectedTaskInputEntries: EditorInputEntry[];
   sharedInputEntries?: EditorInputEntry[];
+  taskEnabledById?: Record<string, boolean>;
   selectedUiFieldId: string | null;
   selectedTaskCycleValue: string;
   selectedTaskCycleMode: 'named' | 'weekDay' | 'monthDay';
   selectedTaskCycleDay: number;
+  editAllTasks?: boolean;
+  requireBoundInput?: boolean;
+  showHeader?: boolean;
   showTaskCycle?: boolean;
 }>(), {
+  editAllTasks: false,
+  requireBoundInput: false,
   sharedInputEntries: () => [],
+  taskEnabledById: () => ({}),
+  showHeader: true,
   showTaskCycle: true,
 });
 
@@ -135,6 +145,7 @@ const emit = defineEmits<{
   'select-ui-field': [fieldId: string];
   'update-input': [entryId: string, field: 'stringValue' | 'booleanValue', value: string | boolean];
   'update:default-enabled': [value: boolean];
+  'update:task-enabled': [taskId: string, value: boolean];
   'update:default-task-cycle-value': [value: string];
   'update:default-task-cycle-day': [value: number];
 }>();
@@ -155,12 +166,22 @@ const ungroupedTasks = computed(() =>
 );
 const taskCount = computed(() => props.tasks.length);
 
+const resolveTaskEnabled = (task: ScriptTaskTable) =>
+  Object.prototype.hasOwnProperty.call(props.taskEnabledById, task.id)
+    ? Boolean(props.taskEnabledById[task.id])
+    : task.defaultEnabled;
+
 const forwardUpdateInput = (
   entryId: string,
   field: 'stringValue' | 'booleanValue',
   value: string | boolean,
 ) => {
   emit('update-input', entryId, field, value);
+};
+
+const forwardTaskEnabled = (taskId: string, value: boolean) => {
+  emit('update:default-enabled', value);
+  emit('update:task-enabled', taskId, value);
 };
 
 </script>

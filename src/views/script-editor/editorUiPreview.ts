@@ -26,7 +26,22 @@ export const findBoundInputEntry = (field: EditorUiField, inputEntries: EditorIn
     }
   }
 
-  return inputEntries.find((entry) => entry.key === field.inputKey) ?? null;
+  const inputKeys = [field.inputKey, field.key]
+    .map((key) => key.trim())
+    .filter(Boolean);
+
+  for (const inputKey of inputKeys) {
+    const matched = inputEntries.find((entry) => {
+      const displayKey = getVariableDisplayKey(entry.key, entry.namespace);
+      return entry.key === inputKey || displayKey === inputKey || `input.${displayKey}` === inputKey;
+    });
+
+    if (matched) {
+      return matched;
+    }
+  }
+
+  return null;
 };
 
 export const resolvePreviewValue = (field: EditorUiField, inputEntries: EditorInputEntry[]) => {

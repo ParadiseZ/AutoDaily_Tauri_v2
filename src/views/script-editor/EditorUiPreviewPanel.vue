@@ -16,7 +16,8 @@
           :checked="taskEnabledPreview"
           :disabled="readonly"
           data-testid="editor-ui-preview-task-enabled"
-          @change="updateTaskEnabled(($event.target as HTMLInputElement).checked)"
+          @click.stop
+          @change="handleTaskEnabledEvent"
         />
       </label>
 
@@ -194,6 +195,7 @@ const props = withDefaults(defineProps<{
   showEnabledToggle: boolean;
   defaultEnabled: boolean;
   taskTone: TaskTone;
+  requireBoundInput?: boolean;
   showTaskCycle?: boolean;
   embedded?: boolean;
   readonly?: boolean;
@@ -203,6 +205,7 @@ const props = withDefaults(defineProps<{
   selectedUiFieldId: string | null;
   inputEntries: EditorInputEntry[];
 }>(), {
+  requireBoundInput: false,
   showTaskCycle: true,
 });
 
@@ -313,7 +316,20 @@ const resolveTextPreviewValue = (field: EditorUiField) => {
   return field.placeholder || field.description || '';
 };
 
-const isInteractive = (field: EditorUiField) => !props.readonly && (field.control === 'text' ? field.editable : true);
+const isInteractive = (field: EditorUiField) => {
+  if (props.readonly) {
+    return false;
+  }
+
+  if (props.requireBoundInput) {
+    const entry = findPreviewEntry(field);
+    if (!entry || entry.namespace !== 'input') {
+      return false;
+    }
+  }
+
+  return field.control === 'text' ? field.editable : true;
+};
 
 const updatePreviewText = (field: EditorUiField, value: string) => {
   if (props.readonly) {
@@ -362,6 +378,10 @@ const updateTaskEnabled = (value: boolean) => {
   }
   taskEnabledPreview.value = value;
   emit('update:default-enabled', value);
+};
+
+const handleTaskEnabledEvent = (event: Event) => {
+  updateTaskEnabled((event.target as HTMLInputElement).checked);
 };
 
 watch(
