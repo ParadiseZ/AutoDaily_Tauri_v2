@@ -33,7 +33,7 @@
         v-else-if="usageItems.some((item) => item.timeTemplateId === null)"
         class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)]"
       >
-        当前脚本虽然已挂到设备，但这些分配还没有选择时间模板，因此还没有独立的模板变量作用域。
+        当前脚本虽然已挂到设备，但未选择时间模板，因此还没有独立的模板变量作用域。
       </div>
 
       <div class="space-y-3">
@@ -41,7 +41,7 @@
         <div v-else-if="!tasks.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] p-4 text-sm text-[var(--app-text-soft)]">
           无任务数据
         </div>
-        <div v-else class="space-y-3">
+        <!-- <div v-else class="space-y-3">
           <div v-for="task in tasks" :key="task.id" class="rounded-[18px] border border-[var(--app-border)] px-4 py-4">
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ task.name }}</p>
@@ -95,7 +95,7 @@
               </p>
             </div>
           </div>
-        </div>
+        </div> -->
       </div>
     </template>
 

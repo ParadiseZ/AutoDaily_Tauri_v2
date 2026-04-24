@@ -40,6 +40,7 @@
         :selected-task-input-entries="previewInputEntries"
         :shared-input-entries="previewInputEntries"
         :task-enabled-by-id="taskEnabledById"
+        :task-cycle-by-id="taskCycleById"
         :selected-ui-field-id="null"
         :selected-task-cycle-value="'everyRun'"
         :selected-task-cycle-mode="'named'"
@@ -47,10 +48,10 @@
         :edit-all-tasks="true"
         :require-bound-input="true"
         :show-header="false"
-        :show-task-cycle="false"
         @select-task="selectedTaskId = $event"
         @update-input="handlePreviewInputUpdate"
         @update:task-enabled="handleTaskEnabledUpdate"
+        @update:task-cycle="handleTaskCycleUpdate"
       />
 
       <div
@@ -124,6 +125,7 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import { scriptTemplateValueService } from '@/services/scriptTemplateValueService';
 import { taskService } from '@/services/taskService';
 import type { JsonValue, ScriptTableRecord, ScriptTimeTemplateValuesDto } from '@/types/app/domain';
+import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import { createUiSchema, parseUiSchema, stableStringify } from '@/views/script-editor/editorSchema';
 import { getVariableValueTypeLabel } from '@/views/script-editor/editorVariables';
@@ -136,6 +138,7 @@ import {
   createTemplateVariableEntries,
   type TemplateTaskSettingEntry,
   type TemplateVariableEntry,
+  updateTemplateTaskCycleSetting,
   updateTemplateTaskSetting,
   updateTemplateEntryFromEditorInput,
 } from '@/views/script-template-values/templateValueState';
@@ -186,6 +189,9 @@ const selectableTasks = computed(() => previewTasks.value.filter((task) => task.
 const previewInputEntries = computed(() => buildTemplateEditorInputs(entries.value));
 const taskEnabledById = computed(() =>
   Object.fromEntries(taskSettings.value.map((entry) => [entry.taskId, entry.enabled])),
+);
+const taskCycleById = computed(() =>
+  Object.fromEntries(taskSettings.value.map((entry) => [entry.taskId, entry.taskCycle])),
 );
 
 const referencedVariableKeys = computed(() => {
@@ -243,10 +249,14 @@ const extractStoredTaskSettings = (recordValue: ScriptTimeTemplateValuesDto | nu
 };
 
 const rebuildTaskSettings = (storedTaskSettings: JsonValue, resetSnapshot: boolean) => {
-  const currentByTaskId = new Map(taskSettings.value.map((entry) => [entry.taskId, entry.enabled]));
+  const currentByTaskId = new Map(taskSettings.value.map((entry) => [entry.taskId, entry]));
   const nextSettings = createTemplateTaskSettingEntries(props.tasks, storedTaskSettings).map((entry) =>
     !resetSnapshot && currentByTaskId.has(entry.taskId)
-      ? { ...entry, enabled: currentByTaskId.get(entry.taskId) ?? entry.enabled }
+      ? {
+          ...entry,
+          enabled: currentByTaskId.get(entry.taskId)?.enabled ?? entry.enabled,
+          taskCycle: currentByTaskId.get(entry.taskId)?.taskCycle ?? entry.taskCycle,
+        }
       : entry,
   );
 
@@ -306,12 +316,33 @@ const handleTaskEnabledUpdate = (taskId: string, enabled: boolean) => {
         taskId,
         enabled,
         defaultEnabled: task?.defaultEnabled ?? true,
+        taskCycle: task?.defaultTaskCycle ?? 'everyRun',
+        defaultTaskCycle: task?.defaultTaskCycle ?? 'everyRun',
       },
     ];
     return;
   }
 
   taskSettings.value = updateTemplateTaskSetting(taskSettings.value, taskId, enabled);
+};
+
+const handleTaskCycleUpdate = (taskId: string, taskCycle: TaskCycle) => {
+  const task = props.tasks.find((item) => item.id === taskId);
+  if (!taskSettings.value.some((entry) => entry.taskId === taskId)) {
+    taskSettings.value = [
+      ...taskSettings.value,
+      {
+        taskId,
+        enabled: task?.defaultEnabled ?? true,
+        defaultEnabled: task?.defaultEnabled ?? true,
+        taskCycle,
+        defaultTaskCycle: task?.defaultTaskCycle ?? 'everyRun',
+      },
+    ];
+    return;
+  }
+
+  taskSettings.value = updateTemplateTaskCycleSetting(taskSettings.value, taskId, taskCycle);
 };
 
 const resetToDefaults = () => {

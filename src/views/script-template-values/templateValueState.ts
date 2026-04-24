@@ -1,4 +1,5 @@
 import type { JsonValue, ScriptTableRecord } from '@/types/app/domain';
+import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { ScriptVariableDef } from '@/types/bindings/ScriptVariableDef';
 import type { ScriptVariableValueType } from '@/types/bindings/ScriptVariableValueType';
@@ -24,10 +25,42 @@ export interface TemplateTaskSettingEntry {
   taskId: string;
   enabled: boolean;
   defaultEnabled: boolean;
+  taskCycle: TaskCycle;
+  defaultTaskCycle: TaskCycle;
 }
 
 const isRecord = (value: unknown): value is Record<string, JsonValue> =>
   Boolean(value) && !Array.isArray(value) && typeof value === 'object';
+
+const isTaskCycle = (value: JsonValue | undefined): value is TaskCycle => {
+  if (value === 'everyRun' || value === 'daily' || value === 'weekly' || value === 'monthly') {
+    return true;
+  }
+
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    (typeof value.weekDay === 'number' && Number.isFinite(value.weekDay)) ||
+    (typeof value.monthDay === 'number' && Number.isFinite(value.monthDay))
+  );
+};
+
+const normalizeTaskCycle = (value: TaskCycle): TaskCycle => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if ('weekDay' in value) {
+    return { weekDay: Math.max(1, Math.min(7, Math.trunc(value.weekDay))) };
+  }
+
+  return { monthDay: Math.max(1, Math.min(31, Math.trunc(value.monthDay))) };
+};
+
+const sameTaskCycle = (left: TaskCycle, right: TaskCycle) =>
+  JSON.stringify(normalizeTaskCycle(left)) === JSON.stringify(normalizeTaskCycle(right));
 
 const fallbackValueByType = (valueType: ScriptVariableValueType): JsonValue => {
   switch (valueType) {
@@ -164,6 +197,8 @@ export const createTemplateTaskSettingEntries = (
         taskId: task.id,
         enabled: typeof setting.enabled === 'boolean' ? setting.enabled : task.defaultEnabled,
         defaultEnabled: task.defaultEnabled,
+        taskCycle: isTaskCycle(setting.taskCycle) ? normalizeTaskCycle(setting.taskCycle) : task.defaultTaskCycle,
+        defaultTaskCycle: task.defaultTaskCycle,
       };
     });
 };
@@ -171,8 +206,17 @@ export const createTemplateTaskSettingEntries = (
 export const buildTemplateTaskSettingsPayload = (entries: TemplateTaskSettingEntry[]) =>
   Object.fromEntries(
     entries
-      .filter((entry) => entry.enabled !== entry.defaultEnabled)
-      .map((entry) => [entry.taskId, { enabled: entry.enabled }] satisfies [string, JsonValue]),
+      .map((entry) => {
+        const payload: Record<string, JsonValue> = {};
+        if (entry.enabled !== entry.defaultEnabled) {
+          payload.enabled = entry.enabled;
+        }
+        if (!sameTaskCycle(entry.taskCycle, entry.defaultTaskCycle)) {
+          payload.taskCycle = normalizeTaskCycle(entry.taskCycle) as JsonValue;
+        }
+        return [entry.taskId, payload] satisfies [string, Record<string, JsonValue>];
+      })
+      .filter(([, payload]) => Object.keys(payload).length > 0),
   );
 
 export const updateTemplateTaskSetting = (
@@ -180,6 +224,12 @@ export const updateTemplateTaskSetting = (
   taskId: string,
   enabled: boolean,
 ) => entries.map((entry) => (entry.taskId === taskId ? { ...entry, enabled } : entry));
+
+export const updateTemplateTaskCycleSetting = (
+  entries: TemplateTaskSettingEntry[],
+  taskId: string,
+  taskCycle: TaskCycle,
+) => entries.map((entry) => (entry.taskId === taskId ? { ...entry, taskCycle: normalizeTaskCycle(taskCycle) } : entry));
 
 const mapTemplateValueTypeToInputType = (valueType: ScriptVariableValueType): EditorInputType => {
   switch (valueType) {

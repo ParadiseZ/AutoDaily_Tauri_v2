@@ -189,20 +189,25 @@ test('saves template UI values bound by legacy field key', async ({ page }) => {
 
   const countInput = page.getByTestId('editor-ui-preview-control-0');
   const enabledInput = page.getByTestId('editor-ui-preview-task-enabled');
+  const cycleSelect = page.getByTestId('editor-ui-preview-task-cycle');
   await expect(countInput).toHaveValue('3');
   await expect(enabledInput).toBeChecked();
+  await expect(cycleSelect).toContainText('每次运行');
   await countInput.fill('9');
   await enabledInput.uncheck();
+  await cycleSelect.click();
+  await page.getByTestId('editor-ui-preview-task-cycle-option-daily').click();
   await expect(enabledInput).not.toBeChecked();
   await page.getByRole('button', { name: '保存模板变量' }).click();
 
   await expect(countInput).toHaveValue('9');
   await expect(enabledInput).not.toBeChecked();
+  await expect(cycleSelect).toContainText('每天');
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   expect(
     state?.scriptTemplateValues['device-template-value::script-template-value::template-morning::'].valuesJson.variables?.['var-count'],
   ).toBe(9);
   expect(
     state?.scriptTemplateValues['device-template-value::script-template-value::template-morning::'].valuesJson.taskSettings?.['task-template-value'],
-  ).toEqual({ enabled: false });
+  ).toEqual({ enabled: false, taskCycle: 'daily' });
 });
