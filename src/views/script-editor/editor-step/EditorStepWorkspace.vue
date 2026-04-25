@@ -66,10 +66,17 @@
                 :selected-capture-output-target="selectedCaptureOutputTarget"
                 :selected-capture-output-input-entry="selectedCaptureOutputInputEntry"
                 :selected-action-input-target="selectedActionInputTarget"
+                :task-reference-options="taskReferenceOptions"
+                :policy-reference-options="policyReferenceOptions"
+                :task-ui-variable-options="taskUiVariableOptions"
                 :click-mode-options="clickModeOptions"
                 :swipe-mode-options="swipeModeOptions"
                 :create-variable="createVariable"
                 :jump-to-variable="jumpToVariable"
+                :create-policy="createPolicyTarget"
+                :jump-to-policy="jumpToPolicyTarget"
+                :create-task="createTaskTarget"
+                :jump-to-task="jumpToTaskTarget"
                 @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-exec-max="updateActionExecMax"
                 @update-field="updateActionField"
@@ -79,6 +86,10 @@
                 @update-text-field="updateActionTextField"
                 @create-variable="handleCreateActionVariable"
                 @jump-to-variable="handleJumpToDataVariable"
+                @create-policy-target="handleCreatePolicyTarget"
+                @jump-policy-target="jumpToPolicyTarget"
+                @create-drop-set-task="handleCreateDropSetTask"
+                @jump-drop-set-task="jumpToTaskTarget"
               />
 
               <EditorStepFlowPanel
@@ -247,7 +258,7 @@ import type { FlowControl } from '@/types/bindings/FlowControl';
 import type { TaskControl } from '@/types/bindings/TaskControl';
 import type { Step } from '@/types/bindings/Step';
 import type { VisionNode } from '@/types/bindings/VisionNode';
-import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
+import type { EditorReferenceKind, EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
 import EditorStepActionPanel from '@/views/script-editor/editor-step/EditorStepActionPanel.vue';
 import EditorStepBreadcrumb from '@/views/script-editor/editor-step/EditorStepBreadcrumb.vue';
 import EditorStepDataPanel from '@/views/script-editor/editor-step/EditorStepDataPanel.vue';
@@ -310,6 +321,7 @@ const props = withDefaults(
     labelSelectHint?: string | null;
     taskReferenceOptions: EditorReferenceOption[];
     policyReferenceOptions: EditorReferenceOption[];
+    taskUiVariableOptions?: EditorTaskUiVariableOption[];
     policyGroupReferenceOptions: EditorReferenceOption[];
     policySetReferenceOptions: EditorReferenceOption[];
     createReference: (kind: EditorReferenceKind) => Promise<string>;
@@ -675,9 +687,9 @@ const handleReorder = (from: number, to: number) => {
   emit('reorder-step', from, to);
 };
 
-const updateSelectedStep = (mutator: (step: Step & { a?: Action | FlowControl | DataHanding | VisionNode }) => void) => {
+const updateSelectedStep = (mutator: (step: Step) => void) => {
   if (currentSelectedIndex.value === null || !selectedStep.value) return;
-  const nextStep = cloneJson(selectedStep.value) as Step & { a?: Action | FlowControl | DataHanding | VisionNode };
+  const nextStep = cloneJson(selectedStep.value) as Step;
   mutator(nextStep);
   emit('update-step', currentSelectedIndex.value, nextStep);
 };
@@ -792,6 +804,32 @@ const updateActionNumberField = (field: string, value: string) => {
     if (step.op !== STEP_OP.action) return;
     step.a = { ...(step.a as Record<string, unknown>), [field]: toNumber(value) } as Action;
   });
+};
+
+const createPolicyTarget = async () => props.createReference('policy');
+
+const jumpToPolicyTarget = (id: string) => {
+  if (id) {
+    props.jumpToReference('policy', id);
+  }
+};
+
+const handleCreatePolicyTarget = async () => {
+  const id = await createPolicyTarget();
+  updateActionField('target', id);
+};
+
+const createTaskTarget = async () => props.createReference('task');
+
+const jumpToTaskTarget = (id: string) => {
+  if (id) {
+    props.jumpToReference('task', id);
+  }
+};
+
+const handleCreateDropSetTask = async () => {
+  const id = await createTaskTarget();
+  updateActionField('task', id);
 };
 
 const updateActionTextField = (field: string, value: string) => {

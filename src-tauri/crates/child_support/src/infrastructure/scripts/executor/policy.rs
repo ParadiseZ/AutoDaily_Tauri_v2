@@ -203,7 +203,11 @@ impl ScriptExecutor {
             let policy_name = candidate.policy.data.0.name.clone();
             let before_action = candidate.policy.data.0.before_action.clone();
             let after_action = candidate.policy.data.0.after_action.clone();
-            self.begin_active_policy_round_trace().await;
+            self.begin_active_policy_round_trace(
+                candidate.policy.id,
+                candidate.policy.data.0.cur_pos,
+            )
+            .await;
             let execute_result = async {
                 self.execute_policy_steps(
                     step_type,
@@ -680,14 +684,19 @@ impl ScriptExecutor {
             .join(", ")
     }
 
-    async fn begin_active_policy_round_trace(&mut self) {
+    async fn begin_active_policy_round_trace(&mut self, policy_id: PolicyId, base_click_pos: u16) {
         self.active_policy_round = Some(ActivePolicyRoundTrace::default());
+        self.active_policy_context = Some(ActivePolicyContext {
+            policy_id,
+            base_click_pos,
+        });
         if let Some(fingerprint) = self.current_page_fingerprint().await {
             self.push_active_policy_page_fingerprint(fingerprint);
         }
     }
 
     fn take_active_policy_round_trace(&mut self) -> ActivePolicyRoundTrace {
+        self.active_policy_context = None;
         self.active_policy_round.take().unwrap_or_default()
     }
 }

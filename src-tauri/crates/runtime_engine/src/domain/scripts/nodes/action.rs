@@ -1,5 +1,5 @@
 use crate::domain::scripts::point::{PointF32, PointU16};
-use crate::infrastructure::core::{Deserialize, Serialize};
+use crate::infrastructure::core::{Deserialize, PolicyId, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
@@ -63,6 +63,16 @@ pub enum Action {
     },
     Reboot,
     Back,
+    PosAdd {
+        target: PolicyId,
+    },
+    PosMinus {
+        target: PolicyId,
+    },
+    DropSetNext {
+        task: crate::infrastructure::core::TaskId,
+        variable_id: String,
+    },
     LaunchApp {
         pkg_name: String,
         activity_name: String,

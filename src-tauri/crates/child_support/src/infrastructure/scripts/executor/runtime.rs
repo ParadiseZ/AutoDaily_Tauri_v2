@@ -49,7 +49,15 @@ impl ScriptExecutor {
         template_values_json: Option<&str>,
         task: Option<&ScriptTaskTable>,
     ) -> ExecuteResult<()> {
-        let template_values = Self::parse_runtime_template_values(template_values_json)?;
+        let effective_template_values_json = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.execution
+                .template_values_json
+                .clone()
+                .or_else(|| template_values_json.map(str::to_string))
+        };
+        let template_values =
+            Self::parse_runtime_template_values(effective_template_values_json.as_deref())?;
         self.clear_input_scope(variable_catalog).await;
 
         let run_target = {

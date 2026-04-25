@@ -15,6 +15,7 @@ use crate::domain::scripts::point::{Point, PointF32, PointU16};
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
+use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::scripts::script_variable::{
@@ -22,10 +23,13 @@ use crate::domain::scripts::script_variable::{
 };
 use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit, VisionSnapshot};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
+use crate::constant::table_name::SCRIPT_TIME_TEMPLATE_VALUES_TABLE;
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{
-    ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScheduleId, StepId, TaskId,
+    AccountId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScheduleId,
+    ScriptId, ScriptTemplateValueId, StepId, TaskId, TemplateId,
 };
+use crate::infrastructure::db::get_pool;
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
     RunTarget, RuntimeLifecyclePhase, RuntimeProgressPhase, TimeoutAction,
@@ -43,6 +47,8 @@ use rhai::{Array, Dynamic, Engine, Map, Scope, FLOAT, INT};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::{json, Map as JsonMap, Value};
+use sqlx::types::Json as SqlJson;
 use std::future::Future;
 use std::hash::Hasher;
 use std::pin::Pin;
@@ -104,6 +110,12 @@ struct ActivePolicyRoundTrace {
     actions: Vec<PolicyActionTrace>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ActivePolicyContext {
+    policy_id: PolicyId,
+    base_click_pos: u16,
+}
+
 #[derive(Debug, Clone)]
 struct ProgressProbe {
     page_fingerprint: Option<String>,
@@ -141,6 +153,7 @@ pub struct ScriptExecutor {
     pub runtime_ctx: SharedRuntimeContext,
     pub node_indices: HashMap<StepId, usize>,
     active_policy_round: Option<ActivePolicyRoundTrace>,
+    active_policy_context: Option<ActivePolicyContext>,
     last_progress_probe: Option<ProgressProbe>,
 }
 
@@ -152,6 +165,7 @@ impl ScriptExecutor {
             runtime_ctx,
             node_indices: HashMap::new(),
             active_policy_round: None,
+            active_policy_context: None,
             last_progress_probe: None,
         }
     }

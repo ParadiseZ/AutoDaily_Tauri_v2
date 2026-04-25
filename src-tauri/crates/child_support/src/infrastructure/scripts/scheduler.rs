@@ -319,12 +319,16 @@ impl ScriptScheduler {
             let mut ctx = runtime_ctx.write().await;
             ctx.execution.current_execution_id = Some(execution_id);
             ctx.execution.current_assignment_id = Some(assignment_id);
+            ctx.execution.current_device_id = Some(device_id);
+            ctx.execution.current_time_template_id = queue_item.time_template_id;
+            ctx.execution.current_account_id = queue_item.account_id.clone();
             ctx.execution.script_id = script_id;
             ctx.execution.target = run_target.clone();
             ctx.execution.script_info = Some(script_info);
             ctx.execution.current_task = None;
             ctx.execution.current_step_id = None;
             ctx.execution.var_map.clear();
+            ctx.execution.template_values_json = queue_item.template_values_json.clone();
             ctx.execution.policy_states.clear();
             ctx.execution.task_states.clear();
             ctx.execution.action_states.clear();

@@ -262,6 +262,55 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'pos-add',
+    label: '点击索引加一',
+    description: '运行时把指定策略的当前位置加一，用于多个相同目标时改下次点击命中。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '点击索引加一',
+        op: STEP_OP.action,
+        exec_max: 0,
+        a: {
+          ac: ACTION_TYPE.posAdd,
+          target: '',
+        },
+      }),
+  },
+  {
+    id: 'pos-minus',
+    label: '点击索引减一',
+    description: '运行时把指定策略的当前位置减一，最低回到 0，不持久化。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '点击索引减一',
+        op: STEP_OP.action,
+        exec_max: 0,
+        a: {
+          ac: ACTION_TYPE.posMinus,
+          target: '',
+        },
+      }),
+  },
+  {
+    id: 'drop-set-next',
+    label: 'UI 变量下一个',
+    description: '把指定任务的 Select/Radio 变量切换到下一个选项并写回模板变量。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: 'UI 变量下一个',
+        op: STEP_OP.action,
+        exec_max: 0,
+        a: {
+          ac: ACTION_TYPE.dropSetNext,
+          task: '',
+          variable_id: '',
+        },
+      }),
+  },
+  {
     id: 'wait',
     label: '等待',
     description: '在关键跳转后留出稳定时间。',
@@ -564,6 +613,9 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.ac === ACTION_TYPE.stopApp) return '停止应用';
     if (step.a.ac === ACTION_TYPE.reboot) return '重启应用';
     if (step.a.ac === ACTION_TYPE.back) return '返回';
+    if (step.a.ac === ACTION_TYPE.posAdd) return '点击索引加一';
+    if (step.a.ac === ACTION_TYPE.posMinus) return '点击索引减一';
+    if (step.a.ac === ACTION_TYPE.dropSetNext) return 'UI 变量下一个';
     if (step.a.ac === ACTION_TYPE.click) {
       if (step.a.mode === ACTION_MODE.percent) return '点击百分比';
       if (step.a.mode === ACTION_MODE.txt) return '点击文字';
@@ -626,6 +678,9 @@ export const describeStepMeta = (step: Step) => {
     if (step.a.ac === ACTION_TYPE.stopApp) return `停止 ${step.a.pkg_name || '未指定包名'}`;
     if (step.a.ac === ACTION_TYPE.reboot) return '重启脚本配置的目标应用';
     if (step.a.ac === ACTION_TYPE.back) return 'Android 返回键';
+    if (step.a.ac === ACTION_TYPE.posAdd) return `调整策略 ${step.a.target || '未指定'} · +1`;
+    if (step.a.ac === ACTION_TYPE.posMinus) return `调整策略 ${step.a.target || '未指定'} · -1`;
+    if (step.a.ac === ACTION_TYPE.dropSetNext) return `任务 ${step.a.task || '未指定'} · 变量 ${step.a.variable_id || '未指定'}`;
     if (step.a.ac === ACTION_TYPE.click) return `点击 · ${step.a.mode}`;
     if (step.a.ac === ACTION_TYPE.swipe) return `滑动 · ${step.a.mode}`;
     return '动作';

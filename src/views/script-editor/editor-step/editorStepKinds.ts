@@ -8,15 +8,18 @@ export const STEP_OP = {
   vision: STEP_OPS[5],
 } as const;
 
-export const ACTION_TYPES = ['click', 'swipe', 'capture', 'reboot', 'back', 'launchApp', 'stopApp'] as const;
+export const ACTION_TYPES = ['click', 'swipe', 'capture', 'reboot', 'back', 'posAdd', 'posMinus', 'dropSetNext', 'launchApp', 'stopApp'] as const;
 export const ACTION_TYPE = {
   click: ACTION_TYPES[0],
   swipe: ACTION_TYPES[1],
   capture: ACTION_TYPES[2],
   reboot: ACTION_TYPES[3],
   back: ACTION_TYPES[4],
-  launchApp: ACTION_TYPES[5],
-  stopApp: ACTION_TYPES[6],
+  posAdd: ACTION_TYPES[5],
+  posMinus: ACTION_TYPES[6],
+  dropSetNext: ACTION_TYPES[7],
+  launchApp: ACTION_TYPES[8],
+  stopApp: ACTION_TYPES[9],
 } as const;
 
 export const ACTION_MODES = ['point', 'percent', 'txt', 'labelIdx'] as const;

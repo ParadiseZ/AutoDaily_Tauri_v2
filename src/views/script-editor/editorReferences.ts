@@ -6,6 +6,15 @@ export interface EditorReferenceOption {
   description?: string;
 }
 
+export interface EditorTaskUiVariableOption {
+  taskId: string;
+  taskLabel: string;
+  variableId: string;
+  label: string;
+  description?: string;
+  options: string[];
+}
+
 const getReferenceKindLabel = (kind: EditorReferenceKind) => {
   switch (kind) {
     case 'policyGroup':

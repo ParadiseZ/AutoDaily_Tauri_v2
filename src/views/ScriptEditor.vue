@@ -354,6 +354,7 @@
             :label-select-hint="textDetLabelHint"
             :task-reference-options="taskReferenceOptions"
             :policy-reference-options="policyReferenceOptions"
+            :task-ui-variable-options="taskUiVariableOptions"
             :policy-group-reference-options="policyGroupReferenceOptions"
             :policy-set-reference-options="policySetReferenceOptions"
             :create-reference="createReferenceResource"
@@ -406,6 +407,7 @@
             :label-select-hint="textDetLabelHint"
             :task-reference-options="taskReferenceOptions"
             :policy-reference-options="policyReferenceOptions"
+            :task-ui-variable-options="taskUiVariableOptions"
             :policy-group-reference-options="policyGroupReferenceOptions"
             :policy-set-reference-options="policySetReferenceOptions"
             :create-reference="createReferenceResource"
@@ -539,7 +541,7 @@ import EditorPolicyConfigPanel from '@/views/script-editor/editor-policy/EditorP
 import EditorPolicyWorkspace from '@/views/script-editor/editor-policy/EditorPolicyWorkspace.vue';
 import EditorRelationConfigPanel from '@/views/script-editor/editor-policy/EditorRelationConfigPanel.vue';
 import EditorRelationWorkspace from '@/views/script-editor/editor-policy/EditorRelationWorkspace.vue';
-import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
+import type { EditorReferenceKind, EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
 import {
   createEmptyRelationMap,
   editorModeOptions,
@@ -1005,6 +1007,44 @@ const taskReferenceOptions = computed<EditorReferenceOption[]>(() =>
       description: `${describeTaskReferenceTriggerMode(task.triggerMode)} · ${task.defaultEnabled ? '默认启用' : '默认关闭'}`,
     })),
 );
+const taskUiVariableOptions = computed<EditorTaskUiVariableOption[]>(() => {
+  const variables = new Map((draftScript.value?.data.variableCatalog.variables ?? []).map((variable) => [variable.id, variable]));
+  const result: EditorTaskUiVariableOption[] = [];
+
+  for (const task of draftTasks.value.filter((item) => item.rowType === 'task' && !item.isDeleted)) {
+    const uiSchema = parseUiSchema(task.data.uiData ?? {});
+    for (const field of uiSchema.fields) {
+      if (field.control !== 'select' && field.control !== 'radio') {
+        continue;
+      }
+      const variableId = field.variableId?.trim();
+      if (!variableId) {
+        continue;
+      }
+      const variable = variables.get(variableId);
+      if (!variable || variable.namespace !== 'input' || !variable.persisted) {
+        continue;
+      }
+      const options = field.optionsText
+        .split('\n')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (!options.length) {
+        continue;
+      }
+      result.push({
+        taskId: task.id,
+        taskLabel: task.name || '未命名任务',
+        variableId,
+        label: `${task.name || '未命名任务'} · ${field.label || variable.name || variable.key}`,
+        description: `${variable.name || variable.key} · ${field.control === 'select' ? 'Select' : 'Radio'} · ${options.length} 个选项`,
+        options,
+      });
+    }
+  }
+
+  return result;
+});
 const policyReferenceOptions = computed<EditorReferenceOption[]>(() =>
   draftPolicies.value.map((policy) => ({
     label: policy.data.name,

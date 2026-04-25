@@ -65,6 +65,7 @@
         :label-select-hint="labelSelectHint"
         :task-reference-options="taskReferenceOptions"
         :policy-reference-options="policyReferenceOptions"
+        :task-ui-variable-options="taskUiVariableOptions"
         :policy-group-reference-options="policyGroupReferenceOptions"
         :policy-set-reference-options="policySetReferenceOptions"
         :create-reference="createReference"
@@ -95,7 +96,7 @@ import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { Step } from '@/types/bindings/Step';
 import EditorSearchRuleBuilder from '@/views/script-editor/EditorSearchRuleBuilder.vue';
-import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
+import type { EditorReferenceKind, EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
 import EditorStepWorkspace from '@/views/script-editor/editor-step/EditorStepWorkspace.vue';
 import type { PolicyEditorPanelId } from '@/views/script-editor/editor-policy/editorPolicy';
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editor-step/editorStepTree';
@@ -114,6 +115,7 @@ const props = defineProps<{
   labelSelectHint?: string | null;
   taskReferenceOptions: EditorReferenceOption[];
   policyReferenceOptions: EditorReferenceOption[];
+  taskUiVariableOptions?: EditorTaskUiVariableOption[];
   policyGroupReferenceOptions: EditorReferenceOption[];
   policySetReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;

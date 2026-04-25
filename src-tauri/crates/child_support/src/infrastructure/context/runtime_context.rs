@@ -4,7 +4,8 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{
-    ExecutionId, HashMap, PolicyId, PolicySetId, ScheduleId, ScriptId, StepId, TaskId,
+    AccountId, DeviceId, ExecutionId, HashMap, PolicyId, PolicySetId, ScheduleId, ScriptId,
+    StepId, TaskId, TemplateId,
 };
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
@@ -36,6 +37,7 @@ pub struct PolicyState {
     pub skip_flag: bool,
     pub done_flag: bool,
     pub exec_cur: u32,
+    pub click_pos: Option<u16>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -66,6 +68,9 @@ impl Default for TaskState {
 pub struct ExecutionState {
     pub current_execution_id: Option<ExecutionId>,
     pub current_assignment_id: Option<ScheduleId>,
+    pub current_device_id: Option<DeviceId>,
+    pub current_time_template_id: Option<TemplateId>,
+    pub current_account_id: Option<AccountId>,
     pub script_id: ScriptId,
     pub target: RunTarget,
     pub script_info: Option<ScriptInfo>,
@@ -74,6 +79,9 @@ pub struct ExecutionState {
 
     /// Rhai 变量映射
     pub var_map: HashMap<String, rhai::Dynamic>,
+
+    /// 当前执行使用的模板变量快照。运行时自动切换 UI 变量时会更新它，供后续任务 hydrate 使用。
+    pub template_values_json: Option<String>,
 
     /// 策略状态
     pub policy_states: HashMap<PolicyId, PolicyState>,
@@ -93,12 +101,16 @@ impl ExecutionState {
         Self {
             current_execution_id: None,
             current_assignment_id: None,
+            current_device_id: None,
+            current_time_template_id: None,
+            current_account_id: None,
             script_id,
             target,
             script_info: None,
             current_task: None,
             current_step_id: None,
             var_map: HashMap::new(),
+            template_values_json: None,
             policy_states: HashMap::new(),
             task_states: HashMap::new(),
             action_states: HashMap::new(),

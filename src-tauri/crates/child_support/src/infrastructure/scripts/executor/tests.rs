@@ -81,6 +81,21 @@ fn select_ocr_result_prefers_exact_match_then_contains() {
 }
 
 #[test]
+fn select_ocr_result_uses_position_for_policy_click() {
+    let items = vec![
+        build_ocr_result("开始", 0, 0, 40, 20),
+        build_ocr_result("开始", 50, 0, 90, 20),
+        build_ocr_result("开始", 100, 0, 140, 20),
+    ];
+
+    let matched = ScriptExecutor::select_ocr_result_at(&items, Some("开始"), Some(1)).unwrap();
+    assert_eq!(matched.bounding_box.x1, 50);
+
+    let clamped = ScriptExecutor::select_ocr_result_at(&items, Some("开始"), Some(99)).unwrap();
+    assert_eq!(clamped.bounding_box.x1, 100);
+}
+
+#[test]
 fn select_det_result_matches_label_index() {
     let items = vec![
         build_det_result(3, "enemy", 0, 0, 40, 40),
@@ -89,6 +104,31 @@ fn select_det_result_matches_label_index() {
 
     let matched = ScriptExecutor::select_det_result(&items, Some(7)).unwrap();
     assert_eq!(matched.label, "ally");
+}
+
+#[test]
+fn select_det_result_uses_position_for_duplicate_labels() {
+    let items = vec![
+        build_det_result(7, "button", 0, 0, 40, 40),
+        build_det_result(7, "button", 50, 0, 90, 40),
+        build_det_result(3, "other", 100, 0, 140, 40),
+    ];
+
+    let matched = ScriptExecutor::select_det_result_at(&items, Some(7), Some(1)).unwrap();
+    assert_eq!(matched.bounding_box.x1, 50);
+}
+
+#[test]
+fn drop_set_next_cycles_options_and_updates_template_root() {
+    let options = vec!["A".to_string(), "B".to_string(), "C".to_string()];
+    assert_eq!(ScriptExecutor::next_option_value(&options, Some("A")), "B");
+    assert_eq!(ScriptExecutor::next_option_value(&options, Some("C")), "A");
+    assert_eq!(ScriptExecutor::next_option_value(&options, Some("missing")), "A");
+
+    let mut root = json!({ "taskSettings": {} });
+    ScriptExecutor::set_template_variable_value(&mut root, "var-1", json!("B"));
+    assert_eq!(root["variables"]["var-1"], json!("B"));
+    assert!(root.get("taskSettings").is_some());
 }
 
 #[test]

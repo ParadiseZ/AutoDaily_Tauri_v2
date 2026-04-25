@@ -79,6 +79,95 @@
       </div>
     </template>
 
+    <template v-else-if="selectedAction.ac === ACTION_TYPE.posAdd || selectedAction.ac === ACTION_TYPE.posMinus">
+      <div class="space-y-3">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标策略</span>
+          <EditorSelectField
+            :model-value="selectedAction.target || null"
+            :options="resolvedPolicyTargetOptions"
+            :show-description="true"
+            placeholder="选择要调整当前位置的策略"
+            test-id="editor-action-policy-position-target"
+            @update:model-value="$emit('update-field', 'target', String($event || ''))"
+          />
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-if="createPolicy"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            @click="$emit('create-policy-target')"
+          >
+            <AppIcon name="plus" :size="14" />
+            新建策略
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!selectedAction.target || !jumpToPolicy"
+            @click="selectedAction.target ? $emit('jump-policy-target', selectedAction.target) : undefined"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位策略
+          </button>
+        </div>
+        <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+          只调整本次运行中的点击索引，不写回策略配置；策略内文字/标签点击会用该索引选择第 N 个匹配目标。
+        </p>
+      </div>
+    </template>
+
+    <template v-else-if="selectedAction.ac === ACTION_TYPE.dropSetNext">
+      <div class="space-y-3">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标任务</span>
+          <EditorSelectField
+            :model-value="selectedAction.task || null"
+            :options="resolvedTaskTargetOptions"
+            :show-description="true"
+            placeholder="选择要切换 UI 变量的任务"
+            test-id="editor-action-drop-set-task"
+            @update:model-value="selectDropSetTask(String($event || ''))"
+          />
+        </label>
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">UI 变量</span>
+          <EditorSelectField
+            :model-value="selectedAction.variable_id || null"
+            :options="resolvedDropSetVariableOptions"
+            :show-description="true"
+            placeholder="选择 Select / Radio 绑定变量"
+            test-id="editor-action-drop-set-variable"
+            @update:model-value="$emit('update-field', 'variable_id', String($event || ''))"
+          />
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-if="createTask"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            @click="$emit('create-drop-set-task')"
+          >
+            <AppIcon name="plus" :size="14" />
+            新建任务
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!selectedAction.task || !jumpToTask"
+            @click="selectedAction.task ? $emit('jump-drop-set-task', selectedAction.task) : undefined"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位任务
+          </button>
+        </div>
+        <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+          执行时把该变量切到配置选项里的下一个值，并写回当前设备/时间模板作用域。
+        </p>
+      </div>
+    </template>
+
     <template v-else-if="selectedAction.ac === ACTION_TYPE.click">
       <div class="editor-inline-grid">
         <div class="editor-inline-label">点击方式</div>
@@ -300,6 +389,7 @@ import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import type { Action } from '@/types/bindings/Action';
 import { ACTION_MODE, ACTION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import type { EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
 import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepActionPanel' });
@@ -316,10 +406,17 @@ const props = defineProps<{
   selectedCaptureOutputTarget?: EditorVariableOption | null;
   selectedCaptureOutputInputEntry?: EditorInputEntry | null;
   selectedActionInputTarget?: EditorVariableOption | null;
+  policyReferenceOptions?: EditorReferenceOption[];
+  taskReferenceOptions?: EditorReferenceOption[];
+  taskUiVariableOptions?: EditorTaskUiVariableOption[];
   clickModeOptions: Array<{ label: string; value: string; description: string }>;
   swipeModeOptions: Array<{ label: string; value: string; description: string }>;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
+  createPolicy?: () => Promise<string>;
+  jumpToPolicy?: (id: string) => void;
+  createTask?: () => Promise<string>;
+  jumpToTask?: (id: string) => void;
 }>();
 
 const emit = defineEmits<{
@@ -331,10 +428,14 @@ const emit = defineEmits<{
   'update-text-field': [field: string, value: string];
   'create-variable': [target: 'captureOutput' | 'actionInput'];
   'jump-to-variable': [option: EditorVariableOption];
+  'create-policy-target': [];
+  'jump-policy-target': [id: string];
+  'create-drop-set-task': [];
+  'jump-drop-set-task': [id: string];
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
 
-type SelectOption = { label: string; value: string; description: string; disabled?: boolean };
+type SelectOption = { label: string; value: string; description?: string; disabled?: boolean };
 type LabelSelectOption = { label: string; value: number; description?: string; disabled?: boolean };
 
 const withCurrentVariableOption = (options: SelectOption[], value: string) => {
@@ -377,6 +478,89 @@ const resolvedCaptureOutputOptions = computed(() =>
     ? withCurrentVariableOption(props.writableCatalogVariableOptions ?? [], props.selectedAction.output_var ?? '')
     : props.writableCatalogVariableOptions ?? [],
 );
+
+const resolvedPolicyTargetOptions = computed(() => {
+  const options = props.policyReferenceOptions ?? [];
+  if (props.selectedAction.ac !== ACTION_TYPE.posAdd && props.selectedAction.ac !== ACTION_TYPE.posMinus) {
+    return options;
+  }
+  const target = props.selectedAction.target?.trim() ?? '';
+  if (!target || options.some((option) => option.value === target)) {
+    return options;
+  }
+  return [
+    {
+      label: target,
+      value: target,
+      description: '未解析策略',
+    },
+    ...options,
+  ];
+});
+
+const resolvedTaskTargetOptions = computed(() => {
+  const options = props.taskReferenceOptions ?? [];
+  if (props.selectedAction.ac !== ACTION_TYPE.dropSetNext) {
+    return options;
+  }
+  const taskId = props.selectedAction.task?.trim() ?? '';
+  if (!taskId || options.some((option) => option.value === taskId)) {
+    return options;
+  }
+  return [
+    {
+      label: taskId,
+      value: taskId,
+      description: '未解析任务',
+    },
+    ...options,
+  ];
+});
+
+const dropSetVariableOptions = computed(() => {
+  if (props.selectedAction.ac !== ACTION_TYPE.dropSetNext) {
+    return [];
+  }
+  const taskId = props.selectedAction.task?.trim() ?? '';
+  return (props.taskUiVariableOptions ?? [])
+    .filter((option) => !taskId || option.taskId === taskId)
+    .map((option) => ({
+      label: option.label,
+      value: option.variableId,
+      description: option.description ?? `${option.taskLabel} · ${option.options.length} 个选项`,
+    }));
+});
+
+const resolvedDropSetVariableOptions = computed(() => {
+  const options = dropSetVariableOptions.value;
+  if (props.selectedAction.ac !== ACTION_TYPE.dropSetNext) {
+    return options;
+  }
+  const variableId = props.selectedAction.variable_id?.trim() ?? '';
+  if (!variableId || options.some((option) => option.value === variableId)) {
+    return options;
+  }
+  return [
+    {
+      label: variableId,
+      value: variableId,
+      description: '未解析 UI 变量',
+    },
+    ...options,
+  ];
+});
+
+const selectDropSetTask = (taskId: string) => {
+  emit('update-field', 'task', taskId);
+  if (props.selectedAction.ac !== ACTION_TYPE.dropSetNext) {
+    return;
+  }
+  const currentVariableId = props.selectedAction.variable_id?.trim() ?? '';
+  const nextOptions = (props.taskUiVariableOptions ?? []).filter((option) => option.taskId === taskId);
+  if (!nextOptions.some((option) => option.variableId === currentVariableId)) {
+    emit('update-field', 'variable_id', nextOptions[0]?.variableId ?? '');
+  }
+};
 
 const selectedActionInput = computed(() => {
   if (props.selectedAction.ac !== ACTION_TYPE.click && props.selectedAction.ac !== ACTION_TYPE.swipe) {
