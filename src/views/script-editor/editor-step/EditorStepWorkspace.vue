@@ -172,7 +172,8 @@
                 :jump-to-reference="jumpToReference"
                 @update-type="updateTaskControlType"
                 @update-target-type="updateTaskControlTargetType"
-                @update-target-id="updateTaskControlTargetId"
+                @add-target-id="addTaskControlTargetId"
+                @remove-target-id="removeTaskControlTargetId"
                 @update-status-type="updateTaskControlStatusType"
                 @update-status-value="updateTaskControlStatusValue"
               />
@@ -1128,9 +1129,10 @@ const updateTaskControlTargetType = (value: string) => {
     step.a = {
       ...step.a,
       target: {
-        ...step.a.target,
         type: nextTargetType,
+        id: '',
       },
+      targets: [],
       status:
         nextTargetType === STATE_TARGET_TYPE.policy && step.a.status.type === STATE_STATUS_TYPE.enabled
           ? {
@@ -1142,15 +1144,39 @@ const updateTaskControlTargetType = (value: string) => {
   });
 };
 
-const updateTaskControlTargetId = (value: string) => {
+const addTaskControlTargetId = (value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.taskControl) return;
+    const id = value.trim();
+    if (!id) return;
+    const currentTargets = step.a.targets?.length ? step.a.targets : step.a.target.id ? [step.a.target] : [];
+    if (currentTargets.some((target) => target.id === id && target.type === step.a.target.type)) {
+      return;
+    }
+    const nextTargets = [
+      ...currentTargets,
+      {
+        type: step.a.target.type,
+        id,
+      },
+    ];
     step.a = {
       ...step.a,
-      target: {
-        ...step.a.target,
-        id: value,
-      },
+      target: nextTargets[0] ?? { ...step.a.target, id: '' },
+      targets: nextTargets,
+    };
+  });
+};
+
+const removeTaskControlTargetId = (value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.taskControl) return;
+    const currentTargets = step.a.targets?.length ? step.a.targets : step.a.target.id ? [step.a.target] : [];
+    const nextTargets = currentTargets.filter((target) => target.id !== value);
+    step.a = {
+      ...step.a,
+      target: nextTargets[0] ?? { ...step.a.target, id: '' },
+      targets: nextTargets,
     };
   });
 };

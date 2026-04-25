@@ -691,8 +691,18 @@ impl ScriptExecutor {
             return Ok(timeout_flow);
         }
         match task_control {
-            TaskControl::SetState { target, status } => {
-                self.set_state_value(target, status).await?;
+            TaskControl::SetState {
+                target,
+                targets,
+                status,
+            } => {
+                if targets.is_empty() {
+                    self.set_state_value(target, status).await?;
+                } else {
+                    for target in targets {
+                        self.set_state_value(target, status).await?;
+                    }
+                }
                 Ok(ControlFlow::Next)
             }
         }
@@ -787,6 +797,7 @@ impl ScriptExecutor {
                     Ok(Self::compare_dynamic(&lhs, op, &rhs))
                 }
                 ConditionNode::TaskStatus { a } => self.match_state_status(a).await,
+                ConditionNode::CurrentTaskIn { targets } => Ok(self.current_task_in(targets).await),
                 ConditionNode::PolicyCondition { input_var, rule } => {
                     if let Some(input_var) =
                         input_var.as_deref().map(str::trim).filter(|value| !value.is_empty())
@@ -904,11 +915,36 @@ impl ScriptExecutor {
     }
 
     async fn match_state_status(&mut self, task_control: &TaskControl) -> ExecuteResult<bool> {
-        let (target, status) = match task_control {
-            TaskControl::SetState { target, status } => (target, status),
+        let (target, targets, status) = match task_control {
+            TaskControl::SetState {
+                target,
+                targets,
+                status,
+            } => (target, targets, status),
         };
 
-        Ok(self.match_state_value(target, status).await)
+        if targets.is_empty() {
+            return Ok(self.match_state_value(target, status).await);
+        }
+
+        for target in targets {
+            if !self.match_state_value(target, status).await {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    async fn current_task_in(&self, targets: &[TaskId]) -> bool {
+        if targets.is_empty() {
+            return false;
+        }
+
+        let ctx = self.runtime_ctx.read().await;
+        ctx.execution
+            .current_task
+            .as_ref()
+            .is_some_and(|task| targets.contains(&task.id))
     }
 
     async fn match_state_value(&self, target: &StateTarget, status: &StateStatus) -> bool {

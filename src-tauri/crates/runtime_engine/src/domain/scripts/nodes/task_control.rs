@@ -7,6 +7,8 @@ pub enum TaskControl {
     // 状态与流程管理
     SetState {
         target: StateTarget,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        targets: Vec<StateTarget>,
         status: StateStatus,
     },
 }

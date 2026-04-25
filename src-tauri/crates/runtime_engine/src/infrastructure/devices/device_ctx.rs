@@ -87,4 +87,8 @@ impl DeviceCtx {
     pub async fn stop_app(&self, pkg_name: &str) -> Result<(), String> {
         self.adapter.stop_app(pkg_name).await
     }
+
+    pub async fn back(&self) -> Result<(), String> {
+        self.adapter.back().await
+    }
 }

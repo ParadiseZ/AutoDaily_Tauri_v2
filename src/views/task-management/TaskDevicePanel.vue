@@ -33,6 +33,38 @@
       </div>
     </div>
 
+    <div class="grid gap-3 xl:grid-cols-3">
+      <div class="runtime-result-block">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-semibold text-[var(--app-text-faint)]">当前进度</p>
+          <StatusBadge :label="runtimeProgressLabel" :tone="runtimeProgressTone" />
+        </div>
+        <p class="mt-2 line-clamp-2 text-sm text-[var(--app-text-strong)]">
+          {{ runtimeResult.latestProgress?.message || status.message || '暂无进度事件' }}
+        </p>
+      </div>
+
+      <div class="runtime-result-block">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-semibold text-[var(--app-text-faint)]">最后结果</p>
+          <StatusBadge :label="runtimeScheduleLabel" :tone="runtimeScheduleTone" />
+        </div>
+        <p class="mt-2 line-clamp-2 text-sm text-[var(--app-text-strong)]">
+          {{ runtimeResult.latestSchedule?.message || runtimeResult.latestSchedule?.status || '暂无调度结果' }}
+        </p>
+      </div>
+
+      <div class="runtime-result-block" :class="runtimeResult.latestTimeout ? 'runtime-result-block-warning' : ''">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-semibold text-[var(--app-text-faint)]">Timeout</p>
+          <StatusBadge :label="runtimeTimeoutLabel" :tone="runtimeTimeoutTone" />
+        </div>
+        <p class="mt-2 line-clamp-2 text-sm text-[var(--app-text-strong)]">
+          {{ runtimeTimeoutSummary }}
+        </p>
+      </div>
+    </div>
+
     <div class="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
       <SurfacePanel tone="muted" padding="sm" class="space-y-4">
         <div class="editor-panel-tabs min-w-max">
@@ -296,6 +328,7 @@ import type {
   DeviceRuntimeStatus,
   RunTarget,
   RuntimeProgressEvent,
+  RuntimeResultProjection,
   RuntimeTimeoutEvent,
   ScriptTableRecord,
 } from '@/types/app/domain';
@@ -324,6 +357,7 @@ const props = defineProps<{
   scriptTaskLoading: Record<string, boolean>;
   progressEvent: RuntimeProgressEvent | null;
   timeoutEvent: RuntimeTimeoutEvent | null;
+  runtimeResult: RuntimeResultProjection;
   loadingAssignments: boolean;
   loadingSchedules: boolean;
 }>();
@@ -400,6 +434,101 @@ const temporaryRows = computed(() =>
 );
 
 const normalizeWarningMessage = (message?: string | null) => message?.trim() || null;
+
+const timeoutActionLabels: Record<string, string> = {
+  SkipCurrentTask: '跳过任务',
+  RunRecoveryTask: '恢复任务',
+  StopExecution: '停止执行',
+  skipCurrentTask: '跳过任务',
+  runRecoveryTask: '恢复任务',
+  stopExecution: '停止执行',
+};
+
+const scheduleStatusLabels: Record<string, string> = {
+  Queued: '已排队',
+  Running: '运行中',
+  Success: '成功',
+  Failed: '失败',
+  Skipped: '已跳过',
+  Cleared: '已清空',
+};
+
+const progressPhaseLabels: Record<string, string> = {
+  Idle: '空闲',
+  Loading: '加载中',
+  Planning: '规划中',
+  Executing: '执行中',
+  Paused: '已暂停',
+  Completed: '已完成',
+  Failed: '失败',
+};
+
+const runtimeProgressLabel = computed(() =>
+  progressPhaseLabels[props.runtimeResult.latestProgress?.phase ?? ''] ?? props.runtimeResult.latestProgress?.phase ?? '暂无',
+);
+
+const runtimeProgressTone = computed(() => {
+  const phase = props.runtimeResult.latestProgress?.phase;
+  if (phase === 'Failed') return 'danger';
+  if (phase === 'Completed') return 'success';
+  if (phase === 'Paused') return 'warning';
+  if (phase === 'Executing' || phase === 'Loading' || phase === 'Planning') return 'info';
+  return 'neutral';
+});
+
+const runtimeScheduleLabel = computed(() =>
+  scheduleStatusLabels[props.runtimeResult.latestSchedule?.status ?? ''] ?? props.runtimeResult.latestSchedule?.status ?? '暂无',
+);
+
+const runtimeScheduleTone = computed(() => {
+  const status = props.runtimeResult.latestSchedule?.status;
+  if (status === 'Success') return 'success';
+  if (status === 'Skipped' || status === 'Queued' || status === 'Running') return 'warning';
+  if (status === 'Failed') return 'danger';
+  return 'neutral';
+});
+
+const runtimeTimeoutLabel = computed(() => {
+  if (!props.runtimeResult.latestTimeout) {
+    return '未发生';
+  }
+
+  const action = props.runtimeResult.latestTimeout.timeoutAction;
+  return action ? timeoutActionLabels[action] ?? action : '已触发';
+});
+
+const runtimeTimeoutTone = computed(() => {
+  if (!props.runtimeResult.latestTimeout) return 'success';
+  if (props.runtimeResult.timeoutActionResult === 'failed') return 'danger';
+  if (props.runtimeResult.timeoutActionResult === 'pending') return 'warning';
+  return 'info';
+});
+
+const runtimeTimeoutResultLabel = computed(() => {
+  switch (props.runtimeResult.timeoutActionResult) {
+    case 'skipped':
+      return '已跳过当前任务';
+    case 'recovered':
+      return '已进入恢复任务';
+    case 'stopped':
+      return '已停止执行';
+    case 'failed':
+      return '动作后失败';
+    case 'pending':
+      return '等待后续结果';
+    default:
+      return '没有 timeout';
+  }
+});
+
+const runtimeTimeoutSummary = computed(() => {
+  const timeout = props.runtimeResult.latestTimeout;
+  if (!timeout) {
+    return '当前设备还没有 timeout 事件。';
+  }
+
+  return `${runtimeTimeoutResultLabel.value} · ${timeout.detail || timeout.message}`;
+});
 
 const buildTimeoutWarningMessage = (timeoutEvent: RuntimeTimeoutEvent | null) => {
   if (!timeoutEvent) {
@@ -643,5 +772,18 @@ onBeforeUnmount(() => {
   border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border));
   background: color-mix(in srgb, var(--app-accent-soft) 58%, white);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 16%, transparent);
+}
+
+.runtime-result-block {
+  min-height: 92px;
+  border-radius: 18px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.58);
+  padding: 0.9rem 1rem;
+}
+
+.runtime-result-block-warning {
+  border-color: color-mix(in srgb, rgb(245 158 11) 42%, var(--app-border));
+  background: color-mix(in srgb, rgb(254 243 199) 58%, white);
 }
 </style>

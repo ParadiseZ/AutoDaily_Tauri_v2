@@ -60,6 +60,9 @@ pub enum ConditionNode {
     /// 策略/任务状态是否完成/跳过
     TaskStatus { a: TaskControl },
 
+    /// 当前正在执行的任务是否属于指定集合
+    CurrentTaskIn { targets: Vec<TaskId> },
+
     /// ocr字体颜色/背景色判断
     ColorCompare {
         txt_target: String,

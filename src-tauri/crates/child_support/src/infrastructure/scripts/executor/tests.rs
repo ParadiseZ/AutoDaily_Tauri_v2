@@ -759,6 +759,7 @@ async fn task_control_path_triggers_timeout_detector() {
     let flow = executor
         .execute_task_control_step(&TaskControl::SetState {
             target: StateTarget::Task { id: UuidV7(700) },
+            targets: Vec::new(),
             status: StateStatus::Skip { value: true },
         })
         .await
@@ -766,6 +767,78 @@ async fn task_control_path_triggers_timeout_detector() {
 
     assert!(matches!(flow, super::ControlFlow::Return));
     clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn task_control_set_state_applies_multiple_targets() {
+    let mut executor = build_executor();
+    let task_a = UuidV7(701);
+    let task_b = UuidV7(702);
+    let policy_a = UuidV7(801);
+    let policy_b = UuidV7(802);
+
+    let flow = executor
+        .execute_task_control_step(&TaskControl::SetState {
+            target: StateTarget::Task { id: task_a },
+            targets: vec![
+                StateTarget::Task { id: task_a },
+                StateTarget::Task { id: task_b },
+                StateTarget::Policy { id: policy_a },
+                StateTarget::Policy { id: policy_b },
+            ],
+            status: StateStatus::Skip { value: true },
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Next));
+    let ctx = executor.runtime_ctx.read().await;
+    assert!(ctx
+        .execution
+        .task_states
+        .get(&task_a)
+        .is_some_and(|state| state.skip_flag));
+    assert!(ctx
+        .execution
+        .task_states
+        .get(&task_b)
+        .is_some_and(|state| state.skip_flag));
+    assert!(ctx
+        .execution
+        .policy_states
+        .get(&policy_a)
+        .is_some_and(|state| state.skip_flag));
+    assert!(ctx
+        .execution
+        .policy_states
+        .get(&policy_b)
+        .is_some_and(|state| state.skip_flag));
+}
+
+#[tokio::test]
+async fn current_task_condition_matches_target_list() {
+    let mut executor = build_executor();
+    let task_id = UuidV7(710);
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.execution.current_task = Some(build_task_with_variables(task_id, json!({})));
+    }
+
+    let matched = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            targets: vec![UuidV7(709), task_id],
+        })
+        .await
+        .unwrap();
+    let unmatched = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            targets: vec![UuidV7(711)],
+        })
+        .await
+        .unwrap();
+
+    assert!(matched);
+    assert!(!unmatched);
 }
 
 #[test]

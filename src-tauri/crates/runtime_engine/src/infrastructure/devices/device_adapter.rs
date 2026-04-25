@@ -28,6 +28,8 @@ pub trait DeviceAdapter: Send + Sync {
 
     async fn stop_app(&self, pkg_name: &str) -> Result<(), String>;
 
+    async fn back(&self) -> Result<(), String>;
+
     async fn change_cap_method(&self, method: CaptureMethod) -> bool;
 }
 
@@ -141,6 +143,11 @@ impl DeviceAdapter for AndroidDeviceAdapter {
         Ok(())
     }
 
+    async fn back(&self) -> Result<(), String> {
+        get_adb_ctx().send_adb_cmd(&ADBCommand::Back);
+        Ok(())
+    }
+
     async fn change_cap_method(&self, method: CaptureMethod) -> bool {
         Log::debug(format!("切换截图方式为：{}", method).as_str());
         self.capture_method.store(method as u8, Ordering::Release);
@@ -199,6 +206,10 @@ impl DeviceAdapter for DesktopDeviceAdapter {
 
     async fn stop_app(&self, _pkg_name: &str) -> Result<(), String> {
         Err(Self::unsupported("stop_app"))
+    }
+
+    async fn back(&self) -> Result<(), String> {
+        Err(Self::unsupported("back"))
     }
 
     async fn change_cap_method(&self, method: CaptureMethod) -> bool {

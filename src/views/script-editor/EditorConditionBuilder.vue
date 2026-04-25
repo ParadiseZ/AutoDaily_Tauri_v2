@@ -212,6 +212,50 @@
         </label>
       </template>
 
+      <template v-else-if="modelValue.type === 'currentTaskIn'">
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">添加任务</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="null"
+              :options="availableCurrentTaskOptions"
+              placeholder="搜索任务后添加"
+              :test-id="rootTestId('current-task-target')"
+              @update:model-value="addCurrentTaskTarget(String($event || ''))"
+            />
+          </div>
+        </div>
+
+        <div v-if="selectedCurrentTaskOptions.length" class="editor-target-list">
+          <div v-for="target in selectedCurrentTaskOptions" :key="target.value" class="editor-target-chip">
+            <span class="min-w-0 flex-1 truncate">{{ target.label }}</span>
+            <button class="editor-target-remove" type="button" @click="removeCurrentTaskTarget(target.value)">
+              <AppIcon name="x" :size="13" />
+            </button>
+          </div>
+        </div>
+        <div v-else class="rounded-[14px] border border-dashed border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-faint)]">
+          尚未选择任务。
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button v-if="createReference" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createCurrentTaskTarget">
+            <AppIcon name="plus" :size="14" />
+            新建任务
+          </button>
+          <button
+            v-if="jumpToReference"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="modelValue.targets.length !== 1"
+            @click="jumpToCurrentTaskTarget"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位编辑
+          </button>
+        </div>
+      </template>
+
       <template v-else-if="modelValue.type === 'varCompare'">
         <div class="editor-inline-grid">
           <div class="editor-inline-label">变量名称</div>
@@ -626,6 +670,27 @@ const selectedPolicyConditionInputOption = computed(() => {
 
   return props.variableReferenceOptions.find((option) => option.key === node.input_var) ?? null;
 });
+const selectedCurrentTaskOptions = computed(() => {
+  if (props.modelValue.type !== 'currentTaskIn') {
+    return [];
+  }
+
+  return props.modelValue.targets.map((targetId) => {
+    const resolved = props.taskReferenceOptions.find((option) => option.value === targetId);
+    return {
+      label: resolved?.label ?? `未解析任务 ${targetId}`,
+      value: targetId,
+    };
+  });
+});
+const availableCurrentTaskOptions = computed(() => {
+  const node = props.modelValue;
+  if (node.type !== 'currentTaskIn') {
+    return props.taskReferenceOptions;
+  }
+
+  return props.taskReferenceOptions.filter((option) => !node.targets.includes(option.value));
+});
 const imageVariableReferenceOptions = computed(() =>
   props.variableReferenceOptions
     .filter((option) => option.valueType === 'image')
@@ -866,6 +931,34 @@ const updateTaskStatusValue = (value: boolean) => {
   } as ConditionNode);
 };
 
+const addCurrentTaskTarget = (id: string) => {
+  if (props.modelValue.type !== 'currentTaskIn') return;
+  const targetId = id.trim();
+  if (!targetId || props.modelValue.targets.includes(targetId)) return;
+  replaceNode({
+    ...props.modelValue,
+    targets: [...props.modelValue.targets, targetId],
+  });
+};
+
+const removeCurrentTaskTarget = (id: string) => {
+  if (props.modelValue.type !== 'currentTaskIn') return;
+  replaceNode({
+    ...props.modelValue,
+    targets: props.modelValue.targets.filter((targetId) => targetId !== id),
+  });
+};
+
+const createCurrentTaskTarget = async () => {
+  if (props.modelValue.type !== 'currentTaskIn' || !props.createReference) return;
+  addCurrentTaskTarget(await props.createReference('task'));
+};
+
+const jumpToCurrentTaskTarget = () => {
+  if (props.modelValue.type !== 'currentTaskIn' || !props.jumpToReference || props.modelValue.targets.length !== 1) return;
+  props.jumpToReference('task', props.modelValue.targets[0]);
+};
+
 const updateVarCompareField = (field: 'var_name' | 'op', value: string) => {
   if (props.modelValue.type !== 'varCompare') return;
   replaceNode({
@@ -1075,5 +1168,40 @@ const updateColorNumber = (field: 'r' | 'g' | 'b', value: string) => {
 
 .editor-inline-content {
   min-height: 44px;
+}
+
+.editor-target-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.editor-target-chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  padding: 0.35rem 0.45rem 0.35rem 0.7rem;
+  color: var(--app-text-soft);
+  font-size: 0.82rem;
+}
+
+.editor-target-remove {
+  display: inline-flex;
+  height: 1.35rem;
+  width: 1.35rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--app-text-faint);
+}
+
+.editor-target-remove:hover {
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--app-text);
 }
 </style>

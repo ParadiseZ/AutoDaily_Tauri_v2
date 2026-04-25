@@ -13,7 +13,8 @@ export const formatDateTime = (value?: string | null) => {
         return '未记录';
     }
 
-    const date = new Date(value);
+    const numeric = Number(value);
+    const date = Number.isFinite(numeric) ? new Date(numeric) : new Date(value);
     if (Number.isNaN(date.getTime())) {
         return value;
     }

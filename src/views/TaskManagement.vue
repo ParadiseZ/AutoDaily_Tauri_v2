@@ -88,6 +88,7 @@
         :script-task-loading="scriptStore.taskLoading"
         :progress-event="runtimeStore.getLatestProgress(activeDevice.id)"
         :timeout-event="runtimeStore.getLatestTimeout(activeDevice.id)"
+        :runtime-result="runtimeStore.getRuntimeResult(activeDevice.id)"
         :loading-assignments="Boolean(taskStore.loadingAssignments[activeDevice.id])"
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         @add-script="handleAddScript"

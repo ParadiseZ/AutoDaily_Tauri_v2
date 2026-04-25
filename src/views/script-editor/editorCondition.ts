@@ -18,6 +18,7 @@ export const conditionTypeOptions = [
   { label: '条件组', value: 'group', description: '组合多个子条件。' },
   { label: '执行次数', value: 'execNumCompare', description: '按任务或策略的执行次数判断。' },
   { label: '任务状态', value: 'taskStatus', description: '按任务或策略完成/跳过状态判断。' },
+  { label: '当前任务', value: 'currentTaskIn', description: '判断当前执行任务是否属于指定列表。' },
   { label: '变量比较', value: 'varCompare', description: '比较运行时变量或输入变量。' },
   { label: '策略集结果', value: 'policySetResult', description: '按策略集处理步骤输出的结果对象判断。' },
   { label: '策略条件', value: 'policyCondition', description: '基于图像做视觉精判，可用于策略或任务步骤。' },
@@ -93,11 +94,17 @@ export const createConditionNode = (type: string = 'rawExpr'): ConditionNode => 
             type: 'task',
             id: '',
           },
+          targets: [],
           status: {
             type: 'done',
             value: true,
           },
         },
+      });
+    case 'currentTaskIn':
+      return castCondition({
+        type: 'currentTaskIn',
+        targets: [],
       });
     case 'varCompare':
       return castCondition({
@@ -151,6 +158,8 @@ export const describeConditionNode = (node: ConditionNode) => {
       return `执行次数 · ${node.target.type}:${node.target.id || '未指定'} · ${node.op}`;
     case 'taskStatus':
       return `状态匹配 · ${node.a.target.type}:${node.a.target.id || '未指定'}`;
+    case 'currentTaskIn':
+      return `当前任务 · ${node.targets.length} 项`;
     case 'colorCompare':
       return `${node.is_font ? '字体色' : '背景色'} · ${node.txt_target || '未指定目标'}`;
     case 'varCompare':

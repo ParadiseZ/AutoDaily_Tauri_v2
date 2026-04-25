@@ -232,8 +232,21 @@ export interface RuntimeTimeoutEvent {
     scriptId?: string | null;
     taskId?: string | null;
     stepId?: string | null;
+    timeoutAction?: string | null;
+    pageFingerprint?: string | null;
+    actionSignature?: string | null;
+    detail?: string | null;
     message: string;
     at: string;
+}
+
+export interface RuntimeResultProjection {
+    deviceId: string;
+    latestProgress: RuntimeProgressEvent | null;
+    latestSchedule: RuntimeScheduleEvent | null;
+    latestTimeout: RuntimeTimeoutEvent | null;
+    timeoutActionResult: 'none' | 'pending' | 'skipped' | 'recovered' | 'stopped' | 'failed';
+    updatedAt: string | null;
 }
 
 export interface ScriptTimeTemplateValuesDto {

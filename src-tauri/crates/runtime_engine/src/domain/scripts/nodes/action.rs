@@ -62,6 +62,7 @@ pub enum Action {
         output_var: String,
     },
     Reboot,
+    Back,
     LaunchApp {
         pkg_name: String,
         activity_name: String,

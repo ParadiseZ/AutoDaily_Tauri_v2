@@ -233,16 +233,31 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'reboot',
-    label: '重启设备',
-    description: '执行设备重启动作。',
+    label: '重启应用',
+    description: '停止并重新启动当前脚本配置的目标应用。',
     group: '动作',
     create: () =>
       createBaseStep({
-        label: '重启设备',
+        label: '重启应用',
         op: STEP_OP.action,
         exec_max: 0,
         a: {
           ac: ACTION_TYPE.reboot,
+        },
+      }),
+  },
+  {
+    id: 'back',
+    label: '返回',
+    description: '执行 Android 返回键动作。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '返回',
+        op: STEP_OP.action,
+        exec_max: 0,
+        a: {
+          ac: ACTION_TYPE.back,
         },
       }),
   },
@@ -498,6 +513,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
             type: STATE_TARGET_TYPE.task,
             id: '',
           },
+          targets: [],
           status: {
             type: STATE_STATUS_TYPE.done,
             value: true,
@@ -546,7 +562,8 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.ac === ACTION_TYPE.capture) return '截图';
     if (step.a.ac === ACTION_TYPE.launchApp) return '启动应用';
     if (step.a.ac === ACTION_TYPE.stopApp) return '停止应用';
-    if (step.a.ac === ACTION_TYPE.reboot) return '重启设备';
+    if (step.a.ac === ACTION_TYPE.reboot) return '重启应用';
+    if (step.a.ac === ACTION_TYPE.back) return '返回';
     if (step.a.ac === ACTION_TYPE.click) {
       if (step.a.mode === ACTION_MODE.percent) return '点击百分比';
       if (step.a.mode === ACTION_MODE.txt) return '点击文字';
@@ -607,7 +624,8 @@ export const describeStepMeta = (step: Step) => {
       return `启动 ${step.a.pkg_name || '未指定包名'}/${step.a.activity_name || '未指定 Activity'}`;
     }
     if (step.a.ac === ACTION_TYPE.stopApp) return `停止 ${step.a.pkg_name || '未指定包名'}`;
-    if (step.a.ac === ACTION_TYPE.reboot) return '重启设备';
+    if (step.a.ac === ACTION_TYPE.reboot) return '重启脚本配置的目标应用';
+    if (step.a.ac === ACTION_TYPE.back) return 'Android 返回键';
     if (step.a.ac === ACTION_TYPE.click) return `点击 · ${step.a.mode}`;
     if (step.a.ac === ACTION_TYPE.swipe) return `滑动 · ${step.a.mode}`;
     return '动作';
