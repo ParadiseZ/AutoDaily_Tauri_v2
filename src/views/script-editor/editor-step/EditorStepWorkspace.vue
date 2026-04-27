@@ -60,6 +60,7 @@
                 :variable-datalist-id="variableDatalistId"
                 :writable-catalog-variable-options="writableCatalogVariableOptions"
                 :result-catalog-variable-options="resultCatalogVariableOptions"
+                :text-variable-options="textVariableOptions"
                 :label-index-options="labelIndexOptions"
                 :label-select-placeholder="labelSelectPlaceholder"
                 :label-select-hint="labelSelectHint"
@@ -429,6 +430,24 @@ const resultCatalogVariableOptions = computed(() =>
     .filter((item) => item.readable && ['json', 'list', 'object'].includes(item.valueType))
     .map((item) => createVariableSelectOption(item)),
 );
+const textVariableOptions = computed(() => {
+  const options = new Map<string, VariableSelectOption>();
+
+  for (const entry of props.inputEntries.filter((item) => item.type === 'string')) {
+    const option = createDraftVariableSelectOption(entry, 'read');
+    if (option) {
+      options.set(option.value, option);
+    }
+  }
+
+  for (const item of props.variableOptions.filter((option) => option.readable && option.valueType === 'string')) {
+    if (!options.has(item.key)) {
+      options.set(item.key, createVariableSelectOption(item));
+    }
+  }
+
+  return Array.from(options.values());
+});
 
 const clickModeOptions = [
   { label: '坐标', value: ACTION_MODE.point, description: '绝对坐标点击。' },
@@ -448,7 +467,7 @@ const flowTypeOptions = [
   { label: '条件分支', value: FLOW_TYPE.if, description: 'Then / Else 分支。' },
   { label: 'While', value: FLOW_TYPE.while, description: '满足条件时循环。' },
   { label: '遍历循环', value: FLOW_TYPE.forEach, description: '遍历输入集合，并向子步骤暴露元素变量。' },
-  { label: '次数循环', value: FLOW_TYPE.repeat, description: '按表达式结果循环 N 次，并暴露索引变量。' },
+  { label: '次数循环', value: FLOW_TYPE.repeat, description: '按绑定的数字变量循环 N 次，并暴露索引变量。' },
 ];
 
 const filterModeOptions = [
@@ -945,8 +964,21 @@ const handleJumpToDataVariable = (option: EditorVariableOption) => {
   props.jumpToVariable?.(option);
 };
 
-const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput') => {
+const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput' | 'clickText' | 'swipeFromText' | 'swipeToText') => {
   if (!props.createVariable) {
+    return;
+  }
+
+  if (target === 'clickText' || target === 'swipeFromText' || target === 'swipeToText') {
+    const key = await props.createVariable('input', 'string', {
+      preferredKey: target === 'clickText' ? 'targetText' : target === 'swipeFromText' ? 'swipeFromText' : 'swipeToText',
+      name: target === 'clickText' ? '目标文字' : target === 'swipeFromText' ? '滑动起点文字' : '滑动终点文字',
+    });
+    if (!key) {
+      return;
+    }
+
+    updateActionTextField(target === 'clickText' ? 'txt_expr' : target === 'swipeFromText' ? 'from_expr' : 'to_expr', key);
     return;
   }
 
@@ -1354,7 +1386,7 @@ const updateFlowType = (type: string) => {
           : [];
       step.a = {
         type: FLOW_TYPE.repeat,
-        count_expr: '1',
+        count_expr: '',
         index_var: 'runtime.repeatIndex',
         flow: branchSteps,
       } as FlowControl;

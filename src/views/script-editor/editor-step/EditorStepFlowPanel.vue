@@ -159,12 +159,12 @@
     <template v-else-if="selectedFlow.type === FLOW_TYPE.forEach">
       <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入集合变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">结果集变量</span>
           <EditorSelectField
             :model-value="selectedFlow.input_var || null"
             :options="resolvedForEachInputOptions"
             :show-description="true"
-            placeholder="选择数组或 JSON 变量"
+            placeholder="绑定要遍历的结果集变量"
             test-id="editor-flow-for-each-input-var"
             @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
           />
@@ -195,14 +195,26 @@
     <template v-else-if="selectedFlow.type === FLOW_TYPE.repeat">
       <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">循环次数表达式</span>
-          <input
-            :value="selectedFlow.count_expr || ''"
-            class="app-input"
-            placeholder="例如：input.count"
-            @input="$emit('update-field', 'count_expr', ($event.target as HTMLInputElement).value)"
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">次数变量</span>
+          <EditorSelectField
+            :model-value="selectedFlow.count_expr || null"
+            :options="resolvedRepeatCountOptions"
+            :show-description="true"
+            placeholder="绑定数字变量"
+            test-id="editor-flow-repeat-count-var"
+            @update:model-value="$emit('update-field', 'count_expr', String($event || ''))"
           />
         </label>
+
+        <button
+          v-if="createVariable"
+          class="app-button app-button-ghost app-toolbar-button"
+          type="button"
+          @click="createRepeatCountVariable"
+        >
+          <AppIcon name="plus" :size="14" />
+          新建次数变量
+        </button>
 
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">索引变量</span>
@@ -323,6 +335,11 @@ const jsonVariableOptions = computed(() =>
     .filter((option) => ['json', 'object', 'list'].includes(option.valueType))
     .map((option) => ({ label: option.label, value: option.key, description: option.description })),
 );
+const numberVariableOptions = computed(() =>
+  props.variableReferenceOptions
+    .filter((option) => ['int', 'float'].includes(option.valueType))
+    .map((option) => ({ label: option.label, value: option.key, description: option.description })),
+);
 const imageVariableOptions = computed(() =>
   props.variableReferenceOptions
     .filter((option) => option.valueType === 'image')
@@ -347,9 +364,9 @@ const resolvedFlowInputOptions = computed(() => {
 
   return [
     {
-      label: `未解析变量 ${selectedFlowInput.value}`,
+      label: `当前绑定不存在：${selectedFlowInput.value}`,
       value: selectedFlowInput.value,
-      description: `保留历史输入 ${selectedFlowInput.value}`,
+      description: '变量目录里找不到该绑定，保存时仍会保留当前值。',
     },
     ...imageVariableOptions.value,
   ];
@@ -361,9 +378,9 @@ const resolvedFlowOutputOptions = computed(() => {
 
   return [
     {
-      label: `未解析变量 ${selectedFlowOutput.value}`,
+      label: `当前绑定不存在：${selectedFlowOutput.value}`,
       value: selectedFlowOutput.value,
-      description: `保留历史输出 ${selectedFlowOutput.value}`,
+      description: '变量目录里找不到该绑定，保存时仍会保留当前值。',
     },
     ...jsonVariableOptions.value,
   ];
@@ -380,11 +397,30 @@ const resolvedForEachInputOptions = computed(() => {
 
   return [
     {
-      label: `未解析变量 ${flow.input_var}`,
+      label: `当前绑定不存在：${flow.input_var}`,
       value: flow.input_var,
-      description: `保留历史输入 ${flow.input_var}`,
+      description: '变量目录里找不到该结果集绑定，保存时仍会保留当前值。',
     },
     ...jsonVariableOptions.value,
+  ];
+});
+const resolvedRepeatCountOptions = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.repeat) {
+    return numberVariableOptions.value;
+  }
+
+  if (!flow.count_expr || numberVariableOptions.value.some((option) => option.value === flow.count_expr)) {
+    return numberVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `当前绑定不存在：${flow.count_expr}`,
+      value: flow.count_expr,
+      description: '变量目录里找不到该次数绑定，保存时仍会保留当前值。',
+    },
+    ...numberVariableOptions.value,
   ];
 });
 const availableTargetReferenceOptions = computed(() => {
@@ -447,6 +483,19 @@ const appendTarget = () => {
 
   emit('update-field', 'target', JSON.stringify([...props.selectedFlow.target, pendingTargetId.value]));
   pendingTargetId.value = '';
+};
+
+const createRepeatCountVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.repeat) {
+    return;
+  }
+  const key = await props.createVariable('input', 'int', {
+    preferredKey: 'repeatCount',
+    name: '循环次数',
+  });
+  if (key) {
+    emit('update-field', 'count_expr', key);
+  }
 };
 
 const removeTarget = (targetId: string) => {

@@ -239,15 +239,25 @@
           <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">文字表达式</span>
-          <input
-            :value="String(selectedAction.txt_expr ?? '')"
-            class="app-input"
-            :list="variableDatalistId"
-            placeholder="可选，非空时优先使用"
-            @input="$emit('update-text-field', 'txt_expr', ($event.target as HTMLInputElement).value)"
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">绑定变量</span>
+          <EditorSelectField
+            :model-value="selectedAction.txt_expr || null"
+            :options="resolvedClickTextVariableOptions"
+            :show-description="true"
+            placeholder="绑定文字变量"
+            test-id="editor-action-click-text-var"
+            @update:model-value="$emit('update-text-field', 'txt_expr', String($event || ''))"
           />
         </label>
+        <button
+          v-if="createVariable"
+          class="app-button app-button-ghost app-toolbar-button md:col-start-2"
+          type="button"
+          @click="$emit('create-variable', 'clickText')"
+        >
+          <AppIcon name="plus" :size="14" />
+          新建文字变量
+        </button>
       </div>
 
       <label v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="space-y-2">
@@ -355,33 +365,45 @@
 
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点文字</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">固定起点文字</span>
           <input :value="String(selectedAction.from ?? '')" class="app-input" @input="$emit('update-text-field', 'from', ($event.target as HTMLInputElement).value)" />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点文字</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">固定终点文字</span>
           <input :value="String(selectedAction.to ?? '')" class="app-input" @input="$emit('update-text-field', 'to', ($event.target as HTMLInputElement).value)" />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点表达式</span>
-          <input
-            :value="String(selectedAction.from_expr ?? '')"
-            class="app-input"
-            :list="variableDatalistId"
-            placeholder="可选，非空时优先使用"
-            @input="$emit('update-text-field', 'from_expr', ($event.target as HTMLInputElement).value)"
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点文字变量</span>
+          <EditorSelectField
+            :model-value="selectedAction.from_expr || null"
+            :options="resolvedSwipeFromTextVariableOptions"
+            :show-description="true"
+            placeholder="绑定文字变量"
+            test-id="editor-action-swipe-from-text-var"
+            @update:model-value="$emit('update-text-field', 'from_expr', String($event || ''))"
           />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点表达式</span>
-          <input
-            :value="String(selectedAction.to_expr ?? '')"
-            class="app-input"
-            :list="variableDatalistId"
-            placeholder="可选，非空时优先使用"
-            @input="$emit('update-text-field', 'to_expr', ($event.target as HTMLInputElement).value)"
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点文字变量</span>
+          <EditorSelectField
+            :model-value="selectedAction.to_expr || null"
+            :options="resolvedSwipeToTextVariableOptions"
+            :show-description="true"
+            placeholder="绑定文字变量"
+            test-id="editor-action-swipe-to-text-var"
+            @update:model-value="$emit('update-text-field', 'to_expr', String($event || ''))"
           />
         </label>
+        <div v-if="createVariable" class="flex flex-wrap gap-2 md:col-span-2">
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'swipeFromText')">
+            <AppIcon name="plus" :size="14" />
+            新建起点文字变量
+          </button>
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'swipeToText')">
+            <AppIcon name="plus" :size="14" />
+            新建终点文字变量
+          </button>
+        </div>
       </div>
 
       <div v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="grid gap-3 md:grid-cols-2">
@@ -432,6 +454,7 @@ const props = defineProps<{
   variableDatalistId: string;
   writableCatalogVariableOptions?: Array<{ label: string; value: string; description: string; disabled?: boolean }>;
   resultCatalogVariableOptions?: SelectOption[];
+  textVariableOptions?: SelectOption[];
   labelIndexOptions?: LabelSelectOption[];
   labelSelectPlaceholder?: string;
   labelSelectHint?: string | null;
@@ -443,7 +466,7 @@ const props = defineProps<{
   taskUiVariableOptions?: EditorTaskUiVariableOption[];
   clickModeOptions: Array<{ label: string; value: string; description: string }>;
   swipeModeOptions: Array<{ label: string; value: string; description: string }>;
-  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
   createPolicy?: () => Promise<string>;
   jumpToPolicy?: (id: string) => void;
@@ -458,7 +481,7 @@ const emit = defineEmits<{
   'update-point-field': [field: 'p' | 'from' | 'to', axis: 'x' | 'y', value: string];
   'update-number-field': [field: string, value: string];
   'update-text-field': [field: string, value: string];
-  'create-variable': [target: 'captureOutput' | 'actionInput'];
+  'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'swipeFromText' | 'swipeToText'];
   'jump-to-variable': [option: EditorVariableOption];
   'create-policy-target': [];
   'jump-policy-target': [id: string];
@@ -478,9 +501,9 @@ const withCurrentVariableOption = (options: SelectOption[], value: string) => {
 
   return [
     {
-      label: trimmedValue,
+      label: `当前绑定不存在：${trimmedValue}`,
       value: trimmedValue,
-      description: '未解析变量',
+      description: '变量目录里找不到该绑定，保存时仍会保留当前值。',
     },
     ...options,
   ];
@@ -608,6 +631,21 @@ const selectedActionInput = computed(() => {
 
 const resolvedActionInputOptions = computed(() =>
   withCurrentVariableOption(props.resultCatalogVariableOptions ?? [], selectedActionInput.value),
+);
+const resolvedClickTextVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt
+    ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.txt_expr ?? '')
+    : props.textVariableOptions ?? [],
+);
+const resolvedSwipeFromTextVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.swipe && props.selectedAction.mode === ACTION_MODE.txt
+    ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.from_expr ?? '')
+    : props.textVariableOptions ?? [],
+);
+const resolvedSwipeToTextVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.swipe && props.selectedAction.mode === ACTION_MODE.txt
+    ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.to_expr ?? '')
+    : props.textVariableOptions ?? [],
 );
 
 const resolvedLabelIdxOptions = computed(() =>

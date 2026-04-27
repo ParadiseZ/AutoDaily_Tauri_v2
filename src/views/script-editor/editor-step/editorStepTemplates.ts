@@ -385,7 +385,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'repeat',
     label: '次数循环',
-    description: '按表达式得到的次数重复执行子步骤，适合用 UI 变量控制执行次数。',
+    description: '按绑定的数字变量重复执行子步骤，适合用 UI 变量控制执行次数。',
     group: '流程',
     create: () =>
       createBaseStep({
@@ -393,7 +393,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.repeat,
-          count_expr: '1',
+          count_expr: '',
           index_var: 'runtime.repeatIndex',
           flow: [],
         },
@@ -713,7 +713,7 @@ export const describeStepMeta = (step: Step) => {
       case FLOW_TYPE.forEach:
         return `遍历 ${step.a.input_var || '未指定输入'} -> ${step.a.item_var || '未指定元素变量'}`;
       case FLOW_TYPE.repeat:
-        return `重复 ${step.a.count_expr || '0'} 次`;
+        return step.a.count_expr ? `按 ${step.a.count_expr} 循环` : '绑定次数变量';
       case FLOW_TYPE.waitMs:
         return `等待 ${String(step.a.ms)} ms`;
       case FLOW_TYPE.link:
