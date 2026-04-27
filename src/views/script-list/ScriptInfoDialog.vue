@@ -423,6 +423,23 @@
           <SurfacePanel tone="muted" padding="sm" class="space-y-5">
             <div class="max-w-[720px] space-y-4">
               <label class="support-form-row">
+                <span class="support-form-label">点击随机偏移</span>
+                <div class="space-y-3">
+                  <input
+                    v-model.number="clickRandomOffsetValue"
+                    class="app-input"
+                    data-testid="script-runtime-click-random-offset"
+                    min="0"
+                    step="1"
+                    type="number"
+                  />
+                  <p class="text-sm text-[var(--app-text-soft)]">
+                    执行点击前在 X/Y 方向随机偏移该像素范围，`0` 表示不偏移。
+                  </p>
+                </div>
+              </label>
+
+              <label class="support-form-row">
                 <span class="support-form-label">恢复任务</span>
                 <div class="space-y-3">
                   <AppSelect
@@ -822,8 +839,22 @@ const recoveryTaskValue = computed<string | null>({
     }
 
     form.value.data.runtimeSettings = {
-      ...(form.value.data.runtimeSettings ?? { recoveryTaskId: null }),
+      ...(form.value.data.runtimeSettings ?? { recoveryTaskId: null, clickRandomOffset: 0 }),
       recoveryTaskId: value || null,
+    };
+  },
+});
+
+const clickRandomOffsetValue = computed({
+  get: () => form.value?.data.runtimeSettings?.clickRandomOffset ?? 0,
+  set: (value: number) => {
+    if (!form.value) {
+      return;
+    }
+
+    form.value.data.runtimeSettings = {
+      ...(form.value.data.runtimeSettings ?? { recoveryTaskId: null, clickRandomOffset: 0 }),
+      clickRandomOffset: Math.max(0, Math.floor(Number(value) || 0)),
     };
   },
 });
@@ -904,6 +935,7 @@ function ensureRuntimeSettings(script: ScriptTableRecord) {
   script.data.activityName = script.data.activityName || null;
   script.data.runtimeSettings = {
     recoveryTaskId: script.data.runtimeSettings?.recoveryTaskId || null,
+    clickRandomOffset: Math.max(0, Math.floor(Number(script.data.runtimeSettings?.clickRandomOffset ?? 0) || 0)),
   };
 }
 

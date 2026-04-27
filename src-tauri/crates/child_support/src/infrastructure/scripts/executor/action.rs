@@ -215,13 +215,18 @@ impl ScriptExecutor {
                     ),
                 )
             }
-            ClickMode::Txt { input_var, txt } => {
+            ClickMode::Txt {
+                input_var,
+                txt,
+                txt_expr,
+            } => {
                 let click_pos = self.active_policy_click_pos().await;
+                let target_text = self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), "action.click")?;
                 let (point, item) = self
                     .resolve_ocr_target_point(
                         "action.click",
                         input_var,
-                        txt.as_deref(),
+                        target_text.as_deref(),
                         click_pos,
                         "点击目标",
                     )
@@ -266,6 +271,7 @@ impl ScriptExecutor {
                 )
             }
         };
+        let point = self.apply_click_random_offset(point).await?;
         Self::await_device_result_with_timeout(
             "action.click",
             "设备点击",
@@ -319,28 +325,32 @@ impl ScriptExecutor {
                 input_var,
                 from,
                 to,
+                from_expr,
+                to_expr,
             } => {
                 let items = self
                     .read_runtime_result_vec::<OcrResult>(input_var, "action.swipe", "OCR")
                     .await?;
+                let from_text = self.resolve_optional_text(from.as_deref(), from_expr.as_deref(), "action.swipe")?;
+                let to_text = self.resolve_optional_text(to.as_deref(), to_expr.as_deref(), "action.swipe")?;
                 let from_item =
-                    Self::select_ocr_result(&items, from.as_deref()).ok_or_else(|| {
+                    Self::select_ocr_result(&items, from_text.as_deref()).ok_or_else(|| {
                         Self::execute_error(
                             "action.swipe",
                             format!(
                                 "输入变量[{}]里未找到文字滑动起点: {}",
                                 input_var,
-                                from.clone().unwrap_or_default()
+                                from_text.clone().unwrap_or_default()
                             ),
                         )
                     })?;
-                let to_item = Self::select_ocr_result(&items, to.as_deref()).ok_or_else(|| {
+                let to_item = Self::select_ocr_result(&items, to_text.as_deref()).ok_or_else(|| {
                     Self::execute_error(
                         "action.swipe",
                         format!(
                             "输入变量[{}]里未找到文字滑动终点: {}",
                             input_var,
-                            to.clone().unwrap_or_default()
+                            to_text.clone().unwrap_or_default()
                         ),
                     )
                 })?;
@@ -1161,8 +1171,74 @@ impl ScriptExecutor {
         if matches.is_empty() {
             return None;
         }
-        let index = position.map(usize::from).unwrap_or(0).min(matches.len() - 1);
+        let index = match position {
+            Some(999) => matches.len() - 1,
+            Some(value) => usize::from(value).min(matches.len() - 1),
+            None => 0,
+        };
         matches.get(index).copied()
+    }
+
+    fn resolve_optional_text(
+        &mut self,
+        value: Option<&str>,
+        expr: Option<&str>,
+        step_type: &str,
+    ) -> ExecuteResult<Option<String>> {
+        if let Some(expr) = expr.map(str::trim).filter(|value| !value.is_empty()) {
+            let dynamic = self.eval_dynamic(expr, step_type)?;
+            return Self::dynamic_to_string(&dynamic)
+                .map(|value| Some(value.trim().to_string()).filter(|value| !value.is_empty()))
+                .ok_or_else(|| {
+                    Self::execute_error(
+                        step_type,
+                        format!("文本表达式结果无法转为字符串: {}", expr),
+                    )
+                });
+        }
+
+        Ok(value
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string))
+    }
+
+    async fn apply_click_random_offset(&self, point: Point<u16>) -> ExecuteResult<Point<u16>> {
+        let offset = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.execution
+                .script_info
+                .as_ref()
+                .map(|script| script.runtime_settings.click_random_offset)
+                .unwrap_or(0)
+        };
+        if offset == 0 {
+            return Ok(point);
+        }
+
+        let screen_size = self.ensure_screen_size().await?;
+        let span = i32::from(offset);
+        let dx = Self::random_i32_inclusive(-span, span);
+        let dy = Self::random_i32_inclusive(-span, span);
+        let max_x = screen_size.0.saturating_sub(1) as i32;
+        let max_y = screen_size.1.saturating_sub(1) as i32;
+        let x = (i32::from(point.x) + dx).clamp(0, max_x) as u16;
+        let y = (i32::from(point.y) + dy).clamp(0, max_y) as u16;
+        Ok(Point::new(x, y))
+    }
+
+    fn random_i32_inclusive(min: i32, max: i32) -> i32 {
+        if min >= max {
+            return min;
+        }
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|value| value.as_nanos() as u64)
+            .unwrap_or(0);
+        let mut hasher = XxHash3_64::default();
+        hasher.write_u64(nanos);
+        let range = (i64::from(max) - i64::from(min) + 1) as u64;
+        min + (hasher.finish() % range) as i32
     }
 
     fn serialize_json<T>(

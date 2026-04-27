@@ -1620,7 +1620,7 @@ const collectStepTreeIds = (step: Step, bucket = new Set<string>()) => {
       return bucket;
     }
 
-    if (step.a.type === 'while' || step.a.type === 'forEach') {
+    if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
       step.a.flow.forEach((child) => collectStepTreeIds(child, bucket));
     }
   }
@@ -1703,7 +1703,7 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
         continue;
       }
 
-      if (step.a.type === 'while' || step.a.type === 'forEach') {
+      if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
         if (step.a.type === 'forEach' && step.a.input_var?.trim()) {
           bucket.add(step.a.input_var.trim());
         }
@@ -1864,7 +1864,7 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
         return nextStep;
       }
 
-      if (nextStep.a.type === 'while') {
+      if (nextStep.a.type === 'while' || nextStep.a.type === 'repeat') {
         nextStep.a.flow = renameVariableReferencesInSteps(nextStep.a.flow, previousKey, nextKey);
         return nextStep;
       }

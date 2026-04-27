@@ -30,18 +30,19 @@ export const ACTION_MODE = {
   labelIdx: ACTION_MODES[3],
 } as const;
 
-export const FLOW_TYPES = ['if', 'while', 'forEach', 'continue', 'break', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const;
+export const FLOW_TYPES = ['if', 'while', 'forEach', 'repeat', 'continue', 'break', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const;
 export const FLOW_TYPE = {
   if: FLOW_TYPES[0],
   while: FLOW_TYPES[1],
   forEach: FLOW_TYPES[2],
-  continue: FLOW_TYPES[3],
-  break: FLOW_TYPES[4],
-  waitMs: FLOW_TYPES[5],
-  link: FLOW_TYPES[6],
-  addPolicies: FLOW_TYPES[7],
-  handlePolicySet: FLOW_TYPES[8],
-  handlePolicy: FLOW_TYPES[9],
+  repeat: FLOW_TYPES[3],
+  continue: FLOW_TYPES[4],
+  break: FLOW_TYPES[5],
+  waitMs: FLOW_TYPES[6],
+  link: FLOW_TYPES[7],
+  addPolicies: FLOW_TYPES[8],
+  handlePolicySet: FLOW_TYPES[9],
+  handlePolicy: FLOW_TYPES[10],
 } as const;
 
 export const DATA_TYPES = ['setVar', 'getVar', 'filter', 'colorCompare'] as const;

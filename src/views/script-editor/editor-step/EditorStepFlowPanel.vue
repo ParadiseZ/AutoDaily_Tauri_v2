@@ -192,6 +192,30 @@
       </div>
     </template>
 
+    <template v-else-if="selectedFlow.type === FLOW_TYPE.repeat">
+      <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">循环次数表达式</span>
+          <input
+            :value="selectedFlow.count_expr || ''"
+            class="app-input"
+            placeholder="例如：input.count"
+            @input="$emit('update-field', 'count_expr', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">索引变量</span>
+          <input
+            :value="selectedFlow.index_var || ''"
+            class="app-input"
+            placeholder="runtime.repeatIndex"
+            @input="$emit('update-field', 'index_var', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+      </div>
+    </template>
+
     <template v-else-if="flowWithCondition && flowCondition">
       <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
         <div class="editor-inline-grid">

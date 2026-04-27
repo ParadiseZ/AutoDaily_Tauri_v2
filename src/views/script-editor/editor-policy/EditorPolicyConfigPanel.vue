@@ -38,6 +38,7 @@
             <label class="space-y-2">
               <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">当前位置</span>
               <input :value="String(policy.data.curPos)" class="app-input" type="number" @input="$emit('update:number-field', 'curPos', ($event.target as HTMLInputElement).value)" />
+              <span class="text-xs leading-5 text-[var(--app-text-faint)]">用于选择第 N 个匹配目标；`999` 表示最后一个。</span>
             </label>
 
             <label class="space-y-2">

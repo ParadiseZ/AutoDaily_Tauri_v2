@@ -17,6 +17,22 @@
   - `policy_sets`
   - `script_time_template_values`
 
+## 已确认迁移口径
+
+- 不需要持久保存旧 `script_id/flow_id/set_id/action_id` 作为当前项目的长期关联字段。
+- 迁移期间可以临时用旧 id 做生成过程中的映射，但最终 `skipacid/rmacid/posadd/dropsetnext/action_ids` 等都应回填为当前项目新生成的 `task_id/policy_id/variable_id`。
+- `script_id=0` 全局设置不需要按旧全局设置整体导入。当前项目已有大部分等价能力，缺口只剩点击坐标随机偏移。
+- `flow_parent_id` 不需要按旧逻辑完整保留。旧项目用它关联 `script_action_info`；当前项目用策略集手动关联策略，不需要生成“父链 flow 策略组”的兼容结构。
+- `SLIDER_SIXTH.action_ids` 不做静态降级，先补 counted loop，再迁移。
+- 变量化文本和点击目标文本一起做，允许用户输入变量决定匹配文本和点击文本。
+- 变量化文本第一期支持包含、不包含、等于、正则；不做忽略大小写。
+- 点击坐标随机偏移放在脚本配置里，不放全局设置或设备信息页。
+- `flow_id_type` 对应当前项目时间模板，本次迁移可以不管。
+- `txt/txt_exc` 对应当前 `SearchRule` 的文本包含/不包含：`txt` 迁移为 `Txt`，`txt_exc` 迁移为 `Group(Not(Txt))`。
+- `txt_label/txt_exc_label` 不需要迁移保留。
+- `triggerMode` UI 不改成两个布尔选项；保留当前三态，但文案需要能识别“一级循环”以及“除一级循环外还可被跳转执行”的含义。
+- 缩进量当前项目已经是 `script_tasks.indent_level` 顶层字段，Rust `ScriptTaskTable.indent_level` 已反序列化为结构体字段；前端也已有“缩进量”编辑项。它不属于 `ScriptTask.data.uiData`。
+
 ## 服务端数据概况
 
 | 表 | 行数 | 备注 |
@@ -64,9 +80,12 @@
 
 - `set_level` 可直接迁移到当前项目 `indent_level`。
 - `flow_parent_id` 不是纯展示层级。旧运行逻辑会把它拆成多个 flow id，并要求这些父链 flow 对应的设置都处于 checked 状态，才会执行当前设置。
-- `is_max_level=1` 是普通叶子执行项。
-- `is_max_level=2` 是“如果子级没有选中，则执行自己；如果子级选中，则执行子级”的兜底项。
+- 当前项目迁移不需要保留这套父链兼容逻辑；只需要按当前项目的策略集设计，把旧 action 转成策略后手动或规则化关联到目标任务/策略集。
+- `is_max_level` 是旧项目决定一级循环遍历候选的字段，并进一步决定会关联到哪些 `script_action_info`。
+- `is_max_level=1` 是旧项目一级循环里的普通叶子执行项。
+- `is_max_level=2` 是旧项目为了“不选择子项时父项也能正常工作”而设置的兜底入口；如果子项未选中则执行父项，如果子项选中则执行子项。
 - `is_max_level=0` 多数是父级/分组节点，也可能包含废弃或中间节点。
+- 当前项目不需要迁移 `is_max_level` 自身。是否一级循环、仅跳转或两者皆可由 `trigger_mode` 表达；旧 `is_max_level=2` 的场景如果仍需要，可由当前项目条件分支步骤表达。
 
 隐藏和有效性：
 
@@ -111,12 +130,12 @@
 | `sleep` | 70 | 可映射到 waitMs。 |
 | `rmacid` | 56 | 已补策略状态设置。 |
 | `skipflowid` | 39 | 可映射到任务跳过状态。 |
-| `skip` | 19 | 跳过当前策略。                                               |
+| `skip` | 19 | 跳过当前策略。 |
 | `1swipe*` / `2swipe*` | 28 | 可映射到百分比滑动预设。 |
 | `mrmacids` | 8 | 当前项目语义按“批量设置指定策略为跳过”。 |
 | `posadd` / `posminus` | 12 | 已补运行时策略点击索引变更；迁移时旧 action id 需映射当前策略 id。 |
 | `uc` | 7 | 可映射为“指定任务未启用”的条件。 |
-| `clickc` | 7 | 可映射到中心百分比点击；随机偏移暂不做。 |
+| `clickc` | 7 | 可映射到中心百分比点击；随机偏移需要补运行时配置。 |
 | `clickPer` | 6 | 可映射到百分比点击。 |
 | `relFAC` | 6 | 相对查找/点击筛选结果。 |
 | `relLabFAC` | 2 | 基于 label 的相对查找/点击。 |
@@ -127,8 +146,8 @@
 识别条件字段：
 
 - `int_label` / `int_exc_label`：目标检测 label 包含/排除。
-- `txt_label` / `txt_exc_label`：OCR字典 label 包含/排除。
-- `txt` / `txt_exc`：服务端保留的人类可读文本，样本中覆盖面很高；迁移时可写入策略说明/名称辅助字段，但执行匹配不能只靠它。
+- `txt_label` / `txt_exc_label`：旧 OCR 字典 label 包含/排除；本次迁移不保留。
+- `txt` / `txt_exc`：对应当前 `SearchRule` 的 keyword/txt 文本规则，分别表示包含/不包含。当前模型里包含可迁移为 `SearchRule::Txt { pattern }`，不包含可迁移为 `SearchRule::Group { op: Not, items: [Txt] }`。
 - `oper_txt`：旧运行时用来决定执行点击时偏向文本目标还是检测目标。当前项目的点击步骤已经限制了此内容（点击标签/文字）。
 - `rgb`：颜色约束，当前项目应迁移成 color compare / 颜色过滤条件。
 - `label_pos`：旧点击索引。当前项目对应 `PolicyInfo.cur_pos`，10代表最后一个元素，当前项目还未做此内容（用999表示）。
@@ -170,11 +189,17 @@
 
 迁移建议：
 
-1. 优先新增一种可变量化的执行次数能力，例如：
-   - `Step.action.exec_max_expr`
-   - 或新增 counted loop：`repeat(count_expr, flow)`
-2. 不建议把 `SLIDER_SIXTH` 强行迁移成多个复制出来的动作，因为用户调整 slider 后无法自然联动。
-3. 若短期只做静态导入，可先把当前 `set_value` 写入静态 `exec_max`，但必须标记为兼容降级，不能算完整迁移。
+1. 新增 counted loop，例如 `repeat(count_expr, flow)`。
+2. `count_expr` 应能引用当前项目 UI 变量，所以 `SLIDER_SIXTH` 可迁移成一个 slider 变量驱动的 repeat。
+3. 不把 `SLIDER_SIXTH` 强行迁移成多个复制出来的动作，也不做静态 `exec_max` 降级。
+
+连带问题：
+
+- 变量化执行次数解决的是“一个动作序列执行 N 次”。
+- 迁移时还可能需要变量化文本，例如点击目标文本由用户输入的变量决定。
+- 当前项目如果只有固定 OCR/text label 或固定文本条件，还需要补“文本条件/点击目标可引用变量”的能力。
+- 变量化文本第一期支持：包含、不包含、等于、正则；不做忽略大小写。
+- 这类能力建议和 counted loop 分开做：counted loop 属于流程控制，变量化文本属于策略匹配/点击目标参数化。
 
 ## 与当前项目的映射建议
 
@@ -185,7 +210,7 @@
 - `model_path/classes_num/img_size` -> 当前模型配置
 - `last_version` -> 云端/脚本版本字段
 - `is_show` -> 脚本是否展示
-- `script_id=0` -> 不导入为普通脚本；应拆成全局默认设置或迁移到项目配置。
+- `script_id=0` -> 不导入为普通脚本；旧全局设置也不整体迁移，只保留其中当前项目仍缺的能力需求。
 
 ### 任务和标题
 
@@ -197,7 +222,7 @@
 - `sort` -> `index`
 - `is_show` -> `is_hidden = is_show != 1`
 - `is_valid=0` -> 导入时跳过或更新时删除/软删除。
-- `flow_id`、`set_id`、旧 `script_id` 应保存到迁移 metadata，方便 action 和状态命令回填映射。
+- `flow_id`、`set_id`、旧 `script_id` 只作为迁移过程中的临时映射输入，不作为当前项目长期 metadata 保存。
 
 ### UI 变量
 
@@ -210,25 +235,27 @@
   - 如果代表脚本默认值，写 variable 默认值。
   - 如果代表用户当前值，写 `script_time_template_values.values_json.variables`。
   - 服务端没有设备/账号/时间模板上下文，迁移时需要决定放到哪个默认模板。
+- `flow_id_type`：
+  - 旧项目用于按时间段选择设置。
+  - 当前项目对应时间模板，本轮迁移不处理。
 
 ### 动作与策略
 
 建议把旧 `script_action_info` 每一条迁移成当前项目的策略或策略元素：
 
 - `page_desc` -> 策略名或说明。
-- `int_label/rgb/label_pos` -> 策略匹配条件。
+- `int_label/rgb/label_pos/txt/txt_exc` -> 策略匹配条件。
 - `action_string` -> 策略命中后的步骤序列。
 - `flow_id + set_value` -> 策略归属和条件分支。
 - `sort` -> 策略顺序。
-- `execute_max` -> 策略或动作执行次数；如果来自 `action_ids`，需要变量化执行次数能力。
+- `execute_max` -> 策略或动作执行次数；如果来自 `action_ids`，迁移为 counted loop。
 
 复用关系：
 
 - 旧 `flow_parent_id` 会让当前任务执行多个父链 flow 的 action。
-- 当前项目可用“策略、策略组、策略集”表达：
-  - 一个旧 flow 对应一个 policy group。
-  - 一个旧任务的 policy set 包含它 `flow_parent_id` 中所有 flow 对应的 policy group，再加 `flow_id=0` 公共组。
-  - `back_flag` 或 `flow_id<0` 进入恢复/返回 policy set。
+- 当前项目不按旧父链自动生成兼容结构。
+- 迁移目标是把旧 action 转为策略/策略元素，再依当前项目的策略集设计关联。
+- `back_flag` 或 `flow_id<0` 进入恢复/返回 policy set。
 
 ## 需要当前项目补或改
 
@@ -238,87 +265,66 @@
 
 2. `is_valid` 同步删除语义
    - 当前任务/策略层没有统一服务端有效性字段。
-   - 迁移工具需要根据旧 id 映射删除或软删除本地数据。
+   - 因为不做历史兼容同步，首次迁移可直接跳过旧 `is_valid=0` 数据。
 
-3. 旧 id 映射表或 metadata
-   - 迁移必须能从旧 `flow_id/set_id/action_id/script_id` 找到当前 `task_id/policy_id/group_id/set_id`。
-   - 否则 `skipacid/rmacid/posadd/dropsetnext/action_ids` 无法可靠回填。
+3. 点击坐标随机偏移
+   - 旧全局设置里有“随机点击范围”。
+   - 当前项目中心点击/百分比点击已有，但随机偏移还没有。
+   - 已确认放到脚本配置里，运行时所有该脚本下的坐标点击按脚本配置应用偏移。
 
-4. 变量化执行次数
+4. counted loop
    - 为 `SLIDER_SIXTH.action_ids` 准备。
-   - 推荐新增 counted loop 或 `exec_max_expr`。
+   - 明确使用 counted loop，而不是 `exec_max_expr` 静态扩展。
+   - 需要前端步骤编辑器、Rust `FlowControl`、执行器都支持。
 
-5. `flow_parent_id` 到策略集的批量关联
-   - 需要迁移器能生成“当前任务 = 多个旧 flow group 的组合”。
-   - 这比单任务单策略更接近旧运行逻辑。
+5. 变量化文本/点击目标参数
+   - 需要同时支持由用户输入变量决定匹配文本和点击目标文本。
+   - 用于旧数据里未来可能从固定 `txt/txt_label` 升级成用户可配置目标的场景。
+   - 第一期支持包含、不包含、等于、正则；不做忽略大小写。
+   - 这和 counted loop 是两类能力，建议拆开实现。
 
-6. `is_max_level=2` 的兜底选择
-   - 当前任务结构没有“子级没启用时执行父级”的内置语义。
-   - 可迁移成条件任务，也可在导入时展开成显式条件分支。
+6. 任务进入方式 UI 降低理解成本
+   - 当前项目 `triggerMode` 有“一级循环 / 仅跳转 / 两者都可”三种。
+   - 这与旧 `is_max_level` 不再一一对应，但迁移和手工配置时可能仍然费脑。
+   - 不改成两个布尔选项；保留当前三态。
+   - UI 文案需要让用户能识别“一级循环”，并理解“除一级循环外还可被跳转执行”的含义。
 
 7. `flow_id=0` 公共动作
-   - 当前项目应作为公共策略组复用，而不是复制到每个任务。
+   - 当前项目可作为公共策略/策略组复用，或迁移后由开发者手动关联到需要的策略集。
 
 8. `flow_id<0` 与 `back_flag=1` 返回动作
    - 应迁移为恢复/返回策略集。
    - 不建议显示为普通用户任务。
 
 9. `relFAC` / `relLabFAC`
-   - 服务端数据中存在 8 次，当前文档还不能确认完整语义。
-   - 迁移前需要看旧 `ActionMapper` / `CommandImpl` 的具体实现。
+   - 服务端数据中存在 8 次。
+   - 已确认语义方向分别是相对查找/点击筛选结果、基于 label 的相对查找/点击。
+   - 当前项目已有 `PolicyConditionRule::Relative`，前端也已有“相对位置”策略条件编辑器。
+   - 后端支持 OCR 文本锚点 / 检测标签锚点、方向、目标类型、取值类型和比较运算。
+   - 迁移时只需要把旧 `relFAC/relLabFAC` 参数映射到当前 `policyCondition.relative`，不需要新增相对位置能力。
 
 10. `skip`
-    - 服务端有 19 次。
-    - 需要确认它在旧运行时是跳过当前 action、当前 flow，还是标记当前 action skipFlag。
+   - 服务端有 19 次。
+   - 已确认语义为跳过当前策略。
 
 11. `oper_txt`
-    - 需要明确在当前策略点击里如何表达 OCR/Det 点击优先级。
+    - 已确认当前项目点击步骤通过“点击标签/文字”等目标类型限制表达，不再需要单独迁移为一个字段。
 
 12. `label_pos=10`
-    - 不能直接等价为第 10 个候选。
-    - 需要确认旧项目中是否有特殊含义，或只是业务数据中的第 10 个。
+    - 已确认表示最后一个元素。
+    - 当前项目计划用 `999` 表示最后一个元素，需要补约定和 UI 文案。
 
-## 需要和你确认的问题
+## 仍需进一步确认的问题
 
-1. 旧 id 是否要在当前项目持久保存？
-   - 我建议保存迁移 metadata，例如 `legacy.android.script_id/flow_id/set_id/action_id`。
-   - 这样后续增量同步、`action_ids`、`skipacid`、`dropsetnext` 才能可靠回填。
-
-2. `script_id=0` 全局设置怎么落？
-   - 方案 A：导入到项目全局设置。
-   - 方案 B：每个脚本复制一份默认变量。
-   - 方案 C：先不导入，只作为迁移配置参考。
-
-3. `flow_parent_id` 是否按旧逻辑完整保留？
-   - 如果保留，应生成“任务策略集 = 父链 flow 策略组 + 自身策略组 + 公共组”。
-   - 如果不保留，可以只迁移叶子任务动作，但会丢失旧项目复用父级动作的行为。
-
-4. `is_max_level=2` 怎么表达？
-   - 我倾向迁移成显式条件：“如果子任务都未启用，则执行该任务策略集”。
-   - 但这会增加迁移出的步骤复杂度。
-
-5. `flow_id_type=4` 当前全量数据都是全天。
-   - 是否仍要为 1/2/3 预留迁移设计？
-   - 如果要预留，应决定映射到当前 `defaultTaskCycle`、时间模板，还是新增任务时间段条件。
-
-6. `SLIDER_SIXTH.action_ids` 要做完整支持还是先静态降级？
-   - 完整支持需要变量化执行次数。
-   - 静态降级只能按当前服务端值导入，后续用户调 slider 不会联动动作次数。
-
-7. `txt/txt_exc` 是否需要作为可编辑文案保留？
-   - 它们对调试和人工维护很有用。
-   - 当前执行匹配仍应使用 label/id/颜色等结构化字段。
-
-8. `relFAC` / `relLabFAC` 是否还有实际迁移需求？
-   - 数据里出现次数少，但不是 0。
-   - 如果这些脚本要完整跑通，需要补语义。
+暂无。
 
 ## 建议迁移准备顺序
 
-1. 先定旧 id metadata 方案。
-2. 补 `is_hidden` 在前端预览/设置页/选择器中的一致行为。
-3. 定 `script_id=0` 全局设置落点。
-4. 设计 `flow_parent_id` 到策略组/策略集的生成规则。
-5. 补变量化执行次数能力，用于 `SLIDER_SIXTH.action_ids`。
-6. 再写迁移器读取 PostgreSQL 三张表，生成当前项目脚本、任务、变量、策略、策略组、策略集。
-7. 最后补 `relFAC` / `relLabFAC` / `skip` 等少量旧命令。
+1. 在脚本配置里补点击坐标随机偏移，并接入运行时坐标点击。
+2. 补 counted loop，用于 `SLIDER_SIXTH.action_ids`。
+3. 补变量化文本匹配和点击目标文本能力。
+4. 补 `label_pos=999` 表示最后一个元素，并让 UI 文案明确。
+5. 优化任务 `triggerMode` 的前端表达，降低“一级循环/仅跳转/两者皆可”的理解成本。
+6. 补 `relFAC` / `relLabFAC` 到当前相对位置条件的导入映射。
+7. 检查 `is_hidden` 在前端预览、设置页、选择器中的一致行为。
+8. 再写迁移器读取 PostgreSQL 三张表，生成当前项目脚本、任务、变量、策略、策略组、策略集。

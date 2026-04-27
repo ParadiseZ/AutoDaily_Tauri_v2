@@ -22,6 +22,10 @@ pub enum SwipeMode {
         input_var: String,
         from: Option<String>,
         to: Option<String>,
+        #[serde(default)]
+        from_expr: Option<String>,
+        #[serde(default)]
+        to_expr: Option<String>,
     },
 }
 
@@ -38,6 +42,8 @@ pub enum ClickMode {
     Txt {
         input_var: String,
         txt: Option<String>,
+        #[serde(default)]
+        txt_expr: Option<String>,
     },
     LabelIdx {
         input_var: String,

@@ -448,6 +448,7 @@ const flowTypeOptions = [
   { label: '条件分支', value: FLOW_TYPE.if, description: 'Then / Else 分支。' },
   { label: 'While', value: FLOW_TYPE.while, description: '满足条件时循环。' },
   { label: '遍历循环', value: FLOW_TYPE.forEach, description: '遍历输入集合，并向子步骤暴露元素变量。' },
+  { label: '次数循环', value: FLOW_TYPE.repeat, description: '按表达式结果循环 N 次，并暴露索引变量。' },
 ];
 
 const filterModeOptions = [
@@ -662,7 +663,7 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
       return targets;
   }
 
-  if (selectedFlow.value?.type === FLOW_TYPE.while || selectedFlow.value?.type === FLOW_TYPE.forEach) {
+  if (selectedFlow.value?.type === FLOW_TYPE.while || selectedFlow.value?.type === FLOW_TYPE.forEach || selectedFlow.value?.type === FLOW_TYPE.repeat) {
     return [{ key: 'flow', label: '循环体', count: selectedFlow.value.flow.length, path: { parentStepPath: props.selectedStepPath, branch: 'flow' } }];
   }
 
@@ -719,7 +720,7 @@ const createClickAction = (mode: string): Action => {
     case ACTION_MODE.percent:
       return { ac: ACTION_TYPE.click, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
     case ACTION_MODE.txt:
-      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始' };
+      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始', txt_expr: null };
     case ACTION_MODE.labelIdx:
       return { ac: ACTION_TYPE.click, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0 };
     default:
@@ -745,6 +746,8 @@ const createSwipeAction = (mode: string): Action => {
         input_var: currentActionInputName.value || 'runtime.ocrResults',
         from: '开始',
         to: '结束',
+        from_expr: null,
+        to_expr: null,
       };
     case ACTION_MODE.labelIdx:
       return {
@@ -1300,7 +1303,7 @@ const updateFlowType = (type: string) => {
     if (step.op !== STEP_OP.flowControl) return;
     const currentCondition = flowCondition.value ?? createConditionNode('rawExpr');
     if (type === FLOW_TYPE.if) {
-      const flowSteps = step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach ? step.a.flow : [];
+      const flowSteps = step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat ? step.a.flow : [];
       step.a = {
         type: FLOW_TYPE.if,
         con: currentCondition,
@@ -1312,7 +1315,11 @@ const updateFlowType = (type: string) => {
 
     if (type === FLOW_TYPE.while) {
       const branchSteps =
-        step.a.type === FLOW_TYPE.if ? step.a.then : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach ? step.a.flow : [];
+        step.a.type === FLOW_TYPE.if
+          ? step.a.then
+          : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat
+          ? step.a.flow
+          : [];
       step.a = {
         type: FLOW_TYPE.while,
         con: currentCondition,
@@ -1323,12 +1330,32 @@ const updateFlowType = (type: string) => {
 
     if (type === FLOW_TYPE.forEach) {
       const branchSteps =
-        step.a.type === FLOW_TYPE.if ? step.a.then : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach ? step.a.flow : [];
+        step.a.type === FLOW_TYPE.if
+          ? step.a.then
+          : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat
+          ? step.a.flow
+          : [];
       step.a = {
         type: FLOW_TYPE.forEach,
         input_var: 'runtime.items',
         item_var: 'runtime.item',
         index_var: 'runtime.itemIndex',
+        flow: branchSteps,
+      } as FlowControl;
+      return;
+    }
+
+    if (type === FLOW_TYPE.repeat) {
+      const branchSteps =
+        step.a.type === FLOW_TYPE.if
+          ? step.a.then
+          : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat
+          ? step.a.flow
+          : [];
+      step.a = {
+        type: FLOW_TYPE.repeat,
+        count_expr: '1',
+        index_var: 'runtime.repeatIndex',
         flow: branchSteps,
       } as FlowControl;
     }

@@ -388,6 +388,37 @@ impl ScriptExecutor {
             .map_err(|error| Self::execute_error(step_type, error.to_string()))
     }
 
+    fn eval_repeat_count(&mut self, expr: &str, step_type: &str) -> ExecuteResult<usize> {
+        let value = self.eval_dynamic(expr, step_type)?;
+        let count = if let Some(value) = value.clone().try_cast::<INT>() {
+            value
+        } else if let Some(value) = value.clone().try_cast::<FLOAT>() {
+            value.floor() as INT
+        } else if let Some(value) = value.clone().try_cast::<String>() {
+            value.trim().parse::<INT>().map_err(|error| {
+                Self::execute_error(
+                    step_type,
+                    format!("循环次数表达式结果无法转为整数: {}", error),
+                )
+            })?
+        } else {
+            return Err(Self::execute_error(
+                step_type,
+                "循环次数表达式必须返回数字或数字字符串".to_string(),
+            ));
+        };
+
+        if count <= 0 {
+            return Ok(0);
+        }
+        usize::try_from(count).map_err(|_| {
+            Self::execute_error(
+                step_type,
+                format!("循环次数超出可支持范围: {}", count),
+            )
+        })
+    }
+
     fn execute_error(step_type: &str, e: String) -> ScriptError {
         ScriptError::ExecuteErr {
             step_type: step_type.to_string(),

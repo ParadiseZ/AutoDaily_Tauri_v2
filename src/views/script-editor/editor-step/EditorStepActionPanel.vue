@@ -233,10 +233,22 @@
         </div>
       </template>
 
-      <label v-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标文字</span>
-        <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
-      </label>
+      <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标文字</span>
+          <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
+        </label>
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">文字表达式</span>
+          <input
+            :value="String(selectedAction.txt_expr ?? '')"
+            class="app-input"
+            :list="variableDatalistId"
+            placeholder="可选，非空时优先使用"
+            @input="$emit('update-text-field', 'txt_expr', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+      </div>
 
       <label v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="space-y-2">
         <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签</span>
@@ -349,6 +361,26 @@
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点文字</span>
           <input :value="String(selectedAction.to ?? '')" class="app-input" @input="$emit('update-text-field', 'to', ($event.target as HTMLInputElement).value)" />
+        </label>
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点表达式</span>
+          <input
+            :value="String(selectedAction.from_expr ?? '')"
+            class="app-input"
+            :list="variableDatalistId"
+            placeholder="可选，非空时优先使用"
+            @input="$emit('update-text-field', 'from_expr', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点表达式</span>
+          <input
+            :value="String(selectedAction.to_expr ?? '')"
+            class="app-input"
+            :list="variableDatalistId"
+            placeholder="可选，非空时优先使用"
+            @input="$emit('update-text-field', 'to_expr', ($event.target as HTMLInputElement).value)"
+          />
         </label>
       </div>
 

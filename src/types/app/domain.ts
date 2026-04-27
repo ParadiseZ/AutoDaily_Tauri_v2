@@ -156,6 +156,7 @@ export interface ScriptInfoRecord {
     cloudId: string | null;
     runtimeSettings: {
         recoveryTaskId: string | null;
+        clickRandomOffset: number;
     };
 }
 

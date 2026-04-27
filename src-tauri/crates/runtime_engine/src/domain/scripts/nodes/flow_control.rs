@@ -23,6 +23,11 @@ pub enum FlowControl {
         index_var: String,
         flow: Vec<Step>,
     },
+    Repeat {
+        count_expr: String,
+        index_var: String,
+        flow: Vec<Step>,
+    },
     Continue,
     Break,
     WaitMs {

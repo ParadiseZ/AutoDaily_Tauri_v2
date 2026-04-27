@@ -77,6 +77,7 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
             activityName: raw.data.activityName ?? null,
             runtimeSettings: {
                 recoveryTaskId: raw.data.runtimeSettings?.recoveryTaskId ?? null,
+                clickRandomOffset: Math.max(0, toSafeNumber(raw.data.runtimeSettings?.clickRandomOffset, 0)),
             },
             verNum: toSafeNumber(raw.data.verNum, 1),
             latestVer: toSafeNumber(raw.data.latestVer, 1),
@@ -119,6 +120,7 @@ export const createBlankScript = (
         cloudId: null,
         runtimeSettings: {
             recoveryTaskId: null,
+            clickRandomOffset: 0,
         },
     },
 });

@@ -110,6 +110,8 @@ pub struct ScriptInfo {
 #[serde(rename_all = "camelCase")]
 pub struct ScriptRuntimeSettings {
     pub recovery_task_id: Option<TaskId>,
+    #[serde(default)]
+    pub click_random_offset: u16,
 }
 
 impl Default for ScriptInfo {
@@ -150,6 +152,7 @@ impl Default for ScriptRuntimeSettings {
     fn default() -> Self {
         Self {
             recovery_task_id: None,
+            click_random_offset: 0,
         }
     }
 }

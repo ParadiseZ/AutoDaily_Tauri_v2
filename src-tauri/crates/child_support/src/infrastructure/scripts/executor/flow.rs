@@ -108,6 +108,46 @@ impl ScriptExecutor {
 
                 Ok(ControlFlow::Next)
             }
+            FlowControl::Repeat {
+                count_expr,
+                index_var,
+                flow,
+            } => {
+                let count = self.eval_repeat_count(count_expr, "flow.repeat")?;
+                if count > MAX_LOOP_ITERATIONS {
+                    return Err(Self::execute_error(
+                        "flow.repeat",
+                        format!("循环次数超过上限 {}", MAX_LOOP_ITERATIONS),
+                    ));
+                }
+
+                for index in 0..count {
+                    if let Some(timeout_flow) = self
+                        .record_progress_evidence(
+                            "flow.repeat",
+                            format!("Repeat 循环推进: index={}/{}", index + 1, count),
+                        )
+                        .await?
+                    {
+                        return Ok(timeout_flow);
+                    }
+
+                    if !index_var.trim().is_empty() {
+                        self.set_runtime_var(index_var, Dynamic::from_int(index as INT))
+                            .await?;
+                    }
+
+                    match self.execute(flow).await? {
+                        ControlFlow::Next => continue,
+                        ControlFlow::Continue => continue,
+                        ControlFlow::Break => break,
+                        ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
+                        ControlFlow::Return => return Ok(ControlFlow::Return),
+                    }
+                }
+
+                Ok(ControlFlow::Next)
+            }
             FlowControl::Continue => Ok(ControlFlow::Continue),
             FlowControl::Break => Ok(ControlFlow::Break),
             FlowControl::WaitMs { ms } => {

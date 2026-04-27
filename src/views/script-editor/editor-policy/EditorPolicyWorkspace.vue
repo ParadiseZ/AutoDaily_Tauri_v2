@@ -18,6 +18,7 @@
               type="number"
               @input="$emit('update:number-field', 'curPos', ($event.target as HTMLInputElement).value)"
             />
+            <p class="mt-2 text-xs leading-5 text-[var(--app-text-faint)]">用于选择第 N 个匹配目标；`999` 表示最后一个。</p>
           </div>
 
           <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">

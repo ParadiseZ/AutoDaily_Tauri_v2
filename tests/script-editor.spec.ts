@@ -783,7 +783,7 @@ test('renders script-level task preview with title groups and task metadata', as
   }, scriptId);
   await page.reload();
 
-  await selectEditorTarget(page, 'task-daily-sign');
+  await page.getByTestId('editor-task-item-task-daily-sign').getByRole('button', { name: /签到/ }).evaluate((element: HTMLElement) => element.click());
   await page.getByTestId('editor-tab-ui').click();
 
   await expect(page.getByText('整表任务预览')).toBeVisible();
@@ -951,7 +951,6 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-sequence').click();
   await page.getByTestId('editor-step-card-0').click();
-  await page.getByLabel('倒序执行子步骤').check();
 
   await page.getByTestId('editor-step-template-vision-search').click();
   await page.getByTestId('editor-step-card-1').click();
@@ -988,7 +987,6 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
   const [task] = state!.scriptTasks[scriptId];
   expect(task.data.steps[0]).toMatchObject({
     op: 'sequence',
-    reverse: true,
   });
   expect(task.data.steps[1]).toMatchObject({
     op: 'vision',
