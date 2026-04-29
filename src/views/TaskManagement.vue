@@ -10,10 +10,8 @@
           :class="{ 'task-device-tab-active': device.id === activeDevice?.id }"
           @click="deviceStore.selectedDeviceId = device.id"
         >
-          <span class="truncate font-semibold">{{ device.data.deviceName }}</span>
-          <span class="task-device-tab-meta">
-            {{ deviceStore.getDeviceStatus(device.id).kind === 'running' ? '运行中' : deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
-          </span>
+          <span class="min-w-0 flex-1 truncate font-semibold">{{ device.data.deviceName }}</span>
+          <StatusBadge :label="formatStatusLabel(deviceStore.getDeviceStatus(device.id))" :tone="formatStatusTone(deviceStore.getDeviceStatus(device.id).kind)" />
           <span class="task-device-tab-count">{{ taskStore.assignmentsByDevice[device.id]?.length || 0 }}</span>
         </button>
       </div>
@@ -86,10 +84,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { confirm } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
+import StatusBadge from '@/components/shared/StatusBadge.vue';
+import { requestAppConfirm } from '@/services/appDialogService';
 import { runtimeService } from '@/services/runtimeService';
 import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
 import ScriptTemplateValuePanel from '@/views/script-template-values/ScriptTemplateValuePanel.vue';
@@ -97,7 +96,7 @@ import { useDeviceStore } from '@/store/device';
 import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
-import { formatTemplateWindow } from '@/utils/presenters';
+import { formatStatusLabel, formatStatusTone, formatTemplateWindow } from '@/utils/presenters';
 import { showToast } from '@/utils/toast';
 import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
 import type { AssignmentRecord, RunTarget } from '@/types/app/domain';
@@ -162,6 +161,17 @@ const handleEnsureScriptTasks = async (scriptId: string) => {
 };
 
 const handleRemoveAssignment = async (deviceId: string, assignment: AssignmentRecord) => {
+  const script = scriptStore.sortedScripts.find((item) => item.id === assignment.scriptId);
+  const approved = await requestAppConfirm({
+    title: '移除队列脚本',
+    message: `确认从当前设备队列移除「${script?.data.name || assignment.scriptId}」？`,
+    confirmText: '移除',
+    tone: 'danger',
+  });
+  if (!approved) {
+    return;
+  }
+
   try {
     await taskStore.removeAssignment(deviceId, assignment);
     showToast('脚本已从队列移除', 'success');
@@ -268,11 +278,12 @@ const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
   }
 
   const device = deviceStore.devices.find((item) => item.id === deviceId);
-  const approved = await confirm('当前设备正在执行。暂停当前任务后继续临时运行？', {
+  const approved = await requestAppConfirm({
     title: '确认切换运行目标',
-    okLabel: '继续',
-    cancelLabel: '取消',
-    kind: 'warning',
+    message: '当前设备正在执行。暂停当前任务后继续临时运行？',
+    confirmText: '继续',
+    cancelText: '取消',
+    tone: 'warning',
   });
   if (!approved) {
     return false;
@@ -360,8 +371,8 @@ onMounted(async () => {
 
 .task-device-tab {
   display: inline-flex;
-  min-width: 0;
-  max-width: 220px;
+  min-width: 190px;
+  max-width: 280px;
   align-items: center;
   gap: 0.5rem;
   border-radius: 12px;
@@ -379,12 +390,6 @@ onMounted(async () => {
   border-color: color-mix(in srgb, var(--app-accent) 30%, var(--app-border));
   background: color-mix(in srgb, var(--app-accent-soft) 58%, white);
   color: var(--app-text-strong);
-}
-
-.task-device-tab-meta {
-  flex-shrink: 0;
-  color: var(--app-text-faint);
-  font-size: 0.76rem;
 }
 
 .task-device-tab-count {

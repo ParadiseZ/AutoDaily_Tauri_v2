@@ -2,10 +2,6 @@
   <SurfacePanel class="space-y-5">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="space-y-2">
-        <div class="flex flex-wrap items-center gap-2">
-          <h2 class="text-lg font-semibold text-(--app-text-strong)">{{ device.data.deviceName }}</h2>
-          <StatusBadge :label="formatStatusLabel(status)" :tone="formatStatusTone(status.kind)" />
-        </div>
         <div class="flex flex-wrap gap-2 text-sm text-(--app-text-soft)">
           <span>{{ formatPlatformLabel(device.data.platform) }}</span>
           <span>·</span>
@@ -337,8 +333,6 @@ import {
   formatConnectLabel,
   formatDateTime,
   formatPlatformLabel,
-  formatStatusLabel,
-  formatStatusTone,
   formatTemplateWindow,
 } from '@/utils/presenters';
 
@@ -715,36 +709,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.editor-panel-tabs {
-  display: inline-flex;
-  gap: 0.4rem;
-  border-radius: 16px;
-  border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.7);
-  padding: 0.3rem;
-}
-
-.editor-panel-tab {
-  border-radius: 12px;
-  border: 1px solid transparent;
-  background: transparent;
-  padding: 0.55rem 0.9rem;
-  font-size: 0.84rem;
-  font-weight: 600;
-  color: var(--app-text-soft);
-  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
-}
-
-.editor-panel-tab:hover {
-  color: var(--app-text-strong);
-}
-
-.editor-panel-tab-active {
-  border-color: color-mix(in srgb, var(--app-accent) 28%, var(--app-border));
-  background: color-mix(in srgb, var(--app-accent-soft) 58%, white);
-  color: var(--app-text-strong);
-}
-
 .temporary-script-item,
 .temporary-task-row {
   border-radius: 16px;

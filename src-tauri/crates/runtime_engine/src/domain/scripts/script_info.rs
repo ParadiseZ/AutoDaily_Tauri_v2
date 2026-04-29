@@ -80,8 +80,6 @@ pub struct ScriptInfo {
     pub img_det_model: Option<DetectorType>,
     pub txt_det_model: Option<DetectorType>,
     pub txt_rec_model: Option<RecognizerType>,
-    pub pkg_name: Option<String>,
-    pub activity_name: Option<String>,
 
     pub create_time: Option<String>,
     pub update_time: Option<String>,
@@ -129,8 +127,6 @@ impl Default for ScriptInfo {
             img_det_model: None,
             txt_det_model: None,
             txt_rec_model: None,
-            pkg_name: None,
-            activity_name: None,
             create_time: None,
             update_time: None,
             ver_name: "".to_string(),

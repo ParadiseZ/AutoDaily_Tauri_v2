@@ -102,24 +102,10 @@ impl ScriptExecutor {
             Action::Click { mode } => self.execute_click(mode).await,
             Action::Swipe { duration, mode } => self.execute_swipe(mode, *duration).await,
             Action::Reboot => {
-                let (pkg_name, activity_name) = self.resolve_script_app_target("action.reboot").await?;
-                Self::await_device_result_with_timeout(
+                Err(Self::execute_error(
                     "action.reboot",
-                    "重启应用-停止",
-                    DEVICE_EXTERNAL_TIMEOUT_MS,
-                    get_device_ctx().stop_app(&pkg_name),
-                )
-                .await?;
-                Self::await_device_result_with_timeout(
-                    "action.reboot",
-                    "重启应用-启动",
-                    DEVICE_EXTERNAL_TIMEOUT_MS,
-                    get_device_ctx().launch_app(&pkg_name, &activity_name),
-                )
-                .await?;
-                Ok((
-                    ControlFlow::Next,
-                    Some(Self::build_simple_action_trace(PolicyActionKind::Reboot)),
+                    "脚本级 pkg_name/activity_name 已移除，重启应用请改用显式 StopApp + LaunchApp 动作"
+                        .to_string(),
                 ))
             }
             Action::Back => {
@@ -844,33 +830,6 @@ impl ScriptExecutor {
         }
 
         Ok(())
-    }
-
-    async fn resolve_script_app_target(&self, step_type: &str) -> ExecuteResult<(String, String)> {
-        let ctx = self.runtime_ctx.read().await;
-        let Some(script_info) = ctx.execution.script_info.as_ref() else {
-            return Err(Self::execute_error(
-                step_type,
-                "当前运行时缺少 script_info，无法解析目标应用".to_string(),
-            ));
-        };
-        let pkg_name = script_info
-            .pkg_name
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| {
-                Self::execute_error(step_type, "当前脚本未配置目标应用包名".to_string())
-            })?;
-        let activity_name = script_info
-            .activity_name
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| {
-                Self::execute_error(step_type, "当前脚本未配置目标应用 Activity".to_string())
-            })?;
-        Ok((pkg_name.to_string(), activity_name.to_string()))
     }
 
     async fn build_capture_observation(

@@ -614,14 +614,34 @@
     </div>
 
     <canvas ref="hiddenCanvasRef" class="hidden"></canvas>
+
+    <AppDialog
+      :open="captureErrorDialog.open"
+      title="设备截图失败"
+      width-class="max-w-lg"
+      @close="captureErrorDialog.open = false"
+    >
+      <div class="space-y-4">
+        <p class="whitespace-pre-wrap break-words text-sm leading-6 text-(--app-text-soft)">
+          {{ captureErrorDialog.message }}
+        </p>
+        <div class="flex justify-end">
+          <button class="app-button app-button-primary" type="button" @click="captureErrorDialog.open = false">
+            确定
+          </button>
+        </div>
+      </div>
+    </AppDialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue';
-import { confirm, open } from '@tauri-apps/plugin-dialog';
+import { open } from '@tauri-apps/plugin-dialog';
+import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
+import { requestAppConfirm } from '@/services/appDialogService';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import { deviceService } from '@/services/deviceService';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
@@ -726,6 +746,10 @@ interface OverlayEntry {
 const deviceStore = useDeviceStore();
 
 const preferences = reactive<VisionLabPreferences>({ ...DEFAULT_VISION_LAB_PREFERENCES });
+const captureErrorDialog = reactive({
+  open: false,
+  message: '',
+});
 const folderItems = ref<VisionSourceItem[]>([]);
 const captureItems = ref<VisionSourceItem[]>([]);
 const selectedItemId = ref<string | null>(null);
@@ -1263,18 +1287,16 @@ async function captureFromDevice() {
     try {
       capture = await visionLabService.captureDevice(selectedDevice.value);
     } catch (initialError) {
-      if (selectedDevice.value.data.capMethod !== 'adb') {
-        throw initialError;
-      }
-
       const running = await deviceService.isRunning(selectedDevice.value.id);
       if (running) {
         throw initialError;
       }
 
-      const approved = await confirm('设备当前未完成运行时准备。是否先启动设备并尝试连接后再截图？', {
+      const approved = await requestAppConfirm({
         title: '设备截图',
-        kind: 'warning',
+        message: '设备当前未完成运行时准备。是否先启动设备并尝试连接后再截图？',
+        confirmText: '启动并截图',
+        tone: 'warning',
       });
       if (!approved) {
         return;
@@ -1302,8 +1324,8 @@ async function captureFromDevice() {
     await selectItem(item);
     showToast('设备截图已加入当前采集区', 'success');
   } catch (error) {
-    console.log(error);
-    showToast(error instanceof Error ? error.message : '设备截图失败', 'error');
+    captureErrorDialog.message = error instanceof Error ? error.message : '设备截图失败';
+    captureErrorDialog.open = true;
   }
 }
 
@@ -1726,33 +1748,6 @@ onMounted(async () => {
 
 .vision-list-item {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.18));
-}
-
-.editor-panel-tabs {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-bottom: 1px solid var(--app-border);
-}
-
-.editor-panel-tab {
-  position: relative;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  padding: 0.75rem 0.35rem 0.85rem;
-  color: var(--app-text-faint);
-  font-size: 0.93rem;
-  font-weight: 600;
-  transition: color 0.16s ease, border-color 0.16s ease;
-}
-
-.editor-panel-tab:hover {
-  color: var(--app-text-soft);
-}
-
-.editor-panel-tab-active {
-  border-bottom-color: var(--app-accent);
-  color: var(--app-text-strong);
 }
 
 .vision-path-row {

@@ -92,14 +92,6 @@
             <span>云端关联</span>
             <span class="truncate text-(--app-text-strong)">{{ script.data.cloudId || '未上传' }}</span>
           </div>
-          <div class="flex justify-between gap-4">
-            <span>包名</span>
-            <span class="truncate text-(--app-text-strong)">{{ script.data.pkgName || '未指定' }}</span>
-          </div>
-          <div class="flex justify-between gap-4">
-            <span>Activity</span>
-            <span class="truncate text-(--app-text-strong)">{{ script.data.activityName || '未指定' }}</span>
-          </div>
         </div>
       </SurfacePanel>
     </div>

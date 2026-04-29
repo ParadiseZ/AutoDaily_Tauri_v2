@@ -67,8 +67,6 @@ const seedTemplateValueState = async (page: Page) => {
             imgDetModel: null,
             txtDetModel: null,
             txtRecModel: null,
-            pkgName: 'com.example.template',
-            activityName: null,
             createTime: now,
             updateTime: now,
             verName: '1.0.0',

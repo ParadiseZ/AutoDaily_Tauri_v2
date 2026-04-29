@@ -78,14 +78,6 @@
               <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">发布时间</p>
               <p class="mt-2 text-(--app-text-strong)">{{ formatDate(selectedScript.createTime) }}</p>
             </div>
-            <div class="rounded-[20px] border border-(--app-border) p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">包名</p>
-              <p class="mt-2 text-(--app-text-strong)">{{ selectedScript.pkgName || '未指定' }}</p>
-            </div>
-            <div class="rounded-[20px] border border-(--app-border) p-4 md:col-span-2">
-              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">Activity</p>
-              <p class="mt-2 text-(--app-text-strong)">{{ selectedScript.activityName || '未指定' }}</p>
-            </div>
           </div>
 
           <div class="flex flex-wrap gap-3">

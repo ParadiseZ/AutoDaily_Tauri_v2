@@ -73,7 +73,6 @@ test('disables submit when script name is blank', async ({ page }) => {
 test('creates a local script with basic, model, and sponsorship settings', async ({ page }) => {
   const scriptName = `每日清体力 ${Date.now()}`;
   const description = '覆盖基本信息、模型信息和赞助信息的创建流程';
-  const packageName = 'com.example.daily';
   const qrDataUrl =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIW2P8//8/AwAI/AL+X2HFVQAAAABJRU5ErkJggg==';
 
@@ -85,7 +84,6 @@ test('creates a local script with basic, model, and sponsorship settings', async
   await dialog.getByTestId('script-basic-name').fill(scriptName);
   await dialog.getByTestId('script-basic-description').fill(description);
   await selectOptionByValue(page, 'script-basic-runtime-type', 'javaScript');
-  await dialog.getByTestId('script-basic-package-name').fill(packageName);
   await dialog.getByTestId('script-basic-version-name').fill('2.0.0');
   await dialog.getByTestId('script-basic-version-num').fill('7');
   await dialog.getByTestId('script-basic-allow-clone').uncheck();
@@ -135,7 +133,6 @@ test('creates a local script with basic, model, and sponsorship settings', async
   expect(script.data.name).toBe(scriptName);
   expect(script.data.description).toBe(description);
   expect(script.data.runtimeType).toBe('javaScript');
-  expect(script.data.pkgName).toBe(packageName);
   expect(script.data.verName).toBe('2.0.0');
   expect(script.data.verNum).toBe(7);
   expect(script.data.allowClone).toBe(false);

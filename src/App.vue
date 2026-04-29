@@ -3,6 +3,7 @@
     <router-view />
   </component>
   <AuthModal />
+  <AppConfirmHost />
 </template>
 
 <script setup lang="ts">
@@ -17,6 +18,7 @@ import { useDeviceStore } from './store/device';
 import { useLogsStore } from './store/logs';
 import { useRuntimeStore } from './store/runtime';
 import AuthModal from "@/components/AuthModal.vue";
+import AppConfirmHost from "@/components/shared/AppConfirmHost.vue";
 
 const { initTheme } = useThemeManager();
 const route = useRoute();

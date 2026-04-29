@@ -517,6 +517,7 @@ import { useSettingsStore } from '@/store/settings';
 import { deviceKey, getFromStore, setToStore } from '@/store/store';
 import { runtimeService } from '@/services/runtimeService';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
+import { requestAppConfirm } from '@/services/appDialogService';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import type { DeviceFormState, JsonValue, RunTarget, ScriptTableRecord } from '@/types/app/domain';
@@ -1460,13 +1461,19 @@ const duplicateTask = async (taskId: string) => {
   selectedTaskId.value = duplicate.id;
 };
 
-const removeTask = (taskId: string) => {
+const removeTask = async (taskId: string) => {
   if (draftTasks.value.length <= 1) {
     showToast('至少保留一个任务，避免脚本变成空壳。', 'warning');
     return;
   }
 
-  if (!window.confirm('确认要删除此任务吗？这将删除该任务下的所有数据')) {
+  const approved = await requestAppConfirm({
+    title: '删除任务',
+    message: '确认要删除此任务吗？这将删除该任务下的所有数据',
+    confirmText: '删除',
+    tone: 'danger',
+  });
+  if (!approved) {
     return;
   }
 

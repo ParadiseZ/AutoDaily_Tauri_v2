@@ -17,6 +17,8 @@ import type {
 type RawScriptTable = ScriptTable & {
     data: ScriptTableRecord['data'] & {
         scriptType?: ScriptType;
+        pkgName?: unknown;
+        activityName?: unknown;
     };
 };
 
@@ -64,17 +66,23 @@ const toSafeNumber = (value: bigint | number | string | null | undefined, fallba
     return fallback;
 };
 
+const stripScriptInfoAppTarget = <T extends ScriptTableRecord['data']>(value: T) => {
+    const data = { ...value } as T & { pkgName?: unknown; activityName?: unknown };
+    delete data.pkgName;
+    delete data.activityName;
+    return data;
+};
+
 export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): ScriptTableRecord => {
     const raw = script as RawScriptTable;
+    const data = stripScriptInfoAppTarget(raw.data);
     return {
         id: raw.id,
         data: {
-            ...raw.data,
+            ...data,
             scriptType: raw.data.scriptType ?? 'dev',
             platform: raw.data.platform ?? 'android',
             variableCatalog: raw.data.variableCatalog ?? createEmptyVariableCatalog(),
-            pkgName: raw.data.pkgName ?? null,
-            activityName: raw.data.activityName ?? null,
             runtimeSettings: {
                 recoveryTaskId: raw.data.runtimeSettings?.recoveryTaskId ?? null,
                 clickRandomOffset: Math.max(0, toSafeNumber(raw.data.runtimeSettings?.clickRandomOffset, 0)),
@@ -105,8 +113,6 @@ export const createBlankScript = (
         imgDetModel: null,
         txtDetModel: null,
         txtRecModel: null,
-        pkgName: null,
-        activityName: null,
         createTime: new Date().toISOString(),
         updateTime: new Date().toISOString(),
         verName: '0.1.0',
@@ -128,7 +134,7 @@ export const createBlankScript = (
 const serializeScriptTable = (script: ScriptTableRecord): ScriptTablePayload => ({
     id: script.id,
     data: {
-        ...script.data,
+        ...stripScriptInfoAppTarget(script.data),
         verNum: toSafeNumber(script.data.verNum, 1),
         latestVer: toSafeNumber(script.data.latestVer, 1),
         downloadCount: toSafeNumber(script.data.downloadCount, 0),

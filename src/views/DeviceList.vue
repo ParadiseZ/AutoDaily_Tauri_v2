@@ -85,7 +85,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { confirm } from '@tauri-apps/plugin-dialog';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
@@ -94,6 +93,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
+import { requestAppConfirm } from '@/services/appDialogService';
 import { taskService } from '@/services/taskService';
 import { showToast } from '@/utils/toast';
 import { formatCaptureMethod, formatConnectLabel, formatPlatformLabel } from '@/utils/presenters';
@@ -181,9 +181,11 @@ const saveDevice = async (form: DeviceFormState) => {
 };
 
 const removeDevice = async (deviceId: string) => {
-  const approved = await confirm('删除后不会保留当前设备的本地配置，是否继续？', {
+  const approved = await requestAppConfirm({
     title: '删除设备',
-    kind: 'warning',
+    message: '删除后不会保留当前设备的本地配置，是否继续？',
+    confirmText: '删除',
+    tone: 'danger',
   });
 
   if (!approved) {

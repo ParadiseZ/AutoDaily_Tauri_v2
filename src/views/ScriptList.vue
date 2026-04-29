@@ -49,8 +49,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { confirm } from '@tauri-apps/plugin-dialog';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
+import { requestAppConfirm } from '@/services/appDialogService';
 import { createScriptName } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
@@ -201,9 +201,10 @@ const handleUpload = async (scriptId: string) => {
 
 const handleClone = async (scriptId: string) => {
   try {
-    const approved = await confirm('克隆后会生成一个新的本地脚本副本，是否继续？', {
+    const approved = await requestAppConfirm({
       title: '克隆脚本',
-      kind: 'info',
+      message: '克隆后会生成一个新的本地脚本副本，是否继续？',
+      confirmText: '克隆',
     });
     if (!approved) {
       return;
@@ -230,9 +231,11 @@ const handleClearLogs = async (scriptId: string) => {
 };
 
 const handleDelete = async (scriptId: string) => {
-  const approved = await confirm('删除后脚本将从本地库中移除，这个操作无法撤销。', {
+  const approved = await requestAppConfirm({
     title: '删除脚本',
-    kind: 'warning',
+    message: '删除后脚本将从本地库中移除，这个操作无法撤销。',
+    confirmText: '删除',
+    tone: 'danger',
   });
   if (!approved) {
     return;

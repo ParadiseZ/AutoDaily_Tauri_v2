@@ -53,38 +53,10 @@
                 </label>
 
                 <label class="dialog-form-row">
-                  <span class="dialog-form-label">包名</span>
-                  <input
-                    v-model.trim="pkgNameValue"
-                    class="app-input"
-                    data-testid="script-basic-package-name"
-                    maxlength="80"
-                    placeholder="com.example.app"
-                  />
-                </label>
-              </div>
-
-              <div class="dialog-form-grid">
-                <label class="dialog-form-row">
-                  <span class="dialog-form-label">Activity</span>
-                  <input
-                    v-model.trim="activityNameValue"
-                    class="app-input"
-                    data-testid="script-basic-activity-name"
-                    maxlength="160"
-                    placeholder=".MainActivity"
-                  />
-                </label>
-
-                <label class="dialog-form-row">
                   <span class="dialog-form-label">脚本平台</span>
                   <AppSelect v-model="scriptPlatformValue" :options="platformOptions" test-id="script-basic-platform" />
                 </label>
               </div>
-
-              <p class="text-xs leading-5 text-(--app-text-faint)">
-                `包名 + Activity` 会作为脚本全局应用入口信息，供运行时和调试链路复用。
-              </p>
 
               <div class="dialog-form-grid">
                 <label class="dialog-form-row">
@@ -780,20 +752,6 @@ const descriptionValue = computed({
   },
 });
 
-const pkgNameValue = computed({
-  get: () => form.value?.data.pkgName || '',
-  set: (value: string) => {
-    if (form.value) form.value.data.pkgName = value || null;
-  },
-});
-
-const activityNameValue = computed({
-  get: () => form.value?.data.activityName || '',
-  set: (value: string) => {
-    if (form.value) form.value.data.activityName = value || null;
-  },
-});
-
 const scriptPlatformValue = computed({
   get: () => form.value?.data.platform || 'android',
   set: (value: string) => {
@@ -931,8 +889,6 @@ function cloneScriptRecord(script: unknown): ScriptTableRecord {
 
 function ensureRuntimeSettings(script: ScriptTableRecord) {
   script.data.platform = script.data.platform || 'android';
-  script.data.pkgName = script.data.pkgName || null;
-  script.data.activityName = script.data.activityName || null;
   script.data.runtimeSettings = {
     recoveryTaskId: script.data.runtimeSettings?.recoveryTaskId || null,
     clickRandomOffset: Math.max(0, Math.floor(Number(script.data.runtimeSettings?.clickRandomOffset ?? 0) || 0)),
@@ -1018,34 +974,6 @@ watch(
   min-width: 2.75rem;
   height: 2.75rem;
   padding: 0;
-}
-
-.editor-panel-tabs {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-bottom: 1px solid var(--app-border);
-}
-
-.editor-panel-tab {
-  position: relative;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  padding: 0.75rem 0.35rem 0.85rem;
-  color: var(--app-text-faint);
-  font-size: 0.93rem;
-  font-weight: 600;
-  white-space: nowrap;
-  transition: color 0.16s ease, border-color 0.16s ease;
-}
-
-.editor-panel-tab:hover {
-  color: var(--app-text-soft);
-}
-
-.editor-panel-tab-active {
-  border-bottom-color: var(--app-accent);
-  color: var(--app-text-strong);
 }
 
 .support-form-row {

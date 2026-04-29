@@ -232,21 +232,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
-    id: 'reboot',
-    label: '重启应用',
-    description: '停止并重新启动当前脚本配置的目标应用。',
-    group: '动作',
-    create: () =>
-      createBaseStep({
-        label: '重启应用',
-        op: STEP_OP.action,
-        exec_max: 0,
-        a: {
-          ac: ACTION_TYPE.reboot,
-        },
-      }),
-  },
-  {
     id: 'back',
     label: '返回',
     description: '执行 Android 返回键动作。',
@@ -696,7 +681,7 @@ export const describeStepMeta = (step: Step) => {
       return `启动 ${step.a.pkg_name || '未指定包名'}/${step.a.activity_name || '未指定 Activity'}`;
     }
     if (step.a.ac === ACTION_TYPE.stopApp) return `停止 ${step.a.pkg_name || '未指定包名'}`;
-    if (step.a.ac === ACTION_TYPE.reboot) return '重启脚本配置的目标应用';
+    if (step.a.ac === ACTION_TYPE.reboot) return '旧版重启应用动作，请改用停止应用 + 启动应用';
     if (step.a.ac === ACTION_TYPE.back) return 'Android 返回键';
     if (step.a.ac === ACTION_TYPE.posAdd) return `调整策略 ${step.a.target || '未指定'} · +1`;
     if (step.a.ac === ACTION_TYPE.posMinus) return `调整策略 ${step.a.target || '未指定'} · -1`;

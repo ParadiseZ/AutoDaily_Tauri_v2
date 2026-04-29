@@ -354,33 +354,6 @@ watch(
 </script>
 
 <style scoped>
-.editor-panel-tabs {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  border-bottom: 1px solid var(--app-border);
-}
-
-.editor-panel-tab {
-  position: relative;
-  margin-bottom: -1px;
-  border-bottom: 2px solid transparent;
-  padding: 0.75rem 0.35rem 0.85rem;
-  color: var(--app-text-faint);
-  font-size: 0.93rem;
-  font-weight: 600;
-  transition: color 0.16s ease, border-color 0.16s ease;
-}
-
-.editor-panel-tab:hover {
-  color: var(--app-text-soft);
-}
-
-.editor-panel-tab-active {
-  border-bottom-color: var(--app-accent);
-  color: var(--app-text-strong);
-}
-
 .path-input-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
