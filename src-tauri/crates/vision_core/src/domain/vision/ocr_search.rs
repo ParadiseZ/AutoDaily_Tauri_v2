@@ -42,9 +42,13 @@ pub enum RelativeAnchorType {
 #[serde(rename_all = "camelCase")]
 pub enum RelativeDirection {
     Left,
+    LeftAbove,
     Right,
+    RightAbove,
     Above,
+    RightBelow,
     Below,
+    LeftBelow,
     Near,
 }
 
@@ -220,6 +224,12 @@ pub enum PolicyConditionRule {
         value_type: RelativeValueType,
         compare: RelativeCompareOp,
         value: String,
+        #[serde(default)]
+        max_offset_x: Option<i32>,
+        #[serde(default)]
+        max_offset_y: Option<i32>,
+        #[serde(default)]
+        target_index: Option<usize>,
     },
     Group {
         op: LogicOp,
@@ -388,6 +398,9 @@ impl PolicyConditionRule {
                 value_type,
                 compare,
                 value,
+                max_offset_x,
+                max_offset_y,
+                target_index,
             } => evaluate_relative_rule(
                 snapshot,
                 *anchor_type,
@@ -398,6 +411,9 @@ impl PolicyConditionRule {
                 *value_type,
                 *compare,
                 value,
+                *max_offset_x,
+                *max_offset_y,
+                *target_index,
             ),
             PolicyConditionRule::Group { op, items } => match op {
                 LogicOp::And => items.iter().all(|item| item.evaluate(snapshot)),
@@ -497,13 +513,24 @@ fn evaluate_relative_rule(
     value_type: RelativeValueType,
     compare: RelativeCompareOp,
     value: &str,
+    max_offset_x: Option<i32>,
+    max_offset_y: Option<i32>,
+    target_index: Option<usize>,
 ) -> bool {
     snapshot
         .layout_items
         .iter()
         .filter(|item| match_anchor(item, anchor_type, anchor_text, anchor_idx))
         .any(|anchor| {
-            select_relative_target(snapshot, anchor, direction, target_kind)
+            select_relative_target(
+                snapshot,
+                anchor,
+                direction,
+                target_kind,
+                max_offset_x,
+                max_offset_y,
+                target_index,
+            )
                 .map(|candidate| compare_relative_value(candidate, value_type, compare, value))
                 .unwrap_or(false)
         })
@@ -535,8 +562,11 @@ fn select_relative_target<'a>(
     anchor: &VisionLayoutItem,
     direction: RelativeDirection,
     target_kind: RelativeTargetKind,
+    max_offset_x: Option<i32>,
+    max_offset_y: Option<i32>,
+    target_index: Option<usize>,
 ) -> Option<&'a VisionLayoutItem> {
-    snapshot
+    let mut candidates: Vec<_> = snapshot
         .layout_items
         .iter()
         .filter(|candidate| {
@@ -544,10 +574,14 @@ fn select_relative_target<'a>(
         })
         .filter(|candidate| matches_target_kind(candidate, target_kind))
         .filter_map(|candidate| {
-            relative_score(anchor, candidate, direction).map(|score| (score, candidate))
+            relative_score(anchor, candidate, direction, max_offset_x, max_offset_y)
+                .map(|score| (score, candidate))
         })
-        .min_by(|left, right| left.0.cmp(&right.0))
-        .map(|(_, candidate)| candidate)
+        .collect();
+    candidates.sort_by(|left, right| left.0.cmp(&right.0));
+    candidates
+        .get(target_index.unwrap_or(0))
+        .map(|(_, candidate)| *candidate)
 }
 
 fn matches_target_kind(candidate: &VisionLayoutItem, target_kind: RelativeTargetKind) -> bool {
@@ -562,16 +596,30 @@ fn relative_score(
     anchor: &VisionLayoutItem,
     candidate: &VisionLayoutItem,
     direction: RelativeDirection,
+    max_offset_x: Option<i32>,
+    max_offset_y: Option<i32>,
 ) -> Option<(i32, i32)> {
     let dx = candidate.stable_center.x - anchor.stable_center.x;
     let dy = candidate.stable_center.y - anchor.stable_center.y;
+    let abs_dx = dx.abs();
+    let abs_dy = dy.abs();
+    if max_offset_x.is_some_and(|max| abs_dx > max.max(0)) {
+        return None;
+    }
+    if max_offset_y.is_some_and(|max| abs_dy > max.max(0)) {
+        return None;
+    }
 
     match direction {
-        RelativeDirection::Right if dx > 0 => Some((dx, dy.abs())),
-        RelativeDirection::Left if dx < 0 => Some((dx.abs(), dy.abs())),
-        RelativeDirection::Below if dy > 0 => Some((dy, dx.abs())),
-        RelativeDirection::Above if dy < 0 => Some((dy.abs(), dx.abs())),
-        RelativeDirection::Near => Some((dx.abs() + dy.abs(), dx.abs().min(dy.abs()))),
+        RelativeDirection::Right if dx > 0 => Some((dx, abs_dy)),
+        RelativeDirection::Left if dx < 0 => Some((abs_dx, abs_dy)),
+        RelativeDirection::Below if dy > 0 => Some((dy, abs_dx)),
+        RelativeDirection::Above if dy < 0 => Some((abs_dy, abs_dx)),
+        RelativeDirection::LeftAbove if dx < 0 && dy < 0 => Some((abs_dx + abs_dy, abs_dx)),
+        RelativeDirection::RightAbove if dx > 0 && dy < 0 => Some((abs_dx + abs_dy, abs_dx)),
+        RelativeDirection::RightBelow if dx > 0 && dy > 0 => Some((abs_dx + abs_dy, abs_dx)),
+        RelativeDirection::LeftBelow if dx < 0 && dy > 0 => Some((abs_dx + abs_dy, abs_dx)),
+        RelativeDirection::Near => Some((abs_dx + abs_dy, abs_dx.min(abs_dy))),
         _ => None,
     }
 }
@@ -824,6 +872,9 @@ mod tests {
             value_type: RelativeValueType::Number,
             compare: RelativeCompareOp::Gt,
             value: "5".into(),
+            max_offset_x: None,
+            max_offset_y: None,
+            target_index: None,
         };
 
         assert!(rule.evaluate(&snapshot));

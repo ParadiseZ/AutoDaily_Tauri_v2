@@ -336,6 +336,7 @@ import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
+import { filterUserVisibleTaskRows } from '@/utils/scriptTaskVisibility';
 import {
   formatCaptureMethod,
   formatConnectLabel,
@@ -428,8 +429,7 @@ const selectedTemporaryScriptName = computed(() =>
 );
 
 const temporaryRows = computed(() =>
-  [...(props.scriptTasksByScriptId[selectedTemporaryScriptId.value] ?? [])]
-    .filter((task) => !task.isDeleted)
+  filterUserVisibleTaskRows(props.scriptTasksByScriptId[selectedTemporaryScriptId.value] ?? [])
     .sort((left, right) => left.index - right.index),
 );
 

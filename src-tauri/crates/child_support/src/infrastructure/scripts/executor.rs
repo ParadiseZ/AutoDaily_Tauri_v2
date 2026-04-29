@@ -21,7 +21,10 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::scripts::script_variable::{
     ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace,
 };
-use crate::domain::vision::ocr_search::{OcrSearcher, SearchHit, VisionSnapshot};
+use crate::domain::vision::ocr_search::{
+    OcrSearcher, RelativeAnchorType, RelativeDirection, RelativeTargetKind, SearchHit,
+    VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
+};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::constant::table_name::SCRIPT_TIME_TEMPLATE_VALUES_TABLE;
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};

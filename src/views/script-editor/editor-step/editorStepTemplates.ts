@@ -539,6 +539,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
             type: COLOR_COMPARE_METHOD_TYPE.oklabDistance,
             threshold: 0.05,
           },
+          then_steps: [],
         },
       }),
   },
@@ -667,6 +668,7 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === DATA_TYPE.getVar) return '读取变量';
     if (step.a.type === DATA_TYPE.filter) return '过滤变量';
     if (step.a.type === DATA_TYPE.colorCompare) return '颜色比较';
+    if (step.a.type === DATA_TYPE.relativeFilter) return '相对位置筛选';
     return '数据处理';
   }
 
@@ -743,6 +745,8 @@ export const describeStepMeta = (step: Step) => {
         return `过滤 ${step.a.input_var || '未命名输入'} -> ${step.a.out_name || '未命名输出'}`;
       case DATA_TYPE.colorCompare:
         return `颜色比较 ${step.a.input_var || '未命名输入'} -> ${step.a.out_var || '未命名输出'}`;
+      case DATA_TYPE.relativeFilter:
+        return `相对位置 ${step.a.input_var || '未命名输入'} -> ${step.a.out_var || '未命名输出'}`;
       default:
         return '数据处理';
     }

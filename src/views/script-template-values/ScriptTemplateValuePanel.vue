@@ -128,6 +128,7 @@ import { taskService } from '@/services/taskService';
 import type { JsonValue, ScriptTableRecord, ScriptTimeTemplateValuesDto } from '@/types/app/domain';
 import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
+import { filterUserVisibleTaskRows } from '@/utils/scriptTaskVisibility';
 import { createUiSchema, parseUiSchema, stableStringify } from '@/views/script-editor/editorSchema';
 import { getVariableValueTypeLabel } from '@/views/script-editor/editorVariables';
 import EditorTaskTablePreview from '@/views/script-editor/EditorTaskTablePreview.vue';
@@ -185,7 +186,7 @@ const dirty = computed(() => stableStringify(entries.value) !== loadedSnapshot.v
 const taskSettingsDirty = computed(() => stableStringify(taskSettings.value) !== taskSettingsSnapshot.value);
 const hasDirtyChanges = computed(() => dirty.value || taskSettingsDirty.value);
 const previewKey = computed(() => `${props.script.id}:${props.scope.deviceId}:${props.scope.timeTemplateId}:${previewVersion.value}`);
-const previewTasks = computed(() => props.tasks.filter((task) => !task.isDeleted));
+const previewTasks = computed(() => filterUserVisibleTaskRows(props.tasks));
 const selectableTasks = computed(() => previewTasks.value.filter((task) => task.rowType === 'task'));
 const previewInputEntries = computed(() => buildTemplateEditorInputs(entries.value));
 const taskEnabledById = computed(() =>
@@ -237,7 +238,7 @@ const isRecord = (value: unknown): value is Record<string, JsonValue> =>
   Boolean(value) && !Array.isArray(value) && typeof value === 'object';
 
 const buildEntriesFromStored = (storedVariables: JsonValue) =>
-  createTemplateVariableEntries(props.script, props.tasks, storedVariables);
+  createTemplateVariableEntries(props.script, previewTasks.value, storedVariables);
 
 const extractStoredVariables = (recordValue: ScriptTimeTemplateValuesDto | null) => {
   const valuesRoot = isRecord(recordValue?.valuesJson) ? recordValue.valuesJson : {};
@@ -251,7 +252,7 @@ const extractStoredTaskSettings = (recordValue: ScriptTimeTemplateValuesDto | nu
 
 const rebuildTaskSettings = (storedTaskSettings: JsonValue, resetSnapshot: boolean) => {
   const currentByTaskId = new Map(taskSettings.value.map((entry) => [entry.taskId, entry]));
-  const nextSettings = createTemplateTaskSettingEntries(props.tasks, storedTaskSettings).map((entry) =>
+  const nextSettings = createTemplateTaskSettingEntries(previewTasks.value, storedTaskSettings).map((entry) =>
     !resetSnapshot && currentByTaskId.has(entry.taskId)
       ? {
           ...entry,
@@ -348,8 +349,28 @@ const handleTaskCycleUpdate = (taskId: string, taskCycle: TaskCycle) => {
 
 const resetToDefaults = () => {
   entries.value = buildEntriesFromStored({});
-  taskSettings.value = createTemplateTaskSettingEntries(props.tasks, {});
+  taskSettings.value = createTemplateTaskSettingEntries(previewTasks.value, {});
   previewVersion.value += 1;
+};
+
+const mergeVisibleVariables = (currentVariables: JsonValue, visibleVariables: Record<string, JsonValue>) => {
+  const current = isRecord(currentVariables) ? currentVariables : {};
+  const visibleKeys = new Set(
+    entries.value.flatMap((entry) => [entry.id, entry.key, entry.displayKey, `input.${entry.displayKey}`]),
+  );
+  return {
+    ...Object.fromEntries(Object.entries(current).filter(([key]) => !visibleKeys.has(key))),
+    ...visibleVariables,
+  };
+};
+
+const mergeVisibleTaskSettings = (currentSettings: JsonValue, visibleSettings: Record<string, JsonValue>) => {
+  const current = isRecord(currentSettings) ? currentSettings : {};
+  const visibleTaskIds = new Set(taskSettings.value.map((entry) => entry.taskId));
+  return {
+    ...Object.fromEntries(Object.entries(current).filter(([taskId]) => !visibleTaskIds.has(taskId))),
+    ...visibleSettings,
+  };
 };
 
 const saveValues = async () => {
@@ -360,8 +381,8 @@ const saveValues = async () => {
     const taskSettingsPayload = buildTemplateTaskSettingsPayload(taskSettings.value);
     const currentRoot = isRecord(record.value?.valuesJson) ? record.value.valuesJson : {};
     const nextValuesJson = Object.assign({}, currentRoot, {
-      variables,
-      taskSettings: taskSettingsPayload,
+      variables: mergeVisibleVariables(currentRoot.variables, variables),
+      taskSettings: mergeVisibleTaskSettings(currentRoot.taskSettings, taskSettingsPayload),
     }) as JsonValue;
     const now = new Date().toISOString();
     const nextRecord: ScriptTimeTemplateValuesDto = {
@@ -397,7 +418,7 @@ const saveValues = async () => {
     }
     record.value = savedRecord;
     entries.value = buildEntriesFromStored(savedVariables);
-    taskSettings.value = createTemplateTaskSettingEntries(props.tasks, savedTaskSettings);
+    taskSettings.value = createTemplateTaskSettingEntries(previewTasks.value, savedTaskSettings);
     loadedSnapshot.value = stableStringify(entries.value);
     taskSettingsSnapshot.value = stableStringify(taskSettings.value);
     previewVersion.value += 1;
@@ -423,7 +444,12 @@ watch(
 watch(
   previewTasks,
   () => {
+    const wasVariableDirty = dirty.value;
     const wasDirty = taskSettingsDirty.value;
+    if (!wasVariableDirty) {
+      entries.value = buildEntriesFromStored(extractStoredVariables(record.value));
+      loadedSnapshot.value = stableStringify(entries.value);
+    }
     rebuildTaskSettings(extractStoredTaskSettings(record.value), false);
     if (!wasDirty) {
       taskSettingsSnapshot.value = stableStringify(taskSettings.value);

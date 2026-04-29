@@ -3,6 +3,7 @@ import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { ScriptVariableDef } from '@/types/bindings/ScriptVariableDef';
 import type { ScriptVariableValueType } from '@/types/bindings/ScriptVariableValueType';
+import { isUserVisibleRunnableTask } from '@/utils/scriptTaskVisibility';
 import type { EditorInputEntry, EditorInputType } from '@/views/script-editor/editorVariables';
 import { getVariableDisplayKey } from '@/views/script-editor/editorVariables';
 
@@ -148,10 +149,16 @@ export const createTemplateVariableEntries = (
   storedVariables: JsonValue,
 ): TemplateVariableEntry[] => {
   const taskNameMap = new Map(tasks.map((task) => [task.id, task.name || '未命名任务']));
+  const visibleTaskIds = new Set(tasks.filter(isUserVisibleRunnableTask).map((task) => task.id));
   const stored = isRecord(storedVariables) ? storedVariables : {};
 
   return [...script.data.variableCatalog.variables]
-    .filter((variable) => variable.namespace === 'input' && variable.persisted)
+    .filter(
+      (variable) =>
+        variable.namespace === 'input' &&
+        variable.persisted &&
+        (!variable.ownerTaskId || visibleTaskIds.has(variable.ownerTaskId)),
+    )
     .sort((left, right) => sortVariables(tasks, left, right))
     .map((variable) => {
       const displayKey = getVariableDisplayKey(variable.key, variable.namespace);
@@ -189,7 +196,7 @@ export const createTemplateTaskSettingEntries = (
   const stored = isRecord(storedSettings) ? storedSettings : {};
 
   return tasks
-    .filter((task) => task.rowType === 'task' && !task.isDeleted)
+    .filter(isUserVisibleRunnableTask)
     .map((task) => {
       const rawSetting = stored[task.id];
       const setting = isRecord(rawSetting) ? rawSetting : {};

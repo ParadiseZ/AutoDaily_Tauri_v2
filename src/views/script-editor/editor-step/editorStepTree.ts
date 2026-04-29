@@ -113,7 +113,10 @@ const getBranchStepsFromStep = (step: Step, branch: StepBranchKind): Step[] => {
     case 'visionThen':
       return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? step.a.then_steps : [];
     case 'filterThen':
-      return step.op === STEP_OP.dataHanding && step.a.type === DATA_TYPE.filter ? step.a.then_steps : [];
+      return step.op === STEP_OP.dataHanding &&
+        (step.a.type === DATA_TYPE.filter || step.a.type === DATA_TYPE.colorCompare || step.a.type === DATA_TYPE.relativeFilter)
+        ? (step.a.then_steps ?? [])
+        : [];
     default:
       return [];
   }
@@ -134,7 +137,8 @@ const setBranchStepsOnStep = (step: Step, branch: StepBranchKind, steps: Step[])
     case 'visionThen':
       return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? { ...step, a: { ...step.a, then_steps: steps } } : step;
     case 'filterThen':
-      return step.op === STEP_OP.dataHanding && step.a.type === DATA_TYPE.filter
+      return step.op === STEP_OP.dataHanding &&
+        (step.a.type === DATA_TYPE.filter || step.a.type === DATA_TYPE.colorCompare || step.a.type === DATA_TYPE.relativeFilter)
         ? { ...step, a: { ...step.a, then_steps: steps } }
         : step;
     default:

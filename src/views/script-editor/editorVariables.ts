@@ -280,6 +280,16 @@ const collectDerivedRuntimeVariables = (
         const key = step.a.out_var.trim();
         bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
       }
+      collectDerivedRuntimeVariables(step.a.then_steps ?? [], ownerTaskId, bucket);
+      continue;
+    }
+
+    if (step.op === 'dataHanding' && step.a.type === 'relativeFilter') {
+      if (step.a.out_var?.trim()) {
+        const key = step.a.out_var.trim();
+        bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
+      }
+      collectDerivedRuntimeVariables(step.a.then_steps ?? [], ownerTaskId, bucket);
       continue;
     }
 

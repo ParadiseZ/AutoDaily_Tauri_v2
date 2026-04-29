@@ -1,4 +1,7 @@
 use crate::domain::scripts::script_decision::Step;
+use crate::domain::vision::ocr_search::{
+    RelativeAnchorType, RelativeDirection, RelativeTargetKind,
+};
 use crate::infrastructure::core::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
@@ -28,6 +31,22 @@ pub enum DataHanding {
         is_font: bool,
         target_color: ColorRgb,
         method: ColorCompareMethod,
+        #[serde(default)]
+        then_steps: Vec<Step>,
+    },
+    RelativeFilter {
+        input_var: String,
+        out_var: String,
+        anchor_type: RelativeAnchorType,
+        anchor_text: String,
+        anchor_idx: i32,
+        direction: RelativeDirection,
+        target_kind: RelativeTargetKind,
+        max_offset_x: Option<i32>,
+        max_offset_y: Option<i32>,
+        target_index: Option<usize>,
+        #[serde(default)]
+        then_steps: Vec<Step>,
     },
 }
 

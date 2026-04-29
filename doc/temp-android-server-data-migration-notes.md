@@ -278,6 +278,43 @@
    - 前端应绑定数字变量，底层可继续用 `count_expr` 保存变量 key。
    - 需要前端步骤编辑器、Rust `FlowControl`、执行器都支持。
 
+## 迁移工具落地记录
+
+- 新增 `tools/migration/export_android_server_data.sql`：从 PostgreSQL 的 `script_info`、`script_set_info`、`script_action_info` 导出单个 JSON 文档。
+- 新增 `tools/migration/android_server_to_sqlite_sql.py`：读取旧 JSON，生成当前 SQLite 可执行 SQL 文件，不直接写数据库。
+- 新增 `tools/migration/run_android_server_migration_export.ps1`：在本机有 `OLD_PG_DSN` 或传入 `-PgDsn` 时，一步导出 JSON 并生成 SQL。
+- SQL 生成文件头会记录源数据行数、生成行数和迁移 warning；不可靠映射不静默丢弃。
+- 当前自动生成目标表：
+  - `scripts`
+  - `script_tasks`
+  - `policies`
+  - `policy_groups`
+  - `policy_sets`
+  - `group_policies`
+  - `set_groups`
+- 当前不自动生成 `script_time_template_values`，原因是旧服务端数据没有设备、账号、时间模板上下文；旧 `set_value` 先作为脚本/任务默认变量值迁入。
+- 旧 `script_id/set_id/action_id/flow_id` 只用于生成过程中的稳定映射，不额外写入当前数据库长期字段；必要追溯信息只放在策略/策略集 note 文本里。
+
+## 颜色与相对位置迁移修正
+
+- 旧 `rgb` 不应丢弃，也不只是注释信息。
+- 当前运行时已有 OKLab 颜色比较能力；迁移时将 `rgb` 生成 `dataHanding.colorCompare`：
+  - `input_var = runtime.ocrResults`
+  - `out_var = runtime.legacyColor{old_action_id}`
+  - `target_text = txt` 逗号分割后的第一个文本
+  - `is_font = false`，按旧语义比较 OCR 目标区域背景色
+  - 命中结果集非空时才执行 `then_steps` 中的旧动作序列
+- `relFAC/relLabFAC` 不作为动作执行，也不作为普通 `PolicyConditionRule` 条件迁移。
+- `relFAC/relLabFAC` 属于数据筛选步骤，迁移为 `dataHanding.relativeFilter`：
+  - 必须有 `input_var` 和 `out_var`，输出筛选后的结果集变量。
+  - `relFAC` 默认筛选 OCR 结果集：`runtime.ocrResults -> runtime.legacyRelative{old_action_id}`。
+  - `relLabFAC` 默认筛选检测结果集：`runtime.detResults -> runtime.legacyRelative{old_action_id}`。
+  - 旧参数 `lossX/lossY/direct/idx` 分别迁移为 `max_offset_x/max_offset_y/direction/target_index`。
+  - `lossX/lossY <= 0` 表示不限制对应轴范围。
+  - `direct` 映射：1左、2左上、3上、4右上、5右、6右下、7下、8左下。
+  - 锚点按旧规则决定：`oper_txt=true` 时取 `txt` 第一个文本；否则取 `int_label` 第一个标签索引。
+  - 筛选结果非空时才执行 `then_steps`；后续点击会消费筛选后的输出变量。
+
 5. 变量化文本/点击目标参数
    - 需要同时支持由普通用户输入的文字变量决定匹配文本和点击目标文本。
    - 前端应提供文字变量选择器，不应让开发者用户直接填写 `txt_expr/from_expr/to_expr` 这类表达式字段。

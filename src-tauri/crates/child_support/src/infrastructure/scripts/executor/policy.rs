@@ -399,7 +399,13 @@ impl ScriptExecutor {
 
         let mut expanded_targets = Vec::new();
         for set_id in target {
-            Self::collect_policy_set_targets(*set_id, &overlays, &set_map, &mut expanded_targets)?;
+            Self::collect_policy_set_targets(
+                *set_id,
+                &overlays,
+                &set_map,
+                &mut expanded_targets,
+                &mut Vec::new(),
+            )?;
         }
 
         let mut candidates = Vec::new();
@@ -456,6 +462,7 @@ impl ScriptExecutor {
         overlays: &HashMap<PolicySetId, Vec<PolicySetId>>,
         set_map: &HashMap<PolicySetId, PolicySetTable>,
         output: &mut Vec<PolicySetId>,
+        visiting: &mut Vec<PolicySetId>,
     ) -> ExecuteResult<()> {
         if !set_map.contains_key(&set_id) {
             return Err(Self::execute_error(
@@ -467,12 +474,23 @@ impl ScriptExecutor {
         if output.contains(&set_id) {
             return Ok(());
         }
-        output.push(set_id);
+        if visiting.contains(&set_id) {
+            return Err(Self::execute_error(
+                "flow.handlePolicySet",
+                format!("策略集追加关系存在循环: {}", set_id),
+            ));
+        }
 
+        visiting.push(set_id);
         if let Some(sources) = overlays.get(&set_id) {
             for source in sources {
-                Self::collect_policy_set_targets(*source, overlays, set_map, output)?;
+                Self::collect_policy_set_targets(*source, overlays, set_map, output, visiting)?;
             }
+        }
+        visiting.pop();
+
+        if !output.contains(&set_id) {
+            output.push(set_id);
         }
 
         Ok(())

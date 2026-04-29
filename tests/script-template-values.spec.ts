@@ -99,6 +99,22 @@ const seedTemplateValueState = async (page: Page) => {
                   defaultValue: 1,
                   description: '',
                 },
+                {
+                  id: 'var-hidden-count',
+                  key: 'input.hiddenCount',
+                  name: '隐藏次数',
+                  namespace: 'input',
+                  valueType: 'int',
+                  ownerTaskId: 'task-hidden-template-value',
+                  sourceType: 'manual',
+                  sourceStepId: null,
+                  readable: true,
+                  writable: true,
+                  persisted: true,
+                  uiBindable: true,
+                  defaultValue: 1,
+                  description: '',
+                },
               ],
             },
           },
@@ -141,6 +157,43 @@ const seedTemplateValueState = async (page: Page) => {
             isDeleted: false,
             index: 0,
           },
+          {
+            id: 'task-hidden-template-value',
+            scriptId: 'script-template-value',
+            name: '隐藏任务',
+            rowType: 'task',
+            triggerMode: 'rootAndLink',
+            recordSchedule: true,
+            sectionId: null,
+            indentLevel: 0,
+            defaultTaskCycle: 'everyRun',
+            execMax: 0,
+            showEnabledToggle: true,
+            defaultEnabled: true,
+            taskTone: 'normal',
+            isHidden: true,
+            data: {
+              variables: { hiddenCount: 1 },
+              uiData: {
+                layout: 'horizontal',
+                fields: [
+                  {
+                    key: 'hiddenCount',
+                    label: '隐藏次数',
+                    control: 'number',
+                    variableId: 'var-hidden-count',
+                    inputKey: 'hiddenCount',
+                  },
+                ],
+              },
+              steps: [],
+            },
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            isDeleted: false,
+            index: 1,
+          },
         ],
       },
       timeTemplates: [
@@ -173,6 +226,10 @@ const seedTemplateValueState = async (page: Page) => {
           valuesJson: {
             variables: {
               'var-count': 3,
+              'var-hidden-count': 7,
+            },
+            taskSettings: {
+              'task-hidden-template-value': { enabled: false, taskCycle: 'weekly' },
             },
           },
           createdAt: now,
@@ -190,6 +247,9 @@ test('saves template UI values bound by legacy field key', async ({ page }) => {
   const countInput = page.getByTestId('editor-ui-preview-control-0');
   const enabledInput = page.getByTestId('editor-ui-preview-task-enabled');
   const cycleSelect = page.getByTestId('editor-ui-preview-task-cycle');
+  await expect(page.getByText('隐藏任务')).not.toBeVisible();
+  await expect(page.getByText('隐藏次数')).not.toBeVisible();
+  await expect(page.getByText('1 个变量')).toBeVisible();
   await expect(countInput).toHaveValue('3');
   await expect(enabledInput).toBeChecked();
   await expect(cycleSelect).toContainText('每次运行');
@@ -210,4 +270,21 @@ test('saves template UI values bound by legacy field key', async ({ page }) => {
   expect(
     state?.scriptTemplateValues['device-template-value::script-template-value::template-morning::'].valuesJson.taskSettings?.['task-template-value'],
   ).toEqual({ enabled: false, taskCycle: 'daily' });
+  expect(
+    state?.scriptTemplateValues['device-template-value::script-template-value::template-morning::'].valuesJson.variables?.['var-hidden-count'],
+  ).toBe(7);
+  expect(
+    state?.scriptTemplateValues['device-template-value::script-template-value::template-morning::'].valuesJson.taskSettings?.['task-hidden-template-value'],
+  ).toEqual({ enabled: false, taskCycle: 'weekly' });
+});
+
+test('hides hidden script tasks from task management temporary picker', async ({ page }) => {
+  await seedTemplateValueState(page);
+  await page.goto('/tasks');
+
+  await page.getByRole('button', { name: '临时运行' }).click();
+
+  await expect(page.getByRole('button', { name: '模板变量脚本' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /日常任务 Task 运行/ })).toBeVisible();
+  await expect(page.getByText('隐藏任务')).not.toBeVisible();
 });
