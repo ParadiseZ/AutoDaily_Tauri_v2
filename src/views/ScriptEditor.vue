@@ -192,7 +192,12 @@
 
           <div class="flex min-h-0 flex-1 flex-col gap-4">
             <section class="rounded-[22px] border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3">
-              <div class="flex flex-wrap items-center justify-end gap-2">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">Structure</p>
+                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ activeModeLabel }}操作</p>
+                </div>
+                <div class="flex flex-wrap items-center justify-end gap-2">
                 <button
                   class="app-button app-button-ghost app-toolbar-button"
                   type="button"
@@ -239,6 +244,7 @@
                   <AppIcon name="trash-2" :size="14" />
                   删除
                 </button>
+                </div>
               </div>
             </section>
 

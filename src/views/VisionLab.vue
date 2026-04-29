@@ -8,15 +8,10 @@
               <span class="rounded-full border border-[var(--app-border)] bg-white/55 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-text-faint)]">
                 Vision Lab
               </span>
-              <span class="rounded-full bg-[var(--app-accent-soft)] px-3 py-1 text-xs font-medium text-[var(--app-accent)]">
-                独立窗口
-              </span>
             </div>
             <div class="space-y-1">
               <h1 class="text-2xl font-semibold tracking-[-0.05em] text-[var(--app-text-strong)] lg:text-3xl">视觉测试工作台</h1>
-              <p class="max-w-3xl text-sm leading-6 text-[var(--app-text-soft)]">
-                左侧管理图像和设备截图，中间负责预览、缩放、拖拽和平移，右侧按目标检测 / OCR / 组合分析三个 tab 工作。
-              </p>
+              <p class="text-sm text-[var(--app-text-soft)]">{{ selectedItem?.name || '未选择图像' }}</p>
             </div>
           </div>
 
@@ -52,7 +47,7 @@
               <div class="space-y-3">
                 <div>
                   <p class="text-xs uppercase tracking-[0.2em] text-[var(--app-text-faint)]">数据源</p>
-                  <p class="mt-1 text-sm text-[var(--app-text-soft)]">目录图像长期保留，当前采集只保存在内存里，显式保存时才写到本地目录。</p>
+                  <p class="mt-1 text-sm text-[var(--app-text-soft)]">{{ filteredFolderItems.length }} 张目录图像 · {{ captureItems.length }} 张当前采集</p>
                 </div>
 
                 <div class="space-y-2">
@@ -309,12 +304,12 @@
           <div class="flex h-full flex-col">
             <div class="border-b border-[var(--app-border)] px-4 py-4">
               <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <p class="text-sm font-semibold text-[var(--app-text-strong)]">分析控制台</p>
-                    <p class="mt-1 text-xs text-[var(--app-text-faint)]">右侧通过 tab 切换不同分析任务。</p>
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">分析控制台</p>
+                    <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ activeTabLabel }}</p>
+                    </div>
                   </div>
-                </div>
 
                 <div class="overflow-x-auto">
                   <div class="editor-panel-tabs min-w-max">
@@ -832,6 +827,7 @@ const canRunDetection = computed(() => canRunVision.value && Boolean(imgDetModel
 const canRunTextDetection = computed(() => canRunVision.value && Boolean(txtDetModel.value));
 const canRunOcr = computed(() => canRunVision.value && Boolean(txtDetModel.value) && Boolean(txtRecModel.value));
 const canRunCombo = computed(() => canRunDetection.value && canRunOcr.value);
+const activeTabLabel = computed(() => tabOptions.find((tab) => tab.value === activeTab.value)?.label ?? '分析');
 
 const imgDetKind = computed<VisionImgDetectorKind>(() => {
   const kind = resolveDetectorKind(imgDetModel.value);

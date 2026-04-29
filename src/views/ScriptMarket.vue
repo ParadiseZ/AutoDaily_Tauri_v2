@@ -136,6 +136,7 @@ const filters = reactive({
   { label: 'AI', value: 'aI' },
 ];*/
 const runtimeOptions = [
+  { label: '全部运行时', value: '' },
   { label: 'Rhai', value: 'rhai' }
 ];
 
