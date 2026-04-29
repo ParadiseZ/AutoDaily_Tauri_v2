@@ -26,6 +26,10 @@
                   <AppIcon name="scan-search" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
                   视觉测试
                 </button>
+                <button class="app-button app-button-ghost group" type="button" data-testid="editor-open-devtools" @click="openCurrentDevtools">
+                  <AppIcon name="bug" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+                  开发者工具
+                </button>
                 <span
                   class="rounded-full px-3 py-1 text-xs font-medium"
                   :class="hasValidationErrors ? 'bg-red-500/12 text-red-700' : dirty ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
@@ -503,6 +507,7 @@ import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
 import { deviceKey, getFromStore, setToStore } from '@/store/store';
 import { runtimeService } from '@/services/runtimeService';
+import { openCurrentDevtools } from '@/services/devtoolsService';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import type { DeviceFormState, JsonValue, RunTarget, ScriptTableRecord } from '@/types/app/domain';

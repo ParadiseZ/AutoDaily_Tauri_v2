@@ -1,4 +1,4 @@
-use tauri::command;
+use tauri::{command, WebviewWindow};
 
 #[command]
 pub async fn frontend_debug_log_cmd(
@@ -26,5 +26,11 @@ pub async fn frontend_debug_log_cmd(
         }
     }
 
+    Ok(())
+}
+
+#[command]
+pub fn open_current_devtools_cmd(window: WebviewWindow) -> Result<(), String> {
+    window.open_devtools();
     Ok(())
 }

@@ -95,6 +95,16 @@
         </router-view>
       </div>
     </main>
+
+    <button
+      class="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] shadow-lg shadow-slate-900/10 transition hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
+      type="button"
+      title="打开开发者工具"
+      @click="openCurrentDevtools"
+    >
+      <AppIcon name="bug" :size="16" />
+      开发者工具
+    </button>
   </div>
 </template>
 
@@ -106,13 +116,14 @@ import { routesMenu } from '@/router';
 import { useUserStore } from '@/store/user';
 import { useDeviceStore } from '@/store/device';
 import { openVisionLabWindow } from '@/utils/visionLabWindow';
+import { openCurrentDevtools } from '@/services/devtoolsService';
 
 const route = useRoute();
 const userStore = useUserStore();
 const deviceStore = useDeviceStore();
 
 const secondaryRoutePaths = ['/vision-lab', '/settings', '/about'];
-const primaryRoutes = computed(() => routesMenu.filter((item) => !secondaryRoutePaths.includes(item.path)));
+const primaryRoutes = computed(() => routesMenu.filter((item) => !secondaryRoutePaths.includes(item.path)).filter((item) => item.path !== '/editor'));
 const secondaryRoutes = computed(() => routesMenu.filter((item) => secondaryRoutePaths.includes(item.path)));
 
 

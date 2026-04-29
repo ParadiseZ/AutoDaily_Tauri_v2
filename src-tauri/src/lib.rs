@@ -47,7 +47,9 @@ use crate::api::infrastructure::config::sys_conf::set_system_settings_cmd;
 use crate::api::infrastructure::config::vision_cache::{
     get_vision_text_cache_config_cmd, set_vision_text_cache_config_cmd,
 };
-use crate::api::infrastructure::frontend_debug::frontend_debug_log_cmd;
+use crate::api::infrastructure::frontend_debug::{
+    frontend_debug_log_cmd, open_current_devtools_cmd,
+};
 use crate::api::infrastructure::get_uuid_v7;
 use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::process_api::{
@@ -113,6 +115,7 @@ pub fn run() {
             //uuid
             get_uuid_v7,
             frontend_debug_log_cmd,
+            open_current_devtools_cmd,
             get_vision_lab_model_config_cmd,
             set_vision_lab_model_config_cmd,
             vision_list_image_files_cmd,

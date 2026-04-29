@@ -386,6 +386,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         case 'plugin:store|save':
         case 'frontend_debug_log_cmd':
           return null;
+        case 'open_current_devtools_cmd':
+          console.info('[Tauri Mock] open_current_devtools_cmd');
+          return null;
         case 'backend_get_auth_session':
           return { success: false, data: null, message: 'No session' };
         case 'backend_get_profile':

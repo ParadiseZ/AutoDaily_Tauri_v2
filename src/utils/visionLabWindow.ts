@@ -30,6 +30,7 @@ export async function openVisionLabWindow(preset?: VisionLabLaunchPreset | null)
         minHeight: 780,
         center: true,
         focus: true,
+        devtools: true,
     });
 
     await new Promise<void>((resolve, reject) => {

@@ -21,6 +21,10 @@
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <button class="app-button app-button-ghost" type="button" data-testid="vision-lab-open-devtools" @click="openCurrentDevtools">
+              <AppIcon name="bug" :size="16" />
+              开发者工具
+            </button>
             <button class="app-button app-button-ghost" type="button" @click="pickImageDirectory">
               <AppIcon name="folder-open" :size="16" />
               打开图片目录
@@ -628,6 +632,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import { deviceService } from '@/services/deviceService';
+import { openCurrentDevtools } from '@/services/devtoolsService';
 import { scriptService } from '@/services/scriptService';
 import { visionLabConfigService } from '@/services/visionLabConfigService';
 import { visionLabService } from '@/services/visionLabService';

@@ -40,6 +40,10 @@ src_bak_sec/*
 
 src/types/bindings/*
 tools/*
+!tools/windows_ui/
+!tools/windows_ui/*.py
+tools/windows_ui/captures/
+tools/windows_ui/__pycache__/
 
 # Playwright
 /test-results/
