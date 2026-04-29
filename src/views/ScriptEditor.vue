@@ -1,37 +1,37 @@
 <template>
   <div class="editor-shell h-[100svh] overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
     <div class="mx-auto flex h-full max-w-[1760px] flex-col gap-4">
-      <header class="editor-toolbar rounded-[28px] border border-[var(--app-border)] px-5 py-4 lg:px-6">
+      <header class="editor-toolbar rounded-[20px] border border-(--app-border) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-3">
             <button class="app-button app-button-ghost group" type="button" @click="router.push('/scripts')">
-              <AppIcon name="arrow-left" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon name="arrow-left" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
               返回
             </button>
 
             <div class="space-y-1">
-              <div class="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">
-                <span>Task Editor</span>
-                <span class="rounded-full border border-[var(--app-border)] bg-white/40 px-3 py-1">脚本开发工作台</span>
+              <div class="flex items-center gap-2 text-xs text-(--app-text-faint)">
+                <span>脚本开发</span>
+                <span v-if="formattedSaveTime">最近保存 {{ formattedSaveTime }}</span>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-2xl font-semibold tracking-[-0.05em] text-[var(--app-text-strong)] lg:text-3xl">
+                <h1 class="text-xl font-semibold text-(--app-text-strong) lg:text-2xl">
                   {{ draftScript?.data.name || '脚本编辑器' }}
                 </h1>
                 <button class="app-button app-button-ghost group" type="button" data-testid="editor-script-info" @click="infoDialogOpen = true">
-                  <AppIcon name="file-text" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+                  <AppIcon name="file-text" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
                   编辑脚本信息
                 </button>
                 <button class="app-button app-button-ghost group" type="button" data-testid="editor-open-vision-lab" :disabled="!draftScript" @click="handleOpenVisionLab">
-                  <AppIcon name="scan-search" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+                  <AppIcon name="scan-search" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
                   视觉测试
                 </button>
                 <button class="app-button app-button-ghost group" type="button" data-testid="editor-open-devtools" @click="openCurrentDevtools">
-                  <AppIcon name="bug" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+                  <AppIcon name="bug" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
                   开发者工具
                 </button>
                 <button class="app-button app-button-ghost group" type="button" data-testid="editor-reload-page" @click="reloadCurrentPage">
-                  <AppIcon name="refresh-cw" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+                  <AppIcon name="refresh-cw" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
                   刷新页面
                 </button>
                 <span
@@ -40,13 +40,12 @@
                 >
                   {{ hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步' }}
                 </span>
-                <span v-if="formattedSaveTime" class="text-xs text-[var(--app-text-faint)]">最近保存 {{ formattedSaveTime }}</span>
               </div>
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <div class="min-w-[240px]">
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <div class="min-w-[220px]">
               <AppSelect
                 v-model="selectedPreviewDeviceId"
                 :options="deviceSelectOptions"
@@ -55,10 +54,10 @@
               />
             </div>
             <button class="app-button app-button-ghost group" type="button" @click="openDeviceEditor(selectedPreviewDeviceId)">
-              <AppIcon name="edit-3" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
               {{ selectedPreviewDeviceId ? '编辑' : '新建' }}
             </button>
-            <div class="min-w-[280px]">
+            <div class="min-w-[260px]">
               <AppSelect
                 v-model="selectedRunTargetKey"
                 :options="runTargetSelectOptions"
@@ -74,18 +73,18 @@
               :disabled="!canRunSelection"
               @click="handleRunSelection"
             >
-              <AppIcon name="play" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon name="play" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
               运行
             </button>
             <button
-              class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]"
+              class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)"
               type="button"
               data-testid="editor-save"
               :disabled="!draftScript || isSaving || hasValidationErrors"
               @click="saveEditor"
             >
               <AppIcon name="save" :size="16" />
-              {{ isSaving ? '保存中...' : '保存脚本结构' }}
+              {{ isSaving ? '保存中...' : '保存结构' }}
             </button>
           </div>
         </div>
@@ -98,7 +97,7 @@
 
       <div
         v-else-if="isLoading"
-        class="rounded-[28px] border border-[var(--app-border)] bg-[var(--app-panel)] px-6 py-10 text-sm text-[var(--app-text-soft)]"
+        class="rounded-[28px] border border-(--app-border) bg-(--app-panel) px-6 py-10 text-sm text-(--app-text-soft)"
       >
         正在读取脚本和任务结构...
       </div>
@@ -191,59 +190,59 @@
           </EditorCollectionSidebar>
 
           <div class="flex min-h-0 flex-1 flex-col gap-4">
-            <section class="rounded-[22px] border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3">
+            <section class="rounded-[18px] border border-(--app-border) bg-(--app-panel) px-4 py-3">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">Structure</p>
-                  <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ activeModeLabel }}操作</p>
+                  <p class="text-xs text-(--app-text-faint)">结构操作</p>
+                  <p class="text-sm font-semibold text-(--app-text-strong)">{{ activeModeLabel }}操作</p>
                 </div>
                 <div class="flex flex-wrap items-center justify-end gap-2">
-                <button
-                  class="app-button app-button-ghost app-toolbar-button"
-                  type="button"
-                  :data-testid="`editor-${activeMode}-create`"
-                  @click="createActiveItem"
-                >
-                  <AppIcon name="plus" :size="14" />
-                  新建{{ activeModeLabel }}
-                </button>
-                <button
-                  v-if="activeMode === 'task'"
-                  class="app-button app-button-ghost app-toolbar-button"
-                  type="button"
-                  :disabled="!currentTask"
-                  @click="duplicateActiveItem"
-                >
-                  <AppIcon name="copy" :size="14" />
-                  复制
-                </button>
-                <button
-                  class="app-button app-button-ghost app-toolbar-button"
-                  type="button"
-                  :disabled="!activeTargetValue"
-                  @click="moveActiveItem(-1)"
-                >
-                  <AppIcon name="arrow-up" :size="14" />
-                  上移
-                </button>
-                <button
-                  class="app-button app-button-ghost app-toolbar-button"
-                  type="button"
-                  :disabled="!activeTargetValue"
-                  @click="moveActiveItem(1)"
-                >
-                  <AppIcon name="arrow-down" :size="14" />
-                  下移
-                </button>
-                <button
-                  class="app-button app-button-danger app-toolbar-button"
-                  type="button"
-                  :disabled="!activeTargetValue"
-                  @click="removeActiveItem"
-                >
-                  <AppIcon name="trash-2" :size="14" />
-                  删除
-                </button>
+                  <button
+                    class="app-button app-button-ghost app-toolbar-button"
+                    type="button"
+                    :data-testid="`editor-${activeMode}-create`"
+                    @click="createActiveItem"
+                  >
+                    <AppIcon name="plus" :size="14" />
+                    新建{{ activeModeLabel }}
+                  </button>
+                  <button
+                    v-if="activeMode === 'task'"
+                    class="app-button app-button-ghost app-toolbar-button"
+                    type="button"
+                    :disabled="!currentTask"
+                    @click="duplicateActiveItem"
+                  >
+                    <AppIcon name="copy" :size="14" />
+                    复制
+                  </button>
+                  <button
+                    class="app-button app-button-ghost app-toolbar-button"
+                    type="button"
+                    :disabled="!activeTargetValue"
+                    @click="moveActiveItem(-1)"
+                  >
+                    <AppIcon name="arrow-up" :size="14" />
+                    上移
+                  </button>
+                  <button
+                    class="app-button app-button-ghost app-toolbar-button"
+                    type="button"
+                    :disabled="!activeTargetValue"
+                    @click="moveActiveItem(1)"
+                  >
+                    <AppIcon name="arrow-down" :size="14" />
+                    下移
+                  </button>
+                  <button
+                    class="app-button app-button-danger app-toolbar-button"
+                    type="button"
+                    :disabled="!activeTargetValue"
+                    @click="removeActiveItem"
+                  >
+                    <AppIcon name="trash-2" :size="14" />
+                    删除
+                  </button>
                 </div>
               </div>
             </section>

@@ -20,36 +20,36 @@
       <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
         <div v-if="activePanel === 'basic'" class="space-y-4">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">策略名称</span>
+            <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">策略名称</span>
             <input :value="policyName" class="app-input" data-testid="editor-policy-name" @input="$emit('update:policy-name', ($event.target as HTMLInputElement).value)" />
           </label>
 
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">备注</span>
+            <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">备注</span>
             <textarea :value="policyNote" class="app-input min-h-[120px] resize-y" @input="$emit('update:policy-note', ($event.target as HTMLTextAreaElement).value)" />
           </label>
 
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">日志输出</span>
+            <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">日志输出</span>
             <input :value="policyLogPrint ?? ''" class="app-input" placeholder="可选，用于调试输出" @input="$emit('update:policy-log-print', ($event.target as HTMLInputElement).value)" />
           </label>
 
           <div class="grid gap-3 sm:grid-cols-2">
             <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">当前位置</span>
+              <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">当前位置</span>
               <input :value="String(policy.data.curPos)" class="app-input" type="number" @input="$emit('update:number-field', 'curPos', ($event.target as HTMLInputElement).value)" />
-              <span class="text-xs leading-5 text-[var(--app-text-faint)]">用于选择第 N 个匹配目标；`999` 表示最后一个。</span>
+              <span class="text-xs leading-5 text-(--app-text-faint)">用于选择第 N 个匹配目标；`999` 表示最后一个。</span>
             </label>
 
             <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">最大执行次数</span>
+              <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">最大执行次数</span>
               <input :value="String(policy.data.execMax)" class="app-input" type="number" @input="$emit('update:number-field', 'execMax', ($event.target as HTMLInputElement).value)" />
             </label>
 
-            <label class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+            <label class="flex items-center gap-3 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft)">
               <input
                 :checked="policy.data.skipFlag"
-                class="h-4 w-4 accent-[var(--app-accent)]"
+                class="h-4 w-4 accent-(--app-accent)"
                 type="checkbox"
                 @change="$emit('update:boolean-field', 'skipFlag', ($event.target as HTMLInputElement).checked)"
               />
@@ -59,24 +59,24 @@
         </div>
 
         <div v-else-if="activePanel === 'condition'" class="space-y-4">
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">命中条件</p>
-            <p class="mt-2 text-xs leading-5 text-[var(--app-text-faint)]">策略命中依赖搜索规则；根节点固定为逻辑组，规则和子组都在组内维护。</p>
+          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <p class="text-sm font-semibold text-(--app-text-strong)">命中条件</p>
+            <p class="mt-2 text-xs leading-5 text-(--app-text-faint)">策略命中依赖搜索规则；根节点固定为逻辑组，规则和子组都在组内维护。</p>
           </div>
         </div>
 
         <div v-else class="space-y-4">
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ activePanel === 'before' ? '全局行为模板' : '命中行为模板' }}</p>
-            <p class="mt-2 text-xs leading-5 text-[var(--app-text-faint)]">中间区域的模板会插入到当前选中的行为层级，右侧用于查看和编辑嵌套步骤。</p>
+          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <p class="text-sm font-semibold text-(--app-text-strong)">{{ activePanel === 'before' ? '全局行为模板' : '命中行为模板' }}</p>
+            <p class="mt-2 text-xs leading-5 text-(--app-text-faint)">中间区域的模板会插入到当前选中的行为层级，右侧用于查看和编辑嵌套步骤。</p>
           </div>
 
           <div class="space-y-3">
-            <details v-for="group in templateGroups" :key="group.name" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]" :open="true">
-              <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)]">
+            <details v-for="group in templateGroups" :key="group.name" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted)" :open="true">
+              <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-(--app-text-strong)">
                 <div class="flex items-center justify-between gap-3">
                   <span>{{ group.name }}</span>
-                  <span class="text-xs text-[var(--app-text-faint)]">{{ group.items.length }}</span>
+                  <span class="text-xs text-(--app-text-faint)">{{ group.items.length }}</span>
                 </div>
               </summary>
 

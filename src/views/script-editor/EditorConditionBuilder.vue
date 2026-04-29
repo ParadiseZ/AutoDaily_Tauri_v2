@@ -10,7 +10,7 @@
           :test-id="rootTestId('type')"
           @update:model-value="changeType(String($event || 'rawExpr'))"
         />
-        <span class="truncate text-xs text-[var(--app-text-faint)]">{{ conditionSummary }}</span>
+        <span class="truncate text-xs text-(--app-text-faint)">{{ conditionSummary }}</span>
       </div>
 
       <button
@@ -26,7 +26,7 @@
     <div class="mt-4 space-y-3">
       <template v-if="modelValue.type === 'rawExpr'">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">表达式</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">表达式</span>
           <input
             :value="modelValue.expr"
             class="app-input"
@@ -38,7 +38,7 @@
 
       <template v-else-if="modelValue.type === 'group'">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">组合逻辑</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
           <EditorSelectField
             :model-value="modelValue.op"
             :options="logicOpOptions"
@@ -200,7 +200,7 @@
           </button>
         </div>
 
-        <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
             :checked="Boolean(modelValue.a.status.value)"
             type="checkbox"
@@ -208,7 +208,7 @@
             style="accent-color: var(--app-accent)"
             @change="updateTaskStatusValue(($event.target as HTMLInputElement).checked)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">状态值为真</span>
+          <span class="text-sm text-(--app-text-soft)">状态值为真</span>
         </label>
       </template>
 
@@ -234,7 +234,7 @@
             </button>
           </div>
         </div>
-        <div v-else class="rounded-[14px] border border-dashed border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-faint)]">
+        <div v-else class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-faint)">
           尚未选择任务。
         </div>
 
@@ -315,7 +315,7 @@
           @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
         />
 
-        <label v-if="currentVarValueDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+        <label v-if="currentVarValueDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
             :checked="currentVarValueDraft.boolValue"
             type="checkbox"
@@ -323,11 +323,11 @@
             style="accent-color: var(--app-accent)"
             @change="updateVarCompareBool(($event.target as HTMLInputElement).checked)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">比较值为真</span>
+          <span class="text-sm text-(--app-text-soft)">比较值为真</span>
         </label>
 
         <label v-else class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">比较值</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">比较值</span>
           <input
             :value="currentVarValueDraft.textValue"
             class="app-input"
@@ -390,7 +390,7 @@
           </button>
         </div>
 
-        <label v-if="modelValue.field === 'matched'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+        <label v-if="modelValue.field === 'matched'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
             :checked="Boolean(modelValue.value_bool)"
             type="checkbox"
@@ -398,11 +398,11 @@
             style="accent-color: var(--app-accent)"
             @change="updatePolicySetResultBool(($event.target as HTMLInputElement).checked)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">比较值为真</span>
+          <span class="text-sm text-(--app-text-soft)">比较值为真</span>
         </label>
 
         <div v-else class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">比较对象</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">比较对象</span>
           <EditorSelectField
             :model-value="modelValue.value_id || null"
             :options="resolvedPolicySetResultTargetOptions"
@@ -412,16 +412,16 @@
           />
         </div>
 
-        <div class="rounded-[14px] border border-[var(--app-border)] bg-white/40 px-4 py-3 text-sm leading-6 text-[var(--app-text-soft)]">
+        <div class="rounded-[14px] border border-(--app-border) bg-white/40 px-4 py-3 text-sm leading-6 text-(--app-text-soft)">
           该节点比较策略集处理结果对象里的明确字段。运行时结果会同时写出 `policySetId`、`policyGroupId`、`policyId`
           和动作序列签名，前端只展示名称，保存时仍然只存 id。
         </div>
       </template>
 
       <template v-else-if="modelValue.type === 'policyCondition'">
-        <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
           <div class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入图像变量</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入图像变量</span>
             <EditorSelectField
               :model-value="modelValue.input_var || null"
               :options="resolvedPolicyConditionInputOptions"
@@ -458,7 +458,7 @@
 
       <template v-else-if="modelValue.type === 'colorCompare'">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">OCR 目标文本</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">OCR 目标文本</span>
           <input
             :value="modelValue.txt_target"
             class="app-input"
@@ -466,7 +466,7 @@
           />
         </label>
 
-        <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
             :checked="modelValue.is_font"
             type="checkbox"
@@ -474,26 +474,26 @@
             style="accent-color: var(--app-accent)"
             @change="updateColorField('is_font', ($event.target as HTMLInputElement).checked)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">比较字体颜色</span>
+          <span class="text-sm text-(--app-text-soft)">比较字体颜色</span>
         </label>
 
         <div class="grid gap-3 md:grid-cols-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">R</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">R</span>
             <input :value="String(modelValue.r)" class="app-input" type="number" min="0" max="255" @input="updateColorNumber('r', ($event.target as HTMLInputElement).value)" />
           </label>
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">G</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">G</span>
             <input :value="String(modelValue.g)" class="app-input" type="number" min="0" max="255" @input="updateColorNumber('g', ($event.target as HTMLInputElement).value)" />
           </label>
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">B</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">B</span>
             <input :value="String(modelValue.b)" class="app-input" type="number" min="0" max="255" @input="updateColorNumber('b', ($event.target as HTMLInputElement).value)" />
           </label>
         </div>
       </template>
 
-      <div v-else class="rounded-[14px] border border-[var(--app-border)] bg-white/40 px-3 py-3 text-sm text-[var(--app-text-soft)]">
+      <div v-else class="rounded-[14px] border border-(--app-border) bg-white/40 px-3 py-3 text-sm text-(--app-text-soft)">
         当前条件类型暂未提供专用表单。
       </div>
     </div>

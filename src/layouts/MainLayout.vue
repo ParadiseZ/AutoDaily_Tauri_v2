@@ -4,9 +4,9 @@
       <div class="space-y-6">
         <div class="space-y-3 px-2" data-tauri-drag-region>
           <div class="flex items-center gap-3">
-            <AppIcon name="logo" type="custom" :size="40" class="text-[var(--app-accent)] drop-shadow-md" />
+            <AppIcon name="logo" type="custom" :size="40" class="text-(--app-accent) drop-shadow-md" />
             <div>
-              <p class="text-lg font-semibold text-[var(--app-text-strong)]">AutoDaily</p>
+              <p class="text-lg font-semibold text-(--app-text-strong)">AutoDaily</p>
             </div>
           </div>
         </div>
@@ -34,7 +34,7 @@
               class="app-sidebar-link group my-1 w-full py-3 text-left"
               @click="handleOpenVisionLab"
             >
-              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
               <span class="font-medium tracking-wide">{{ route.label }}</span>
             </button>
             <RouterLink
@@ -43,14 +43,14 @@
               class="app-sidebar-link group my-1 py-3"
               :class="{ 'app-sidebar-link-active': isActive(route.path) }"
             >
-              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-(--app-text-faint) group-hover:text-(--app-accent) group-[.app-sidebar-link-active]:text-(--app-accent) transition-colors" />
               <span class="font-medium tracking-wide">{{ route.label }}</span>
             </RouterLink>
           </template>
         </nav>
       </div>
 
-      <div class="space-y-3 border-t border-[var(--app-border)] pt-4">
+      <div class="space-y-3 border-t border-(--app-border) pt-4">
         <nav class="space-y-2">
           <template v-for="route in secondaryRoutes" :key="route.path">
             <button
@@ -59,7 +59,7 @@
               class="app-sidebar-link group my-1 w-full py-3 text-left"
               @click="handleOpenVisionLab"
             >
-              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
               <span class="font-medium tracking-wide">{{ route.label }}</span>
             </button>
             <RouterLink
@@ -68,19 +68,19 @@
               class="app-sidebar-link group my-1 py-3"
               :class="{ 'app-sidebar-link-active': isActive(route.path) }"
             >
-              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] group-[.app-sidebar-link-active]:text-[var(--app-accent)] transition-colors" />
+              <AppIcon v-if="route.icon" :name="route.icon" :size="18" class="text-(--app-text-faint) group-hover:text-(--app-accent) group-[.app-sidebar-link-active]:text-(--app-accent) transition-colors" />
               <span class="font-medium tracking-wide">{{ route.label }}</span>
             </RouterLink>
           </template>
         </nav>
 
         <button class="app-panel flex w-full items-center gap-3 p-3 text-left" type="button" @click="handleUserClick">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--app-accent-soft)] text-sm font-semibold text-[var(--app-accent)]">
+          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-(--app-accent-soft) text-sm font-semibold text-(--app-accent)">
             {{ userInitial }}
           </div>
           <div class="min-w-0">
-            <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ userName }}</p>
-            <p class="truncate text-xs text-[var(--app-text-soft)]">{{ userState }}</p>
+            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ userName }}</p>
+            <p class="truncate text-xs text-(--app-text-soft)">{{ userState }}</p>
           </div>
         </button>
       </div>
@@ -98,7 +98,7 @@
 
     <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2">
       <button
-        class="inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] shadow-lg shadow-slate-900/10 transition hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
+        class="inline-flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-4 py-2 text-sm font-semibold text-(--app-text-strong) shadow-lg shadow-slate-900/10 transition hover:border-(--app-accent) hover:text-(--app-accent)"
         type="button"
         title="刷新当前页面"
         @click="reloadCurrentPage"
@@ -107,7 +107,7 @@
         刷新页面
       </button>
       <button
-        class="inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] shadow-lg shadow-slate-900/10 transition hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
+        class="inline-flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-4 py-2 text-sm font-semibold text-(--app-text-strong) shadow-lg shadow-slate-900/10 transition hover:border-(--app-accent) hover:text-(--app-accent)"
         type="button"
         title="打开开发者工具"
         @click="openCurrentDevtools"

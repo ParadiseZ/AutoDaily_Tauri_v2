@@ -16,7 +16,7 @@
           :class="{ 'app-list-item-active': activeTab === tab.id }"
           @click="activeTab = tab.id"
         >
-          <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ tab.label }}</p>
+          <p class="text-sm font-semibold text-(--app-text-strong)">{{ tab.label }}</p>
         </button>
       </aside>
 
@@ -82,7 +82,7 @@
                 </label>
               </div>
 
-              <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+              <p class="text-xs leading-5 text-(--app-text-faint)">
                 `包名 + Activity` 会作为脚本全局应用入口信息，供运行时和调试链路复用。
               </p>
 
@@ -132,7 +132,7 @@
                     data-testid="script-basic-allow-clone"
                     style="accent-color: var(--app-accent)"
                   />
-                  <span class="text-sm text-[var(--app-text-soft)]">关闭后，其他用户只能查看脚本信息，不能直接复制到本地。</span>
+                  <span class="text-sm text-(--app-text-soft)">关闭后，其他用户只能查看脚本信息，不能直接复制到本地。</span>
                 </span>
               </label>
             </div>
@@ -333,7 +333,7 @@
                         data-testid="script-models-txt-det-use-dilation"
                         style="accent-color: var(--app-accent)"
                       />
-                      <span class="text-sm text-[var(--app-text-soft)]">对弱文本边缘更友好，但可能带来额外噪点。</span>
+                      <span class="text-sm text-(--app-text-soft)">对弱文本边缘更友好，但可能带来额外噪点。</span>
                     </span>
                   </label>
                 </div>
@@ -433,7 +433,7 @@
                     step="1"
                     type="number"
                   />
-                  <p class="text-sm text-[var(--app-text-soft)]">
+                  <p class="text-sm text-(--app-text-soft)">
                     执行点击前在 X/Y 方向随机偏移该像素范围，`0` 表示不偏移。
                   </p>
                 </div>
@@ -449,10 +449,10 @@
                     placeholder="不设置"
                     test-id="script-runtime-recovery-task"
                   />
-                  <p class="text-sm text-[var(--app-text-soft)]">
+                  <p class="text-sm text-(--app-text-soft)">
                     当设备执行策略选择 `RunRecoveryTask` 时，运行时会使用这里选定的普通 Task 作为恢复入口。
                   </p>
-                  <p v-if="!hasTaskContext" class="text-xs text-[var(--app-text-faint)]">
+                  <p v-if="!hasTaskContext" class="text-xs text-(--app-text-faint)">
                     当前入口没有可选的任务上下文。请在脚本编辑器中打开脚本信息后配置恢复任务。
                   </p>
                 </div>

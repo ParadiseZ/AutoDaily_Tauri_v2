@@ -4,7 +4,7 @@
       title="设备列表"
     >
       <template #actions>
-        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="openEditor(null)">
+        <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="openEditor(null)">
           <AppIcon name="plus" :size="18" />
           添加设备
         </button>
@@ -28,8 +28,8 @@
           <tr v-for="device in deviceStore.devices" :key="device.id">
             <td>
               <div class="space-y-1">
-                <p class="font-medium text-[var(--app-text-strong)]">{{ device.data.deviceName }}</p>
-                <p class="text-xs text-[var(--app-text-faint)]">{{ device.id }}</p>
+                <p class="font-medium text-(--app-text-strong)">{{ device.data.deviceName }}</p>
+                <p class="text-xs text-(--app-text-faint)">{{ device.id }}</p>
               </div>
             </td>
             <td>{{ formatPlatformLabel(device.data.platform) }}</td>
@@ -39,9 +39,9 @@
             <td>
               <div class="flex flex-wrap items-center gap-3">
                 <StatusBadge :label="device.data.enable ? '已启用' : '已停用'" :tone="device.data.enable ? 'success' : 'neutral'" />
-                <div class="flex items-center gap-1.5 rounded-full bg-[var(--app-panel-muted)] px-2.5 py-1">
+                <div class="flex items-center gap-1.5 rounded-full bg-(--app-panel-muted) px-2.5 py-1">
                   <AppIcon type="custom" :name="deviceStore.isDeviceOnline(device.id) ? 'status-online' : 'status-offline'" :size="16" :color="deviceStore.isDeviceOnline(device.id) ? 'var(--app-vibrant-emerald)' : 'var(--app-text-faint)'" />
-                  <span class="text-xs font-semibold tracking-wide" :class="deviceStore.isDeviceOnline(device.id) ? 'text-[var(--app-vibrant-emerald)]' : 'text-[var(--app-text-faint)]'">
+                  <span class="text-xs font-semibold tracking-wide" :class="deviceStore.isDeviceOnline(device.id) ? 'text-(--app-vibrant-emerald)' : 'text-(--app-text-faint)'">
                     {{ deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
                   </span>
                 </div>
@@ -50,7 +50,7 @@
             <td>
               <div class="flex justify-end gap-2">
                 <button class="app-button app-button-ghost h-9 px-3 group text-sm" type="button" @click="openEditor(device.id)">
-                  <AppIcon name="edit-3" :size="16" class="text-[var(--app-text-soft)] transition-colors group-hover:text-[var(--app-accent)]" />
+                  <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) transition-colors group-hover:text-(--app-accent)" />
                   编辑
                 </button>
                 <button class="app-button app-button-danger h-9 px-3 group text-sm" type="button" @click="removeDevice(device.id)">

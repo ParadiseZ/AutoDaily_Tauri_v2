@@ -2,17 +2,17 @@
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <template v-if="selectedTitle">
       <div class="space-y-1">
-        <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Workspace</p>
-        <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">{{ title }}</h2>
+        <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Workspace</p>
+        <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ title }}</h2>
       </div>
 
       <div class="grid min-h-0 gap-4 xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
-        <section class="flex min-h-0 flex-col rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+        <section class="flex min-h-0 flex-col rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="space-y-3">
             <div class="flex flex-wrap items-center gap-3">
               <div class="flex items-center gap-2">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ assignedTitle }}</p>
-                <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-2 py-1 text-[11px] text-[var(--app-text-faint)]">
+                <p class="text-sm font-semibold text-(--app-text-strong)">{{ assignedTitle }}</p>
+                <span class="rounded-full border border-(--app-border) bg-white/60 px-2 py-1 text-[11px] text-(--app-text-faint)">
                   {{ assignedItems.length }}
                 </span>
               </div>
@@ -26,7 +26,7 @@
                 {{ reverseActionLabel }}
               </button>
               <input v-model="assignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索已关联内容" />
-              <p class="text-xs text-[var(--app-text-faint)]">拖动排序，控制执行和命中顺序。</p>
+              <p class="text-xs text-(--app-text-faint)">拖动排序，控制执行和命中顺序。</p>
             </div>
           </div>
 
@@ -49,11 +49,11 @@
                 @drop.prevent="handleAssignedNativeDrop(item.id)"
               >
                 <div class="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
-                  <span class="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--app-border)] bg-white/70 text-sm font-semibold text-[var(--app-text-strong)]">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-full border border-(--app-border) bg-white/70 text-sm font-semibold text-(--app-text-strong)">
                     {{ index + 1 }}
                   </span>
-                  <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.title }}</p>
-                  <p class="truncate text-sm text-[var(--app-text-faint)]">{{ item.subtitle }}</p>
+                  <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.title }}</p>
+                  <p class="truncate text-sm text-(--app-text-faint)">{{ item.subtitle }}</p>
                   <div class="flex items-center gap-2">
                     <button
                       class="editor-drag-handle"
@@ -82,17 +82,17 @@
           </div>
         </section>
 
-        <section class="flex min-h-0 flex-col rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+        <section class="flex min-h-0 flex-col rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="space-y-3">
             <div class="flex flex-wrap items-center gap-3">
               <div class="flex items-center gap-2">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ unassignedTitle }}</p>
-                <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-2 py-1 text-[11px] text-[var(--app-text-faint)]">
+                <p class="text-sm font-semibold text-(--app-text-strong)">{{ unassignedTitle }}</p>
+                <span class="rounded-full border border-(--app-border) bg-white/60 px-2 py-1 text-[11px] text-(--app-text-faint)">
                   {{ unassignedItems.length }}
                 </span>
               </div>
               <input v-model="unassignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索未关联内容" />
-              <p class="text-xs text-[var(--app-text-faint)]">点击加入当前 {{ selectedTitle }}。</p>
+              <p class="text-xs text-(--app-text-faint)">点击加入当前 {{ selectedTitle }}。</p>
             </div>
           </div>
 
@@ -100,8 +100,8 @@
             <div v-if="filteredUnassigned.length" class="space-y-2">
               <article v-for="item in filteredUnassigned" :key="item.id" class="app-list-item">
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
-                  <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.title }}</p>
-                  <p class="truncate text-sm text-[var(--app-text-faint)]">{{ item.subtitle }}</p>
+                  <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.title }}</p>
+                  <p class="truncate text-sm text-(--app-text-faint)">{{ item.subtitle }}</p>
                   <button class="app-button app-button-primary app-toolbar-button shrink-0" type="button" @click="$emit('link', item.id)">
                     添加
                   </button>

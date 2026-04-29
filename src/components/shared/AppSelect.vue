@@ -10,7 +10,7 @@
       @click="toggleOpen"
     >
       <span class="truncate">{{ selectedOption?.label || placeholder }}</span>
-      <AppIcon name="chevron-down" :size="16" class="shrink-0 text-[var(--app-text-faint)]" />
+      <AppIcon name="chevron-down" :size="16" class="shrink-0 text-(--app-text-faint)" />
     </button>
 
     <Teleport to="body">
@@ -33,7 +33,7 @@
             @click="selectOption(option.value)"
           >
             <span class="font-medium">{{ option.label }}</span>
-            <span v-if="props.showDescription && option.description" class="text-xs text-[var(--app-text-faint)]">{{ option.description }}</span>
+            <span v-if="props.showDescription && option.description" class="text-xs text-(--app-text-faint)">{{ option.description }}</span>
           </button>
         </div>
       </transition>

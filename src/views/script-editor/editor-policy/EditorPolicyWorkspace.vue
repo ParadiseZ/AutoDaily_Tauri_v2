@@ -3,29 +3,29 @@
     <template v-if="policy">
       <div class="flex items-start justify-between gap-3">
         <div class="space-y-1">
-          <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Workspace</p>
-          <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">{{ workspaceTitle }}</h2>
+          <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Workspace</p>
+          <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ workspaceTitle }}</h2>
         </div>
       </div>
 
       <div v-if="activePanel === 'basic'" class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
         <div class="grid gap-4 xl:grid-cols-2">
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">当前位置</p>
+          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">当前位置</p>
             <input
               :value="String(policy.data.curPos)"
               class="app-input mt-2"
               type="number"
               @input="$emit('update:number-field', 'curPos', ($event.target as HTMLInputElement).value)"
             />
-            <p class="mt-2 text-xs leading-5 text-[var(--app-text-faint)]">用于选择第 N 个匹配目标；`999` 表示最后一个。</p>
+            <p class="mt-2 text-xs leading-5 text-(--app-text-faint)">用于选择第 N 个匹配目标；`999` 表示最后一个。</p>
           </div>
 
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <label class="flex items-center gap-3 text-sm text-[var(--app-text-soft)]">
+          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <label class="flex items-center gap-3 text-sm text-(--app-text-soft)">
               <input
                 :checked="policy.data.skipFlag"
-                class="h-4 w-4 accent-[var(--app-accent)]"
+                class="h-4 w-4 accent-(--app-accent)"
                 type="checkbox"
                 @change="$emit('update:boolean-field', 'skipFlag', ($event.target as HTMLInputElement).checked)"
               />
@@ -33,8 +33,8 @@
             </label>
           </div>
 
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最大执行次数</p>
+          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">最大执行次数</p>
             <input
               :value="String(policy.data.execMax)"
               class="app-input mt-2"

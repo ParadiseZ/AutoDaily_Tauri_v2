@@ -3,8 +3,8 @@
     <template v-if="task">
       <div class="flex items-start justify-between gap-3">
         <div class="space-y-1">
-          <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Workspace</p>
-          <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">{{ workspaceTitle }}</h2>
+          <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Workspace</p>
+          <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ workspaceTitle }}</h2>
         </div>
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', rawSection)">
           查看底层结构
@@ -48,7 +48,7 @@
 
         <div
           v-else
-          class="rounded-[18px] border border-dashed border-[var(--app-border)] bg-[var(--app-panel-muted)] px-5 py-5 text-sm text-[var(--app-text-soft)]"
+          class="rounded-[18px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-5 py-5 text-sm text-(--app-text-soft)"
         >
           选择普通任务后，这里会显示当前任务的字段详情。
         </div>

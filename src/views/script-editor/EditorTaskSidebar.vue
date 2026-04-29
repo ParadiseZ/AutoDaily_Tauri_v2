@@ -4,8 +4,8 @@
       <slot name="mode-switch" />
 
       <div class="space-y-1">
-        <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Task Mode</p>
-        <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">任务列表</h2>
+        <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Task Mode</p>
+        <h2 class="text-xl font-semibold text-(--app-text-strong)">任务列表</h2>
       </div>
 
       <div class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
@@ -27,11 +27,11 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-3 gap-y-2 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-        <span class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">任务</span>
-        <span class="text-xl font-semibold text-[var(--app-text-strong)]">{{ tasks.length }}</span>
-        <span class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">隐藏</span>
-        <span class="text-xl font-semibold text-[var(--app-text-strong)]">{{ hiddenCount }}</span>
+      <div class="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-3 gap-y-2 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+        <span class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">任务</span>
+        <span class="text-xl font-semibold text-(--app-text-strong)">{{ tasks.length }}</span>
+        <span class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">隐藏</span>
+        <span class="text-xl font-semibold text-(--app-text-strong)">{{ hiddenCount }}</span>
       </div>
     </div>
 
@@ -70,14 +70,14 @@
               @click="$emit('select', task.id)"
             >
               <div class="flex items-center gap-2">
-                <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] text-[var(--app-text-faint)]">
+                <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-faint)">
                   {{ task.index + 1 }}
                 </span>
-                <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                <p class="truncate text-sm font-semibold text-(--app-text-strong)">
                   {{ task.name }}
                 </p>
               </div>
-              <p class="mt-2 text-xs text-[var(--app-text-faint)]">
+              <p class="mt-2 text-xs text-(--app-text-faint)">
                 <template v-if="task.rowType === 'title'">标题行 · 分组标题</template>
                 <template v-else>{{ formatTriggerModeLabel(task.triggerMode) }} · {{ task.data.steps.length }} 个步骤</template>
               </p>

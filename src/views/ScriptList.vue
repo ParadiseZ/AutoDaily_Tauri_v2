@@ -4,7 +4,7 @@
       title="本地列表"
     />
 
-    <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_420px]">
+    <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_390px]">
       <ScriptListSidebar
         v-model:search-query="searchQuery"
         :scripts="filteredScripts"

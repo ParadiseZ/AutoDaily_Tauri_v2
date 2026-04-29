@@ -1,18 +1,18 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col rounded-[22px] border border-[var(--app-border)] bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,247,252,0.88))] px-5 py-5 shadow-[var(--app-shadow-soft)]">
+  <div class="flex h-full min-h-0 flex-col rounded-[22px] border border-(--app-border) bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,247,252,0.88))] px-5 py-5 shadow-(--app-shadow-soft)">
     <div v-if="showHeader" class="flex items-center justify-between gap-3">
       <div>
-        <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Script Preview</p>
-        <h3 class="text-lg font-semibold text-[var(--app-text-strong)]">整表任务预览</h3>
+        <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Script Preview</p>
+        <h3 class="text-lg font-semibold text-(--app-text-strong)">整表任务预览</h3>
       </div>
-      <span class="rounded-full border border-[var(--app-border)] bg-white/60 px-3 py-1 text-xs text-[var(--app-text-faint)]">
+      <span class="rounded-full border border-(--app-border) bg-white/60 px-3 py-1 text-xs text-(--app-text-faint)">
         {{ taskCount }} 个任务行
       </span>
     </div>
 
     <div class="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar" :class="showHeader ? 'mt-4' : ''">
       <div v-if="ungroupedTasks.length" class="space-y-2">
-        <p class="text-[11px] uppercase tracking-[0.14em] text-[var(--app-text-faint)]">未分组任务</p>
+        <p class="text-[11px] uppercase tracking-[0.14em] text-(--app-text-faint)">未分组任务</p>
         <template v-for="task in ungroupedTasks" :key="task.id">
           <div
             class="preview-task-wrap"
@@ -95,12 +95,12 @@
           </template>
         </div>
 
-        <div v-else class="rounded-[16px] border border-dashed border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+        <div v-else class="rounded-[16px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
           当前标题下还没有任务。
         </div>
       </div>
 
-      <div v-if="!titleRows.length && !ungroupedTasks.length" class="rounded-[16px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)]">
+      <div v-if="!titleRows.length && !ungroupedTasks.length" class="rounded-[16px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
         还没有任务可预览。
       </div>
     </div>

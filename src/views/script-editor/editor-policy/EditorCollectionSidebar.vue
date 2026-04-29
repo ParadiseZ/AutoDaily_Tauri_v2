@@ -5,21 +5,21 @@
 
       <div class="flex items-start justify-between gap-3">
         <div class="space-y-1">
-          <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">{{ eyebrow }}</p>
-          <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">{{ title }}</h2>
+          <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">{{ eyebrow }}</p>
+          <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ title }}</h2>
         </div>
         <button class="app-button app-button-primary app-toolbar-button" type="button" :data-testid="createTestId" @click="$emit('create')">
           {{ createLabel }}
         </button>
       </div>
 
-      <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-        <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">{{ countLabel }}</p>
-        <p class="mt-1 text-2xl font-semibold text-[var(--app-text-strong)]">{{ items.length }}</p>
+      <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+        <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">{{ countLabel }}</p>
+        <p class="mt-1 text-2xl font-semibold text-(--app-text-strong)">{{ items.length }}</p>
       </div>
 
       <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">搜索</span>
+        <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">搜索</span>
         <input v-model="search" class="app-input" type="search" :placeholder="searchPlaceholder" />
       </label>
     </div>
@@ -46,14 +46,14 @@
           <div class="flex items-start justify-between gap-3">
             <button class="min-w-0 flex-1 text-left" type="button" @click="$emit('select', item.id)">
               <div class="flex items-center gap-2">
-                <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.title }}</p>
-                <span v-if="item.badge" class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] text-[var(--app-text-faint)]">
+                <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.title }}</p>
+                <span v-if="item.badge" class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-faint)">
                   {{ item.badge }}
                 </span>
               </div>
-              <p class="mt-2 text-xs text-[var(--app-text-faint)]">{{ item.subtitle }}</p>
+              <p class="mt-2 text-xs text-(--app-text-faint)">{{ item.subtitle }}</p>
             </button>
-            <span class="text-[11px] uppercase tracking-[0.16em] text-[var(--app-text-faint)]">拖动排序</span>
+            <span class="text-[11px] uppercase tracking-[0.16em] text-(--app-text-faint)">拖动排序</span>
           </div>
 
           <div class="flex flex-wrap gap-2">

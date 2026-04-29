@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-3">
     <template v-if="selectedData.type === DATA_TYPE.setVar">
-      <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
         <div class="editor-inline-grid">
           <div class="editor-inline-label">目标名称</div>
           <div class="editor-inline-content md:col-span-3">
@@ -62,7 +62,7 @@
           </div>
         </div>
 
-        <label v-if="effectiveSetVarKind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+        <label v-if="effectiveSetVarKind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
             :checked="setVarDraft.boolValue"
             type="checkbox"
@@ -71,10 +71,10 @@
             style="accent-color: var(--app-accent)"
             @change="$emit('update-set-var-bool', ($event.target as HTMLInputElement).checked)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">值为真</span>
+          <span class="text-sm text-(--app-text-soft)">值为真</span>
         </label>
         <label v-else class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">值</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">值</span>
           <input
             :value="setVarDraft.textValue"
             class="app-input"
@@ -87,13 +87,13 @@
 
       <div
         v-else-if="selectedSetVarTarget && !selectedSetVarKind"
-        class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
+        class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
       >
         当前变量类型不适合直接写固定值，请使用表达式。
       </div>
 
       <label v-if="selectedSetVarTarget && setVarUsesExpression" class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">表达式</span>
+        <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">表达式</span>
         <input
           :value="selectedData.expr ?? ''"
           class="app-input"
@@ -103,7 +103,7 @@
     </template>
 
     <template v-else-if="selectedData.type === DATA_TYPE.getVar">
-      <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
         <div class="editor-inline-grid">
           <div class="editor-inline-label">读取名称</div>
           <div class="editor-inline-content md:col-span-3">
@@ -143,7 +143,7 @@
           @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
         />
       </div>
-      <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+      <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
         <input
           :checked="getVarHasDefault"
           type="checkbox"
@@ -151,7 +151,7 @@
           style="accent-color: var(--app-accent)"
           @change="$emit('toggle-get-var-default', ($event.target as HTMLInputElement).checked)"
         />
-        <span class="text-sm text-[var(--app-text-soft)]">启用默认值</span>
+        <span class="text-sm text-(--app-text-soft)">启用默认值</span>
       </label>
       <template v-if="getVarHasDefault">
         <div class="editor-inline-grid">
@@ -166,7 +166,7 @@
             />
           </div>
         </div>
-        <label v-if="getVarDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3">
+        <label v-if="getVarDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
             :checked="getVarDraft.boolValue"
             type="checkbox"
@@ -175,10 +175,10 @@
             style="accent-color: var(--app-accent)"
             @change="$emit('update-get-var-bool', ($event.target as HTMLInputElement).checked)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">默认值为真</span>
+          <span class="text-sm text-(--app-text-soft)">默认值为真</span>
         </label>
         <label v-else class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">默认值</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">默认值</span>
           <input
             :value="getVarDraft.textValue"
             class="app-input"
@@ -194,7 +194,7 @@
       <div class="grid gap-3 md:grid-cols-2">
         <div class="space-y-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入名称</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入名称</span>
             <EditorSelectField
               :model-value="selectedData.input_var || null"
               :options="resolvedFilterInputOptions"
@@ -237,7 +237,7 @@
 
         <div class="space-y-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出名称</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出名称</span>
             <EditorSelectField
               :model-value="selectedData.out_name || null"
               :options="resolvedFilterOutputOptions"
@@ -288,10 +288,10 @@
             />
           </div>
         </div>
-        <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
-          <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">命中后行为</p>
+        <div class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-3">
+          <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">命中后行为</p>
           <div class="mt-2 flex items-center justify-between gap-3">
-            <span class="text-sm text-[var(--app-text-soft)]">{{ filterBranchTarget?.count ?? 0 }} 个步骤</span>
+            <span class="text-sm text-(--app-text-soft)">{{ filterBranchTarget?.count ?? 0 }} 个步骤</span>
             <button
               v-if="filterBranchTarget"
               class="app-button app-button-ghost app-toolbar-button"
@@ -303,7 +303,7 @@
           </div>
         </div>
         <label class="space-y-2 md:col-span-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">逻辑表达式</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">逻辑表达式</span>
           <input :value="selectedData.logic_expr" class="app-input" @input="$emit('update-data-field', 'logic_expr', ($event.target as HTMLInputElement).value)" />
         </label>
       </div>
@@ -313,7 +313,7 @@
       <div class="grid gap-3 md:grid-cols-2">
         <div class="space-y-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入结果集</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果集</span>
             <EditorSelectField
               :model-value="selectedData.input_var || null"
               :options="resolvedColorCompareInputOptions"
@@ -356,7 +356,7 @@
 
         <div class="space-y-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出结果集</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出结果集</span>
             <EditorSelectField
               :model-value="selectedData.out_var || null"
               :options="resolvedColorCompareOutputOptions"
@@ -398,7 +398,7 @@
         </div>
 
         <label class="space-y-2 md:col-span-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标文字</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
           <input
             :value="selectedData.target_text ?? ''"
             class="app-input"
@@ -408,7 +408,7 @@
           />
         </label>
 
-        <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3 md:col-span-2">
+        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3 md:col-span-2">
           <input
             :checked="selectedData.is_font"
             type="checkbox"
@@ -417,7 +417,7 @@
             style="accent-color: var(--app-accent)"
             @change="$emit('update-color-compare-boolean', 'is_font', ($event.target as HTMLInputElement).checked)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">比较字体颜色</span>
+          <span class="text-sm text-(--app-text-soft)">比较字体颜色</span>
         </label>
 
         <div class="editor-inline-grid md:col-span-2">
@@ -449,7 +449,7 @@
 
         <div class="grid gap-3 md:col-span-2 md:grid-cols-3">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">R</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">R</span>
             <input
               :value="String(selectedData.target_color.r)"
               class="app-input"
@@ -461,7 +461,7 @@
             />
           </label>
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">G</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">G</span>
             <input
               :value="String(selectedData.target_color.g)"
               class="app-input"
@@ -473,7 +473,7 @@
             />
           </label>
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">B</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">B</span>
             <input
               :value="String(selectedData.target_color.b)"
               class="app-input"

@@ -1,8 +1,8 @@
 <template>
-  <div v-if="task?.rowType === 'task'" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-5 py-5">
+  <div v-if="task?.rowType === 'task'" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-5 py-5">
     <div class="mb-4">
-      <p class="text-sm font-semibold text-[var(--app-text-strong)]">任务行设置</p>
-      <p class="mt-1 text-xs text-[var(--app-text-faint)]">这里放运行入口、分组、缩进、默认周期和普通用户预览相关配置。</p>
+      <p class="text-sm font-semibold text-(--app-text-strong)">任务行设置</p>
+      <p class="mt-1 text-xs text-(--app-text-faint)">这里放运行入口、分组、缩进、默认周期和普通用户预览相关配置。</p>
     </div>
 
     <div class="grid gap-x-3 gap-y-3 lg:grid-cols-[72px_minmax(0,1fr)_72px_minmax(0,1fr)]">
@@ -104,7 +104,7 @@
         <input
           :checked="recordSchedule"
           type="checkbox"
-          class="h-4 w-4 accent-[var(--app-accent)]"
+          class="h-4 w-4 accent-(--app-accent)"
           data-testid="editor-task-record-schedule"
           @change="$emit('update:record-schedule', ($event.target as HTMLInputElement).checked)"
         />
@@ -116,7 +116,7 @@
         <input
           :checked="showEnabledToggle"
           type="checkbox"
-          class="h-4 w-4 accent-[var(--app-accent)]"
+          class="h-4 w-4 accent-(--app-accent)"
           data-testid="editor-task-show-enabled-toggle"
           @change="$emit('update:show-enabled-toggle', ($event.target as HTMLInputElement).checked)"
         />
@@ -128,7 +128,7 @@
         <input
           :checked="defaultEnabled"
           type="checkbox"
-          class="h-4 w-4 accent-[var(--app-accent)]"
+          class="h-4 w-4 accent-(--app-accent)"
           data-testid="editor-task-default-enabled"
           @change="$emit('update:default-enabled', ($event.target as HTMLInputElement).checked)"
         />
@@ -137,7 +137,7 @@
     </div>
   </div>
 
-  <div v-else class="rounded-[18px] border border-dashed border-[var(--app-border)] bg-[var(--app-panel-muted)] px-5 py-5 text-sm text-[var(--app-text-soft)]">
+  <div v-else class="rounded-[18px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-5 py-5 text-sm text-(--app-text-soft)">
     <div class="grid gap-3 md:grid-cols-[72px_minmax(0,1fr)] md:items-center">
       <div class="overview-label">标题名称</div>
       <div class="overview-content">

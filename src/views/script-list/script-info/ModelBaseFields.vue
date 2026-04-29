@@ -57,7 +57,7 @@
             :data-testid="resolveTestId('intra-spinning')"
             style="accent-color: var(--app-accent)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">启用后同一模型内部线程保持活跃。</span>
+          <span class="text-sm text-(--app-text-soft)">启用后同一模型内部线程保持活跃。</span>
         </span>
       </label>
       <label v-else class="dialog-toggle-card">
@@ -84,7 +84,7 @@
             :data-testid="resolveTestId('inter-spinning')"
             style="accent-color: var(--app-accent)"
           />
-          <span class="text-sm text-[var(--app-text-soft)]">启用后多模型之间的线程保持活跃。</span>
+          <span class="text-sm text-(--app-text-soft)">启用后多模型之间的线程保持活跃。</span>
         </span>
       </label>
       <label v-else class="dialog-toggle-card">

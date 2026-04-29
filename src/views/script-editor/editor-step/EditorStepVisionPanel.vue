@@ -1,9 +1,9 @@
 <template>
   <div class="space-y-4">
     <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
-      <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
+      <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出名称</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出名称</span>
           <EditorSelectField
             :model-value="selectedVision.out_var || null"
             :options="resolvedVisionOutputOptions"
@@ -45,11 +45,11 @@
         />
       </div>
 
-      <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
+      <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
         <div class="editor-inline-grid">
           <div class="editor-inline-label">命中后</div>
           <div class="editor-inline-content flex items-center justify-between gap-3">
-            <span class="text-sm text-[var(--app-text-soft)]">{{ visionBranchTarget?.count ?? 0 }} 个步骤</span>
+            <span class="text-sm text-(--app-text-soft)">{{ visionBranchTarget?.count ?? 0 }} 个步骤</span>
             <button
               v-if="visionBranchTarget"
               class="app-button app-button-ghost app-toolbar-button"
@@ -63,8 +63,8 @@
       </div>
     </div>
 
-    <div class="rounded-[16px] border border-[var(--app-border)] bg-white/40 px-4 py-4">
-      <p class="text-sm font-semibold text-[var(--app-text-strong)]">搜索规则</p>
+    <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
+      <p class="text-sm font-semibold text-(--app-text-strong)">搜索规则</p>
       <div class="mt-3">
         <EditorSearchRuleBuilder
           :model-value="selectedVision.rule"

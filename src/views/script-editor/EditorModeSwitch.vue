@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] p-2">
+  <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) p-2">
     <div class="grid grid-cols-2 gap-2">
       <button
         v-for="option in options"

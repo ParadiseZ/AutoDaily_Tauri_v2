@@ -32,26 +32,26 @@
 
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         <div v-if="selectedStep" class="space-y-4">
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
             <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
-                  <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ describeStep(selectedStep) }}</p>
-                  <span class="rounded-full bg-white/50 px-3 py-1 text-xs text-[var(--app-text-soft)]">{{ selectedStep.op }}</span>
+                  <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ describeStep(selectedStep) }}</p>
+                  <span class="rounded-full bg-white/50 px-3 py-1 text-xs text-(--app-text-soft)">{{ selectedStep.op }}</span>
                 </div>
-                <p v-if="describeStepMeta(selectedStep) !== describeStep(selectedStep)" class="mt-2 text-xs text-[var(--app-text-faint)]">
+                <p v-if="describeStepMeta(selectedStep) !== describeStep(selectedStep)" class="mt-2 text-xs text-(--app-text-faint)">
                   {{ describeStepMeta(selectedStep) }}
                 </p>
               </div>
 
               <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步骤标题</span>
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">步骤标题</span>
                 <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
               </label>
             </div>
           </div>
 
-          <div class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
             <div class="space-y-3">
               <EditorStepActionPanel
                 v-if="selectedStep.op === STEP_OP.action && selectedAction"
@@ -208,14 +208,14 @@
                 @navigate-branch="$emit('navigate-branch', $event)"
               />
 
-              <p v-else class="text-sm leading-6 text-[var(--app-text-soft)]">
+              <p v-else class="text-sm leading-6 text-(--app-text-soft)">
                 当前步骤暂未提供专用表单，必要时可从右上角打开底层结构调试。
               </p>
             </div>
           </div>
 
-          <div v-if="branchTargets.length" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">可进入层级</p>
+          <div v-if="branchTargets.length" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <p class="text-sm font-semibold text-(--app-text-strong)">可进入层级</p>
             <div class="mt-3 grid gap-3">
               <button
                 v-for="target in branchTargets"
@@ -228,10 +228,10 @@
               >
                 <div class="flex items-center justify-between gap-3">
                   <div class="min-w-0">
-                    <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ target.label }}</p>
-                    <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ target.count }} 个步骤</p>
+                    <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ target.label }}</p>
+                    <p class="mt-1 text-xs text-(--app-text-faint)">{{ target.count }} 个步骤</p>
                   </div>
-                  <span class="text-xs text-[var(--app-text-faint)]">进入</span>
+                  <span class="text-xs text-(--app-text-faint)">进入</span>
                 </div>
               </button>
             </div>

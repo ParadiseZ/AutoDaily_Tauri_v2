@@ -5,8 +5,8 @@
         <div class="app-dialog" :class="widthClass" aria-modal="true" :aria-label="title" role="dialog">
           <header class="mb-5 flex items-start justify-between gap-4">
             <div class="space-y-1">
-              <h2 class="text-lg font-semibold text-[var(--app-text-strong)]">{{ title }}</h2>
-              <p v-if="description" class="text-sm text-[var(--app-text-soft)]">{{ description }}</p>
+              <h2 class="text-lg font-semibold text-(--app-text-strong)">{{ title }}</h2>
+              <p v-if="description" class="text-sm text-(--app-text-soft)">{{ description }}</p>
             </div>
             <button class="app-icon-button app-dialog-close-button" type="button" @click="$emit('close')">
               <AppIcon name="x" :size="18" />

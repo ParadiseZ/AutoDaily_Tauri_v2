@@ -10,7 +10,7 @@
       <div class="min-w-0 flex-1 space-y-1">
         <div class="flex flex-wrap items-center gap-2">
           <span class="editor-search-rule-badge">{{ currentRule.type === POLICY_CONDITION_RULE_TYPE.group ? '规则组' : '精判规则' }}</span>
-          <span class="truncate text-xs text-[var(--app-text-faint)]">{{ describePolicyConditionRule(currentRule) }}</span>
+          <span class="truncate text-xs text-(--app-text-faint)">{{ describePolicyConditionRule(currentRule) }}</span>
         </div>
 
         <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
@@ -33,7 +33,7 @@
     <div class="mt-4 space-y-3">
       <template v-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.regex">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">正则表达式</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">正则表达式</span>
           <input
             :value="currentRule.pattern"
             class="app-input"
@@ -44,7 +44,7 @@
       </template>
 
       <template v-else-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.relative">
-        <div class="rounded-[16px] border border-[var(--app-border)] bg-white/45 px-4 py-4">
+        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-4">
           <div class="editor-inline-grid">
             <div class="editor-inline-label">锚点类型</div>
             <div class="editor-inline-content">
@@ -104,7 +104,7 @@
 
           <div class="mt-4 grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">
                 {{ currentRule.anchor_type === 'ocrText' ? '锚点文字' : '锚点标签索引' }}
               </span>
               <input
@@ -125,7 +125,7 @@
             </label>
 
             <label class="grid gap-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">比较值</span>
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">比较值</span>
               <input
                 :value="currentRule.value"
                 class="app-input"
@@ -138,7 +138,7 @@
       </template>
 
       <template v-else-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.group">
-        <div class="rounded-[16px] border border-[var(--app-border)] bg-white/45 px-4 py-4">
+        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-4">
           <div class="editor-inline-grid">
             <div class="editor-inline-label">组合逻辑</div>
             <div class="editor-inline-content">

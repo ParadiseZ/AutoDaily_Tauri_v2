@@ -18,12 +18,31 @@
       </button>
     </SurfacePanel>
 
-    <SurfacePanel class="overflow-hidden p-0">
-      <div ref="logContainer" class="h-[calc(100vh-260px)] overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200">
-        <div v-if="!filteredLogs.length" class="flex h-full items-center justify-center text-sm text-slate-400">
-          暂无符合条件的日志，运行设备后这里会持续滚动追加。
+    <SurfacePanel v-if="!filteredLogs.length" class="space-y-4">
+      <EmptyState
+        :title="emptyLogTitle"
+        :description="emptyLogDescription"
+        icon="file-text"
+      />
+      <div class="grid gap-3 text-sm text-(--app-text-soft) md:grid-cols-3">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted)/70 px-4 py-3">
+          <p class="font-semibold text-(--app-text-strong)">先运行队列</p>
+          <p class="mt-1 text-xs leading-5">设备开始执行后，日志会在这里追加。</p>
         </div>
-        <div v-else class="space-y-2">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted)/70 px-4 py-3">
+          <p class="font-semibold text-(--app-text-strong)">检查筛选</p>
+          <p class="mt-1 text-xs leading-5">设备、级别或关键字过窄时会隐藏已有日志。</p>
+        </div>
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted)/70 px-4 py-3">
+          <p class="font-semibold text-(--app-text-strong)">当前会话</p>
+          <p class="mt-1 text-xs leading-5">这里显示的是本次打开应用后收到的实时日志。</p>
+        </div>
+      </div>
+    </SurfacePanel>
+
+    <SurfacePanel v-else class="overflow-hidden p-0">
+      <div ref="logContainer" class="h-[calc(100vh-260px)] overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200">
+        <div class="space-y-2">
           <div
             v-for="entry in filteredLogs"
             :key="`${entry.deviceId}-${entry.time}-${entry.message}`"
@@ -47,6 +66,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
+import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import { useDeviceStore } from '@/store/device';
 import { useLogsStore } from '@/store/logs';
@@ -92,6 +112,23 @@ const filteredLogs = computed(() => {
     }
     return true;
   });
+});
+
+const hasAnyLogs = computed(() => Object.values(logsStore.logsByDevice).some((entries) => entries.length > 0));
+const hasActiveFilter = computed(() => Boolean(selectedDeviceId.value || selectedLevel.value || searchText.value));
+
+const emptyLogTitle = computed(() => {
+  if (hasAnyLogs.value && hasActiveFilter.value) {
+    return '筛选后没有日志';
+  }
+  return '还没有运行日志';
+});
+
+const emptyLogDescription = computed(() => {
+  if (hasAnyLogs.value && hasActiveFilter.value) {
+    return '已有日志被当前设备、级别或关键字条件过滤了。';
+  }
+  return '启动设备队列或调试运行后，这里会显示实时日志。';
 });
 
 const resolveDeviceName = (deviceId: string) => {

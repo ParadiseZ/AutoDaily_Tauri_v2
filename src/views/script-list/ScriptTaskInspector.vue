@@ -1,12 +1,12 @@
 <template>
   <SurfacePanel class="space-y-4">
     <div>
-      <p class="text-sm font-semibold text-[var(--app-text-strong)]">任务与模板设置</p>
+      <p class="text-sm font-semibold text-(--app-text-strong)">任务与模板设置</p>
     </div>
 
     <template v-if="script">
-      <div class="rounded-[18px] border border-[var(--app-border)] px-4 py-4">
-        <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">设备关联</p>
+      <div class="rounded-[18px] border border-(--app-border) px-4 py-4">
+        <p class="text-xs uppercase tracking-[0.14em] text-(--app-text-faint)">设备关联</p>
         <AppSelect
           v-if="usageItems.length"
           v-model="selectedScopeKey"
@@ -15,12 +15,12 @@
           placeholder="选择设备关联"
           :show-description="true"
         />
-        <p v-else class="mt-3 text-sm text-[var(--app-text-soft)]">未挂载到任何设备队列上。</p>
+        <p v-else class="mt-3 text-sm text-(--app-text-soft)">未挂载到任何设备队列上。</p>
       </div>
 
       <div v-if="selectedScope" class="space-y-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">当前模板范围</p>
+          <p class="text-xs uppercase tracking-[0.14em] text-(--app-text-faint)">当前模板范围</p>
         </div>
         <ScriptTemplateValuePanel
           :script="script"
@@ -31,43 +31,43 @@
 
       <div
         v-else-if="usageItems.some((item) => item.timeTemplateId === null)"
-        class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)]"
+        class="rounded-[18px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)"
       >
         当前脚本虽然已挂到设备，但未选择时间模板，因此还没有独立的模板变量作用域。
       </div>
 
       <div class="space-y-3">
-        <div v-if="loading" class="py-10 text-sm text-[var(--app-text-soft)]">正在读取脚本任务...</div>
-        <div v-else-if="!tasks.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] p-4 text-sm text-[var(--app-text-soft)]">
+        <div v-if="loading" class="py-10 text-sm text-(--app-text-soft)">正在读取脚本任务...</div>
+        <div v-else-if="!tasks.length" class="rounded-[18px] border border-dashed border-(--app-border) p-4 text-sm text-(--app-text-soft)">
           无任务数据
         </div>
         <!-- <div v-else class="space-y-3">
-          <div v-for="task in tasks" :key="task.id" class="rounded-[18px] border border-[var(--app-border)] px-4 py-4">
+          <div v-for="task in tasks" :key="task.id" class="rounded-[18px] border border-(--app-border) px-4 py-4">
             <div class="flex items-center justify-between gap-3">
-              <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ task.name }}</p>
+              <p class="text-sm font-semibold text-(--app-text-strong)">{{ task.name }}</p>
               <StatusBadge :label="formatTaskRowTypeLabel(task.rowType)" :tone="task.rowType === 'title' ? 'neutral' : 'info'" />
             </div>
 
             <div class="mt-3 space-y-2">
               <div class="flex flex-wrap gap-2">
-                <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                <span class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-soft)">
                   {{ formatTaskTriggerModeLabel(task.triggerMode) }}
                 </span>
-                <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                <span class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-soft)">
                   {{ formatTaskCycleLabel(task.defaultTaskCycle) }}
                 </span>
-                <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]">
+                <span class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-soft)">
                   {{ formatTaskToneLabel(task.taskTone) }}
                 </span>
               </div>
 
               <div v-if="extractVariables(task.data.variables).length">
-                <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">变量字段</p>
+                <p class="text-xs uppercase tracking-[0.14em] text-(--app-text-faint)">变量字段</p>
                 <div class="mt-2 flex flex-wrap gap-2">
                   <span
                     v-for="entry in extractVariables(task.data.variables)"
                     :key="entry.key"
-                    class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]"
+                    class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-soft)"
                   >
                     {{ entry.key }} · {{ entry.preview }}
                   </span>
@@ -75,12 +75,12 @@
               </div>
 
               <div v-if="extractVariables(task.data.uiData).length">
-                <p class="text-xs uppercase tracking-[0.14em] text-[var(--app-text-faint)]">UI 提示字段</p>
+                <p class="text-xs uppercase tracking-[0.14em] text-(--app-text-faint)">UI 提示字段</p>
                 <div class="mt-2 flex flex-wrap gap-2">
                   <span
                     v-for="entry in extractVariables(task.data.uiData)"
                     :key="entry.key"
-                    class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-soft)]"
+                    class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-soft)"
                   >
                     {{ entry.key }} · {{ entry.preview }}
                   </span>
@@ -89,7 +89,7 @@
 
               <p
                 v-if="!extractVariables(task.data.variables).length && !extractVariables(task.data.uiData).length"
-                class="text-sm text-[var(--app-text-soft)]"
+                class="text-sm text-(--app-text-soft)"
               >
                 当前任务没有暴露可读的变量结构。后续如果要做“体力开关 / 次数”这类可配置项，建议统一从这里的变量定义生成表单。
               </p>

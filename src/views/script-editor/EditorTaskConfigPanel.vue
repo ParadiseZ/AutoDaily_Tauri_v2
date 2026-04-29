@@ -20,7 +20,7 @@
       <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
         <div v-if="activePanel === 'basic'" class="grid gap-3 md:grid-cols-2">
           <div class="grid gap-3 md:col-span-2 md:grid-cols-[72px_minmax(0,1fr)] md:items-center">
-            <span class="text-xs font-medium uppercase tracking-[0.14em] text-[var(--app-text-faint)]">行类型</span>
+            <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">行类型</span>
             <EditorSelectField
               :model-value="taskRowType"
               :options="taskRowTypeOptions"
@@ -30,14 +30,14 @@
             />
           </div>
 
-          <div class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)] md:col-span-2">
+          <div class="rounded-[18px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft) md:col-span-2">
             任务行专属设置已移动到右侧“任务概览”工作区，方便结合整表预览一起调整。
           </div>
 
-          <label class="flex items-center gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3 text-sm text-[var(--app-text-soft)] md:col-span-2">
+          <label class="flex items-center gap-3 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft) md:col-span-2">
             <input
               :checked="taskHidden"
-              class="h-4 w-4 accent-[var(--app-accent)]"
+              class="h-4 w-4 accent-(--app-accent)"
               type="checkbox"
               data-testid="editor-task-hidden"
               @change="$emit('update:task-hidden', ($event.target as HTMLInputElement).checked)"
@@ -70,12 +70,12 @@
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
-                    <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ entry.name || entry.key || '未命名变量' }}</p>
-                    <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] text-[var(--app-text-faint)]">
+                    <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ entry.name || entry.key || '未命名变量' }}</p>
+                    <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-faint)">
                       {{ getScopeLabel(entry.namespace) }}
                     </span>
                   </div>
-                  <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ entry.key || '未设置键' }} · {{ getInputTypeLabel(entry.type) }}</p>
+                  <p class="mt-1 text-xs text-(--app-text-faint)">{{ entry.key || '未设置键' }} · {{ getInputTypeLabel(entry.type) }}</p>
                 </div>
                 <button
                   class="app-button app-button-danger app-toolbar-button shrink-0"
@@ -100,7 +100,7 @@
 
         <div v-else-if="activePanel === 'ui'" class="space-y-4">
           <div class="flex items-center justify-between gap-3">
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">界面字段</p>
+            <p class="text-sm font-semibold text-(--app-text-strong)">界面字段</p>
             <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', 'ui')">
               JSON
             </button>
@@ -129,13 +129,13 @@
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ field.label || '未命名字段' }}</p>
-                  <p class="mt-1 text-xs text-[var(--app-text-faint)]">
+                  <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ field.label || '未命名字段' }}</p>
+                  <p class="mt-1 text-xs text-(--app-text-faint)">
                     {{ getUiControlLabel(field.control) }} · {{ field.inputKey || '未绑定' }}
                   </p>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="rounded-full border border-[var(--app-border)] px-2 py-1 text-[11px] text-[var(--app-text-soft)]">
+                  <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-soft)">
                     {{ index + 1 }}
                   </span>
                   <button class="app-button app-button-danger app-toolbar-button" type="button" @click.stop="$emit('remove-ui-field', field.id)">
@@ -156,7 +156,7 @@
         <div v-else class="space-y-4">
           <div class="flex items-center justify-between gap-3">
             <div>
-              <p class="text-sm font-semibold text-[var(--app-text-strong)]">快速模板</p>
+              <p class="text-sm font-semibold text-(--app-text-strong)">快速模板</p>
             </div>
             <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', 'steps')">
               JSON
@@ -164,11 +164,11 @@
           </div>
 
           <div class="space-y-3">
-            <details v-for="group in templateGroups" :key="group.name" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]" :open="true">
-              <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-[var(--app-text-strong)]">
+            <details v-for="group in templateGroups" :key="group.name" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted)" :open="true">
+              <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-(--app-text-strong)">
                 <div class="flex items-center justify-between gap-3">
                   <span>{{ group.name }}</span>
-                  <span class="text-xs text-[var(--app-text-faint)]">{{ group.items.length }}</span>
+                  <span class="text-xs text-(--app-text-faint)">{{ group.items.length }}</span>
                 </div>
               </summary>
 

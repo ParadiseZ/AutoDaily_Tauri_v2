@@ -13,17 +13,17 @@
       <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">模板定义</p>
-            <p class="text-xs text-[var(--app-text-faint)]">这里管理时间窗口本身。</p>
+            <p class="text-sm font-semibold text-(--app-text-strong)">模板定义</p>
+            <p class="text-xs text-(--app-text-faint)">这里管理时间窗口本身。</p>
           </div>
-          <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-xs text-[var(--app-text-faint)]">
+          <span class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-faint)">
             {{ taskStore.timeTemplates.length }} 个
           </span>
         </div>
 
         <div
           v-if="!taskStore.timeTemplates.length"
-          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)"
         >
           还没有时间模板。
         </div>
@@ -42,9 +42,9 @@
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ template.name }}</p>
-                <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ formatTemplateWindow(template) }}</p>
-                <p class="mt-2 text-[11px] text-[var(--app-text-soft)]">
+                <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ template.name }}</p>
+                <p class="mt-1 text-xs text-(--app-text-faint)">{{ formatTemplateWindow(template) }}</p>
+                <p class="mt-2 text-[11px] text-(--app-text-soft)">
                   {{ templateUsageSummary(template.id) }}
                 </p>
               </div>
@@ -65,8 +65,8 @@
       <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">模板作用域</p>
-            <p class="text-xs text-[var(--app-text-faint)]">这里管理哪些设备队列项挂在当前模板下。</p>
+            <p class="text-sm font-semibold text-(--app-text-strong)">模板作用域</p>
+            <p class="text-xs text-(--app-text-faint)">这里管理哪些设备队列项挂在当前模板下。</p>
           </div>
           <button class="app-button app-button-ghost" type="button" :disabled="!selectedTemplate" @click="bindingDialogOpen = true">
             追加作用域
@@ -75,14 +75,14 @@
 
         <div
           v-if="!selectedTemplate"
-          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)"
         >
           先从左侧选择一个模板。
         </div>
 
         <div
           v-else-if="!selectedScopes.length"
-          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+          class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)"
         >
           当前模板还没有挂到任何总队列项上。
         </div>
@@ -101,8 +101,8 @@
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ scope.scriptName }}</p>
-                <p class="mt-1 truncate text-xs text-[var(--app-text-faint)]">{{ scope.deviceName }}</p>
+                <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ scope.scriptName }}</p>
+                <p class="mt-1 truncate text-xs text-(--app-text-faint)">{{ scope.deviceName }}</p>
               </div>
               <button
                 class="app-icon-button h-8 w-8 text-red-600"
@@ -126,7 +126,7 @@
             :scope="selectedScope.scope"
           />
         </template>
-        <div v-else class="flex min-h-0 flex-1 items-center justify-center rounded-[18px] border border-dashed border-[var(--app-border)] text-sm text-[var(--app-text-soft)]">
+        <div v-else class="flex min-h-0 flex-1 items-center justify-center rounded-[18px] border border-dashed border-(--app-border) text-sm text-(--app-text-soft)">
           选择一个作用域后，这里显示模板变量编辑。
         </div>
       </SurfacePanel>
@@ -140,17 +140,17 @@
       @close="closeTemplateDialog"
     >
       <div class="space-y-4">
-        <label class="space-y-2 text-sm text-[var(--app-text-soft)]">
+        <label class="space-y-2 text-sm text-(--app-text-soft)">
           <span>模板名称</span>
           <input v-model.trim="templateForm.name" class="app-input" type="text" placeholder="例如：早班 / 晚班" />
         </label>
 
         <div class="grid gap-3 md:grid-cols-2">
-          <label class="space-y-2 text-sm text-[var(--app-text-soft)]">
+          <label class="space-y-2 text-sm text-(--app-text-soft)">
             <span>开始时间</span>
             <input v-model="templateForm.startTime" class="app-input" type="time" />
           </label>
-          <label class="space-y-2 text-sm text-[var(--app-text-soft)]">
+          <label class="space-y-2 text-sm text-(--app-text-soft)">
             <span>结束时间</span>
             <input v-model="templateForm.endTime" class="app-input" type="time" />
           </label>
@@ -171,12 +171,12 @@
       @close="closeBindingDialog"
     >
       <div class="space-y-4">
-        <label class="space-y-2 text-sm text-[var(--app-text-soft)]">
+        <label class="space-y-2 text-sm text-(--app-text-soft)">
           <span>设备</span>
           <AppSelect v-model="bindingForm.deviceId" :options="deviceOptions" placeholder="选择设备" />
         </label>
 
-        <label class="space-y-2 text-sm text-[var(--app-text-soft)]">
+        <label class="space-y-2 text-sm text-(--app-text-soft)">
           <span>脚本</span>
           <AppSelect v-model="bindingForm.scriptId" :options="bindingScriptOptions" placeholder="选择脚本" />
         </label>

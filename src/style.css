@@ -38,13 +38,13 @@
   --b3: 0.94 0.01 247;
   --bc: 0.22 0.02 247;
 
-  --app-bg: rgba(247, 249, 252, 0.88);
-  --app-panel: rgba(255, 255, 255, 0.84);
-  --app-panel-muted: rgba(243, 246, 250, 0.96);
+  --app-bg: rgb(247, 249, 252);
+  --app-panel: rgba(255, 255, 255, 0.94);
+  --app-panel-muted: rgba(243, 246, 250, 0.98);
   --app-border: rgba(15, 23, 42, 0.11);
   --app-border-strong: rgba(15, 23, 42, 0.16);
-  --app-shadow: 0 24px 64px rgba(15, 23, 42, 0.1);
-  --app-shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.08);
+  --app-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  --app-shadow-soft: 0 8px 18px rgba(15, 23, 42, 0.06);
   --app-text-strong: rgba(15, 23, 42, 0.94);
   --app-text: rgba(15, 23, 42, 0.82);
   --app-text-soft: rgba(71, 85, 105, 0.8);
@@ -84,13 +84,13 @@
   --b3: 0.23 0.02 247;
   --bc: 0.92 0.02 247;
 
-  --app-bg: rgba(12, 17, 27, 0.9);
-  --app-panel: rgba(18, 26, 38, 0.84);
+  --app-bg: rgb(12, 17, 27);
+  --app-panel: rgba(18, 26, 38, 0.94);
   --app-panel-muted: rgba(22, 32, 46, 0.96);
   --app-border: rgba(255, 255, 255, 0.1);
   --app-border-strong: rgba(255, 255, 255, 0.14);
-  --app-shadow: 0 20px 60px rgba(0, 0, 0, 0.34);
-  --app-shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.26);
+  --app-shadow: 0 14px 36px rgba(0, 0, 0, 0.3);
+  --app-shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.22);
   --app-text-strong: rgba(255, 255, 255, 0.94);
   --app-text: rgba(226, 232, 240, 0.86);
   --app-text-soft: rgba(203, 213, 225, 0.72);
@@ -121,13 +121,7 @@ body,
 body {
   margin: 0;
   color: var(--app-text);
-  background:
-    radial-gradient(circle at top left, rgba(121, 167, 255, 0.16), transparent 30%),
-    radial-gradient(circle at top right, rgba(139, 92, 246, 0.08), transparent 25%),
-    radial-gradient(circle at bottom right, rgba(129, 211, 248, 0.15), transparent 30%),
-    radial-gradient(circle at bottom left, rgba(244, 63, 94, 0.05), transparent 20%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent 40%),
-    var(--app-bg);
+  background: var(--app-bg);
   background-attachment: fixed;
 }
 
@@ -161,9 +155,9 @@ a {
 .app-panel {
   border: 1px solid var(--app-border);
   background: var(--app-panel);
-  box-shadow: var(--app-shadow-soft), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  border-radius: 24px;
-  backdrop-filter: blur(16px);
+  box-shadow: var(--app-shadow-soft);
+  border-radius: 18px;
+  backdrop-filter: blur(12px);
 }
 
 .app-panel-muted {
@@ -229,10 +223,10 @@ a {
 }
 
 .app-stat {
-  border-radius: 20px;
+  border-radius: 16px;
   border: 1px solid var(--app-border);
-  background: color-mix(in srgb, var(--app-panel) 80%, transparent);
-  padding: 1rem 1.1rem;
+  background: color-mix(in srgb, var(--app-panel) 86%, transparent);
+  padding: 0.85rem 0.95rem;
 }
 
 .app-stat-label {
@@ -257,7 +251,7 @@ a {
   border: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-panel-muted) 94%, transparent);
   color: var(--app-text-strong);
-  padding: 0.8rem 0.9rem;
+  padding: 0.72rem 0.85rem;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
@@ -281,8 +275,8 @@ a {
 }
 
 .app-button {
-  min-height: 2.7rem;
-  padding: 0.7rem 1rem;
+  min-height: 2.45rem;
+  padding: 0.6rem 0.9rem;
   font-size: 0.92rem;
   font-weight: 600;
 }
@@ -311,7 +305,7 @@ a {
 .app-button-primary {
   background: var(--app-accent);
   color: white;
-  box-shadow: 0 14px 28px rgba(70, 110, 255, 0.18);
+  box-shadow: 0 10px 20px rgba(70, 110, 255, 0.16);
 }
 
 .app-button-ghost {
@@ -376,14 +370,14 @@ a {
 
 .app-empty-state {
   display: flex;
-  min-height: 220px;
+  min-height: 180px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.85rem;
   border: 1px dashed var(--app-border-strong);
-  border-radius: 24px;
-  padding: 2rem;
+  border-radius: 18px;
+  padding: 1.5rem;
 }
 
 .app-empty-icon {
@@ -452,9 +446,9 @@ a {
 
 .app-list-item {
   width: 100%;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid var(--app-border);
-  padding: 0.9rem 1rem;
+  padding: 0.78rem 0.9rem;
   text-align: left;
   cursor: pointer;
   transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;

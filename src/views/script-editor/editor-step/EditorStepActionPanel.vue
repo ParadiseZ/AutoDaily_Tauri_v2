@@ -13,15 +13,15 @@
         />
       </div>
       <div class="editor-inline-label">说明</div>
-      <div class="editor-inline-content text-sm text-[var(--app-text-soft)]">
+      <div class="editor-inline-content text-sm text-(--app-text-soft)">
         `0` 表示无限次。
       </div>
     </div>
 
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
-      <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出名称</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出名称</span>
           <EditorSelectField
             :model-value="selectedAction.output_var || null"
             :options="resolvedCaptureOutputOptions"
@@ -60,7 +60,7 @@
           editable
           @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
         />
-        <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+        <p class="text-xs leading-5 text-(--app-text-faint)">
           当前运行时会把截图图像对象写入 runtime 变量，不再默认转成字符串或文件路径。
         </p>
       </div>
@@ -69,11 +69,11 @@
     <template v-else-if="selectedAction.ac === ACTION_TYPE.launchApp || selectedAction.ac === ACTION_TYPE.stopApp">
       <div class="space-y-3">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">包名</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">包名</span>
           <input :value="selectedAction.pkg_name || ''" class="app-input" @input="$emit('update-field', 'pkg_name', ($event.target as HTMLInputElement).value)" />
         </label>
         <label v-if="selectedAction.ac === ACTION_TYPE.launchApp" class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">Activity</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">Activity</span>
           <input :value="selectedAction.activity_name || ''" class="app-input" placeholder=".MainActivity" @input="$emit('update-field', 'activity_name', ($event.target as HTMLInputElement).value)" />
         </label>
       </div>
@@ -82,7 +82,7 @@
     <template v-else-if="selectedAction.ac === ACTION_TYPE.posAdd || selectedAction.ac === ACTION_TYPE.posMinus">
       <div class="space-y-3">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标策略</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标策略</span>
           <EditorSelectField
             :model-value="selectedAction.target || null"
             :options="resolvedPolicyTargetOptions"
@@ -112,7 +112,7 @@
             定位策略
           </button>
         </div>
-        <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+        <p class="text-xs leading-5 text-(--app-text-faint)">
           只调整本次运行中的点击索引，不写回策略配置；策略内文字/标签点击会用该索引选择第 N 个匹配目标。
         </p>
       </div>
@@ -121,7 +121,7 @@
     <template v-else-if="selectedAction.ac === ACTION_TYPE.dropSetNext">
       <div class="space-y-3">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标任务</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标任务</span>
           <EditorSelectField
             :model-value="selectedAction.task || null"
             :options="resolvedTaskTargetOptions"
@@ -132,7 +132,7 @@
           />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">UI 变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">UI 变量</span>
           <EditorSelectField
             :model-value="selectedAction.variable_id || null"
             :options="resolvedDropSetVariableOptions"
@@ -162,7 +162,7 @@
             定位任务
           </button>
         </div>
-        <p class="text-xs leading-5 text-[var(--app-text-faint)]">
+        <p class="text-xs leading-5 text-(--app-text-faint)">
           执行时把该变量切到配置选项里的下一个值，并写回当前设备/时间模板作用域。
         </p>
       </div>
@@ -206,7 +206,7 @@
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入结果变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果变量</span>
           <EditorSelectField
             :model-value="selectedActionInput || null"
             :options="resolvedActionInputOptions"
@@ -235,11 +235,11 @@
 
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标文字</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
           <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">绑定变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">绑定变量</span>
           <EditorSelectField
             :model-value="selectedAction.txt_expr || null"
             :options="resolvedClickTextVariableOptions"
@@ -261,7 +261,7 @@
       </div>
 
       <label v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签</span>
+        <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签</span>
         <AppSelect
           :model-value="selectedAction.idx ?? null"
           :options="resolvedLabelIdxOptions"
@@ -293,7 +293,7 @@
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入结果变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果变量</span>
           <EditorSelectField
             :model-value="selectedActionInput || null"
             :options="resolvedActionInputOptions"
@@ -365,15 +365,15 @@
 
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">固定起点文字</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">固定起点文字</span>
           <input :value="String(selectedAction.from ?? '')" class="app-input" @input="$emit('update-text-field', 'from', ($event.target as HTMLInputElement).value)" />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">固定终点文字</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">固定终点文字</span>
           <input :value="String(selectedAction.to ?? '')" class="app-input" @input="$emit('update-text-field', 'to', ($event.target as HTMLInputElement).value)" />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点文字变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">起点文字变量</span>
           <EditorSelectField
             :model-value="selectedAction.from_expr || null"
             :options="resolvedSwipeFromTextVariableOptions"
@@ -384,7 +384,7 @@
           />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点文字变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">终点文字变量</span>
           <EditorSelectField
             :model-value="selectedAction.to_expr || null"
             :options="resolvedSwipeToTextVariableOptions"
@@ -408,7 +408,7 @@
 
       <div v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="grid gap-3 md:grid-cols-2">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">起点标签</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">起点标签</span>
           <AppSelect
             :model-value="typeof selectedAction.from === 'number' ? selectedAction.from : null"
             :options="resolvedSwipeFromLabelOptions"
@@ -419,7 +419,7 @@
           />
         </label>
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">终点标签</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">终点标签</span>
           <AppSelect
             :model-value="typeof selectedAction.to === 'number' ? selectedAction.to : null"
             :options="resolvedSwipeToLabelOptions"

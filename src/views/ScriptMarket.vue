@@ -2,6 +2,7 @@
   <div class="space-y-6">
     <AppPageHeader
       title="脚本市场"
+      description="检索云端脚本并下载到本地库。"
     />
 
     <SurfacePanel class="grid gap-3 lg:grid-cols-[1.2fr_1fr_220px_120px]">
@@ -17,13 +18,13 @@
       <SurfacePanel class="space-y-3">
         <div class="flex items-center justify-between">
           <div>
-            <p class="text-sm font-semibold text-[var(--app-text-strong)]">搜索结果</p>
+            <p class="text-sm font-semibold text-(--app-text-strong)">搜索结果</p>
           </div>
         </div>
 
-        <div v-if="scriptStore.marketLoading" class="py-12 text-sm text-[var(--app-text-soft)]">正在检索...</div>
-        <div v-else-if="!scriptStore.marketPage.records.length">
-          <EmptyState title="没有找到匹配脚本" description="换一个关键字、作者名或运行时试试？" />
+        <div v-if="scriptStore.marketLoading" class="py-12 text-sm text-(--app-text-soft)">正在检索...</div>
+        <div v-else-if="!scriptStore.marketPage.records.length" class="space-y-3">
+          <EmptyState title="没有找到匹配脚本" description="可以放宽关键字、作者或运行时筛选后重新搜索。" icon="search" />
         </div>
         <div v-else class="space-y-2">
           <button
@@ -34,8 +35,8 @@
             :class="{ 'app-list-item-active': script.id === selectedScriptId }"
             @click="selectedScriptId = script.id"
           >
-            <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ script.name || '未命名脚本' }}</p>
-            <p class="mt-1 truncate text-xs text-[var(--app-text-faint)]">{{ script.description || '暂无描述' }}</p>
+            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ script.name || '未命名脚本' }}</p>
+            <p class="mt-1 truncate text-xs text-(--app-text-faint)">{{ script.description || '暂无描述' }}</p>
           </button>
         </div>
       </SurfacePanel>
@@ -44,10 +45,10 @@
         <template v-if="selectedScript">
           <div class="space-y-2">
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="text-2xl font-semibold text-[var(--app-text-strong)]">{{ selectedScript.name || '未命名脚本' }}</h2>
+              <h2 class="text-2xl font-semibold text-(--app-text-strong)">{{ selectedScript.name || '未命名脚本' }}</h2>
               <StatusBadge label="云端脚本" tone="info" />
             </div>
-            <p class="text-sm leading-6 text-[var(--app-text-soft)]">
+            <p class="text-sm leading-6 text-(--app-text-soft)">
               {{ selectedScript.description || '脚本作者还没有补充详细说明。' }}
             </p>
           </div>
@@ -71,18 +72,18 @@
             </div>
           </div>
 
-          <div class="grid gap-3 text-sm text-[var(--app-text-soft)] md:grid-cols-2">
-            <div class="rounded-[20px] border border-[var(--app-border)] p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">发布时间</p>
-              <p class="mt-2 text-[var(--app-text-strong)]">{{ formatDate(selectedScript.createTime) }}</p>
+          <div class="grid gap-3 text-sm text-(--app-text-soft) md:grid-cols-2">
+            <div class="rounded-[20px] border border-(--app-border) p-4">
+              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">发布时间</p>
+              <p class="mt-2 text-(--app-text-strong)">{{ formatDate(selectedScript.createTime) }}</p>
             </div>
-            <div class="rounded-[20px] border border-[var(--app-border)] p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">包名</p>
-              <p class="mt-2 text-[var(--app-text-strong)]">{{ selectedScript.pkgName || '未指定' }}</p>
+            <div class="rounded-[20px] border border-(--app-border) p-4">
+              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">包名</p>
+              <p class="mt-2 text-(--app-text-strong)">{{ selectedScript.pkgName || '未指定' }}</p>
             </div>
-            <div class="rounded-[20px] border border-[var(--app-border)] p-4 md:col-span-2">
-              <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">Activity</p>
-              <p class="mt-2 text-[var(--app-text-strong)]">{{ selectedScript.activityName || '未指定' }}</p>
+            <div class="rounded-[20px] border border-(--app-border) p-4 md:col-span-2">
+              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">Activity</p>
+              <p class="mt-2 text-(--app-text-strong)">{{ selectedScript.activityName || '未指定' }}</p>
             </div>
           </div>
 
@@ -98,7 +99,9 @@
 
         <EmptyState
           v-else
-          title="选择一个脚本查看详情"
+          title="选择一个脚本后查看详情"
+          description="搜索结果会显示在左侧，选中后可查看元信息"
+          icon="info"
         />
       </SurfacePanel>
     </div>

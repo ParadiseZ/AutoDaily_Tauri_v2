@@ -11,7 +11,7 @@
       <div class="min-w-0 flex-1 space-y-1">
         <div class="flex flex-wrap items-center gap-2">
           <span class="editor-search-rule-badge">{{ headerLabel }}</span>
-          <span class="truncate text-xs text-[var(--app-text-faint)]">{{ describeSearchRule(currentRule) }}</span>
+          <span class="truncate text-xs text-(--app-text-faint)">{{ describeSearchRule(currentRule) }}</span>
         </div>
 
         <div v-if="!isRootGroup" class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
@@ -34,7 +34,7 @@
     <div class="mt-4 space-y-3">
       <template v-if="currentRule.type === SEARCH_RULE_TYPE.txt">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">文本</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">文本</span>
           <input
             :value="currentRule.pattern"
             class="app-input"
@@ -46,7 +46,7 @@
 
       <template v-else-if="currentRule.type === SEARCH_RULE_TYPE.detLabel">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">标签索引</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签索引</span>
           <input
             :value="String(currentRule.idx)"
             class="app-input"
@@ -58,7 +58,7 @@
       </template>
 
       <template v-else-if="currentRule.type === SEARCH_RULE_TYPE.group">
-        <div class="rounded-[16px] border border-[var(--app-border)] bg-white/45 px-4 py-4">
+        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-4">
           <div class="editor-inline-grid">
             <div class="editor-inline-label">组合逻辑</div>
             <div class="editor-inline-content">

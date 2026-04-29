@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col gap-4">
-    <div v-if="loading" class="flex min-h-0 flex-1 items-center rounded-[18px] border border-[var(--app-border)] px-4 py-8 text-sm text-[var(--app-text-soft)]">
+    <div v-if="loading" class="flex min-h-0 flex-1 items-center rounded-[18px] border border-(--app-border) px-4 py-8 text-sm text-(--app-text-soft)">
       正在读取模板变量...
     </div>
 
@@ -9,10 +9,10 @@
     </div>
 
     <template v-else>
-      <div class="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-        <div class="flex flex-wrap items-center gap-2 text-xs text-[var(--app-text-faint)]">
-          <span class="rounded-full border border-[var(--app-border)] px-3 py-1">{{ entries.length }} 个变量</span>
-          <span v-if="recordUpdatedAt" class="rounded-full border border-[var(--app-border)] px-3 py-1">上次保存 {{ recordUpdatedAt }}</span>
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2 text-xs text-(--app-text-faint)">
+          <span class="rounded-full border border-(--app-border) px-3 py-1">{{ entries.length }} 个变量</span>
+          <span v-if="recordUpdatedAt" class="rounded-full border border-(--app-border) px-3 py-1">上次保存 {{ recordUpdatedAt }}</span>
           <span
             class="rounded-full px-3 py-1"
             :class="hasDirtyChanges ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
@@ -57,37 +57,37 @@
 
       <div
         v-else
-        class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]"
+        class="flex min-h-0 flex-1 items-center rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)"
       >
         当前脚本没有可预览任务。
       </div>
 
       <div
         v-if="unboundEntries.length"
-        class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4"
+        class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4"
       >
         <div class="space-y-1">
-          <p class="text-sm font-semibold text-[var(--app-text-strong)]">未挂到 UI 的变量</p>
-          <p class="text-xs text-[var(--app-text-faint)]">这些变量当前没有出现在任务 UI 预览里，仍保留简化输入框。</p>
+          <p class="text-sm font-semibold text-(--app-text-strong)">未挂到 UI 的变量</p>
+          <p class="text-xs text-(--app-text-faint)">这些变量当前没有出现在任务 UI 预览里，仍保留简化输入框。</p>
         </div>
 
         <div class="mt-4 space-y-3">
-          <div v-for="entry in unboundEntries" :key="entry.id" class="rounded-[16px] border border-[var(--app-border)] bg-white/70 px-4 py-3 dark:bg-white/5">
+          <div v-for="entry in unboundEntries" :key="entry.id" class="rounded-[16px] border border-(--app-border) bg-white/70 px-4 py-3 dark:bg-white/5">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="space-y-1">
-                <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ entry.name }}</p>
-                <p class="text-xs text-[var(--app-text-faint)]">
+                <p class="text-sm font-semibold text-(--app-text-strong)">{{ entry.name }}</p>
+                <p class="text-xs text-(--app-text-faint)">
                   {{ entry.ownerTaskName }} · {{ entry.displayKey }} · {{ getVariableValueTypeLabel(entry.valueType) }}
                 </p>
               </div>
-              <span class="rounded-full border border-[var(--app-border)] px-3 py-1 text-[11px] text-[var(--app-text-soft)]">
+              <span class="rounded-full border border-(--app-border) px-3 py-1 text-[11px] text-(--app-text-soft)">
                 默认 {{ entry.defaultPreview }}
               </span>
             </div>
 
             <label
               v-if="entry.valueType === 'bool'"
-              class="mt-3 flex min-h-[44px] items-center gap-3 rounded-[14px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]"
+              class="mt-3 flex min-h-[44px] items-center gap-3 rounded-[14px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)"
             >
               <input
                 :checked="entry.booleanValue"

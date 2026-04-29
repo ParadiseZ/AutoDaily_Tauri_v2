@@ -24,22 +24,22 @@
       <template v-if="activeTab === 'basic'">
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">名称</span>
+            <span class="text-sm text-(--app-text-soft)">名称</span>
             <input v-model.trim="form.deviceName" class="app-input" placeholder="MuMu 模拟器 12" />
           </label>
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">日志级别</span>
+            <span class="text-sm text-(--app-text-soft)">日志级别</span>
             <AppSelect v-model="form.logLevel" :options="logLevelOptions" />
           </label>
         </div>
 
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">截图方式</span>
+            <span class="text-sm text-(--app-text-soft)">截图方式</span>
             <AppSelect v-model="form.capMethodType" :options="captureOptions" />
           </label>
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">窗口名 / 标识</span>
+            <span class="text-sm text-(--app-text-soft)">窗口名 / 标识</span>
             <input
               v-model.trim="form.capMethodValue"
               class="app-input"
@@ -51,11 +51,11 @@
 
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">连接方式</span>
+            <span class="text-sm text-(--app-text-soft)">连接方式</span>
             <AppSelect v-model="form.connectMethod" :options="connectOptions" />
           </label>
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">地址 / 设备名</span>
+            <span class="text-sm text-(--app-text-soft)">地址 / 设备名</span>
             <input
               v-if="form.connectMethod !== 'serverConnectByName'"
               v-model.trim="form.connectAddress"
@@ -73,7 +73,7 @@
 
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">设备启动路径（可选）</span>
+            <span class="text-sm text-(--app-text-soft)">设备启动路径（可选）</span>
             <div class="path-input-row">
               <input v-model.trim="form.exePath" class="app-input" placeholder="模拟器启动路径" />
               <button class="app-button app-button-ghost path-picker-button" type="button" @click="pickExePath">
@@ -82,21 +82,21 @@
             </div>
           </label>
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">启动参数（可选）</span>
+            <span class="text-sm text-(--app-text-soft)">启动参数（可选）</span>
             <input v-model.trim="form.exeArgs" class="app-input" placeholder="例如 --instance 1" />
           </label>
         </div>
 
         <div class="grid gap-3">
           <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-[var(--app-text-strong)]">CPU 核心绑定</span>
-            <span class="text-xs text-[var(--app-text-faint)]">显示的是物理核心索引，共 {{ cpuCount }} 个</span>
+            <span class="text-sm font-medium text-(--app-text-strong)">CPU 核心绑定</span>
+            <span class="text-xs text-(--app-text-faint)">显示的是物理核心索引，共 {{ cpuCount }} 个</span>
           </div>
           <div class="flex flex-wrap gap-2">
             <label
               v-for="core in cpuIndexes"
               :key="core"
-              class="flex items-center gap-2 rounded-full border border-[var(--app-border)] px-3 py-2 text-sm"
+              class="flex items-center gap-2 rounded-full border border-(--app-border) px-3 py-2 text-sm"
             >
               <input
                 type="checkbox"
@@ -110,44 +110,44 @@
         </div>
 
         <div class="grid gap-3 md:grid-cols-2">
-          <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-            <span class="text-sm text-[var(--app-text-strong)]">启用设备</span>
+          <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+            <span class="text-sm text-(--app-text-strong)">启用设备</span>
             <input v-model="form.enable" type="checkbox" class="toggle toggle-sm" />
           </label>
-          <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-            <span class="text-sm text-[var(--app-text-strong)]">自动启动设备进程</span>
+          <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+            <span class="text-sm text-(--app-text-strong)">自动启动设备进程</span>
             <input v-model="form.autoStart" type="checkbox" class="toggle toggle-sm" />
           </label>
         </div>
       </template>
 
       <template v-else>
-        <div class="grid gap-4 rounded-[24px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/60 p-4">
+        <div class="grid gap-4 rounded-[24px] border border-(--app-border) bg-(--app-panel-muted)/60 p-4">
           <div class="flex items-center justify-between">
             <div>
-              <p class="text-sm font-semibold text-[var(--app-text-strong)]">执行策略</p>
-              <p class="text-xs text-[var(--app-text-faint)]">设备级运行策略，作用于当前设备会话，不属于脚本定义。</p>
+              <p class="text-sm font-semibold text-(--app-text-strong)">执行策略</p>
+              <p class="text-xs text-(--app-text-faint)">设备级运行策略，作用于当前设备会话，不属于脚本定义。</p>
             </div>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">动作后等待（毫秒）</span>
+              <span class="text-sm text-(--app-text-soft)">动作后等待（毫秒）</span>
               <input v-model.number="form.actionWaitMs" class="app-input" type="number" min="0" step="100" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">超时行为</span>
+              <span class="text-sm text-(--app-text-soft)">超时行为</span>
               <AppSelect v-model="form.timeoutAction" :options="timeoutActionOptions" />
             </label>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2">
-            <label class="flex items-center justify-between rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-3">
-              <span class="text-sm text-[var(--app-text-strong)]">启用无有效进展超时</span>
+            <label class="flex items-center justify-between rounded-[18px] border border-(--app-border) bg-(--app-panel) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">启用无有效进展超时</span>
               <input v-model="form.progressTimeoutEnabled" type="checkbox" class="toggle toggle-sm" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">超时时间（毫秒）</span>
+              <span class="text-sm text-(--app-text-soft)">超时时间（毫秒）</span>
               <input
                 v-model.number="form.progressTimeoutMs"
                 class="app-input"
@@ -160,13 +160,13 @@
           </div>
 
           <div class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">通知渠道</span>
+            <span class="text-sm text-(--app-text-soft)">通知渠道</span>
             <div class="flex flex-wrap gap-3">
-              <label class="flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-sm text-[var(--app-text-strong)]">
+              <label class="flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-3 py-2 text-sm text-(--app-text-strong)">
                 <input v-model="form.timeoutNotifyChannels" type="checkbox" value="systemNotification" class="h-4 w-4" />
                 系统通知
               </label>
-              <label class="flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-3 py-2 text-sm text-[var(--app-text-strong)]">
+              <label class="flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-3 py-2 text-sm text-(--app-text-strong)">
                 <input v-model="form.timeoutNotifyChannels" type="checkbox" value="email" class="h-4 w-4" />
                 邮件
               </label>
@@ -176,11 +176,11 @@
       </template>
 
       <div class="flex justify-end gap-3 pt-2">
-        <button class="app-button app-button-ghost text-[var(--app-text-strong)] group" type="button" @click="$emit('close')">
+        <button class="app-button app-button-ghost text-(--app-text-strong) group" type="button" @click="$emit('close')">
           <AppIcon name="x" :size="16" class="opacity-70 transition-opacity group-hover:opacity-100" />
           取消
         </button>
-        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="submit">
+        <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="submit">
           <AppIcon name="save" :size="16" />
           保存设备
         </button>

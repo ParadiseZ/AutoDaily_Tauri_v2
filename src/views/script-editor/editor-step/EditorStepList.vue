@@ -34,16 +34,16 @@
         <button class="min-w-0 text-left" type="button" @click="$emit('select', index)">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
-              <AppIcon name="node" :size="16" class="text-[var(--app-vibrant-blue)] opacity-80 shrink-0" />
-              <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">
+              <AppIcon name="node" :size="16" class="text-(--app-vibrant-blue) opacity-80 shrink-0" />
+              <p class="truncate text-sm font-semibold text-(--app-text-strong)">
                 {{ describeStep(step) }}
               </p>
-              <span class="rounded-full border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-2 py-0.5 text-[11px] font-medium text-[var(--app-text-soft)]">
+              <span class="rounded-full border border-(--app-border) bg-(--app-panel-muted) px-2 py-0.5 text-[11px] font-medium text-(--app-text-soft)">
                 {{ step.op }}
               </span>
             </div>
-            <p v-if="describeStepMeta(step) !== describeStep(step)" class="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{{ describeStepMeta(step) }}</p>
-            <p v-if="nestedSummary(step)" class="mt-2 text-xs text-[var(--app-text-faint)]">{{ nestedSummary(step) }}</p>
+            <p v-if="describeStepMeta(step) !== describeStep(step)" class="mt-2 text-sm leading-6 text-(--app-text-soft)">{{ describeStepMeta(step) }}</p>
+            <p v-if="nestedSummary(step)" class="mt-2 text-xs text-(--app-text-faint)">{{ nestedSummary(step) }}</p>
           </div>
         </button>
 

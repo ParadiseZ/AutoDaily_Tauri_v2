@@ -22,11 +22,11 @@
 
       <form v-if="currentTab === 'login'" class="grid gap-4" @submit.prevent="handleLogin">
         <label class="grid gap-2">
-          <span class="text-sm text-[var(--app-text-soft)]">用户名 / 邮箱</span>
+          <span class="text-sm text-(--app-text-soft)">用户名 / 邮箱</span>
           <input v-model.trim="loginForm.username" class="app-input" placeholder="输入用户名或邮箱" />
         </label>
         <label class="grid gap-2">
-          <span class="text-sm text-[var(--app-text-soft)]">密码</span>
+          <span class="text-sm text-(--app-text-soft)">密码</span>
           <input v-model="loginForm.password" class="app-input" type="password" placeholder="输入密码" />
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">
@@ -42,17 +42,17 @@
       <form v-else-if="currentTab === 'register'" class="grid gap-4" @submit.prevent="handleRegister">
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">用户名</span>
+            <span class="text-sm text-(--app-text-soft)">用户名</span>
             <input v-model.trim="registerForm.username" class="app-input" placeholder="输入用户名" />
           </label>
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">邮箱</span>
+            <span class="text-sm text-(--app-text-soft)">邮箱</span>
             <input v-model.trim="registerForm.email" class="app-input" placeholder="name@example.com" />
           </label>
         </div>
         <div class="grid gap-4 md:grid-cols-[1fr_auto]">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">验证码</span>
+            <span class="text-sm text-(--app-text-soft)">验证码</span>
             <input v-model.trim="registerForm.code" class="app-input" placeholder="输入邮箱验证码" />
           </label>
           <button class="app-button app-button-ghost self-end" type="button" @click="sendCode(registerForm.email)">
@@ -61,11 +61,11 @@
         </div>
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">密码</span>
+            <span class="text-sm text-(--app-text-soft)">密码</span>
             <input v-model="registerForm.password" class="app-input" type="password" placeholder="设置密码" />
           </label>
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">手机号（可选）</span>
+            <span class="text-sm text-(--app-text-soft)">手机号（可选）</span>
             <input v-model.trim="registerForm.phone" class="app-input" placeholder="便于后续找回" />
           </label>
         </div>
@@ -81,12 +81,12 @@
 
       <form v-else class="grid gap-4" @submit.prevent="handleResetPassword">
         <label class="grid gap-2">
-          <span class="text-sm text-[var(--app-text-soft)]">邮箱</span>
+          <span class="text-sm text-(--app-text-soft)">邮箱</span>
           <input v-model.trim="resetForm.email" class="app-input" placeholder="输入注册邮箱" />
         </label>
         <div class="grid gap-4 md:grid-cols-[1fr_auto]">
           <label class="grid gap-2">
-            <span class="text-sm text-[var(--app-text-soft)]">验证码</span>
+            <span class="text-sm text-(--app-text-soft)">验证码</span>
             <input v-model.trim="resetForm.code" class="app-input" placeholder="输入邮箱验证码" />
           </label>
           <button class="app-button app-button-ghost self-end" type="button" @click="sendCode(resetForm.email)">
@@ -94,7 +94,7 @@
           </button>
         </div>
         <label class="grid gap-2">
-          <span class="text-sm text-[var(--app-text-soft)]">新密码</span>
+          <span class="text-sm text-(--app-text-soft)">新密码</span>
           <input v-model="resetForm.newPassword" class="app-input" type="password" placeholder="设置新密码" />
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">

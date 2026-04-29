@@ -33,7 +33,7 @@
     <div class="support-qr-row items-start">
       <span class="support-qr-label pt-3">二维码预览</span>
       <div class="grid gap-4 lg:grid-cols-[180px_minmax(0,1fr)]">
-        <div class="flex min-h-[180px] items-center justify-center overflow-hidden rounded-[20px] border border-[var(--app-border)] bg-[color-mix(in_srgb,var(--app-panel-muted)_92%,transparent)]">
+        <div class="flex min-h-[180px] items-center justify-center overflow-hidden rounded-[20px] border border-(--app-border) bg-[color-mix(in_srgb,var(--app-panel-muted)_92%,transparent)]">
         <img
           v-if="previewSrc && !previewFailed"
           :src="previewSrc"
@@ -42,7 +42,7 @@
           :data-testid="previewTestId"
           @error="previewFailed = true"
         />
-        <div v-else class="px-5 text-center text-xs leading-6 text-[var(--app-text-faint)]">
+        <div v-else class="px-5 text-center text-xs leading-6 text-(--app-text-faint)">
           {{
             previewLoading
               ? '正在生成预览...'
@@ -54,9 +54,9 @@
         </div>
 
         <div class="space-y-3">
-          <div class="rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm" :data-testid="sourceTestId">
-            <p class="text-xs text-[var(--app-text-faint)]">当前来源</p>
-            <p class="mt-1 break-all text-[var(--app-text-strong)]">{{ sourceLabel }}</p>
+          <div class="rounded-[16px] border border-(--app-border) px-4 py-3 text-sm" :data-testid="sourceTestId">
+            <p class="text-xs text-(--app-text-faint)">当前来源</p>
+            <p class="mt-1 break-all text-(--app-text-strong)">{{ sourceLabel }}</p>
           </div>
         </div>
       </div>

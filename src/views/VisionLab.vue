@@ -1,17 +1,17 @@
 <template>
-  <div class="vision-lab-shell h-[100svh] overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
+  <div class="vision-lab-shell h-svh overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
     <div class="mx-auto flex h-full max-w-[1900px] flex-col gap-4">
-      <header class="vision-lab-header rounded-[28px] border border-[var(--app-border)] px-5 py-4 lg:px-6">
+      <header class="vision-lab-header rounded-[28px] border border-(--app-border) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="space-y-2">
             <div class="flex flex-wrap items-center gap-3">
-              <span class="rounded-full border border-[var(--app-border)] bg-white/55 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--app-text-faint)]">
+              <span class="rounded-full border border-(--app-border) bg-white/55 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-(--app-text-faint)">
                 Vision Lab
               </span>
             </div>
             <div class="space-y-1">
-              <h1 class="text-2xl font-semibold tracking-[-0.05em] text-[var(--app-text-strong)] lg:text-3xl">视觉测试工作台</h1>
-              <p class="text-sm text-[var(--app-text-soft)]">{{ selectedItem?.name || '未选择图像' }}</p>
+              <h1 class="text-2xl font-semibold tracking-[-0.05em] text-(--app-text-strong) lg:text-3xl">视觉测试工作台</h1>
+              <p class="text-sm text-(--app-text-soft)">{{ selectedItem?.name || '未选择图像' }}</p>
             </div>
           </div>
 
@@ -32,7 +32,7 @@
               <AppIcon name="folder-output" :size="16" />
               保存目录
             </button>
-            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="captureFromDevice">
+            <button class="app-button app-button-primary shadow-(--app-accent-soft)" type="button" @click="captureFromDevice">
               <AppIcon name="camera" :size="16" />
               设备截图
             </button>
@@ -41,19 +41,19 @@
       </header>
 
       <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_minmax(460px,540px)] 2xl:grid-cols-[320px_minmax(0,1fr)_minmax(500px,580px)]">
-        <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-[var(--app-border)] bg-[var(--app-panel)]">
+        <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-(--app-border) bg-(--app-panel)">
           <div class="flex h-full flex-col">
-            <div class="border-b border-[var(--app-border)] px-4 py-4">
+            <div class="border-b border-(--app-border) px-4 py-4">
               <div class="space-y-3">
                 <div>
-                  <p class="text-xs uppercase tracking-[0.2em] text-[var(--app-text-faint)]">数据源</p>
-                  <p class="mt-1 text-sm text-[var(--app-text-soft)]">{{ filteredFolderItems.length }} 张目录图像 · {{ captureItems.length }} 张当前采集</p>
+                  <p class="text-xs uppercase tracking-[0.2em] text-(--app-text-faint)">数据源</p>
+                  <p class="mt-1 text-sm text-(--app-text-soft)">{{ filteredFolderItems.length }} 张目录图像 · {{ captureItems.length }} 张当前采集</p>
                 </div>
 
                 <div class="space-y-2">
                   <div class="flex items-center justify-between gap-3">
-                    <span class="text-xs font-semibold text-[var(--app-text-faint)]">设备</span>
-                    <span class="text-[11px] text-[var(--app-text-faint)]">{{ deviceOptions.length }} 台</span>
+                    <span class="text-xs font-semibold text-(--app-text-faint)">设备</span>
+                    <span class="text-[11px] text-(--app-text-faint)">{{ deviceOptions.length }} 台</span>
                   </div>
                   <div class="min-w-0">
                     <AppSelect
@@ -63,11 +63,11 @@
                       test-id="vision-lab-device"
                     />
                   </div>
-                  <p v-if="!deviceOptions.length" class="text-xs text-[var(--app-text-faint)]">当前没有可用设备，请先在设备列表中配置。</p>
+                  <p v-if="!deviceOptions.length" class="text-xs text-(--app-text-faint)">当前没有可用设备，请先在设备列表中配置。</p>
                 </div>
 
                 <label class="space-y-2">
-                  <span class="text-xs font-semibold text-[var(--app-text-faint)]">文件名筛选</span>
+                  <span class="text-xs font-semibold text-(--app-text-faint)">文件名筛选</span>
                   <input
                     v-model.trim="preferences.filterText"
                     class="app-input"
@@ -76,7 +76,7 @@
                   />
                 </label>
 
-                <div class="space-y-2 rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70 px-3 py-3 text-xs text-[var(--app-text-faint)]">
+                <div class="space-y-2 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted)/70 px-3 py-3 text-xs text-(--app-text-faint)">
                   <div class="flex items-start justify-between gap-3">
                     <span>图片目录</span>
                     <span class="truncate text-right">{{ preferences.imageDir || '未选择' }}</span>
@@ -93,15 +93,15 @@
               <section class="space-y-3">
                 <div class="flex items-center justify-between">
                   <div>
-                    <p class="text-sm font-semibold text-[var(--app-text-strong)]">目录图像</p>
-                    <p class="text-xs text-[var(--app-text-faint)]">{{ filteredFolderItems.length }} 张</p>
+                    <p class="text-sm font-semibold text-(--app-text-strong)">目录图像</p>
+                    <p class="text-xs text-(--app-text-faint)">{{ filteredFolderItems.length }} 张</p>
                   </div>
                   <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" :disabled="!preferences.imageDir" @click="reloadImageDirectory">
                     刷新
                   </button>
                 </div>
 
-                <div v-if="!filteredFolderItems.length" class="rounded-[22px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+                <div v-if="!filteredFolderItems.length" class="rounded-[22px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)">
                   先选择一个图像目录。
                 </div>
 
@@ -109,14 +109,14 @@
                   v-for="item in filteredFolderItems"
                   :key="item.id"
                   class="vision-list-item w-full rounded-[20px] border px-3 py-3 text-left transition"
-                  :class="selectedItem?.id === item.id ? 'border-[var(--app-accent)] bg-[var(--app-accent-soft)]/40' : 'border-[var(--app-border)] hover:border-[var(--app-accent)]/35'"
+                  :class="selectedItem?.id === item.id ? 'border-(--app-accent) bg-(--app-accent-soft)/40' : 'border-(--app-border) hover:border-(--app-accent)/35'"
                   type="button"
                   @click="selectItem(item)"
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
-                      <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.name }}</p>
-                      <p class="mt-1 line-clamp-2 text-xs leading-5 text-[var(--app-text-faint)]">{{ item.path }}</p>
+                      <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.name }}</p>
+                      <p class="mt-1 line-clamp-2 text-xs leading-5 text-(--app-text-faint)">{{ item.path }}</p>
                     </div>
                     <span class="rounded-full bg-emerald-500/12 px-2 py-1 text-[11px] font-medium text-emerald-700">已保存</span>
                   </div>
@@ -126,12 +126,12 @@
               <section class="mt-6 space-y-3">
                 <div class="flex items-center justify-between">
                   <div>
-                    <p class="text-sm font-semibold text-[var(--app-text-strong)]">当前采集</p>
-                    <p class="text-xs text-[var(--app-text-faint)]">{{ captureItems.length }} 张</p>
+                    <p class="text-sm font-semibold text-(--app-text-strong)">当前采集</p>
+                    <p class="text-xs text-(--app-text-faint)">{{ captureItems.length }} 张</p>
                   </div>
                 </div>
 
-                <div v-if="!captureItems.length" class="rounded-[22px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+                <div v-if="!captureItems.length" class="rounded-[22px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)">
                   当前还没有设备截图。
                 </div>
 
@@ -140,15 +140,15 @@
                   :key="item.id"
                   class="rounded-[22px] border px-3 py-3 transition"
                   :class="[
-                    selectedItem?.id === item.id ? 'border-[var(--app-accent)] bg-[var(--app-accent-soft)]/35' : 'border-[var(--app-border)]',
+                    selectedItem?.id === item.id ? 'border-(--app-accent) bg-(--app-accent-soft)/35' : 'border-(--app-border)',
                     item.saved ? 'shadow-[0_0_0_1px_rgba(16,185,129,0.1)]' : 'shadow-[0_0_0_1px_rgba(245,158,11,0.08)]',
                   ]"
                 >
                   <button class="w-full text-left" type="button" @click="selectItem(item)">
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0">
-                        <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.name }}</p>
-                        <p class="mt-1 text-xs text-[var(--app-text-faint)]">
+                        <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.name }}</p>
+                        <p class="mt-1 text-xs text-(--app-text-faint)">
                           {{ item.saved ? item.savedPath || '已保存' : '未保存到自定义目录' }}
                         </p>
                       </div>
@@ -170,7 +170,7 @@
                       <AppIcon name="save" :size="14" />
                       {{ item.saved ? '已保存' : savingCaptureId === item.id ? '保存中...' : '保存到本地' }}
                     </button>
-                    <span class="text-xs text-[var(--app-text-faint)]">{{ formatRelativeTime(item.createdAt) }}</span>
+                    <span class="text-xs text-(--app-text-faint)">{{ formatRelativeTime(item.createdAt) }}</span>
                   </div>
                 </div>
               </section>
@@ -178,14 +178,14 @@
           </div>
         </aside>
 
-        <main class="min-h-0 overflow-hidden rounded-[26px] border border-[var(--app-border)] bg-[var(--app-panel)]">
+        <main class="min-h-0 overflow-hidden rounded-[26px] border border-(--app-border) bg-(--app-panel)">
           <div class="flex h-full flex-col">
-            <div class="border-b border-[var(--app-border)] px-4 py-4">
+            <div class="border-b border-(--app-border) px-4 py-4">
               <div class="flex flex-col gap-4">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                   <div class="min-w-0">
-                    <p class="truncate text-lg font-semibold text-[var(--app-text-strong)]">{{ selectedItem?.name || '未选择图像' }}</p>
-                    <p class="mt-1 truncate text-sm text-[var(--app-text-soft)]">{{ selectedItem?.path || selectedItem?.savedPath || '请从左侧选择图像或先截图' }}</p>
+                    <p class="truncate text-lg font-semibold text-(--app-text-strong)">{{ selectedItem?.name || '未选择图像' }}</p>
+                    <p class="mt-1 truncate text-sm text-(--app-text-soft)">{{ selectedItem?.path || selectedItem?.savedPath || '请从左侧选择图像或先截图' }}</p>
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
                     <button
@@ -193,7 +193,7 @@
                       :key="tool.value"
                       class="app-button app-button-ghost px-3 py-2 text-xs"
                       type="button"
-                      :class="activeTool === tool.value ? '!border-[var(--app-accent)] !text-[var(--app-accent)]' : ''"
+                      :class="activeTool === tool.value ? 'border-(--app-accent)! text-(--app-accent)!' : ''"
                       @click="activeTool = tool.value"
                     >
                       {{ tool.label }}
@@ -201,15 +201,15 @@
                     <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="fitPreview">适配</button>
                     <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="resetZoom">原始大小</button>
                     <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomOut">-</button>
-                    <span class="rounded-full border border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-text-soft)]">{{ Math.round(zoom * 100) }}%</span>
+                    <span class="rounded-full border border-(--app-border) px-3 py-2 text-xs text-(--app-text-soft)">{{ Math.round(zoom * 100) }}%</span>
                     <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomIn">+</button>
                   </div>
                 </div>
 
                 <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
                   <div class="grid gap-3 sm:grid-cols-2">
-                    <div class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs text-[var(--app-text-soft)]">
-                      <p class="font-semibold text-[var(--app-text-strong)]">点取色</p>
+                    <div class="rounded-[18px] border border-(--app-border) px-3 py-3 text-xs text-(--app-text-soft)">
+                      <p class="font-semibold text-(--app-text-strong)">点取色</p>
                       <template v-if="pickedPoint">
                         <p class="mt-2">坐标：({{ pickedPoint.x }}, {{ pickedPoint.y }})</p>
                         <p>HEX：{{ pickedPoint.hex }}</p>
@@ -217,8 +217,8 @@
                       </template>
                       <p v-else class="mt-2">切到“点取色”后点击图像。</p>
                     </div>
-                    <div class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs text-[var(--app-text-soft)]">
-                      <p class="font-semibold text-[var(--app-text-strong)]">区域采样</p>
+                    <div class="rounded-[18px] border border-(--app-border) px-3 py-3 text-xs text-(--app-text-soft)">
+                      <p class="font-semibold text-(--app-text-strong)">区域采样</p>
                       <template v-if="regionSample">
                         <p class="mt-2">区域：{{ formatBox(regionSample.box) }}</p>
                         <p>HEX：{{ regionSample.hex }}</p>
@@ -227,9 +227,9 @@
                       <p v-else class="mt-2">切到“区域采样”后拖拽选框。</p>
                     </div>
                   </div>
-                  <div class="rounded-[18px] border border-[var(--app-border)] px-3 py-3 text-xs text-[var(--app-text-soft)]">
-                    <p class="font-semibold text-[var(--app-text-strong)]">目标颜色</p>
-                    <input v-model="targetColorHex" class="mt-2 h-11 w-full rounded-[14px] border border-[var(--app-border)] bg-transparent px-3" type="color" />
+                  <div class="rounded-[18px] border border-(--app-border) px-3 py-3 text-xs text-(--app-text-soft)">
+                    <p class="font-semibold text-(--app-text-strong)">目标颜色</p>
+                    <input v-model="targetColorHex" class="mt-2 h-11 w-full rounded-[14px] border border-(--app-border) bg-transparent px-3" type="color" />
                     <p class="mt-2">用于点取色和区域采样的差异对比。</p>
                   </div>
                 </div>
@@ -239,7 +239,7 @@
             <div ref="previewContainerRef" class="vision-preview-scroll min-h-0 flex-1 overflow-auto px-4 py-4" @wheel="handlePreviewWheel">
               <div
                 v-if="selectedPreviewUrl"
-                class="vision-preview-frame mx-auto w-max rounded-[28px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] p-4"
+                class="vision-preview-frame mx-auto w-max rounded-[28px] border border-(--app-border) bg-(--app-panel-muted) p-4"
               >
                 <div
                   ref="previewSurfaceRef"
@@ -293,24 +293,17 @@
                 </div>
               </div>
 
-              <div v-else class="flex h-full min-h-[360px] items-center justify-center rounded-[28px] border border-dashed border-[var(--app-border)] text-sm text-[var(--app-text-soft)]">
+              <div v-else class="flex h-full min-h-[360px] items-center justify-center rounded-[28px] border border-dashed border-(--app-border) text-sm text-(--app-text-soft)">
                 选择一张目录图像，或先从设备采集截图。
               </div>
             </div>
           </div>
         </main>
 
-        <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-[var(--app-border)] bg-[var(--app-panel)]">
+        <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-(--app-border) bg-(--app-panel)">
           <div class="flex h-full flex-col">
-            <div class="border-b border-[var(--app-border)] px-4 py-4">
+            <div class="border-b border-(--app-border) px-4 py-4">
               <div class="space-y-3">
-                  <div class="flex items-center justify-between">
-                    <div>
-                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">分析控制台</p>
-                    <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ activeTabLabel }}</p>
-                    </div>
-                  </div>
-
                 <div class="overflow-x-auto">
                   <div class="editor-panel-tabs min-w-max">
                   <button
@@ -330,25 +323,25 @@
 
             <div class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
               <section v-if="activeTab === 'det'" class="space-y-5">
-                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                <section class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted)/70">
                   <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.detConfig = !panelOpen.detConfig">
-                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">检测模型配置</span>
-                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.detConfig ? '收起' : '展开' }}</span>
+                    <span class="text-sm font-semibold text-(--app-text-strong)">检测模型配置</span>
+                    <span class="text-xs text-(--app-text-faint)">{{ panelOpen.detConfig ? '收起' : '展开' }}</span>
                   </button>
-                  <div v-if="panelOpen.detConfig" class="space-y-3 border-t border-[var(--app-border)] px-4 py-4">
+                  <div v-if="panelOpen.detConfig" class="space-y-3 border-t border-(--app-border) px-4 py-4">
                     <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
+                      <span class="text-xs font-semibold text-(--app-text-faint)">模型类型</span>
                       <AppSelect :model-value="imgDetKind" :options="imgDetectorOptions" placeholder="选择模型" test-id="vision-lab-img-det-kind" @update:model-value="setImgDetKind" />
                     </label>
                     <template v-if="imgDetYolo">
                       <ModelBaseFields :model="imgDetYolo.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\img-det.onnx" test-id-prefix="vision-lab-img-det-base" />
                       <div class="grid gap-3 sm:grid-cols-2">
                         <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">类别数量</span>
+                          <span class="text-xs font-semibold text-(--app-text-faint)">类别数量</span>
                           <input v-model.number="imgDetYolo.classCount" class="app-input" min="1" type="number" />
                         </label>
                         <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
+                          <span class="text-xs font-semibold text-(--app-text-faint)">标签路径</span>
                           <div class="vision-path-row">
                             <input v-model.trim="imgDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
                             <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickImgDetLabelPath">
@@ -359,11 +352,11 @@
                       </div>
                       <div class="grid gap-3 sm:grid-cols-2">
                         <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">置信度</span>
+                          <span class="text-xs font-semibold text-(--app-text-faint)">置信度</span>
                           <input v-model.number="imgDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
                         </label>
                         <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">IOU</span>
+                          <span class="text-xs font-semibold text-(--app-text-faint)">IOU</span>
                           <input v-model.number="imgDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
                         </label>
                       </div>
@@ -374,31 +367,31 @@
                   </div>
                 </section>
 
-                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                <section class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted)/70">
                   <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.detResults = !panelOpen.detResults">
-                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">检测结果集</span>
-                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.detResults ? '收起' : '展开' }}</span>
+                    <span class="text-sm font-semibold text-(--app-text-strong)">检测结果集</span>
+                    <span class="text-xs text-(--app-text-faint)">{{ panelOpen.detResults ? '收起' : '展开' }}</span>
                   </button>
-                  <div v-if="panelOpen.detResults" class="space-y-3 border-t border-[var(--app-border)] px-4 py-4">
+                  <div v-if="panelOpen.detResults" class="space-y-3 border-t border-(--app-border) px-4 py-4">
                     <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_160px]">
                       <label class="space-y-2">
-                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">名称筛选</span>
+                        <span class="text-xs font-semibold text-(--app-text-faint)">名称筛选</span>
                         <input v-model.trim="detSearchText" class="app-input" placeholder="标签或名称" />
                       </label>
                       <label class="space-y-2">
-                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签筛选</span>
+                        <span class="text-xs font-semibold text-(--app-text-faint)">标签筛选</span>
                         <AppSelect v-model="detLabelFilter" :options="detLabelFilterOptions" placeholder="全部" test-id="vision-lab-det-label-filter" />
                       </label>
                     </div>
 
-                    <div v-if="!filteredDetResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                    <div v-if="!filteredDetResults.length" class="rounded-[18px] border border-dashed border-(--app-border) px-3 py-4 text-xs text-(--app-text-soft)">
                       运行目标检测后，这里展示结果。
                     </div>
-                    <div v-for="(item, index) in filteredDetResults" :key="`det-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                    <div v-for="(item, index) in filteredDetResults" :key="`det-${index}`" class="rounded-[18px] border border-(--app-border) px-3 py-3">
                       <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                          <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.index }}: {{ item.label }}</p>
-                          <p class="mt-1 text-xs text-[var(--app-text-faint)]">类目 #{{ item.index }} · {{ formatBox(item.bounding_box) }}</p>
+                          <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.index }}: {{ item.label }}</p>
+                          <p class="mt-1 text-xs text-(--app-text-faint)">类目 #{{ item.index }} · {{ formatBox(item.bounding_box) }}</p>
                         </div>
                         <span class="rounded-full bg-amber-500/12 px-2 py-1 text-[11px] font-medium text-amber-700">{{ item.score.toFixed(3) }}</span>
                       </div>
@@ -408,27 +401,27 @@
               </section>
 
               <section v-else-if="activeTab === 'ocr'" class="space-y-5">
-                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                <section class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted)/70">
                   <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.ocrConfig = !panelOpen.ocrConfig">
-                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">OCR 模型配置</span>
-                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.ocrConfig ? '收起' : '展开' }}</span>
+                    <span class="text-sm font-semibold text-(--app-text-strong)">OCR 模型配置</span>
+                    <span class="text-xs text-(--app-text-faint)">{{ panelOpen.ocrConfig ? '收起' : '展开' }}</span>
                   </button>
-                  <div v-if="panelOpen.ocrConfig" class="space-y-4 border-t border-[var(--app-border)] px-4 py-4">
-                    <div class="space-y-3 rounded-[18px] border border-[var(--app-border)] px-3 py-3">
-                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字检测</p>
+                  <div v-if="panelOpen.ocrConfig" class="space-y-4 border-t border-(--app-border) px-4 py-4">
+                    <div class="space-y-3 rounded-[18px] border border-(--app-border) px-3 py-3">
+                      <p class="text-sm font-semibold text-(--app-text-strong)">文字检测</p>
                       <label class="space-y-2">
-                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
+                        <span class="text-xs font-semibold text-(--app-text-faint)">模型类型</span>
                         <AppSelect :model-value="txtDetKind" :options="txtDetectorOptions" placeholder="选择模型" test-id="vision-lab-txt-det-kind" @update:model-value="setTxtDetKind" />
                       </label>
                       <template v-if="txtDetYolo">
                         <ModelBaseFields :model="txtDetYolo.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\txt-det.onnx" test-id-prefix="vision-lab-txt-det-base" />
                         <div class="grid gap-3 sm:grid-cols-2">
                           <label class="space-y-2">
-                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">类别数量</span>
+                            <span class="text-xs font-semibold text-(--app-text-faint)">类别数量</span>
                             <input v-model.number="txtDetYolo.classCount" class="app-input" min="1" type="number" />
                           </label>
                           <label class="space-y-2">
-                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">标签路径</span>
+                            <span class="text-xs font-semibold text-(--app-text-faint)">标签路径</span>
                             <div class="vision-path-row">
                               <input v-model.trim="txtDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
                               <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickTxtDetLabelPath">
@@ -439,7 +432,7 @@
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
                           <label class="space-y-2">
-                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">文本索引</span>
+                            <span class="text-xs font-semibold text-(--app-text-faint)">文本索引</span>
                             <AppSelect
                               v-if="txtDetLabelOptions.length"
                               v-model="txtDetLabelSelectValue"
@@ -450,33 +443,33 @@
                             <input v-else v-model.number="txtDetYolo.txtIdx" class="app-input" min="0" type="number" placeholder="未加载标签时手动输入 idx" />
                           </label>
                           <label class="space-y-2">
-                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">置信度</span>
+                            <span class="text-xs font-semibold text-(--app-text-faint)">置信度</span>
                             <input v-model.number="txtDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
                           </label>
                         </div>
                         <div class="grid gap-3 sm:grid-cols-2">
                           <label class="space-y-2">
-                            <span class="text-xs font-semibold text-[var(--app-text-faint)]">IOU</span>
+                            <span class="text-xs font-semibold text-(--app-text-faint)">IOU</span>
                             <input v-model.number="txtDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
                           </label>
                         </div>
-                        <p v-if="txtDetLabelHint" class="text-xs text-[var(--app-text-faint)]">{{ txtDetLabelHint }}</p>
+                        <p v-if="txtDetLabelHint" class="text-xs text-(--app-text-faint)">{{ txtDetLabelHint }}</p>
                       </template>
                       <template v-else-if="txtDetDbNet">
                         <ModelBaseFields :model="txtDetDbNet.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\ocr-dbnet.onnx" test-id-prefix="vision-lab-txt-det-base" />
                       </template>
                     </div>
 
-                    <div class="space-y-3 rounded-[18px] border border-[var(--app-border)] px-3 py-3">
-                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">文字识别</p>
+                    <div class="space-y-3 rounded-[18px] border border-(--app-border) px-3 py-3">
+                      <p class="text-sm font-semibold text-(--app-text-strong)">文字识别</p>
                       <label class="space-y-2">
-                        <span class="text-xs font-semibold text-[var(--app-text-faint)]">模型类型</span>
+                        <span class="text-xs font-semibold text-(--app-text-faint)">模型类型</span>
                         <AppSelect :model-value="txtRecKind" :options="recognizerOptions" placeholder="选择模型" test-id="vision-lab-txt-rec-kind" @update:model-value="setTxtRecKind" />
                       </label>
                       <template v-if="txtRecCrnn">
                         <ModelBaseFields :model="txtRecCrnn.baseModel" compact path-placeholder="例如：D:\\models\\ocr-rec.onnx" test-id-prefix="vision-lab-txt-rec-base" />
                         <label class="space-y-2">
-                          <span class="text-xs font-semibold text-[var(--app-text-faint)]">字典路径</span>
+                          <span class="text-xs font-semibold text-(--app-text-faint)">字典路径</span>
                           <div class="vision-path-row">
                             <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
                             <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickTxtRecDictPath">
@@ -484,7 +477,7 @@
                             </button>
                           </div>
                         </label>
-                        <p class="text-xs text-[var(--app-text-faint)]">切换为内置后会保留内置模型来源配置；如需覆盖字典，继续填写自定义字典路径即可。</p>
+                        <p class="text-xs text-(--app-text-faint)">切换为内置后会保留内置模型来源配置；如需覆盖字典，继续填写自定义字典路径即可。</p>
                       </template>
                     </div>
 
@@ -499,54 +492,54 @@
                   </div>
                 </section>
 
-                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                <section class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted)/70">
                   <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.ocrResults = !panelOpen.ocrResults">
-                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">OCR 结果集</span>
-                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.ocrResults ? '收起' : '展开' }}</span>
+                    <span class="text-sm font-semibold text-(--app-text-strong)">OCR 结果集</span>
+                    <span class="text-xs text-(--app-text-faint)">{{ panelOpen.ocrResults ? '收起' : '展开' }}</span>
                   </button>
-                  <div v-if="panelOpen.ocrResults" class="space-y-4 border-t border-[var(--app-border)] px-4 py-4">
+                  <div v-if="panelOpen.ocrResults" class="space-y-4 border-t border-(--app-border) px-4 py-4">
                     <label class="space-y-2">
-                      <span class="text-xs font-semibold text-[var(--app-text-faint)]">文本筛选</span>
+                      <span class="text-xs font-semibold text-(--app-text-faint)">文本筛选</span>
                       <input v-model.trim="ocrFilterText" class="app-input" placeholder="包含关键字" />
                     </label>
 
                     <div class="space-y-3">
                       <div class="flex items-center justify-between">
-                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-faint)]">文字检测结果</p>
-                        <span class="text-xs text-[var(--app-text-faint)]">{{ textDetResults.length }}</span>
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-(--app-text-faint)">文字检测结果</p>
+                        <span class="text-xs text-(--app-text-faint)">{{ textDetResults.length }}</span>
                       </div>
-                      <div v-if="!textDetResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                      <div v-if="!textDetResults.length" class="rounded-[18px] border border-dashed border-(--app-border) px-3 py-4 text-xs text-(--app-text-soft)">
                         运行文字检测后，这里显示文本框。
                       </div>
-                      <div v-for="(item, index) in textDetResults" :key="`text-det-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
-                        <p class="text-xs text-[var(--app-text-faint)]">文本框 {{ index + 1 }} · {{ formatBox(item.bounding_box) }}</p>
-                        <p class="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{{ item.index }}: {{ item.label }}</p>
+                      <div v-for="(item, index) in textDetResults" :key="`text-det-${index}`" class="rounded-[18px] border border-(--app-border) px-3 py-3">
+                        <p class="text-xs text-(--app-text-faint)">文本框 {{ index + 1 }} · {{ formatBox(item.bounding_box) }}</p>
+                        <p class="mt-1 text-sm font-semibold text-(--app-text-strong)">{{ item.index }}: {{ item.label }}</p>
                       </div>
                     </div>
 
                     <div class="space-y-3">
                       <div class="flex items-center justify-between">
-                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--app-text-faint)]">OCR 结果</p>
-                        <span class="text-xs text-[var(--app-text-faint)]">{{ filteredOcrResults.length }}/{{ ocrResults.length }}</span>
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-(--app-text-faint)">OCR 结果</p>
+                        <span class="text-xs text-(--app-text-faint)">{{ filteredOcrResults.length }}/{{ ocrResults.length }}</span>
                       </div>
-                      <div v-if="!filteredOcrResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                      <div v-if="!filteredOcrResults.length" class="rounded-[18px] border border-dashed border-(--app-border) px-3 py-4 text-xs text-(--app-text-soft)">
                         运行 OCR 后，这里展示文本识别结果。
                       </div>
-                      <div v-for="(item, index) in filteredOcrResults" :key="`ocr-${index}`" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                      <div v-for="(item, index) in filteredOcrResults" :key="`ocr-${index}`" class="rounded-[18px] border border-(--app-border) px-3 py-3">
                         <div class="flex items-start justify-between gap-3">
                           <div class="min-w-0">
-                            <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ item.txt || '(空文本)' }}</p>
-                            <p class="mt-1 text-xs text-[var(--app-text-faint)]">框：{{ formatBox(item.bounding_box) }}</p>
+                            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.txt || '(空文本)' }}</p>
+                            <p class="mt-1 text-xs text-(--app-text-faint)">框：{{ formatBox(item.bounding_box) }}</p>
                           </div>
                           <span class="rounded-full bg-cyan-500/12 px-2 py-1 text-[11px] font-medium text-cyan-700">{{ averageScore(item).toFixed(3) }}</span>
                         </div>
-                        <div class="mt-2 grid gap-2 text-[11px] text-[var(--app-text-soft)] sm:grid-cols-2">
-                          <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                        <div class="mt-2 grid gap-2 text-[11px] text-(--app-text-soft) sm:grid-cols-2">
+                          <div class="rounded-[12px] border border-(--app-border) px-2 py-2">
                             <span class="mr-2">背景色</span>
                             <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.bgColorHex }" />
                             <span class="ml-2">{{ item.bgColorHex }}</span>
                           </div>
-                          <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                          <div class="rounded-[12px] border border-(--app-border) px-2 py-2">
                             <span class="mr-2">文字色</span>
                             <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.fgColorHex }" />
                             <span class="ml-2">{{ item.fgColorHex }}</span>
@@ -559,11 +552,11 @@
               </section>
 
               <section v-else class="space-y-5">
-                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70 px-4 py-4">
+                <section class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted)/70 px-4 py-4">
                   <div class="space-y-3">
                     <div>
-                      <p class="text-sm font-semibold text-[var(--app-text-strong)]">组合分析</p>
-                      <p class="mt-1 text-xs text-[var(--app-text-faint)]">同时运行目标检测和 OCR，并为结果区域提取真实颜色值。</p>
+                      <p class="text-sm font-semibold text-(--app-text-strong)">组合分析</p>
+                      <p class="mt-1 text-xs text-(--app-text-faint)">同时运行目标检测和 OCR，并为结果区域提取真实颜色值。</p>
                     </div>
                     <button class="app-button app-button-primary w-full justify-center" type="button" :disabled="!canRunCombo || isRunningCombo" @click="runComboAnalysis">
                       {{ isRunningCombo ? '分析中...' : '视觉分析' }}
@@ -571,34 +564,34 @@
                   </div>
                 </section>
 
-                <section class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)]/70">
+                <section class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted)/70">
                   <button class="flex w-full items-center justify-between px-4 py-3 text-left" type="button" @click="panelOpen.comboResults = !panelOpen.comboResults">
-                    <span class="text-sm font-semibold text-[var(--app-text-strong)]">视觉结果集</span>
-                    <span class="text-xs text-[var(--app-text-faint)]">{{ panelOpen.comboResults ? '收起' : '展开' }}</span>
+                    <span class="text-sm font-semibold text-(--app-text-strong)">视觉结果集</span>
+                    <span class="text-xs text-(--app-text-faint)">{{ panelOpen.comboResults ? '收起' : '展开' }}</span>
                   </button>
-                  <div v-if="panelOpen.comboResults" class="space-y-3 border-t border-[var(--app-border)] px-4 py-4">
-                    <div v-if="!comboResults.length" class="rounded-[18px] border border-dashed border-[var(--app-border)] px-3 py-4 text-xs text-[var(--app-text-soft)]">
+                  <div v-if="panelOpen.comboResults" class="space-y-3 border-t border-(--app-border) px-4 py-4">
+                    <div v-if="!comboResults.length" class="rounded-[18px] border border-dashed border-(--app-border) px-3 py-4 text-xs text-(--app-text-soft)">
                       点击“视觉分析”后，这里展示目标检测区和 OCR 区的颜色结果。
                     </div>
-                    <div v-for="item in comboResults" :key="item.key" class="rounded-[18px] border border-[var(--app-border)] px-3 py-3">
+                    <div v-for="item in comboResults" :key="item.key" class="rounded-[18px] border border-(--app-border) px-3 py-3">
                       <div class="flex items-start justify-between gap-3">
                         <div class="min-w-0">
-                          <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">
+                          <p class="truncate text-sm font-semibold text-(--app-text-strong)">
                             {{ item.kind === 'ocr' ? item.text || '(空文本)' : item.label || '检测框' }}
                           </p>
-                          <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ item.kind === 'ocr' ? 'OCR' : 'Det' }} · {{ formatBox(item.box) }}</p>
+                          <p class="mt-1 text-xs text-(--app-text-faint)">{{ item.kind === 'ocr' ? 'OCR' : 'Det' }} · {{ formatBox(item.box) }}</p>
                         </div>
                         <span class="rounded-full px-2 py-1 text-[11px] font-medium" :class="item.kind === 'ocr' ? 'bg-cyan-500/12 text-cyan-700' : 'bg-amber-500/12 text-amber-700'">
                           {{ item.score.toFixed(3) }}
                         </span>
                       </div>
-                      <div class="mt-2 grid gap-2 text-[11px] text-[var(--app-text-soft)] sm:grid-cols-2">
-                        <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                      <div class="mt-2 grid gap-2 text-[11px] text-(--app-text-soft) sm:grid-cols-2">
+                        <div class="rounded-[12px] border border-(--app-border) px-2 py-2">
                           <span class="mr-2">背景色</span>
                           <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.bgColorHex }" />
                           <span class="ml-2">{{ item.bgColorHex }}</span>
                         </div>
-                        <div class="rounded-[12px] border border-[var(--app-border)] px-2 py-2">
+                        <div class="rounded-[12px] border border-(--app-border) px-2 py-2">
                           <template v-if="item.fgColorHex">
                             <span class="mr-2">文字色</span>
                             <span class="inline-flex h-3 w-3 rounded-full align-middle" :style="{ backgroundColor: item.fgColorHex }" />
@@ -606,7 +599,7 @@
                           </template>
                           <template v-else>
                             <span>文字色</span>
-                            <span class="ml-2 text-[var(--app-text-faint)]">目标检测区域不提取</span>
+                            <span class="ml-2 text-(--app-text-faint)">目标检测区域不提取</span>
                           </template>
                         </div>
                       </div>

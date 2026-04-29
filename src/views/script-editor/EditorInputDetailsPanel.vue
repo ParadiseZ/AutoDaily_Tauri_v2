@@ -1,11 +1,11 @@
 <template>
   <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
-    <div v-if="selectedInputEntry" class="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
+    <div v-if="selectedInputEntry" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
       <div class="flex items-start justify-between gap-3">
         <div>
-          <p class="text-sm font-semibold text-[var(--app-text-strong)]">变量详情</p>
-          <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ selectedInputEntry.name || '未命名变量' }}</p>
-          <p v-if="selectedInputEntry.key && selectedInputEntry.key !== selectedInputEntry.name" class="mt-1 text-[11px] text-[var(--app-text-faint)]">
+          <p class="text-sm font-semibold text-(--app-text-strong)">变量详情</p>
+          <p class="mt-1 text-xs text-(--app-text-faint)">{{ selectedInputEntry.name || '未命名变量' }}</p>
+          <p v-if="selectedInputEntry.key && selectedInputEntry.key !== selectedInputEntry.name" class="mt-1 text-[11px] text-(--app-text-faint)">
             键：{{ selectedInputEntry.key }}
           </p>
         </div>
@@ -70,7 +70,7 @@
         <template v-if="selectedInputEntry.namespace === 'input'">
           <label v-if="selectedInputEntry.type === 'bool'" class="detail-item">
             <span class="detail-label">默认值</span>
-            <span class="flex min-h-[44px] items-center gap-3 rounded-[16px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+            <span class="flex min-h-[44px] items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
               <input
                 :checked="selectedInputEntry.booleanValue"
                 type="checkbox"
@@ -105,7 +105,7 @@
 
         <div
           v-else
-          class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]"
+          class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
         >
           {{ selectedInputEntry.namespace === 'runtime' ? 'Runtime 变量只定义结构和来源，不在这里设置默认值。' : 'System 变量由运行时注入，只在这里保留元数据。' }}
         </div>

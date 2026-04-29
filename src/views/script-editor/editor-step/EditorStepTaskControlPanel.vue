@@ -1,7 +1,7 @@
 <template>
   <div class="grid gap-3 xl:grid-cols-2">
-    <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
-      <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标</p>
+    <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+      <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">目标</p>
       <div class="grid gap-3 xl:grid-cols-[78px_minmax(0,1fr)_78px_minmax(0,1fr)] xl:items-center">
         <div class="editor-inline-label">动作类型</div>
         <div>
@@ -40,7 +40,7 @@
               </button>
             </div>
           </div>
-          <div v-else class="rounded-[12px] border border-dashed border-[var(--app-border)] px-3 py-2 text-xs text-[var(--app-text-faint)]">
+          <div v-else class="rounded-[12px] border border-dashed border-(--app-border) px-3 py-2 text-xs text-(--app-text-faint)">
             尚未选择目标。
           </div>
           <div class="flex flex-wrap gap-2">
@@ -62,8 +62,8 @@
       </div>
     </div>
 
-    <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
-      <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">状态</p>
+    <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+      <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">状态</p>
       <div class="grid gap-3 xl:grid-cols-[78px_minmax(0,1fr)] xl:items-center">
         <div class="editor-inline-label">状态类型</div>
         <div>
@@ -75,7 +75,7 @@
           />
         </div>
       </div>
-      <label class="flex items-center gap-3 rounded-[16px] border border-[var(--app-border)] bg-white/45 px-4 py-3">
+      <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3">
         <input
           :checked="Boolean(selectedTaskControl.status.value)"
           type="checkbox"
@@ -83,7 +83,7 @@
           style="accent-color: var(--app-accent)"
           @change="$emit('update-status-value', ($event.target as HTMLInputElement).checked)"
         />
-        <span class="text-sm text-[var(--app-text-soft)]">状态值为真</span>
+        <span class="text-sm text-(--app-text-soft)">状态值为真</span>
       </label>
     </div>
   </div>

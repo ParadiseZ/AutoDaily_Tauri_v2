@@ -4,8 +4,8 @@
       <AppIcon :name="icon" :size="20" />
     </div>
     <div class="space-y-1 text-center">
-      <h3 class="text-sm font-semibold text-[var(--app-text-strong)]">{{ title }}</h3>
-      <p v-if="description" class="max-w-sm text-sm text-[var(--app-text-soft)]">{{ description }}</p>
+      <h3 class="text-sm font-semibold text-(--app-text-strong)">{{ title }}</h3>
+      <p v-if="description" class="max-w-sm text-sm text-(--app-text-soft)">{{ description }}</p>
     </div>
     <div v-if="$slots.default" class="mt-2">
       <slot />

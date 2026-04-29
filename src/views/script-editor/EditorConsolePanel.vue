@@ -5,13 +5,13 @@
       title="拖动调整控制台高度"
       @mousedown.prevent="startResize"
     />
-    <div class="flex items-center justify-between border-b border-[var(--app-border)] px-4 py-3">
+    <div class="flex items-center justify-between border-b border-(--app-border) px-4 py-3">
       <div class="space-y-1">
-        <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">Console</p>
-        <h2 class="text-sm font-semibold text-[var(--app-text-strong)]">调试输出</h2>
+        <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">Console</p>
+        <h2 class="text-sm font-semibold text-(--app-text-strong)">调试输出</h2>
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-xs text-[var(--app-text-faint)]">{{ lines.length }} / {{ maxLines }}</span>
+        <span class="text-xs text-(--app-text-faint)">{{ lines.length }} / {{ maxLines }}</span>
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('clear')">
           清空
         </button>

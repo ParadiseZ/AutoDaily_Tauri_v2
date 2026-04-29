@@ -3,8 +3,8 @@
     <SurfacePanel padding="sm" class="space-y-4">
       <div class="flex items-center justify-between gap-3">
         <div>
-          <p class="text-xs uppercase tracking-[0.18em] text-[var(--app-text-faint)]">Status</p>
-          <h2 class="text-xl font-semibold text-[var(--app-text-strong)]">检查器</h2>
+          <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Status</p>
+          <h2 class="text-xl font-semibold text-(--app-text-strong)">检查器</h2>
         </div>
         <span
           class="rounded-full px-3 py-1 text-xs font-semibold"
@@ -21,57 +21,57 @@
       </div>
 
       <div class="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-        <div class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-          <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">任务数</p>
-          <p class="mt-1 text-xl font-semibold text-[var(--app-text-strong)]">{{ tasks.length }}</p>
+        <div class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">任务数</p>
+          <p class="mt-1 text-xl font-semibold text-(--app-text-strong)">{{ tasks.length }}</p>
         </div>
-        <div class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-          <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">步骤数</p>
-          <p class="mt-1 text-xl font-semibold text-[var(--app-text-strong)]">
+        <div class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">步骤数</p>
+          <p class="mt-1 text-xl font-semibold text-(--app-text-strong)">
             {{ currentTask ? currentTask.data.steps.length : 0 }}
           </p>
         </div>
-        <div class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-3">
-          <p class="text-xs uppercase tracking-[0.12em] text-[var(--app-text-faint)]">最近保存</p>
-          <p class="mt-1 text-sm font-semibold text-[var(--app-text-strong)]">{{ saveLabel }}</p>
+        <div class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">最近保存</p>
+          <p class="mt-1 text-sm font-semibold text-(--app-text-strong)">{{ saveLabel }}</p>
         </div>
       </div>
 
-      <p class="rounded-[18px] border border-[var(--app-border)] bg-white/30 px-4 py-3 text-sm leading-6 text-[var(--app-text-soft)]">
+      <p class="rounded-[18px] border border-(--app-border) bg-white/30 px-4 py-3 text-sm leading-6 text-(--app-text-soft)">
         {{ saveStatus }}
       </p>
     </SurfacePanel>
 
     <SurfacePanel padding="sm" class="space-y-4">
       <div>
-        <p class="text-sm font-semibold text-[var(--app-text-strong)]">脚本上下文</p>
-        <p class="mt-1 text-sm text-[var(--app-text-soft)]">{{ scriptName || '未选择脚本' }}</p>
+        <p class="text-sm font-semibold text-(--app-text-strong)">脚本上下文</p>
+        <p class="mt-1 text-sm text-(--app-text-soft)">{{ scriptName || '未选择脚本' }}</p>
       </div>
 
-      <div class="space-y-3 text-sm text-[var(--app-text-soft)]">
+      <div class="space-y-3 text-sm text-(--app-text-soft)">
         <div class="flex justify-between gap-4">
           <span>运行时</span>
-          <span class="text-[var(--app-text-strong)]">{{ runtimeLabel }}</span>
+          <span class="text-(--app-text-strong)">{{ runtimeLabel }}</span>
         </div>
         <div class="flex justify-between gap-4">
           <span>当前任务</span>
-          <span class="truncate text-[var(--app-text-strong)]">{{ currentTask?.name || '未选中' }}</span>
+          <span class="truncate text-(--app-text-strong)">{{ currentTask?.name || '未选中' }}</span>
         </div>
         <div class="flex justify-between gap-4">
           <span>变量键</span>
-          <span class="text-[var(--app-text-strong)]">{{ variableCount }}</span>
+          <span class="text-(--app-text-strong)">{{ variableCount }}</span>
         </div>
         <div class="flex justify-between gap-4">
           <span>UI 字段</span>
-          <span class="text-[var(--app-text-strong)]">{{ uiDataCount }}</span>
+          <span class="text-(--app-text-strong)">{{ uiDataCount }}</span>
         </div>
       </div>
     </SurfacePanel>
 
     <SurfacePanel padding="sm" class="space-y-4">
       <div>
-        <p class="text-sm font-semibold text-[var(--app-text-strong)]">验证结果</p>
-        <p class="mt-1 text-xs text-[var(--app-text-faint)]">保存前会先检查 JSON 结构和任务完整性。</p>
+        <p class="text-sm font-semibold text-(--app-text-strong)">验证结果</p>
+        <p class="mt-1 text-xs text-(--app-text-faint)">保存前会先检查 JSON 结构和任务完整性。</p>
       </div>
 
       <div v-if="validationItems.length" class="space-y-2">
@@ -89,21 +89,21 @@
 
     <SurfacePanel padding="sm" class="space-y-4">
       <div>
-        <p class="text-sm font-semibold text-[var(--app-text-strong)]">当前步骤</p>
-        <p class="mt-1 text-xs text-[var(--app-text-faint)]">
+        <p class="text-sm font-semibold text-(--app-text-strong)">当前步骤</p>
+        <p class="mt-1 text-xs text-(--app-text-faint)">
           选中步骤后，这里会展示摘要，方便在修改 JSON 前先做一次核对。
         </p>
       </div>
 
       <template v-if="selectedStep">
-        <div class="rounded-[20px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4">
-          <p class="text-sm font-semibold text-[var(--app-text-strong)]">{{ stepTitle }}</p>
-          <p class="mt-2 text-sm leading-6 text-[var(--app-text-soft)]">{{ stepSummary }}</p>
+        <div class="rounded-[20px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+          <p class="text-sm font-semibold text-(--app-text-strong)">{{ stepTitle }}</p>
+          <p class="mt-2 text-sm leading-6 text-(--app-text-soft)">{{ stepSummary }}</p>
         </div>
-        <pre class="max-h-[320px] overflow-auto rounded-[20px] border border-[var(--app-border)] bg-slate-950 px-4 py-4 text-xs leading-6 text-slate-100">{{ stepSource }}</pre>
+        <pre class="max-h-[320px] overflow-auto rounded-[20px] border border-(--app-border) bg-slate-950 px-4 py-4 text-xs leading-6 text-slate-100">{{ stepSource }}</pre>
       </template>
 
-      <p v-else class="rounded-[18px] border border-dashed border-[var(--app-border)] px-4 py-6 text-sm text-[var(--app-text-soft)]">
+      <p v-else class="rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)">
         当前还没有选中步骤。可以在中央工作区点选步骤卡片后回来查看。
       </p>
     </SurfacePanel>

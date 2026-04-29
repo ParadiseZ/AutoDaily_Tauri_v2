@@ -1,18 +1,16 @@
 <template>
   <SurfacePanel class="flex h-full flex-col gap-4">
-    <div class="flex items-center justify-between gap-2">
+    <div class="flex items-center justify-between gap-3">
       <input
           :value="searchQuery"
           class="app-input"
           placeholder="按脚本名或描述搜索"
           @input="$emit('update:searchQuery', ($event.target as HTMLInputElement).value)"
       />
-      <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" data-testid="script-list-create-button" type="button" @click="$emit('create')">
+      <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" data-testid="script-list-create-button" type="button" @click="$emit('create')">
         <AppIcon name="plus" :size="16" />
       </button>
     </div>
-
-
 
     <div class="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
       <button
@@ -23,8 +21,15 @@
         :class="{ 'app-list-item-active': script.id === selectedScriptId }"
         @click="$emit('select', script.id)"
       >
-        <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ script.data.name }}</p>
-        <p class="mt-1 truncate text-xs text-[var(--app-text-faint)]">{{ script.data.description || '暂无描述' }}</p>
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ script.data.name }}</p>
+            <p class="mt-1 truncate text-xs text-(--app-text-faint)">版本：{{ script.data.verName }}</p>
+          </div>
+          <span class="shrink-0 rounded-full bg-(--app-panel-muted) px-2 py-1 text-[11px] text-(--app-text-soft)">
+            {{ script.data.scriptType === 'published' ? '云端' : '本地' }}
+          </span>
+        </div>
       </button>
     </div>
   </SurfacePanel>

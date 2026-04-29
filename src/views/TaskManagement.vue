@@ -4,15 +4,15 @@
       title="任务管理"
     >
       <template #actions>
-        <button class="app-button app-button-ghost group text-[var(--app-text-strong)]" type="button" @click="deviceStore.pauseDevices(deviceIds)">
-          <AppIcon name="pause" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-text-strong)] transition-colors" />
+        <button class="app-button app-button-ghost group text-(--app-text-strong)" type="button" @click="deviceStore.pauseDevices(deviceIds)">
+          <AppIcon name="pause" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-text-strong) transition-colors" />
           全部暂停
         </button>
         <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" @click="deviceStore.stopDevices(deviceIds)">
           <AppIcon name="square" :size="14" class="fill-current" />
           全部停止
         </button>
-        <button class="app-button app-button-primary shadow-lg shadow-[var(--app-vibrant-blue)]/30 hover:shadow-[var(--app-vibrant-blue)]/50 transition-shadow" type="button" @click="handleStartAllDevices">
+        <button class="app-button app-button-primary shadow-lg shadow-(--app-vibrant-blue)/30 hover:shadow-(--app-vibrant-blue)/50 transition-shadow" type="button" @click="handleStartAllDevices">
           <AppIcon name="play" :size="16" class="fill-current" />
           全部启动
         </button>
@@ -48,8 +48,8 @@
     <div v-else class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
       <SurfacePanel class="space-y-3">
         <div>
-          <p class="text-sm font-semibold text-[var(--app-text-strong)]">设备节点</p>
-          <p class="text-xs text-[var(--app-text-faint)]">左侧快速切换设备，右侧只展开当前设备的完整运行上下文。</p>
+          <p class="text-sm font-semibold text-(--app-text-strong)">设备节点</p>
+          <p class="text-xs text-(--app-text-faint)">左侧快速切换设备，右侧只展开当前设备的完整运行上下文。</p>
         </div>
 
         <div class="space-y-2">
@@ -63,12 +63,12 @@
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
-                <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ device.data.deviceName }}</p>
-                <p class="mt-1 truncate text-xs text-[var(--app-text-faint)]">
+                <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ device.data.deviceName }}</p>
+                <p class="mt-1 truncate text-xs text-(--app-text-faint)">
                   {{ taskStore.assignmentsByDevice[device.id]?.length || 0 }} 条队列
                 </p>
               </div>
-              <span class="text-xs text-[var(--app-text-soft)]">
+              <span class="text-xs text-(--app-text-soft)">
                 {{ deviceStore.getDeviceStatus(device.id).kind === 'running' ? '运行中' : deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
               </span>
             </div>

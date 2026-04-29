@@ -7,12 +7,12 @@
     <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
       <div class="space-y-4">
         <SettingsSection icon="user" title="账户信息">
-          <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-[var(--app-border)] px-4 py-4">
+          <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-(--app-border) px-4 py-4">
             <div>
-              <p class="text-sm font-medium text-[var(--app-text-strong)]">当前未登录</p>
-              <p class="text-sm text-[var(--app-text-soft)]">登录后可同步脚本、访问脚本市场和管理用户名。</p>
+              <p class="text-sm font-medium text-(--app-text-strong)">当前未登录</p>
+              <p class="text-sm text-(--app-text-soft)">登录后可同步脚本、访问脚本市场和管理用户名。</p>
             </div>
-            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-vibrant-blue)]/30" type="button" @click="userStore.openAuthModal()">
+            <button class="app-button app-button-primary shadow-lg shadow-(--app-vibrant-blue)/30" type="button" @click="userStore.openAuthModal()">
               <AppIcon name="log-in" :size="16" />
               登录
             </button>
@@ -20,19 +20,19 @@
 
           <template v-else>
             <div class="grid gap-3 md:grid-cols-2">
-              <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">用户名</p>
+              <div class="rounded-[20px] border border-(--app-border) px-4 py-4">
+                <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">用户名</p>
                 <div class="mt-2 flex items-center gap-3">
                   <input v-model.trim="usernameDraft" class="app-input" />
                   <button class="app-button app-button-ghost h-11 px-4 group" type="button" @click="saveUsername">
-                    <AppIcon name="save" :size="16" class="text-[var(--app-text-faint)] group-hover:text-[var(--app-accent)] transition-colors" />
+                    <AppIcon name="save" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
                     保存
                   </button>
                 </div>
               </div>
-              <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">邮箱</p>
-                <p class="mt-3 text-sm font-medium text-[var(--app-text-strong)]">{{ userStore.userProfile?.email }}</p>
+              <div class="rounded-[20px] border border-(--app-border) px-4 py-4">
+                <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">邮箱</p>
+                <p class="mt-3 text-sm font-medium text-(--app-text-strong)">{{ userStore.userProfile?.email }}</p>
               </div>
             </div>
 
@@ -63,37 +63,37 @@
         <SettingsSection icon="monitor" title="界面与启动" description="这些偏工作流的偏好写入本地 Store，并且主题会立即反馈到桌面界面。">
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">主题</span>
+              <span class="text-sm text-(--app-text-soft)">主题</span>
               <AppSelect v-model="settingsStore.preferences.appTheme" :options="themeOptions" @update:model-value="handleThemeChange" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">默认页面</span>
+              <span class="text-sm text-(--app-text-soft)">默认页面</span>
               <AppSelect v-model="settingsStore.preferences.defaultRoute" :options="defaultRouteOptions" @update:model-value="handleRouteChange" />
             </label>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">启动模式</span>
+              <span class="text-sm text-(--app-text-soft)">启动模式</span>
               <AppSelect v-model="settingsStore.preferences.startMode" :options="startModeOptions" @update:model-value="saveSystemPreferences" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">空闲处理</span>
+              <span class="text-sm text-(--app-text-soft)">空闲处理</span>
               <AppSelect v-model="settingsStore.preferences.idleAction" :options="idleActionOptions" @update:model-value="saveSystemPreferences" />
             </label>
           </div>
 
           <div class="grid gap-3 md:grid-cols-3">
-            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-              <span class="text-sm text-[var(--app-text-strong)]">开机自启</span>
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">开机自启</span>
               <input v-model="settingsStore.preferences.autoStart" type="checkbox" class="toggle toggle-sm" @change="saveSystemPreferences" />
             </label>
-            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-              <span class="text-sm text-[var(--app-text-strong)]">窗口置顶</span>
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">窗口置顶</span>
               <input v-model="settingsStore.preferences.alwaysOnTop" type="checkbox" class="toggle toggle-sm" @change="saveSystemPreferences" />
             </label>
-            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-              <span class="text-sm text-[var(--app-text-strong)]">关闭即退出</span>
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">关闭即退出</span>
               <input v-model="settingsStore.preferences.closeExit" type="checkbox" class="toggle toggle-sm" @change="saveSystemPreferences" />
             </label>
           </div>
@@ -102,26 +102,26 @@
         <SettingsSection icon="terminal-square" title="ADB 与环境" description="没有现成后端命令的字段保存在本地 Store，给设备编辑器和运行环境统一复用。">
           <div class="grid gap-4 md:grid-cols-[1fr_auto]">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">ADB 路径</span>
+              <span class="text-sm text-(--app-text-soft)">ADB 路径</span>
               <input v-model="settingsStore.preferences.adbPath" class="app-input" placeholder="选择 adb.exe 路径" />
             </label>
             <button class="app-button app-button-ghost group self-end" type="button" @click="pickAdbPath">
-              <AppIcon name="folder-open" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon name="folder-open" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
               选择路径
             </button>
           </div>
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">ADB 服务 Host</span>
+              <span class="text-sm text-(--app-text-soft)">ADB 服务 Host</span>
               <input v-model.trim="settingsStore.preferences.adbServerHost" class="app-input" placeholder="127.0.0.1" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">ADB 服务 Port</span>
+              <span class="text-sm text-(--app-text-soft)">ADB 服务 Port</span>
               <input v-model.number="settingsStore.preferences.adbServerPort" class="app-input" type="number" min="1" max="65535" />
             </label>
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveEnvironmentPreferences">
+            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveEnvironmentPreferences">
               <AppIcon name="save" :size="16" />
               保存环境配置
             </button>
@@ -130,17 +130,17 @@
 
         <SettingsSection icon="file-search" title="OCR 文字缓存" description="启用后按脚本名称读写 JSON 缓存文件，目录留空时回退到应用数据目录下的默认缓存文件夹。">
           <div class="grid gap-3 md:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)]">
-            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-              <span class="text-sm text-[var(--app-text-strong)]">启用缓存文字检测结果</span>
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">启用缓存文字检测结果</span>
               <input v-model="settingsStore.preferences.ocrTextCacheEnabled" type="checkbox" class="toggle toggle-sm" />
             </label>
-            <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+            <div class="rounded-[20px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
               仅在脚本运行时加载和写入缓存，缓存内容按脚本名称分文件保存。
             </div>
           </div>
           <div class="grid gap-4 md:grid-cols-[1fr_auto]">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">缓存目录</span>
+              <span class="text-sm text-(--app-text-soft)">缓存目录</span>
               <input
                 v-model.trim="settingsStore.preferences.ocrTextCacheDir"
                 class="app-input"
@@ -148,13 +148,13 @@
               />
             </label>
             <button class="app-button app-button-ghost group self-end" type="button" @click="pickOcrTextCacheDir">
-              <AppIcon name="folder-open" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon name="folder-open" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
               选择目录
             </button>
           </div>
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">视觉签名网格(px)</span>
+              <span class="text-sm text-(--app-text-soft)">视觉签名网格(px)</span>
               <input
                 v-model.number="settingsStore.preferences.visionSignatureGridSize"
                 class="app-input"
@@ -163,12 +163,12 @@
                 step="1"
               />
             </label>
-            <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+            <div class="rounded-[20px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
               稳定排序、相对位置判断和动作签名会按该像素挡位离散化；原始执行坐标仍保留精确值。
             </div>
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveVisionCachePreferences">
+            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveVisionCachePreferences">
               <AppIcon name="save" :size="16" />
               保存缓存设置
             </button>
@@ -180,21 +180,21 @@
         <SettingsSection icon="file-clock" title="日志设置" description="主进程日志由 Tauri 命令即时修改，日志路径和保留天数都在这里维护。">
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">主进程日志级别</span>
+              <span class="text-sm text-(--app-text-soft)">主进程日志级别</span>
               <AppSelect v-model="settingsStore.logConfig.logLevel" :options="logLevelOptions" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">保留天数</span>
+              <span class="text-sm text-(--app-text-soft)">保留天数</span>
               <input v-model.number="settingsStore.logConfig.retentionDays" class="app-input" type="number" min="1" max="365" />
             </label>
           </div>
           <div class="grid gap-4 md:grid-cols-[1fr_auto]">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">日志目录</span>
+              <span class="text-sm text-(--app-text-soft)">日志目录</span>
               <input v-model="settingsStore.logConfig.logDir" class="app-input" />
             </label>
             <button class="app-button app-button-ghost group self-end" type="button" @click="pickLogDir">
-              <AppIcon name="folder-open" :size="16" class="text-[var(--app-text-soft)] group-hover:text-[var(--app-accent)] transition-colors" />
+              <AppIcon name="folder-open" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
               选择目录
             </button>
           </div>
@@ -203,7 +203,7 @@
               <AppIcon name="trash-2" :size="16" />
               立即清理
             </button>
-            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveLogSettings">
+            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveLogSettings">
               <AppIcon name="save" :size="16" />
               保存日志配置
             </button>
@@ -212,23 +212,23 @@
 
         <SettingsSection icon="mail" title="邮件通知" description="支持 163、QQ、Gmail、Outlook 预设，也支持自定义 SMTP。QQ、Gmail 等通常需要授权码或应用专用密码，而不是登录密码。">
           <div class="grid gap-3 md:grid-cols-2">
-            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-              <span class="text-sm text-[var(--app-text-strong)]">桌面超时提醒</span>
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">桌面超时提醒</span>
               <input v-model="settingsStore.emailConfig.desktopNotice" type="checkbox" class="toggle toggle-sm" />
             </label>
-            <label class="flex items-center justify-between rounded-[20px] border border-[var(--app-border)] px-4 py-3">
-              <span class="text-sm text-[var(--app-text-strong)]">邮件超时提醒</span>
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">邮件超时提醒</span>
               <input v-model="settingsStore.emailConfig.emailNotification" type="checkbox" class="toggle toggle-sm" />
             </label>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">SMTP 服务商</span>
+              <span class="text-sm text-(--app-text-soft)">SMTP 服务商</span>
               <AppSelect v-model="settingsStore.emailConfig.provider" :options="emailProviderOptions" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">连接加密</span>
+              <span class="text-sm text-(--app-text-soft)">连接加密</span>
               <AppSelect
                 v-model="settingsStore.emailConfig.security"
                 :options="emailSecurityOptions"
@@ -239,7 +239,7 @@
 
           <div class="grid gap-4 md:grid-cols-[1fr_180px]">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">SMTP 服务器</span>
+              <span class="text-sm text-(--app-text-soft)">SMTP 服务器</span>
               <input
                 v-model.trim="settingsStore.emailConfig.smtpServer"
                 class="app-input"
@@ -248,7 +248,7 @@
               />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">端口</span>
+              <span class="text-sm text-(--app-text-soft)">端口</span>
               <input
                 v-model.number="settingsStore.emailConfig.smtpPort"
                 class="app-input"
@@ -262,29 +262,29 @@
 
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">SMTP 用户名</span>
+              <span class="text-sm text-(--app-text-soft)">SMTP 用户名</span>
               <input v-model.trim="settingsStore.emailConfig.username" class="app-input" placeholder="通常为邮箱地址" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">SMTP 密码 / 授权码</span>
+              <span class="text-sm text-(--app-text-soft)">SMTP 密码 / 授权码</span>
               <input v-model="settingsStore.emailConfig.password" class="app-input" type="password" placeholder="建议使用服务商授权码" />
             </label>
           </div>
 
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">发件人名称</span>
+              <span class="text-sm text-(--app-text-soft)">发件人名称</span>
               <input v-model.trim="settingsStore.emailConfig.senderName" class="app-input" placeholder="AutoDaily" />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">发件人邮箱</span>
+              <span class="text-sm text-(--app-text-soft)">发件人邮箱</span>
               <input v-model.trim="settingsStore.emailConfig.senderEmail" class="app-input" placeholder="留空时回退到 SMTP 用户名" />
             </label>
           </div>
 
           <div class="grid gap-4 md:grid-cols-[1fr_180px]">
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">收件人</span>
+              <span class="text-sm text-(--app-text-soft)">收件人</span>
               <textarea
                 v-model.trim="settingsStore.emailConfig.recipient"
                 class="app-input min-h-[104px] resize-y py-3"
@@ -292,7 +292,7 @@
               />
             </label>
             <label class="grid gap-2">
-              <span class="text-sm text-[var(--app-text-soft)]">超时时间(秒)</span>
+              <span class="text-sm text-(--app-text-soft)">超时时间(秒)</span>
               <input
                 v-model.number="settingsStore.emailConfig.timeoutSeconds"
                 class="app-input"
@@ -303,7 +303,7 @@
             </label>
           </div>
 
-          <div class="rounded-[20px] border border-[var(--app-border)] px-4 py-3 text-sm text-[var(--app-text-soft)]">
+          <div class="rounded-[20px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
             常见预设：163 / QQ 默认走 465 + SSL/TLS，Outlook 默认走 587 + STARTTLS。Gmail 建议开启两步验证后使用应用专用密码。
           </div>
 
@@ -312,7 +312,7 @@
               <AppIcon name="send" :size="16" />
               测试发送
             </button>
-            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="saveEmailSettings">
+            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveEmailSettings">
               <AppIcon name="save" :size="16" />
               保存邮件配置
             </button>
@@ -321,22 +321,22 @@
 
         <SettingsSection icon="info" title="关于与更新" description="保持一个轻量的版本信息区，不把宣传内容塞进专业工具型桌面应用。">
           <div class="grid gap-3 md:grid-cols-2">
-            <div class="rounded-[20px] border border-[var(--app-border)] p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">版本</p>
-              <p class="mt-2 text-lg font-semibold text-[var(--app-text-strong)]">AutoDaily 0.1.0</p>
+            <div class="rounded-[20px] border border-(--app-border) p-4">
+              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">版本</p>
+              <p class="mt-2 text-lg font-semibold text-(--app-text-strong)">AutoDaily 0.1.0</p>
             </div>
-            <div class="rounded-[20px] border border-[var(--app-border)] p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-[var(--app-text-faint)]">最近更新</p>
-              <p class="mt-2 text-sm text-[var(--app-text-strong)]">
+            <div class="rounded-[20px] border border-(--app-border) p-4">
+              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">最近更新</p>
+              <p class="mt-2 text-sm text-(--app-text-strong)">
                 {{ settingsStore.updateInfo ? `${settingsStore.updateInfo.version} · ${formatDate(settingsStore.updateInfo.pubDate)}` : '尚未检查' }}
               </p>
             </div>
           </div>
-          <div class="rounded-[20px] border border-[var(--app-border)] p-4 text-sm text-[var(--app-text-soft)]">
+          <div class="rounded-[20px] border border-(--app-border) p-4 text-sm text-(--app-text-soft)">
             {{ settingsStore.updateInfo?.notes || '当前还没有拉取更新说明。' }}
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary shadow-lg shadow-[var(--app-accent-soft)]" type="button" @click="checkUpdate">
+            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="checkUpdate">
               <AppIcon name="refresh-cw" :size="16" />
               检查更新
             </button>

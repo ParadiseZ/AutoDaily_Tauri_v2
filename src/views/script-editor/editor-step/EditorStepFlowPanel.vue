@@ -2,15 +2,15 @@
   <div class="space-y-3">
     <template v-if="selectedFlow.type === FLOW_TYPE.waitMs">
       <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">等待毫秒</span>
+        <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">等待毫秒</span>
         <input :value="String(selectedFlow.ms ?? 1000)" class="app-input" type="number" @input="$emit('update-number-field', 'ms', ($event.target as HTMLInputElement).value)" />
       </label>
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.link">
-      <div class="space-y-3 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
         <div class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">目标任务</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标任务</span>
           <EditorSelectField
             :model-value="selectedLinkTarget || null"
             :options="resolvedTaskReferenceOptions"
@@ -37,9 +37,9 @@
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.handlePolicySet || selectedFlow.type === FLOW_TYPE.handlePolicy">
-      <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+      <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
         <div class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">{{ targetTitle }}</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">{{ targetTitle }}</span>
           <div class="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
             <EditorSelectField
               :model-value="pendingTargetId"
@@ -65,11 +65,11 @@
             v-for="target in resolvedTargets"
             :key="target.id"
             :data-testid="selectedFlow.type === FLOW_TYPE.handlePolicySet ? `editor-flow-policy-set-target-${target.id}` : `editor-flow-policy-target-${target.id}`"
-            class="flex items-center justify-between gap-3 rounded-[14px] border border-[var(--app-border)] bg-white/55 px-3 py-3"
+            class="flex items-center justify-between gap-3 rounded-[14px] border border-(--app-border) bg-white/55 px-3 py-3"
           >
             <div class="min-w-0">
-              <p class="truncate text-sm font-semibold text-[var(--app-text-strong)]">{{ target.label }}</p>
-              <p class="mt-1 text-xs text-[var(--app-text-faint)]">{{ target.description }}</p>
+              <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ target.label }}</p>
+              <p class="mt-1 text-xs text-(--app-text-faint)">{{ target.description }}</p>
             </div>
             <div class="flex items-center gap-2">
               <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="jumpToTarget(target.id)">
@@ -83,13 +83,13 @@
           </article>
         </div>
 
-        <div v-else class="rounded-[14px] border border-dashed border-[var(--app-border)] px-4 py-4 text-sm text-[var(--app-text-soft)]">
+        <div v-else class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
           还没有绑定策略集，运行时不会执行任何匹配。
         </div>
 
         <div class="grid gap-4 xl:grid-cols-2">
           <div class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输入图像变量</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入图像变量</span>
             <EditorSelectField
               :model-value="selectedFlowInput || null"
               :options="resolvedFlowInputOptions"
@@ -116,7 +116,7 @@
           </div>
 
           <div class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">输出结果变量</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出结果变量</span>
             <EditorSelectField
               :model-value="selectedFlowOutput || null"
               :options="resolvedFlowOutputOptions"
@@ -143,7 +143,7 @@
           </div>
         </div>
 
-        <div class="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-panel-muted)] px-4 py-4 text-xs leading-6 text-[var(--app-text-soft)]">
+        <div class="rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-xs leading-6 text-(--app-text-soft)">
           输出 JSON 约定：顶层摘要字段为 `matched`、`policySetId`、`policyGroupId`、`policyId`，逐轮明细写入 `rounds`。
           每个 round 内再保存 `pageFingerprints`、`actionSignatures`、`actions`，其中 `actions` 按 `actionIndex` 标识单轮中的动作顺序。
         </div>
@@ -151,15 +151,15 @@
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.continue || selectedFlow.type === FLOW_TYPE.break">
-      <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4 text-sm leading-6 text-[var(--app-text-soft)]">
+      <div class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4 text-sm leading-6 text-(--app-text-soft)">
         {{ selectedFlow.type === FLOW_TYPE.continue ? '该步骤会立即开始下一轮循环。' : '该步骤会立即跳出当前循环。' }}
       </div>
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.forEach">
-      <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+      <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">结果集变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">结果集变量</span>
           <EditorSelectField
             :model-value="selectedFlow.input_var || null"
             :options="resolvedForEachInputOptions"
@@ -172,7 +172,7 @@
 
         <div class="grid gap-3 md:grid-cols-2">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">元素变量</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">元素变量</span>
             <input
               :value="selectedFlow.item_var || ''"
               class="app-input"
@@ -181,7 +181,7 @@
           </label>
 
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">索引变量</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">索引变量</span>
             <input
               :value="selectedFlow.index_var || ''"
               class="app-input"
@@ -193,9 +193,9 @@
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.repeat">
-      <div class="space-y-4 rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-4">
+      <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">次数变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">次数变量</span>
           <EditorSelectField
             :model-value="selectedFlow.count_expr || null"
             :options="resolvedRepeatCountOptions"
@@ -217,7 +217,7 @@
         </button>
 
         <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-[var(--app-text-faint)]">索引变量</span>
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">索引变量</span>
           <input
             :value="selectedFlow.index_var || ''"
             class="app-input"
@@ -242,10 +242,10 @@
           </div>
         </div>
 
-        <div class="rounded-[16px] border border-[var(--app-border)] bg-white/35 px-4 py-3">
-          <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">分支概览</p>
+        <div class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-3">
+          <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">分支概览</p>
           <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <span class="text-sm text-[var(--app-text-soft)]">{{ branchSummary }}</span>
+            <span class="text-sm text-(--app-text-soft)">{{ branchSummary }}</span>
             <button
               v-if="flowWithCondition.type === FLOW_TYPE.if"
               class="app-button app-button-ghost app-toolbar-button"
@@ -259,7 +259,7 @@
       </div>
 
       <div class="space-y-2">
-        <p class="text-[11px] uppercase tracking-[0.12em] text-[var(--app-text-faint)]">条件</p>
+        <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">条件</p>
         <EditorConditionBuilder
           :model-value="flowCondition"
           :variable-options="readableCatalogVariableOptions"
