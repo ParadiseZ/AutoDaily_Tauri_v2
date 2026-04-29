@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="设备列表"
     >
@@ -11,6 +11,7 @@
       </template>
     </AppPageHeader>
 
+    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
     <SurfacePanel v-if="deviceStore.devices.length" class="overflow-hidden p-0">
       <table class="app-table">
         <thead>
@@ -70,6 +71,7 @@
       description="先创建一台设备，配置连接方式、截图方案和自动启动策略"
       icon="smartphone"
     />
+    </div>
 
     <DeviceEditorDialog
       :open="editorOpen"

@@ -1,10 +1,11 @@
 <template>
-  <div class="space-y-6">
+  <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="本地列表"
     />
 
-    <div class="grid gap-4 xl:grid-cols-[300px_minmax(0,1fr)_390px]">
+    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+    <div class="grid min-h-full gap-4 xl:grid-cols-[300px_minmax(0,1fr)_390px]">
       <ScriptListSidebar
         v-model:search-query="searchQuery"
         :scripts="filteredScripts"
@@ -31,6 +32,7 @@
         :assignments-by-device="taskStore.assignmentsByDevice"
         :time-templates="taskStore.timeTemplates"
       />
+    </div>
     </div>
 
     <ScriptInfoDialog

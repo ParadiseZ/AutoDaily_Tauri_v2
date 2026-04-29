@@ -106,12 +106,12 @@ export const formatCaptureMethod = (method: CapMethod) =>
     typeof method === 'string' ? 'ADB 截图' : `窗口截取 · ${method.window}`;
 
 export const formatStatusTone = (status: DeviceRuntimeStatus['kind'] | LogLevel) => {
-    if (status === 'running' || status === 'Info') return 'info';
-    if (status === 'idle') return 'neutral';
+    if (status === 'running' || status === 'Info') return 'success';
+    if (status === 'idle') return 'info';
     if (status === 'paused' || status === 'Warn') return 'warning';
     if (status === 'error' || status === 'Error') return 'danger';
     if (status === 'Debug') return 'neutral';
-    return 'success';
+    return 'neutral';
 };
 
 export const formatStatusLabel = (status: DeviceRuntimeStatus) => {

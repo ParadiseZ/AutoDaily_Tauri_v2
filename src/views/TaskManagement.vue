@@ -1,9 +1,24 @@
 <template>
-  <div class="space-y-6">
-    <AppPageHeader
-      title="任务管理"
-    >
-      <template #actions>
+  <div class="flex h-full min-h-0 flex-col gap-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div v-if="deviceIds.length" class="task-device-tabs">
+        <button
+          v-for="device in orderedDevices"
+          :key="device.id"
+          type="button"
+          class="task-device-tab"
+          :class="{ 'task-device-tab-active': device.id === activeDevice?.id }"
+          @click="deviceStore.selectedDeviceId = device.id"
+        >
+          <span class="truncate font-semibold">{{ device.data.deviceName }}</span>
+          <span class="task-device-tab-meta">
+            {{ deviceStore.getDeviceStatus(device.id).kind === 'running' ? '运行中' : deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
+          </span>
+          <span class="task-device-tab-count">{{ taskStore.assignmentsByDevice[device.id]?.length || 0 }}</span>
+        </button>
+      </div>
+
+      <div v-if="deviceIds.length" class="ml-auto flex flex-wrap items-center gap-2">
         <button class="app-button app-button-ghost group text-(--app-text-strong)" type="button" @click="deviceStore.pauseDevices(deviceIds)">
           <AppIcon name="pause" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-text-strong) transition-colors" />
           全部暂停
@@ -16,66 +31,16 @@
           <AppIcon name="play" :size="16" class="fill-current" />
           全部启动
         </button>
-      </template>
-    </AppPageHeader>
-
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <SurfacePanel class="space-y-1">
-        <p class="app-stat-label">已配置设备</p>
-        <p class="app-stat-value">{{ deviceStore.deviceSummary.total }}</p>
-      </SurfacePanel>
-      <SurfacePanel class="space-y-1">
-        <p class="app-stat-label">在线设备</p>
-        <p class="app-stat-value">{{ deviceStore.deviceSummary.online }}</p>
-      </SurfacePanel>
-      <SurfacePanel class="space-y-1">
-        <p class="app-stat-label">运行中</p>
-        <p class="app-stat-value">{{ deviceStore.deviceSummary.running }}</p>
-      </SurfacePanel>
-      <SurfacePanel class="space-y-1">
-        <p class="app-stat-label">队列总数</p>
-        <p class="app-stat-value">{{ totalAssignments }}</p>
-      </SurfacePanel>
+      </div>
     </div>
 
     <EmptyState
       v-if="!deviceIds.length"
       title="还没有可调度设备"
-      description="先去设备列表创建一台设备，配置连接方式和截图能力后，任务中心会自动接入。"
       icon="monitor-smartphone"
     />
 
-    <div v-else class="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-      <SurfacePanel class="space-y-3">
-        <div>
-          <p class="text-sm font-semibold text-(--app-text-strong)">设备节点</p>
-          <p class="text-xs text-(--app-text-faint)">左侧快速切换设备，右侧只展开当前设备的完整运行上下文。</p>
-        </div>
-
-        <div class="space-y-2">
-          <button
-            v-for="device in orderedDevices"
-            :key="device.id"
-            type="button"
-            class="app-list-item"
-            :class="{ 'app-list-item-active': device.id === activeDevice?.id }"
-            @click="deviceStore.selectedDeviceId = device.id"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ device.data.deviceName }}</p>
-                <p class="mt-1 truncate text-xs text-(--app-text-faint)">
-                  {{ taskStore.assignmentsByDevice[device.id]?.length || 0 }} 条队列
-                </p>
-              </div>
-              <span class="text-xs text-(--app-text-soft)">
-                {{ deviceStore.getDeviceStatus(device.id).kind === 'running' ? '运行中' : deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
-              </span>
-            </div>
-          </button>
-        </div>
-      </SurfacePanel>
-
+    <div v-else class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
       <TaskDevicePanel
         v-if="activeDevice"
         :device="activeDevice"
@@ -106,7 +71,6 @@
     <AppDialog
       :open="assignmentSettingsOpen"
       title="脚本模板设置"
-      description="快速编辑当前设备队列里这条脚本分配对应的模板变量。"
       width-class="max-w-4xl"
       @close="assignmentSettingsOpen = false"
     >
@@ -125,9 +89,7 @@ import { computed, onMounted, ref } from 'vue';
 import { confirm } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
-import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
-import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import { runtimeService } from '@/services/runtimeService';
 import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
 import ScriptTemplateValuePanel from '@/views/script-template-values/ScriptTemplateValuePanel.vue';
@@ -152,9 +114,6 @@ const orderedDevices = computed(() =>
 );
 const activeDevice = computed(() =>
   orderedDevices.value.find((device) => device.id === deviceStore.selectedDeviceId) ?? orderedDevices.value[0] ?? null,
-);
-const totalAssignments = computed(() =>
-  Object.values(taskStore.assignmentsByDevice).reduce((count, items) => count + items.length, 0),
 );
 const assignmentSettingsOpen = ref(false);
 const assignmentSettingsScriptId = ref<string | null>(null);
@@ -385,3 +344,55 @@ onMounted(async () => {
   await loadPageData();
 });
 </script>
+
+<style scoped>
+.task-device-tabs {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  gap: 0.35rem;
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-panel) 88%, transparent);
+  padding: 0.3rem;
+}
+
+.task-device-tab {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 220px;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  padding: 0.55rem 0.75rem;
+  color: var(--app-text-soft);
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.task-device-tab:hover {
+  color: var(--app-text-strong);
+}
+
+.task-device-tab-active {
+  border-color: color-mix(in srgb, var(--app-accent) 30%, var(--app-border));
+  background: color-mix(in srgb, var(--app-accent-soft) 58%, white);
+  color: var(--app-text-strong);
+}
+
+.task-device-tab-meta {
+  flex-shrink: 0;
+  color: var(--app-text-faint);
+  font-size: 0.76rem;
+}
+
+.task-device-tab-count {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--app-panel-muted);
+  padding: 0.1rem 0.45rem;
+  color: var(--app-text-soft);
+  font-size: 0.72rem;
+}
+</style>

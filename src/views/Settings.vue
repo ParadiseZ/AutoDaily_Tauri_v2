@@ -1,9 +1,10 @@
 <template>
-  <div class="space-y-6">
+  <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="系统设置"
     />
 
+    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
     <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
       <div class="space-y-4">
         <SettingsSection icon="user" title="账户信息">
@@ -343,6 +344,7 @@
           </div>
         </SettingsSection>
       </div>
+    </div>
     </div>
   </div>
 </template>

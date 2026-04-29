@@ -1,9 +1,10 @@
 <template>
-  <div class="space-y-6">
+  <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="关于 AutoDaily"
     />
 
+    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
     <div class="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
       <SurfacePanel class="space-y-5">
         <div class="flex items-center gap-4">
@@ -51,6 +52,7 @@
           <p class="app-stat-value text-base">多设备自动化工作台</p>
         </div>
       </SurfacePanel>
+    </div>
     </div>
   </div>
 </template>

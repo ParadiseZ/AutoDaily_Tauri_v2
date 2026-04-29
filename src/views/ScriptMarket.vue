@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="脚本市场"
       description="检索云端脚本并下载到本地库。"
@@ -14,7 +14,8 @@
       </button>
     </SurfacePanel>
 
-    <div class="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+    <div class="grid min-h-full gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
       <SurfacePanel class="space-y-3">
         <div class="flex items-center justify-between">
           <div>
@@ -104,6 +105,7 @@
           icon="info"
         />
       </SurfacePanel>
+    </div>
     </div>
   </div>
 </template>

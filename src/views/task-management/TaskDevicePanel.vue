@@ -85,7 +85,6 @@
             <div class="flex items-center justify-between">
               <div>
                 <p class="text-sm font-semibold text-(--app-text-strong)">总队列</p>
-                <p class="text-xs text-(--app-text-faint)">追加到这里的是正式设备队列，在线设备会立即同步。</p>
               </div>
               <StatusBadge :label="`${assignments.length} 条`" tone="neutral" />
             </div>
@@ -99,14 +98,13 @@
               </button>
             </div>
             <p v-if="!scriptOptions.length" class="text-xs text-(--app-text-faint)">
-              当前没有与设备平台匹配的脚本。设备平台为 {{ formatPlatformLabel(device.data.platform) }}。
+              没有匹配脚本：{{ formatPlatformLabel(device.data.platform) }}
             </p>
 
             <div class="space-y-3 rounded-[18px] border border-dashed border-(--app-border) px-4 py-4">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-(--app-text-strong)">待运行队列</p>
-                  <p class="text-xs text-(--app-text-faint)">今天还未调度，且当前时间尚未超过模板窗口结束时间的队列项。</p>
                 </div>
                 <span class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-faint)">
                   {{ pendingAssignments.length }} 条
@@ -138,7 +136,7 @@
 
             <div v-if="loadingAssignments" class="py-10 text-sm text-(--app-text-soft)">正在读取队列...</div>
             <div v-else-if="assignments.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
-              当前设备为空闲状态。为它追加脚本后，就可以直接从这里启动或暂停执行。
+              当前没有队列项。
             </div>
             <div v-else class="space-y-2">
               <div
@@ -189,7 +187,6 @@
             <div class="space-y-2">
               <div>
                 <p class="text-sm font-semibold text-(--app-text-strong)">临时运行</p>
-                <p class="text-xs text-(--app-text-faint)">这里只做临时调试，不读时间模板，不写正式调度记录。</p>
               </div>
 
               <div v-if="!temporaryScriptItems.length" class="rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)">
@@ -214,7 +211,6 @@
                   <p class="text-sm font-semibold text-(--app-text-strong)">
                     {{ selectedTemporaryScriptName || '选择左侧脚本' }}
                   </p>
-                  <p class="text-xs text-(--app-text-faint)">右侧直接列出任务，不显示时间模板和任务周期。</p>
                 </div>
 
                 <div class="flex flex-wrap gap-2">
@@ -242,7 +238,7 @@
               </p>
 
               <div v-if="!selectedTemporaryScriptId" class="rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)">
-                左侧选择一个脚本后，这里显示它的全部任务。
+                请选择脚本。
               </div>
               <div v-else-if="props.scriptTaskLoading[selectedTemporaryScriptId]" class="py-10 text-sm text-(--app-text-soft)">
                 正在加载任务列表...
@@ -286,7 +282,6 @@
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm font-semibold text-(--app-text-strong)">最近运行记录</p>
-            <p class="text-xs text-(--app-text-faint)">帮助快速判断设备是否稳定执行。</p>
           </div>
           <button class="app-button app-button-ghost h-10 px-4" type="button" @click="$emit('clearSchedules', device.id)">
             清空
@@ -295,7 +290,7 @@
 
         <div v-if="loadingSchedules" class="py-10 text-sm text-(--app-text-soft)">正在读取记录...</div>
         <div v-else-if="schedules.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
-          还没有运行历史。首次执行完成后，这里会显示最近的调度结果。
+          暂无运行记录。
         </div>
         <div v-else class="space-y-2">
           <div

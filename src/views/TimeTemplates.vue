@@ -1,5 +1,5 @@
 <template>
-  <div class="flex min-h-full flex-col gap-6">
+  <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader title="时间模板">
       <template #actions>
         <button class="app-button app-button-primary" type="button" @click="openCreateTemplateDialog">
@@ -9,7 +9,7 @@
       </template>
     </AppPageHeader>
 
-    <div class="grid flex-1 auto-rows-fr items-stretch gap-4 xl:min-h-[calc(100dvh-220px)] xl:grid-cols-[300px_360px_minmax(0,1fr)]">
+    <div class="grid min-h-0 flex-1 auto-rows-fr items-stretch gap-4 xl:grid-cols-[300px_360px_minmax(0,1fr)]">
       <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
           <div>

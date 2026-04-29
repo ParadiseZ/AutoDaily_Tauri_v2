@@ -86,8 +86,8 @@
       </div>
     </aside>
 
-    <main class="min-w-0 flex-1">
-      <div class="h-full overflow-y-auto custom-scrollbar px-4 pb-4 pt-6 lg:px-8">
+    <main class="min-w-0 flex-1 overflow-hidden">
+      <div class="h-full min-h-0 overflow-hidden px-4 pb-4 pt-6 lg:px-8">
         <router-view v-slot="{ Component }">
           <transition name="shell-fade" mode="out-in">
             <component :is="Component" />

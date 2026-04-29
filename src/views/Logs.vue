@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6">
+  <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="运行日志"
     />
@@ -18,6 +18,7 @@
       </button>
     </SurfacePanel>
 
+    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
     <SurfacePanel v-if="!filteredLogs.length" class="space-y-4">
       <EmptyState
         :title="emptyLogTitle"
@@ -40,8 +41,8 @@
       </div>
     </SurfacePanel>
 
-    <SurfacePanel v-else class="overflow-hidden p-0">
-      <div ref="logContainer" class="h-[calc(100vh-260px)] overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200">
+    <SurfacePanel v-else class="h-full overflow-hidden p-0">
+      <div ref="logContainer" class="h-full overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200">
         <div class="space-y-2">
           <div
             v-for="entry in filteredLogs"
@@ -58,6 +59,7 @@
         </div>
       </div>
     </SurfacePanel>
+    </div>
   </div>
 </template>
 
