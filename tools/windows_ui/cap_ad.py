@@ -67,6 +67,9 @@ class WindowInfo:
     title: str
     pid: int
     process_path: str
+    visible: bool
+    iconic: bool
+    enabled: bool
 
     @property
     def process_name(self) -> str:
@@ -139,15 +142,25 @@ def is_real_window(hwnd: int) -> bool:
     return bool(user32.IsWindowVisible(hwnd)) and not bool(user32.IsIconic(hwnd))
 
 
-def collect_windows() -> list[WindowInfo]:
+def collect_windows(include_hidden: bool = False) -> list[WindowInfo]:
     windows: list[WindowInfo] = []
 
     @EnumWindowsProc
     def callback(hwnd: int, _lparam: int) -> bool:
-        if is_real_window(hwnd):
+        if include_hidden or is_real_window(hwnd):
             title = get_window_text(hwnd)
             pid = get_window_pid(hwnd)
-            windows.append(WindowInfo(hwnd, title, pid, get_process_path(pid)))
+            windows.append(
+                WindowInfo(
+                    hwnd=hwnd,
+                    title=title,
+                    pid=pid,
+                    process_path=get_process_path(pid),
+                    visible=bool(user32.IsWindowVisible(hwnd)),
+                    iconic=bool(user32.IsIconic(hwnd)),
+                    enabled=bool(user32.IsWindowEnabled(hwnd)),
+                )
+            )
         return True
 
     user32.EnumWindows(callback, 0)
@@ -176,8 +189,9 @@ def find_windows(
     title_part: str,
     match: str,
     title_mode: str,
+    include_hidden: bool = False,
 ) -> list[WindowInfo]:
-    windows = collect_windows()
+    windows = collect_windows(include_hidden=include_hidden)
     processes = process_snapshot()
     process_needle = process_part.casefold()
     title_needle = title_part.casefold()
@@ -204,11 +218,31 @@ def find_windows(
     return process_matches or [window for window in windows if by_title(window)]
 
 
+def find_capture_windows(args: argparse.Namespace) -> list[WindowInfo]:
+    matches = find_windows(args.process, args.title, args.match, args.title_mode)
+    if matches:
+        return matches
+    return find_windows(
+        args.process,
+        args.title,
+        args.match,
+        args.title_mode,
+        include_hidden=True,
+    )
+
+
 def window_rect(hwnd: int) -> tuple[int, int, int, int]:
     rect = RECT()
     if not user32.GetWindowRect(hwnd, ctypes.byref(rect)):
         raise RuntimeError("GetWindowRect failed")
     return rect.left, rect.top, rect.right, rect.bottom
+
+
+def safe_window_rect(hwnd: int) -> str:
+    try:
+        return str(window_rect(hwnd))
+    except Exception as exc:
+        return f"<rect unavailable: {exc}>"
 
 
 def foreground(hwnd: int, delay: float) -> None:
@@ -307,6 +341,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="List matching visible windows and exit.",
     )
     parser.add_argument(
+        "--list-all",
+        action="store_true",
+        help="List matching top-level windows including hidden or minimized candidates.",
+    )
+    parser.add_argument(
         "--no-foreground",
         action="store_true",
         help="Do not bring the target window to the foreground before screen-region capture.",
@@ -323,20 +362,29 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     enable_dpi_awareness()
     args = build_parser().parse_args()
-    matches = find_windows(args.process, args.title, args.match, args.title_mode)
+    matches = find_windows(
+        args.process,
+        args.title,
+        args.match,
+        args.title_mode,
+        include_hidden=args.list_all,
+    ) if args.list or args.list_all else find_capture_windows(args)
 
-    if args.list:
+    if args.list or args.list_all:
         if not matches:
             print(
-                "No visible, non-minimized windows matched "
+                "No windows matched "
                 f"process={args.process!r} title={args.title!r} "
-                f"title_mode={args.title_mode!r} match={args.match!r}"
+                f"title_mode={args.title_mode!r} match={args.match!r} "
+                f"include_hidden={args.list_all!r}"
             )
             return 1
         for window in matches:
             print(
                 f"0x{window.hwnd:08X} pid={window.pid} "
-                f"process={window.process_name or '?'} title={window.title}"
+                f"process={window.process_name or '?'} "
+                f"visible={window.visible} iconic={window.iconic} enabled={window.enabled} "
+                f"rect={safe_window_rect(window.hwnd)} title={window.title}"
             )
         return 0
 

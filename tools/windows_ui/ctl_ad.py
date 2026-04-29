@@ -172,12 +172,12 @@ def is_real_window(hwnd: int) -> bool:
     return bool(user32.IsWindowVisible(hwnd)) and not bool(user32.IsIconic(hwnd))
 
 
-def collect_windows() -> list[WindowInfo]:
+def collect_windows(include_hidden: bool = False) -> list[WindowInfo]:
     windows: list[WindowInfo] = []
 
     @EnumWindowsProc
     def callback(hwnd: int, _lparam: int) -> bool:
-        if is_real_window(hwnd):
+        if include_hidden or is_real_window(hwnd):
             title = get_window_text(hwnd)
             pid = get_window_pid(hwnd)
             windows.append(WindowInfo(hwnd, title, pid, get_process_path(pid)))
@@ -209,8 +209,9 @@ def find_windows(
     title_part: str,
     match: str,
     title_mode: str,
+    include_hidden: bool = False,
 ) -> list[WindowInfo]:
-    windows = collect_windows()
+    windows = collect_windows(include_hidden=include_hidden)
     processes = process_snapshot()
     process_needle = process_part.casefold()
     title_needle = title_part.casefold()
@@ -239,6 +240,8 @@ def find_windows(
 
 def first_window(process: str, title: str, match: str, title_mode: str) -> WindowInfo:
     matches = find_windows(process, title, match, title_mode)
+    if not matches:
+        matches = find_windows(process, title, match, title_mode, include_hidden=True)
     if not matches:
         raise SystemExit(
             "No visible, non-minimized windows matched "

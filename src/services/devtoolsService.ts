@@ -9,3 +9,7 @@ export async function openCurrentDevtools() {
         showToast('打开开发者工具失败', 'error');
     }
 }
+
+export function reloadCurrentPage() {
+    window.location.reload();
+}

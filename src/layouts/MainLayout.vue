@@ -96,15 +96,26 @@
       </div>
     </main>
 
-    <button
-      class="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] shadow-lg shadow-slate-900/10 transition hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
-      type="button"
-      title="打开开发者工具"
-      @click="openCurrentDevtools"
-    >
-      <AppIcon name="bug" :size="16" />
-      开发者工具
-    </button>
+    <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2">
+      <button
+        class="inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] shadow-lg shadow-slate-900/10 transition hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
+        type="button"
+        title="刷新当前页面"
+        @click="reloadCurrentPage"
+      >
+        <AppIcon name="refresh-cw" :size="16" />
+        刷新页面
+      </button>
+      <button
+        class="inline-flex items-center gap-2 rounded-full border border-[var(--app-border)] bg-[var(--app-panel)] px-4 py-2 text-sm font-semibold text-[var(--app-text-strong)] shadow-lg shadow-slate-900/10 transition hover:border-[var(--app-accent)] hover:text-[var(--app-accent)]"
+        type="button"
+        title="打开开发者工具"
+        @click="openCurrentDevtools"
+      >
+        <AppIcon name="bug" :size="16" />
+        开发者工具
+      </button>
+    </div>
   </div>
 </template>
 
@@ -116,7 +127,7 @@ import { routesMenu } from '@/router';
 import { useUserStore } from '@/store/user';
 import { useDeviceStore } from '@/store/device';
 import { openVisionLabWindow } from '@/utils/visionLabWindow';
-import { openCurrentDevtools } from '@/services/devtoolsService';
+import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
 
 const route = useRoute();
 const userStore = useUserStore();
