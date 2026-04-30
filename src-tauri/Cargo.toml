@@ -76,7 +76,9 @@ tauri = { version = "2.10.3", features = ["uuid", "unstable"] }
 tauri-plugin-opener = "2.5.3"
 tauri-plugin-dialog = "2.6.0"
 tauri-plugin-notification = "2.3.3"
+tauri-plugin-process = "2.3.1"
 tauri-plugin-store = "2.4.2"
+tauri-plugin-updater = "2.10.1"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-global-shortcut = "2.3.1"
 tauri-plugin-window-state = "2.4.1"
@@ -99,7 +101,9 @@ tauri-plugin-dialog = { workspace = true }
 #tauri-plugin-fs = "2"
 # 系统通知
 tauri-plugin-notification = { workspace = true }
+tauri-plugin-process = { workspace = true }
 tauri-plugin-store = { workspace = true }
+tauri-plugin-updater = { workspace = true }
 
 #序列化/yaml
 serde = { workspace = true}

@@ -25,6 +25,8 @@
     "global-shortcut:allow-unregister",
     "window-state:default",
     "autostart:default",
-    "notification:default"
+    "notification:default",
+    "process:default",
+    "updater:default"
   ]
 }

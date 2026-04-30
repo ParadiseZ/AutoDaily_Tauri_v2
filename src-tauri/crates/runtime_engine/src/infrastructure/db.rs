@@ -33,6 +33,13 @@ const SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL: &str =
             ifnull(account_id, '')
         )";
 
+const SCHEMA_MIGRATIONS_TABLE_SQL: &str =
+    "CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )";
+
 pub static POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
 /// 子进程初始化数据库
@@ -194,7 +201,6 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    ensure_script_tasks_columns(pool).await?;
 
     // 9. 设备脚本分配表（队列定义）
     sqlx::query(
@@ -234,7 +240,6 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    ensure_device_script_schedule_columns(pool).await?;
 
     // 11. 时间模板表
     sqlx::query(
@@ -254,7 +259,73 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    ensure_script_time_template_values_schema(pool).await?;
+
+    apply_schema_migrations(pool).await?;
+
+    Ok(())
+}
+
+async fn apply_schema_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
+    sqlx::query(SCHEMA_MIGRATIONS_TABLE_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if should_apply_schema_migration(pool, "2026043001").await? {
+        ensure_script_tasks_columns(pool).await?;
+        mark_schema_migration_applied(
+            pool,
+            "2026043001",
+            "ensure_script_tasks_current_columns",
+        )
+        .await?;
+    }
+
+    if should_apply_schema_migration(pool, "2026043002").await? {
+        ensure_device_script_schedule_columns(pool).await?;
+        mark_schema_migration_applied(
+            pool,
+            "2026043002",
+            "ensure_device_script_schedule_runtime_columns",
+        )
+        .await?;
+    }
+
+    if should_apply_schema_migration(pool, "2026043003").await? {
+        ensure_script_time_template_values_schema(pool).await?;
+        mark_schema_migration_applied(
+            pool,
+            "2026043003",
+            "ensure_script_time_template_values_scope",
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn should_apply_schema_migration(pool: &Pool<Sqlite>, version: &str) -> Result<bool, String> {
+    let exists: Option<(String,)> =
+        sqlx::query_as("SELECT version FROM schema_migrations WHERE version = ?")
+            .bind(version)
+            .fetch_optional(pool)
+            .await
+            .map_err(|e| e.to_string())?;
+
+    Ok(exists.is_none())
+}
+
+async fn mark_schema_migration_applied(
+    pool: &Pool<Sqlite>,
+    version: &str,
+    name: &str,
+) -> Result<(), String> {
+    sqlx::query("INSERT INTO schema_migrations (version, name) VALUES (?, ?)")
+        .bind(version)
+        .bind(name)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }

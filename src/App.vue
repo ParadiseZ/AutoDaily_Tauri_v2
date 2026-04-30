@@ -4,6 +4,7 @@
   </component>
   <AuthModal />
   <AppConfirmHost />
+  <AppUpdateDialogHost />
 </template>
 
 <script setup lang="ts">
@@ -19,6 +20,8 @@ import { useLogsStore } from './store/logs';
 import { useRuntimeStore } from './store/runtime';
 import AuthModal from "@/components/AuthModal.vue";
 import AppConfirmHost from "@/components/shared/AppConfirmHost.vue";
+import AppUpdateDialogHost from "@/components/shared/AppUpdateDialogHost.vue";
+import { checkForAppUpdateSilently } from '@/services/appUpdateService';
 
 const { initTheme } = useThemeManager();
 const route = useRoute();
@@ -42,5 +45,6 @@ onMounted(async () => {
     logsStore.initListener(),
     runtimeStore.initIpcListeners(),
   ]);
+  void checkForAppUpdateSilently();
 });
 </script>

@@ -6,7 +6,17 @@
           <div class="flex items-center gap-3">
             <AppIcon name="logo" type="custom" :size="40" class="text-(--app-accent) drop-shadow-md" />
             <div>
-              <p class="text-lg font-semibold text-(--app-text-strong)">AutoDaily</p>
+              <div class="flex items-baseline gap-2">
+                <p class="text-lg font-semibold text-(--app-text-strong)">AutoDaily</p>
+                <button
+                  v-if="appUpdateState.phase === 'available'"
+                  class="text-sm font-bold text-red-600 transition hover:text-red-700"
+                  type="button"
+                  @click="openAppUpdateDialog"
+                >
+                  New
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -128,6 +138,7 @@ import { useUserStore } from '@/store/user';
 import { useDeviceStore } from '@/store/device';
 import { openVisionLabWindow } from '@/utils/visionLabWindow';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
+import { appUpdateState, openAppUpdateDialog } from '@/services/appUpdateService';
 
 const route = useRoute();
 const userStore = useUserStore();

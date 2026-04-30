@@ -21,7 +21,9 @@
     "core:webview:allow-create-webview-window",
     "core:event:allow-listen",
     "core:event:default",
-    "opener:default"
+    "opener:default",
+    "process:default",
+    "updater:default"
   ],
   "capabilities": []
 }
