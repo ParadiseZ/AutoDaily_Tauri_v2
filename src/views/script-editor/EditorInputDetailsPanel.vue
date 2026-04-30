@@ -26,14 +26,18 @@
         </label>
 
         <label class="detail-item">
-          <span class="detail-label">键</span>
-          <input
-            :value="selectedInputEntry.key"
-            class="app-input"
-            placeholder="例如：activitySweepCount"
-            :data-testid="selectedInputIndex === 0 ? 'editor-input-key-0' : undefined"
-            @input="$emit('update-input', selectedInputEntry.id, 'key', ($event.target as HTMLInputElement).value)"
-          />
+          <span class="detail-label">键<span class="text-red-600">*（必填）</span></span>
+          <span class="space-y-2">
+            <input
+              :value="selectedInputEntry.key"
+              class="app-input"
+              :class="{ 'editor-input-invalid': isKeyMissing }"
+              placeholder="例如：activitySweepCount"
+              :aria-invalid="isKeyMissing"
+              :data-testid="selectedInputIndex === 0 ? 'editor-input-key-0' : undefined"
+              @input="$emit('update-input', selectedInputEntry.id, 'key', ($event.target as HTMLInputElement).value)"
+            />
+          </span>
         </label>
 
         <div class="detail-item">
@@ -121,6 +125,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import { editorInputTypeOptions, type EditorInputEntry } from '@/views/script-editor/editorVariables';
@@ -138,6 +143,7 @@ defineEmits<{
 }>();
 
 const inputTypeOptions = editorInputTypeOptions;
+const isKeyMissing = computed(() => Boolean(props.selectedInputEntry && !props.selectedInputEntry.key.trim()));
 const scopeOptions = [
   { label: 'Input', value: 'input', description: '用户可配置并持久化的输入变量。' },
   { label: 'Runtime', value: 'runtime', description: '步骤执行过程中的运行时变量。' },
@@ -165,6 +171,11 @@ const scopeOptions = [
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.editor-input-invalid {
+  border-color: rgba(220, 38, 38, 0.38);
+  background: rgba(254, 242, 242, 0.78);
 }
 
 @media (min-width: 768px) {

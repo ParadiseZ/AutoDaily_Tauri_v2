@@ -529,6 +529,7 @@ import {
 } from '@/views/script-editor/editorSchema';
 import { parseTaskCycleValue } from '@/views/script-editor/editorTaskMeta';
 import { createSearchRule } from '@/views/script-editor/editorSearchRule';
+import { inputEntryToVariableOption } from '@/views/script-editor/editorInputVariableOptions';
 import {
   buildInputJson,
   createInputEntry,
@@ -800,36 +801,6 @@ const runSelectionDisabledReason = computed(() => {
 });
 
 const canRunSelection = computed(() => !runSelectionDisabledReason.value);
-
-const inputTypeToValueType = (type: EditorInputType): EditorVariableOption['valueType'] => {
-  if (type === 'int') return 'int';
-  if (type === 'float') return 'float';
-  if (type === 'bool') return 'bool';
-  if (type === 'json') return 'json';
-  if (type === 'image') return 'image';
-  return 'string';
-};
-
-const inputEntryToVariableOption = (entry: EditorInputEntry, ownerTaskId: string | null): EditorVariableOption => {
-  const storageKey = entry.key.trim();
-  const key = entry.namespace === 'input' ? `input.${storageKey}` : entry.namespace === 'runtime' ? `runtime.${storageKey}` : `system.${storageKey}`;
-  const uiBindable = entry.namespace === 'input' && entry.type !== 'json' && entry.type !== 'image';
-  return {
-    id: entry.id,
-    key,
-    label: entry.name.trim() || storageKey || '未命名输入',
-    namespace: entry.namespace,
-    valueType: inputTypeToValueType(entry.type),
-    defaultValue: null,
-    sourceType: 'manual',
-    ownerTaskId,
-    sourceStepId: entry.sourceStepId,
-    readable: true,
-    writable: entry.namespace !== 'system',
-    uiBindable,
-    description: entry.description.trim(),
-  };
-};
 
 const variableOptions = computed(() => {
   const options = listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value);
