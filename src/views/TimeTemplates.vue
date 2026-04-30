@@ -118,7 +118,11 @@
       </SurfacePanel>
 
       <SurfacePanel class="flex h-full min-h-0 flex-col overflow-hidden">
-        <template v-if="selectedScope && selectedScopeScript">
+        <AppLoadingState
+          v-if="selectedScope && selectedScopeScript && selectedScopeTasksLoading"
+          label="正在读取模板变量..."
+        />
+        <template v-else-if="selectedScope && selectedScopeScript">
           <ScriptTemplateValuePanel
             class="min-h-0 flex-1"
             :script="selectedScopeScript"
@@ -196,6 +200,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import AppLoadingState from '@/components/shared/AppLoadingState.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
@@ -277,6 +282,10 @@ const selectedScopeScript = computed(() =>
 
 const selectedScopeTasks = computed(() =>
   selectedScope.value ? scriptStore.tasksByScriptId[selectedScope.value.assignment.scriptId] ?? [] : [],
+);
+
+const selectedScopeTasksLoading = computed(() =>
+  selectedScope.value ? Boolean(scriptStore.taskLoading[selectedScope.value.assignment.scriptId]) : false,
 );
 
 const deviceOptions = computed(() =>

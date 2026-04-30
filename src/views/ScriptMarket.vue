@@ -23,7 +23,10 @@
           </div>
         </div>
 
-        <div v-if="scriptStore.marketLoading" class="py-12 text-sm text-(--app-text-soft)">正在检索...</div>
+        <AppLoadingState
+            v-if="scriptStore.marketLoading"
+            label="正在检索..."
+        />
         <div v-else-if="!scriptStore.marketPage.records.length" class="space-y-3">
           <EmptyState title="没有找到匹配脚本" description="可以放宽关键字、作者或运行时筛选后重新搜索。" icon="search" />
         </div>
@@ -114,6 +117,7 @@ import { useScriptStore } from '@/store/script';
 import { useUserStore } from '@/store/user';
 import { showToast } from '@/utils/toast';
 import { formatDate, formatRuntimeLabel } from '@/utils/presenters';
+import AppLoadingState from '@/components/shared/AppLoadingState.vue';
 
 const router = useRouter();
 const scriptStore = useScriptStore();

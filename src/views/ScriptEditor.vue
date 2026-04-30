@@ -4,9 +4,8 @@
       <header class="editor-toolbar rounded-[20px] border border-(--app-border) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-3">
-            <button class="app-button app-button-ghost group" type="button" @click="router.push('/scripts')">
+            <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
               <AppIcon name="arrow-left" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-              返回
             </button>
 
             <div class="space-y-1">
@@ -17,21 +16,17 @@
                 <h1 class="text-xl font-semibold text-(--app-text-strong) lg:text-2xl">
                   {{ draftScript?.data.name || '脚本编辑器' }}
                 </h1>
-                <button class="app-button app-button-ghost group" type="button" data-testid="editor-script-info" @click="infoDialogOpen = true">
+                <button class="app-icon-button group" type="button" title="编辑脚本信息" aria-label="编辑脚本信息" data-testid="editor-script-info" @click="infoDialogOpen = true">
                   <AppIcon name="file-text" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                  编辑脚本信息
                 </button>
-                <button class="app-button app-button-ghost group" type="button" data-testid="editor-open-vision-lab" :disabled="!draftScript" @click="handleOpenVisionLab">
+                <button class="app-icon-button group" type="button" title="视觉测试" aria-label="视觉测试" data-testid="editor-open-vision-lab" :disabled="!draftScript" @click="handleOpenVisionLab">
                   <AppIcon name="scan-search" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                  视觉测试
                 </button>
-                <button class="app-button app-button-ghost group" type="button" data-testid="editor-open-devtools" @click="openCurrentDevtools">
+                <button class="app-icon-button group" type="button" title="开发者工具" aria-label="开发者工具" data-testid="editor-open-devtools" @click="openCurrentDevtools">
                   <AppIcon name="bug" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                  开发者工具
                 </button>
-                <button class="app-button app-button-ghost group" type="button" data-testid="editor-reload-page" @click="reloadCurrentPage">
+                <button class="app-icon-button group" type="button" title="刷新页面" aria-label="刷新页面" data-testid="editor-reload-page" @click="reloadCurrentPage">
                   <AppIcon name="refresh-cw" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                  刷新页面
                 </button>
                 <span
                   class="rounded-full px-3 py-1 text-xs font-medium"
@@ -52,38 +47,42 @@
                 test-id="editor-header-device"
               />
             </div>
-            <button class="app-button app-button-ghost group" type="button" @click="openDeviceEditor(selectedPreviewDeviceId)">
+            <button class="app-icon-button group" type="button" :title="selectedPreviewDeviceId ? '编辑设备' : '新建设备'" :aria-label="selectedPreviewDeviceId ? '编辑设备' : '新建设备'" @click="openDeviceEditor(selectedPreviewDeviceId)">
               <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-              {{ selectedPreviewDeviceId ? '编辑' : '新建' }}
             </button>
             <div class="min-w-[260px]">
               <AppSelect
                 v-model="selectedRunTargetKey"
                 :options="runTargetSelectOptions"
                 :placeholder="runTargetSelectPlaceholder"
+                searchable
+                search-placeholder="按任务名称搜索"
+                :max-menu-height="360"
+                :show-description="true"
                 test-id="editor-header-target-item"
               />
             </div>
             <button
-              class="app-button app-button-ghost group"
+              class="app-icon-button group"
               type="button"
               data-testid="editor-run"
-              :title="runSelectionDisabledReason || undefined"
+              :title="runSelectionDisabledReason || '运行'"
+              :aria-label="runSelectionDisabledReason || '运行'"
               :disabled="!canRunSelection"
               @click="handleRunSelection"
             >
-              <AppIcon name="play" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-              运行
+              <AppIcon name="play" :size="16"/>
             </button>
             <button
-              class="app-button app-button-primary shadow-lg"
+              class="app-icon-button"
               type="button"
               data-testid="editor-save"
+              :title="isSaving ? '保存中...' : '保存'"
+              :aria-label="isSaving ? '保存中...' : '保存'"
               :disabled="!draftScript || isSaving || hasValidationErrors"
               @click="saveEditor"
             >
-              <AppIcon name="save" :size="16" />
-              {{ isSaving ? '保存中...' : '保存结构' }}
+              <AppIcon :name="isSaving ? 'loader-circle' : 'save'" :size="16" :class="{ 'app-loading-spinner': isSaving }" />
             </button>
           </div>
         </div>
@@ -102,11 +101,12 @@
       </div>
 
       <div v-else class="flex min-h-0 flex-1 flex-col gap-4">
-        <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)]">
+        <div class="editor-main-grid grid min-h-0 flex-1 gap-4" :class="{ 'editor-main-grid-collapsed': leftSidebarCollapsed }">
           <EditorTaskSidebar
             v-if="activeMode === 'task'"
             :tasks="draftTasks"
             :selected-task-id="selectedTaskId"
+            :collapsed="leftSidebarCollapsed"
             @create="createTask"
             @select="selectTask"
             @duplicate="duplicateTask"
@@ -115,7 +115,7 @@
             @reorder="reorderTasks"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="draftTasks.length"/>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
             </template>
           </EditorTaskSidebar>
 
@@ -126,15 +126,16 @@
             :selected-id="selectedPolicyId"
             empty-title="没有可编辑的策略"
             empty-description="先创建策略，再在右侧配置命中条件和步骤。"
-            create-test-id="editor-policy-create-sidebar"
+            create-test-id="editor-policy-create"
             item-test-id-prefix="editor-policy-item"
+            :collapsed="leftSidebarCollapsed"
             @create="createPolicy"
             @select="selectedPolicyId = $event"
             @remove="removePolicy"
             @reorder="reorderPolicies"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="policyItems.length"/>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
             </template>
           </EditorCollectionSidebar>
 
@@ -145,15 +146,16 @@
             :selected-id="selectedPolicyGroupId"
             empty-title="没有可编辑的策略组"
             empty-description="先创建策略组，再在右侧维护策略关联。"
-            create-test-id="editor-policy-group-create-sidebar"
+            create-test-id="editor-policy-group-create"
             item-test-id-prefix="editor-policy-group-item"
+            :collapsed="leftSidebarCollapsed"
             @create="createPolicyGroup"
             @select="selectedPolicyGroupId = $event"
             @remove="removePolicyGroup"
             @reorder="reorderPolicyGroups"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="policyGroupItems.length"/>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
             </template>
           </EditorCollectionSidebar>
 
@@ -164,15 +166,16 @@
             :selected-id="selectedPolicySetId"
             empty-title="没有可编辑的策略集"
             empty-description="先创建策略集，再在右侧维护策略组关联。"
-            create-test-id="editor-policy-set-create-sidebar"
+            create-test-id="editor-policy-set-create"
             item-test-id-prefix="editor-policy-set-item"
+            :collapsed="leftSidebarCollapsed"
             @create="createPolicySet"
             @select="selectedPolicySetId = $event"
             @remove="removePolicySet"
             @reorder="reorderPolicySets"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="policySetItems.length"/>
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
             </template>
           </EditorCollectionSidebar>
 
@@ -556,6 +559,7 @@ const rawDialogText = ref('');
 const rawDialogError = ref<string | null>(null);
 
 const activeMode = ref<EditorModeId>('task');
+const leftSidebarCollapsed = ref(false);
 const activePanel = ref<EditorPanelId>('basic');
 const activePolicyPanel = ref<PolicyEditorPanelId>('basic');
 const activePolicyGroupPanel = ref<RelationEditorPanelId>('basic');
@@ -3417,5 +3421,20 @@ onBeforeUnmount(() => {
     var(--app-panel);
   box-shadow: var(--app-shadow-soft);
   backdrop-filter: blur(16px);
+}
+
+.editor-main-grid {
+  grid-template-columns: 340px minmax(0, 1fr);
+}
+
+.editor-main-grid-collapsed {
+  grid-template-columns: 112px minmax(0, 1fr);
+}
+
+@media (max-width: 1279px) {
+  .editor-main-grid,
+  .editor-main-grid-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

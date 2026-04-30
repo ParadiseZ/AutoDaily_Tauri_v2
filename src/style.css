@@ -289,17 +289,33 @@ a {
 }
 
 .app-icon-button {
-  width: 2.45rem;
-  height: 2.45rem;
+  width: 2.1rem;
+  height: 2.1rem;
   color: var(--app-text-soft);
   background: rgba(255, 255, 255, 0.2);
   border-color: var(--app-border);
+}
+
+.app-icon-button-sec {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .app-button:hover,
 .app-icon-button:hover {
   transform: translateY(-1px);
   cursor: pointer;
+}
+
+.app-icon-button:hover {
+  background: linear-gradient(135deg, rgba(41,110,235, 0.2), rgba(41,110,235,0.34));
+}
+
+.app-crash-icon:hover{
+  background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(220, 38, 38, 0.34));
+  border-color: rgba(220, 38, 38, 0.32);
+  color: rgb(185, 28, 28);
+  box-shadow: 0 10px 22px rgba(220, 38, 38, 0.12);
 }
 
 .app-button-primary {
@@ -519,6 +535,7 @@ a {
   box-shadow: var(--app-shadow-soft);
   padding: 0.4rem;
   backdrop-filter: blur(18px);
+  overflow-y: auto;
 }
 
 .app-select-menu-floating {
@@ -556,6 +573,59 @@ a {
 .app-select-option-active:hover {
   background: var(--app-state-active-hover-bg);
   border-color: var(--app-state-active-hover-border);
+}
+
+.app-select-search-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-bottom: 0.35rem;
+  background: color-mix(in srgb, var(--app-panel) 96%, transparent);
+  padding-bottom: 0.25rem;
+}
+
+.app-select-search {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-panel-muted) 94%, transparent);
+  color: var(--app-text-strong);
+  padding: 0.55rem 0.7rem;
+  font-size: 0.86rem;
+}
+
+.app-select-search:focus {
+  outline: none;
+  border-color: rgba(70, 110, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(70, 110, 255, 0.1);
+}
+
+.app-select-empty {
+  padding: 0.8rem;
+  color: var(--app-text-faint);
+  font-size: 0.86rem;
+}
+
+.app-loading-state {
+  display: flex;
+  min-height: 10rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  border-radius: 18px;
+  border: 1px dashed var(--app-border);
+  color: var(--app-text-soft);
+  font-size: 0.9rem;
+}
+
+.app-loading-spinner {
+  animation: app-spin 0.8s linear infinite;
+}
+
+@keyframes app-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .custom-scrollbar::-webkit-scrollbar {

@@ -18,7 +18,12 @@
         <p v-else class="mt-3 text-sm text-(--app-text-soft)">未挂载到任何设备队列上。</p>
       </div>
 
-      <div v-if="selectedScope" class="space-y-3">
+      <AppLoadingState
+        v-if="loading"
+        label="正在读取脚本任务..."
+      />
+
+      <div v-else-if="selectedScope" class="space-y-3">
         <div>
           <p class="text-xs uppercase tracking-[0.14em] text-(--app-text-faint)">当前模板范围</p>
         </div>
@@ -37,8 +42,7 @@
       </div>
 
       <div class="space-y-3">
-        <div v-if="loading" class="py-10 text-sm text-(--app-text-soft)">正在读取脚本任务...</div>
-        <div v-else-if="!tasks.length" class="rounded-[18px] border border-dashed border-(--app-border) p-4 text-sm text-(--app-text-soft)">
+        <div v-if="!loading && !tasks.length" class="rounded-[18px] border border-dashed border-(--app-border) p-4 text-sm text-(--app-text-soft)">
           无任务数据
         </div>
         <!-- <div v-else class="space-y-3">
@@ -108,6 +112,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import AppLoadingState from '@/components/shared/AppLoadingState.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';

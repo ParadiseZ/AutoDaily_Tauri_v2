@@ -1,8 +1,8 @@
-  <template>
+<template>
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <div class="space-y-4">
       <slot name="mode-switch" />
-      <div class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
+      <div v-if="!collapsed" class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
         <input
           v-model="search"
           class="app-input"
@@ -21,7 +21,7 @@
         </button>
       </div>
 
-      <div class="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-3 gap-y-2 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+      <div v-if="!collapsed" class="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-3 gap-y-2 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
         <span class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">任务</span>
         <span class="text-xl font-semibold text-(--app-text-strong)">{{ tasks.length }}</span>
         <span class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">隐藏</span>
@@ -29,7 +29,7 @@
       </div>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
+    <div v-if="!collapsed" class="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
       <div v-if="filteredTasks.length" class="space-y-2 pr-1">
         <article
           v-for="task in filteredTasks"
@@ -57,7 +57,7 @@
               <GripVertical class="h-4 w-4" />
             </button>
 
-            <div
+            <button
               class="min-w-0 flex-1 text-left"
               type="button"
               :style="task.rowType === 'title' ? undefined : { paddingLeft: `${task.indentLevel * 0.85}rem` }"
@@ -75,28 +75,28 @@
                 <template v-if="task.rowType === 'title'">标题行 · 分组标题</template>
                 <template v-else>{{ formatTriggerModeLabel(task.triggerMode) }} · {{ task.data.steps.length }} 个步骤</template>
               </p>
-            </div>
+            </button>
 
             <div class="flex flex-col items-end gap-2">
               <button
-                  class="app-button app-button-ghost app-toolbar-button"
+                  class="app-icon-button app-icon-button-sec"
                   type="button"
                   :aria-label="task.isHidden ? '显示' : '隐藏'"
                   :title="task.isHidden ? '显示' : '隐藏'"
                   @click.stop="$emit('toggle-hidden', task.id)"
               >
-                <Eye v-if="task.isHidden" class="h-4 w-4 bg-emerald-500/10 text-emerald-700 " />
+                <Eye v-if="task.isHidden" class="h-4 w-4" />
                 <EyeOff v-else class = "h-4 w-4" />
               </button>
             </div>
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" aria-label="复制" title="复制" @click.stop="$emit('duplicate', task.id)">
+            <button class="app-icon-button app-icon-button-sec" type="button" aria-label="复制" title="复制" @click.stop="$emit('duplicate', task.id)">
               <Copy class="h-4 w-4" />
             </button>
             <button
-              class="app-button app-button-danger app-toolbar-button"
+              class="app-icon-button app-crash-icon app-icon-button-sec"
               type="button"
               :disabled="tasks.length <= 1"
               aria-label="删除"
@@ -129,6 +129,7 @@ import { formatTaskTriggerModeLabel } from '@/utils/presenters';
 const props = defineProps<{
   tasks: ScriptTaskTable[];
   selectedTaskId: string | null;
+  collapsed?: boolean;
 }>();
 
 const emit = defineEmits<{

@@ -1,54 +1,52 @@
 <template>
-  <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) p-2">
-    <div class="grid grid-cols-2 gap-2">
+  <div class="editor-mode-switch">
+    <div class="editor-panel-tabs min-w-0 flex-1 overflow-x-auto">
       <button
         v-for="option in options"
         :key="option.id"
-        class="editor-mode-tab"
-        :class="{ 'editor-mode-tab-active': modelValue === option.id }"
+        class="editor-panel-tab"
+        :class="{ 'editor-panel-tab-active': modelValue === option.id }"
         type="button"
+        :title="option.label"
         :data-testid="`editor-mode-${option.id}`"
         @click="$emit('update:modelValue', option.id)"
       >
-        {{ option.label }} {{ itemsLength }}
+        {{ collapsed ? option.label.slice(0, 1) : option.label }}
       </button>
     </div>
+    <button
+      class="app-icon-button shrink-0"
+      type="button"
+      :title="collapsed ? '展开左侧区域' : '收缩左侧区域'"
+      :aria-label="collapsed ? '展开左侧区域' : '收缩左侧区域'"
+      @click="$emit('toggle-collapsed')"
+    >
+      <AppIcon :name="collapsed ? 'panel-left-open' : 'panel-left-close'" :size="15" />
+    </button>
   </div>
 </template>
 
 <script setup lang="ts">
+import AppIcon from '@/components/shared/AppIcon.vue';
 import type { EditorModeId } from '@/views/script-editor/editor-policy/editorPolicy';
 
 defineProps<{
   modelValue: EditorModeId;
   options: Array<{ id: EditorModeId; label: string }>;
-  itemsLength: number
+  collapsed?: boolean;
 }>();
 
 defineEmits<{
   'update:modelValue': [value: EditorModeId];
+  'toggle-collapsed': [];
 }>();
 </script>
 
 <style scoped>
-.editor-mode-tab {
-  border-radius: 14px;
-  border: 1px solid transparent;
-  padding: 0.7rem 0.75rem;
-  color: var(--app-text-soft);
-  font-size: 0.88rem;
-  font-weight: 700;
-  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
-}
-
-.editor-mode-tab:hover {
-  background: rgba(255, 255, 255, 0.6);
-}
-
-.editor-mode-tab-active {
-  border-color: rgba(70, 110, 255, 0.2);
-  background: color-mix(in srgb, var(--app-state-active-bg) 88%, white);
-  color: var(--app-text-strong);
-  box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.08);
+.editor-mode-switch {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
 }
 </style>

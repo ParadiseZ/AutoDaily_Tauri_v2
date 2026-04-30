@@ -15,8 +15,41 @@
         @remove-input="$emit('remove-input', $event)"
       />
 
-      <div v-else-if="activePanel === 'ui'" class="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
+      <div v-else-if="activePanel === 'ui'" class="flex min-h-0 flex-1 flex-col gap-4">
+        <div class="editor-panel-tabs min-w-max">
+          <button
+            v-for="tab in uiWorkspaceTabs"
+            :key="tab.id"
+            type="button"
+            class="editor-panel-tab"
+            :class="{ 'editor-panel-tab-active': uiWorkspaceTab === tab.id }"
+            @click="uiWorkspaceTab = tab.id"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
+
+        <div v-if="uiWorkspaceTab === 'edit'" class="min-h-0 flex-1">
+          <EditorUiFieldDetailsPanel
+            v-if="task.rowType === 'task'"
+            :selected-ui-field="selectedUiField"
+            :selected-ui-field-index="selectedUiFieldIndex"
+            :variable-options="variableOptions"
+            @update-ui-field="forwardUpdateUiField"
+            @remove-ui-field="$emit('remove-ui-field', $event)"
+          />
+
+          <div
+            v-else
+            class="rounded-[18px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-5 py-5 text-sm text-(--app-text-soft)"
+          >
+            选择普通任务后，这里会显示当前任务的字段详情。
+          </div>
+        </div>
+
         <EditorTaskTablePreview
+          v-else
+          class="min-h-0 flex-1"
           :tasks="tasks"
           :selected-task-id="task.id"
           :selected-task-ui-schema="uiSchema"
@@ -32,22 +65,6 @@
           @update:default-task-cycle-value="$emit('update:default-task-cycle-value', $event)"
           @update:default-task-cycle-day="$emit('update:default-task-cycle-day', $event)"
         />
-
-        <EditorUiFieldDetailsPanel
-          v-if="task.rowType === 'task'"
-          :selected-ui-field="selectedUiField"
-          :selected-ui-field-index="selectedUiFieldIndex"
-          :variable-options="variableOptions"
-          @update-ui-field="forwardUpdateUiField"
-          @remove-ui-field="$emit('remove-ui-field', $event)"
-        />
-
-        <div
-          v-else
-          class="rounded-[18px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-5 py-5 text-sm text-(--app-text-soft)"
-        >
-          选择普通任务后，这里会显示当前任务的字段详情。
-        </div>
       </div>
 
       <EditorStepWorkspace
@@ -117,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
@@ -202,6 +219,13 @@ const emit = defineEmits<{
   'open-raw': [section: 'inputs' | 'ui' | 'steps'];
 }>();
 
+const uiWorkspaceTabs = [
+  { id: 'edit', label: '编辑' },
+  { id: 'preview', label: 'UI 预览' },
+] as const;
+
+const uiWorkspaceTab = ref<(typeof uiWorkspaceTabs)[number]['id']>('edit');
+
 const rawSection = computed(() => {
   if (props.activePanel === 'steps') return 'steps';
   if (props.activePanel === 'ui') return 'ui';
@@ -216,6 +240,24 @@ const selectedInputIndex = computed(() =>
 const selectedUiField = computed(() => props.uiSchema.fields.find((field) => field.id === props.selectedUiFieldId) ?? null);
 const selectedUiFieldIndex = computed(() =>
   selectedUiField.value ? props.uiSchema.fields.findIndex((field) => field.id === selectedUiField.value?.id) : -1,
+);
+
+watch(
+  () => props.selectedUiFieldId,
+  (fieldId) => {
+    if (fieldId && props.activePanel === 'ui') {
+      uiWorkspaceTab.value = 'edit';
+    }
+  },
+);
+
+watch(
+  () => props.activePanel,
+  (panel) => {
+    if (panel === 'ui') {
+      uiWorkspaceTab.value = 'edit';
+    }
+  },
 );
 
 const forwardUpdateInput = (

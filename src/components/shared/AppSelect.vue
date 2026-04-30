@@ -22,8 +22,19 @@
           :data-testid="testId ? `${testId}-menu` : undefined"
           :style="menuStyle"
         >
+          <div v-if="searchable" class="app-select-search-wrap">
+            <input
+              ref="searchInput"
+              v-model="searchQuery"
+              class="app-select-search"
+              type="search"
+              :placeholder="searchPlaceholder"
+              :data-testid="testId ? `${testId}-search` : undefined"
+              @keydown.stop
+            />
+          </div>
           <button
-            v-for="option in options"
+            v-for="option in filteredOptions"
             :key="String(option.value)"
             class="app-select-option"
             :class="{ 'app-select-option-active': isSelected(option.value), 'opacity-50': option.disabled }"
@@ -35,6 +46,7 @@
             <span class="font-medium">{{ option.label }}</span>
             <span v-if="props.showDescription && option.description" class="text-xs text-(--app-text-faint)">{{ option.description }}</span>
           </button>
+          <div v-if="!filteredOptions.length" class="app-select-empty">没有匹配项</div>
         </div>
       </transition>
     </Teleport>
@@ -62,6 +74,9 @@ const props = withDefaults(
     disabled?: boolean;
     align?: 'left' | 'right';
     showDescription?: boolean;
+    searchable?: boolean;
+    searchPlaceholder?: string;
+    maxMenuHeight?: number;
     testId?: string;
   }>(),
   {
@@ -69,6 +84,9 @@ const props = withDefaults(
     disabled: false,
     align: 'left',
     showDescription: false,
+    searchable: false,
+    searchPlaceholder: '搜索',
+    maxMenuHeight: 360,
     testId: undefined,
   },
 );
@@ -81,11 +99,24 @@ const isOpen = ref(false);
 const root = ref<HTMLElement | null>(null);
 const trigger = ref<HTMLElement | null>(null);
 const menu = ref<HTMLElement | null>(null);
+const searchInput = ref<HTMLInputElement | null>(null);
 const menuStyle = ref<Record<string, string>>({});
+const searchQuery = ref('');
 
 const selectedOption = computed(() =>
   props.options.find((option) => String(option.value) === String(props.modelValue)),
 );
+
+const filteredOptions = computed(() => {
+  const keyword = searchQuery.value.trim().toLowerCase();
+  if (!keyword) {
+    return props.options;
+  }
+
+  return props.options.filter((option) =>
+    `${option.label} ${option.description ?? ''}`.toLowerCase().includes(keyword),
+  );
+});
 
 const isSelected = (value: SelectValue) => String(value) === String(props.modelValue);
 
@@ -115,12 +146,13 @@ const updateMenuPosition = () => {
   const menuHeight = menu.value?.offsetHeight ?? 0;
   const openAbove = rect.bottom + menuHeight + 8 > window.innerHeight - viewportPadding && rect.top > menuHeight;
   const top = openAbove ? rect.top - menuHeight - 8 : rect.bottom + 8;
+  const maxHeight = Math.min(props.maxMenuHeight, Math.max(window.innerHeight - viewportPadding * 2, 180));
 
   menuStyle.value = {
     top: `${Math.max(top, viewportPadding)}px`,
     left: `${left}px`,
     minWidth: `${rect.width}px`,
-    maxHeight: `${Math.max(window.innerHeight - viewportPadding * 2, 180)}px`,
+    maxHeight: `${maxHeight}px`,
   };
 };
 
@@ -159,7 +191,12 @@ watch(isOpen, async (open) => {
   }
 
   await nextTick();
+  searchQuery.value = '';
   updateMenuPosition();
+  if (props.searchable) {
+    await nextTick();
+    searchInput.value?.focus();
+  }
 });
 </script>
 
