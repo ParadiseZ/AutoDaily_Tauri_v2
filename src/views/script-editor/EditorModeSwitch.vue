@@ -10,7 +10,7 @@
         :data-testid="`editor-mode-${option.id}`"
         @click="$emit('update:modelValue', option.id)"
       >
-        {{ option.label }}
+        {{ option.label }} {{ itemsLength }}
       </button>
     </div>
   </div>
@@ -22,6 +22,7 @@ import type { EditorModeId } from '@/views/script-editor/editor-policy/editorPol
 defineProps<{
   modelValue: EditorModeId;
   options: Array<{ id: EditorModeId; label: string }>;
+  itemsLength: number
 }>();
 
 defineEmits<{

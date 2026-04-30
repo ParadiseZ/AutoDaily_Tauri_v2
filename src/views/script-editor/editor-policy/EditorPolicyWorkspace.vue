@@ -2,12 +2,7 @@
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <template v-if="policy">
       <div class="flex items-start justify-between gap-3">
-        <div class="space-y-1">
-          <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Workspace</p>
-          <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ workspaceTitle }}</h2>
-        </div>
       </div>
-
       <div v-if="activePanel === 'basic'" class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
         <div class="grid gap-4 xl:grid-cols-2">
           <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
@@ -90,7 +85,6 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
@@ -103,7 +97,7 @@ import type { PolicyEditorPanelId } from '@/views/script-editor/editor-policy/ed
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editor-step/editorStepTree';
 import type { EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
-const props = defineProps<{
+defineProps<{
   policy: PolicyTable | null;
   activePanel: PolicyEditorPanelId;
   steps: Step[];
@@ -139,11 +133,4 @@ defineEmits<{
   'remove-step': [index: number];
   'update-step': [index: number, step: Step];
 }>();
-
-const workspaceTitle = computed(() => {
-  if (props.activePanel === 'condition') return '命中条件';
-  if (props.activePanel === 'before') return '全局行为';
-  if (props.activePanel === 'after') return '命中行为';
-  return '策略信息';
-});
 </script>

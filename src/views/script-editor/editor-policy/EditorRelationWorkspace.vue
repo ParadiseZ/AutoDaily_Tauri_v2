@@ -2,8 +2,6 @@
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <template v-if="selectedTitle">
       <div class="space-y-1">
-        <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Workspace</p>
-        <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ title }}</h2>
       </div>
 
       <div class="grid min-h-0 gap-4 xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -12,7 +10,7 @@
             <div class="flex flex-wrap items-center gap-3">
               <div class="flex items-center gap-2">
                 <p class="text-sm font-semibold text-(--app-text-strong)">{{ assignedTitle }}</p>
-                <span class="rounded-full border border-(--app-border) bg-white/60 px-2 py-1 text-[11px] text-(--app-text-faint)">
+                <span class="rounded-full border border-(--app-border) px-2 py-1 text-[12px]">
                   {{ assignedItems.length }}
                 </span>
               </div>
@@ -87,7 +85,7 @@
             <div class="flex flex-wrap items-center gap-3">
               <div class="flex items-center gap-2">
                 <p class="text-sm font-semibold text-(--app-text-strong)">{{ unassignedTitle }}</p>
-                <span class="rounded-full border border-(--app-border) bg-white/60 px-2 py-1 text-[11px] text-(--app-text-faint)">
+                <span class="rounded-full border border-(--app-border) px-2 py-1 text-[12px]">
                   {{ unassignedItems.length }}
                 </span>
               </div>
@@ -128,7 +126,6 @@ import type { EditorNamedItem } from '@/views/script-editor/editor-policy/editor
 
 const props = withDefaults(
   defineProps<{
-    title: string;
     selectedTitle: string | null;
     assignedTitle: string;
     unassignedTitle: string;

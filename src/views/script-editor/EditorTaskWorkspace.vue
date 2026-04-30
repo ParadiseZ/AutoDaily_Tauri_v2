@@ -2,10 +2,6 @@
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <template v-if="task">
       <div class="flex items-start justify-between gap-3">
-        <div class="space-y-1">
-          <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Workspace</p>
-          <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ workspaceTitle }}</h2>
-        </div>
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', rawSection)">
           查看底层结构
         </button>
@@ -205,13 +201,6 @@ const emit = defineEmits<{
   'update-step': [index: number, step: Step];
   'open-raw': [section: 'inputs' | 'ui' | 'steps'];
 }>();
-
-const workspaceTitle = computed(() => {
-  if (props.activePanel === 'steps') return '步骤概览';
-  if (props.activePanel === 'ui') return `UI 预览/${props.task?.name || '未命名任务'}`;
-  if (props.activePanel === 'inputs') return '输入设置';
-  return '任务概览';
-});
 
 const rawSection = computed(() => {
   if (props.activePanel === 'steps') return 'steps';

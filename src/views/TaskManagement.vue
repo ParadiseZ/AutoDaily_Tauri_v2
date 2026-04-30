@@ -1,13 +1,13 @@
 <template>
   <div class="flex h-full min-h-0 flex-col gap-4">
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div v-if="deviceIds.length" class="task-device-tabs">
+    <div class="flex min-w-0 flex-nowrap items-center gap-3">
+      <div v-if="deviceIds.length" class="editor-panel-tabs task-device-tabs">
         <button
           v-for="device in orderedDevices"
           :key="device.id"
           type="button"
-          class="task-device-tab"
-          :class="{ 'task-device-tab-active': device.id === activeDevice?.id }"
+          class="editor-panel-tab task-device-tab"
+          :class="{ 'editor-panel-tab-active': device.id === activeDevice?.id }"
           @click="deviceStore.selectedDeviceId = device.id"
         >
           <span class="min-w-0 flex-1 truncate font-semibold">{{ device.data.deviceName }}</span>
@@ -16,7 +16,7 @@
         </button>
       </div>
 
-      <div v-if="deviceIds.length" class="ml-auto flex flex-wrap items-center gap-2">
+      <div v-if="deviceIds.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2">
         <button class="app-button app-button-ghost group text-(--app-text-strong)" type="button" @click="deviceStore.pauseDevices(deviceIds)">
           <AppIcon name="pause" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-text-strong) transition-colors" />
           全部暂停
@@ -358,38 +358,19 @@ onMounted(async () => {
 
 <style scoped>
 .task-device-tabs {
-  display: flex;
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 100%;
-  gap: 0.35rem;
   overflow-x: auto;
-  border-radius: 16px;
-  border: 1px solid var(--app-border);
-  background: color-mix(in srgb, var(--app-panel) 88%, transparent);
-  padding: 0.3rem;
+  overflow-y: hidden;
 }
 
 .task-device-tab {
   display: inline-flex;
-  min-width: 190px;
+  min-width: 180px;
   max-width: 280px;
   align-items: center;
   gap: 0.5rem;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  padding: 0.55rem 0.75rem;
-  color: var(--app-text-soft);
-  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
-}
-
-.task-device-tab:hover {
-  color: var(--app-text-strong);
-}
-
-.task-device-tab-active {
-  border-color: color-mix(in srgb, var(--app-accent) 30%, var(--app-border));
-  background: color-mix(in srgb, var(--app-accent-soft) 58%, white);
-  color: var(--app-text-strong);
+  padding-right: 0.75rem;
 }
 
 .task-device-tab-count {

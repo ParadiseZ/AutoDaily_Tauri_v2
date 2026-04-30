@@ -1,13 +1,7 @@
-<template>
+  <template>
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <div class="space-y-4">
       <slot name="mode-switch" />
-
-      <div class="space-y-1">
-        <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Task Mode</p>
-        <h2 class="text-xl font-semibold text-(--app-text-strong)">任务列表</h2>
-      </div>
-
       <div class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
         <input
           v-model="search"
@@ -63,7 +57,7 @@
               <GripVertical class="h-4 w-4" />
             </button>
 
-            <button
+            <div
               class="min-w-0 flex-1 text-left"
               type="button"
               :style="task.rowType === 'title' ? undefined : { paddingLeft: `${task.indentLevel * 0.85}rem` }"
@@ -81,42 +75,32 @@
                 <template v-if="task.rowType === 'title'">标题行 · 分组标题</template>
                 <template v-else>{{ formatTriggerModeLabel(task.triggerMode) }} · {{ task.data.steps.length }} 个步骤</template>
               </p>
-            </button>
+            </div>
 
             <div class="flex flex-col items-end gap-2">
-              <span
-                class="rounded-full px-2 py-1 text-[11px] font-medium"
-                :class="
-                  task.isHidden
-                    ? 'bg-amber-500/12 text-amber-700'
-                    : 'bg-emerald-500/10 text-emerald-700'
-                "
+              <button
+                  class="app-button app-button-ghost app-toolbar-button"
+                  type="button"
+                  :aria-label="task.isHidden ? '显示' : '隐藏'"
+                  :title="task.isHidden ? '显示' : '隐藏'"
+                  @click.stop="$emit('toggle-hidden', task.id)"
               >
-                {{ task.isHidden ? '已隐藏' : '可见' }}
-              </span>
+                <Eye v-if="task.isHidden" class="h-4 w-4 bg-emerald-500/10 text-emerald-700 " />
+                <EyeOff v-else class = "h-4 w-4" />
+              </button>
             </div>
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" aria-label="复制任务" title="复制任务" @click.stop="$emit('duplicate', task.id)">
+            <button class="app-button app-button-ghost app-toolbar-button" type="button" aria-label="复制" title="复制" @click.stop="$emit('duplicate', task.id)">
               <Copy class="h-4 w-4" />
-            </button>
-            <button
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              :aria-label="task.isHidden ? '显示任务' : '隐藏任务'"
-              :title="task.isHidden ? '显示任务' : '隐藏任务'"
-              @click.stop="$emit('toggle-hidden', task.id)"
-            >
-              <Eye v-if="task.isHidden" class="h-4 w-4" />
-              <EyeOff v-else class="h-4 w-4" />
             </button>
             <button
               class="app-button app-button-danger app-toolbar-button"
               type="button"
               :disabled="tasks.length <= 1"
-              aria-label="删除任务"
-              title="删除任务"
+              aria-label="删除"
+              title="删除"
               @click.stop="$emit('remove', task.id)"
             >
               <Trash2 class="h-4 w-4" />

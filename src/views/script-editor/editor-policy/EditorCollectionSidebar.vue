@@ -2,26 +2,12 @@
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <div class="space-y-4">
       <slot name="mode-switch" />
-
-      <div class="flex items-start justify-between gap-3">
-        <div class="space-y-1">
-          <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">{{ eyebrow }}</p>
-          <h2 class="text-xl font-semibold text-(--app-text-strong)">{{ title }}</h2>
-        </div>
+      <div class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
+        <input v-model="search" class="app-input" type="search" :placeholder="searchPlaceholder" />
         <button class="app-button app-button-primary app-toolbar-button" type="button" :data-testid="createTestId" @click="$emit('create')">
-          {{ createLabel }}
+          <Plus class="h-4 w-4" />
         </button>
       </div>
-
-      <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
-        <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">{{ countLabel }}</p>
-        <p class="mt-1 text-2xl font-semibold text-(--app-text-strong)">{{ items.length }}</p>
-      </div>
-
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">搜索</span>
-        <input v-model="search" class="app-input" type="search" :placeholder="searchPlaceholder" />
-      </label>
     </div>
 
     <div class="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
@@ -57,7 +43,7 @@
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <button v-if="allowDuplicate" class="app-button app-button-ghost app-toolbar-button" type="button" @click.stop="$emit('duplicate', item.id)">
+            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click.stop="$emit('duplicate', item.id)">
               复制
             </button>
             <button class="app-button app-button-danger app-toolbar-button" type="button" @click.stop="$emit('remove', item.id)">
@@ -77,26 +63,17 @@ import { computed, ref } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';
+import {Plus} from "lucide-vue-next";
 
-const props = withDefaults(
-  defineProps<{
-    eyebrow: string;
-    title: string;
-    createLabel: string;
-    countLabel: string;
-    searchPlaceholder: string;
-    items: EditorNamedItem[];
-    selectedId: string | null;
-    emptyTitle: string;
-    emptyDescription: string;
-    createTestId: string;
-    itemTestIdPrefix: string;
-    allowDuplicate?: boolean;
-  }>(),
-  {
-    allowDuplicate: false,
-  },
-);
+const props = defineProps<{
+  searchPlaceholder: string;
+  items: EditorNamedItem[];
+  selectedId: string | null;
+  emptyTitle: string;
+  emptyDescription: string;
+  createTestId: string;
+  itemTestIdPrefix: string;
+}>();
 
 const emit = defineEmits<{
   create: [];

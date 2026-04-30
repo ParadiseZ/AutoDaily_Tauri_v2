@@ -1,5 +1,5 @@
 <template>
-  <div class="editor-shell h-[100svh] overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
+  <div class="editor-shell h-svh overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
     <div class="mx-auto flex h-full max-w-[1760px] flex-col gap-4">
       <header class="editor-toolbar rounded-[20px] border border-(--app-border) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -11,7 +11,6 @@
 
             <div class="space-y-1">
               <div class="flex items-center gap-2 text-xs text-(--app-text-faint)">
-                <span>脚本开发</span>
                 <span v-if="formattedSaveTime">最近保存 {{ formattedSaveTime }}</span>
               </div>
               <div class="flex flex-wrap items-center gap-2">
@@ -77,7 +76,7 @@
               运行
             </button>
             <button
-              class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)"
+              class="app-button app-button-primary shadow-lg"
               type="button"
               data-testid="editor-save"
               :disabled="!draftScript || isSaving || hasValidationErrors"
@@ -116,16 +115,12 @@
             @reorder="reorderTasks"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="draftTasks.length"/>
             </template>
           </EditorTaskSidebar>
 
           <EditorCollectionSidebar
             v-else-if="activeMode === 'policy'"
-            eyebrow="Policy Mode"
-            title="策略列表"
-            create-label="新建策略"
-            count-label="策略"
             search-placeholder="按名称或备注检索策略"
             :items="policyItems"
             :selected-id="selectedPolicyId"
@@ -139,16 +134,12 @@
             @reorder="reorderPolicies"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="policyItems.length"/>
             </template>
           </EditorCollectionSidebar>
 
           <EditorCollectionSidebar
             v-else-if="activeMode === 'policyGroup'"
-            eyebrow="Policy Group"
-            title="策略组列表"
-            create-label="新建策略组"
-            count-label="策略组"
             search-placeholder="按名称或备注检索策略组"
             :items="policyGroupItems"
             :selected-id="selectedPolicyGroupId"
@@ -162,16 +153,12 @@
             @reorder="reorderPolicyGroups"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="policyGroupItems.length"/>
             </template>
           </EditorCollectionSidebar>
 
           <EditorCollectionSidebar
             v-else
-            eyebrow="Policy Set"
-            title="策略集列表"
-            create-label="新建策略集"
-            count-label="策略集"
             search-placeholder="按名称或备注检索策略集"
             :items="policySetItems"
             :selected-id="selectedPolicySetId"
@@ -185,286 +172,227 @@
             @reorder="reorderPolicySets"
           >
             <template #mode-switch>
-              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" />
+              <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :items-length="policySetItems.length"/>
             </template>
           </EditorCollectionSidebar>
 
           <div class="flex min-h-0 flex-1 flex-col gap-4">
-            <section class="rounded-[18px] border border-(--app-border) bg-(--app-panel) px-4 py-3">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="min-w-0">
-                  <p class="text-xs text-(--app-text-faint)">结构操作</p>
-                  <p class="text-sm font-semibold text-(--app-text-strong)">{{ activeModeLabel }}操作</p>
-                </div>
-                <div class="flex flex-wrap items-center justify-end gap-2">
-                  <button
-                    class="app-button app-button-ghost app-toolbar-button"
-                    type="button"
-                    :data-testid="`editor-${activeMode}-create`"
-                    @click="createActiveItem"
-                  >
-                    <AppIcon name="plus" :size="14" />
-                    新建{{ activeModeLabel }}
-                  </button>
-                  <button
-                    v-if="activeMode === 'task'"
-                    class="app-button app-button-ghost app-toolbar-button"
-                    type="button"
-                    :disabled="!currentTask"
-                    @click="duplicateActiveItem"
-                  >
-                    <AppIcon name="copy" :size="14" />
-                    复制
-                  </button>
-                  <button
-                    class="app-button app-button-ghost app-toolbar-button"
-                    type="button"
-                    :disabled="!activeTargetValue"
-                    @click="moveActiveItem(-1)"
-                  >
-                    <AppIcon name="arrow-up" :size="14" />
-                    上移
-                  </button>
-                  <button
-                    class="app-button app-button-ghost app-toolbar-button"
-                    type="button"
-                    :disabled="!activeTargetValue"
-                    @click="moveActiveItem(1)"
-                  >
-                    <AppIcon name="arrow-down" :size="14" />
-                    下移
-                  </button>
-                  <button
-                    class="app-button app-button-danger app-toolbar-button"
-                    type="button"
-                    :disabled="!activeTargetValue"
-                    @click="removeActiveItem"
-                  >
-                    <AppIcon name="trash-2" :size="14" />
-                    删除
-                  </button>
-                </div>
-              </div>
-            </section>
-
             <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
-          <EditorTaskConfigPanel
-            v-if="activeMode === 'task'"
-            :task="currentTask"
-            :active-panel="activePanel"
-            :task-name="taskName"
-            :task-row-type="taskRowType"
-            :task-trigger-mode="taskTriggerMode"
-            :task-hidden="taskHidden"
-            :record-schedule="recordSchedule"
-            :section-id="sectionId"
-            :indent-level="indentLevel"
-            :default-task-cycle-value="defaultTaskCycleValue"
-            :default-task-cycle-mode="defaultTaskCycleMode"
-            :default-task-cycle-day="defaultTaskCycleDay"
-            :task-exec-max="taskExecMax"
-            :show-enabled-toggle="showEnabledToggle"
-            :default-enabled="defaultEnabled"
-            :task-tone="taskTone"
-            :title-options="titleTaskOptions"
-            :input-entries="inputEntries"
-            :input-error="inputError"
-            :ui-schema="uiSchema"
-            :selected-input-id="selectedInputId"
-            :selected-ui-field-id="selectedUiFieldId"
-            @update:active-panel="activePanel = $event"
-            @update:task-name="taskName = $event"
-            @update:task-row-type="taskRowType = $event"
-            @update:task-trigger-mode="taskTriggerMode = $event"
-            @update:task-hidden="taskHidden = $event"
-            @update:record-schedule="recordSchedule = $event"
-            @update:section-id="sectionId = $event"
-            @update:indent-level="indentLevel = $event"
-            @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
-            @update:default-task-cycle-day="
-              defaultTaskCycle =
-                defaultTaskCycleMode === 'weekDay'
-                  ? { weekDay: Math.max(1, Math.min(7, $event)) }
-                  : { monthDay: Math.max(1, Math.min(31, $event)) }
-            "
-            @update:task-exec-max="taskExecMax = $event"
-            @update:show-enabled-toggle="showEnabledToggle = $event"
-            @update:default-enabled="defaultEnabled = $event"
-            @update:task-tone="taskTone = $event"
-            @add-input="addInput"
-            @select-input="selectedInputId = $event"
-            @remove-input="removeInput"
-            @add-ui-field="addUiField"
-            @select-ui-field="selectedUiFieldId = $event"
-            @remove-ui-field="removeUiField"
-            @append-template-step="appendTemplateStep"
-            @open-raw="openRawEditor"
-          />
+              <EditorTaskConfigPanel
+                v-if="activeMode === 'task'"
+                :task="currentTask"
+                :active-panel="activePanel"
+                :task-name="taskName"
+                :task-row-type="taskRowType"
+                :task-trigger-mode="taskTriggerMode"
+                :task-hidden="taskHidden"
+                :record-schedule="recordSchedule"
+                :section-id="sectionId"
+                :indent-level="indentLevel"
+                :default-task-cycle-value="defaultTaskCycleValue"
+                :default-task-cycle-mode="defaultTaskCycleMode"
+                :default-task-cycle-day="defaultTaskCycleDay"
+                :task-exec-max="taskExecMax"
+                :show-enabled-toggle="showEnabledToggle"
+                :default-enabled="defaultEnabled"
+                :task-tone="taskTone"
+                :title-options="titleTaskOptions"
+                :input-entries="inputEntries"
+                :input-error="inputError"
+                :ui-schema="uiSchema"
+                :selected-input-id="selectedInputId"
+                :selected-ui-field-id="selectedUiFieldId"
+                @update:active-panel="activePanel = $event"
+                @update:task-name="taskName = $event"
+                @update:task-row-type="taskRowType = $event"
+                @update:task-trigger-mode="taskTriggerMode = $event"
+                @update:task-hidden="taskHidden = $event"
+                @update:record-schedule="recordSchedule = $event"
+                @update:section-id="sectionId = $event"
+                @update:indent-level="indentLevel = $event"
+                @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
+                @update:default-task-cycle-day="
+                  defaultTaskCycle =
+                    defaultTaskCycleMode === 'weekDay'
+                      ? { weekDay: Math.max(1, Math.min(7, $event)) }
+                      : { monthDay: Math.max(1, Math.min(31, $event)) }
+                "
+                @update:task-exec-max="taskExecMax = $event"
+                @update:show-enabled-toggle="showEnabledToggle = $event"
+                @update:default-enabled="defaultEnabled = $event"
+                @update:task-tone="taskTone = $event"
+                @add-input="addInput"
+                @select-input="selectedInputId = $event"
+                @remove-input="removeInput"
+                @add-ui-field="addUiField"
+                @select-ui-field="selectedUiFieldId = $event"
+                @remove-ui-field="removeUiField"
+                @append-template-step="appendTemplateStep"
+                @open-raw="openRawEditor"
+              />
 
-          <EditorPolicyConfigPanel
-            v-else-if="activeMode === 'policy'"
-            :policy="currentPolicy"
-            :active-panel="activePolicyPanel"
-            :policy-name="currentPolicy?.data.name || ''"
-            :policy-note="currentPolicy?.data.note || ''"
-            :policy-log-print="currentPolicy?.data.logPrint ?? null"
-            @update:active-panel="activePolicyPanel = $event"
-            @update:policy-name="updatePolicyTextField('name', $event)"
-            @update:policy-note="updatePolicyTextField('note', $event)"
-            @update:policy-log-print="updatePolicyTextField('logPrint', $event)"
-            @update:number-field="updatePolicyNumberField"
-            @update:boolean-field="updatePolicyBooleanField"
-            @append-template-step="appendPolicyTemplateStep"
-          />
+              <EditorPolicyConfigPanel
+                v-else-if="activeMode === 'policy'"
+                :policy="currentPolicy"
+                :active-panel="activePolicyPanel"
+                :policy-name="currentPolicy?.data.name || ''"
+                :policy-note="currentPolicy?.data.note || ''"
+                :policy-log-print="currentPolicy?.data.logPrint ?? null"
+                @update:active-panel="activePolicyPanel = $event"
+                @update:policy-name="updatePolicyTextField('name', $event)"
+                @update:policy-note="updatePolicyTextField('note', $event)"
+                @update:policy-log-print="updatePolicyTextField('logPrint', $event)"
+                @update:number-field="updatePolicyNumberField"
+                @update:boolean-field="updatePolicyBooleanField"
+                @append-template-step="appendPolicyTemplateStep"
+              />
 
-          <EditorRelationConfigPanel
-            v-else-if="activeMode === 'policyGroup'"
-            :item="currentPolicyGroup"
-            name-label="策略组名称"
-            relation-title="策略组关联"
-            relation-description="策略组只负责对策略分组，右侧上半区是已关联策略，下半区是未关联策略。"
-            @update:name="updateRelationName('policyGroup', $event)"
-            @update:note="updateRelationNote('policyGroup', $event)"
-          />
+              <EditorRelationConfigPanel
+                v-else-if="activeMode === 'policyGroup'"
+                :item="currentPolicyGroup"
+                name-label="策略组名称"
+                relation-title="策略组关联"
+                relation-description="策略组只负责对策略分组，右侧上半区是已关联策略，下半区是未关联策略。"
+                @update:name="updateRelationName('policyGroup', $event)"
+                @update:note="updateRelationNote('policyGroup', $event)"
+              />
 
-          <EditorRelationConfigPanel
-            v-else
-            :item="currentPolicySet"
-            name-label="策略集名称"
-            relation-title="策略集关联"
-            relation-description="策略集负责收拢多个策略组，右侧上半区是已关联策略组，下半区是未关联策略组。"
-            @update:name="updateRelationName('policySet', $event)"
-            @update:note="updateRelationNote('policySet', $event)"
-          />
+              <EditorRelationConfigPanel
+                v-else
+                :item="currentPolicySet"
+                name-label="策略集名称"
+                relation-title="策略集关联"
+                relation-description="策略集负责收拢多个策略组，右侧上半区是已关联策略组，下半区是未关联策略组。"
+                @update:name="updateRelationName('policySet', $event)"
+                @update:note="updateRelationNote('policySet', $event)"
+              />
 
-          <EditorTaskWorkspace
-            v-if="activeMode === 'task'"
-            :task="currentTask"
-            :tasks="draftTasks"
-            :active-panel="activePanel"
-            :task-trigger-mode="taskTriggerMode"
-            :record-schedule="recordSchedule"
-            :section-id="sectionId"
-            :indent-level="indentLevel"
-            :default-task-cycle-value="defaultTaskCycleValue"
-            :default-task-cycle-mode="defaultTaskCycleMode"
-            :default-task-cycle-day="defaultTaskCycleDay"
-            :task-exec-max="taskExecMax"
-            :show-enabled-toggle="showEnabledToggle"
-            :default-enabled="defaultEnabled"
-            :task-tone="taskTone"
-            :title-options="titleTaskOptions"
-            :steps="parsedSteps"
-            :selected-step-path="selectedStepPath"
-            :active-branch-path="activeBranchPath"
-            :ui-schema="uiSchema"
-            :selected-ui-field-id="selectedUiFieldId"
-            :input-entries="inputEntries"
-            :variable-options="variableOptions"
-            :catalog-variable-options="catalogVariableOptions"
-            :label-index-options="textDetLabelOptions"
-            :label-select-placeholder="textDetLabelSelectPlaceholder"
-            :label-select-hint="textDetLabelHint"
-            :task-reference-options="taskReferenceOptions"
-            :policy-reference-options="policyReferenceOptions"
-            :task-ui-variable-options="taskUiVariableOptions"
-            :policy-group-reference-options="policyGroupReferenceOptions"
-            :policy-set-reference-options="policySetReferenceOptions"
-            :create-reference="createReferenceResource"
-            :jump-to-reference="jumpToReferenceResource"
-            :create-variable="createVariableResource"
-            :jump-to-variable="jumpToVariableResource"
-            :selected-input-id="selectedInputId"
-            @update:task-name="taskName = $event"
-            @update-input="updateInput"
-            @remove-input="removeInput"
-            @select-input="selectedInputId = $event"
-            @select-task="selectTask"
-            @update:task-trigger-mode="taskTriggerMode = $event"
-            @update:record-schedule="recordSchedule = $event"
-            @update:section-id="sectionId = $event"
-            @update:indent-level="indentLevel = $event"
-            @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
-            @update:default-task-cycle-day="
-              defaultTaskCycle =
-                defaultTaskCycleMode === 'weekDay'
-                  ? { weekDay: Math.max(1, Math.min(7, $event)) }
-                  : { monthDay: Math.max(1, Math.min(31, $event)) }
-            "
-            @update:task-exec-max="taskExecMax = $event"
-            @update:show-enabled-toggle="showEnabledToggle = $event"
-            @update:default-enabled="defaultEnabled = $event"
-            @update:task-tone="taskTone = $event"
-            @select-ui-field="selectedUiFieldId = $event"
-            @update-ui-field="updateUiField"
-            @remove-ui-field="removeUiField"
-            @select-step-path="selectStepPath"
-            @navigate-branch="navigateBranch"
-            @reorder-step="reorderSteps"
-            @remove-step="removeStep"
-            @update-step="updateStep"
-            @open-raw="openRawEditor"
-          />
+              <EditorTaskWorkspace
+                v-if="activeMode === 'task'"
+                :task="currentTask"
+                :tasks="draftTasks"
+                :active-panel="activePanel"
+                :task-trigger-mode="taskTriggerMode"
+                :record-schedule="recordSchedule"
+                :section-id="sectionId"
+                :indent-level="indentLevel"
+                :default-task-cycle-value="defaultTaskCycleValue"
+                :default-task-cycle-mode="defaultTaskCycleMode"
+                :default-task-cycle-day="defaultTaskCycleDay"
+                :task-exec-max="taskExecMax"
+                :show-enabled-toggle="showEnabledToggle"
+                :default-enabled="defaultEnabled"
+                :task-tone="taskTone"
+                :title-options="titleTaskOptions"
+                :steps="parsedSteps"
+                :selected-step-path="selectedStepPath"
+                :active-branch-path="activeBranchPath"
+                :ui-schema="uiSchema"
+                :selected-ui-field-id="selectedUiFieldId"
+                :input-entries="inputEntries"
+                :variable-options="variableOptions"
+                :catalog-variable-options="catalogVariableOptions"
+                :label-index-options="textDetLabelOptions"
+                :label-select-placeholder="textDetLabelSelectPlaceholder"
+                :label-select-hint="textDetLabelHint"
+                :task-reference-options="taskReferenceOptions"
+                :policy-reference-options="policyReferenceOptions"
+                :task-ui-variable-options="taskUiVariableOptions"
+                :policy-group-reference-options="policyGroupReferenceOptions"
+                :policy-set-reference-options="policySetReferenceOptions"
+                :create-reference="createReferenceResource"
+                :jump-to-reference="jumpToReferenceResource"
+                :create-variable="createVariableResource"
+                :jump-to-variable="jumpToVariableResource"
+                :selected-input-id="selectedInputId"
+                @update:task-name="taskName = $event"
+                @update-input="updateInput"
+                @remove-input="removeInput"
+                @select-input="selectedInputId = $event"
+                @select-task="selectTask"
+                @update:task-trigger-mode="taskTriggerMode = $event"
+                @update:record-schedule="recordSchedule = $event"
+                @update:section-id="sectionId = $event"
+                @update:indent-level="indentLevel = $event"
+                @update:default-task-cycle-value="defaultTaskCycle = parseTaskCycleValue($event)"
+                @update:default-task-cycle-day="
+                  defaultTaskCycle =
+                    defaultTaskCycleMode === 'weekDay'
+                      ? { weekDay: Math.max(1, Math.min(7, $event)) }
+                      : { monthDay: Math.max(1, Math.min(31, $event)) }
+                "
+                @update:task-exec-max="taskExecMax = $event"
+                @update:show-enabled-toggle="showEnabledToggle = $event"
+                @update:default-enabled="defaultEnabled = $event"
+                @update:task-tone="taskTone = $event"
+                @select-ui-field="selectedUiFieldId = $event"
+                @update-ui-field="updateUiField"
+                @remove-ui-field="removeUiField"
+                @select-step-path="selectStepPath"
+                @navigate-branch="navigateBranch"
+                @reorder-step="reorderSteps"
+                @remove-step="removeStep"
+                @update-step="updateStep"
+                @open-raw="openRawEditor"
+              />
 
-          <EditorPolicyWorkspace
-            v-else-if="activeMode === 'policy'"
-            :policy="currentPolicy"
-            :active-panel="activePolicyPanel"
-            :steps="currentPolicySteps"
-            :selected-step-path="selectedPolicyStepPath"
-            :active-branch-path="activePolicyBranchPath"
-            :variable-options="policyVariableOptions"
-            :catalog-variable-options="policyCatalogVariableOptions"
-            :label-index-options="textDetLabelOptions"
-            :label-select-placeholder="textDetLabelSelectPlaceholder"
-            :label-select-hint="textDetLabelHint"
-            :task-reference-options="taskReferenceOptions"
-            :policy-reference-options="policyReferenceOptions"
-            :task-ui-variable-options="taskUiVariableOptions"
-            :policy-group-reference-options="policyGroupReferenceOptions"
-            :policy-set-reference-options="policySetReferenceOptions"
-            :create-reference="createReferenceResource"
-            :jump-to-reference="jumpToReferenceResource"
-            :create-variable="createVariableResource"
-            :jump-to-variable="jumpToVariableResource"
-            @update:number-field="updatePolicyNumberField"
-            @update:boolean-field="updatePolicyBooleanField"
-            @update:condition="updatePolicyCondition"
-            @select-step-path="selectPolicyStepPath"
-            @navigate-branch="navigatePolicyBranch"
-            @reorder-step="reorderPolicySteps"
-            @remove-step="removePolicyStep"
-            @update-step="updatePolicyStep"
-          />
+              <EditorPolicyWorkspace
+                v-else-if="activeMode === 'policy'"
+                :policy="currentPolicy"
+                :active-panel="activePolicyPanel"
+                :steps="currentPolicySteps"
+                :selected-step-path="selectedPolicyStepPath"
+                :active-branch-path="activePolicyBranchPath"
+                :variable-options="policyVariableOptions"
+                :catalog-variable-options="policyCatalogVariableOptions"
+                :label-index-options="textDetLabelOptions"
+                :label-select-placeholder="textDetLabelSelectPlaceholder"
+                :label-select-hint="textDetLabelHint"
+                :task-reference-options="taskReferenceOptions"
+                :policy-reference-options="policyReferenceOptions"
+                :task-ui-variable-options="taskUiVariableOptions"
+                :policy-group-reference-options="policyGroupReferenceOptions"
+                :policy-set-reference-options="policySetReferenceOptions"
+                :create-reference="createReferenceResource"
+                :jump-to-reference="jumpToReferenceResource"
+                :create-variable="createVariableResource"
+                :jump-to-variable="jumpToVariableResource"
+                @update:number-field="updatePolicyNumberField"
+                @update:boolean-field="updatePolicyBooleanField"
+                @update:condition="updatePolicyCondition"
+                @select-step-path="selectPolicyStepPath"
+                @navigate-branch="navigatePolicyBranch"
+                @reorder-step="reorderPolicySteps"
+                @remove-step="removePolicyStep"
+                @update-step="updatePolicyStep"
+              />
 
-          <EditorRelationWorkspace
-            v-else-if="activeMode === 'policyGroup'"
-            title="策略组关联"
-            :selected-title="currentPolicyGroup?.data.name || null"
-            assigned-title="已关联策略"
-            unassigned-title="未关联策略"
-            :assigned-items="assignedPolicies"
-            :unassigned-items="unassignedPolicies"
-            show-reverse-action
-            reverse-action-label="逆序排列"
-            @link="linkPolicyToGroup"
-            @unlink="unlinkPolicyFromGroup"
-            @reorder="reorderGroupPolicies"
-            @reverse="reverseGroupPolicies"
-          />
+              <EditorRelationWorkspace
+                v-else-if="activeMode === 'policyGroup'"
+                :selected-title="currentPolicyGroup?.data.name || null"
+                assigned-title="已关联策略"
+                unassigned-title="未关联策略"
+                :assigned-items="assignedPolicies"
+                :unassigned-items="unassignedPolicies"
+                show-reverse-action
+                reverse-action-label="逆序排列"
+                @link="linkPolicyToGroup"
+                @unlink="unlinkPolicyFromGroup"
+                @reorder="reorderGroupPolicies"
+                @reverse="reverseGroupPolicies"
+              />
 
-          <EditorRelationWorkspace
-            v-else
-            title="策略集关联"
-            :selected-title="currentPolicySet?.data.name || null"
-            assigned-title="已关联策略组"
-            unassigned-title="未关联策略组"
-            :assigned-items="assignedGroups"
-            :unassigned-items="unassignedGroups"
-            @link="linkGroupToSet"
-            @unlink="unlinkGroupFromSet"
-            @reorder="reorderSetGroups"
-          />
+              <EditorRelationWorkspace
+                v-else
+                :selected-title="currentPolicySet?.data.name || null"
+                assigned-title="已关联策略组"
+                unassigned-title="未关联策略组"
+                :assigned-items="assignedGroups"
+                :unassigned-items="unassignedGroups"
+                @link="linkGroupToSet"
+                @unlink="unlinkGroupFromSet"
+                @reorder="reorderSetGroups"
+              />
             </div>
           </div>
         </div>
@@ -778,32 +706,6 @@ const textDetLabelSelectPlaceholder = computed(() => {
   return '请先设置文字检测模型标签文件';
 });
 
-const activeModeLabel = computed(() => {
-  switch (activeMode.value) {
-    case 'policy':
-      return '策略';
-    case 'policyGroup':
-      return '策略组';
-    case 'policySet':
-      return '策略集';
-    default:
-      return '任务';
-  }
-});
-
-const activeModeFocusName = computed(() => {
-  switch (activeMode.value) {
-    case 'policy':
-      return currentPolicy.value?.data.name || null;
-    case 'policyGroup':
-      return currentPolicyGroup.value?.data.name || null;
-    case 'policySet':
-      return currentPolicySet.value?.data.name || null;
-    default:
-      return currentTask.value?.name || null;
-  }
-});
-
 const buildRunTargetKey = (
   kind: 'fullScript' | 'task' | 'policy' | 'policyGroup' | 'policySet',
   id?: string | null,
@@ -875,6 +777,7 @@ const selectedRunTargetOption = computed(
 );
 
 const scriptRecoveryTaskOptions = computed(() =>
+    //@ts-ignore
   draftTasks.value
     .filter((task) => task.rowType === 'task' && !task.isDeleted)
     .map((task) => ({
@@ -883,30 +786,6 @@ const scriptRecoveryTaskOptions = computed(() =>
       description: `任务 ${task.index + 1}`,
     })),
 );
-
-const activeTargetValue = computed<string | null>({
-  get: () => {
-    if (activeMode.value === 'policy') return selectedPolicyId.value;
-    if (activeMode.value === 'policyGroup') return selectedPolicyGroupId.value;
-    if (activeMode.value === 'policySet') return selectedPolicySetId.value;
-    return selectedTaskId.value;
-  },
-  set: (value) => {
-    if (activeMode.value === 'policy') {
-      selectedPolicyId.value = value;
-      return;
-    }
-    if (activeMode.value === 'policyGroup') {
-      selectedPolicyGroupId.value = value;
-      return;
-    }
-    if (activeMode.value === 'policySet') {
-      selectedPolicySetId.value = value;
-      return;
-    }
-    selectedTaskId.value = value;
-  },
-});
 
 const runSelectionDisabledReason = computed(() => {
   if (!selectedPreviewDeviceId.value || !selectedRunTargetKey.value) {
@@ -2364,81 +2243,6 @@ const handleRunSelection = async () => {
   }
 };
 
-const createActiveItem = () => {
-  if (activeMode.value === 'policy') {
-    void createPolicy();
-    return;
-  }
-  if (activeMode.value === 'policyGroup') {
-    void createPolicyGroup();
-    return;
-  }
-  if (activeMode.value === 'policySet') {
-    void createPolicySet();
-    return;
-  }
-  void createTask();
-};
-
-const duplicateActiveItem = () => {
-  if (!currentTask.value) {
-    return;
-  }
-  duplicateTask(currentTask.value.id);
-};
-
-const removeActiveItem = () => {
-  if (activeMode.value === 'policy' && currentPolicy.value) {
-    removePolicy(currentPolicy.value.id);
-    return;
-  }
-  if (activeMode.value === 'policyGroup' && currentPolicyGroup.value) {
-    removePolicyGroup(currentPolicyGroup.value.id);
-    return;
-  }
-  if (activeMode.value === 'policySet' && currentPolicySet.value) {
-    removePolicySet(currentPolicySet.value.id);
-    return;
-  }
-  if (currentTask.value) {
-    removeTask(currentTask.value.id);
-  }
-};
-
-const moveActiveItem = (direction: -1 | 1) => {
-  if (activeMode.value === 'policy' && currentPolicy.value) {
-    const fromIndex = draftPolicies.value.findIndex((item) => item.id === currentPolicy.value?.id);
-    const toIndex = fromIndex + direction;
-    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftPolicies.value.length) {
-      reorderPolicies(draftPolicies.value[fromIndex].id, draftPolicies.value[toIndex].id);
-    }
-    return;
-  }
-  if (activeMode.value === 'policyGroup' && currentPolicyGroup.value) {
-    const fromIndex = draftPolicyGroups.value.findIndex((item) => item.id === currentPolicyGroup.value?.id);
-    const toIndex = fromIndex + direction;
-    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftPolicyGroups.value.length) {
-      reorderPolicyGroups(draftPolicyGroups.value[fromIndex].id, draftPolicyGroups.value[toIndex].id);
-    }
-    return;
-  }
-  if (activeMode.value === 'policySet' && currentPolicySet.value) {
-    const fromIndex = draftPolicySets.value.findIndex((item) => item.id === currentPolicySet.value?.id);
-    const toIndex = fromIndex + direction;
-    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftPolicySets.value.length) {
-      reorderPolicySets(draftPolicySets.value[fromIndex].id, draftPolicySets.value[toIndex].id);
-    }
-    return;
-  }
-  if (currentTask.value) {
-    const fromIndex = draftTasks.value.findIndex((item) => item.id === currentTask.value?.id);
-    const toIndex = fromIndex + direction;
-    if (fromIndex >= 0 && toIndex >= 0 && toIndex < draftTasks.value.length) {
-      reorderTasks(draftTasks.value[fromIndex].id, draftTasks.value[toIndex].id);
-    }
-  }
-};
-
 const linkPolicyToGroup = (policyId: string) => {
   if (!currentPolicyGroup.value) return;
   const groupId = currentPolicyGroup.value.id;
@@ -3255,10 +3059,6 @@ const loadEditor = async () => {
   } finally {
     isLoading.value = false;
   }
-};
-
-const reloadEditor = async () => {
-  await loadEditor();
 };
 
 const handleKeydown = (event: KeyboardEvent) => {
