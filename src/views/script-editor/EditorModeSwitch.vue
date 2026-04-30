@@ -1,6 +1,6 @@
 <template>
   <div class="editor-mode-switch">
-    <div class="editor-panel-tabs min-w-0 flex-1 overflow-x-auto">
+    <div v-if="!collapsed" class="editor-panel-tabs editor-mode-tabs min-w-0 flex-1 overflow-x-auto">
       <button
         v-for="option in options"
         :key="option.id"
@@ -48,5 +48,19 @@ defineEmits<{
   min-width: 0;
   align-items: center;
   gap: 0.5rem;
+}
+
+.editor-mode-switch:has(.editor-mode-tabs:empty),
+.editor-mode-switch:not(:has(.editor-mode-tabs)) {
+  justify-content: center;
+}
+
+.editor-mode-tabs {
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.editor-mode-tabs::-webkit-scrollbar {
+  display: none;
 }
 </style>

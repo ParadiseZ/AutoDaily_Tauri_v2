@@ -801,10 +801,50 @@ const runSelectionDisabledReason = computed(() => {
 
 const canRunSelection = computed(() => !runSelectionDisabledReason.value);
 
+const inputTypeToValueType = (type: EditorInputType): EditorVariableOption['valueType'] => {
+  if (type === 'int') return 'int';
+  if (type === 'float') return 'float';
+  if (type === 'bool') return 'bool';
+  if (type === 'json') return 'json';
+  if (type === 'image') return 'image';
+  return 'string';
+};
 
-const variableOptions = computed(() =>
-  listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value),
-);
+const inputEntryToVariableOption = (entry: EditorInputEntry, ownerTaskId: string | null): EditorVariableOption => {
+  const storageKey = entry.key.trim();
+  const key = entry.namespace === 'input' ? `input.${storageKey}` : entry.namespace === 'runtime' ? `runtime.${storageKey}` : `system.${storageKey}`;
+  const uiBindable = entry.namespace === 'input' && entry.type !== 'json' && entry.type !== 'image';
+  return {
+    id: entry.id,
+    key,
+    label: entry.name.trim() || storageKey || '未命名输入',
+    namespace: entry.namespace,
+    valueType: inputTypeToValueType(entry.type),
+    defaultValue: null,
+    sourceType: 'manual',
+    ownerTaskId,
+    sourceStepId: entry.sourceStepId,
+    readable: true,
+    writable: entry.namespace !== 'system',
+    uiBindable,
+    description: entry.description.trim(),
+  };
+};
+
+const variableOptions = computed(() => {
+  const options = listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value);
+  if (!currentTask.value) {
+    return options;
+  }
+  const merged = new Map(options.map((option) => [option.id, option]));
+  for (const entry of inputEntries.value) {
+    if (!entry.key.trim()) {
+      continue;
+    }
+    merged.set(entry.id, inputEntryToVariableOption(entry, currentTask.value.id));
+  }
+  return Array.from(merged.values());
+});
 const catalogVariableOptions = computed(() =>
   listVariableOptions(draftScript.value?.data.variableCatalog, currentTask.value?.id ?? null, parsedSteps.value, 'read', false),
 );
@@ -3337,6 +3377,31 @@ watch(
           },
         };
       }
+
+      const inputKeyById = new Map(
+        entries
+          .filter((entry) => entry.namespace === 'input' && entry.key.trim())
+          .map((entry) => [entry.id, entry.key.trim()]),
+      );
+      let changedUiBinding = false;
+      const syncedFields = uiSchema.value.fields.map((field) => {
+        const nextInputKey = field.variableId ? inputKeyById.get(field.variableId) : null;
+        if (!nextInputKey || field.inputKey === nextInputKey) {
+          return field;
+        }
+        changedUiBinding = true;
+        return {
+          ...field,
+          inputKey: nextInputKey,
+          key: field.key === field.inputKey ? nextInputKey : field.key,
+        };
+      });
+      if (changedUiBinding) {
+        uiSchema.value = {
+          ...uiSchema.value,
+          fields: syncedFields,
+        };
+      }
     } catch (error) {
       inputError.value = error instanceof Error ? error.message : '输入变量结构无效';
     }
@@ -3428,7 +3493,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-main-grid-collapsed {
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 64px minmax(0, 1fr);
 }
 
 @media (max-width: 1279px) {

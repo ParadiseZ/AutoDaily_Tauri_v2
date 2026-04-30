@@ -155,7 +155,10 @@ const emit = defineEmits<{
   'update:task-cycle': [taskId: string, value: TaskCycle];
 }>();
 
-const sortedTasks = computed(() => [...props.tasks].sort((left, right) => left.index - right.index));
+const visibleTasks = computed(() =>
+  props.tasks.filter((task) => !task.isDeleted && !task.isHidden),
+);
+const sortedTasks = computed(() => [...visibleTasks.value].sort((left, right) => left.index - right.index));
 const titleRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'title'));
 const groupedTasksByTitle = computed<Record<string, ScriptTaskTable[]>>(() =>
   Object.fromEntries(
@@ -169,7 +172,7 @@ const groupedTaskIds = computed(() => new Set(Object.values(groupedTasksByTitle.
 const ungroupedTasks = computed(() =>
   sortedTasks.value.filter((task) => task.rowType === 'task' && !groupedTaskIds.value.has(task.id)),
 );
-const taskCount = computed(() => props.tasks.length);
+const taskCount = computed(() => visibleTasks.value.filter((task) => task.rowType === 'task').length);
 
 const resolveTaskEnabled = (task: ScriptTaskTable) =>
   Object.prototype.hasOwnProperty.call(props.taskEnabledById, task.id)

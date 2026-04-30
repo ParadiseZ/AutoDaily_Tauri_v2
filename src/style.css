@@ -468,6 +468,7 @@ a {
   align-items: center;
   gap: 0.4rem;
   border-bottom: 1px solid var(--app-border);
+  overflow-y: hidden;
 }
 
 .editor-panel-tab {

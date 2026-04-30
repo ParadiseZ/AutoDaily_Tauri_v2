@@ -149,7 +149,7 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await page.getByTestId('editor-tab-inputs').click();
   await page.getByTestId('editor-input-add').click();
   await page.getByTestId('editor-input-key-0').fill('activitySweepCount');
-  await page.getByTestId('editor-input-value-0').fill('5');
+  await page.getByTestId('editor-input-value-0').fill('8');
   await page.getByTestId('editor-input-add').click();
   await page.getByTestId('editor-input-remove-1').click();
 
@@ -157,7 +157,6 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await page.getByTestId('editor-ui-template-number').click();
   await page.getByTestId('editor-ui-field-label-0').fill('扫荡活动');
   await selectOptionByLabel(page, 'editor-ui-field-bind-0', 'activitySweepCount');
-  await page.getByTestId('editor-ui-preview-control-0').fill('8');
 
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-capture').click();
@@ -779,6 +778,7 @@ test('renders script-level task preview with title groups and task metadata', as
 
   await page.getByTestId('editor-task-item-task-daily-sign').getByRole('button', { name: /签到/ }).evaluate((element: HTMLElement) => element.click());
   await page.getByTestId('editor-tab-ui').click();
+  await page.getByRole('button', { name: 'UI 预览' }).click();
 
   await expect(page.getByText('整表任务预览')).toBeVisible();
   await expect(page.getByText('每日任务').first()).toBeVisible();
@@ -786,7 +786,7 @@ test('renders script-level task preview with title groups and task metadata', as
   await expect(page.getByText('奖励领取').first()).toBeVisible();
   await expect(page.getByText('未分组任务')).toBeVisible();
   await expect(page.getByText('每日').first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'UI 预览/签到' })).toBeVisible();
+  await expect(page.locator('.editor-ui-task-name', { hasText: '签到' })).toBeVisible();
 });
 
 test('persists varCompare conditions and nested branch steps', async ({ page }) => {
