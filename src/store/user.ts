@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { invoke } from '@/utils/api';
+import { sha256Hex } from '@/utils/passwordHash';
 import { showToast } from '@/utils/toast';
 import type { AuthSession, UserProfile } from '@/types/app/domain';
 
@@ -29,6 +30,21 @@ interface ResetPasswordPayload {
 
 const isAuthFailure = (message: string | undefined) =>
     Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
+
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+
+const assertEmail = (email: string) => {
+    if (!emailPattern.test(email.trim())) {
+        throw new Error('请输入有效邮箱地址');
+    }
+};
+
+const assertPassword = (password: string) => {
+    if (!passwordPattern.test(password)) {
+        throw new Error('密码至少 8 位，且需同时包含字母和数字');
+    }
+};
 
 const normalizeProfile = (payload: unknown): UserProfile | null => {
     if (!payload || typeof payload !== 'object') {
@@ -139,7 +155,13 @@ export const useUserStore = defineStore('user', () => {
     const login = async (payload: LoginPayload) => {
         authSubmitting.value = true;
         try {
-            const res = (await invoke('backend_login', { req: payload })) as ApiEnvelope<unknown>;
+            assertPassword(payload.password);
+            const res = (await invoke('backend_login', {
+                req: {
+                    ...payload,
+                    password: await sha256Hex(payload.password),
+                },
+            })) as ApiEnvelope<unknown>;
             if (!res.success) {
                 throw new Error(res.message || '登录失败');
             }
@@ -164,7 +186,14 @@ export const useUserStore = defineStore('user', () => {
     const register = async (payload: RegisterPayload) => {
         authSubmitting.value = true;
         try {
-            const res = (await invoke('backend_register', { req: payload })) as ApiEnvelope<unknown>;
+            assertEmail(payload.email);
+            assertPassword(payload.password);
+            const res = (await invoke('backend_register', {
+                req: {
+                    ...payload,
+                    password: await sha256Hex(payload.password),
+                },
+            })) as ApiEnvelope<unknown>;
             if (!res.success) {
                 throw new Error(res.message || '注册失败');
             }
@@ -178,6 +207,7 @@ export const useUserStore = defineStore('user', () => {
     };
 
     const sendVerificationCode = async (email: string) => {
+        assertEmail(email);
         const res = (await invoke('backend_send_verification_code', { email })) as ApiEnvelope<unknown>;
         if (!res.success) {
             throw new Error(res.message || '验证码发送失败');
@@ -188,7 +218,14 @@ export const useUserStore = defineStore('user', () => {
     const resetPassword = async (payload: ResetPasswordPayload) => {
         authSubmitting.value = true;
         try {
-            const res = (await invoke('backend_reset_password', { req: payload })) as ApiEnvelope<unknown>;
+            assertEmail(payload.email);
+            assertPassword(payload.newPassword);
+            const res = (await invoke('backend_reset_password', {
+                req: {
+                    ...payload,
+                    newPassword: await sha256Hex(payload.newPassword),
+                },
+            })) as ApiEnvelope<unknown>;
             if (!res.success) {
                 throw new Error(res.message || '重置密码失败');
             }

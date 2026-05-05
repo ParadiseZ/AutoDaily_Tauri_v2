@@ -1,5 +1,24 @@
 use crate::infrastructure::core::{Deserialize, Serialize};
 pub use runtime_engine::api::backend_dto::{AuthRes, BackendApiRes};
+use runtime_engine::domain::scripts::script_info::{
+    supported_script_features, SCRIPT_RUNTIME_SCHEMA,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientCapability {
+    pub app_version: String,
+    pub runtime_schema: u32,
+    pub supported_features: Vec<String>,
+}
+
+pub fn current_client_capability() -> ClientCapability {
+    ClientCapability {
+        app_version: env!("CARGO_PKG_VERSION").to_string(),
+        runtime_schema: SCRIPT_RUNTIME_SCHEMA,
+        supported_features: supported_script_features(),
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,6 +54,13 @@ pub struct ScriptSearchReq {
     pub author: Option<String>,
     #[serde(rename = "runtimeType")]
     pub runtime_type: Option<String>,
+    pub client: Option<ClientCapability>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptDownloadReq {
+    pub client: ClientCapability,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -72,9 +72,10 @@ pub async fn backend_get_profile(app_handle: AppHandle) -> ApiResponse<serde_jso
 #[command]
 pub async fn backend_search_scripts(
     app_handle: AppHandle,
-    req: ScriptSearchReq,
+    mut req: ScriptSearchReq,
 ) -> ApiResponse<PageRes<serde_json::Value>> {
     let client = HttpClient::new(app_handle);
+    req.client = Some(current_client_capability());
     let res: AppResult<BackendApiRes<PageRes<serde_json::Value>>> =
         client.post("/scripts/search", &req).await;
     trans_api_res(res)
@@ -123,8 +124,11 @@ pub async fn backend_download_script(
     use crate::infrastructure::db::get_pool;
     let client = HttpClient::new(app_handle);
     let url = format!("/scripts/download/{}", script_id);
+    let req = ScriptDownloadReq {
+        client: current_client_capability(),
+    };
     // 1. Fetch from backend
-    let res: AppResult<BackendApiRes<ScriptUploadRequest>> = client.get(&url).await;
+    let res: AppResult<BackendApiRes<ScriptUploadRequest>> = client.post(&url, &req).await;
 
     let mut download_data = match res {
         Ok(api_res) => {
@@ -140,6 +144,10 @@ pub async fn backend_download_script(
         }
         Err(e) => return ApiResponse::error(Some(e.to_string())),
     };
+
+    if let Some(error) = validate_script_compatibility(&download_data.script.data) {
+        return ApiResponse::error(Some(error));
+    }
 
     // 2. ID Regeneration mapping
     let old_script_id = download_data.script.id.clone();
@@ -382,6 +390,92 @@ pub async fn backend_upload_script(
         }
         Err(e) => ApiResponse::error(Some(e.to_string())),
     }
+}
+
+fn validate_script_compatibility(
+    script: &runtime_engine::domain::scripts::script_info::ScriptInfo,
+) -> Option<String> {
+    let client = current_client_capability();
+
+    if let Some(required_schema) = script.min_runtime_schema {
+        if required_schema > client.runtime_schema {
+            return Some(format!(
+                "该脚本需要运行时结构版本 {}，当前程序仅支持 {}，请先更新程序",
+                required_schema, client.runtime_schema
+            ));
+        }
+    }
+
+    if let Some(required_version) = script.min_app_version.as_deref() {
+        if is_version_greater(required_version, &client.app_version) {
+            return Some(format!(
+                "该脚本需要 AutoDaily {} 或以上版本，当前版本为 {}，请先更新程序",
+                required_version, client.app_version
+            ));
+        }
+    }
+
+    let missing_features: Vec<&str> = script
+        .required_features
+        .iter()
+        .map(String::as_str)
+        .filter(|feature| {
+            !client
+                .supported_features
+                .iter()
+                .any(|supported| supported == feature)
+        })
+        .collect();
+
+    if !missing_features.is_empty() {
+        return Some(format!(
+            "该脚本需要当前程序不支持的能力: {}，请先更新程序",
+            missing_features
+                .iter()
+                .map(|feature| script_feature_label(feature))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+
+    None
+}
+
+fn script_feature_label(feature: &str) -> &str {
+    match feature {
+        "onnxInference" => "ONNX推理",
+        "runtime:javascript" => "JavaScript运行时",
+        "runtime:rhai" => "Rhai运行时",
+        "runtime:lua" => "Lua运行时",
+        "llmApi" => "LLM API接口",
+        "device:android" => "Android目标设备",
+        "device:desktop" => "Desktop目标设备",
+        _ => feature,
+    }
+}
+
+fn is_version_greater(required: &str, current: &str) -> bool {
+    let parse = |version: &str| {
+        version
+            .split(|ch: char| !ch.is_ascii_digit())
+            .filter(|part| !part.is_empty())
+            .take(3)
+            .map(|part| part.parse::<u64>().unwrap_or(0))
+            .collect::<Vec<_>>()
+    };
+
+    let required_parts = parse(required);
+    let current_parts = parse(current);
+
+    for index in 0..3 {
+        let required_part = *required_parts.get(index).unwrap_or(&0);
+        let current_part = *current_parts.get(index).unwrap_or(&0);
+        if required_part != current_part {
+            return required_part > current_part;
+        }
+    }
+
+    false
 }
 
 #[command]

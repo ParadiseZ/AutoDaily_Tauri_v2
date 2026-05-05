@@ -150,6 +150,9 @@ export interface ScriptInfoRecord {
     downloadCount: number;
     isValid: boolean;
     allowClone: boolean;
+    minAppVersion: string | null;
+    minRuntimeSchema: number | null;
+    requiredFeatures: string[];
     variableCatalog: ScriptVariableCatalog;
     cloudId: string | null;
     runtimeSettings: {
@@ -274,6 +277,14 @@ export interface ScriptSearchInput {
     runtimeType?: string;
 }
 
+export interface ScriptCompatibility {
+    compatible: boolean;
+    requiredAppVersion: string | null;
+    requiredRuntimeSchema: number | null;
+    missingFeatures: string[];
+    reason: string | null;
+}
+
 export interface MarketScriptRecord {
     id: string;
     name: string | null;
@@ -297,6 +308,10 @@ export interface MarketScriptRecord {
     isValid: boolean | null;
     allowClone: boolean | null;
     cloudId: string | null;
+    minAppVersion?: string | null;
+    minRuntimeSchema?: number | null;
+    requiredFeatures?: string[] | null;
+    compatibility?: ScriptCompatibility | null;
 }
 
 export interface MarketPage<T> {

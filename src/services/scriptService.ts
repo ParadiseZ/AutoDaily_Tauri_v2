@@ -37,6 +37,8 @@ type ScriptTablePayload = {
     };
 };
 
+const DEFAULT_SCRIPT_REQUIRED_FEATURES = ['onnxInference', 'runtime:rhai', 'device:android'];
+
 const emptyMarketPage = (query: ScriptSearchInput): MarketPage<MarketScriptRecord> => ({
     records: [],
     total: 0,
@@ -82,6 +84,11 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
             ...data,
             scriptType: raw.data.scriptType ?? 'dev',
             platform: raw.data.platform ?? 'android',
+            minAppVersion: raw.data.minAppVersion ?? '0.1.0',
+            minRuntimeSchema: toSafeNumber(raw.data.minRuntimeSchema, 1),
+            requiredFeatures: Array.isArray(raw.data.requiredFeatures) && raw.data.requiredFeatures.length
+                ? raw.data.requiredFeatures
+                : [...DEFAULT_SCRIPT_REQUIRED_FEATURES],
             variableCatalog: raw.data.variableCatalog ?? createEmptyVariableCatalog(),
             runtimeSettings: {
                 recoveryTaskId: raw.data.runtimeSettings?.recoveryTaskId ?? null,
@@ -122,6 +129,9 @@ export const createBlankScript = (
         scriptType: 'dev',
         isValid: true,
         allowClone: true,
+        minAppVersion: '0.1.0',
+        minRuntimeSchema: 1,
+        requiredFeatures: [...DEFAULT_SCRIPT_REQUIRED_FEATURES],
         variableCatalog: createEmptyVariableCatalog(),
         cloudId: null,
         runtimeSettings: {

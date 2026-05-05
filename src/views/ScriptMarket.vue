@@ -51,6 +51,7 @@
             <div class="flex flex-wrap items-center gap-2">
               <h2 class="text-2xl font-semibold text-(--app-text-strong)">{{ selectedScript.name || '未命名脚本' }}</h2>
               <StatusBadge label="云端脚本" tone="info" />
+              <StatusBadge v-if="isSelectedIncompatible" label="需要升级程序" tone="warning" />
             </div>
             <p class="text-sm leading-6 text-(--app-text-soft)">
               {{ selectedScript.description || '脚本作者还没有补充详细说明。' }}
@@ -76,6 +77,10 @@
             </div>
           </div>
 
+          <div v-if="isSelectedIncompatible" class="rounded-[8px] border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {{ selectedScript.compatibility?.reason || '该脚本需要当前程序尚未支持的新能力，请先更新程序。' }}
+          </div>
+
           <div class="grid gap-3 text-sm text-(--app-text-soft) md:grid-cols-2">
             <div class="rounded-[20px] border border-(--app-border) p-4">
               <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">发布时间</p>
@@ -84,8 +89,8 @@
           </div>
 
           <div class="flex flex-wrap gap-3">
-            <button class="app-button app-button-primary" type="button" @click="downloadSelected">
-              下载到本地
+            <button class="app-button app-button-primary" type="button" :disabled="isSelectedIncompatible" @click="downloadSelected">
+              {{ isSelectedIncompatible ? '需要升级程序' : '下载到本地' }}
             </button>
             <button class="app-button app-button-ghost" type="button" @click="router.push('/scripts')">
               查看本地库
@@ -144,6 +149,7 @@ const runtimeOptions = [
 const selectedScript = computed(
   () => scriptStore.marketPage.records.find((script) => script.id === selectedScriptId.value) ?? null,
 );
+const isSelectedIncompatible = computed(() => selectedScript.value?.compatibility?.compatible === false);
 
 const search = async () => {
   await scriptStore.searchMarket({
@@ -157,6 +163,10 @@ const search = async () => {
 
 const downloadSelected = async () => {
   if (!selectedScript.value) {
+    return;
+  }
+  if (isSelectedIncompatible.value) {
+    showToast(selectedScript.value.compatibility?.reason || '该脚本需要先升级程序', 'warning');
     return;
   }
 

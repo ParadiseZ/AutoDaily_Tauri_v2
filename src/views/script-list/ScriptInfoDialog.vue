@@ -83,6 +83,30 @@
               </div>
 
               <div class="dialog-form-grid">
+                <label class="dialog-form-row">
+                  <span class="dialog-form-label">最低程序版本</span>
+                  <input
+                    v-model.trim="minAppVersionValue"
+                    class="app-input"
+                    data-testid="script-basic-min-app-version"
+                    maxlength="20"
+                    placeholder="0.1.0"
+                  />
+                </label>
+
+                <label class="dialog-form-row">
+                  <span class="dialog-form-label">运行时结构版本</span>
+                  <input
+                    v-model.number="minRuntimeSchemaValue"
+                    class="app-input"
+                    data-testid="script-basic-min-runtime-schema"
+                    min="1"
+                    type="number"
+                  />
+                </label>
+              </div>
+
+              <div class="dialog-form-grid">
                 <div class="dialog-form-row">
                   <span class="dialog-form-label">作者</span>
                   <div class="dialog-form-readonly">{{ form.data.userName || 'Local User' }}</div>
@@ -542,6 +566,8 @@ const platformOptions = [
   { label: '桌面程序', value: 'desktop', description: '用于桌面端脚本归类与分配约束，执行适配器后续再接。' },
 ];
 
+const defaultScriptRequiredFeatures = ['onnxInference', 'runtime:rhai', 'device:android'];
+
 const imgDetectorOptions = [
   { label: '不设置', value: 'none', description: '当前字段留空，不启用该类模型。' },
   { label: 'YOLO11', value: 'Yolo11', description: '通用目标检测方案。' },
@@ -752,6 +778,20 @@ const descriptionValue = computed({
   },
 });
 
+const minAppVersionValue = computed({
+  get: () => form.value?.data.minAppVersion || '',
+  set: (value: string) => {
+    if (form.value) form.value.data.minAppVersion = value.trim() || null;
+  },
+});
+
+const minRuntimeSchemaValue = computed({
+  get: () => form.value?.data.minRuntimeSchema ?? 1,
+  set: (value: number) => {
+    if (form.value) form.value.data.minRuntimeSchema = Math.max(1, Math.floor(Number(value) || 1));
+  },
+});
+
 const scriptPlatformValue = computed({
   get: () => form.value?.data.platform || 'android',
   set: (value: string) => {
@@ -889,6 +929,11 @@ function cloneScriptRecord(script: unknown): ScriptTableRecord {
 
 function ensureRuntimeSettings(script: ScriptTableRecord) {
   script.data.platform = script.data.platform || 'android';
+  script.data.minAppVersion = script.data.minAppVersion || '0.1.0';
+  script.data.minRuntimeSchema = Math.max(1, Math.floor(Number(script.data.minRuntimeSchema ?? 1) || 1));
+  script.data.requiredFeatures = Array.isArray(script.data.requiredFeatures) && script.data.requiredFeatures.length
+    ? script.data.requiredFeatures
+    : [...defaultScriptRequiredFeatures];
   script.data.runtimeSettings = {
     recoveryTaskId: script.data.runtimeSettings?.recoveryTaskId || null,
     clickRandomOffset: Math.max(0, Math.floor(Number(script.data.runtimeSettings?.clickRandomOffset ?? 0) || 0)),

@@ -5,6 +5,19 @@ use crate::infrastructure::vision::rec::RecognizerType;
 use sqlx::types::Json;
 use sqlx::FromRow;
 
+pub const SCRIPT_RUNTIME_SCHEMA: u32 = 1;
+
+pub fn supported_script_features() -> Vec<String> {
+    [
+        "onnxInference",
+        "runtime:rhai",
+        "device:android",
+    ]
+    .iter()
+    .map(|feature| feature.to_string())
+    .collect()
+}
+
 #[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -90,6 +103,12 @@ pub struct ScriptInfo {
     pub script_type: ScriptType,
     pub is_valid: bool,
     pub allow_clone: bool,
+    #[serde(default)]
+    pub min_app_version: Option<String>,
+    #[serde(default)]
+    pub min_runtime_schema: Option<u32>,
+    #[serde(default)]
+    pub required_features: Vec<String>,
     /// 脚本变量目录，统一描述 input / runtime / system 三类变量定义。
     pub variable_catalog: ScriptVariableCatalog,
 
@@ -136,6 +155,9 @@ impl Default for ScriptInfo {
             script_type: ScriptType::Dev,
             is_valid: false,
             allow_clone: true,
+            min_app_version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            min_runtime_schema: Some(SCRIPT_RUNTIME_SCHEMA),
+            required_features: supported_script_features(),
             variable_catalog: ScriptVariableCatalog::default(),
             cloud_id: None,
             runtime_settings: ScriptRuntimeSettings::default(),
