@@ -34,7 +34,6 @@ pub struct RegisterReq {
     pub password: String,
     pub email: String,
     pub code: String,
-    pub phone: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

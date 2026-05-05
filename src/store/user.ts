@@ -19,7 +19,6 @@ interface LoginPayload {
 interface RegisterPayload extends LoginPayload {
     email: string;
     code: string;
-    phone?: string | null;
 }
 
 interface ResetPasswordPayload {
@@ -32,6 +31,7 @@ const isAuthFailure = (message: string | undefined) =>
     Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const usernamePattern = /^[A-Za-z0-9_]{3,16}$/;
 const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 const assertEmail = (email: string) => {
@@ -43,6 +43,16 @@ const assertEmail = (email: string) => {
 const assertPassword = (password: string) => {
     if (!passwordPattern.test(password)) {
         throw new Error('密码至少 8 位，且需同时包含字母和数字');
+    }
+};
+
+const assertUsername = (username: string) => {
+    const value = username.trim();
+    if (emailPattern.test(value)) {
+        throw new Error('用户名不能使用邮箱格式');
+    }
+    if (!usernamePattern.test(value)) {
+        throw new Error('用户名需为 3-16 位字母、数字或下划线');
     }
 };
 
@@ -186,6 +196,7 @@ export const useUserStore = defineStore('user', () => {
     const register = async (payload: RegisterPayload) => {
         authSubmitting.value = true;
         try {
+            assertUsername(payload.username);
             assertEmail(payload.email);
             assertPassword(payload.password);
             const res = (await invoke('backend_register', {

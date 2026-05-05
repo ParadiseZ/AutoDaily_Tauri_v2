@@ -59,16 +59,10 @@
             发送验证码
           </button>
         </div>
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">密码</span>
-            <input v-model="registerForm.password" class="app-input" type="password" placeholder="设置密码" />
-          </label>
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">手机号（可选）</span>
-            <input v-model.trim="registerForm.phone" class="app-input" placeholder="便于后续找回" />
-          </label>
-        </div>
+        <label class="grid gap-2">
+          <span class="text-sm text-(--app-text-soft)">密码</span>
+          <input v-model="registerForm.password" class="app-input" type="password" placeholder="设置密码" />
+        </label>
         <div class="flex items-center justify-between gap-3 pt-2">
           <button class="app-button app-button-primary" type="submit" :disabled="userStore.authSubmitting">
             创建账户
@@ -134,7 +128,6 @@ const registerForm = reactive({
   email: '',
   code: '',
   password: '',
-  phone: '',
 });
 
 const resetForm = reactive({
@@ -156,7 +149,6 @@ const handleRegister = async () => {
     email: registerForm.email,
     code: registerForm.code,
     password: registerForm.password,
-    phone: registerForm.phone || null,
   });
   currentTab.value = 'login';
 };

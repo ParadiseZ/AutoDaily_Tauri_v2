@@ -26,9 +26,9 @@ pub async fn backend_send_verification_code(
 }
 
 #[command]
-pub async fn backend_register(app_handle: AppHandle, req: RegisterReq) -> ApiResponse<String> {
+pub async fn backend_register(app_handle: AppHandle, req: RegisterReq) -> ApiResponse<AuthRes> {
     let client = HttpClient::new(app_handle);
-    let res: AppResult<BackendApiRes<String>> = client.post("/auth/register", &req).await;
+    let res: AppResult<BackendApiRes<AuthRes>> = client.post("/auth/register", &req).await;
     trans_api_res(res)
 }
 
@@ -36,9 +36,9 @@ pub async fn backend_register(app_handle: AppHandle, req: RegisterReq) -> ApiRes
 pub async fn backend_reset_password(
     app_handle: AppHandle,
     req: ResetPasswordReq,
-) -> ApiResponse<String> {
+) -> ApiResponse<AuthRes> {
     let client = HttpClient::new(app_handle);
-    let res: AppResult<BackendApiRes<String>> = client.post("/auth/reset-password", &req).await;
+    let res: AppResult<BackendApiRes<AuthRes>> = client.post("/auth/reset-password", &req).await;
     trans_api_res(res)
 }
 
