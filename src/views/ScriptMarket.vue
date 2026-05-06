@@ -81,6 +81,22 @@
             {{ selectedScript.compatibility?.reason || '该脚本需要当前程序尚未支持的新能力，请先更新程序。' }}
           </div>
 
+          <div class="rounded-[8px] border border-(--app-border) bg-(--app-panel-muted)/60 p-4">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold text-(--app-text-strong)">更新日志</p>
+              <span v-if="changeLogsLoading" class="text-xs text-(--app-text-faint)">加载中</span>
+            </div>
+            <div v-if="selectedChangeLogs.length" class="space-y-4">
+              <div v-for="log in selectedChangeLogs" :key="log.id ?? `${log.versionNum}-${log.versionName}`" class="border-t border-(--app-border) pt-3 first:border-t-0 first:pt-0">
+                <p class="mb-2 text-sm font-semibold text-(--app-text-strong)">
+                  {{ log.versionName || `版本 ${log.versionNum ?? '-'}` }}
+                </p>
+                <MarkdownView :content="log.contentMd" empty-text="该版本没有填写更新日志。" />
+              </div>
+            </div>
+            <MarkdownView v-else :content="null" empty-text="该脚本还没有云端更新日志。" />
+          </div>
+
           <div class="grid gap-3 text-sm text-(--app-text-soft) md:grid-cols-2">
             <div class="rounded-[20px] border border-(--app-border) p-4">
               <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">发布时间</p>
@@ -111,15 +127,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
+import MarkdownView from '@/components/shared/MarkdownView.vue';
 import { useScriptStore } from '@/store/script';
 import { useUserStore } from '@/store/user';
+import { scriptService } from '@/services/scriptService';
 import { showToast } from '@/utils/toast';
 import { formatDate, formatRuntimeLabel } from '@/utils/presenters';
 import AppLoadingState from '@/components/shared/AppLoadingState.vue';
@@ -128,6 +146,8 @@ const router = useRouter();
 const scriptStore = useScriptStore();
 const userStore = useUserStore();
 const selectedScriptId = ref<string | null>(null);
+const selectedChangeLogs = ref<Awaited<ReturnType<typeof scriptService.listChangeLogs>>>([]);
+const changeLogsLoading = ref(false);
 const filters = reactive({
   keyword: '',
   author: '',
@@ -150,6 +170,22 @@ const selectedScript = computed(
   () => scriptStore.marketPage.records.find((script) => script.id === selectedScriptId.value) ?? null,
 );
 const isSelectedIncompatible = computed(() => selectedScript.value?.compatibility?.compatible === false);
+
+const loadSelectedChangeLogs = async () => {
+  if (!selectedScriptId.value) {
+    selectedChangeLogs.value = [];
+    return;
+  }
+
+  changeLogsLoading.value = true;
+  try {
+    selectedChangeLogs.value = await scriptService.listChangeLogs(selectedScriptId.value);
+  } catch {
+    selectedChangeLogs.value = [];
+  } finally {
+    changeLogsLoading.value = false;
+  }
+};
 
 const search = async () => {
   await scriptStore.searchMarket({
@@ -183,5 +219,9 @@ const downloadSelected = async () => {
 
 onMounted(async () => {
   await search();
+});
+
+watch(selectedScriptId, () => {
+  void loadSelectedChangeLogs();
 });
 </script>

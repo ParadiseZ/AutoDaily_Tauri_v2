@@ -17,7 +17,9 @@
           </div>
           <span class="rounded-full bg-red-500/12 px-3 py-1 text-xs font-semibold text-red-600">New</span>
         </div>
-        <pre class="max-h-72 overflow-auto whitespace-pre-wrap break-words text-sm leading-6 text-(--app-text-soft)">{{ releaseNotes }}</pre>
+        <div class="max-h-72 overflow-auto pr-1 custom-scrollbar">
+          <MarkdownView :content="releaseNotes" empty-text="本次更新未提供更新日志。" />
+        </div>
       </div>
 
       <div v-if="isDownloading" class="space-y-2">
@@ -37,7 +39,18 @@
         {{ appUpdateState.error }}
       </p>
 
-      <div class="flex flex-wrap justify-end gap-2">
+      <div class="flex flex-wrap justify-between gap-2">
+        <div class="flex flex-wrap gap-2">
+          <button class="app-button app-button-ghost" type="button" @click="openCurrentReleaseNotes">
+            <AppIcon name="file-clock" :size="16" />
+            当前版本日志
+          </button>
+          <button class="app-button app-button-ghost" type="button" @click="openFullChangelog">
+            <AppIcon name="scroll-text" :size="16" />
+            完整更新日志
+          </button>
+        </div>
+        <div class="flex flex-wrap justify-end gap-2">
         <button
           class="app-button app-button-ghost"
           type="button"
@@ -54,22 +67,32 @@
         >
           立即更新
         </button>
+        </div>
       </div>
     </div>
   </AppDialog>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
+import MarkdownView from '@/components/shared/MarkdownView.vue';
 import {
   appUpdateState,
   closeAppUpdateDialog,
   installPendingAppUpdate,
 } from '@/services/appUpdateService';
+import {
+  APP_FULL_CHANGELOG_URL,
+  APP_LATEST_RELEASE_NOTES_URL,
+  fetchMarkdownDocument,
+  openExternalUrl,
+} from '@/services/changelogService';
 
 const description = computed(() => `可更新到 ${appUpdateState.version || '新版本'}`);
-const releaseNotes = computed(() => appUpdateState.body.trim() || '本次更新未提供更新日志。');
+const remoteReleaseNotes = ref('');
+const releaseNotes = computed(() => remoteReleaseNotes.value.trim() || appUpdateState.body.trim());
 const isDownloading = computed(() => appUpdateState.phase === 'downloading' || appUpdateState.phase === 'installing');
 const isBusy = computed(() => appUpdateState.phase === 'downloading' || appUpdateState.phase === 'installing');
 const progressPercent = computed(() => {
@@ -90,4 +113,24 @@ function formatBytes(value: number) {
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
+
+async function openCurrentReleaseNotes() {
+  await openExternalUrl(APP_LATEST_RELEASE_NOTES_URL);
+}
+
+async function openFullChangelog() {
+  await openExternalUrl(APP_FULL_CHANGELOG_URL);
+}
+
+watch(
+  () => appUpdateState.dialogOpen,
+  async (open) => {
+    if (!open) return;
+    try {
+      remoteReleaseNotes.value = await fetchMarkdownDocument(APP_LATEST_RELEASE_NOTES_URL);
+    } catch {
+      remoteReleaseNotes.value = '';
+    }
+  },
+);
 </script>

@@ -333,10 +333,18 @@
               </p>
             </div>
           </div>
-          <div class="rounded-[20px] border border-(--app-border) p-4 text-sm text-(--app-text-soft)">
-            {{ settingsStore.updateInfo?.notes || '当前还没有拉取更新说明。' }}
+          <div class="rounded-[20px] border border-(--app-border) p-4">
+            <MarkdownView :content="settingsStore.updateInfo?.notes" empty-text="当前还没有拉取更新说明。" />
           </div>
-          <div class="flex justify-end">
+          <div class="flex flex-wrap justify-end gap-3">
+            <button class="app-button app-button-ghost" type="button" @click="openCurrentReleaseNotes">
+              <AppIcon name="file-clock" :size="16" />
+              当前版本日志
+            </button>
+            <button class="app-button app-button-ghost" type="button" @click="openFullChangelog">
+              <AppIcon name="scroll-text" :size="16" />
+              完整更新日志
+            </button>
             <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="checkUpdate">
               <AppIcon name="refresh-cw" :size="16" />
               检查更新
@@ -353,6 +361,7 @@
 import { onMounted, ref, watch } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import MarkdownView from '@/components/shared/MarkdownView.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import SettingsSection from '@/views/settings/SettingsSection.vue';
@@ -363,6 +372,11 @@ import { settingsService } from '@/services/settingsService';
 import { appThemeKey } from '@/store/store';
 import { showToast } from '@/utils/toast';
 import { formatDate } from '@/utils/presenters';
+import {
+  APP_FULL_CHANGELOG_URL,
+  APP_LATEST_RELEASE_NOTES_URL,
+  openExternalUrl,
+} from '@/services/changelogService';
 import type { EmailConfig, EmailProviderPreset, EmailSecurity, VisionTextCacheConfig } from '@/types/app/domain';
 
 const settingsStore = useSettingsStore();
@@ -576,6 +590,14 @@ const checkUpdate = async () => {
   } catch (error) {
     showToast(error instanceof Error ? error.message : '检查失败', 'error');
   }
+};
+
+const openCurrentReleaseNotes = async () => {
+  await openExternalUrl(APP_LATEST_RELEASE_NOTES_URL);
+};
+
+const openFullChangelog = async () => {
+  await openExternalUrl(APP_FULL_CHANGELOG_URL);
 };
 
 watch(

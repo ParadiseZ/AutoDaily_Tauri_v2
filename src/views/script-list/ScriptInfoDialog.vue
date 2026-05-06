@@ -457,6 +457,48 @@
           </SurfacePanel>
         </template>
 
+        <template v-else-if="activeTab === 'content'">
+          <SurfacePanel tone="muted" padding="sm" class="space-y-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <button class="app-icon-button" type="button" title="标题" aria-label="标题" @click="wrapContentLine('# ')">
+                <AppIcon name="heading-1" :size="16" />
+              </button>
+              <button class="app-icon-button" type="button" title="粗体" aria-label="粗体" @click="wrapContentSelection('**', '**')">
+                <AppIcon name="bold" :size="16" />
+              </button>
+              <button class="app-icon-button" type="button" title="列表" aria-label="列表" @click="wrapContentLine('- ')">
+                <AppIcon name="list" :size="16" />
+              </button>
+              <button class="app-icon-button" type="button" title="下划线" aria-label="下划线" @click="wrapContentSelection('<u>', '</u>')">
+                <AppIcon name="underline" :size="16" />
+              </button>
+              <button class="app-icon-button" type="button" title="删除线" aria-label="删除线" @click="wrapContentSelection('~~', '~~')">
+                <AppIcon name="strikethrough" :size="16" />
+              </button>
+            </div>
+
+            <div class="grid gap-4 xl:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="dialog-form-label">Markdown</span>
+                <textarea
+                  ref="contentTextarea"
+                  v-model="contentMdValue"
+                  class="app-textarea min-h-[280px]"
+                  data-testid="script-content-md"
+                  maxlength="4000"
+                  placeholder="# 0.1.0&#10;- 初始版本。"
+                />
+              </label>
+              <div class="grid gap-2">
+                <span class="dialog-form-label">预览</span>
+                <div class="script-markdown-preview custom-scrollbar">
+                  <MarkdownView :content="contentMdValue" empty-text="暂无脚本更新日志。" />
+                </div>
+              </div>
+            </div>
+          </SurfacePanel>
+        </template>
+
         <template v-else>
           <SurfacePanel tone="muted" padding="sm" class="space-y-5">
             <div class="max-w-[720px] space-y-4">
@@ -505,10 +547,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRaw, watch } from 'vue';
+import { computed, nextTick, ref, toRaw, watch } from 'vue';
 import { open as dialogOpen } from '@tauri-apps/plugin-dialog';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import MarkdownView from '@/components/shared/MarkdownView.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { BaseModel } from '@/types/bindings/BaseModel';
@@ -525,7 +568,7 @@ import {
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import SponsorshipQrField from '@/views/script-list/script-info/SponsorshipQrField.vue';
 
-type DialogTab = 'basic' | 'models' | 'runtime' | 'support';
+type DialogTab = 'basic' | 'models' | 'runtime' | 'content' | 'support';
 type ModelTab = 'imgDet' | 'txtDet' | 'txtRec';
 type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
 type RecognizerKind = 'none' | 'PaddleCrnn';
@@ -545,6 +588,7 @@ const tabs = [
   { id: 'basic' as const, label: '基本信息' },
   { id: 'models' as const, label: '模型信息' },
   { id: 'runtime' as const, label: '运行恢复' },
+  { id: 'content' as const, label: '更新日志' },
   { id: 'support' as const, label: '赞助信息' },
 ];
 const modelTabs = [
@@ -605,6 +649,7 @@ const form = ref<ScriptTableRecord | null>(null);
 const imgDetKind = ref<DetectorKind>('none');
 const txtDetKind = ref<DetectorKind>('none');
 const txtRecKind = ref<RecognizerKind>('none');
+const contentTextarea = ref<HTMLTextAreaElement | null>(null);
 
 function createBaseModel(
   modelType: BaseModel['modelType'],
@@ -778,6 +823,13 @@ const descriptionValue = computed({
   },
 });
 
+const contentMdValue = computed({
+  get: () => form.value?.data.contentMd || '',
+  set: (value: string) => {
+    if (form.value) form.value.data.contentMd = value || null;
+  },
+});
+
 const minAppVersionValue = computed({
   get: () => form.value?.data.minAppVersion || '',
   set: (value: string) => {
@@ -923,11 +975,51 @@ const pickDictPath = async () => {
   }
 };
 
+function updateContentText(value: string, selectionStart: number, selectionEnd: number) {
+  contentMdValue.value = value;
+  nextTick(() => {
+    const textarea = contentTextarea.value;
+    if (!textarea) return;
+    textarea.focus();
+    textarea.setSelectionRange(selectionStart, selectionEnd);
+  });
+}
+
+function wrapContentSelection(prefix: string, suffix: string) {
+  const textarea = contentTextarea.value;
+  const text = contentMdValue.value;
+  if (!textarea) {
+    contentMdValue.value = `${prefix}${text}${suffix}`;
+    return;
+  }
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const selected = text.slice(start, end) || '文本';
+  const next = `${text.slice(0, start)}${prefix}${selected}${suffix}${text.slice(end)}`;
+  updateContentText(next, start + prefix.length, start + prefix.length + selected.length);
+}
+
+function wrapContentLine(prefix: string) {
+  const textarea = contentTextarea.value;
+  const text = contentMdValue.value;
+  if (!textarea) {
+    contentMdValue.value = `${prefix}${text || '内容'}`;
+    return;
+  }
+
+  const start = textarea.selectionStart;
+  const lineStart = text.lastIndexOf('\n', Math.max(0, start - 1)) + 1;
+  const next = `${text.slice(0, lineStart)}${prefix}${text.slice(lineStart)}`;
+  updateContentText(next, start + prefix.length, textarea.selectionEnd + prefix.length);
+}
+
 function cloneScriptRecord(script: unknown): ScriptTableRecord {
   return JSON.parse(JSON.stringify(toRaw(script))) as ScriptTableRecord;
 }
 
 function ensureRuntimeSettings(script: ScriptTableRecord) {
+  script.data.contentMd = script.data.contentMd || null;
   script.data.platform = script.data.platform || 'android';
   script.data.minAppVersion = script.data.minAppVersion || '0.1.0';
   script.data.minRuntimeSchema = Math.max(1, Math.floor(Number(script.data.minRuntimeSchema ?? 1) || 1));
@@ -1031,6 +1123,16 @@ watch(
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--app-text-strong);
+}
+
+.script-markdown-preview {
+  min-height: 280px;
+  max-height: 420px;
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-panel) 88%, transparent);
+  padding: 1rem;
 }
 
 @media (min-width: 768px) {

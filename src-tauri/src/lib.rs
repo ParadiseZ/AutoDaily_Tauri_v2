@@ -11,10 +11,10 @@ pub mod infrastructure;
 
 use crate::api::backend_cmd::{
     backend_check_update, backend_download_model, backend_download_script,
-    backend_get_auth_session, backend_get_profile, backend_login, backend_logout,
-    backend_redeem_sponsor_code, backend_register, backend_reset_password, backend_search_scripts,
-    backend_send_verification_code, backend_update_username, backend_upload_model,
-    backend_upload_script,
+    backend_get_auth_session, backend_get_profile, backend_get_script_change_logs, backend_login,
+    backend_logout, backend_redeem_sponsor_code, backend_register, backend_reset_password,
+    backend_search_scripts, backend_send_verification_code, backend_update_username,
+    backend_upload_model, backend_upload_script,
 };
 use crate::api::dev_test::{
     dev_capture_test, paddle_ocr_inference_image_data_test, paddle_ocr_inference_test,
@@ -55,12 +55,12 @@ use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::process_api::{
     cmd_device_pause, cmd_device_shutdown, cmd_device_start, cmd_device_stop,
     cmd_get_running_devices, cmd_is_device_running, cmd_prepare_device_capture,
-    cmd_restart_device_runtime,
-    cmd_run_script_target, cmd_spawn_device, cmd_sync_device_runtime_session,
+    cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
+    cmd_sync_device_runtime_session,
 };
 use crate::api::infrastructure::vision_lab::{
-    get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd,
-    vision_list_image_files_cmd, vision_save_capture_image_cmd,
+    get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd, vision_list_image_files_cmd,
+    vision_save_capture_image_cmd,
 };
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::context::main_process::MainProcessCtx;
@@ -192,6 +192,7 @@ pub fn run() {
             backend_logout,
             backend_get_profile,
             backend_search_scripts,
+            backend_get_script_change_logs,
             backend_redeem_sponsor_code,
             backend_check_update,
             backend_download_script,

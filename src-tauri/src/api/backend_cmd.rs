@@ -82,6 +82,21 @@ pub async fn backend_search_scripts(
 }
 
 #[command]
+pub async fn backend_get_script_change_logs(
+    app_handle: AppHandle,
+    script_id: String,
+    from_version: Option<i64>,
+) -> ApiResponse<Vec<serde_json::Value>> {
+    let client = HttpClient::new(app_handle);
+    let url = match from_version {
+        Some(version) => format!("/scripts/{}/change-log?fromVersion={}", script_id, version),
+        None => format!("/scripts/{}/change-log", script_id),
+    };
+    let res: AppResult<BackendApiRes<Vec<serde_json::Value>>> = client.get(&url).await;
+    trans_api_res(res)
+}
+
+#[command]
 pub async fn backend_redeem_sponsor_code(
     app_handle: AppHandle,
     req: SponsorRedeemReq,

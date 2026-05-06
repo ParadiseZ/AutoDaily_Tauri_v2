@@ -131,6 +131,7 @@ export interface ScriptAuthorSeed {
 export interface ScriptInfoRecord {
     name: string;
     description: string | null;
+    contentMd: string | null;
     userId: string;
     userName: string | null;
     runtimeType: RuntimeType;
@@ -312,6 +313,17 @@ export interface MarketScriptRecord {
     minRuntimeSchema?: number | null;
     requiredFeatures?: string[] | null;
     compatibility?: ScriptCompatibility | null;
+}
+
+export interface ScriptChangeLogRecord {
+    id: number | null;
+    scriptId: string | null;
+    versionName: string | null;
+    versionNum: number | null;
+    contentMd: string | null;
+    createdBy: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
 }
 
 export interface MarketPage<T> {

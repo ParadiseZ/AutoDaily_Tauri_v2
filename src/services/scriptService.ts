@@ -8,6 +8,7 @@ import type { ScriptType } from '@/types/bindings/ScriptType';
 import type { ScriptVariableCatalog } from '@/types/bindings/ScriptVariableCatalog';
 import type {
     ScriptAuthorSeed,
+    ScriptChangeLogRecord,
     MarketPage,
     MarketScriptRecord,
     ScriptSearchInput,
@@ -82,6 +83,7 @@ export const normalizeScriptTable = (script: ScriptTable | ScriptTableRecord): S
         id: raw.id,
         data: {
             ...data,
+            contentMd: raw.data.contentMd ?? null,
             scriptType: raw.data.scriptType ?? 'dev',
             platform: raw.data.platform ?? 'android',
             minAppVersion: raw.data.minAppVersion ?? '0.1.0',
@@ -110,6 +112,7 @@ export const createBlankScript = (
     data: {
         name,
         description: '',
+        contentMd: '',
         userId: author.userId,
         userName: author.userName,
         runtimeType: 'rhai',
@@ -210,6 +213,16 @@ export const scriptService = {
             return emptyMarketPage(query);
         }
 
+        return response.data;
+    },
+    listChangeLogs: async (scriptId: string, fromVersion?: number | null): Promise<ScriptChangeLogRecord[]> => {
+        const response = (await invoke('backend_get_script_change_logs', {
+            scriptId,
+            fromVersion: fromVersion ?? null,
+        })) as ApiEnvelope<ScriptChangeLogRecord[]>;
+        if (!response.success || !response.data) {
+            return [];
+        }
         return response.data;
     },
     convertLocalImageToDataUrl: async (imagePath: string): Promise<string> => {

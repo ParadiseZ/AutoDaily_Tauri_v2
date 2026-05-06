@@ -8,14 +8,10 @@ use sqlx::FromRow;
 pub const SCRIPT_RUNTIME_SCHEMA: u32 = 1;
 
 pub fn supported_script_features() -> Vec<String> {
-    [
-        "onnxInference",
-        "runtime:rhai",
-        "device:android",
-    ]
-    .iter()
-    .map(|feature| feature.to_string())
-    .collect()
+    ["onnxInference", "runtime:rhai", "device:android"]
+        .iter()
+        .map(|feature| feature.to_string())
+        .collect()
 }
 
 #[derive(Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
@@ -79,6 +75,8 @@ pub enum ScriptPlatform {
 pub struct ScriptInfo {
     pub name: String,
     pub description: Option<String>,
+    #[serde(default)]
+    pub content_md: Option<String>,
     pub user_id: UserId,
     pub user_name: Option<String>,
 
@@ -136,6 +134,7 @@ impl Default for ScriptInfo {
         Self {
             name: "".to_string(),
             description: None,
+            content_md: None,
             user_id: UserId::new_v7(),
             user_name: None,
             runtime_type: RuntimeType::Rhai,
