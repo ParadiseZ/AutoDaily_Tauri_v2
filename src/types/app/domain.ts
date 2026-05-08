@@ -333,18 +333,6 @@ export interface MarketPage<T> {
     current: number;
 }
 
-export interface UpdatePlatformInfo {
-    signature: string;
-    url: string;
-}
-
-export interface UpdateInfo {
-    version: string;
-    notes: string;
-    pubDate: string;
-    platforms: Record<string, UpdatePlatformInfo>;
-}
-
 export interface DeviceFormState {
     id: string | null;
     deviceName: string;

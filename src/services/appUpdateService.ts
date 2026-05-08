@@ -8,7 +8,7 @@ export const appUpdateState = reactive({
   dialogOpen: false,
   version: '',
   date: '',
-  body: '',
+  hasChecked: false,
   error: '',
   downloaded: 0,
   contentLength: 0,
@@ -16,12 +16,27 @@ export const appUpdateState = reactive({
 
 let pendingUpdate: Update | null = null;
 
-const isTauriRuntime = () =>
-  typeof navigator !== 'undefined' && navigator.userAgent.includes('Tauri');
+const isTauriRuntime = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const tauriWindow = window as typeof window & { __TAURI_INTERNALS__?: unknown };
+  return Boolean(tauriWindow.__TAURI_INTERNALS__);
+};
 
 const resetProgress = () => {
   appUpdateState.downloaded = 0;
   appUpdateState.contentLength = 0;
+};
+
+const markUnsupportedRuntime = () => {
+  pendingUpdate = null;
+  appUpdateState.phase = 'error';
+  appUpdateState.version = '';
+  appUpdateState.date = '';
+  appUpdateState.hasChecked = true;
+  appUpdateState.error = '当前环境不支持检查更新，请在 Tauri 桌面端使用。';
+  resetProgress();
 };
 
 const applyUpdateMetadata = (update: Update) => {
@@ -29,7 +44,7 @@ const applyUpdateMetadata = (update: Update) => {
   appUpdateState.phase = 'available';
   appUpdateState.version = update.version;
   appUpdateState.date = update.date ?? '';
-  appUpdateState.body = update.body ?? '';
+  appUpdateState.hasChecked = true;
   appUpdateState.error = '';
   resetProgress();
 };
@@ -50,8 +65,15 @@ const handleDownloadEvent = (event: DownloadEvent) => {
   }
 };
 
-export const checkForAppUpdateSilently = async () => {
-  if (!isTauriRuntime() || appUpdateState.phase === 'checking') {
+const performCheckForAppUpdate = async (reportUnsupportedRuntime: boolean) => {
+  if (appUpdateState.phase === 'checking') {
+    return null;
+  }
+
+  if (!isTauriRuntime()) {
+    if (reportUnsupportedRuntime) {
+      markUnsupportedRuntime();
+    }
     return null;
   }
 
@@ -64,6 +86,9 @@ export const checkForAppUpdateSilently = async () => {
     if (!update) {
       pendingUpdate = null;
       appUpdateState.phase = 'idle';
+      appUpdateState.version = '';
+      appUpdateState.date = '';
+      appUpdateState.hasChecked = true;
       return null;
     }
 
@@ -72,10 +97,17 @@ export const checkForAppUpdateSilently = async () => {
   } catch (error) {
     pendingUpdate = null;
     appUpdateState.phase = 'error';
+    appUpdateState.version = '';
+    appUpdateState.date = '';
+    appUpdateState.hasChecked = true;
     appUpdateState.error = error instanceof Error ? error.message : String(error);
     return null;
   }
 };
+
+export const checkForAppUpdate = () => performCheckForAppUpdate(true);
+
+export const checkForAppUpdateSilently = () => performCheckForAppUpdate(false);
 
 export const openAppUpdateDialog = () => {
   if (appUpdateState.phase === 'available' || appUpdateState.phase === 'error') {

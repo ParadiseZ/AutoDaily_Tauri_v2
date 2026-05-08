@@ -212,7 +212,8 @@
         </SettingsSection>
 
         <SettingsSection icon="mail" title="邮件通知" description="支持 163、QQ、Gmail、Outlook 预设，也支持自定义 SMTP。QQ、Gmail 等通常需要授权码或应用专用密码，而不是登录密码。">
-          <div class="grid gap-3 md:grid-cols-2">
+          <form class="space-y-4" @submit.prevent="saveEmailSettings">
+            <div class="grid gap-3 md:grid-cols-2">
             <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
               <span class="text-sm text-(--app-text-strong)">桌面超时提醒</span>
               <input v-model="settingsStore.emailConfig.desktopNotice" type="checkbox" class="toggle toggle-sm" />
@@ -221,9 +222,9 @@
               <span class="text-sm text-(--app-text-strong)">邮件超时提醒</span>
               <input v-model="settingsStore.emailConfig.emailNotification" type="checkbox" class="toggle toggle-sm" />
             </label>
-          </div>
+            </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-(--app-text-soft)">SMTP 服务商</span>
               <AppSelect v-model="settingsStore.emailConfig.provider" :options="emailProviderOptions" />
@@ -236,9 +237,9 @@
                 :disabled="settingsStore.emailConfig.provider !== 'custom'"
               />
             </label>
-          </div>
+            </div>
 
-          <div class="grid gap-4 md:grid-cols-[1fr_180px]">
+            <div class="grid gap-4 md:grid-cols-[1fr_180px]">
             <label class="grid gap-2">
               <span class="text-sm text-(--app-text-soft)">SMTP 服务器</span>
               <input
@@ -259,9 +260,9 @@
                 :disabled="settingsStore.emailConfig.provider !== 'custom'"
               />
             </label>
-          </div>
+            </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-(--app-text-soft)">SMTP 用户名</span>
               <input v-model.trim="settingsStore.emailConfig.username" class="app-input" placeholder="通常为邮箱地址" />
@@ -270,9 +271,9 @@
               <span class="text-sm text-(--app-text-soft)">SMTP 密码 / 授权码</span>
               <input v-model="settingsStore.emailConfig.password" class="app-input" type="password" placeholder="建议使用服务商授权码" />
             </label>
-          </div>
+            </div>
 
-          <div class="grid gap-4 md:grid-cols-2">
+            <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-(--app-text-soft)">发件人名称</span>
               <input v-model.trim="settingsStore.emailConfig.senderName" class="app-input" placeholder="AutoDaily" />
@@ -281,9 +282,9 @@
               <span class="text-sm text-(--app-text-soft)">发件人邮箱</span>
               <input v-model.trim="settingsStore.emailConfig.senderEmail" class="app-input" placeholder="留空时回退到 SMTP 用户名" />
             </label>
-          </div>
+            </div>
 
-          <div class="grid gap-4 md:grid-cols-[1fr_180px]">
+            <div class="grid gap-4 md:grid-cols-[1fr_180px]">
             <label class="grid gap-2">
               <span class="text-sm text-(--app-text-soft)">收件人</span>
               <textarea
@@ -302,55 +303,25 @@
                 max="300"
               />
             </label>
-          </div>
+            </div>
 
-          <div class="rounded-[20px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
+            <div class="rounded-[20px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
             常见预设：163 / QQ 默认走 465 + SSL/TLS，Outlook 默认走 587 + STARTTLS。Gmail 建议开启两步验证后使用应用专用密码。
-          </div>
+            </div>
 
-          <div class="flex flex-wrap justify-end gap-3">
+            <div class="flex flex-wrap justify-end gap-3">
             <button class="app-button app-button-ghost" type="button" @click="sendTestEmail">
               <AppIcon name="send" :size="16" />
               测试发送
             </button>
-            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveEmailSettings">
+            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="submit">
               <AppIcon name="save" :size="16" />
               保存邮件配置
             </button>
-          </div>
+            </div>
+          </form>
         </SettingsSection>
 
-        <SettingsSection icon="info" title="关于与更新" description="保持一个轻量的版本信息区，不把宣传内容塞进专业工具型桌面应用。">
-          <div class="grid gap-3 md:grid-cols-2">
-            <div class="rounded-[20px] border border-(--app-border) p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">版本</p>
-              <p class="mt-2 text-lg font-semibold text-(--app-text-strong)">AutoDaily 0.1.0</p>
-            </div>
-            <div class="rounded-[20px] border border-(--app-border) p-4">
-              <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">最近更新</p>
-              <p class="mt-2 text-sm text-(--app-text-strong)">
-                {{ settingsStore.updateInfo ? `${settingsStore.updateInfo.version} · ${formatDate(settingsStore.updateInfo.pubDate)}` : '尚未检查' }}
-              </p>
-            </div>
-          </div>
-          <div class="rounded-[20px] border border-(--app-border) p-4">
-            <MarkdownView :content="settingsStore.updateInfo?.notes" empty-text="当前还没有拉取更新说明。" />
-          </div>
-          <div class="flex flex-wrap justify-end gap-3">
-            <button class="app-button app-button-ghost" type="button" @click="openCurrentReleaseNotes">
-              <AppIcon name="file-clock" :size="16" />
-              当前版本日志
-            </button>
-            <button class="app-button app-button-ghost" type="button" @click="openFullChangelog">
-              <AppIcon name="scroll-text" :size="16" />
-              完整更新日志
-            </button>
-            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="checkUpdate">
-              <AppIcon name="refresh-cw" :size="16" />
-              检查更新
-            </button>
-          </div>
-        </SettingsSection>
       </div>
     </div>
     </div>
@@ -361,7 +332,6 @@
 import { onMounted, ref, watch } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
-import MarkdownView from '@/components/shared/MarkdownView.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import SettingsSection from '@/views/settings/SettingsSection.vue';
@@ -372,11 +342,6 @@ import { settingsService } from '@/services/settingsService';
 import { appThemeKey } from '@/store/store';
 import { showToast } from '@/utils/toast';
 import { formatDate } from '@/utils/presenters';
-import {
-  APP_FULL_CHANGELOG_URL,
-  APP_LATEST_RELEASE_NOTES_URL,
-  openExternalUrl,
-} from '@/services/changelogService';
 import type { EmailConfig, EmailProviderPreset, EmailSecurity, VisionTextCacheConfig } from '@/types/app/domain';
 
 const settingsStore = useSettingsStore();
@@ -581,23 +546,6 @@ const saveUsername = async () => {
   try {
     await userStore.updateUsername(usernameDraft.value);
   } catch {}
-};
-
-const checkUpdate = async () => {
-  try {
-    const result = await settingsStore.refreshUpdateInfo();
-    showToast(result ? `发现版本 ${result.version}` : '当前已是最新版本', 'success');
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : '检查失败', 'error');
-  }
-};
-
-const openCurrentReleaseNotes = async () => {
-  await openExternalUrl(APP_LATEST_RELEASE_NOTES_URL);
-};
-
-const openFullChangelog = async () => {
-  await openExternalUrl(APP_FULL_CHANGELOG_URL);
 };
 
 watch(

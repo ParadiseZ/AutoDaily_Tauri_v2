@@ -393,8 +393,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return { success: false, data: null, message: 'No session' };
         case 'backend_get_profile':
           return { success: false, data: null, message: 'Profile unavailable in browser mock' };
-        case 'backend_check_update':
-          return { success: false, data: null, message: '未配置更新服务' };
         case 'backend_search_scripts':
           return {
             success: true,

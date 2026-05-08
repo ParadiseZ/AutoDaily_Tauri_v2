@@ -10,7 +10,6 @@ import type {
     SystemConfigPayload,
     SystemPreferences,
     VisionTextCacheConfig,
-    UpdateInfo,
 } from '@/types/app/domain';
 import {
     DEFAULT_LOG_CONFIG,
@@ -35,7 +34,6 @@ export const useSettingsStore = defineStore('settings', () => {
     const logConfig = ref<LogConfig>(DEFAULT_LOG_CONFIG);
     const emailConfig = ref<EmailConfig>(DEFAULT_EMAIL_CONFIG);
     const loading = ref(false);
-    const updateInfo = ref<UpdateInfo | null>(null);
 
     const interfacePreferences = computed(() => ({
         appTheme: preferences.value.appTheme,
@@ -122,11 +120,6 @@ export const useSettingsStore = defineStore('settings', () => {
         await settingsService.applySystemConfig(payload);
     };
 
-    const refreshUpdateInfo = async () => {
-        updateInfo.value = await settingsService.checkUpdate();
-        return updateInfo.value;
-    };
-
     const updateLogSettings = async (patch: Partial<LogConfig>) => {
         if (patch.logLevel && patch.logLevel !== logConfig.value.logLevel) {
             await settingsService.updateLogLevel(patch.logLevel);
@@ -172,10 +165,8 @@ export const useSettingsStore = defineStore('settings', () => {
         loading,
         logConfig,
         preferences,
-        refreshUpdateInfo,
         saveEmailSettings,
         sendEmailTest,
-        updateInfo,
         updateLogSettings,
         updatePreferences,
     };

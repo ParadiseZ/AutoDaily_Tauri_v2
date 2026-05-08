@@ -1,12 +1,6 @@
 import { invoke } from '@/utils/api';
 import type { LogLevel } from '@/types/bindings/LogLevel';
-import type { EmailConfig, LogConfig, SystemConfigPayload, UpdateInfo, VisionTextCacheConfig } from '@/types/app/domain';
-
-interface ApiEnvelope<T> {
-    success: boolean;
-    data?: T;
-    message?: string;
-}
+import type { EmailConfig, LogConfig, SystemConfigPayload, VisionTextCacheConfig } from '@/types/app/domain';
 
 export const settingsService = {
     getLogConfig: () => invoke('get_log_config_cmd') as Promise<LogConfig>,
@@ -22,8 +16,4 @@ export const settingsService = {
         invoke('set_vision_text_cache_config_cmd', { config }) as Promise<string>,
     applySystemConfig: (systemConfig: SystemConfigPayload) =>
         invoke('set_system_settings_cmd', { systemConfig }) as Promise<string>,
-    checkUpdate: async (): Promise<UpdateInfo | null> => {
-        const response = (await invoke('backend_check_update')) as ApiEnvelope<UpdateInfo>;
-        return response.success ? response.data ?? null : null;
-    },
 };

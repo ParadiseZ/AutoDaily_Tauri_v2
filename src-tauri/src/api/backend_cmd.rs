@@ -117,16 +117,6 @@ pub async fn backend_update_username(
 }
 
 #[command]
-pub async fn backend_check_update(app_handle: AppHandle) -> ApiResponse<TauriUpdateRes> {
-    let client = HttpClient::new(app_handle);
-    let res: AppResult<TauriUpdateRes> = client.get("/update/check").await;
-    match res {
-        Ok(update_res) => ApiResponse::success(Some(update_res), Some("Found update".to_string())),
-        Err(e) => ApiResponse::error(Some(e.to_string())),
-    }
-}
-
-#[command]
 pub async fn backend_download_script(
     app_handle: AppHandle,
     script_id: String,

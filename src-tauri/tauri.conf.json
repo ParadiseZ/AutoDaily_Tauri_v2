@@ -43,17 +43,18 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "CHANGE_ME_WITH_TAURI_UPDATER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc5ODI4RDRCRDAwMzQyMjUKUldRbFFnUFFTNDJDZVZTTTBOSitYSmV1M1NqcmdJZyt4M21ZR2kwVkpNaEI2OUpJM2tyeUZKY0cK",
       "endpoints": [
-        "https://github.com/your-account/AutoDaily/releases/latest/download/latest.json",
-        "https://api.example.com/api/update/{{target}}/{{arch}}/{{current_version}}"
+        "https://raw.githubusercontent.com/ParadiseZ/AutoDailyTauriRelease/main/latest.json",
+        "http://localhost:8080/api/update/{{target}}/{{arch}}/{{current_version}}"
       ],
       "windows": {
         "installMode": "passive"
       }
     },
     "server_config": {
-      "server_url": "https://api.example.com"
+      "remote_config_url": "https://raw.githubusercontent.com/ParadiseZ/AutoDailyTauriRelease/main/server-config.json",
+      "default_server_url": "http://localhost:8080"
     }
   }
 }

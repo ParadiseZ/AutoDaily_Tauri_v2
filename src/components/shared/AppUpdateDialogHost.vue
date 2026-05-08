@@ -71,12 +71,22 @@
       </div>
     </div>
   </AppDialog>
+  <MarkdownDocumentDialog
+    :open="documentDialogOpen"
+    :title="documentDialogTitle"
+    :description="documentDialogDescription"
+    :content="documentDialogContent"
+    :loading="documentDialogLoading"
+    :error="documentDialogError"
+    @close="closeDocumentDialog"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import MarkdownDocumentDialog from '@/components/shared/MarkdownDocumentDialog.vue';
 import MarkdownView from '@/components/shared/MarkdownView.vue';
 import {
   appUpdateState,
@@ -87,14 +97,20 @@ import {
   APP_FULL_CHANGELOG_URL,
   APP_LATEST_RELEASE_NOTES_URL,
   fetchMarkdownDocument,
-  openExternalUrl,
 } from '@/services/changelogService';
+import { showToast } from '@/utils/toast';
 
 const description = computed(() => `可更新到 ${appUpdateState.version || '新版本'}`);
 const remoteReleaseNotes = ref('');
-const releaseNotes = computed(() => remoteReleaseNotes.value.trim() || appUpdateState.body.trim());
+const releaseNotes = computed(() => remoteReleaseNotes.value.trim());
 const isDownloading = computed(() => appUpdateState.phase === 'downloading' || appUpdateState.phase === 'installing');
 const isBusy = computed(() => appUpdateState.phase === 'downloading' || appUpdateState.phase === 'installing');
+const documentDialogOpen = ref(false);
+const documentDialogTitle = ref('');
+const documentDialogDescription = ref('');
+const documentDialogContent = ref('');
+const documentDialogLoading = ref(false);
+const documentDialogError = ref('');
 const progressPercent = computed(() => {
   if (!appUpdateState.contentLength) {
     return appUpdateState.downloaded > 0 ? 100 : 0;
@@ -114,13 +130,32 @@ function formatBytes(value: number) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
-async function openCurrentReleaseNotes() {
-  await openExternalUrl(APP_LATEST_RELEASE_NOTES_URL);
+function closeDocumentDialog() {
+  documentDialogOpen.value = false;
 }
 
-async function openFullChangelog() {
-  await openExternalUrl(APP_FULL_CHANGELOG_URL);
+async function openDocument(title: string, descriptionText: string, url: string) {
+  try {
+    documentDialogTitle.value = title;
+    documentDialogDescription.value = descriptionText;
+    documentDialogContent.value = '';
+    documentDialogError.value = '';
+    documentDialogLoading.value = true;
+    documentDialogOpen.value = true;
+    documentDialogContent.value = await fetchMarkdownDocument(url);
+  } catch (error) {
+    documentDialogError.value = error instanceof Error ? error.message : '加载更新日志失败';
+    showToast(documentDialogError.value, 'error');
+  } finally {
+    documentDialogLoading.value = false;
+  }
 }
+
+const openCurrentReleaseNotes = () =>
+  openDocument('当前版本日志', '显示最新版本的发布说明。', APP_LATEST_RELEASE_NOTES_URL);
+
+const openFullChangelog = () =>
+  openDocument('完整更新日志', '显示应用完整版本历史。', APP_FULL_CHANGELOG_URL);
 
 watch(
   () => appUpdateState.dialogOpen,

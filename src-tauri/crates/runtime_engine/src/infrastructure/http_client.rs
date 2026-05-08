@@ -4,8 +4,9 @@ use crate::constant::sys_conf_path::{APP_STORE, AUTH_SESSION_KEY};
 use crate::infrastructure::logging::log_trait::Log;
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize};
 use std::sync::OnceLock;
+use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
@@ -22,8 +23,33 @@ pub fn get_machine_code() -> String {
         .clone()
 }
 
-// 可以在正式环境使用环境变量或配置
-const BACKEND_BASE_URL: &str = "http://localhost:8080/api";
+const DEFAULT_BACKEND_SERVER_URL: &str = "http://localhost:8080";
+const DEFAULT_REMOTE_SERVER_CONFIG_URL: &str =
+    "https://raw.githubusercontent.com/ParadiseZ/AutoDailyTauriRelease/main/latest.json";
+const BACKEND_BASE_URL_CACHE_KEY: &str = "backend_base_url_cache";
+static BACKEND_BASE_URL: tokio::sync::OnceCell<String> = tokio::sync::OnceCell::const_new();
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct ServerConfigPlugin {
+    #[serde(alias = "remote_config_url")]
+    remote_config_url: Option<String>,
+    #[serde(alias = "default_server_url")]
+    default_server_url: Option<String>,
+    #[serde(alias = "default_api_base_url")]
+    default_api_base_url: Option<String>,
+    #[serde(alias = "server_url")]
+    server_url: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+struct RemoteServerConfig {
+    #[serde(alias = "server_url")]
+    server_url: Option<String>,
+    #[serde(alias = "api_base_url")]
+    api_base_url: Option<String>,
+}
 
 #[derive(Clone)]
 pub struct HttpClient {
@@ -37,6 +63,106 @@ impl HttpClient {
             client: Client::new(),
             app_handle,
         }
+    }
+
+    async fn backend_base_url(&self) -> String {
+        BACKEND_BASE_URL
+            .get_or_init(|| async { self.resolve_backend_base_url().await })
+            .await
+            .clone()
+    }
+
+    async fn resolve_backend_base_url(&self) -> String {
+        let plugin_config = self.server_config_plugin();
+
+        if let Some(remote_url) = self.fetch_remote_backend_base_url(&plugin_config).await {
+            self.set_cached_backend_base_url(&remote_url);
+            return remote_url;
+        }
+
+        if let Some(cached_url) = self.cached_backend_base_url() {
+            return cached_url;
+        }
+
+        self.default_backend_base_url(&plugin_config)
+    }
+
+    fn server_config_plugin(&self) -> ServerConfigPlugin {
+        self.app_handle
+            .config()
+            .plugins
+            .0
+            .get("server_config")
+            .and_then(|value| serde_json::from_value::<ServerConfigPlugin>(value.clone()).ok())
+            .unwrap_or_default()
+    }
+
+    async fn fetch_remote_backend_base_url(
+        &self,
+        plugin_config: &ServerConfigPlugin,
+    ) -> Option<String> {
+        let config_url = plugin_config
+            .remote_config_url
+            .as_deref()
+            .unwrap_or(DEFAULT_REMOTE_SERVER_CONFIG_URL)
+            .trim();
+
+        if config_url.is_empty() {
+            return None;
+        }
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+            .ok()?;
+
+        let response = client.get(config_url).send().await.ok()?.error_for_status().ok()?;
+        let config = response.json::<RemoteServerConfig>().await.ok()?;
+
+        config
+            .api_base_url
+            .as_deref()
+            .and_then(normalize_api_base_url)
+            .or_else(|| {
+                config
+                    .server_url
+                    .as_deref()
+                    .and_then(normalize_server_url_to_api_base)
+            })
+    }
+
+    fn cached_backend_base_url(&self) -> Option<String> {
+        let store = self.app_handle.store(APP_STORE).ok()?;
+        store
+            .get(BACKEND_BASE_URL_CACHE_KEY)
+            .and_then(|value| value.as_str().map(ToOwned::to_owned))
+            .as_deref()
+            .and_then(normalize_api_base_url)
+    }
+
+    fn set_cached_backend_base_url(&self, base_url: &str) {
+        if let Ok(store) = self.app_handle.store(APP_STORE) {
+            store.set(BACKEND_BASE_URL_CACHE_KEY, serde_json::Value::String(base_url.to_string()));
+            let _ = store.save();
+        }
+    }
+
+    fn default_backend_base_url(&self, plugin_config: &ServerConfigPlugin) -> String {
+        plugin_config
+            .default_api_base_url
+            .as_deref()
+            .and_then(normalize_api_base_url)
+            .or_else(|| {
+                plugin_config
+                    .default_server_url
+                    .as_deref()
+                    .or(plugin_config.server_url.as_deref())
+                    .and_then(normalize_server_url_to_api_base)
+            })
+            .unwrap_or_else(|| {
+                normalize_server_url_to_api_base(DEFAULT_BACKEND_SERVER_URL)
+                    .unwrap_or_else(|| "https://api.example.com/api".to_string())
+            })
     }
 
     pub fn get_auth_session(&self) -> Option<AuthRes> {
@@ -116,7 +242,8 @@ impl HttpClient {
             return Ok(false);
         }
 
-        let url = format!("{}/auth/refresh", BACKEND_BASE_URL);
+        let base_url = self.backend_base_url().await;
+        let url = format!("{}/auth/refresh", base_url);
         let request = self
             .client
             .post(&url)
@@ -209,17 +336,19 @@ impl HttpClient {
     }
 
     pub async fn get<T: DeserializeOwned>(&self, endpoint: &str) -> AppResult<T> {
-        let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
+        let base_url = self.backend_base_url().await;
+        let url = format!("{}{}", base_url, endpoint);
         let request = self.client.get(&url);
         self.execute(request).await
     }
 
-    pub async fn post<T: DeserializeOwned, B: Serialize>(
+    pub async fn post<T: DeserializeOwned, B: runtime_common::core::Serialize>(
         &self,
         endpoint: &str,
         body: &B,
     ) -> AppResult<T> {
-        let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
+        let base_url = self.backend_base_url().await;
+        let url = format!("{}{}", base_url, endpoint);
         let request = self.client.post(&url).json(body);
         self.execute(request).await
     }
@@ -230,7 +359,8 @@ impl HttpClient {
         target_path: &std::path::Path,
     ) -> AppResult<()> {
         use std::io::Write;
-        let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
+        let base_url = self.backend_base_url().await;
+        let url = format!("{}{}", base_url, endpoint);
         let request = self.client.get(&url);
         let response = self
             .send_with_retry(request)
@@ -275,7 +405,8 @@ impl HttpClient {
         file_part_name: &str,
         file_name: &str,
     ) -> AppResult<T> {
-        let url = format!("{}{}", BACKEND_BASE_URL, endpoint);
+        let base_url = self.backend_base_url().await;
+        let url = format!("{}{}", base_url, endpoint);
         let file_contents = std::fs::read(file_path).map_err(|e| AppError::HttpErr {
             detail: format!("读取本地文件 {} 失败", file_path.display()),
             e: e.to_string(),
@@ -288,4 +419,30 @@ impl HttpClient {
 
         self.execute(request).await
     }
+}
+
+fn normalize_api_base_url(raw: &str) -> Option<String> {
+    let trimmed = raw.trim().trim_end_matches('/');
+    if !is_valid_http_url(trimmed) {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+fn normalize_server_url_to_api_base(raw: &str) -> Option<String> {
+    let server_url = raw.trim().trim_end_matches('/');
+    if !is_valid_http_url(server_url) {
+        return None;
+    }
+    if server_url.ends_with("/api") {
+        Some(server_url.to_string())
+    } else {
+        Some(format!("{}/api", server_url))
+    }
+}
+
+fn is_valid_http_url(raw: &str) -> bool {
+    reqwest::Url::parse(raw)
+        .map(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
+        .unwrap_or(false)
 }

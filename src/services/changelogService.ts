@@ -13,12 +13,3 @@ export const fetchMarkdownDocument = async (url: string) => {
   }
   return response.text();
 };
-
-export const openExternalUrl = async (url: string) => {
-  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Tauri')) {
-    const { openUrl } = await import('@tauri-apps/plugin-opener');
-    await openUrl(url);
-    return;
-  }
-  window.open(url, '_blank', 'noopener,noreferrer');
-};
