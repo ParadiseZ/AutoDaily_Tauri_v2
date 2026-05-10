@@ -2,8 +2,7 @@
 use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, DEVICE_TABLE, GROUP_POLICIES, POLICY_GROUP_TABLE, POLICY_SET_TABLE,
-    POLICY_TABLE, SCRIPT_TABLE, SCRIPT_TASK_TABLE,
-    SCRIPT_TIME_TEMPLATE_VALUES_TABLE, SET_GROUPS,
+    POLICY_TABLE, SCRIPT_TABLE, SCRIPT_TASK_TABLE, SCRIPT_TIME_TEMPLATE_VALUES_TABLE, SET_GROUPS,
 };
 use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use crate::domain::devices::device_conf::{
@@ -27,10 +26,9 @@ use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
-    IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
-    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
-    RuntimeVisionTextCachePolicy, ScriptBundleSnapshot, SessionControlMessage,
-    TimeoutAction as RuntimeTimeoutAction,
+    IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage, RunTarget,
+    RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy,
+    ScriptBundleSnapshot, SessionControlMessage, TimeoutAction as RuntimeTimeoutAction,
     TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
 };
 use serde::Serialize;
@@ -702,7 +700,8 @@ pub async fn cmd_sync_device_runtime_session(
     device_id: DeviceId,
 ) -> Result<String, String> {
     ensure_device_online(&app_handle, device_id).await?;
-    let session = build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
+    let session =
+        build_runtime_session_snapshot(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_session_control(device_id, SessionControlMessage::ReloadSession { session }).await;
     Ok(format!("已同步设备[{}]运行会话", device_id))
 }
@@ -781,7 +780,10 @@ pub async fn cmd_prepare_device_capture(
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
 
-    Ok(format!("设备[{}]({})已启动并完成连接准备", device_name, device_id))
+    Ok(format!(
+        "设备[{}]({})已启动并完成连接准备",
+        device_name, device_id
+    ))
 }
 
 /// 检查设备子进程是否在运行

@@ -1039,8 +1039,8 @@ function submit() {
   form.value.data.updateTime = new Date().toISOString();
   const nextScript = cloneScriptRecord(form.value);
   if (nextScript.data.scriptType === 'published') {
-    nextScript.data.imgDetModel = rewritePublishedDetectorModelPath(nextScript.data.imgDetModel, nextScript.id, 'det.onnx');
-    nextScript.data.txtDetModel = rewritePublishedDetectorModelPath(nextScript.data.txtDetModel, nextScript.id, 'txt_det.onnx');
+    nextScript.data.imgDetModel = rewritePublishedDetectorModelPath(nextScript.data.imgDetModel, nextScript.id, 'img_det_model.onnx');
+    nextScript.data.txtDetModel = rewritePublishedDetectorModelPath(nextScript.data.txtDetModel, nextScript.id, 'txt_det_model.onnx');
     nextScript.data.txtRecModel = rewritePublishedRecognizerModelPath(nextScript.data.txtRecModel, nextScript.id);
   }
   emit('save', nextScript);

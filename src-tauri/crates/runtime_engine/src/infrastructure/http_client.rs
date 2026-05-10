@@ -5,6 +5,7 @@ use crate::infrastructure::logging::log_trait::Log;
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize};
+use sha2::{Digest, Sha256};
 use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::AppHandle;
@@ -116,7 +117,13 @@ impl HttpClient {
             .build()
             .ok()?;
 
-        let response = client.get(config_url).send().await.ok()?.error_for_status().ok()?;
+        let response = client
+            .get(config_url)
+            .send()
+            .await
+            .ok()?
+            .error_for_status()
+            .ok()?;
         let config = response.json::<RemoteServerConfig>().await.ok()?;
 
         config
@@ -142,7 +149,10 @@ impl HttpClient {
 
     fn set_cached_backend_base_url(&self, base_url: &str) {
         if let Ok(store) = self.app_handle.store(APP_STORE) {
-            store.set(BACKEND_BASE_URL_CACHE_KEY, serde_json::Value::String(base_url.to_string()));
+            store.set(
+                BACKEND_BASE_URL_CACHE_KEY,
+                serde_json::Value::String(base_url.to_string()),
+            );
             let _ = store.save();
         }
     }
@@ -398,6 +408,155 @@ impl HttpClient {
         Ok(())
     }
 
+    pub async fn download_file_with_resume(
+        &self,
+        endpoint: &str,
+        target_path: &std::path::Path,
+        expected_sha256: Option<&str>,
+    ) -> AppResult<()> {
+        use reqwest::header::{ETAG, IF_RANGE, RANGE};
+        use std::fs::{self, OpenOptions};
+        use std::io::Write;
+
+        if let Some(expected_sha256) = expected_sha256 {
+            if target_path.exists() && sha256_hex(target_path)? == expected_sha256 {
+                return Ok(());
+            }
+        }
+
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| AppError::HttpErr {
+                detail: format!("创建目录 {} 失败", parent.display()),
+                e: e.to_string(),
+            })?;
+        }
+
+        let part_path = part_path_for(target_path);
+        let etag_path = etag_path_for(&part_path);
+        let mut resume_from = if part_path.exists() {
+            part_path.metadata().map(|meta| meta.len()).unwrap_or(0)
+        } else {
+            0
+        };
+
+        let resume_etag = if resume_from > 0 {
+            match fs::read_to_string(&etag_path) {
+                Ok(value) if !value.trim().is_empty() => Some(value),
+                _ => {
+                    let _ = fs::remove_file(&part_path);
+                    let _ = fs::remove_file(&etag_path);
+                    resume_from = 0;
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let base_url = self.backend_base_url().await;
+        let url = format!("{}{}", base_url, endpoint);
+        let mut request = self.client.get(&url);
+        if resume_from > 0 {
+            request = request.header(RANGE, format!("bytes={resume_from}-"));
+            if let Some(etag) = resume_etag.as_deref() {
+                request = request.header(IF_RANGE, etag);
+            }
+        }
+
+        let response = self
+            .send_with_retry(request)
+            .await
+            .map_err(|e| AppError::HttpErr {
+                detail: "请求下载文件失败".to_string(),
+                e: e.to_string(),
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            if status == StatusCode::UNAUTHORIZED {
+                let _ = self.clear_auth_session();
+            }
+            return Err(AppError::HttpErr {
+                detail: format!("文件下载返回了失败状态码: {}", status),
+                e: "".to_string(),
+            });
+        }
+
+        let response_etag = response
+            .headers()
+            .get(ETAG)
+            .and_then(|value| value.to_str().ok())
+            .map(ToOwned::to_owned);
+        let append = status == StatusCode::PARTIAL_CONTENT && resume_from > 0;
+
+        if !append {
+            let _ = fs::remove_file(&part_path);
+        }
+
+        let bytes = response.bytes().await.map_err(|e| AppError::HttpErr {
+            detail: "读取下载文件流失败".to_string(),
+            e: e.to_string(),
+        })?;
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(append)
+            .truncate(!append)
+            .open(&part_path)
+            .map_err(|e| AppError::HttpErr {
+                detail: format!("创建临时文件 {} 失败", part_path.display()),
+                e: e.to_string(),
+            })?;
+
+        file.write_all(&bytes).map_err(|e| AppError::HttpErr {
+            detail: format!("写入临时文件 {} 失败", part_path.display()),
+            e: e.to_string(),
+        })?;
+
+        if let Some(etag) = response_etag.as_deref() {
+            fs::write(&etag_path, etag).map_err(|e| AppError::HttpErr {
+                detail: format!("写入 ETag 文件 {} 失败", etag_path.display()),
+                e: e.to_string(),
+            })?;
+        }
+
+        if let Some(expected_sha256) = expected_sha256 {
+            let actual_sha256 = sha256_hex(&part_path)?;
+            if actual_sha256 != expected_sha256 {
+                let _ = fs::remove_file(&part_path);
+                let _ = fs::remove_file(&etag_path);
+                return Err(AppError::HttpErr {
+                    detail: "模型文件 SHA-256 校验失败".to_string(),
+                    e: format!(
+                        "expected {}, got {} for {}",
+                        expected_sha256,
+                        actual_sha256,
+                        part_path.display()
+                    ),
+                });
+            }
+        }
+
+        if target_path.exists() {
+            fs::remove_file(target_path).map_err(|e| AppError::HttpErr {
+                detail: format!("删除旧文件 {} 失败", target_path.display()),
+                e: e.to_string(),
+            })?;
+        }
+        fs::rename(&part_path, target_path).map_err(|e| AppError::HttpErr {
+            detail: format!(
+                "将临时文件 {} 改名为 {} 失败",
+                part_path.display(),
+                target_path.display()
+            ),
+            e: e.to_string(),
+        })?;
+        let _ = fs::remove_file(&etag_path);
+
+        Ok(())
+    }
+
     pub async fn upload_file<T: DeserializeOwned>(
         &self,
         endpoint: &str,
@@ -419,6 +578,46 @@ impl HttpClient {
 
         self.execute(request).await
     }
+}
+
+fn part_path_for(target_path: &std::path::Path) -> std::path::PathBuf {
+    let mut file_name = target_path
+        .file_name()
+        .map(|value| value.to_os_string())
+        .unwrap_or_else(|| "download".into());
+    file_name.push(".part");
+    target_path.with_file_name(file_name)
+}
+
+fn etag_path_for(part_path: &std::path::Path) -> std::path::PathBuf {
+    let mut file_name = part_path
+        .file_name()
+        .map(|value| value.to_os_string())
+        .unwrap_or_else(|| "download.part".into());
+    file_name.push(".etag");
+    part_path.with_file_name(file_name)
+}
+
+fn sha256_hex(path: &std::path::Path) -> AppResult<String> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path).map_err(|e| AppError::HttpErr {
+        detail: format!("打开文件 {} 失败", path.display()),
+        e: e.to_string(),
+    })?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        let read = file.read(&mut buffer).map_err(|e| AppError::HttpErr {
+            detail: format!("读取文件 {} 失败", path.display()),
+            e: e.to_string(),
+        })?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn normalize_api_base_url(raw: &str) -> Option<String> {

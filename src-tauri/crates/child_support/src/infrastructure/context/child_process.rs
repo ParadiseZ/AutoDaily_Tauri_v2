@@ -57,12 +57,14 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
         CapMethod::Adb => (CaptureMethod::Adb, None),
     };
 
-    let device_ctx = Arc::new(crate::infrastructure::devices::device_ctx::DeviceCtx::new(
-        Arc::new(RwLock::new(init_data.device_config.clone())),
-        cap_method,
-        title,
-    )
-    .await);
+    let device_ctx = Arc::new(
+        crate::infrastructure::devices::device_ctx::DeviceCtx::new(
+            Arc::new(RwLock::new(init_data.device_config.clone())),
+            cap_method,
+            title,
+        )
+        .await,
+    );
     init_device_ctx(device_ctx)?;
 
     Ok(())

@@ -1,17 +1,36 @@
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_dto::*;
 use crate::app::app_error::AppResult;
+use crate::constant::sys_conf_path::{APP_STORE, SCRIPTS_CONFIG_KEY};
 use crate::constant::table_name::SCRIPT_TABLE;
+use crate::domain::config::scripts_conf::ScriptsConfig;
+use crate::domain::scripts::script_info::{RuntimeType, ScriptTable, ScriptType};
 use crate::infrastructure::core::Serialize;
 use crate::infrastructure::core::UserId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::http_client::HttpClient;
+use crate::infrastructure::store_local::config_store::get_or_init_config;
+use sha2::{Digest, Sha256};
+use std::path::{Path, PathBuf};
 use tauri::{command, AppHandle};
+use tauri_plugin_store::StoreExt;
+use vision_core::infrastructure::vision::base_model::{BaseModel, ModelSource};
+use vision_core::infrastructure::vision::det::DetectorType;
+use vision_core::infrastructure::vision::rec::RecognizerType;
 
 #[derive(Debug)]
 struct UploadAuthor {
     id: UserId,
     username: String,
+}
+
+#[derive(Debug, Clone)]
+struct LocalModelUpload {
+    type_name: &'static str,
+    file_name: &'static str,
+    local_path: PathBuf,
+    size_bytes: u64,
+    sha256: String,
 }
 
 #[command]
@@ -120,15 +139,18 @@ pub async fn backend_update_username(
 pub async fn backend_download_script(
     app_handle: AppHandle,
     script_id: String,
+    runtime_type: String,
     current_user_id: Option<String>,
 ) -> ApiResponse<String> {
-    use crate::domain::scripts::script_info::ScriptType;
     use crate::infrastructure::core::{
         PolicyGroupId, PolicyId, PolicySetId, ScriptId, TaskId, UserId,
     };
     use crate::infrastructure::db::get_pool;
-    let client = HttpClient::new(app_handle);
-    let url = format!("/scripts/download/{}", script_id);
+    let client = HttpClient::new(app_handle.clone());
+    let url = format!(
+        "/scripts/download/{}?runtime_type={}",
+        script_id, runtime_type
+    );
     let req = ScriptDownloadReq {
         client: current_client_capability(),
     };
@@ -170,6 +192,7 @@ pub async fn backend_download_script(
     download_data.script.id = new_script_id.clone();
     download_data.script.data.cloud_id = Some(old_script_id);
     download_data.script.data.script_type = ScriptType::Published;
+    rewrite_script_model_paths_for_published(&mut download_data.script, &new_script_id.to_string());
     // Replace user_id if importing (logged in local user)
     if let Some(uid_str) = current_user_id {
         if let Ok(uuid) = uuid::Uuid::parse_str(&uid_str) {
@@ -227,6 +250,17 @@ pub async fn backend_download_script(
         }
     }
 
+    if let Err(error) = download_script_models(
+        &client,
+        &new_script_id.to_string(),
+        &download_data.model_files,
+        &local_scripts_dir(&app_handle),
+    )
+    .await
+    {
+        return ApiResponse::error(Some(error));
+    }
+
     // 3. Save to local SQLite in Transaction
     let pool = get_pool();
     let mut tx = match pool.begin().await {
@@ -266,7 +300,6 @@ pub async fn backend_upload_script(
     script_id: String,
 ) -> ApiResponse<String> {
     use crate::domain::scripts::policy::*;
-    use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
     use crate::domain::scripts::script_task::ScriptTaskTable;
     use crate::infrastructure::db::get_pool;
 
@@ -288,6 +321,17 @@ pub async fn backend_upload_script(
     if script.data.script_type != ScriptType::Dev {
         return ApiResponse::error(Some("只有开发中 (Dev) 的脚本才能被上传".to_string()));
     }
+
+    let runtime_type = match runtime_type_param(&script.data.runtime_type) {
+        Ok(value) => value,
+        Err(error) => return ApiResponse::error(Some(error)),
+    };
+
+    let scripts_root = local_scripts_dir(&app_handle);
+    let model_uploads = match collect_model_uploads(&script, &scripts_root) {
+        Ok(value) => value,
+        Err(error) => return ApiResponse::error(Some(error)),
+    };
 
     let client = HttpClient::new(app_handle.clone());
     let auth_session = match client.get_auth_session() {
@@ -318,6 +362,9 @@ pub async fn backend_upload_script(
             return ApiResponse::error(Some(format!("更新本地脚本作者信息失败: {}", error)));
         }
     }
+
+    let published_script_id = script.id.to_string();
+    rewrite_script_model_paths_for_published(&mut script, &published_script_id);
 
     // 2. 收集关联数据
     let policies: Vec<PolicyTable> = sqlx::query_as(
@@ -371,6 +418,7 @@ pub async fn backend_upload_script(
     .await
     .unwrap_or_default();
 
+    let script_version = script.data.ver_num;
     let upload_req = ScriptUploadRequest {
         script,
         policies,
@@ -379,15 +427,48 @@ pub async fn backend_upload_script(
         policy_sets,
         group_policies,
         set_groups,
+        model_files: build_model_file_payload(
+            &script_id,
+            script_version,
+            runtime_type.as_str(),
+            &model_uploads,
+        ),
     };
 
-    let res: AppResult<BackendApiRes<serde_json::Value>> =
-        client.post("/scripts/upload", &upload_req).await;
+    let res: AppResult<BackendApiRes<serde_json::Value>> = client
+        .post(
+            &format!("/scripts/upload?runtime_type={}", runtime_type),
+            &upload_req,
+        )
+        .await;
 
     match res {
         Ok(api_res) => {
             if api_res.code == 200 {
-                // 如果云端返回了 cloud_id 或是我们应当更新 local db，可以在这里做
+                for model in &model_uploads {
+                    let upload_url = format!(
+                        "/scripts/upload/model/{}/{}?runtime_type={}",
+                        script_id, model.type_name, runtime_type
+                    );
+                    let upload_res: AppResult<BackendApiRes<String>> = client
+                        .upload_file(&upload_url, &model.local_path, "file", model.file_name)
+                        .await;
+                    match upload_res {
+                        Ok(model_api_res) if model_api_res.code == 200 => {}
+                        Ok(model_api_res) => {
+                            return ApiResponse::error(Some(format!(
+                                "脚本已上传，但模型 {} 上传失败: {}",
+                                model.file_name, model_api_res.message
+                            )));
+                        }
+                        Err(error) => {
+                            return ApiResponse::error(Some(format!(
+                                "脚本已上传，但模型 {} 上传失败: {}",
+                                model.file_name, error
+                            )));
+                        }
+                    }
+                }
                 ApiResponse::success(None, Some(api_res.message))
             } else {
                 ApiResponse::error(Some(api_res.message))
@@ -483,15 +564,319 @@ fn is_version_greater(required: &str, current: &str) -> bool {
     false
 }
 
+#[derive(Clone, Copy)]
+struct ModelTypeSpec {
+    type_name: &'static str,
+    file_name: &'static str,
+}
+
+const IMG_DET_MODEL: ModelTypeSpec = ModelTypeSpec {
+    type_name: "img_det_model",
+    file_name: "img_det_model.onnx",
+};
+const TXT_DET_MODEL: ModelTypeSpec = ModelTypeSpec {
+    type_name: "txt_det_model",
+    file_name: "txt_det_model.onnx",
+};
+const TXT_REC_MODEL: ModelTypeSpec = ModelTypeSpec {
+    type_name: "txt_rec_model",
+    file_name: "txt_rec_model.onnx",
+};
+
+fn normalize_model_type(value: &str) -> Result<ModelTypeSpec, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "img_det_model" | "img-det-model" | "imgdetmodel" | "det" => Ok(IMG_DET_MODEL),
+        "txt_det_model" | "txt-det-model" | "txtdetmodel" | "txt-det" => Ok(TXT_DET_MODEL),
+        "txt_rec_model" | "txt-rec-model" | "txtrecmodel" | "rec" => Ok(TXT_REC_MODEL),
+        other => Err(format!("不支持的模型类型: {}", other)),
+    }
+}
+
+fn runtime_type_param(runtime_type: &RuntimeType) -> Result<String, String> {
+    serde_json::to_value(runtime_type)
+        .map_err(|error| format!("序列化 runtime_type 失败: {}", error))?
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| "runtime_type 序列化结果不是字符串".to_string())
+}
+
+fn local_scripts_dir(app_handle: &AppHandle) -> PathBuf {
+    app_handle
+        .store(APP_STORE)
+        .map(|store| get_or_init_config::<ScriptsConfig>(store, SCRIPTS_CONFIG_KEY).dir)
+        .unwrap_or_else(|_| ScriptsConfig::default().dir)
+}
+
+fn build_model_file_payload(
+    script_id: &str,
+    version_num: u64,
+    runtime_type: &str,
+    uploads: &[LocalModelUpload],
+) -> Vec<ScriptModelFileDto> {
+    uploads
+        .iter()
+        .map(|item| ScriptModelFileDto {
+            script_id: Some(script_id.to_string()),
+            version_num: Some(version_num),
+            runtime_type: runtime_type.to_string(),
+            r#type: item.type_name.to_string(),
+            file_name: item.file_name.to_string(),
+            download_path: format!(
+                "/api/scripts/download/model/{}/{}/{}?runtime_type={}",
+                script_id, version_num, item.type_name, runtime_type
+            ),
+            size_bytes: Some(item.size_bytes),
+            hash_algorithm: Some("SHA-256".to_string()),
+            hash_value: Some(item.sha256.clone()),
+            etag: None,
+        })
+        .collect()
+}
+
+fn collect_model_uploads(
+    script: &ScriptTable,
+    scripts_root: &Path,
+) -> Result<Vec<LocalModelUpload>, String> {
+    let mut uploads = Vec::new();
+
+    if let Some(spec) = detector_upload(
+        script.data.img_det_model.as_ref(),
+        scripts_root,
+        IMG_DET_MODEL,
+    )? {
+        uploads.push(spec);
+    }
+    if let Some(spec) = detector_upload(
+        script.data.txt_det_model.as_ref(),
+        scripts_root,
+        TXT_DET_MODEL,
+    )? {
+        uploads.push(spec);
+    }
+    if let Some(spec) = recognizer_upload(
+        script.data.txt_rec_model.as_ref(),
+        scripts_root,
+        TXT_REC_MODEL,
+    )? {
+        uploads.push(spec);
+    }
+
+    Ok(uploads)
+}
+
+fn detector_upload(
+    model: Option<&DetectorType>,
+    scripts_root: &Path,
+    target: ModelTypeSpec,
+) -> Result<Option<LocalModelUpload>, String> {
+    let Some(model) = model else {
+        return Ok(None);
+    };
+    build_local_model_upload(detector_base_model(model), scripts_root, target)
+}
+
+fn recognizer_upload(
+    model: Option<&RecognizerType>,
+    scripts_root: &Path,
+    target: ModelTypeSpec,
+) -> Result<Option<LocalModelUpload>, String> {
+    let Some(model) = model else {
+        return Ok(None);
+    };
+    build_local_model_upload(recognizer_base_model(model), scripts_root, target)
+}
+
+fn build_local_model_upload(
+    base_model: &BaseModel,
+    scripts_root: &Path,
+    target: ModelTypeSpec,
+) -> Result<Option<LocalModelUpload>, String> {
+    if base_model.model_source != ModelSource::Custom {
+        return Ok(None);
+    }
+    if base_model.model_path.as_os_str().is_empty() {
+        return Err(format!("模型 {} 缺少本地路径", target.file_name));
+    }
+    let local_path = resolve_local_model_path(base_model.model_path.as_path(), scripts_root);
+    let metadata = std::fs::metadata(&local_path)
+        .map_err(|error| format!("读取模型文件 {} 失败: {}", local_path.display(), error))?;
+    if !metadata.is_file() {
+        return Err(format!("模型路径不是文件: {}", local_path.display()));
+    }
+    Ok(Some(LocalModelUpload {
+        type_name: target.type_name,
+        file_name: target.file_name,
+        local_path: local_path.clone(),
+        size_bytes: metadata.len(),
+        sha256: sha256_file_hex(&local_path)?,
+    }))
+}
+
+fn resolve_local_model_path(path: &Path, scripts_root: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        scripts_root.join(path)
+    }
+}
+
+fn sha256_file_hex(path: &Path) -> Result<String, String> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)
+        .map_err(|error| format!("打开模型文件 {} 失败: {}", path.display(), error))?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8192];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| format!("读取模型文件 {} 失败: {}", path.display(), error))?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn rewrite_script_model_paths_for_published(script: &mut ScriptTable, script_id: &str) {
+    rewrite_detector_model_path(
+        &mut script.data.img_det_model,
+        script_id,
+        IMG_DET_MODEL.file_name,
+    );
+    rewrite_detector_model_path(
+        &mut script.data.txt_det_model,
+        script_id,
+        TXT_DET_MODEL.file_name,
+    );
+    rewrite_recognizer_model_path(
+        &mut script.data.txt_rec_model,
+        script_id,
+        TXT_REC_MODEL.file_name,
+    );
+}
+
+fn rewrite_detector_model_path(model: &mut Option<DetectorType>, script_id: &str, file_name: &str) {
+    let Some(model) = model else {
+        return;
+    };
+    let base_model = detector_base_model_mut(model);
+    if base_model.model_source == ModelSource::Custom {
+        base_model.model_path = PathBuf::from(script_id).join(file_name);
+    }
+}
+
+fn rewrite_recognizer_model_path(
+    model: &mut Option<RecognizerType>,
+    script_id: &str,
+    file_name: &str,
+) {
+    let Some(model) = model else {
+        return;
+    };
+    let base_model = recognizer_base_model_mut(model);
+    if base_model.model_source == ModelSource::Custom {
+        base_model.model_path = PathBuf::from(script_id).join(file_name);
+    }
+}
+
+fn detector_base_model(model: &DetectorType) -> &BaseModel {
+    match model {
+        DetectorType::Yolo11(det) | DetectorType::Yolo26(det) => &det.base_model,
+        DetectorType::PaddleDbNet(det) => &det.base_model,
+    }
+}
+
+fn detector_base_model_mut(model: &mut DetectorType) -> &mut BaseModel {
+    match model {
+        DetectorType::Yolo11(det) | DetectorType::Yolo26(det) => &mut det.base_model,
+        DetectorType::PaddleDbNet(det) => &mut det.base_model,
+    }
+}
+
+fn recognizer_base_model(model: &RecognizerType) -> &BaseModel {
+    match model {
+        RecognizerType::PaddleCrnn(rec) => &rec.base_model,
+    }
+}
+
+fn recognizer_base_model_mut(model: &mut RecognizerType) -> &mut BaseModel {
+    match model {
+        RecognizerType::PaddleCrnn(rec) => &mut rec.base_model,
+    }
+}
+
+async fn download_script_models(
+    client: &HttpClient,
+    local_script_id: &str,
+    model_files: &[ScriptModelFileDto],
+    scripts_root: &Path,
+) -> Result<(), String> {
+    if model_files.is_empty() {
+        return Ok(());
+    }
+
+    let script_dir = scripts_root.join(local_script_id);
+    std::fs::create_dir_all(&script_dir)
+        .map_err(|error| format!("创建脚本模型目录 {} 失败: {}", script_dir.display(), error))?;
+
+    for model in model_files {
+        let target = normalize_model_type(model.r#type.as_str())?;
+        let endpoint = normalize_download_endpoint(model.download_path.as_str())?;
+        if let Some(hash_algorithm) = model.hash_algorithm.as_deref() {
+            if !hash_algorithm.eq_ignore_ascii_case("SHA-256") {
+                return Err(format!(
+                    "模型 {} 使用了不支持的 hash 算法: {}",
+                    model.file_name, hash_algorithm
+                ));
+            }
+        }
+
+        client
+            .download_file_with_resume(
+                endpoint.as_str(),
+                &script_dir.join(target.file_name),
+                model.hash_value.as_deref(),
+            )
+            .await
+            .map_err(|error| format!("下载模型 {} 失败: {}", model.file_name, error))?;
+    }
+
+    Ok(())
+}
+
+fn normalize_download_endpoint(download_path: &str) -> Result<String, String> {
+    let trimmed = download_path.trim();
+    if trimmed.is_empty() {
+        return Err("模型下载地址为空".to_string());
+    }
+    if let Some(stripped) = trimmed.strip_prefix("/api") {
+        return Ok(stripped.to_string());
+    }
+    if trimmed.starts_with('/') {
+        return Ok(trimmed.to_string());
+    }
+    Ok(format!("/{}", trimmed))
+}
+
 #[command]
 pub async fn backend_upload_model(
     app_handle: AppHandle,
     script_id: String,
-    model_type: String, // "det" or "rec"
+    runtime_type: String,
+    model_type: String,
     local_file_path: String,
 ) -> ApiResponse<String> {
     let client = HttpClient::new(app_handle);
-    let url = format!("/scripts/upload/model/{}/{}", script_id, model_type);
+    let normalized_type = match normalize_model_type(model_type.as_str()) {
+        Ok(value) => value,
+        Err(error) => return ApiResponse::error(Some(error)),
+    };
+    let url = format!(
+        "/scripts/upload/model/{}/{}?runtime_type={}",
+        script_id, normalized_type.type_name, runtime_type
+    );
 
     let path = std::path::Path::new(&local_file_path);
     if !path.exists() {
@@ -504,7 +889,7 @@ pub async fn backend_upload_model(
     let file_name = path
         .file_name()
         .and_then(|n| n.to_str())
-        .unwrap_or("model.onnx");
+        .unwrap_or(normalized_type.file_name);
 
     let res: AppResult<BackendApiRes<String>> = client
         .upload_file(
@@ -520,14 +905,23 @@ pub async fn backend_upload_model(
 pub async fn backend_download_model(
     app_handle: AppHandle,
     script_id: String,
-    model_type: String, // "det" or "rec"
+    version_num: u64,
+    runtime_type: String,
+    model_type: String,
     save_dir: String,
+    expected_sha256: Option<String>,
 ) -> ApiResponse<String> {
     let client = HttpClient::new(app_handle);
-    let url = format!("/scripts/download/model/{}/{}", script_id, model_type);
+    let normalized_type = match normalize_model_type(model_type.as_str()) {
+        Ok(value) => value,
+        Err(error) => return ApiResponse::error(Some(error)),
+    };
+    let url = format!(
+        "/scripts/download/model/{}/{}/{}?runtime_type={}",
+        script_id, version_num, normalized_type.type_name, runtime_type
+    );
 
     // Construct local save path
-    let file_name = format!("{}_model.onnx", model_type);
     let dir_path = std::path::Path::new(&save_dir);
     if !dir_path.exists() {
         if let Err(e) = std::fs::create_dir_all(dir_path) {
@@ -535,9 +929,12 @@ pub async fn backend_download_model(
         }
     }
 
-    let target_path = dir_path.join(file_name);
+    let target_path = dir_path.join(normalized_type.file_name);
 
-    match client.download_file(&url, &target_path).await {
+    match client
+        .download_file_with_resume(&url, &target_path, expected_sha256.as_deref())
+        .await
+    {
         Ok(_) => ApiResponse::success(
             Some(target_path.to_string_lossy().to_string()),
             Some("Model downloaded successfully".to_string()),
@@ -602,4 +999,36 @@ async fn fetch_upload_author(client: &HttpClient) -> Result<UploadAuthor, String
         id: UserId::from(uuid),
         username: username.to_string(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn runtime_type_query_values_match_server_contract() {
+        assert_eq!(runtime_type_param(&RuntimeType::Rhai).unwrap(), "rhai");
+        assert_eq!(
+            runtime_type_param(&RuntimeType::JavaScript).unwrap(),
+            "javaScript"
+        );
+        assert_eq!(runtime_type_param(&RuntimeType::Lua).unwrap(), "lua");
+        assert_eq!(
+            runtime_type_param(&RuntimeType::AIAndVision).unwrap(),
+            "aIAndVision"
+        );
+        assert_eq!(runtime_type_param(&RuntimeType::AI).unwrap(), "aI");
+    }
+
+    #[test]
+    fn download_endpoint_strips_api_prefix() {
+        assert_eq!(
+            normalize_download_endpoint("/api/scripts/download/model/1/2/x").unwrap(),
+            "/scripts/download/model/1/2/x"
+        );
+        assert_eq!(
+            normalize_download_endpoint("/scripts/download/model/1/2/x").unwrap(),
+            "/scripts/download/model/1/2/x"
+        );
+    }
 }

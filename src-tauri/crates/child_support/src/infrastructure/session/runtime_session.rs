@@ -1,6 +1,7 @@
 use crate::infrastructure::core::{DeviceId, HashMap, ScriptId, SessionId};
 use crate::infrastructure::ipc::message::{
-    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot, ScriptBundleSnapshot,
+    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
+    ScriptBundleSnapshot,
 };
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
@@ -32,7 +33,10 @@ impl ChildRuntimeSession {
             .map(|bundle| (bundle.script_id, bundle))
             .collect();
 
-        Self { snapshot, bundles_by_script }
+        Self {
+            snapshot,
+            bundles_by_script,
+        }
     }
 
     pub fn summary(&self) -> ChildRuntimeSessionSummary {

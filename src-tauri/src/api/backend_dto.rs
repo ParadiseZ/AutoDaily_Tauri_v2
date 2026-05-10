@@ -62,6 +62,21 @@ pub struct ScriptDownloadReq {
     pub client: ClientCapability,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptModelFileDto {
+    pub script_id: Option<String>,
+    pub version_num: Option<u64>,
+    pub runtime_type: String,
+    pub r#type: String,
+    pub file_name: String,
+    pub download_path: String,
+    pub size_bytes: Option<u64>,
+    pub hash_algorithm: Option<String>,
+    pub hash_value: Option<String>,
+    pub etag: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SponsorRedeemReq {
     pub code: String,
@@ -86,6 +101,8 @@ pub struct ScriptUploadRequest {
     pub policy_sets: Vec<crate::domain::scripts::policy::PolicySetTable>,
     pub group_policies: Vec<crate::domain::scripts::policy::GroupPolicyRelation>,
     pub set_groups: Vec<crate::domain::scripts::policy::SetGroupRelation>,
+    #[serde(default)]
+    pub model_files: Vec<ScriptModelFileDto>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

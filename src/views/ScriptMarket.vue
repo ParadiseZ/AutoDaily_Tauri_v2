@@ -207,7 +207,11 @@ const downloadSelected = async () => {
   }
 
   try {
-    const result = await scriptStore.downloadMarketScript(selectedScript.value.id, userStore.userProfile?.id || null);
+    const result = await scriptStore.downloadMarketScript(
+      selectedScript.value.id,
+      selectedScript.value.runtimeType || 'rhai',
+      userStore.userProfile?.id || null,
+    );
     if (!result.success) {
       throw new Error(result.message || '下载失败');
     }

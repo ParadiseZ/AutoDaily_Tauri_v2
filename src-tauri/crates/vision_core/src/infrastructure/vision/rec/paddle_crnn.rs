@@ -322,12 +322,13 @@ impl PaddleRecCrnn {
     pub async fn load_dict(&mut self) -> VisionResult<()> {
         let dict_path = self.resolve_dict_path()?;
 
-        let content = read_to_string(dict_path.clone())
-            .await
-            .map_err(|e| VisionError::IoError {
-                path: dict_path.to_string_lossy().to_string(),
-                e: e.to_string(),
-            })?;
+        let content =
+            read_to_string(dict_path.clone())
+                .await
+                .map_err(|e| VisionError::IoError {
+                    path: dict_path.to_string_lossy().to_string(),
+                    e: e.to_string(),
+                })?;
 
         let mut dict = Vec::new();
         for (idx, line) in content.lines().enumerate() {

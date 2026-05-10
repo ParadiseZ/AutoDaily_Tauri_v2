@@ -229,8 +229,8 @@ export const scriptService = {
         const base64 = (await invoke('convert_img_to_base64_cmd', { imgPath: imagePath })) as string;
         return `data:image/png;base64,${base64}`;
     },
-    downloadMarketScript: async (scriptId: string, currentUserId: string | null) =>
-        (await invoke('backend_download_script', { scriptId, currentUserId })) as ApiEnvelope<string>,
+    downloadMarketScript: async (scriptId: string, runtimeType: string, currentUserId: string | null) =>
+        (await invoke('backend_download_script', { scriptId, runtimeType, currentUserId })) as ApiEnvelope<string>,
     getYoloLabels: async (path: string): Promise<Array<{ index: number; label: string }>> => {
         const labels = (await invoke('get_yolo_labels_cmd', { path })) as Record<string, string>;
         return Object.entries(labels)

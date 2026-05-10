@@ -19,7 +19,9 @@ use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::execution_plan::ExecutionPlanAssembler;
 use crate::infrastructure::scripts::executor::ScriptExecutor;
 use crate::infrastructure::scripts::schedule_journal::ScheduleJournal;
-use crate::infrastructure::session::runtime_session::{get_script_bundle_snapshot, try_current_session_summary};
+use crate::infrastructure::session::runtime_session::{
+    get_script_bundle_snapshot, try_current_session_summary,
+};
 use crate::infrastructure::vision::det::DetectorType;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use crate::infrastructure::vision::rec::RecognizerType;

@@ -531,8 +531,8 @@ fn evaluate_relative_rule(
                 max_offset_y,
                 target_index,
             )
-                .map(|candidate| compare_relative_value(candidate, value_type, compare, value))
-                .unwrap_or(false)
+            .map(|candidate| compare_relative_value(candidate, value_type, compare, value))
+            .unwrap_or(false)
         })
 }
 

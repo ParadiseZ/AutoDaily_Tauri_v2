@@ -128,7 +128,7 @@ export function createRecognizerByKind(kind: RecognizerKind): RecognizerType | n
 export function rewritePublishedDetectorModelPath(
     model: DetectorType | null,
     scriptId: string,
-    fileName: 'det.onnx' | 'txt_det.onnx',
+    fileName: 'img_det_model.onnx' | 'txt_det_model.onnx',
 ): DetectorType | null {
     if (!model) {
         return null;
@@ -161,7 +161,7 @@ export function rewritePublishedRecognizerModelPath(
     }
     const next = clone(model);
     if ('PaddleCrnn' in next && next.PaddleCrnn.baseModel.modelSource === 'Custom') {
-        next.PaddleCrnn.baseModel.modelPath = `${scriptId}/rec.onnx`;
+        next.PaddleCrnn.baseModel.modelPath = `${scriptId}/txt_rec_model.onnx`;
     }
     return next;
 }

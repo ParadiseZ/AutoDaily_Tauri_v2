@@ -4,8 +4,8 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{
-    AccountId, DeviceId, ExecutionId, HashMap, PolicyId, PolicySetId, ScheduleId, ScriptId,
-    StepId, TaskId, TemplateId,
+    AccountId, DeviceId, ExecutionId, HashMap, PolicyId, PolicySetId, ScheduleId, ScriptId, StepId,
+    TaskId, TemplateId,
 };
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;

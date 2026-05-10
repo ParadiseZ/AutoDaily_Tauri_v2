@@ -33,8 +33,7 @@ const SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL: &str =
             ifnull(account_id, '')
         )";
 
-const SCHEMA_MIGRATIONS_TABLE_SQL: &str =
-    "CREATE TABLE IF NOT EXISTS schema_migrations (
+const SCHEMA_MIGRATIONS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS schema_migrations (
             version TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -273,12 +272,8 @@ async fn apply_schema_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
 
     if should_apply_schema_migration(pool, "2026043001").await? {
         ensure_script_tasks_columns(pool).await?;
-        mark_schema_migration_applied(
-            pool,
-            "2026043001",
-            "ensure_script_tasks_current_columns",
-        )
-        .await?;
+        mark_schema_migration_applied(pool, "2026043001", "ensure_script_tasks_current_columns")
+            .await?;
     }
 
     if should_apply_schema_migration(pool, "2026043002").await? {

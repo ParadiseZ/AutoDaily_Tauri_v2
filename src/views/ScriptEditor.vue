@@ -2862,10 +2862,10 @@ const handleOpenVisionLab = async () => {
       scriptName: draftScript.value.data.name || null,
       selectedDeviceId: selectedPreviewDeviceId.value,
       imgDetModel: isPublished
-        ? rewritePublishedDetectorModelPath(cloneJson(draftScript.value.data.imgDetModel), scriptId, 'det.onnx')
+        ? rewritePublishedDetectorModelPath(cloneJson(draftScript.value.data.imgDetModel), scriptId, 'img_det_model.onnx')
         : cloneJson(draftScript.value.data.imgDetModel),
       txtDetModel: isPublished
-        ? rewritePublishedDetectorModelPath(cloneJson(draftScript.value.data.txtDetModel), scriptId, 'txt_det.onnx')
+        ? rewritePublishedDetectorModelPath(cloneJson(draftScript.value.data.txtDetModel), scriptId, 'txt_det_model.onnx')
         : cloneJson(draftScript.value.data.txtDetModel),
       txtRecModel: isPublished
         ? rewritePublishedRecognizerModelPath(cloneJson(draftScript.value.data.txtRecModel), scriptId)

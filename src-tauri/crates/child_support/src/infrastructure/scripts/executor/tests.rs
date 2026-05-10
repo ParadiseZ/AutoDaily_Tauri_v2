@@ -1,13 +1,13 @@
 use super::ScriptExecutor;
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::devices::device_schedule::TaskCycle;
-use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
-use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
-use crate::domain::scripts::nodes::flow_control::{ConditionNode, FlowControl};
 use crate::domain::scripts::nodes::action::Action;
-use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
-use crate::domain::scripts::script_decision::{Step, StepKind};
+use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
+use crate::domain::scripts::nodes::flow_control::{ConditionNode, FlowControl};
+use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
+use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
+use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::scripts::script_task::{
     ScriptTask, ScriptTaskTable, TaskRowType, TaskTone, TaskTriggerMode,
 };
@@ -23,7 +23,9 @@ use crate::infrastructure::ipc::message::{
     RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
     RuntimeVisionTextCachePolicy, TimeoutAction,
 };
-use crate::infrastructure::session::runtime_session::{clear_runtime_session, replace_runtime_session};
+use crate::infrastructure::session::runtime_session::{
+    clear_runtime_session, replace_runtime_session,
+};
 use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{Rgba, RgbaImage};
 use rhai::serde::to_dynamic;
@@ -32,8 +34,8 @@ use sqlx::types::Json;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Instant;
-use tokio::sync::{Mutex, OwnedMutexGuard};
 use tokio::sync::RwLock;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 
 static RUNTIME_SESSION_TEST_MUTEX: OnceLock<Arc<Mutex<()>>> = OnceLock::new();
 
@@ -123,7 +125,10 @@ fn drop_set_next_cycles_options_and_updates_template_root() {
     let options = vec!["A".to_string(), "B".to_string(), "C".to_string()];
     assert_eq!(ScriptExecutor::next_option_value(&options, Some("A")), "B");
     assert_eq!(ScriptExecutor::next_option_value(&options, Some("C")), "A");
-    assert_eq!(ScriptExecutor::next_option_value(&options, Some("missing")), "A");
+    assert_eq!(
+        ScriptExecutor::next_option_value(&options, Some("missing")),
+        "A"
+    );
 
     let mut root = json!({ "taskSettings": {} });
     ScriptExecutor::set_template_variable_value(&mut root, "var-1", json!("B"));
@@ -296,7 +301,10 @@ fn build_executor() -> ScriptExecutor {
 fn build_input_catalog(task_id: TaskId) -> ScriptVariableCatalog {
     ScriptVariableCatalog {
         version: 1,
-        variables: vec![build_input_variable(task_id), build_script_level_input_variable()],
+        variables: vec![
+            build_input_variable(task_id),
+            build_script_level_input_variable(),
+        ],
     }
 }
 
@@ -479,7 +487,10 @@ async fn hydrate_input_scope_loads_task_owned_defaults_for_policy_debug_target()
         .unwrap();
 
     let task_owned = executor.read_runtime_var("input.pkg_name").await.unwrap();
-    let script_owned = executor.read_runtime_var("input.shared_flag").await.unwrap();
+    let script_owned = executor
+        .read_runtime_var("input.shared_flag")
+        .await
+        .unwrap();
 
     assert_eq!(
         ScriptExecutor::deserialize_dynamic_value::<String>(&task_owned).unwrap(),
@@ -566,8 +577,14 @@ async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration
         .unwrap();
 
     assert!(matches!(flow, super::ControlFlow::Next));
-    let before_value = executor.read_runtime_var("runtime.beforeValue").await.unwrap();
-    let after_value = executor.read_runtime_var("runtime.afterValue").await.unwrap();
+    let before_value = executor
+        .read_runtime_var("runtime.beforeValue")
+        .await
+        .unwrap();
+    let after_value = executor
+        .read_runtime_var("runtime.afterValue")
+        .await
+        .unwrap();
 
     assert_eq!(
         ScriptExecutor::deserialize_dynamic_value::<String>(&before_value).unwrap(),
@@ -738,13 +755,15 @@ async fn vision_search_path_triggers_timeout_detector() {
     }
 
     let flow = executor
-        .execute_vision_step(&crate::domain::scripts::nodes::vision_node::VisionNode::VisionSearch {
-            rule: SearchRule::Txt {
-                pattern: "开始".to_string(),
+        .execute_vision_step(
+            &crate::domain::scripts::nodes::vision_node::VisionNode::VisionSearch {
+                rule: SearchRule::Txt {
+                    pattern: "开始".to_string(),
+                },
+                out_var: "runtime.visionHits".to_string(),
+                then_steps: Vec::new(),
             },
-            out_var: "runtime.visionHits".to_string(),
-            then_steps: Vec::new(),
-        })
+        )
         .await
         .unwrap();
 

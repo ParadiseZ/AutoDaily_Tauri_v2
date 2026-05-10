@@ -10,7 +10,9 @@ use crate::infrastructure::ipc::runtime_reporter::{
     emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event, emit_schedule_event,
 };
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::session::runtime_session::{clear_runtime_session, replace_runtime_session};
+use crate::infrastructure::session::runtime_session::{
+    clear_runtime_session, replace_runtime_session,
+};
 use std::sync::atomic::Ordering;
 
 /// 子进程消息处理器

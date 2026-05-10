@@ -1,3 +1,4 @@
+use crate::constant::table_name::SCRIPT_TIME_TEMPLATE_VALUES_TABLE;
 use crate::domain::scripts::nodes::action::{Action, ClickMode, SwipeMode};
 use crate::domain::scripts::nodes::data_handing::{
     ColorCompareMethod, ColorRgb, DataHanding, FilterMode, VarValue,
@@ -15,8 +16,8 @@ use crate::domain::scripts::point::{Point, PointF32, PointU16};
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
-use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_decision::{Step, StepKind};
+use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::scripts::script_variable::{
     ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace,
@@ -26,7 +27,6 @@ use crate::domain::vision::ocr_search::{
     VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
-use crate::constant::table_name::SCRIPT_TIME_TEMPLATE_VALUES_TABLE;
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{
     AccountId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScheduleId,

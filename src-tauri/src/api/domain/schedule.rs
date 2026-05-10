@@ -4,8 +4,8 @@ use crate::api::infrastructure::runtime_sync::{
     sync_device_sessions_if_online,
 };
 use crate::constant::table_name::{
-    ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE, SCRIPT_TIME_TEMPLATE_VALUES_TABLE,
-    TIME_TEMPLATE_TABLE,
+    ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
+    SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
 };
 use crate::domain::devices::device_conf::{DevicePlatform, DeviceTable};
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;

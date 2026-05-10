@@ -64,6 +64,7 @@ num_cpus = "1.17"
 twox-hash = { version = "2", features = ["xxhash3_64"] }
 interprocess = { version = "2", features = ["tokio"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "json", "multipart"] }
+sha2 = "0.10"
 async-trait = "0.1.89"
 cron = "0.15.0"
 rhai = { version = "1.23.4", features = ["serde", "sync"] }
@@ -160,6 +161,7 @@ interprocess = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true }
 reqwest = { workspace = true }
+sha2 = { workspace = true }
 # 异步通道
 crossbeam-channel = { workspace = true}
 

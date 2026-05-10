@@ -20,8 +20,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::{command, AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
-use vision_core::infrastructure::vision::base_model::ModelSource;
 use tokio::sync::RwLock;
+use vision_core::infrastructure::vision::base_model::ModelSource;
 
 fn describe_adb_config_issue(adb_conf: &ADBConnectConfig) -> Option<String> {
     match adb_conf {
@@ -34,7 +34,12 @@ fn describe_adb_config_issue(adb_conf: &ADBConnectConfig) -> Option<String> {
         }
         ADBConnectConfig::DirectUsb(_) => Some("当前暂不支持 DirectUsb 截图".to_string()),
         ADBConnectConfig::ServerConnectByIp(config) => {
-            if config.adb_config.adb_path.as_deref().is_none_or(|value| value.trim().is_empty()) {
+            if config
+                .adb_config
+                .adb_path
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+            {
                 return Some("未设置 adb 程序路径".to_string());
             }
             if !config.adb_config.valid() {
@@ -46,7 +51,12 @@ fn describe_adb_config_issue(adb_conf: &ADBConnectConfig) -> Option<String> {
             None
         }
         ADBConnectConfig::ServerConnectByName(config) => {
-            if config.adb_config.adb_path.as_deref().is_none_or(|value| value.trim().is_empty()) {
+            if config
+                .adb_config
+                .adb_path
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+            {
                 return Some("未设置 adb 程序路径".to_string());
             }
             if !config.adb_config.valid() {
@@ -79,7 +89,9 @@ fn validate_capture_request(
                     Ok(())
                 }
             }
-            CapMethod::Adb => Err("当前设备保存的截图方式是 ADB，但本次请求走了窗口截图".to_string()),
+            CapMethod::Adb => {
+                Err("当前设备保存的截图方式是 ADB，但本次请求走了窗口截图".to_string())
+            }
         },
         CaptureMethod::Adb => describe_adb_config_issue(adb_conf)
             .map(|issue| format!("ADB 截图配置无效：{}", issue))
