@@ -77,11 +77,11 @@
             </div>
           </div>
 
-          <div v-if="isSelectedIncompatible" class="rounded-[8px] border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div v-if="isSelectedIncompatible" class="rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {{ selectedScript.compatibility?.reason || '该脚本需要当前程序尚未支持的新能力，请先更新程序。' }}
           </div>
 
-          <div class="rounded-[8px] border border-(--app-border) bg-(--app-panel-muted)/60 p-4">
+          <div class="rounded-lg border border-(--app-border) bg-(--app-panel-muted)/60 p-4">
             <div class="mb-3 flex items-center justify-between gap-3">
               <p class="text-sm font-semibold text-(--app-text-strong)">更新日志</p>
               <span v-if="changeLogsLoading" class="text-xs text-(--app-text-faint)">加载中</span>

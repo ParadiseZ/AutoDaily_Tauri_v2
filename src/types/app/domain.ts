@@ -326,6 +326,19 @@ export interface ScriptChangeLogRecord {
     updatedAt: string | null;
 }
 
+export type ScriptUploadActivityStatus = 'waitingAuth' | 'success' | 'error';
+
+export interface ScriptUploadActivity {
+    id: string;
+    scriptId: string;
+    status: ScriptUploadActivityStatus;
+    message: string;
+    at: string;
+    cloudId: string | null;
+    username: string | null;
+    autoRetry: boolean;
+}
+
 export interface MarketPage<T> {
     records: T[];
     total: number;

@@ -1,7 +1,11 @@
 import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { CapMethod } from '@/types/bindings/CapMethod';
 import type { LogLevel } from '@/types/bindings/LogLevel';
-import type { DeviceRuntimeStatus, ScriptTableRecord } from '@/types/app/domain';
+import type {
+    DeviceRuntimeStatus,
+    ScriptTableRecord,
+    ScriptUploadActivityStatus,
+} from '@/types/app/domain';
 import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { TaskRowType } from '@/types/bindings/TaskRowType';
 import type { TaskTone } from '@/types/bindings/TaskTone';
@@ -81,6 +85,18 @@ export const formatPlatformLabel = (platform?: string | null) => {
 
 export const formatScriptType = (script: ScriptTableRecord) =>
     script.data.scriptType === 'published' ? '云端版本' : '本地开发';
+
+export const formatUploadActivityStatusLabel = (status: ScriptUploadActivityStatus) => {
+    if (status === 'waitingAuth') return '待登录';
+    if (status === 'success') return '已上传';
+    return '失败';
+};
+
+export const formatUploadActivityStatusTone = (status: ScriptUploadActivityStatus) => {
+    if (status === 'waitingAuth') return 'warning';
+    if (status === 'success') return 'success';
+    return 'danger';
+};
 
 export const formatConnectLabel = (config: ADBConnectConfig | null) => {
     if (!config) {

@@ -16,6 +16,7 @@
 
       <ScriptDetailPanel
         :script="selectedScript"
+        :upload-activities="selectedUploadActivities"
         @open-editor="openEditor"
         @edit-info="openEditDialog"
         @upload="handleUpload"
@@ -61,7 +62,7 @@ import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
-import type { ScriptTableRecord } from '@/types/app/domain';
+import type { ScriptTableRecord, ScriptUploadActivity } from '@/types/app/domain';
 import { showToast } from '@/utils/toast';
 
 const router = useRouter();
@@ -73,6 +74,17 @@ const searchQuery = ref('');
 const scriptInfoDialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const dialogScript = ref<ScriptTableRecord | null>(null);
+const uploadActivitiesByScriptId = ref<Record<string, ScriptUploadActivity[]>>({});
+const pendingUploadScriptId = ref<string | null>(null);
+const pendingUploadRetrying = ref(false);
+
+const isAuthFailure = (message?: string | null) =>
+  Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
+
+const normalizeResultMessage = (message: string | null | undefined, fallback: string) => {
+  const trimmed = message?.trim();
+  return trimmed ? trimmed : fallback;
+};
 
 const filteredScripts = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -95,6 +107,65 @@ const selectedScript = computed(() => {
   }
   return filteredScripts.value[0] ?? null;
 });
+
+const selectedUploadActivities = computed(() =>
+  selectedScript.value ? uploadActivitiesByScriptId.value[selectedScript.value.id] ?? [] : [],
+);
+
+const pushUploadActivity = (
+  scriptId: string,
+  activity: Omit<ScriptUploadActivity, 'id' | 'scriptId' | 'at'> & { at?: string },
+) => {
+  const nextActivity: ScriptUploadActivity = {
+    id: `${scriptId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    scriptId,
+    at: activity.at ?? new Date().toISOString(),
+    ...activity,
+  };
+  const current = uploadActivitiesByScriptId.value[scriptId] ?? [];
+  const previous = current[0];
+  const merged =
+    previous &&
+    previous.status === 'waitingAuth' &&
+    nextActivity.status === 'waitingAuth' &&
+    previous.message === nextActivity.message
+      ? [{ ...previous, at: nextActivity.at, autoRetry: nextActivity.autoRetry }]
+      : [nextActivity, ...current];
+
+  uploadActivitiesByScriptId.value = {
+    ...uploadActivitiesByScriptId.value,
+    [scriptId]: merged.slice(0, 6),
+  };
+};
+
+const queueUploadAfterLogin = (scriptId: string, message: string) => {
+  pendingUploadScriptId.value = scriptId;
+  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? selectedScript.value;
+  pushUploadActivity(scriptId, {
+    status: 'waitingAuth',
+    message,
+    cloudId: script?.data.cloudId ?? null,
+    username: userStore.userProfile?.username ?? userStore.authSession?.username ?? null,
+    autoRetry: true,
+  });
+  userStore.openAuthModal();
+  showToast(message, 'warning');
+};
+
+const ensureUploadAuth = async (scriptId: string) => {
+  if (!userStore.authSession) {
+    queueUploadAfterLogin(scriptId, '上传前请先登录，登录后会自动继续');
+    return false;
+  }
+
+  const profile = userStore.userProfile ?? await userStore.checkProfile();
+  if (!profile) {
+    queueUploadAfterLogin(scriptId, '登录信息已失效，请重新登录后继续上传');
+    return false;
+  }
+
+  return true;
+};
 
 const openCreateDialog = async () => {
   try {
@@ -186,17 +257,54 @@ const openEditor = (scriptId: string) => {
   router.push({ path: '/editor', query: { scriptId } });
 };
 
-const handleUpload = async (scriptId: string) => {
+const performUpload = async (scriptId: string) => {
+  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? selectedScript.value;
   try {
     const result = await scriptStore.uploadScript(scriptId);
     if (!result.success) {
-      throw new Error(result.message || '上传失败');
+      const message = normalizeResultMessage(result.message, '上传失败');
+      if (isAuthFailure(message)) {
+        queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
+        return;
+      }
+      throw new Error(message);
     }
-    showToast(result.message || '脚本已上传', 'success');
+    const message = normalizeResultMessage(result.message, '脚本已上传');
+    pushUploadActivity(scriptId, {
+      status: 'success',
+      message,
+      cloudId: script?.data.cloudId ?? scriptId,
+      username: userStore.userProfile?.username ?? userStore.authSession?.username ?? null,
+      autoRetry: false,
+    });
+    if (pendingUploadScriptId.value === scriptId) {
+      pendingUploadScriptId.value = null;
+    }
+    showToast(message, 'success');
     await scriptStore.loadScripts();
+    void userStore.checkProfile();
   } catch (error) {
-    showToast(error instanceof Error ? error.message : '上传失败', 'error');
+    const message = normalizeResultMessage(error instanceof Error ? error.message : null, '上传失败');
+    if (isAuthFailure(message)) {
+      queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
+      return;
+    }
+    pushUploadActivity(scriptId, {
+      status: 'error',
+      message,
+      cloudId: script?.data.cloudId ?? null,
+      username: userStore.userProfile?.username ?? userStore.authSession?.username ?? null,
+      autoRetry: false,
+    });
+    showToast(message, 'error');
   }
+};
+
+const handleUpload = async (scriptId: string) => {
+  if (!(await ensureUploadAuth(scriptId))) {
+    return;
+  }
+  await performUpload(scriptId);
 };
 
 const handleClone = async (scriptId: string) => {
@@ -276,6 +384,32 @@ watch(
     const exists = filteredScripts.value.some((script) => script.id === currentId);
     if (!exists) {
       scriptStore.selectScript(filteredScripts.value[0].id);
+    }
+  },
+);
+
+watch(
+  () => [pendingUploadScriptId.value, userStore.authSession?.accessToken ?? null, userStore.userProfile?.id ?? null] as const,
+  async ([scriptId, accessToken, profileId]) => {
+    if (!scriptId || !accessToken || pendingUploadRetrying.value) {
+      return;
+    }
+
+    pendingUploadRetrying.value = true;
+    try {
+      const profile = profileId ? userStore.userProfile : await userStore.checkProfile();
+      if (!profile) {
+        return;
+      }
+
+      if (pendingUploadScriptId.value !== scriptId) {
+        return;
+      }
+
+      pendingUploadScriptId.value = null;
+      await performUpload(scriptId);
+    } finally {
+      pendingUploadRetrying.value = false;
     }
   },
 );
