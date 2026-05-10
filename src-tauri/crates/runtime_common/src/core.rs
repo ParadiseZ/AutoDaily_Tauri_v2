@@ -79,11 +79,6 @@ impl UuidV7 {
     }
 
     #[inline(always)]
-    pub fn to_string(&self) -> String {
-        Uuid::from_bytes(self.0.to_be_bytes()).simple().to_string()
-    }
-
-    #[inline(always)]
     pub fn as_uuid(&self) -> Uuid {
         Uuid::from_bytes(self.0.to_be_bytes())
     }
@@ -124,5 +119,30 @@ impl ts_rs::TS for UuidV7 {
 
     fn output_path() -> Option<std::path::PathBuf> {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UuidV7;
+    use uuid::Uuid;
+
+    #[test]
+    fn display_and_serialize_use_hyphenated_uuid_text() {
+        let raw = Uuid::parse_str("018f0f61-8c6f-7b26-9f24-5fc3cf249109").unwrap();
+        let id = UuidV7::from(raw);
+
+        assert_eq!(id.to_string(), "018f0f61-8c6f-7b26-9f24-5fc3cf249109");
+        assert_eq!(
+            serde_json::to_string(&id).unwrap(),
+            "\"018f0f61-8c6f-7b26-9f24-5fc3cf249109\""
+        );
+    }
+
+    #[test]
+    fn deserialize_accepts_legacy_simple_uuid_text() {
+        let id: UuidV7 = serde_json::from_str("\"018f0f618c6f7b269f245fc3cf249109\"").unwrap();
+
+        assert_eq!(id.to_string(), "018f0f61-8c6f-7b26-9f24-5fc3cf249109");
     }
 }
