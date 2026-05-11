@@ -16,6 +16,8 @@ pub struct BackendApiRes<T> {
     pub code: i32,
     pub message: String,
     pub data: Option<T>,
+    #[serde(default)]
+    pub details: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,3 +26,5 @@ pub struct RefreshTokenReq {
     #[serde(rename = "refreshToken")]
     pub refresh_token: String,
 }
+
+

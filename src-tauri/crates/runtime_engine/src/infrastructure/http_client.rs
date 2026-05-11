@@ -363,6 +363,28 @@ impl HttpClient {
         self.execute(request).await
     }
 
+    pub async fn post_api_res<T: DeserializeOwned, B: runtime_common::core::Serialize>(
+        &self,
+        endpoint: &str,
+        body: &B,
+    ) -> AppResult<BackendApiRes<T>> {
+        let base_url = self.backend_base_url().await;
+        let url = format!("{}{}", base_url, endpoint);
+        let request = self.client.post(&url).json(body);
+        let response = self.send_with_retry(request).await?;
+        let status = response.status();
+        let text = response.text().await.unwrap_or_default();
+
+        serde_json::from_str(&text).map_err(|e| AppError::HttpErr {
+            detail: format!("解析接口响应失败: {}", status),
+            e: if text.is_empty() {
+                e.to_string()
+            } else {
+                format!("body: {}, parse_error: {}", text, e)
+            },
+        })
+    }
+
     pub async fn download_file(
         &self,
         endpoint: &str,
@@ -645,3 +667,4 @@ fn is_valid_http_url(raw: &str) -> bool {
         .map(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
         .unwrap_or(false)
 }
+

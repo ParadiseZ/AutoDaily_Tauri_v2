@@ -81,9 +81,37 @@ const pendingUploadRetrying = ref(false);
 const isAuthFailure = (message?: string | null) =>
   Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
 
-const normalizeResultMessage = (message: string | null | undefined, fallback: string) => {
+const formatValidationDetails = (details: unknown) => {
+  if (!details || typeof details !== 'object' || !('issues' in details)) {
+    return null;
+  }
+  const issues = (details as { issues?: Array<{ path?: string; message?: string }> }).issues;
+  if (!Array.isArray(issues) || issues.length === 0) {
+    return null;
+  }
+
+  const lines = issues
+    .map((issue) => {
+      const message = issue?.message?.trim();
+      if (!message) {
+        return null;
+      }
+      const path = issue.path?.trim();
+      return path ? `- ${path}: ${message}` : `- ${message}`;
+    })
+    .filter((line): line is string => Boolean(line));
+
+  return lines.length > 0 ? lines.join('\n') : null;
+};
+
+const normalizeResultMessage = (message: string | null | undefined, fallback: string, details?: unknown) => {
   const trimmed = message?.trim();
-  return trimmed ? trimmed : fallback;
+  const base = trimmed ? trimmed : fallback;
+  const detailText = formatValidationDetails(details);
+  if (!detailText || base.includes(detailText)) {
+    return base;
+  }
+  return `${base}\n${detailText}`;
 };
 
 const filteredScripts = computed(() => {
@@ -262,7 +290,7 @@ const performUpload = async (scriptId: string) => {
   try {
     const result = await scriptStore.uploadScript(scriptId);
     if (!result.success) {
-      const message = normalizeResultMessage(result.message, '上传失败');
+      const message = normalizeResultMessage(result.message, '上传失败', result.details);
       if (isAuthFailure(message)) {
         queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
         return;
@@ -414,3 +442,5 @@ watch(
   },
 );
 </script>
+
+

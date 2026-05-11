@@ -27,6 +27,7 @@ pub struct PolicyInfo {
 
     pub cur_pos: u16,
 
+    #[serde(default)]
     pub skip_flag: bool,
     pub exec_max: u16,
 
@@ -132,3 +133,5 @@ impl<'a> PolicySetEvaluator<'a> {
             .collect()
     }
 }
+
+

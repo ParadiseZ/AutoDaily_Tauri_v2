@@ -27,6 +27,7 @@ interface ApiEnvelope<T> {
     success: boolean;
     data?: T;
     message?: string;
+    details?: unknown;
 }
 
 type ScriptTablePayload = {
@@ -242,3 +243,5 @@ export const scriptService = {
             .sort((left, right) => left.index - right.index);
     },
 };
+
+

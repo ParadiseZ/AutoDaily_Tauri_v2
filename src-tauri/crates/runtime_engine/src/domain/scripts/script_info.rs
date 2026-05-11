@@ -7,6 +7,10 @@ use sqlx::FromRow;
 
 pub const SCRIPT_RUNTIME_SCHEMA: u32 = 1;
 
+fn default_allow_clone() -> bool {
+    true
+}
+
 pub fn supported_script_features() -> Vec<String> {
     ["onnxInference", "runtime:rhai", "device:android"]
         .iter()
@@ -99,7 +103,9 @@ pub struct ScriptInfo {
     pub latest_ver: u64,
     pub download_count: u64,
     pub script_type: ScriptType,
+    #[serde(default)]
     pub is_valid: bool,
+    #[serde(default = "default_allow_clone")]
     pub allow_clone: bool,
     #[serde(default)]
     pub min_app_version: Option<String>,

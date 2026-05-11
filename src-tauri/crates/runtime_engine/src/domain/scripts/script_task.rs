@@ -5,6 +5,26 @@ use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::FromRow;
 
+fn default_trigger_mode() -> TaskTriggerMode {
+    TaskTriggerMode::RootOnly
+}
+
+fn default_record_schedule() -> bool {
+    true
+}
+
+fn default_show_enabled_toggle() -> bool {
+    true
+}
+
+fn default_default_enabled() -> bool {
+    true
+}
+
+fn default_task_tone() -> TaskTone {
+    TaskTone::Normal
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
@@ -25,16 +45,22 @@ pub struct ScriptTaskTable {
     pub script_id: ScriptId,
     pub name: String,
     pub row_type: TaskRowType,
+    #[serde(default = "default_trigger_mode")]
     pub trigger_mode: TaskTriggerMode,
+    #[serde(default = "default_record_schedule")]
     pub record_schedule: bool,
     pub section_id: Option<TaskId>,
     pub indent_level: u32,
     #[ts(as = "TaskCycle")]
     pub default_task_cycle: Json<TaskCycle>,
     pub exec_max: u32,
+    #[serde(default = "default_show_enabled_toggle")]
     pub show_enabled_toggle: bool,
+    #[serde(default = "default_default_enabled")]
     pub default_enabled: bool,
+    #[serde(default = "default_task_tone")]
     pub task_tone: TaskTone,
+    #[serde(default)]
     pub is_hidden: bool,
     /*    #[ts(type = "Array<import('@vue-flow/core').Node>")]
     pub nodes: Json<Value>,
@@ -48,6 +74,7 @@ pub struct ScriptTaskTable {
     pub updated_at: chrono::DateTime<chrono::Utc>,
     #[ts(type = "string | null")]
     pub deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(default)]
     pub is_deleted: bool,
     pub index: u32, //排序
 }
@@ -80,3 +107,5 @@ pub enum TaskTone {
     Warning,
     Danger,
 }
+
+

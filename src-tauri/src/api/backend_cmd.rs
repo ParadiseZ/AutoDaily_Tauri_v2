@@ -1,6 +1,6 @@
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_dto::*;
-use crate::app::app_error::AppResult;
+use crate::app::app_error::{AppError, AppResult};
 use crate::constant::sys_conf_path::{APP_STORE, SCRIPTS_CONFIG_KEY};
 use crate::constant::table_name::SCRIPT_TABLE;
 use crate::domain::config::scripts_conf::ScriptsConfig;
@@ -435,11 +435,8 @@ pub async fn backend_upload_script(
         ),
     };
 
-    let res: AppResult<BackendApiRes<serde_json::Value>> = client
-        .post(
-            &format!("/scripts/upload?runtime_type={}", runtime_type),
-            &upload_req,
-        )
+    let res = client
+        .post_api_res::<serde_json::Value, _>(&format!("/scripts/upload?runtime_type={}", runtime_type), &upload_req)
         .await;
 
     match res {
@@ -471,10 +468,14 @@ pub async fn backend_upload_script(
                 }
                 ApiResponse::success(None, Some(api_res.message))
             } else {
-                ApiResponse::error(Some(api_res.message))
+                ApiResponse::failed_with_details(
+                    None,
+                    Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                    api_res.details,
+                )
             }
         }
-        Err(e) => ApiResponse::error(Some(e.to_string())),
+        Err(e) => ApiResponse::error(Some(app_error_message(e))),
     }
 }
 
@@ -949,10 +950,14 @@ fn trans_api_res<T: Serialize>(api_res: AppResult<BackendApiRes<T>>) -> ApiRespo
             if api_res.code == 200 {
                 ApiResponse::success(api_res.data, Some(api_res.message))
             } else {
-                ApiResponse::error(Some(api_res.message))
+                ApiResponse::failed_with_details(
+                    None,
+                    Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                    api_res.details,
+                )
             }
         }
-        Err(e) => ApiResponse::error(Some(e.to_string())),
+        Err(e) => ApiResponse::error(Some(app_error_message(e))),
     }
 }
 
@@ -968,10 +973,14 @@ fn trans_api_res_token(
                 }
                 ApiResponse::success(api_res.data, Some(api_res.message))
             } else {
-                ApiResponse::error(Some(api_res.message))
+                ApiResponse::failed_with_details(
+                    None,
+                    Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                    api_res.details,
+                )
             }
         }
-        Err(e) => ApiResponse::error(Some(e.to_string())),
+        Err(e) => ApiResponse::error(Some(app_error_message(e))),
     }
 }
 
@@ -1032,3 +1041,42 @@ mod tests {
         );
     }
 }
+
+fn app_error_message(error: AppError) -> String {
+    match error {
+        AppError::HttpErr { e, .. } if !e.trim().is_empty() => e,
+        other => other.to_string(),
+    }
+}
+
+fn format_backend_message(message: &str, details: Option<&serde_json::Value>) -> String {
+    let detail_lines = extract_validation_issue_lines(details);
+    if detail_lines.is_empty() {
+        return message.to_string();
+    }
+
+    format!("{}\n{}", message, detail_lines.join("\n"))
+}
+
+fn extract_validation_issue_lines(details: Option<&serde_json::Value>) -> Vec<String> {
+    let Some(details) = details else {
+        return Vec::new();
+    };
+    let Some(issues) = details.get("issues").and_then(|value| value.as_array()) else {
+        return Vec::new();
+    };
+
+    issues
+        .iter()
+        .filter_map(|issue| {
+            let message = issue.get("message").and_then(|value| value.as_str())?;
+            let path = issue.get("path").and_then(|value| value.as_str()).unwrap_or("");
+            if path.is_empty() {
+                Some(format!("- {}", message))
+            } else {
+                Some(format!("- {}: {}", path, message))
+            }
+        })
+        .collect()
+}
+

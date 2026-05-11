@@ -1,5 +1,6 @@
 use crate::app::app_error::AppResult;
 use crate::infrastructure::core::{Deserialize, Serialize};
+use serde_json::Value;
 
 // 响应结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -8,6 +9,7 @@ pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
     pub message: Option<String>,
+    pub details: Option<Value>,
 }
 
 impl<T> ApiResponse<T>
@@ -23,6 +25,7 @@ where
             success: false,
             data: None,
             message: msg,
+            details: None,
         }
     }
 
@@ -31,6 +34,7 @@ where
             success: true,
             data,
             message,
+            details: None,
         }
     }
 
@@ -39,6 +43,16 @@ where
             success: false,
             data,
             message,
+            details: None,
+        }
+    }
+
+    pub fn failed_with_details(data: Option<T>, message: Option<String>, details: Option<Value>) -> Self {
+        Self {
+            success: false,
+            data,
+            message,
+            details,
         }
     }
 }
