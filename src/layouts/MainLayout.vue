@@ -155,7 +155,10 @@ const userState = computed(() => {
   if (!userStore.isLoggedIn) {
     return '登录后同步云端能力';
   }
-  return userStore.isDeveloper ? '开发者权限已激活' : '本地模式';
+  if (!userStore.userProfile) {
+    return userStore.profileLoading ? '正在同步账户信息' : '登录态已恢复';
+  }
+  return userStore.isDeveloper ? '开发者' : '';
 });
 
 const isActive = (path: string) => {

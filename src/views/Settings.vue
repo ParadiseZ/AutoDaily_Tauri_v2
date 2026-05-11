@@ -7,7 +7,7 @@
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
     <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
       <div class="space-y-4">
-        <SettingsSection icon="user" title="账户信息">
+        <SettingsSection icon="user" title="用户信息" :right-info="userStore.userProfile?.email">
           <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-(--app-border) px-4 py-4">
             <div>
               <p class="text-sm font-medium text-(--app-text-strong)">当前未登录</p>
@@ -19,7 +19,7 @@
             </button>
           </div>
 
-          <template v-else>
+          <template v-else-if="userStore.userProfile">
             <div class="grid gap-3 md:grid-cols-2">
               <div class="rounded-[20px] border border-(--app-border) px-4 py-4">
                 <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">用户名</p>
@@ -39,26 +39,35 @@
 
             <div class="grid gap-3 md:grid-cols-3">
               <div class="app-stat">
-                <p class="app-stat-label">开发者状态</p>
-                <p class="app-stat-value text-base">{{ userStore.isDeveloper ? '有效' : '普通用户' }}</p>
-              </div>
-              <div class="app-stat">
                 <p class="app-stat-label">最近上传</p>
                 <p class="app-stat-value text-base">{{ formatDate(userStore.userProfile?.lastScriptUploadTime) }}</p>
-              </div>
-              <div class="app-stat">
-                <p class="app-stat-label">用户名修改</p>
-                <p class="app-stat-value text-base">{{ formatDate(userStore.userProfile?.lastUsernameChangeTime) }}</p>
               </div>
             </div>
 
             <div class="flex justify-end">
               <button class="app-button app-button-danger px-4" type="button" @click="userStore.logout()">
-                <AppIcon name="log-out" :size="16" />
-                退出登录
+                <AppIcon name="log-out" :size="14" />
+                退出
               </button>
             </div>
           </template>
+
+         <div v-else class="flex items-center justify-between gap-4 rounded-[20px] border border-(&#45;&#45;app-border) px-4 py-4">
+            <div>
+              <p class="text-sm text-(&#45;&#45;app-text-soft)">
+                {{ userStore.profileLoading ? '正在同步账户资料。' : '账户资料同步失败，请尝试重新登录' }}
+              </p>
+            </div>
+           <div>
+             <button class="app-button app-button-ghost" type="button" @click="userStore.checkProfile()">
+               重试同步
+             </button>
+             <button class="app-button app-button-danger px-4" type="button" @click="userStore.logout()">
+               <AppIcon name="log-out" :size="14" />
+               退出
+             </button>
+           </div>
+          </div>
         </SettingsSection>
 
         <SettingsSection icon="monitor" title="界面与启动" description="这些偏工作流的偏好写入本地 Store，并且主题会立即反馈到桌面界面。">
@@ -329,7 +338,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import {onMounted, ref, watch} from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
