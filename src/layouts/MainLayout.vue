@@ -83,8 +83,7 @@
             </RouterLink>
           </template>
         </nav>
-
-        <button class="app-panel flex w-full items-center gap-3 p-3 text-left" type="button" @click="handleUserClick">
+        <div class="app-panel flex w-full items-center gap-3 p-3 text-left hover:cursor-pointer" type="button" @click="handleUserClick">
           <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-(--app-accent-soft) text-sm font-semibold text-(--app-accent)">
             {{ userInitial }}
           </div>
@@ -92,7 +91,7 @@
             <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ userName }}</p>
             <p class="truncate text-xs text-(--app-text-soft)">{{ userState }}</p>
           </div>
-        </button>
+        </div>
       </div>
     </aside>
 
@@ -133,7 +132,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import AppIcon from '@/components/shared/AppIcon.vue';
-import { routesMenu } from '@/router';
+import router, { routesMenu } from '@/router';
 import { useUserStore } from '@/store/user';
 import { useDeviceStore } from '@/store/device';
 import { openVisionLabWindow } from '@/utils/visionLabWindow';
@@ -153,7 +152,7 @@ const userInitial = computed(() => userStore.userProfile?.username?.slice(0, 1).
 const userName = computed(() => userStore.userProfile?.username || '未登录');
 const userState = computed(() => {
   if (!userStore.isLoggedIn) {
-    return '登录后同步云端能力';
+    return '游客';
   }
   if (!userStore.userProfile) {
     return userStore.profileLoading ? '正在同步账户信息' : '登录态已恢复';
@@ -171,6 +170,8 @@ const isActive = (path: string) => {
 const handleUserClick = () => {
   if (!userStore.isLoggedIn) {
     userStore.openAuthModal();
+  } else {
+    router.push("/settings")
   }
 };
 

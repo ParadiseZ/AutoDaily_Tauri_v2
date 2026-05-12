@@ -21,6 +21,19 @@
       </aside>
 
       <div class="space-y-5">
+        <div
+          v-if="validationIssues.length"
+          class="rounded-[20px] border border-amber-300/70 bg-amber-50 px-4 py-4 text-sm text-amber-950"
+          data-testid="script-info-validation-summary"
+        >
+          <p class="font-semibold">请先补齐脚本信息后再继续。</p>
+          <ul class="mt-2 space-y-1">
+            <li v-for="issue in validationIssues" :key="issue.field">
+              {{ issue.label }}：{{ issue.message }}
+            </li>
+          </ul>
+        </div>
+
         <template v-if="activeTab === 'basic'">
           <SurfacePanel tone="muted" padding="sm" class="space-y-5">
             <div class="space-y-4">
@@ -561,6 +574,8 @@ import type { PaddleRecCrnn } from '@/types/bindings/PaddleRecCrnn';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { ScriptTableRecord } from '@/types/app/domain';
 import type { YoloDet } from '@/types/bindings/YoloDet';
+import type { ScriptInfoValidationIssue } from '@/utils/scriptInfoValidation';
+import { validateScriptInfo } from '@/utils/scriptInfoValidation';
 import {
   rewritePublishedDetectorModelPath,
   rewritePublishedRecognizerModelPath,
@@ -646,6 +661,7 @@ const recProcessingModeOptions = [
 const activeTab = ref<DialogTab>('basic');
 const activeModelTab = ref<ModelTab>('imgDet');
 const form = ref<ScriptTableRecord | null>(null);
+const validationIssues = ref<ScriptInfoValidationIssue[]>([]);
 const imgDetKind = ref<DetectorKind>('none');
 const txtDetKind = ref<DetectorKind>('none');
 const txtRecKind = ref<RecognizerKind>('none');
@@ -1034,6 +1050,13 @@ function ensureRuntimeSettings(script: ScriptTableRecord) {
 
 function submit() {
   if (!form.value || !canSubmit.value) return;
+  //@ts-ignore
+  const issues = validateScriptInfo(form.value);
+  validationIssues.value = issues;
+  if (issues.length) {
+    activeTab.value = 'basic';
+    return;
+  }
   form.value.data.name = form.value.data.name.trim();
   form.value.data.verName = form.value.data.verName.trim() || '0.1.0';
   form.value.data.updateTime = new Date().toISOString();
@@ -1053,11 +1076,23 @@ watch(
     const nextForm = cloneScriptRecord(props.script);
     ensureRuntimeSettings(nextForm);
     form.value = nextForm;
+    validationIssues.value = [];
     activeTab.value = 'basic';
     activeModelTab.value = 'imgDet';
     syncKinds();
   },
   { immediate: true },
+);
+
+watch(
+  () => [form.value?.data.name, form.value?.data.description, form.value?.data.verName] as const,
+  () => {
+    if (!form.value || !validationIssues.value.length) {
+      return;
+    }
+
+    validationIssues.value = validateScriptInfo(form.value);
+  },
 );
 </script>
 

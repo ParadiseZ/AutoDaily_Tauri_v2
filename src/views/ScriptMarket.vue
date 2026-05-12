@@ -2,9 +2,26 @@
   <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="脚本市场"
-      description="检索云端脚本并下载到本地库。"
     />
 
+    <SurfacePanel v-if="!userStore.isLoggedIn" class="mx-auto w-full max-w-3xl">
+      <div class="flex flex-col gap-6 rounded-[28px] border border-dashed border-(--app-border) bg-(--app-panel-muted)/50 px-6 py-10 text-center">
+        <div class="space-y-3">
+          <p class="text-sm font-semibold uppercase tracking-[0.18em] text-(--app-text-faint)">访问受限</p>
+          <h2 class="text-2xl font-semibold text-(--app-text-strong)">此功能需登录且赞助或开发者用户才能使用</h2>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-3">
+          <button class="app-button app-button-primary px-5" type="button" @click="userStore.openAuthModal()">
+            登录
+          </button>
+          <button class="app-button app-button-ghost px-5" type="button" @click="router.push('/scripts')">
+            看本地库
+          </button>
+        </div>
+      </div>
+    </SurfacePanel>
+
+    <template v-else>
     <SurfacePanel class="grid gap-3 lg:grid-cols-[1.2fr_1fr_220px_120px]">
       <input v-model.trim="filters.keyword" class="app-input" placeholder="搜索脚本名或描述" />
       <input v-model.trim="filters.author" class="app-input" placeholder="按作者筛选" />
@@ -123,6 +140,7 @@
       </SurfacePanel>
     </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -222,10 +240,30 @@ const downloadSelected = async () => {
 };
 
 onMounted(async () => {
+  if (!userStore.isLoggedIn) {
+    userStore.openAuthModal();
+    return;
+  }
   await search();
 });
 
 watch(selectedScriptId, () => {
   void loadSelectedChangeLogs();
 });
+
+watch(
+  () => userStore.isLoggedIn,
+  async (loggedIn, previousLoggedIn) => {
+    if (!loggedIn) {
+      selectedScriptId.value = null;
+      selectedChangeLogs.value = [];
+      if (previousLoggedIn) {
+        userStore.openAuthModal();
+      }
+      return;
+    }
+
+    await search();
+  },
+);
 </script>

@@ -63,6 +63,7 @@ import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
 import type { ScriptTableRecord, ScriptUploadActivity } from '@/types/app/domain';
+import { formatScriptInfoValidationMessage, validateScriptInfo } from '@/utils/scriptInfoValidation';
 import { showToast } from '@/utils/toast';
 
 const router = useRouter();
@@ -281,6 +282,28 @@ const handleSaveScriptInfo = async (script: ScriptTableRecord) => {
   }
 };
 
+const ensureScriptInfoReadyForUpload = async (scriptId: string) => {
+  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
+  const issues = validateScriptInfo(script);
+  if (!issues.length) {
+    return true;
+  }
+
+  const approved = await requestAppConfirm({
+    title: '脚本信息未填写完整',
+    message: formatScriptInfoValidationMessage(issues, '上传前请先补齐以下脚本信息：'),
+    confirmText: '去填写',
+    cancelText: '暂不上传',
+    tone: 'warning',
+  });
+
+  if (approved && script) {
+    openEditDialog(script.id);
+  }
+
+  return false;
+};
+
 const openEditor = (scriptId: string) => {
   router.push({ path: '/editor', query: { scriptId } });
 };
@@ -329,6 +352,9 @@ const performUpload = async (scriptId: string) => {
 };
 
 const handleUpload = async (scriptId: string) => {
+  if (!(await ensureScriptInfoReadyForUpload(scriptId))) {
+    return;
+  }
   if (!(await ensureUploadAuth(scriptId))) {
     return;
   }

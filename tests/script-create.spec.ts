@@ -35,7 +35,7 @@ const openCleanScriptsPage = async (page: Page) => {
     window.__AUTODAILY_MOCK__.reset();
   });
   await page.reload();
-  await expect(page.getByRole('heading', { name: '本地脚本' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '本地列表' })).toBeVisible();
 };
 
 const selectOptionByValue = async (page: Page, testId: string, value: string) => {
@@ -194,6 +194,7 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
 
   const dialog = page.getByRole('dialog', { name: '新建脚本' });
   await dialog.getByTestId('script-basic-name').fill(scriptName);
+  await dialog.getByTestId('script-basic-description').fill('用于验证 YOLO26 检测模型配置。');
   await dialog.getByTestId('script-dialog-tab-models').click();
 
   await openModelTab(page, 'imgDet');
@@ -242,4 +243,27 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
       }),
     }),
   });
+});
+
+test('shows inline validation summary instead of stacking a second dialog on create', async ({ page }) => {
+  await page.getByTestId('script-list-create-button').click();
+
+  const dialog = page.getByRole('dialog', { name: '新建脚本' });
+  await dialog.getByTestId('script-basic-description').fill('');
+  await dialog.getByTestId('script-basic-version-name').fill('');
+  await dialog.getByTestId('script-submit').click();
+
+  await expect(dialog).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await expect(dialog.getByTestId('script-info-validation-summary')).toContainText('描述');
+  await expect(dialog.getByTestId('script-info-validation-summary')).toContainText('版本名称');
+});
+
+test('script market prompts login when opened unauthenticated', async ({ page }) => {
+  await page.goto('/market');
+
+  await expect(page.getByRole('heading', { name: '脚本市场', exact: true })).toBeVisible();
+  await expect(page.getByText('登录后查看脚本市场')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '账户中心' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '登录并继续' })).toBeVisible();
 });

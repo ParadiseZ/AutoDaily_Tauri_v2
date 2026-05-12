@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { ref } from "vue";
 import { getFromStore, defaultRouterKey } from '@/store/store';
 
 const storedRoute = await getFromStore<string | { path?: string }>(defaultRouterKey).catch(() => '/tasks');

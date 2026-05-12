@@ -11,7 +11,6 @@
           <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-(--app-border) px-4 py-4">
             <div>
               <p class="text-sm font-medium text-(--app-text-strong)">当前未登录</p>
-              <p class="text-sm text-(--app-text-soft)">登录后可同步脚本、访问脚本市场和管理用户名。</p>
             </div>
             <button class="app-button app-button-primary shadow-lg shadow-(--app-vibrant-blue)/30" type="button" @click="userStore.openAuthModal()">
               <AppIcon name="log-in" :size="16" />
@@ -20,30 +19,27 @@
           </div>
 
           <template v-else-if="userStore.userProfile">
-            <div class="grid gap-3 md:grid-cols-2">
+            <div class="flex gap-4 md:grid-cols-2">
               <div class="rounded-[20px] border border-(--app-border) px-4 py-4">
                 <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">用户名</p>
-                <div class="mt-2 flex items-center gap-3">
+                <div class="mt-2 flex items-center gap-4">
                   <input v-model.trim="usernameDraft" class="app-input" />
-                  <button class="app-button app-button-ghost h-11 px-4 group" type="button" @click="saveUsername">
-                    <AppIcon name="save" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
+                  <button class="app-button app-button-primary w-28" type="button" @click="saveUsername">
+                    <AppIcon name="save" :size="14"/>
                     保存
                   </button>
                 </div>
               </div>
-              <div class="rounded-[20px] border border-(--app-border) px-4 py-4">
-                <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">邮箱</p>
-                <p class="mt-3 text-sm font-medium text-(--app-text-strong)">{{ userStore.userProfile?.email }}</p>
-              </div>
-            </div>
 
-            <div class="grid gap-3 md:grid-cols-3">
-              <div class="app-stat">
-                <p class="app-stat-label">最近上传</p>
-                <p class="app-stat-value text-base">{{ formatDate(userStore.userProfile?.lastScriptUploadTime) }}</p>
-              </div>
-            </div>
 
+
+<!--              <div class="grid gap-3 md:grid-cols-3">
+                <div class="app-stat">
+                  <p class="app-stat-label">最近上传</p>
+                  <p class="app-stat-value text-base">{{ formatDate(userStore.userProfile?.lastScriptUploadTime) }}</p>
+                </div>
+              </div>-->
+            </div>
             <div class="flex justify-end">
               <button class="app-button app-button-danger px-4" type="button" @click="userStore.logout()">
                 <AppIcon name="log-out" :size="14" />
@@ -131,7 +127,7 @@
             </label>
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveEnvironmentPreferences">
+            <button class="app-button app-button-primary shadow-lg" type="button" @click="saveEnvironmentPreferences">
               <AppIcon name="save" :size="16" />
               保存环境配置
             </button>
@@ -178,7 +174,7 @@
             </div>
           </div>
           <div class="flex justify-end">
-            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveVisionCachePreferences">
+            <button class="app-button app-button-primary shadow-lg" type="button" @click="saveVisionCachePreferences">
               <AppIcon name="save" :size="16" />
               保存缓存设置
             </button>
@@ -213,7 +209,7 @@
               <AppIcon name="trash-2" :size="16" />
               立即清理
             </button>
-            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="saveLogSettings">
+            <button class="app-button app-button-primary shadow-lg" type="button" @click="saveLogSettings">
               <AppIcon name="save" :size="16" />
               保存日志配置
             </button>
@@ -323,7 +319,7 @@
               <AppIcon name="send" :size="16" />
               测试发送
             </button>
-            <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="submit">
+            <button class="app-button app-button-primary shadow-lg" type="submit">
               <AppIcon name="save" :size="16" />
               保存邮件配置
             </button>
