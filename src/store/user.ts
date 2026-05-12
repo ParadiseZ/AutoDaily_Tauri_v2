@@ -34,6 +34,21 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usernamePattern = /^[A-Za-z0-9_]{3,16}$/;
 const passwordPattern = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
+const normalizeAuthStage = (value: unknown): 1 | 2 | 3 => {
+    const stage = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    return stage === 2 || stage === 3 ? stage : 1;
+};
+
+const hasActiveSponsor = (profile: Pick<UserProfile, 'sponsorUntil'> | null | undefined) => {
+    const sponsorUntil = profile?.sponsorUntil;
+    if (!sponsorUntil) {
+        return false;
+    }
+
+    const expiresAt = Date.parse(sponsorUntil);
+    return Number.isFinite(expiresAt) && expiresAt > Date.now();
+};
+
 const assertEmail = (email: string) => {
     if (!emailPattern.test(email.trim())) {
         throw new Error('请输入有效邮箱地址');
@@ -75,6 +90,7 @@ const normalizeProfile = (payload: unknown): UserProfile | null => {
         lastUsernameChangeTime:
             typeof record.lastUsernameChangeTime === 'string' ? record.lastUsernameChangeTime : '',
         sponsorUntil: typeof record.sponsorUntil === 'string' ? record.sponsorUntil : null,
+        authStage: normalizeAuthStage(record.authStage),
     };
 };
 
@@ -107,7 +123,47 @@ export const useUserStore = defineStore('user', () => {
     const profileLoading = ref(false);
     const authSubmitting = ref(false);
     const isLoggedIn = computed(() => Boolean(authSession.value?.accessToken));
+    const authStage = computed(() => normalizeAuthStage(userProfile.value?.authStage));
     const isDeveloper = computed(() => userProfile.value?.isDeveloper ?? false);
+    const isSponsor = computed(() => hasActiveSponsor(userProfile.value));
+    const canUsePublishedCloudScripts = computed(() => {
+        if (!isLoggedIn.value) {
+            return false;
+        }
+
+        if (authStage.value === 1) {
+            return true;
+        }
+
+        if (authStage.value === 2) {
+            return isDeveloper.value || isSponsor.value;
+        }
+
+        return isSponsor.value;
+    });
+
+    const getPublishedCloudScriptAccessMessage = (
+        action: '下载' | '运行',
+        profileOverride: UserProfile | null = userProfile.value,
+    ) => {
+        if (!isLoggedIn.value) {
+            return `请先登录后再${action}云端脚本`;
+        }
+
+        const stage = normalizeAuthStage(profileOverride?.authStage);
+        const developer = Boolean(profileOverride?.isDeveloper);
+        const sponsor = hasActiveSponsor(profileOverride);
+
+        if (stage === 1) {
+            return null;
+        }
+
+        if (stage === 2) {
+            return developer || sponsor ? null : `当前阶段仅赞助用户或开发者可${action}云端脚本`;
+        }
+
+        return sponsor ? null : `当前阶段仅赞助用户可${action}云端脚本`;
+    };
 
     const openAuthModal = () => {
         isAuthModalOpen.value = true;
@@ -291,13 +347,17 @@ export const useUserStore = defineStore('user', () => {
 
     return {
         authSession,
+        authStage,
         authSubmitting,
+        canUsePublishedCloudScripts,
         checkProfile,
         closeAuthModal,
+        getPublishedCloudScriptAccessMessage,
         hydrateAuthSession,
         isAuthModalOpen,
         isDeveloper,
         isLoggedIn,
+        isSponsor,
         login,
         logout,
         openAuthModal,

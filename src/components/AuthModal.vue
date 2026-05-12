@@ -1,8 +1,7 @@
 <template>
   <AppDialog
     :open="userStore.isAuthModalOpen"
-    title="账户中心"
-    description="登录后可同步脚本、访问脚本市场和管理账户状态。"
+    title="欢迎回来"
     width-class="max-w-2xl"
     @close="userStore.closeAuthModal()"
   >

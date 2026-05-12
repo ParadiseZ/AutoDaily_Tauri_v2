@@ -239,6 +239,136 @@ const seedTemplateValueState = async (page: Page) => {
   await page.reload();
 };
 
+const seedPublishedTaskState = async (page: Page) => {
+  await page.goto('/tasks');
+  await page.evaluate(() => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    const now = new Date().toISOString();
+    window.__AUTODAILY_MOCK__.reset();
+    window.__AUTODAILY_MOCK__.seed({
+      authSession: {
+        accessToken: 'mock-access-token',
+        refreshToken: 'mock-refresh-token',
+        username: 'tester',
+        message: null,
+      },
+      userProfile: {
+        id: 'user-1',
+        username: 'tester',
+        email: 'tester@example.com',
+        isDeveloper: false,
+        sponsorUntil: null,
+        authStage: 2,
+        lastScriptUploadTime: '',
+        lastUsernameChangeTime: '',
+      },
+      devices: [
+        {
+          id: 'device-published',
+          data: {
+            deviceName: '云端设备',
+            platform: 'android',
+            exePath: null,
+            exeArgs: null,
+            cores: [],
+            logLevel: 'Info',
+            logToFile: false,
+            adbConnect: null,
+            capMethod: 'adb',
+            imageCompression: 'ScreenCap',
+            enable: true,
+            autoStart: false,
+            executionPolicy: {
+              actionWaitMs: 0,
+              progressTimeoutEnabled: false,
+              progressTimeoutMs: 0,
+              timeoutAction: 'notifyOnly',
+              timeoutNotifyChannels: [],
+            },
+          },
+        },
+      ],
+      scripts: [
+        {
+          id: 'script-published',
+          data: {
+            name: '云端脚本',
+            description: '用于验证任务管理页运行权限。',
+            userId: 'user-1',
+            userName: 'Tester',
+            runtimeType: 'rhai',
+            platform: 'android',
+            sponsorshipQr: null,
+            sponsorshipUrl: null,
+            contactInfo: null,
+            imgDetModel: null,
+            txtDetModel: null,
+            txtRecModel: null,
+            createTime: now,
+            updateTime: now,
+            verName: '1.0.0',
+            verNum: 1,
+            latestVer: 1,
+            downloadCount: 0,
+            scriptType: 'published',
+            isValid: true,
+            allowClone: true,
+            cloudId: 'cloud-script-published',
+            runtimeSettings: { recoveryTaskId: null },
+            variableCatalog: { version: 1, variables: [] },
+          },
+        },
+      ],
+      scriptTasks: {
+        'script-published': [
+          {
+            id: 'task-published',
+            scriptId: 'script-published',
+            name: '云端任务',
+            rowType: 'task',
+            triggerMode: 'rootOnly',
+            recordSchedule: true,
+            sectionId: null,
+            indentLevel: 0,
+            defaultTaskCycle: 'everyRun',
+            execMax: 0,
+            showEnabledToggle: true,
+            defaultEnabled: true,
+            taskTone: 'normal',
+            isHidden: false,
+            data: {
+              variables: {},
+              uiData: null,
+              steps: [],
+            },
+            createdAt: now,
+            updatedAt: now,
+            deletedAt: null,
+            isDeleted: false,
+            index: 0,
+          },
+        ],
+      },
+      assignmentsByDevice: {
+        'device-published': [
+          {
+            id: 'assignment-published',
+            deviceId: 'device-published',
+            scriptId: 'script-published',
+            timeTemplateId: null,
+            accountData: null,
+            index: 0,
+          },
+        ],
+      },
+    });
+  });
+  await page.reload();
+};
+
 test('saves template UI values bound by legacy field key', async ({ page }) => {
   await seedTemplateValueState(page);
 
@@ -285,4 +415,14 @@ test('hides hidden script tasks from task management temporary picker', async ({
   await expect(page.getByRole('button', { name: '模板变量脚本' })).toBeVisible();
   await expect(page.getByRole('button', { name: /日常任务 Task 运行/ })).toBeVisible();
   await expect(page.getByText('隐藏任务')).not.toBeVisible();
+});
+
+test('blocks running published cloud scripts for regular users in stage 2', async ({ page }) => {
+  await seedPublishedTaskState(page);
+  await page.goto('/tasks');
+
+  await page.getByRole('button', { name: '临时运行' }).click();
+  await page.getByRole('button', { name: '运行脚本' }).click();
+
+  await expect(page.getByText('当前阶段仅赞助用户或开发者可运行云端脚本。当前目标是云端下载脚本。')).toBeVisible();
 });

@@ -263,7 +263,7 @@ test('script market prompts login when opened unauthenticated', async ({ page })
   await page.goto('/market');
 
   await expect(page.getByRole('heading', { name: '脚本市场', exact: true })).toBeVisible();
-  await expect(page.getByText('登录后查看脚本市场')).toBeVisible();
-  await expect(page.getByRole('dialog', { name: '账户中心' })).toBeVisible();
+  await expect(page.getByText('登录后可搜索脚本市场')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '欢迎回来' })).toBeVisible();
   await expect(page.getByRole('button', { name: '登录并继续' })).toBeVisible();
 });

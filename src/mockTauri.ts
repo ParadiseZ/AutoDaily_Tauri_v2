@@ -1,5 +1,5 @@
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { LogConfig, ScriptTimeTemplateValuesDto } from '@/types/app/domain';
+import type { AuthSession, LogConfig, ScriptTimeTemplateValuesDto, UserProfile } from '@/types/app/domain';
 import type { DeviceTable, PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
 
 type StoreData = Record<string, unknown>;
@@ -20,6 +20,8 @@ type StoredScriptTable = Omit<ScriptTable, 'data'> & {
 };
 
 interface MockState {
+  authSession: AuthSession | null;
+  userProfile: UserProfile | null;
   store: StoreData;
   scripts: StoredScriptTable[];
   scriptTasks: ScriptTaskMap;
@@ -60,6 +62,8 @@ const MOCK_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9p7sKn0AAAAASUVORK5CYII=';
 
 const createDefaultState = (): MockState => ({
+  authSession: null,
+  userProfile: null,
   store: {},
   scripts: [],
   scriptTasks: {},
@@ -94,6 +98,8 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       return {
         ...createDefaultState(),
         ...parsed,
+        authSession: parsed.authSession ?? null,
+        userProfile: parsed.userProfile ?? null,
         store: parsed.store ?? {},
         scripts: parsed.scripts ?? [],
         scriptTasks: parsed.scriptTasks ?? {},
@@ -129,6 +135,8 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     updateState((current) => ({
       ...current,
       ...partial,
+      authSession: partial.authSession ?? current.authSession,
+      userProfile: partial.userProfile ?? current.userProfile,
       store: partial.store ?? current.store,
       scripts: partial.scripts ?? current.scripts,
       scriptTasks: partial.scriptTasks ?? current.scriptTasks,
@@ -390,9 +398,13 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           console.info('[Tauri Mock] open_current_devtools_cmd');
           return null;
         case 'backend_get_auth_session':
-          return { success: false, data: null, message: 'No session' };
+          return readState().authSession
+            ? { success: true, data: readState().authSession, message: null }
+            : { success: false, data: null, message: 'No session' };
         case 'backend_get_profile':
-          return { success: false, data: null, message: 'Profile unavailable in browser mock' };
+          return readState().userProfile
+            ? { success: true, data: readState().userProfile, message: null }
+            : { success: false, data: null, message: 'Profile unavailable in browser mock' };
         case 'backend_search_scripts':
           return {
             success: true,
@@ -403,6 +415,12 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
               current: Number((args.req as { page?: number } | undefined)?.page ?? 1),
             },
             message: null,
+          };
+        case 'backend_download_script':
+          return {
+            success: true,
+            data: String(args.scriptId),
+            message: '脚本下载并写入成功',
           };
         case 'get_log_config_cmd':
           return DEFAULT_LOG_CONFIG;

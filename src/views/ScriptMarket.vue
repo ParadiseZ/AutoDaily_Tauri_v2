@@ -8,14 +8,14 @@
       <div class="flex flex-col gap-6 rounded-[28px] border border-dashed border-(--app-border) bg-(--app-panel-muted)/50 px-6 py-10 text-center">
         <div class="space-y-3">
           <p class="text-sm font-semibold uppercase tracking-[0.18em] text-(--app-text-faint)">访问受限</p>
-          <h2 class="text-2xl font-semibold text-(--app-text-strong)">此功能需登录且赞助或开发者用户才能使用</h2>
+          <h2 class="text-2xl font-semibold text-(--app-text-strong)">此功能需登录后使用</h2>
         </div>
         <div class="flex flex-wrap items-center justify-center gap-3">
           <button class="app-button app-button-primary px-5" type="button" @click="userStore.openAuthModal()">
             登录
           </button>
           <button class="app-button app-button-ghost px-5" type="button" @click="router.push('/scripts')">
-            看本地库
+            看本地列表
           </button>
         </div>
       </div>
@@ -23,8 +23,8 @@
 
     <template v-else>
     <SurfacePanel class="grid gap-3 lg:grid-cols-[1.2fr_1fr_220px_120px]">
-      <input v-model.trim="filters.keyword" class="app-input" placeholder="搜索脚本名或描述" />
-      <input v-model.trim="filters.author" class="app-input" placeholder="按作者筛选" />
+      <input v-model.trim="filters.keyword" class="app-input" placeholder="按脚本名称" />
+      <input v-model.trim="filters.author" class="app-input" placeholder="按作者" />
       <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="运行时" />
       <button class="app-button app-button-primary" type="button" @click="search">
         搜索
@@ -97,6 +97,9 @@
           <div v-if="isSelectedIncompatible" class="rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {{ selectedScript.compatibility?.reason || '该脚本需要当前程序尚未支持的新能力，请先更新程序。' }}
           </div>
+          <div v-else-if="downloadBlockedReason" class="rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            {{ downloadBlockedReason }}
+          </div>
 
           <div class="rounded-lg border border-(--app-border) bg-(--app-panel-muted)/60 p-4">
             <div class="mb-3 flex items-center justify-between gap-3">
@@ -122,8 +125,8 @@
           </div>
 
           <div class="flex flex-wrap gap-3">
-            <button class="app-button app-button-primary" type="button" :disabled="isSelectedIncompatible" @click="downloadSelected">
-              {{ isSelectedIncompatible ? '需要升级程序' : '下载到本地' }}
+            <button class="app-button app-button-primary" type="button" :disabled="Boolean(downloadBlockedReason)" @click="downloadSelected">
+              {{ downloadButtonLabel }}
             </button>
             <button class="app-button app-button-ghost" type="button" @click="router.push('/scripts')">
               查看本地库
@@ -180,7 +183,7 @@ const filters = reactive({
   { label: 'AI', value: 'aI' },
 ];*/
 const runtimeOptions = [
-  { label: '全部运行时', value: '' },
+  { label: '按运行时', value: '' },
   { label: 'Rhai', value: 'rhai' }
 ];
 
@@ -188,6 +191,32 @@ const selectedScript = computed(
   () => scriptStore.marketPage.records.find((script) => script.id === selectedScriptId.value) ?? null,
 );
 const isSelectedIncompatible = computed(() => selectedScript.value?.compatibility?.compatible === false);
+const downloadBlockedReason = computed(() => {
+  if (!selectedScript.value) {
+    return '请先选择要下载的脚本。';
+  }
+
+  if (isSelectedIncompatible.value) {
+    return selectedScript.value.compatibility?.reason || '该脚本需要先升级程序。';
+  }
+
+  if (userStore.profileLoading && !userStore.userProfile) {
+    return '正在同步账户权限，请稍后再试。';
+  }
+
+  return userStore.getPublishedCloudScriptAccessMessage('下载');
+});
+const downloadButtonLabel = computed(() => {
+  if (isSelectedIncompatible.value) {
+    return '需要升级程序';
+  }
+
+  if (userStore.profileLoading && !userStore.userProfile) {
+    return '同步账户中';
+  }
+
+  return downloadBlockedReason.value ? '暂无权限' : '下载到本地';
+});
 
 const loadSelectedChangeLogs = async () => {
   if (!selectedScriptId.value) {
@@ -206,6 +235,12 @@ const loadSelectedChangeLogs = async () => {
 };
 
 const search = async () => {
+  if (!userStore.isLoggedIn) {
+    userStore.openAuthModal();
+    showToast('登录后才能搜索脚本市场', 'warning');
+    return;
+  }
+
   await scriptStore.searchMarket({
     page: 1,
     keyword: filters.keyword,
@@ -221,6 +256,19 @@ const downloadSelected = async () => {
   }
   if (isSelectedIncompatible.value) {
     showToast(selectedScript.value.compatibility?.reason || '该脚本需要先升级程序', 'warning');
+    return;
+  }
+
+  const profile = userStore.userProfile ?? await userStore.checkProfile();
+  if (!profile) {
+    userStore.openAuthModal();
+    showToast('请先登录后再下载云端脚本', 'warning');
+    return;
+  }
+
+  const accessMessage = userStore.getPublishedCloudScriptAccessMessage('下载', profile);
+  if (accessMessage) {
+    showToast(accessMessage, 'warning');
     return;
   }
 

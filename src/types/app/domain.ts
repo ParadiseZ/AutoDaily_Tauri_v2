@@ -114,6 +114,7 @@ export interface UserProfile {
     lastScriptUploadTime: string;
     lastUsernameChangeTime: string;
     sponsorUntil?: string | null;
+    authStage?: number | null;
 }
 
 export interface AuthSession {
