@@ -321,6 +321,49 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     }
   };
 
+  const hasActiveSponsor = (profile: UserProfile | null) => {
+    const sponsorUntil = profile?.sponsorUntil;
+    if (!sponsorUntil) {
+      return false;
+    }
+
+    const expiresAt = Date.parse(sponsorUntil);
+    return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  };
+
+  const normalizeAuthStage = (profile: UserProfile | null) => {
+    const stage = profile?.authStage;
+    return stage === 2 || stage === 3 ? stage : 1;
+  };
+
+  const validatePublishedScriptAccessForRun = (state: MockState, scriptIds: string[]) => {
+    const hasPublishedScript = scriptIds.some((scriptId) => findScript(state, scriptId)?.data.scriptType === 'published');
+    if (!hasPublishedScript) {
+      return;
+    }
+
+    if (!state.authSession?.accessToken?.trim()) {
+      throw new Error('请先登录后再运行云端下载脚本');
+    }
+
+    const stage = normalizeAuthStage(state.userProfile);
+    if (stage === 1) {
+      return;
+    }
+
+    const isDeveloper = Boolean(state.userProfile?.isDeveloper);
+    const isSponsor = hasActiveSponsor(state.userProfile);
+    if (stage === 2 && (isDeveloper || isSponsor)) {
+      return;
+    }
+
+    if (stage === 3 && isSponsor) {
+      return;
+    }
+
+    throw new Error(stage === 2 ? '当前阶段仅赞助用户或开发者可运行云端下载脚本' : '当前阶段仅赞助用户可运行云端下载脚本');
+  };
+
   const normalizePlatform = (value: unknown) => (value === 'desktop' ? 'desktop' : 'android');
 
   const validateAssignmentPlatform = (state: MockState, deviceId: string, scriptId: string) => {
@@ -490,6 +533,12 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }));
           return `设备[${String(args.deviceId)}]子进程已重启并重新装填 session`;
         case 'cmd_device_start':
+          validatePublishedScriptAccessForRun(
+            readState(),
+            (readState().assignmentsByDevice[String(args.deviceId)] ?? [])
+              .map((assignment) => (assignment as { scriptId?: unknown }).scriptId)
+              .filter((scriptId): scriptId is string => typeof scriptId === 'string'),
+          );
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           return `已向设备[${String(args.deviceId)}]发送启动命令`;
@@ -502,6 +551,19 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           return `已同步设备[${String(args.deviceId)}]运行会话`;
         case 'cmd_run_script_target':
+          {
+            const state = readState();
+            const target = args.target && typeof args.target === 'object' ? (args.target as { scriptId?: unknown; type?: unknown }) : null;
+            const scriptIds =
+              target?.type === 'deviceQueue'
+                ? (state.assignmentsByDevice[String(args.deviceId)] ?? [])
+                    .map((assignment) => (assignment as { scriptId?: unknown }).scriptId)
+                    .filter((scriptId): scriptId is string => typeof scriptId === 'string')
+                : typeof target?.scriptId === 'string'
+                  ? [target.scriptId]
+                  : [];
+            validatePublishedScriptAccessForRun(state, scriptIds);
+          }
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateTimeoutPolicyForRun(readState(), String(args.deviceId), args.target);
           return `已向设备[${String(args.deviceId)}]发送运行目标`;

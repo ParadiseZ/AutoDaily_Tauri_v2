@@ -424,5 +424,5 @@ test('blocks running published cloud scripts for regular users in stage 2', asyn
   await page.getByRole('button', { name: '临时运行' }).click();
   await page.getByRole('button', { name: '运行脚本' }).click();
 
-  await expect(page.getByText('当前阶段仅赞助用户或开发者可运行云端脚本。当前目标是云端下载脚本。')).toBeVisible();
+  await expect(page.getByText('当前阶段仅赞助用户或开发者可运行云端下载脚本')).toBeVisible();
 });

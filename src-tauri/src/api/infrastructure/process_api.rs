@@ -1,4 +1,5 @@
 // 子进程管理 API — 供前端调用
+use crate::api::backend_dto::BackendApiRes;
 use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, DEVICE_TABLE, GROUP_POLICIES, POLICY_GROUP_TABLE, POLICY_SET_TABLE,
@@ -14,7 +15,7 @@ use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValu
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
-use crate::domain::scripts::script_info::ScriptTable;
+use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
 use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
@@ -24,6 +25,7 @@ use crate::infrastructure::core::{
 };
 use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::devices::device_launcher::launch_device;
+use crate::infrastructure::http_client::HttpClient;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage, RunTarget,
@@ -40,6 +42,7 @@ use tauri_plugin_store::StoreExt;
 struct LoadedScriptBundle {
     script_id: ScriptId,
     script_name: String,
+    script_type: ScriptType,
     recovery_task_id: Option<TaskId>,
     runnable_task_ids: HashSet<TaskId>,
     policy_ids: HashSet<crate::infrastructure::core::PolicyId>,
@@ -264,6 +267,7 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
         .collect();
 
     let script_name = script.data.0.name.clone();
+    let script_type = script.data.0.script_type.clone();
     let recovery_task_id = script.data.0.runtime_settings.recovery_task_id;
     let policy_ids = policies.iter().map(|policy| policy.id).collect();
     let policy_group_ids = policy_groups.iter().map(|group| group.id).collect();
@@ -272,6 +276,7 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
     Ok(LoadedScriptBundle {
         script_id,
         script_name,
+        script_type,
         recovery_task_id,
         runnable_task_ids,
         policy_ids,
@@ -469,6 +474,84 @@ fn validate_run_target_support(
     }
 }
 
+fn has_active_sponsor(sponsor_until: Option<&str>) -> bool {
+    sponsor_until
+        .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        .map(|value| value.with_timezone(&chrono::Utc) > chrono::Utc::now())
+        .unwrap_or(false)
+}
+
+async fn validate_published_script_runtime_access(
+    app_handle: &tauri::AppHandle,
+    bundles: &[LoadedScriptBundle],
+) -> Result<(), String> {
+    if !bundles
+        .iter()
+        .any(|bundle| matches!(bundle.script_type, ScriptType::Published))
+    {
+        return Ok(());
+    }
+
+    let client = HttpClient::new(app_handle.clone());
+    let session = client
+        .get_auth_session()
+        .ok_or_else(|| "请先登录后再运行云端下载脚本".to_string())?;
+
+    if session.access_token.trim().is_empty() {
+        return Err("请先登录后再运行云端下载脚本".to_string());
+    }
+
+    let profile: BackendApiRes<serde_json::Value> = client
+        .get("/user/profile")
+        .await
+        .map_err(|error| format!("校验云端脚本运行权限失败: {}", error))?;
+
+    if profile.code != 200 {
+        let message = profile.message.trim();
+        return Err(if message.is_empty() {
+            "校验云端脚本运行权限失败".to_string()
+        } else {
+            message.to_string()
+        });
+    }
+
+    let payload = profile
+        .data
+        .ok_or_else(|| "用户资料为空，无法校验云端脚本运行权限".to_string())?;
+    let auth_stage = payload
+        .get("authStage")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(1);
+
+    if auth_stage <= 1 {
+        return Ok(());
+    }
+
+    let is_developer = payload
+        .get("isDeveloper")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let is_sponsor = has_active_sponsor(
+        payload
+            .get("sponsorUntil")
+            .and_then(|value| value.as_str()),
+    );
+
+    if auth_stage == 2 && (is_developer || is_sponsor) {
+        return Ok(());
+    }
+
+    if auth_stage >= 3 && is_sponsor {
+        return Ok(());
+    }
+
+    Err(if auth_stage == 2 {
+        "当前阶段仅赞助用户或开发者可运行云端下载脚本".to_string()
+    } else {
+        "当前阶段仅赞助用户可运行云端下载脚本".to_string()
+    })
+}
+
 async fn load_runtime_session_for_target(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
@@ -528,6 +611,7 @@ async fn build_runtime_session_snapshot(
         load_vision_text_cache_runtime_config(app_handle)?,
     );
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
+    validate_published_script_runtime_access(app_handle, &loaded_script_bundles).await?;
     validate_run_target_support(&run_target, &loaded_script_bundles)?;
     validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     let script_bundles = loaded_script_bundles

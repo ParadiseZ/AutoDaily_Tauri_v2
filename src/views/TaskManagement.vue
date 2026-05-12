@@ -96,18 +96,16 @@ import { useDeviceStore } from '@/store/device';
 import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
-import { useUserStore } from '@/store/user';
 import { formatStatusLabel, formatStatusTone, formatTemplateWindow } from '@/utils/presenters';
 import { showToast } from '@/utils/toast';
 import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
-import type { AssignmentRecord, RunTarget, ScriptTableRecord } from '@/types/app/domain';
+import type { AssignmentRecord, RunTarget } from '@/types/app/domain';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 
 const deviceStore = useDeviceStore();
 const runtimeStore = useRuntimeStore();
 const scriptStore = useScriptStore();
 const taskStore = useTaskStore();
-const userStore = useUserStore();
 
 const deviceIds = computed(() => deviceStore.devices.map((device) => device.id));
 const orderedDevices = computed(() =>
@@ -273,43 +271,6 @@ const validateTemporaryRun = async (deviceId: string, target: RunTarget) => {
   return validateRunTargetRecoveryForDevice(device, script, tasks);
 };
 
-const findScriptById = (scriptId: string) =>
-  scriptStore.sortedScripts.find((item) => item.id === scriptId) ?? null;
-
-const collectPublishedCloudScripts = (scripts: Array<ScriptTableRecord | null>) =>
-  scripts.filter((script): script is ScriptTableRecord => Boolean(script && script.data.scriptType === 'published'));
-
-const ensurePublishedCloudScriptRunAccess = async (
-  scripts: Array<ScriptTableRecord | null>,
-  contextMessage: string,
-) => {
-  const publishedScripts = collectPublishedCloudScripts(scripts);
-  if (!publishedScripts.length) {
-    return true;
-  }
-
-  if (!userStore.isLoggedIn) {
-    userStore.openAuthModal();
-    showToast('请先登录后再运行云端下载脚本', 'warning');
-    return false;
-  }
-
-  const profile = userStore.userProfile ?? await userStore.checkProfile();
-  if (!profile) {
-    userStore.openAuthModal();
-    showToast('请先登录后再运行云端下载脚本', 'warning');
-    return false;
-  }
-
-  const accessMessage = userStore.getPublishedCloudScriptAccessMessage('运行', profile);
-  if (accessMessage) {
-    showToast(`${accessMessage}。${contextMessage}`, 'warning');
-    return false;
-  }
-
-  return true;
-};
-
 const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
   const status = deviceStore.getDeviceStatus(deviceId);
   if (status.kind !== 'running' && status.kind !== 'paused') {
@@ -347,19 +308,6 @@ const handleRunTarget = async (deviceId: string, target: RunTarget) => {
     return;
   }
 
-  if (target.type !== 'fullScript' && target.type !== 'task') {
-    showToast('任务管理页当前只支持临时运行整脚本或单任务。', 'warning');
-    return;
-  }
-
-  const canRunPublishedScript = await ensurePublishedCloudScriptRunAccess(
-    [findScriptById(target.scriptId)],
-    '当前目标是云端下载脚本。',
-  );
-  if (!canRunPublishedScript) {
-    return;
-  }
-
   const canProceed = await prepareCurrentRunForTemporaryTarget(deviceId);
   if (!canProceed) {
     return;
@@ -380,15 +328,6 @@ const handleStartDevice = async (deviceId: string) => {
     return;
   }
 
-  const assignments = taskStore.assignmentsByDevice[deviceId] ?? [];
-  const canRunPublishedScripts = await ensurePublishedCloudScriptRunAccess(
-    assignments.map((assignment) => findScriptById(assignment.scriptId)),
-    '当前设备队列包含云端下载脚本。',
-  );
-  if (!canRunPublishedScripts) {
-    return;
-  }
-
   try {
     await deviceStore.startDevice(deviceId);
   } catch (error) {
@@ -401,16 +340,6 @@ const handleStartAllDevices = async () => {
     const error = validateDeviceQueueStart(deviceId);
     if (error) {
       showToast(error, 'warning');
-      return;
-    }
-
-    const device = deviceStore.devices.find((item) => item.id === deviceId);
-    const assignments = taskStore.assignmentsByDevice[deviceId] ?? [];
-    const canRunPublishedScripts = await ensurePublishedCloudScriptRunAccess(
-      assignments.map((assignment) => findScriptById(assignment.scriptId)),
-      `设备「${device?.data.deviceName || deviceId}」的队列包含云端下载脚本。`,
-    );
-    if (!canRunPublishedScripts) {
       return;
     }
   }
