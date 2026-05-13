@@ -12,26 +12,44 @@
       </div>
 
       <div class="flex shrink-0 flex-col items-stretch gap-2">
-        <button class="app-button app-button-primary justify-center shadow-none" type="button" @click="$emit('open-editor', script.id)">
+        <button
+          v-if="canEditScript"
+          class="app-button app-button-primary justify-center shadow-none"
+          type="button"
+          @click="$emit('open-editor', script.id)"
+        >
           <AppIcon name="square-pen" :size="16" />
           打开编辑器
         </button>
-        <button class="app-button app-button-ghost justify-center" type="button" @click="$emit('edit-info', script.id)">
+        <button
+          v-if="canEditScript"
+          class="app-button app-button-ghost justify-center"
+          type="button"
+          @click="$emit('edit-info', script.id)"
+        >
           <AppIcon name="pencil-line" :size="16" />
           编辑信息
         </button>
+        <p v-if="!canEditScript" class="max-w-56 text-xs leading-5 text-(--app-text-faint)">
+          云端脚本需先克隆为本地脚本后，才能编辑或再次上传。
+        </p>
       </div>
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted)/65 px-3 py-3">
       <div class="flex flex-wrap gap-2">
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('upload', script.id)">
+        <button
+          v-if="canUploadScript"
+          class="app-button app-button-ghost app-toolbar-button"
+          type="button"
+          @click="$emit('upload', script.id)"
+        >
           <AppIcon name="cloud-upload" :size="14" />
           上传
         </button>
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('clone', script.id)">
           <AppIcon name="copy" :size="14" />
-          克隆
+          {{ cloneButtonLabel }}
         </button>
       </div>
       <div class="flex flex-wrap gap-2">
@@ -160,6 +178,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import MarkdownView from '@/components/shared/MarkdownView.vue';
@@ -177,10 +196,14 @@ import {
   formatUploadActivityStatusTone,
 } from '@/utils/presenters';
 
-defineProps<{
+const props = defineProps<{
   script: ScriptTableRecord | null;
   uploadActivities: ScriptUploadActivity[];
 }>();
+
+const canEditScript = computed(() => props.script?.data.scriptType !== 'published');
+const canUploadScript = computed(() => props.script?.data.scriptType === 'dev');
+const cloneButtonLabel = computed(() => (props.script?.data.scriptType === 'published' ? '克隆为本地脚本' : '克隆'));
 
 defineEmits<{
   'open-editor': [scriptId: string];

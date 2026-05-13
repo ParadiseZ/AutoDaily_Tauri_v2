@@ -141,6 +141,8 @@ const selectedUploadActivities = computed(() =>
   selectedScript.value ? uploadActivitiesByScriptId.value[selectedScript.value.id] ?? [] : [],
 );
 
+const isPublishedScript = (script: ScriptTableRecord | null | undefined) => script?.data.scriptType === 'published';
+
 const pushUploadActivity = (
   scriptId: string,
   activity: Omit<ScriptUploadActivity, 'id' | 'scriptId' | 'at'> & { at?: string },
@@ -230,9 +232,14 @@ const openCreateDialog = async () => {
 };
 
 const openEditDialog = (scriptId: string) => {
+  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
+  if (isPublishedScript(script)) {
+    showToast('云端下载脚本请先克隆为本地脚本后再编辑', 'warning');
+    return;
+  }
   scriptStore.selectScript(scriptId);
   dialogMode.value = 'edit';
-  dialogScript.value = scriptStore.scripts.find((script) => script.id === scriptId) ?? null;
+  dialogScript.value = script;
   scriptInfoDialogOpen.value = true;
 };
 
@@ -305,6 +312,11 @@ const ensureScriptInfoReadyForUpload = async (scriptId: string) => {
 };
 
 const openEditor = (scriptId: string) => {
+  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
+  if (isPublishedScript(script)) {
+    showToast('云端下载脚本请先克隆为本地脚本后再编辑', 'warning');
+    return;
+  }
   router.push({ path: '/editor', query: { scriptId } });
 };
 
@@ -352,6 +364,11 @@ const performUpload = async (scriptId: string) => {
 };
 
 const handleUpload = async (scriptId: string) => {
+  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
+  if (isPublishedScript(script)) {
+    showToast('云端下载脚本不可直接上传，请先克隆为本地脚本', 'warning');
+    return;
+  }
   if (!(await ensureScriptInfoReadyForUpload(scriptId))) {
     return;
   }

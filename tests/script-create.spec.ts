@@ -21,6 +21,10 @@ declare global {
         scripts: StoredScriptTable[];
       };
       reset: () => unknown;
+      seed: (partial: {
+        scripts?: StoredScriptTable[];
+        scriptTasks?: Record<string, Array<Record<string, unknown>>>;
+      }) => unknown;
     };
   }
 }
@@ -51,6 +55,54 @@ const getStoredScript = async (page: Page) => {
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   expect(state?.scripts).toHaveLength(1);
   return state!.scripts[0];
+};
+
+const seedPublishedScript = async (page: Page) => {
+  const scriptId = `published-${Date.now()}`;
+  await page.evaluate(({ scriptId, emptyVariableCatalog }) => {
+    window.__AUTODAILY_MOCK__?.seed({
+      scripts: [
+        {
+          id: scriptId,
+          data: {
+            name: '云端脚本样例',
+            description: '用于验证本地列表上的云端脚本操作限制。',
+            contentMd: '# 2026-05-12\n\n**v1.0.0 更新日志**\n\n- 已发布。',
+            userId: 'local-user',
+            userName: 'CloudAuthor',
+            runtimeType: 'rhai',
+            platform: 'android',
+            sponsorshipQr: null,
+            sponsorshipUrl: null,
+            contactInfo: null,
+            imgDetModel: null,
+            txtDetModel: null,
+            txtRecModel: null,
+            createTime: '2026-05-12T08:00:00.000Z',
+            updateTime: '2026-05-12T08:00:00.000Z',
+            verName: '1.0.0',
+            verNum: 1,
+            latestVer: 1,
+            downloadCount: 9,
+            scriptType: 'published',
+            isValid: true,
+            allowClone: true,
+            minAppVersion: '0.1.0',
+            minRuntimeSchema: 1,
+            requiredFeatures: ['onnxInference', 'runtime:rhai', 'device:android'],
+            variableCatalog: emptyVariableCatalog,
+            cloudId: 'cloud-script-1',
+            runtimeSettings: {
+              recoveryTaskId: null,
+              clickRandomOffset: 0,
+            },
+          },
+        },
+      ],
+    });
+  }, { scriptId, emptyVariableCatalog });
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '云端脚本样例' })).toBeVisible();
 };
 
 test.beforeEach(async ({ page }) => {
@@ -257,6 +309,16 @@ test('shows inline validation summary instead of stacking a second dialog on cre
   await expect(page.getByRole('dialog')).toHaveCount(1);
   await expect(dialog.getByTestId('script-info-validation-summary')).toContainText('描述');
   await expect(dialog.getByTestId('script-info-validation-summary')).toContainText('版本名称');
+});
+
+test('hides edit and upload actions for published scripts in local list', async ({ page }) => {
+  await seedPublishedScript(page);
+
+  await expect(page.getByRole('button', { name: '打开编辑器' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '编辑信息' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '上传' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '克隆为本地脚本' })).toBeVisible();
+  await expect(page.getByText('云端脚本需先克隆为本地脚本后，才能编辑或再次上传。')).toBeVisible();
 });
 
 test('script market prompts login when opened unauthenticated', async ({ page }) => {

@@ -4,11 +4,26 @@ use crate::api::infrastructure::runtime_sync::{
 };
 use crate::constant::table_name::{SCRIPT_TABLE, SCRIPT_TASK_TABLE};
 use crate::domain::scripts::policy::*;
-use crate::domain::scripts::script_info::ScriptTable;
+use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::db::{get_pool, DbRepo};
 use tauri::command;
+
+const PUBLISHED_SCRIPT_EDIT_ERROR: &str = "云端下载脚本不可直接编辑，请先克隆为本地脚本";
+
+async fn load_script_for_write(script_id: ScriptId) -> Result<ScriptTable, String> {
+    DbRepo::get_by_id(SCRIPT_TABLE, &script_id.to_string())
+        .await?
+        .ok_or_else(|| "脚本不存在".to_string())
+}
+
+fn ensure_script_is_editable(script: &ScriptTable) -> Result<(), String> {
+    if script.data.script_type == ScriptType::Published {
+        return Err(PUBLISHED_SCRIPT_EDIT_ERROR.to_string());
+    }
+    Ok(())
+}
 
 /// 获取所有脚本配置
 #[command]
@@ -28,6 +43,14 @@ pub async fn save_script_cmd(
     app_handle: tauri::AppHandle,
     script: ScriptTable,
 ) -> Result<(), String> {
+    if script.data.script_type == ScriptType::Published {
+        return Err(PUBLISHED_SCRIPT_EDIT_ERROR.to_string());
+    }
+
+    if let Some(existing) = DbRepo::get_by_id::<ScriptTable>(SCRIPT_TABLE, &script.id.to_string()).await? {
+        ensure_script_is_editable(&existing)?;
+    }
+
     DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await?;
     let affected_device_ids = load_assigned_device_ids_by_script(script.id).await?;
     sync_device_sessions_if_online(&app_handle, affected_device_ids).await
@@ -67,13 +90,16 @@ pub async fn save_script_tasks_cmd(
     script_id: ScriptId,
     tasks: Vec<ScriptTaskTable>,
 ) -> Result<(), String> {
+    let script = load_script_for_write(script_id).await?;
+    ensure_script_is_editable(&script)?;
+
     let pool = get_pool();
     let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
 
     // 删除旧任务
     let delete_query = format!("DELETE FROM {} WHERE script_id = ?", SCRIPT_TASK_TABLE);
     sqlx::query(&delete_query)
-        .bind(script_id.to_string())
+        .bind(script.id.to_string())
         .execute(&mut *tx)
         .await
         .map_err(|e| e.to_string())?;
@@ -86,7 +112,7 @@ pub async fn save_script_tasks_cmd(
         );
         sqlx::query(&insert_query)
             .bind(task.id.to_string())
-            .bind(script_id.to_string())
+            .bind(script.id.to_string())
             .bind(&task.name)
             .bind(task.row_type)
             .bind(task.trigger_mode)

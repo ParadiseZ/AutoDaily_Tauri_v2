@@ -336,6 +336,13 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     return stage === 2 || stage === 3 ? stage : 1;
   };
 
+  const validateScriptEditable = (script: StoredScriptTable | null, fallbackScript?: StoredScriptTable | null) => {
+    const target = script ?? fallbackScript ?? null;
+    if (target?.data.scriptType === 'published') {
+      throw new Error('云端下载脚本不可直接编辑，请先克隆为本地脚本');
+    }
+  };
+
   const validatePublishedScriptAccessForRun = (state: MockState, scriptIds: string[]) => {
     const hasPublishedScript = scriptIds.some((scriptId) => findScript(state, scriptId)?.data.scriptType === 'published');
     if (!hasPublishedScript) {
@@ -839,20 +846,27 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }));
           return null;
         case 'save_script_tasks_cmd':
+          updateState((current) => {
+            validateScriptEditable(findScript(current, String(args.scriptId)));
+            return {
+              ...current,
+              scriptTasks: {
+                ...current.scriptTasks,
+                [String(args.scriptId)]: Array.isArray(args.tasks) ? (args.tasks as ScriptTaskTable[]) : [],
+              },
+            };
+          });
+          return null;
+        case 'save_script_cmd': {
+          const nextScript = args.script as StoredScriptTable;
+          const existingScript = readState().scripts.find((script) => script.id === nextScript.id) ?? null;
+          validateScriptEditable(existingScript, nextScript);
           updateState((current) => ({
             ...current,
-            scriptTasks: {
-              ...current.scriptTasks,
-              [String(args.scriptId)]: Array.isArray(args.tasks) ? (args.tasks as ScriptTaskTable[]) : [],
-            },
+            scripts: upsertScript(current.scripts, nextScript),
           }));
           return null;
-        case 'save_script_cmd':
-          updateState((current) => ({
-            ...current,
-            scripts: upsertScript(current.scripts, args.script as StoredScriptTable),
-          }));
-          return null;
+        }
         case 'delete_script_cmd':
           updateState((current) => removeScriptFromState(current, String(args.scriptId)));
           return null;
