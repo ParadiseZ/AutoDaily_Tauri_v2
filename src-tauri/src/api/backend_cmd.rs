@@ -41,6 +41,18 @@ struct CachedUserProfile {
     profile: serde_json::Value,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptVersionPreflight {
+    status: String,
+    message: String,
+    local_script_id: Option<String>,
+    local_version_label: Option<String>,
+    remote_version_label: Option<String>,
+    local_ver_num: Option<i64>,
+    remote_ver_num: Option<i64>,
+}
+
 fn load_cached_user_profile(app_handle: &AppHandle, username: &str) -> Option<serde_json::Value> {
     let store = app_handle.store(APP_STORE).ok()?;
     let cached = store
@@ -75,6 +87,145 @@ fn clear_cached_user_profile(app_handle: &AppHandle) {
     if let Ok(store) = app_handle.store(APP_STORE) {
         store.delete(USER_PROFILE_CACHE_KEY);
     }
+}
+
+fn format_version_label(ver_name: Option<&str>, ver_num: Option<i64>) -> String {
+    if let Some(name) = ver_name.map(str::trim).filter(|value| !value.is_empty()) {
+        return format!("v{}", name);
+    }
+    if let Some(number) = ver_num {
+        return format!("版本 {}", number);
+    }
+    "未标记版本".to_string()
+}
+
+fn version_num_to_i64(value: Option<u64>) -> Option<i64> {
+    value.and_then(|number| i64::try_from(number).ok())
+}
+
+async fn find_replaceable_local_published_script(
+    cloud_script_id: &str,
+) -> Result<Option<ScriptTable>, String> {
+    let pool = crate::infrastructure::db::get_pool();
+    let mut scripts: Vec<ScriptTable> = sqlx::query_as("SELECT id, `data` FROM scripts")
+        .fetch_all(pool)
+        .await
+        .map_err(|error| format!("读取本地脚本失败: {}", error))?;
+
+    scripts.retain(|script| {
+        script.data.script_type == ScriptType::Published
+            && script
+                .data
+                .cloud_id
+                .as_ref()
+                .map(|value| value.to_string())
+                .as_deref()
+                == Some(cloud_script_id)
+    });
+
+    scripts.sort_by(|left, right| {
+        let right_time = right
+            .data
+            .update_time
+            .as_ref()
+            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.timestamp_millis())
+            .unwrap_or(0);
+        let left_time = left
+            .data
+            .update_time
+            .as_ref()
+            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.timestamp_millis())
+            .unwrap_or(0);
+        right_time
+            .cmp(&left_time)
+            .then_with(|| right.data.ver_num.cmp(&left.data.ver_num))
+    });
+
+    Ok(scripts.into_iter().next())
+}
+
+fn build_download_preflight(
+    existing_local_script: Option<&ScriptTable>,
+    remote_ver_name: Option<&str>,
+    remote_ver_num: Option<i64>,
+) -> ScriptVersionPreflight {
+    let remote_version_label = format_version_label(remote_ver_name, remote_ver_num);
+    let Some(local_script) = existing_local_script else {
+        return ScriptVersionPreflight {
+            status: "noLocalCopy".to_string(),
+            message: format!(
+                "本地还没有该云端脚本副本，将直接下载 {} 到本地库。",
+                remote_version_label
+            ),
+            local_script_id: None,
+            local_version_label: None,
+            remote_version_label: Some(remote_version_label),
+            local_ver_num: None,
+            remote_ver_num,
+        };
+    };
+
+    let local_ver_num = version_num_to_i64(Some(local_script.data.ver_num));
+    let local_version_label =
+        format_version_label(Some(local_script.data.ver_name.as_str()), local_ver_num);
+
+    if let (Some(local_ver_num), Some(remote_ver_num)) = (local_ver_num, remote_ver_num) {
+        if remote_ver_num > local_ver_num {
+            return ScriptVersionPreflight {
+                status: "upgradeAvailable".to_string(),
+                message: format!(
+                    "本地已有 {}，云端当前为 {}。继续后会更新本地云端副本，并保留原有脚本关联。",
+                    local_version_label, remote_version_label
+                ),
+                local_script_id: Some(local_script.id.to_string()),
+                local_version_label: Some(local_version_label),
+                remote_version_label: Some(remote_version_label),
+                local_ver_num: Some(local_ver_num),
+                remote_ver_num: Some(remote_ver_num),
+            };
+        }
+
+        if remote_ver_num < local_ver_num {
+            return ScriptVersionPreflight {
+                status: "downgradeBlocked".to_string(),
+                message: format!(
+                    "本地已有 {}，云端当前仅为 {}。不允许用较旧的云端版本覆盖本地副本。",
+                    local_version_label, remote_version_label
+                ),
+                local_script_id: Some(local_script.id.to_string()),
+                local_version_label: Some(local_version_label),
+                remote_version_label: Some(remote_version_label),
+                local_ver_num: Some(local_ver_num),
+                remote_ver_num: Some(remote_ver_num),
+            };
+        }
+    }
+
+    ScriptVersionPreflight {
+        status: "sameVersion".to_string(),
+        message: format!(
+            "本地已有 {}，继续后会用云端 {} 覆盖当前本地云端副本，并保留原有脚本关联。",
+            local_version_label, remote_version_label
+        ),
+        local_script_id: Some(local_script.id.to_string()),
+        local_version_label: Some(local_version_label),
+        remote_version_label: Some(remote_version_label),
+        local_ver_num,
+        remote_ver_num,
+    }
+}
+
+fn extract_cloud_summary_version(summary: &serde_json::Value) -> (Option<String>, Option<i64>) {
+    let ver_name = summary
+        .get("verName")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let ver_num = summary
+        .get("verNum")
+        .and_then(|value| value.as_i64().or_else(|| value.as_u64().and_then(|num| i64::try_from(num).ok())));
+    (ver_name, ver_num)
 }
 
 fn should_use_cached_profile(code: i32, message: &str) -> bool {
@@ -134,6 +285,7 @@ pub async fn backend_get_auth_session(app_handle: AppHandle) -> ApiResponse<Auth
 #[command]
 pub async fn backend_logout(app_handle: AppHandle) -> ApiResponse<()> {
     let client = HttpClient::new(app_handle.clone());
+    let _ = client.post("/auth/logout", &()).await;
     let _ = client.clear_auth_session();
     clear_cached_user_profile(&app_handle);
     ApiResponse::success(None, Some("登出成功".to_string()))
@@ -224,6 +376,132 @@ pub async fn backend_get_script_cloud_summary(
     let url = format!("/scripts/{}/summary", script_id);
     let res: AppResult<BackendApiRes<serde_json::Value>> = client.get(&url).await;
     trans_api_res(res)
+}
+
+#[command]
+pub async fn backend_preflight_download_script(
+    script_id: String,
+    ver_name: Option<String>,
+    ver_num: Option<i64>,
+) -> ApiResponse<ScriptVersionPreflight> {
+    match find_replaceable_local_published_script(&script_id).await {
+        Ok(existing_local_script) => ApiResponse::success(
+            Some(build_download_preflight(
+                existing_local_script.as_ref(),
+                ver_name.as_deref(),
+                ver_num,
+            )),
+            None,
+        ),
+        Err(error) => ApiResponse::error(Some(error)),
+    }
+}
+
+#[command]
+pub async fn backend_preflight_upload_script(
+    app_handle: AppHandle,
+    script_id: String,
+) -> ApiResponse<ScriptVersionPreflight> {
+    let pool = crate::infrastructure::db::get_pool();
+    let local_script = match sqlx::query_as::<_, ScriptTable>("SELECT id, `data` FROM scripts WHERE id = ?")
+        .bind(&script_id)
+        .fetch_optional(pool)
+        .await
+    {
+        Ok(Some(script)) => script,
+        Ok(None) => return ApiResponse::error(Some("脚本不存在".to_string())),
+        Err(error) => return ApiResponse::error(Some(format!("读取本地脚本失败: {}", error))),
+    };
+
+    if local_script.data.script_type != ScriptType::Dev {
+        return ApiResponse::error(Some("只有本地脚本 (Dev) 才能被上传".to_string()));
+    }
+
+    let client = HttpClient::new(app_handle);
+    let url = format!("/scripts/{}/summary", script_id);
+    let response: AppResult<BackendApiRes<serde_json::Value>> = client.get(&url).await;
+    let local_ver_num = version_num_to_i64(Some(local_script.data.ver_num));
+    let local_version_label =
+        format_version_label(Some(local_script.data.ver_name.as_str()), local_ver_num);
+
+    let api_res = match response {
+        Ok(value) => value,
+        Err(error) => return ApiResponse::error(Some(app_error_message(error))),
+    };
+
+    if api_res.code != 200 {
+        return ApiResponse::failed_with_details(
+            None,
+            Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+            api_res.details,
+        );
+    }
+
+    let Some(summary) = api_res.data else {
+        return ApiResponse::success(
+            Some(ScriptVersionPreflight {
+                status: "cloudMissing".to_string(),
+                message: format!(
+                    "云端还没有该脚本，上传 {} 时将创建新的云端脚本版本。",
+                    local_version_label
+                ),
+                local_script_id: Some(local_script.id.to_string()),
+                local_version_label: Some(local_version_label),
+                remote_version_label: None,
+                local_ver_num,
+                remote_ver_num: None,
+            }),
+            None,
+        );
+    };
+
+    let (remote_ver_name, remote_ver_num) = extract_cloud_summary_version(&summary);
+    let remote_version_label = format_version_label(remote_ver_name.as_deref(), remote_ver_num);
+
+    let preflight = match (local_ver_num, remote_ver_num) {
+        (Some(local_ver_num), Some(remote_ver_num)) if local_ver_num > remote_ver_num => {
+            ScriptVersionPreflight {
+                status: "upgradeAvailable".to_string(),
+                message: format!(
+                    "云端当前为 {}，本地为 {}。继续后会将云端脚本更新到本地版本。",
+                    remote_version_label, local_version_label
+                ),
+                local_script_id: Some(local_script.id.to_string()),
+                local_version_label: Some(local_version_label),
+                remote_version_label: Some(remote_version_label),
+                local_ver_num: Some(local_ver_num),
+                remote_ver_num: Some(remote_ver_num),
+            }
+        }
+        (Some(local_ver_num), Some(remote_ver_num)) if local_ver_num < remote_ver_num => {
+            ScriptVersionPreflight {
+                status: "downgradeBlocked".to_string(),
+                message: format!(
+                    "云端当前为 {}，本地仅为 {}。不允许用较旧的本地版本覆盖云端脚本。",
+                    remote_version_label, local_version_label
+                ),
+                local_script_id: Some(local_script.id.to_string()),
+                local_version_label: Some(local_version_label),
+                remote_version_label: Some(remote_version_label),
+                local_ver_num: Some(local_ver_num),
+                remote_ver_num: Some(remote_ver_num),
+            }
+        }
+        _ => ScriptVersionPreflight {
+            status: "sameVersion".to_string(),
+            message: format!(
+                "云端已存在相同版本 {}。继续后会覆盖云端当前内容。",
+                remote_version_label
+            ),
+            local_script_id: Some(local_script.id.to_string()),
+            local_version_label: Some(local_version_label),
+            remote_version_label: Some(remote_version_label),
+            local_ver_num,
+            remote_ver_num,
+        },
+    };
+
+    ApiResponse::success(Some(preflight), None)
 }
 
 #[command]
@@ -323,6 +601,26 @@ pub async fn backend_download_script(
         .map(|script| script.id.clone())
         .unwrap_or_else(ScriptId::new_v7);
     let existing_local_ver_num = replacement_target.as_ref().map(|script| script.data.ver_num);
+
+    if let (Some(existing_ver_num), Some(remote_ver_num)) =
+        (existing_local_ver_num, Some(download_data.script.data.ver_num))
+    {
+        if remote_ver_num < existing_ver_num {
+            return ApiResponse::error(Some(format!(
+                "本地已有 {}，云端当前仅为 {}。不允许用较旧的云端版本覆盖本地副本。",
+                format_version_label(
+                    replacement_target
+                        .as_ref()
+                        .map(|script| script.data.ver_name.as_str()),
+                    version_num_to_i64(Some(existing_ver_num)),
+                ),
+                format_version_label(
+                    Some(download_data.script.data.ver_name.as_str()),
+                    version_num_to_i64(Some(remote_ver_num)),
+                ),
+            )));
+        }
+    }
 
     // 2. ID Regeneration mapping
     let old_script_id = download_data.script.id.clone();
@@ -496,6 +794,35 @@ pub async fn backend_upload_script(
 
     if auth_session.username.trim().is_empty() {
         return ApiResponse::error(Some("当前登录态缺少用户名，请重新登录".to_string()));
+    }
+
+    let summary_url = format!("/scripts/{}/summary", script_id);
+    let summary_response: AppResult<BackendApiRes<serde_json::Value>> = client.get(&summary_url).await;
+    let local_ver_num = version_num_to_i64(Some(script.data.ver_num));
+    let local_version_label = format_version_label(Some(script.data.ver_name.as_str()), local_ver_num);
+    match summary_response {
+        Ok(api_res) if api_res.code == 200 => {
+            if let Some(summary) = api_res.data {
+                let (remote_ver_name, remote_ver_num) = extract_cloud_summary_version(&summary);
+                if let (Some(local_ver_num), Some(remote_ver_num)) = (local_ver_num, remote_ver_num) {
+                    if local_ver_num < remote_ver_num {
+                        return ApiResponse::error(Some(format!(
+                            "云端当前为 {}，本地仅为 {}。不允许用较旧的本地版本覆盖云端脚本。",
+                            format_version_label(remote_ver_name.as_deref(), Some(remote_ver_num)),
+                            local_version_label,
+                        )));
+                    }
+                }
+            }
+        }
+        Ok(api_res) => {
+            return ApiResponse::failed_with_details(
+                None,
+                Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                api_res.details,
+            );
+        }
+        Err(error) => return ApiResponse::error(Some(app_error_message(error))),
     }
 
     let script_user_name = script.data.user_name.as_deref().unwrap_or("").trim();

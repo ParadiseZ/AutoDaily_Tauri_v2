@@ -336,6 +336,23 @@ export interface ScriptCloudSummary {
     updateTime: string | null;
 }
 
+export type ScriptVersionPreflightStatus =
+    | 'noLocalCopy'
+    | 'cloudMissing'
+    | 'sameVersion'
+    | 'upgradeAvailable'
+    | 'downgradeBlocked';
+
+export interface ScriptVersionPreflight {
+    status: ScriptVersionPreflightStatus;
+    message: string;
+    localScriptId: string | null;
+    localVersionLabel: string | null;
+    remoteVersionLabel: string | null;
+    localVerNum: number | null;
+    remoteVerNum: number | null;
+}
+
 export type ScriptUploadActivityStatus = 'waitingAuth' | 'success' | 'error';
 
 export interface ScriptUploadActivity {

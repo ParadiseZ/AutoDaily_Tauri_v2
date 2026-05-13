@@ -13,6 +13,7 @@ import type {
     MarketPage,
     MarketScriptRecord,
     ScriptSearchInput,
+    ScriptVersionPreflight,
     ScriptTableRecord,
 } from '@/types/app/domain';
 
@@ -235,6 +236,30 @@ export const scriptService = {
             throw new Error(response.message || '获取云端脚本信息失败');
         }
         return response.data ?? null;
+    },
+    preflightDownloadMarketScript: async (
+        scriptId: string,
+        verName: string | null,
+        verNum: number | null,
+    ): Promise<ScriptVersionPreflight> => {
+        const response = (await invoke('backend_preflight_download_script', {
+            scriptId,
+            verName,
+            verNum,
+        })) as ApiEnvelope<ScriptVersionPreflight>;
+        if (!response.success || !response.data) {
+            throw new Error(response.message || '获取下载版本信息失败');
+        }
+        return response.data;
+    },
+    preflightUploadLocalScript: async (scriptId: string): Promise<ScriptVersionPreflight> => {
+        const response = (await invoke('backend_preflight_upload_script', {
+            scriptId,
+        })) as ApiEnvelope<ScriptVersionPreflight>;
+        if (!response.success || !response.data) {
+            throw new Error(response.message || '获取上传版本信息失败');
+        }
+        return response.data;
     },
     convertLocalImageToDataUrl: async (imagePath: string): Promise<string> => {
         const base64 = (await invoke('convert_img_to_base64_cmd', { imgPath: imagePath })) as string;

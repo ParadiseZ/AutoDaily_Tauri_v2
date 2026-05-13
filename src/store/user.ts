@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
+import { requestAppConfirm } from '@/services/appDialogService';
 import { invoke } from '@/utils/api';
 import { sha256Hex } from '@/utils/passwordHash';
 import { showToast } from '@/utils/toast';
@@ -29,8 +30,6 @@ interface ResetPasswordPayload {
 
 const isAuthFailure = (message: string | undefined) =>
     Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
-const isSessionStoreFailure = (message: string | undefined) =>
-    Boolean(message && (message.includes('503') || message.includes('Session store unavailable') || message.includes('会话服务')));
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usernamePattern = /^[A-Za-z0-9_]{3,16}$/;
@@ -206,10 +205,6 @@ export const useUserStore = defineStore('user', () => {
                     return null;
                 }
 
-                if (isSessionStoreFailure(res.message)) {
-                    return userProfile.value;
-                }
-
                 return userProfile.value;
             }
 
@@ -225,13 +220,38 @@ export const useUserStore = defineStore('user', () => {
                 userProfile.value = null;
                 return null;
             }
-            if (isSessionStoreFailure(message)) {
-                return userProfile.value;
-            }
             return userProfile.value;
         } finally {
             profileLoading.value = false;
         }
+    };
+
+    const ensureProfileForAction = async (actionLabel: string) => {
+        if (!authSession.value) {
+            return null;
+        }
+
+        const profile = userProfile.value ?? (await checkProfile());
+        if (profile || !authSession.value) {
+            return profile;
+        }
+
+        const retry = await requestAppConfirm({
+            title: '账户信息同步失败',
+            message: `当前无法获取账户信息，${actionLabel}前无法继续。你可以重试，或重新登录后再继续。`,
+            confirmText: '重试',
+            cancelText: '重新登录',
+            tone: 'warning',
+        });
+
+        if (retry) {
+            return checkProfile();
+        }
+
+        await logout({ silent: true });
+        openAuthModal();
+        showToast('请重新登录后继续', 'warning');
+        return null;
     };
 
     const login = async (payload: LoginPayload) => {
@@ -351,13 +371,17 @@ export const useUserStore = defineStore('user', () => {
         }
     };
 
-    const logout = async () => {
+    const logout = async (options?: { silent?: boolean }) => {
         try {
             await invoke('backend_logout');
             applyAuthSession(null);
-            showToast('已退出登录', 'success');
+            if (!options?.silent) {
+                showToast('已退出登录', 'success');
+            }
         } catch (error) {
-            showToast(error instanceof Error ? error.message : '登出失败', 'error');
+            if (!options?.silent) {
+                showToast(error instanceof Error ? error.message : '登出失败', 'error');
+            }
         }
     };
 
@@ -369,6 +393,7 @@ export const useUserStore = defineStore('user', () => {
         canUsePublishedCloudScripts,
         checkProfile,
         closeAuthModal,
+        ensureProfileForAction,
         getPublishedCloudScriptAccessMessage,
         hydrateAuthSession,
         isAuthModalOpen,

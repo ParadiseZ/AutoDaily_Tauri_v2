@@ -146,17 +146,6 @@ const isPublishedScript = (script: ScriptTableRecord | null | undefined) => scri
 const canCloneScript = (script: ScriptTableRecord | null | undefined, currentUserId: string | null) =>
   Boolean(script && (script.data.allowClone || script.data.userId === currentUserId));
 
-const formatVersionLabel = (verName: string | null | undefined, verNum: number | null | undefined) => {
-  const name = verName?.trim();
-  if (name) {
-    return `v${name}`;
-  }
-  if (typeof verNum === 'number' && Number.isFinite(verNum)) {
-    return `版本 ${verNum}`;
-  }
-  return '未标记版本';
-};
-
 const pushUploadActivity = (
   scriptId: string,
   activity: Omit<ScriptUploadActivity, 'id' | 'scriptId' | 'at'> & { at?: string },
@@ -203,9 +192,11 @@ const ensureUploadAuth = async (scriptId: string) => {
     return false;
   }
 
-  const profile = userStore.userProfile ?? await userStore.checkProfile();
+  const profile = await userStore.ensureProfileForAction('上传脚本');
   if (!profile) {
-    queueUploadAfterLogin(scriptId, '登录信息已失效，请重新登录后继续上传');
+    if (!userStore.authSession) {
+      queueUploadAfterLogin(scriptId, '登录信息已失效，请重新登录后继续上传');
+    }
     return false;
   }
 
@@ -398,7 +389,9 @@ const handleUpload = async (scriptId: string) => {
 const handleClone = async (scriptId: string) => {
   try {
     const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
-    const currentUserId = userStore.userProfile?.id ?? (await userStore.checkProfile())?.id ?? null;
+    const currentUserId =
+      userStore.userProfile?.id ??
+      (userStore.authSession ? (await userStore.ensureProfileForAction('克隆脚本'))?.id ?? null : null);
     if (!canCloneScript(script, currentUserId)) {
       showToast('作者未开放克隆权限', 'warning');
       return;
@@ -425,45 +418,21 @@ const handleClone = async (scriptId: string) => {
 
 const ensureUploadVersionConfirmed = async (scriptId: string) => {
   try {
-    const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
-    if (!script) {
-      return false;
-    }
-
-    const cloudSummary = await scriptService.getCloudSummary(script.id);
-    if (!cloudSummary) {
+    const preflight = await scriptService.preflightUploadLocalScript(scriptId);
+    if (preflight.status === 'cloudMissing') {
       return true;
     }
 
-    const localVersion = formatVersionLabel(script.data.verName, script.data.verNum);
-    const cloudVersion = formatVersionLabel(cloudSummary.verName, cloudSummary.verNum);
-
-    let title = '云端脚本更新确认';
-    let message = `云端当前为 ${cloudVersion}，本地准备上传 ${localVersion}。继续后会覆盖云端脚本。`;
-    let confirmText = '继续上传';
-
-    const localVerNum = script.data.verNum ?? null;
-    const cloudVerNum = cloudSummary.verNum ?? null;
-
-    if (typeof localVerNum === 'number' && typeof cloudVerNum === 'number') {
-      if (localVerNum > cloudVerNum) {
-        title = '上传新版本';
-        message = `云端当前为 ${cloudVersion}，本地为 ${localVersion}。继续后会将云端脚本更新到本地版本。`;
-        confirmText = '上传更新';
-      } else if (localVerNum === cloudVerNum) {
-        title = '覆盖相同版本';
-        message = `云端已存在相同版本 ${cloudVersion}。继续后会覆盖云端当前内容。`;
-        confirmText = '覆盖上传';
-      } else {
-        title = '云端版本更高';
-        message = `云端当前为 ${cloudVersion}，本地仅为 ${localVersion}。继续后会用较旧的本地版本覆盖云端脚本。`;
-        confirmText = '仍然上传';
-      }
+    if (preflight.status === 'downgradeBlocked') {
+      showToast(preflight.message, 'warning');
+      return false;
     }
 
+    const title = preflight.status === 'upgradeAvailable' ? '上传新版本' : '覆盖相同版本';
+    const confirmText = preflight.status === 'upgradeAvailable' ? '上传更新' : '覆盖上传';
     return requestAppConfirm({
       title,
-      message,
+      message: preflight.message,
       confirmText,
       cancelText: '取消',
       tone: 'warning',

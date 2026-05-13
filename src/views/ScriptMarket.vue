@@ -158,13 +158,13 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import MarkdownView from '@/components/shared/MarkdownView.vue';
-import { requestAppConfirm } from '@/services/appDialogService';
 import { useScriptStore } from '@/store/script';
 import { useUserStore } from '@/store/user';
 import { scriptService } from '@/services/scriptService';
 import { showToast } from '@/utils/toast';
 import { formatDate, formatRuntimeLabel } from '@/utils/presenters';
 import AppLoadingState from '@/components/shared/AppLoadingState.vue';
+import { requestAppConfirm } from '@/services/appDialogService';
 
 const router = useRouter();
 const scriptStore = useScriptStore();
@@ -221,70 +221,37 @@ const downloadButtonLabel = computed(() => {
   return downloadBlockedReason.value ? '暂无权限' : '下载到本地';
 });
 
-const formatVersionLabel = (verName: string | null | undefined, verNum: number | null | undefined) => {
-  const name = verName?.trim();
-  if (name) {
-    return `v${name}`;
-  }
-  if (typeof verNum === 'number' && Number.isFinite(verNum)) {
-    return `版本 ${verNum}`;
-  }
-  return '未标记版本';
-};
-
-const pickReplaceableLocalPublishedScript = (cloudScriptId: string) =>
-  [...scriptStore.scripts]
-    .filter((script) => script.data.scriptType === 'published' && script.data.cloudId === cloudScriptId)
-    .sort((left, right) => {
-      const rightTime = right.data.updateTime ? new Date(right.data.updateTime).getTime() : 0;
-      const leftTime = left.data.updateTime ? new Date(left.data.updateTime).getTime() : 0;
-      if (rightTime !== leftTime) {
-        return rightTime - leftTime;
-      }
-      return (right.data.verNum ?? 0) - (left.data.verNum ?? 0);
-    })[0] ?? null;
-
 const confirmDownloadAgainstLocal = async () => {
   if (!selectedScript.value) {
     return null;
   }
 
-  await scriptStore.loadScripts();
-  const existingLocalScript = pickReplaceableLocalPublishedScript(selectedScript.value.id);
-  if (!existingLocalScript) {
+  const preflight = await scriptService.preflightDownloadMarketScript(
+    selectedScript.value.id,
+    selectedScript.value.verName ?? null,
+    selectedScript.value.verNum ?? null,
+  );
+
+  if (preflight.status === 'noLocalCopy') {
     return null;
   }
 
-  const localVersion = formatVersionLabel(existingLocalScript.data.verName, existingLocalScript.data.verNum);
-  const remoteVersion = formatVersionLabel(selectedScript.value.verName, selectedScript.value.verNum);
-  const localVerNum = existingLocalScript.data.verNum ?? null;
-  const remoteVerNum = selectedScript.value.verNum ?? null;
-
-  let title = '覆盖本地云端副本';
-  let message = `本地已有 ${localVersion}，继续后会用云端 ${remoteVersion} 覆盖当前本地云端副本，并保留原有脚本关联。`;
-  let confirmText = '覆盖下载';
-
-  if (typeof localVerNum === 'number' && typeof remoteVerNum === 'number') {
-    if (remoteVerNum > localVerNum) {
-      title = '发现云端新版本';
-      message = `本地已有 ${localVersion}，云端当前为 ${remoteVersion}。继续后会更新本地云端副本。`;
-      confirmText = '更新本地副本';
-    } else if (remoteVerNum < localVerNum) {
-      title = '本地版本更新';
-      message = `本地已有 ${localVersion}，云端当前仅为 ${remoteVersion}。继续后会用较旧的云端版本覆盖本地副本。`;
-      confirmText = '仍然覆盖';
-    }
+  if (preflight.status === 'downgradeBlocked') {
+    showToast(preflight.message, 'warning');
+    return false;
   }
 
+  const title = preflight.status === 'upgradeAvailable' ? '发现云端新版本' : '覆盖本地云端副本';
+  const confirmText = preflight.status === 'upgradeAvailable' ? '更新本地副本' : '覆盖下载';
   const approved = await requestAppConfirm({
     title,
-    message,
+    message: preflight.message,
     confirmText,
     cancelText: '取消',
     tone: 'warning',
   });
 
-  return approved ? existingLocalScript.id : false;
+  return approved ? preflight.localScriptId : false;
 };
 
 const loadSelectedChangeLogs = async () => {
@@ -328,10 +295,12 @@ const downloadSelected = async () => {
     return;
   }
 
-  const profile = userStore.userProfile ?? await userStore.checkProfile();
+  const profile = await userStore.ensureProfileForAction('下载云端脚本');
   if (!profile) {
-    userStore.openAuthModal();
-    showToast('请先登录后再下载云端脚本', 'warning');
+    if (!userStore.authSession) {
+      userStore.openAuthModal();
+      showToast('请先登录后再下载云端脚本', 'warning');
+    }
     return;
   }
 

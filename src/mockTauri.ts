@@ -339,6 +339,141 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
     return stage === 2 || stage === 3 ? stage : 1;
   };
 
+  const formatVersionLabel = (verName: string | null | undefined, verNum: number | null | undefined) => {
+    const name = verName?.trim();
+    if (name) {
+      return `v${name}`;
+    }
+    if (typeof verNum === 'number' && Number.isFinite(verNum)) {
+      return `版本 ${verNum}`;
+    }
+    return '未标记版本';
+  };
+
+  const findPublishedLocalCopy = (state: MockState, cloudScriptId: string) =>
+    [...state.scripts]
+      .filter((script) => script.data.scriptType === 'published' && script.data.cloudId === cloudScriptId)
+      .sort((left, right) => {
+        const rightTime = right.data.updateTime ? new Date(right.data.updateTime).getTime() : 0;
+        const leftTime = left.data.updateTime ? new Date(left.data.updateTime).getTime() : 0;
+        if (rightTime !== leftTime) {
+          return rightTime - leftTime;
+        }
+        return (right.data.verNum ?? 0) - (left.data.verNum ?? 0);
+      })[0] ?? null;
+
+  const buildDownloadPreflight = (state: MockState, cloudScriptId: string, verName: string | null, verNum: number | null) => {
+    const existing = findPublishedLocalCopy(state, cloudScriptId);
+    const remoteVersionLabel = formatVersionLabel(verName, verNum);
+    if (!existing) {
+      return {
+        status: 'noLocalCopy',
+        message: `本地还没有该云端脚本副本，将直接下载 ${remoteVersionLabel} 到本地库。`,
+        localScriptId: null,
+        localVersionLabel: null,
+        remoteVersionLabel,
+        localVerNum: null,
+        remoteVerNum: verNum ?? null,
+      };
+    }
+
+    const localVersionLabel = formatVersionLabel(existing.data.verName, existing.data.verNum);
+    if (typeof existing.data.verNum === 'number' && typeof verNum === 'number') {
+      if (verNum > existing.data.verNum) {
+        return {
+          status: 'upgradeAvailable',
+          message: `本地已有 ${localVersionLabel}，云端当前为 ${remoteVersionLabel}。继续后会更新本地云端副本，并保留原有脚本关联。`,
+          localScriptId: existing.id,
+          localVersionLabel,
+          remoteVersionLabel,
+          localVerNum: existing.data.verNum,
+          remoteVerNum: verNum,
+        };
+      }
+      if (verNum < existing.data.verNum) {
+        return {
+          status: 'downgradeBlocked',
+          message: `本地已有 ${localVersionLabel}，云端当前仅为 ${remoteVersionLabel}。不允许用较旧的云端版本覆盖本地副本。`,
+          localScriptId: existing.id,
+          localVersionLabel,
+          remoteVersionLabel,
+          localVerNum: existing.data.verNum,
+          remoteVerNum: verNum,
+        };
+      }
+    }
+
+    return {
+      status: 'sameVersion',
+      message: `本地已有 ${localVersionLabel}，继续后会用云端 ${remoteVersionLabel} 覆盖当前本地云端副本，并保留原有脚本关联。`,
+      localScriptId: existing.id,
+      localVersionLabel,
+      remoteVersionLabel,
+      localVerNum: existing.data.verNum ?? null,
+      remoteVerNum: verNum ?? null,
+    };
+  };
+
+  const buildUploadPreflight = (state: MockState, scriptId: string) => {
+    const localScript = findScript(state, scriptId);
+    if (!localScript) {
+      throw new Error('脚本不存在');
+    }
+    if (localScript.data.scriptType !== 'dev') {
+      throw new Error('只有开发中 (Dev) 的脚本才能被上传');
+    }
+
+    const cloudScript = findScript(state, scriptId);
+    const localVersionLabel = formatVersionLabel(localScript.data.verName, localScript.data.verNum);
+    if (!cloudScript || cloudScript.data.scriptType !== 'dev') {
+      return {
+        status: 'cloudMissing',
+        message: `云端还没有该脚本，上传 ${localVersionLabel} 时将创建新的云端脚本版本。`,
+        localScriptId: localScript.id,
+        localVersionLabel,
+        remoteVersionLabel: null,
+        localVerNum: localScript.data.verNum ?? null,
+        remoteVerNum: null,
+      };
+    }
+
+    const remoteVersionLabel = formatVersionLabel(cloudScript.data.verName, cloudScript.data.verNum);
+    if (typeof localScript.data.verNum === 'number' && typeof cloudScript.data.verNum === 'number') {
+      if (localScript.data.verNum > cloudScript.data.verNum) {
+        return {
+          status: 'upgradeAvailable',
+          message: `云端当前为 ${remoteVersionLabel}，本地为 ${localVersionLabel}。继续后会将云端脚本更新到本地版本。`,
+          localScriptId: localScript.id,
+          localVersionLabel,
+          remoteVersionLabel,
+          localVerNum: localScript.data.verNum,
+          remoteVerNum: cloudScript.data.verNum,
+        };
+      }
+      if (localScript.data.verNum < cloudScript.data.verNum) {
+        return {
+          status: 'downgradeBlocked',
+          message: `云端当前为 ${remoteVersionLabel}，本地仅为 ${localVersionLabel}。不允许用较旧的本地版本覆盖云端脚本。`,
+          localScriptId: localScript.id,
+          localVersionLabel,
+          remoteVersionLabel,
+          localVerNum: localScript.data.verNum,
+          remoteVerNum: cloudScript.data.verNum,
+        };
+      }
+    }
+
+    return {
+      status: 'sameVersion',
+      message: `云端已存在相同版本 ${remoteVersionLabel}。继续后会覆盖云端当前内容。`,
+      localScriptId: localScript.id,
+      localVersionLabel,
+      remoteVersionLabel,
+      localVerNum: localScript.data.verNum ?? null,
+      remoteVerNum: cloudScript.data.verNum ?? null,
+    };
+  };
+
   const validateScriptEditable = (script: StoredScriptTable | null, fallbackScript?: StoredScriptTable | null) => {
     const target = script ?? fallbackScript ?? null;
     if (target?.data.scriptType === 'published') {
@@ -454,6 +589,13 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return readState().authSession
             ? { success: true, data: readState().authSession, message: null }
             : { success: false, data: null, message: 'No session' };
+        case 'backend_logout':
+          updateState((current) => ({
+            ...current,
+            authSession: null,
+            userProfile: null,
+          }));
+          return { success: true, data: null, message: '登出成功' };
         case 'backend_get_profile':
           return readState().userProfile
             ? { success: true, data: readState().userProfile, message: null }
@@ -487,6 +629,23 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             message: null,
           };
         }
+        case 'backend_preflight_download_script':
+          return {
+            success: true,
+            data: buildDownloadPreflight(
+              readState(),
+              String(args.scriptId),
+              typeof args.verName === 'string' ? args.verName : null,
+              typeof args.verNum === 'number' ? args.verNum : null,
+            ),
+            message: null,
+          };
+        case 'backend_preflight_upload_script':
+          return {
+            success: true,
+            data: buildUploadPreflight(readState(), String(args.scriptId)),
+            message: null,
+          };
         case 'backend_download_script':
           {
             const replaceLocalScriptId =
