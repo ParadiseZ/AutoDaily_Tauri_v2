@@ -33,6 +33,63 @@ struct LocalModelUpload {
     sha256: String,
 }
 
+const USER_PROFILE_CACHE_KEY: &str = "user_profile_cache";
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct CachedUserProfile {
+    username: String,
+    profile: serde_json::Value,
+}
+
+fn load_cached_user_profile(app_handle: &AppHandle, username: &str) -> Option<serde_json::Value> {
+    let store = app_handle.store(APP_STORE).ok()?;
+    let cached = store
+        .get(USER_PROFILE_CACHE_KEY)
+        .and_then(|value| serde_json::from_value::<CachedUserProfile>(value.clone()).ok())?;
+    if cached.username.trim() != username.trim() {
+        return None;
+    }
+    Some(cached.profile)
+}
+
+fn persist_cached_user_profile(
+    app_handle: &AppHandle,
+    username: &str,
+    profile: &serde_json::Value,
+) {
+    let Ok(store) = app_handle.store(APP_STORE) else {
+        return;
+    };
+
+    let payload = CachedUserProfile {
+        username: username.to_string(),
+        profile: profile.clone(),
+    };
+
+    if let Ok(value) = serde_json::to_value(payload) {
+        store.set(USER_PROFILE_CACHE_KEY, value);
+    }
+}
+
+fn clear_cached_user_profile(app_handle: &AppHandle) {
+    if let Ok(store) = app_handle.store(APP_STORE) {
+        store.delete(USER_PROFILE_CACHE_KEY);
+    }
+}
+
+fn should_use_cached_profile(code: i32, message: &str) -> bool {
+    if code == 503 {
+        return true;
+    }
+
+    !(code == 401
+        || code == 403
+        || message.contains("401")
+        || message.contains("Unauthorized")
+        || message.contains("未登录")
+        || message.contains("认证失败"))
+}
+
 #[command]
 pub async fn backend_send_verification_code(
     app_handle: AppHandle,
@@ -76,16 +133,59 @@ pub async fn backend_get_auth_session(app_handle: AppHandle) -> ApiResponse<Auth
 
 #[command]
 pub async fn backend_logout(app_handle: AppHandle) -> ApiResponse<()> {
-    let client = HttpClient::new(app_handle);
+    let client = HttpClient::new(app_handle.clone());
     let _ = client.clear_auth_session();
+    clear_cached_user_profile(&app_handle);
     ApiResponse::success(None, Some("登出成功".to_string()))
 }
 
 #[command]
 pub async fn backend_get_profile(app_handle: AppHandle) -> ApiResponse<serde_json::Value> {
-    let client = HttpClient::new(app_handle);
+    let client = HttpClient::new(app_handle.clone());
     let res: AppResult<BackendApiRes<serde_json::Value>> = client.get("/user/profile").await;
-    trans_api_res(res)
+    let cached_username = client.get_auth_session().map(|session| session.username);
+
+    match res {
+        Ok(api_res) => {
+            if api_res.code == 200 {
+                if let (Some(username), Some(profile)) = (cached_username.as_deref(), api_res.data.as_ref()) {
+                    persist_cached_user_profile(&app_handle, username, profile);
+                }
+                return ApiResponse::success(api_res.data, Some(api_res.message));
+            }
+
+            if let Some(username) = cached_username.as_deref() {
+                if should_use_cached_profile(api_res.code, &api_res.message) {
+                    if let Some(cached_profile) = load_cached_user_profile(&app_handle, username) {
+                        return ApiResponse::success(
+                            Some(cached_profile),
+                            Some("账户信息暂时不可用，已使用本地缓存".to_string()),
+                        );
+                    }
+                } else {
+                    clear_cached_user_profile(&app_handle);
+                }
+            }
+
+            ApiResponse::failed_with_details(
+                None,
+                Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                api_res.details,
+            )
+        }
+        Err(error) => {
+            if let Some(username) = cached_username.as_deref() {
+                if let Some(cached_profile) = load_cached_user_profile(&app_handle, username) {
+                    return ApiResponse::success(
+                        Some(cached_profile),
+                        Some("账户信息暂时不可用，已使用本地缓存".to_string()),
+                    );
+                }
+            }
+
+            ApiResponse::error(Some(app_error_message(error)))
+        }
+    }
 }
 
 #[command]
@@ -116,6 +216,17 @@ pub async fn backend_get_script_change_logs(
 }
 
 #[command]
+pub async fn backend_get_script_cloud_summary(
+    app_handle: AppHandle,
+    script_id: String,
+) -> ApiResponse<serde_json::Value> {
+    let client = HttpClient::new(app_handle);
+    let url = format!("/scripts/{}/summary", script_id);
+    let res: AppResult<BackendApiRes<serde_json::Value>> = client.get(&url).await;
+    trans_api_res(res)
+}
+
+#[command]
 pub async fn backend_redeem_sponsor_code(
     app_handle: AppHandle,
     req: SponsorRedeemReq,
@@ -140,10 +251,11 @@ pub async fn backend_download_script(
     app_handle: AppHandle,
     script_id: String,
     runtime_type: String,
-    current_user_id: Option<String>,
+    _current_user_id: Option<String>,
+    replace_local_script_id: Option<String>,
 ) -> ApiResponse<String> {
     use crate::infrastructure::core::{
-        PolicyGroupId, PolicyId, PolicySetId, ScriptId, TaskId, UserId,
+        PolicyGroupId, PolicyId, PolicySetId, ScriptId, TaskId,
     };
     use crate::infrastructure::db::get_pool;
     let client = HttpClient::new(app_handle.clone());
@@ -176,9 +288,44 @@ pub async fn backend_download_script(
         return ApiResponse::error(Some(error));
     }
 
+    let pool = get_pool();
+    let replacement_target = match replace_local_script_id.as_deref() {
+        Some(local_script_id) if !local_script_id.trim().is_empty() => {
+            match sqlx::query_as::<_, ScriptTable>("SELECT id, `data` FROM scripts WHERE id = ?")
+                .bind(local_script_id)
+                .fetch_optional(pool)
+                .await
+            {
+                Ok(Some(local_script)) => {
+                    if local_script.data.script_type != ScriptType::Published {
+                        return ApiResponse::error(Some("只能覆盖本地云端脚本副本".to_string()));
+                    }
+                    if local_script.data.cloud_id.as_ref().map(|value| value.to_string())
+                        != Some(script_id.clone())
+                    {
+                        return ApiResponse::error(Some("本地脚本与当前云端脚本不匹配，无法覆盖".to_string()));
+                    }
+                    Some(local_script)
+                }
+                Ok(None) => {
+                    return ApiResponse::error(Some("要覆盖的本地脚本不存在".to_string()));
+                }
+                Err(error) => {
+                    return ApiResponse::error(Some(format!("读取本地脚本失败: {}", error)));
+                }
+            }
+        }
+        _ => None,
+    };
+
+    let local_script_id = replacement_target
+        .as_ref()
+        .map(|script| script.id.clone())
+        .unwrap_or_else(ScriptId::new_v7);
+    let existing_local_ver_num = replacement_target.as_ref().map(|script| script.data.ver_num);
+
     // 2. ID Regeneration mapping
     let old_script_id = download_data.script.id.clone();
-    let new_script_id = ScriptId::new_v7();
 
     // Create maps to track old -> new IDs for foreign keys
     let mut policy_map: std::collections::HashMap<PolicyId, PolicyId> =
@@ -189,23 +336,20 @@ pub async fn backend_download_script(
         std::collections::HashMap::new();
 
     // Update Script
-    download_data.script.id = new_script_id.clone();
+    download_data.script.id = local_script_id.clone();
     download_data.script.data.cloud_id = Some(old_script_id);
     download_data.script.data.script_type = ScriptType::Published;
-    rewrite_script_model_paths_for_published(&mut download_data.script, &new_script_id.to_string());
-    // Replace user_id if importing (logged in local user)
-    if let Some(uid_str) = current_user_id {
-        if let Ok(uuid) = uuid::Uuid::parse_str(&uid_str) {
-            download_data.script.data.user_id = UserId::from(uuid);
-        }
-    }
+    rewrite_script_model_paths_for_published(
+        &mut download_data.script,
+        &local_script_id.to_string(),
+    );
 
     // Regenerate and Update Policies
     for policy in download_data.policies.iter_mut() {
         let new_pid = PolicyId::new_v7();
         policy_map.insert(policy.id.clone(), new_pid.clone());
         policy.id = new_pid;
-        policy.script_id = new_script_id.clone();
+        policy.script_id = local_script_id.clone();
     }
 
     // Regenerate and Update Groups
@@ -213,7 +357,7 @@ pub async fn backend_download_script(
         let new_gid = PolicyGroupId::new_v7();
         group_map.insert(group.id.clone(), new_gid.clone());
         group.id = new_gid;
-        group.script_id = new_script_id.clone();
+        group.script_id = local_script_id.clone();
     }
 
     // Regenerate and Update Sets
@@ -221,14 +365,14 @@ pub async fn backend_download_script(
         let new_sid = PolicySetId::new_v7();
         set_map.insert(set.id.clone(), new_sid.clone());
         set.id = new_sid;
-        set.script_id = new_script_id.clone();
+        set.script_id = local_script_id.clone();
     }
 
     // Regenerate and Update Tasks
     for task in download_data.tasks.iter_mut() {
         let new_tid = TaskId::new_v7();
         task.id = new_tid;
-        task.script_id = new_script_id.clone();
+        task.script_id = local_script_id.clone();
     }
 
     // Re-map relation tables
@@ -252,7 +396,7 @@ pub async fn backend_download_script(
 
     if let Err(error) = download_script_models(
         &client,
-        &new_script_id.to_string(),
+        &local_script_id.to_string(),
         &download_data.model_files,
         &local_scripts_dir(&app_handle),
     )
@@ -262,11 +406,16 @@ pub async fn backend_download_script(
     }
 
     // 3. Save to local SQLite in Transaction
-    let pool = get_pool();
     let mut tx = match pool.begin().await {
         Ok(t) => t,
         Err(e) => return ApiResponse::error(Some(format!("开启事务失败: {}", e))),
     };
+
+    if let Some(existing_script) = replacement_target.as_ref() {
+        if let Err(error) = delete_local_script_graph(&mut tx, &existing_script.id).await {
+            return ApiResponse::error(Some(error));
+        }
+    }
 
     // Batch insert all related data
     if let Err(e) = crate::api::domain::script_batch_insert::batch_insert_script_related(
@@ -289,8 +438,14 @@ pub async fn backend_download_script(
     }
 
     ApiResponse::success(
-        Some(new_script_id.to_string()),
-        Some("脚本下载并写入成功".to_string()),
+        Some(local_script_id.to_string()),
+        Some(match existing_local_ver_num {
+            Some(existing_ver_num) if existing_ver_num == download_data.script.data.ver_num => {
+                "相同版本已覆盖到本地库".to_string()
+            }
+            Some(_) => "云端脚本已更新到本地库".to_string(),
+            None => "脚本下载并写入成功".to_string(),
+        }),
     )
 }
 
@@ -1008,6 +1163,55 @@ async fn fetch_upload_author(client: &HttpClient) -> Result<UploadAuthor, String
         id: UserId::from(uuid),
         username: username.to_string(),
     })
+}
+
+async fn delete_local_script_graph(
+    tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+    script_id: &crate::infrastructure::core::ScriptId,
+) -> Result<(), String> {
+    let policy_group_ids: Vec<String> = sqlx::query_scalar("SELECT id FROM policy_groups WHERE script_id = ?")
+        .bind(script_id.to_string())
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(|e| format!("读取本地策略组失败: {}", e))?;
+
+    for group_id in policy_group_ids {
+        sqlx::query("DELETE FROM group_policies WHERE group_id = ?")
+            .bind(group_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| format!("删除本地策略组关联失败: {}", e))?;
+    }
+
+    let policy_set_ids: Vec<String> = sqlx::query_scalar("SELECT id FROM policy_sets WHERE script_id = ?")
+        .bind(script_id.to_string())
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(|e| format!("读取本地策略集失败: {}", e))?;
+
+    for set_id in policy_set_ids {
+        sqlx::query("DELETE FROM set_groups WHERE set_id = ?")
+            .bind(set_id)
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| format!("删除本地策略集关联失败: {}", e))?;
+    }
+
+    for query in [
+        "DELETE FROM policies WHERE script_id = ?",
+        "DELETE FROM script_tasks WHERE script_id = ?",
+        "DELETE FROM policy_groups WHERE script_id = ?",
+        "DELETE FROM policy_sets WHERE script_id = ?",
+        "DELETE FROM scripts WHERE id = ?",
+    ] {
+        sqlx::query(query)
+            .bind(script_id.to_string())
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| format!("删除本地云端脚本旧副本失败: {}", e))?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

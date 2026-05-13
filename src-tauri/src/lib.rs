@@ -11,7 +11,7 @@ pub mod infrastructure;
 
 use crate::api::backend_cmd::{
     backend_download_model, backend_download_script, backend_get_auth_session, backend_get_profile,
-    backend_get_script_change_logs, backend_login, backend_logout, backend_redeem_sponsor_code,
+    backend_get_script_change_logs, backend_get_script_cloud_summary, backend_login, backend_logout, backend_redeem_sponsor_code,
     backend_register, backend_reset_password, backend_search_scripts,
     backend_send_verification_code, backend_update_username, backend_upload_model,
     backend_upload_script,
@@ -193,6 +193,7 @@ pub fn run() {
             backend_get_profile,
             backend_search_scripts,
             backend_get_script_change_logs,
+            backend_get_script_cloud_summary,
             backend_redeem_sponsor_code,
             backend_download_script,
             backend_upload_script,

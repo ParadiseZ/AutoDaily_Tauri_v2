@@ -39,6 +39,14 @@ use tauri::command;
 use tauri::Manager;
 use tauri_plugin_store::StoreExt;
 
+const USER_PROFILE_CACHE_KEY: &str = "user_profile_cache";
+
+#[derive(Debug, Clone, serde::Deserialize)]
+struct CachedRuntimeUserProfile {
+    username: String,
+    profile: serde_json::Value,
+}
+
 struct LoadedScriptBundle {
     script_id: ScriptId,
     script_name: String,
@@ -65,6 +73,33 @@ fn validate_runtime_platform_supported(device_table: &DeviceTable) -> Result<(),
             device_table.data.0.device_name
         )),
     }
+}
+
+fn should_use_cached_profile(code: i32, message: &str) -> bool {
+    if code == 503 {
+        return true;
+    }
+
+    !(code == 401
+        || code == 403
+        || message.contains("401")
+        || message.contains("Unauthorized")
+        || message.contains("未登录")
+        || message.contains("认证失败"))
+}
+
+fn load_cached_runtime_user_profile(
+    app_handle: &tauri::AppHandle,
+    username: &str,
+) -> Option<serde_json::Value> {
+    let store = app_handle.store(APP_STORE).ok()?;
+    let cached = store
+        .get(USER_PROFILE_CACHE_KEY)
+        .and_then(|value| serde_json::from_value::<CachedRuntimeUserProfile>(value.clone()).ok())?;
+    if cached.username.trim() != username.trim() {
+        return None;
+    }
+    Some(cached.profile)
 }
 
 fn load_vision_text_cache_runtime_config(
@@ -501,23 +536,32 @@ async fn validate_published_script_runtime_access(
         return Err("请先登录后再运行云端下载脚本".to_string());
     }
 
-    let profile: BackendApiRes<serde_json::Value> = client
-        .get("/user/profile")
-        .await
-        .map_err(|error| format!("校验云端脚本运行权限失败: {}", error))?;
-
-    if profile.code != 200 {
-        let message = profile.message.trim();
-        return Err(if message.is_empty() {
-            "校验云端脚本运行权限失败".to_string()
-        } else {
-            message.to_string()
-        });
-    }
-
-    let payload = profile
-        .data
-        .ok_or_else(|| "用户资料为空，无法校验云端脚本运行权限".to_string())?;
+    let payload = match client.get::<BackendApiRes<serde_json::Value>>("/user/profile").await {
+        Ok(profile) if profile.code == 200 => profile
+            .data
+            .ok_or_else(|| "用户资料为空，无法校验云端脚本运行权限".to_string())?,
+        Ok(profile) => {
+            if should_use_cached_profile(profile.code, &profile.message) {
+                load_cached_runtime_user_profile(app_handle, &session.username).ok_or_else(|| {
+                    let message = profile.message.trim();
+                    if message.is_empty() {
+                        "校验云端脚本运行权限失败".to_string()
+                    } else {
+                        message.to_string()
+                    }
+                })?
+            } else {
+                let message = profile.message.trim();
+                return Err(if message.is_empty() {
+                    "校验云端脚本运行权限失败".to_string()
+                } else {
+                    message.to_string()
+                });
+            }
+        }
+        Err(error) => load_cached_runtime_user_profile(app_handle, &session.username)
+            .ok_or_else(|| format!("校验云端脚本运行权限失败: {}", error))?,
+    };
     let auth_stage = payload
         .get("authStage")
         .and_then(|value| value.as_i64())

@@ -9,6 +9,7 @@ import type { ScriptVariableCatalog } from '@/types/bindings/ScriptVariableCatal
 import type {
     ScriptAuthorSeed,
     ScriptChangeLogRecord,
+    ScriptCloudSummary,
     MarketPage,
     MarketScriptRecord,
     ScriptSearchInput,
@@ -226,12 +227,31 @@ export const scriptService = {
         }
         return response.data;
     },
+    getCloudSummary: async (scriptId: string): Promise<ScriptCloudSummary | null> => {
+        const response = (await invoke('backend_get_script_cloud_summary', {
+            scriptId,
+        })) as ApiEnvelope<ScriptCloudSummary | null>;
+        if (!response.success) {
+            throw new Error(response.message || '获取云端脚本信息失败');
+        }
+        return response.data ?? null;
+    },
     convertLocalImageToDataUrl: async (imagePath: string): Promise<string> => {
         const base64 = (await invoke('convert_img_to_base64_cmd', { imgPath: imagePath })) as string;
         return `data:image/png;base64,${base64}`;
     },
-    downloadMarketScript: async (scriptId: string, runtimeType: string, currentUserId: string | null) =>
-        (await invoke('backend_download_script', { scriptId, runtimeType, currentUserId })) as ApiEnvelope<string>,
+    downloadMarketScript: async (
+        scriptId: string,
+        runtimeType: string,
+        currentUserId: string | null,
+        replaceLocalScriptId: string | null = null,
+    ) =>
+        (await invoke('backend_download_script', {
+            scriptId,
+            runtimeType,
+            currentUserId,
+            replaceLocalScriptId,
+        })) as ApiEnvelope<string>,
     getYoloLabels: async (path: string): Promise<Array<{ index: number; label: string }>> => {
         const labels = (await invoke('get_yolo_labels_cmd', { path })) as Record<string, string>;
         return Object.entries(labels)

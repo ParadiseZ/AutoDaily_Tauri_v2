@@ -327,6 +327,15 @@ export interface ScriptChangeLogRecord {
     updatedAt: string | null;
 }
 
+export interface ScriptCloudSummary {
+    id: string | null;
+    verName: string | null;
+    verNum: number | null;
+    latestVer: number | null;
+    userName: string | null;
+    updateTime: string | null;
+}
+
 export type ScriptUploadActivityStatus = 'waitingAuth' | 'success' | 'error';
 
 export interface ScriptUploadActivity {

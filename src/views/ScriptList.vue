@@ -15,6 +15,7 @@
       />
 
       <ScriptDetailPanel
+        :current-user-id="userStore.userProfile?.id ?? null"
         :script="selectedScript"
         :upload-activities="selectedUploadActivities"
         @open-editor="openEditor"
@@ -52,7 +53,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import { requestAppConfirm } from '@/services/appDialogService';
-import { createScriptName } from '@/services/scriptService';
+import { createScriptName, scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
@@ -142,6 +143,19 @@ const selectedUploadActivities = computed(() =>
 );
 
 const isPublishedScript = (script: ScriptTableRecord | null | undefined) => script?.data.scriptType === 'published';
+const canCloneScript = (script: ScriptTableRecord | null | undefined, currentUserId: string | null) =>
+  Boolean(script && (script.data.allowClone || script.data.userId === currentUserId));
+
+const formatVersionLabel = (verName: string | null | undefined, verNum: number | null | undefined) => {
+  const name = verName?.trim();
+  if (name) {
+    return `v${name}`;
+  }
+  if (typeof verNum === 'number' && Number.isFinite(verNum)) {
+    return `版本 ${verNum}`;
+  }
+  return '未标记版本';
+};
 
 const pushUploadActivity = (
   scriptId: string,
@@ -375,11 +389,20 @@ const handleUpload = async (scriptId: string) => {
   if (!(await ensureUploadAuth(scriptId))) {
     return;
   }
+  if (!(await ensureUploadVersionConfirmed(scriptId))) {
+    return;
+  }
   await performUpload(scriptId);
 };
 
 const handleClone = async (scriptId: string) => {
   try {
+    const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
+    const currentUserId = userStore.userProfile?.id ?? (await userStore.checkProfile())?.id ?? null;
+    if (!canCloneScript(script, currentUserId)) {
+      showToast('作者未开放克隆权限', 'warning');
+      return;
+    }
     const approved = await requestAppConfirm({
       title: '克隆脚本',
       message: '克隆后会生成一个新的本地脚本副本，是否继续？',
@@ -389,7 +412,7 @@ const handleClone = async (scriptId: string) => {
       return;
     }
 
-    const result = await scriptStore.cloneScript(scriptId, userStore.userProfile?.id || null, false);
+    const result = await scriptStore.cloneScript(scriptId, currentUserId, false);
     if (!result.success) {
       throw new Error(result.message || '克隆失败');
     }
@@ -397,6 +420,57 @@ const handleClone = async (scriptId: string) => {
     await scriptStore.loadScripts();
   } catch (error) {
     showToast(error instanceof Error ? error.message : '克隆失败', 'error');
+  }
+};
+
+const ensureUploadVersionConfirmed = async (scriptId: string) => {
+  try {
+    const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
+    if (!script) {
+      return false;
+    }
+
+    const cloudSummary = await scriptService.getCloudSummary(script.id);
+    if (!cloudSummary) {
+      return true;
+    }
+
+    const localVersion = formatVersionLabel(script.data.verName, script.data.verNum);
+    const cloudVersion = formatVersionLabel(cloudSummary.verName, cloudSummary.verNum);
+
+    let title = '云端脚本更新确认';
+    let message = `云端当前为 ${cloudVersion}，本地准备上传 ${localVersion}。继续后会覆盖云端脚本。`;
+    let confirmText = '继续上传';
+
+    const localVerNum = script.data.verNum ?? null;
+    const cloudVerNum = cloudSummary.verNum ?? null;
+
+    if (typeof localVerNum === 'number' && typeof cloudVerNum === 'number') {
+      if (localVerNum > cloudVerNum) {
+        title = '上传新版本';
+        message = `云端当前为 ${cloudVersion}，本地为 ${localVersion}。继续后会将云端脚本更新到本地版本。`;
+        confirmText = '上传更新';
+      } else if (localVerNum === cloudVerNum) {
+        title = '覆盖相同版本';
+        message = `云端已存在相同版本 ${cloudVersion}。继续后会覆盖云端当前内容。`;
+        confirmText = '覆盖上传';
+      } else {
+        title = '云端版本更高';
+        message = `云端当前为 ${cloudVersion}，本地仅为 ${localVersion}。继续后会用较旧的本地版本覆盖云端脚本。`;
+        confirmText = '仍然上传';
+      }
+    }
+
+    return requestAppConfirm({
+      title,
+      message,
+      confirmText,
+      cancelText: '取消',
+      tone: 'warning',
+    });
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '获取云端版本信息失败', 'error');
+    return false;
   }
 };
 

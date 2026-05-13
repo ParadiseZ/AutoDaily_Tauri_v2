@@ -149,8 +149,12 @@ export const useScriptStore = defineStore('script', () => {
         }
     };
 
-    const downloadMarketScript = (scriptId: string, runtimeType: string, currentUserId: string | null) =>
-        scriptService.downloadMarketScript(scriptId, runtimeType, currentUserId);
+    const downloadMarketScript = (
+        scriptId: string,
+        runtimeType: string,
+        currentUserId: string | null,
+        replaceLocalScriptId: string | null = null,
+    ) => scriptService.downloadMarketScript(scriptId, runtimeType, currentUserId, replaceLocalScriptId);
 
     return {
         cloneScript,

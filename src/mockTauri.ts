@@ -257,6 +257,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
   const findScript = (state: MockState, scriptId: string) =>
     state.scripts.find((script) => script.id === scriptId) ?? null;
 
+  const canCloneScript = (script: StoredScriptTable | null, currentUserId: string | null) =>
+    Boolean(script && (script.data.allowClone || script.data.userId === currentUserId));
+
   const isRunnableRecoveryTask = (state: MockState, scriptId: string, taskId: string) =>
     (state.scriptTasks[scriptId] ?? []).some(
       (task) => task.id === taskId && task.rowType === 'task' && !task.isDeleted,
@@ -466,7 +469,53 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             },
             message: null,
           };
+        case 'backend_get_script_cloud_summary': {
+          const script = findScript(readState(), String(args.scriptId));
+          if (!script || script.data.scriptType !== 'dev') {
+            return { success: true, data: null, message: null };
+          }
+          return {
+            success: true,
+            data: {
+              id: script.id,
+              verName: script.data.verName,
+              verNum: script.data.verNum,
+              latestVer: script.data.latestVer,
+              userName: script.data.userName,
+              updateTime: script.data.updateTime,
+            },
+            message: null,
+          };
+        }
         case 'backend_download_script':
+          {
+            const replaceLocalScriptId =
+              typeof args.replaceLocalScriptId === 'string' && args.replaceLocalScriptId.trim().length > 0
+                ? String(args.replaceLocalScriptId)
+                : null;
+            updateState((current) => {
+              const nextScripts = [...current.scripts];
+              if (replaceLocalScriptId) {
+                const targetIndex = nextScripts.findIndex((script) => script.id === replaceLocalScriptId);
+                if (targetIndex >= 0) {
+                  nextScripts[targetIndex] = {
+                    ...nextScripts[targetIndex],
+                    data: {
+                      ...nextScripts[targetIndex].data,
+                      verName: 'market-version',
+                      verNum: (nextScripts[targetIndex].data.verNum ?? 0) + 1,
+                      latestVer: (nextScripts[targetIndex].data.latestVer ?? 0) + 1,
+                      updateTime: new Date().toISOString(),
+                    },
+                  };
+                }
+              }
+              return {
+                ...current,
+                scripts: nextScripts,
+              };
+            });
+          }
           return {
             success: true,
             data: String(args.scriptId),
@@ -875,10 +924,17 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             let clonedScriptId = '';
           updateState((current) => {
             const sourceScriptId = String(args.sourceScriptId);
+            const currentUserId =
+              typeof args.currentUserId === 'string' && args.currentUserId.trim().length > 0
+                ? String(args.currentUserId)
+                : null;
             const overwriteCloudId = Boolean(args.overwriteCloudId);
             const sourceScript = current.scripts.find((script) => script.id === sourceScriptId);
             if (!sourceScript) {
               return current;
+            }
+            if (!canCloneScript(sourceScript, currentUserId)) {
+              throw new Error('该脚本作者未开放克隆权限');
             }
 
             let nextState = current;
@@ -912,8 +968,8 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
                 scriptType: 'dev',
                 cloudId: overwriteCloudId && isPublished ? sourceCloudId : null,
                 userId:
-                  typeof args.currentUserId === 'string' && args.currentUserId.trim().length > 0
-                    ? args.currentUserId
+                  currentUserId
+                    ? currentUserId
                     : sourceScript.data.userId,
               },
             };

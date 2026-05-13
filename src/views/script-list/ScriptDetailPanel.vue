@@ -47,7 +47,12 @@
           <AppIcon name="cloud-upload" :size="14" />
           上传
         </button>
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('clone', script.id)">
+        <button
+          v-if="canCloneScript"
+          class="app-button app-button-ghost app-toolbar-button"
+          type="button"
+          @click="$emit('clone', script.id)"
+        >
           <AppIcon name="copy" :size="14" />
           {{ cloneButtonLabel }}
         </button>
@@ -197,12 +202,20 @@ import {
 } from '@/utils/presenters';
 
 const props = defineProps<{
+  currentUserId: string | null;
   script: ScriptTableRecord | null;
   uploadActivities: ScriptUploadActivity[];
 }>();
 
 const canEditScript = computed(() => props.script?.data.scriptType !== 'published');
 const canUploadScript = computed(() => props.script?.data.scriptType === 'dev');
+const canCloneScript = computed(() => {
+  if (!props.script) {
+    return false;
+  }
+
+  return props.script.data.allowClone || props.script.data.userId === props.currentUserId;
+});
 const cloneButtonLabel = computed(() => (props.script?.data.scriptType === 'published' ? '克隆为本地脚本' : '克隆'));
 
 defineEmits<{

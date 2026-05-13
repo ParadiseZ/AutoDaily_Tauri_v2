@@ -21,10 +21,7 @@ declare global {
         scripts: StoredScriptTable[];
       };
       reset: () => unknown;
-      seed: (partial: {
-        scripts?: StoredScriptTable[];
-        scriptTasks?: Record<string, Array<Record<string, unknown>>>;
-      }) => unknown;
+      seed: (partial: Record<string, unknown>) => unknown;
     };
   }
 }
@@ -57,10 +54,33 @@ const getStoredScript = async (page: Page) => {
   return state!.scripts[0];
 };
 
-const seedPublishedScript = async (page: Page) => {
+const seedPublishedScript = async (
+  page: Page,
+  options?: { allowClone?: boolean; authSeed?: boolean; authUserId?: string },
+) => {
   const scriptId = `published-${Date.now()}`;
-  await page.evaluate(({ scriptId, emptyVariableCatalog }) => {
+  await page.evaluate(({ scriptId, emptyVariableCatalog, allowClone, authSeed, authUserId }) => {
     window.__AUTODAILY_MOCK__?.seed({
+      authSession: authSeed
+        ? {
+            accessToken: 'mock-access-token',
+            refreshToken: 'mock-refresh-token',
+            username: 'tester',
+            message: null,
+          }
+        : null,
+      userProfile: authSeed
+        ? {
+            id: authUserId,
+            username: 'tester',
+            email: 'tester@example.com',
+            isDeveloper: false,
+            lastScriptUploadTime: '',
+            lastUsernameChangeTime: '',
+            sponsorUntil: null,
+            authStage: 1,
+          }
+        : null,
       scripts: [
         {
           id: scriptId,
@@ -86,7 +106,7 @@ const seedPublishedScript = async (page: Page) => {
             downloadCount: 9,
             scriptType: 'published',
             isValid: true,
-            allowClone: true,
+            allowClone,
             minAppVersion: '0.1.0',
             minRuntimeSchema: 1,
             requiredFeatures: ['onnxInference', 'runtime:rhai', 'device:android'],
@@ -100,7 +120,13 @@ const seedPublishedScript = async (page: Page) => {
         },
       ],
     });
-  }, { scriptId, emptyVariableCatalog });
+  }, {
+    scriptId,
+    emptyVariableCatalog,
+    allowClone: options?.allowClone ?? true,
+    authSeed: options?.authSeed ?? false,
+    authUserId: options?.authUserId ?? 'local-user',
+  });
   await page.reload();
   await expect(page.getByRole('heading', { name: '云端脚本样例' })).toBeVisible();
 };
@@ -321,6 +347,12 @@ test('hides edit and upload actions for published scripts in local list', async 
   await expect(page.getByText('云端脚本需先克隆为本地脚本后，才能编辑或再次上传。')).toBeVisible();
 });
 
+test('hides clone action when published script does not allow cloning', async ({ page }) => {
+  await seedPublishedScript(page, { allowClone: false, authSeed: true, authUserId: 'another-user' });
+
+  await expect(page.getByRole('button', { name: '克隆为本地脚本' })).toHaveCount(0);
+});
+
 test('script market prompts login when opened unauthenticated', async ({ page }) => {
   await page.goto('/market');
 
@@ -329,4 +361,33 @@ test('script market prompts login when opened unauthenticated', async ({ page })
   const authDialog = page.getByRole('dialog', { name: '欢迎回来' });
   await expect(authDialog).toBeVisible();
   await expect(authDialog.getByRole('button', { name: '登录' }).first()).toBeVisible();
+});
+
+test('script market refresh does not reopen login modal when already authenticated', async ({ page }) => {
+  await page.goto('/market');
+  await page.evaluate(() => {
+    window.__AUTODAILY_MOCK__?.reset();
+    window.__AUTODAILY_MOCK__?.seed({
+      authSession: {
+        accessToken: 'mock-access-token',
+        refreshToken: 'mock-refresh-token',
+        username: 'tester',
+        message: null,
+      },
+      userProfile: {
+        id: 'local-user',
+        username: 'tester',
+        email: 'tester@example.com',
+        isDeveloper: false,
+        lastScriptUploadTime: '',
+        lastUsernameChangeTime: '',
+        sponsorUntil: null,
+        authStage: 1,
+      },
+    });
+  });
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: '脚本市场', exact: true })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: '欢迎回来' })).toHaveCount(0);
 });

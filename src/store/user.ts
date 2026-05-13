@@ -29,6 +29,8 @@ interface ResetPasswordPayload {
 
 const isAuthFailure = (message: string | undefined) =>
     Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
+const isSessionStoreFailure = (message: string | undefined) =>
+    Boolean(message && (message.includes('503') || message.includes('Session store unavailable') || message.includes('会话服务')));
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usernamePattern = /^[A-Za-z0-9_]{3,16}$/;
@@ -120,6 +122,7 @@ export const useUserStore = defineStore('user', () => {
     const isAuthModalOpen = ref(false);
     const authSession = ref<AuthSession | null>(null);
     const userProfile = ref<UserProfile | null>(null);
+    const authHydrated = ref(false);
     const profileLoading = ref(false);
     const authSubmitting = ref(false);
     const isLoggedIn = computed(() => Boolean(authSession.value?.accessToken));
@@ -182,7 +185,8 @@ export const useUserStore = defineStore('user', () => {
 
     const hydrateAuthSession = async () => {
         const res = (await invoke('backend_get_auth_session')) as ApiEnvelope<unknown>;
-        authSession.value = res.success ? normalizeAuthSession(res.data) : null;
+        applyAuthSession(res.success ? normalizeAuthSession(res.data) : null);
+        authHydrated.value = true;
         return authSession.value;
     };
 
@@ -198,21 +202,33 @@ export const useUserStore = defineStore('user', () => {
             if (!res.success) {
                 if (isAuthFailure(res.message)) {
                     applyAuthSession(null);
+                    userProfile.value = null;
+                    return null;
                 }
-                userProfile.value = null;
-                return null;
+
+                if (isSessionStoreFailure(res.message)) {
+                    return userProfile.value;
+                }
+
+                return userProfile.value;
             }
 
             const profile = normalizeProfile(res.data);
-            userProfile.value = profile;
-            return profile;
+            if (profile) {
+                userProfile.value = profile;
+            }
+            return userProfile.value;
         } catch (error) {
             const message = error instanceof Error ? error.message : '';
             if (isAuthFailure(message)) {
                 applyAuthSession(null);
+                userProfile.value = null;
+                return null;
             }
-            userProfile.value = null;
-            return null;
+            if (isSessionStoreFailure(message)) {
+                return userProfile.value;
+            }
+            return userProfile.value;
         } finally {
             profileLoading.value = false;
         }
@@ -347,6 +363,7 @@ export const useUserStore = defineStore('user', () => {
 
     return {
         authSession,
+        authHydrated,
         authStage,
         authSubmitting,
         canUsePublishedCloudScripts,
