@@ -257,8 +257,19 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
   const findScript = (state: MockState, scriptId: string) =>
     state.scripts.find((script) => script.id === scriptId) ?? null;
 
-  const canCloneScript = (script: StoredScriptTable | null, currentUserId: string | null) =>
-    Boolean(script && (script.data.allowClone || script.data.userId === currentUserId));
+  const canCloneScript = (
+    script: StoredScriptTable | null,
+    currentUserId: string | null,
+    currentUsername: string | null,
+  ) =>
+    Boolean(
+      script &&
+      (
+        script.data.allowClone ||
+        script.data.userId === currentUserId ||
+        script.data.userName === currentUsername
+      ),
+    );
 
   const isRunnableRecoveryTask = (state: MockState, scriptId: string, taskId: string) =>
     (state.scriptTasks[scriptId] ?? []).some(
@@ -589,6 +600,10 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return readState().authSession
             ? { success: true, data: readState().authSession, message: null }
             : { success: false, data: null, message: 'No session' };
+        case 'backend_get_cached_profile':
+          return readState().userProfile
+            ? { success: true, data: readState().userProfile, message: null }
+            : { success: true, data: null, message: null };
         case 'backend_logout':
           updateState((current) => ({
             ...current,
@@ -1083,16 +1098,14 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             let clonedScriptId = '';
           updateState((current) => {
             const sourceScriptId = String(args.sourceScriptId);
-            const currentUserId =
-              typeof args.currentUserId === 'string' && args.currentUserId.trim().length > 0
-                ? String(args.currentUserId)
-                : null;
+            const currentUserId = current.userProfile?.id ?? null;
+            const currentUsername = current.authSession?.username ?? null;
             const overwriteCloudId = Boolean(args.overwriteCloudId);
             const sourceScript = current.scripts.find((script) => script.id === sourceScriptId);
             if (!sourceScript) {
               return current;
             }
-            if (!canCloneScript(sourceScript, currentUserId)) {
+            if (!canCloneScript(sourceScript, currentUserId, currentUsername)) {
               throw new Error('该脚本作者未开放克隆权限');
             }
 

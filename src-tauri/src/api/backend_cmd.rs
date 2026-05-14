@@ -5,6 +5,13 @@ use crate::constant::sys_conf_path::{APP_STORE, SCRIPTS_CONFIG_KEY};
 use crate::constant::table_name::SCRIPT_TABLE;
 use crate::domain::config::scripts_conf::ScriptsConfig;
 use crate::domain::scripts::script_info::{RuntimeType, ScriptTable, ScriptType};
+use crate::api::infrastructure::profile_cache::{
+    clear_cached_user_profile, load_cached_profile_for_current_session, persist_cached_user_profile,
+};
+use crate::api::infrastructure::script_version_preflight::{
+    build_download_preflight, extract_cloud_summary_version, find_replaceable_local_published_script,
+    format_version_label, version_num_to_i64, ScriptVersionPreflight,
+};
 use crate::infrastructure::core::Serialize;
 use crate::infrastructure::core::UserId;
 use crate::infrastructure::db::DbRepo;
@@ -31,214 +38,6 @@ struct LocalModelUpload {
     local_path: PathBuf,
     size_bytes: u64,
     sha256: String,
-}
-
-const USER_PROFILE_CACHE_KEY: &str = "user_profile_cache";
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct CachedUserProfile {
-    username: String,
-    profile: serde_json::Value,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ScriptVersionPreflight {
-    status: String,
-    message: String,
-    local_script_id: Option<String>,
-    local_version_label: Option<String>,
-    remote_version_label: Option<String>,
-    local_ver_num: Option<i64>,
-    remote_ver_num: Option<i64>,
-}
-
-fn load_cached_user_profile(app_handle: &AppHandle, username: &str) -> Option<serde_json::Value> {
-    let store = app_handle.store(APP_STORE).ok()?;
-    let cached = store
-        .get(USER_PROFILE_CACHE_KEY)
-        .and_then(|value| serde_json::from_value::<CachedUserProfile>(value.clone()).ok())?;
-    if cached.username.trim() != username.trim() {
-        return None;
-    }
-    Some(cached.profile)
-}
-
-fn persist_cached_user_profile(
-    app_handle: &AppHandle,
-    username: &str,
-    profile: &serde_json::Value,
-) {
-    let Ok(store) = app_handle.store(APP_STORE) else {
-        return;
-    };
-
-    let payload = CachedUserProfile {
-        username: username.to_string(),
-        profile: profile.clone(),
-    };
-
-    if let Ok(value) = serde_json::to_value(payload) {
-        store.set(USER_PROFILE_CACHE_KEY, value);
-    }
-}
-
-fn clear_cached_user_profile(app_handle: &AppHandle) {
-    if let Ok(store) = app_handle.store(APP_STORE) {
-        store.delete(USER_PROFILE_CACHE_KEY);
-    }
-}
-
-fn format_version_label(ver_name: Option<&str>, ver_num: Option<i64>) -> String {
-    if let Some(name) = ver_name.map(str::trim).filter(|value| !value.is_empty()) {
-        return format!("v{}", name);
-    }
-    if let Some(number) = ver_num {
-        return format!("版本 {}", number);
-    }
-    "未标记版本".to_string()
-}
-
-fn version_num_to_i64(value: Option<u64>) -> Option<i64> {
-    value.and_then(|number| i64::try_from(number).ok())
-}
-
-async fn find_replaceable_local_published_script(
-    cloud_script_id: &str,
-) -> Result<Option<ScriptTable>, String> {
-    let pool = crate::infrastructure::db::get_pool();
-    let mut scripts: Vec<ScriptTable> = sqlx::query_as("SELECT id, `data` FROM scripts")
-        .fetch_all(pool)
-        .await
-        .map_err(|error| format!("读取本地脚本失败: {}", error))?;
-
-    scripts.retain(|script| {
-        script.data.script_type == ScriptType::Published
-            && script
-                .data
-                .cloud_id
-                .as_ref()
-                .map(|value| value.to_string())
-                .as_deref()
-                == Some(cloud_script_id)
-    });
-
-    scripts.sort_by(|left, right| {
-        let right_time = right
-            .data
-            .update_time
-            .as_ref()
-            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
-            .map(|value| value.timestamp_millis())
-            .unwrap_or(0);
-        let left_time = left
-            .data
-            .update_time
-            .as_ref()
-            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
-            .map(|value| value.timestamp_millis())
-            .unwrap_or(0);
-        right_time
-            .cmp(&left_time)
-            .then_with(|| right.data.ver_num.cmp(&left.data.ver_num))
-    });
-
-    Ok(scripts.into_iter().next())
-}
-
-fn build_download_preflight(
-    existing_local_script: Option<&ScriptTable>,
-    remote_ver_name: Option<&str>,
-    remote_ver_num: Option<i64>,
-) -> ScriptVersionPreflight {
-    let remote_version_label = format_version_label(remote_ver_name, remote_ver_num);
-    let Some(local_script) = existing_local_script else {
-        return ScriptVersionPreflight {
-            status: "noLocalCopy".to_string(),
-            message: format!(
-                "本地还没有该云端脚本副本，将直接下载 {} 到本地库。",
-                remote_version_label
-            ),
-            local_script_id: None,
-            local_version_label: None,
-            remote_version_label: Some(remote_version_label),
-            local_ver_num: None,
-            remote_ver_num,
-        };
-    };
-
-    let local_ver_num = version_num_to_i64(Some(local_script.data.ver_num));
-    let local_version_label =
-        format_version_label(Some(local_script.data.ver_name.as_str()), local_ver_num);
-
-    if let (Some(local_ver_num), Some(remote_ver_num)) = (local_ver_num, remote_ver_num) {
-        if remote_ver_num > local_ver_num {
-            return ScriptVersionPreflight {
-                status: "upgradeAvailable".to_string(),
-                message: format!(
-                    "本地已有 {}，云端当前为 {}。继续后会更新本地云端副本，并保留原有脚本关联。",
-                    local_version_label, remote_version_label
-                ),
-                local_script_id: Some(local_script.id.to_string()),
-                local_version_label: Some(local_version_label),
-                remote_version_label: Some(remote_version_label),
-                local_ver_num: Some(local_ver_num),
-                remote_ver_num: Some(remote_ver_num),
-            };
-        }
-
-        if remote_ver_num < local_ver_num {
-            return ScriptVersionPreflight {
-                status: "downgradeBlocked".to_string(),
-                message: format!(
-                    "本地已有 {}，云端当前仅为 {}。不允许用较旧的云端版本覆盖本地副本。",
-                    local_version_label, remote_version_label
-                ),
-                local_script_id: Some(local_script.id.to_string()),
-                local_version_label: Some(local_version_label),
-                remote_version_label: Some(remote_version_label),
-                local_ver_num: Some(local_ver_num),
-                remote_ver_num: Some(remote_ver_num),
-            };
-        }
-    }
-
-    ScriptVersionPreflight {
-        status: "sameVersion".to_string(),
-        message: format!(
-            "本地已有 {}，继续后会用云端 {} 覆盖当前本地云端副本，并保留原有脚本关联。",
-            local_version_label, remote_version_label
-        ),
-        local_script_id: Some(local_script.id.to_string()),
-        local_version_label: Some(local_version_label),
-        remote_version_label: Some(remote_version_label),
-        local_ver_num,
-        remote_ver_num,
-    }
-}
-
-fn extract_cloud_summary_version(summary: &serde_json::Value) -> (Option<String>, Option<i64>) {
-    let ver_name = summary
-        .get("verName")
-        .and_then(|value| value.as_str())
-        .map(str::to_string);
-    let ver_num = summary
-        .get("verNum")
-        .and_then(|value| value.as_i64().or_else(|| value.as_u64().and_then(|num| i64::try_from(num).ok())));
-    (ver_name, ver_num)
-}
-
-fn should_use_cached_profile(code: i32, message: &str) -> bool {
-    if code == 503 {
-        return true;
-    }
-
-    !(code == 401
-        || code == 403
-        || message.contains("401")
-        || message.contains("Unauthorized")
-        || message.contains("未登录")
-        || message.contains("认证失败"))
 }
 
 #[command]
@@ -285,10 +84,15 @@ pub async fn backend_get_auth_session(app_handle: AppHandle) -> ApiResponse<Auth
 #[command]
 pub async fn backend_logout(app_handle: AppHandle) -> ApiResponse<()> {
     let client = HttpClient::new(app_handle.clone());
-    let _ = client.post("/auth/logout", &()).await;
+    let _: AppResult<BackendApiRes<String>> = client.post("/auth/logout", &()).await;
     let _ = client.clear_auth_session();
     clear_cached_user_profile(&app_handle);
     ApiResponse::success(None, Some("登出成功".to_string()))
+}
+
+#[command]
+pub async fn backend_get_cached_profile(app_handle: AppHandle) -> ApiResponse<serde_json::Value> {
+    ApiResponse::success(load_cached_profile_for_current_session(&app_handle), None)
 }
 
 #[command]
@@ -306,17 +110,8 @@ pub async fn backend_get_profile(app_handle: AppHandle) -> ApiResponse<serde_jso
                 return ApiResponse::success(api_res.data, Some(api_res.message));
             }
 
-            if let Some(username) = cached_username.as_deref() {
-                if should_use_cached_profile(api_res.code, &api_res.message) {
-                    if let Some(cached_profile) = load_cached_user_profile(&app_handle, username) {
-                        return ApiResponse::success(
-                            Some(cached_profile),
-                            Some("账户信息暂时不可用，已使用本地缓存".to_string()),
-                        );
-                    }
-                } else {
-                    clear_cached_user_profile(&app_handle);
-                }
+            if cached_username.is_some() && (api_res.code == 401 || api_res.code == 403) {
+                clear_cached_user_profile(&app_handle);
             }
 
             ApiResponse::failed_with_details(
@@ -325,18 +120,7 @@ pub async fn backend_get_profile(app_handle: AppHandle) -> ApiResponse<serde_jso
                 api_res.details,
             )
         }
-        Err(error) => {
-            if let Some(username) = cached_username.as_deref() {
-                if let Some(cached_profile) = load_cached_user_profile(&app_handle, username) {
-                    return ApiResponse::success(
-                        Some(cached_profile),
-                        Some("账户信息暂时不可用，已使用本地缓存".to_string()),
-                    );
-                }
-            }
-
-            ApiResponse::error(Some(app_error_message(error)))
-        }
+        Err(error) => ApiResponse::error(Some(app_error_message(error))),
     }
 }
 
@@ -529,7 +313,6 @@ pub async fn backend_download_script(
     app_handle: AppHandle,
     script_id: String,
     runtime_type: String,
-    _current_user_id: Option<String>,
     replace_local_script_id: Option<String>,
 ) -> ApiResponse<String> {
     use crate::infrastructure::core::{
@@ -1610,4 +1393,3 @@ fn extract_validation_issue_lines(details: Option<&serde_json::Value>) -> Vec<St
         })
         .collect()
 }
-

@@ -16,6 +16,7 @@
 
       <ScriptDetailPanel
         :current-user-id="userStore.userProfile?.id ?? null"
+        :current-username="userStore.userProfile?.username ?? userStore.authSession?.username ?? null"
         :script="selectedScript"
         :upload-activities="selectedUploadActivities"
         @open-editor="openEditor"
@@ -143,8 +144,17 @@ const selectedUploadActivities = computed(() =>
 );
 
 const isPublishedScript = (script: ScriptTableRecord | null | undefined) => script?.data.scriptType === 'published';
-const canCloneScript = (script: ScriptTableRecord | null | undefined, currentUserId: string | null) =>
-  Boolean(script && (script.data.allowClone || script.data.userId === currentUserId));
+const canCloneScript = (
+  script: ScriptTableRecord | null | undefined,
+  currentUserId: string | null,
+  currentUsername: string | null,
+) =>
+  Boolean(
+    script &&
+      (script.data.allowClone ||
+        script.data.userId === currentUserId ||
+        script.data.userName === currentUsername),
+  );
 
 const pushUploadActivity = (
   scriptId: string,
@@ -267,7 +277,7 @@ const ensureScriptAuthorForSave = async (script: ScriptTableRecord): Promise<Scr
     return fallbackGuestScript(script);
   }
 
-  const profile = userStore.userProfile ?? (await userStore.checkProfile());
+  const profile = userStore.userProfile ?? (await userStore.ensureProfileForAction('保存脚本信息'));
   if (profile) {
     return {
       ...script,
@@ -279,7 +289,7 @@ const ensureScriptAuthorForSave = async (script: ScriptTableRecord): Promise<Scr
     };
   }
 
-  return fallbackGuestScript(script);
+  throw new Error('当前无法确认登录用户，请稍后重试或重新登录');
 };
 
 const handleSaveScriptInfo = async (script: ScriptTableRecord) => {
@@ -389,10 +399,9 @@ const handleUpload = async (scriptId: string) => {
 const handleClone = async (scriptId: string) => {
   try {
     const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
-    const currentUserId =
-      userStore.userProfile?.id ??
-      (userStore.authSession ? (await userStore.ensureProfileForAction('克隆脚本'))?.id ?? null : null);
-    if (!canCloneScript(script, currentUserId)) {
+    const currentUserId = userStore.userProfile?.id ?? null;
+    const currentUsername = userStore.userProfile?.username ?? userStore.authSession?.username ?? null;
+    if (!canCloneScript(script, currentUserId, currentUsername)) {
       showToast('作者未开放克隆权限', 'warning');
       return;
     }
@@ -405,7 +414,7 @@ const handleClone = async (scriptId: string) => {
       return;
     }
 
-    const result = await scriptStore.cloneScript(scriptId, currentUserId, false);
+    const result = await scriptStore.cloneScript(scriptId, false);
     if (!result.success) {
       throw new Error(result.message || '克隆失败');
     }

@@ -133,8 +133,8 @@ export const useScriptStore = defineStore('script', () => {
 
     const uploadScript = (scriptId: string) => scriptService.uploadLocal(scriptId);
 
-    const cloneScript = (sourceScriptId: string, currentUserId: string | null, overwriteCloudId: boolean) =>
-        scriptService.cloneLocal(sourceScriptId, currentUserId, overwriteCloudId);
+    const cloneScript = (sourceScriptId: string, overwriteCloudId: boolean) =>
+        scriptService.cloneLocal(sourceScriptId, overwriteCloudId);
 
     const searchMarket = async (partial?: Partial<ScriptSearchInput>) => {
         marketLoading.value = true;
@@ -152,9 +152,8 @@ export const useScriptStore = defineStore('script', () => {
     const downloadMarketScript = (
         scriptId: string,
         runtimeType: string,
-        currentUserId: string | null,
         replaceLocalScriptId: string | null = null,
-    ) => scriptService.downloadMarketScript(scriptId, runtimeType, currentUserId, replaceLocalScriptId);
+    ) => scriptService.downloadMarketScript(scriptId, runtimeType, replaceLocalScriptId);
 
     return {
         cloneScript,

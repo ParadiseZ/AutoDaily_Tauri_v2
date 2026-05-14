@@ -10,7 +10,7 @@ mod domain;
 pub mod infrastructure;
 
 use crate::api::backend_cmd::{
-    backend_download_model, backend_download_script, backend_get_auth_session, backend_get_profile,
+    backend_download_model, backend_download_script, backend_get_auth_session, backend_get_cached_profile, backend_get_profile,
     backend_get_script_change_logs, backend_get_script_cloud_summary, backend_login, backend_logout,
     backend_preflight_download_script, backend_preflight_upload_script, backend_redeem_sponsor_code,
     backend_register, backend_reset_password, backend_search_scripts,
@@ -190,6 +190,7 @@ pub fn run() {
             backend_register,
             backend_login,
             backend_get_auth_session,
+            backend_get_cached_profile,
             backend_logout,
             backend_get_profile,
             backend_search_scripts,

@@ -1,4 +1,5 @@
 use crate::api::api_response::ApiResponse;
+use crate::api::infrastructure::profile_cache::load_current_authenticated_user;
 use crate::api::infrastructure::runtime_sync::{
     load_assigned_device_ids_by_script, sync_device_sessions_if_online,
 };
@@ -158,14 +159,13 @@ pub async fn get_yolo_labels_cmd(
 }
 
 /// 克隆本地脚本字典逻辑
-/// 1. 权限控制: 如果 allow_clone 为 false 且不属于当前用户，拒绝
+/// 1. 权限控制: 如果 allow_clone 为 false 且不属于当前登录用户，拒绝
 /// 2. 克隆 published -> Dev: 根据入参 `overwrite_cloud_id` 决定是覆盖还是新建
 /// 3. 克隆 Dev -> Dev: 始终作为独立新副本
 #[command]
 pub async fn clone_local_script_cmd(
     app_handle: tauri::AppHandle,
     source_script_id: String,
-    current_user_id: Option<String>,
     overwrite_cloud_id: bool, // 是否覆盖已存在的 cloud_id Dev
 ) -> ApiResponse<String> {
     use crate::domain::scripts::script_info::ScriptType;
@@ -184,10 +184,19 @@ pub async fn clone_local_script_cmd(
         None => return ApiResponse::error(Some("源脚本不存在".to_string())),
     };
 
-    let user_id = current_user_id.unwrap_or_else(|| "".to_string());
+    let current_user = load_current_authenticated_user(&app_handle);
+    let current_user_id = current_user
+        .as_ref()
+        .and_then(|user| user.id.as_deref());
+    let current_username = current_user
+        .as_ref()
+        .map(|user| user.username.as_str());
+    let owner_user_id = script.data.user_id.to_string();
 
     // 2. Permission Check
-    if !script.data.allow_clone && script.data.user_id.to_string() != user_id {
+    let is_script_owner = current_user_id == Some(owner_user_id.as_str())
+        || current_username == script.data.user_name.as_deref();
+    if !script.data.allow_clone && !is_script_owner {
         return ApiResponse::error(Some("该脚本作者未开放克隆权限".to_string()));
     }
 
@@ -206,8 +215,8 @@ pub async fn clone_local_script_cmd(
     script.data.name = format!("{} (Clone)", script.data.name);
     script.data.script_type = ScriptType::Dev;
 
-    if let Ok(uuid) = uuid::Uuid::parse_str(&user_id) {
-        script.data.user_id = UserId::from(uuid);
+    if let Some(user_uuid) = current_user_id.and_then(|value| uuid::Uuid::parse_str(value).ok()) {
+        script.data.user_id = UserId::from(user_uuid);
     }
 
     let mut target_delete_id: Option<ScriptId> = None;

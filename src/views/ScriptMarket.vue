@@ -319,7 +319,6 @@ const downloadSelected = async () => {
     const result = await scriptStore.downloadMarketScript(
       selectedScript.value.id,
       selectedScript.value.runtimeType || 'rhai',
-      userStore.userProfile?.id || null,
       replaceLocalScriptId,
     );
     if (!result.success) {

@@ -122,7 +122,12 @@
     <SurfacePanel tone="muted" padding="sm" class="space-y-4">
       <div class="flex items-center justify-between gap-3">
         <p class="text-sm font-semibold text-(--app-text-strong)">更新日志</p>
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('edit-info', script.id)">
+        <button
+          v-if="canEditScript"
+          class="app-button app-button-ghost app-toolbar-button"
+          type="button"
+          @click="$emit('edit-info', script.id)"
+        >
           <AppIcon name="square-pen" :size="14" />
           编辑
         </button>
@@ -203,6 +208,7 @@ import {
 
 const props = defineProps<{
   currentUserId: string | null;
+  currentUsername: string | null;
   script: ScriptTableRecord | null;
   uploadActivities: ScriptUploadActivity[];
 }>();
@@ -214,7 +220,11 @@ const canCloneScript = computed(() => {
     return false;
   }
 
-  return props.script.data.allowClone || props.script.data.userId === props.currentUserId;
+  return (
+    props.script.data.allowClone ||
+    props.script.data.userId === props.currentUserId ||
+    props.script.data.userName === props.currentUsername
+  );
 });
 const cloneButtonLabel = computed(() => (props.script?.data.scriptType === 'published' ? '克隆为本地脚本' : '克隆'));
 

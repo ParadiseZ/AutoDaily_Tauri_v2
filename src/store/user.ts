@@ -185,6 +185,10 @@ export const useUserStore = defineStore('user', () => {
     const hydrateAuthSession = async () => {
         const res = (await invoke('backend_get_auth_session')) as ApiEnvelope<unknown>;
         applyAuthSession(res.success ? normalizeAuthSession(res.data) : null);
+        if (authSession.value) {
+            const cachedProfileRes = (await invoke('backend_get_cached_profile')) as ApiEnvelope<unknown>;
+            userProfile.value = cachedProfileRes.success ? normalizeProfile(cachedProfileRes.data) : null;
+        }
         authHydrated.value = true;
         return authSession.value;
     };

@@ -204,10 +204,9 @@ export const scriptService = {
     },
     uploadLocal: async (scriptId: string): Promise<ApiEnvelope<unknown>> =>
         (await invoke('backend_upload_script', { scriptId })) as ApiEnvelope<unknown>,
-    cloneLocal: async (sourceScriptId: string, currentUserId: string | null, overwriteCloudId: boolean) =>
+    cloneLocal: async (sourceScriptId: string, overwriteCloudId: boolean) =>
         (await invoke('clone_local_script_cmd', {
             sourceScriptId,
-            currentUserId,
             overwriteCloudId,
         })) as ApiEnvelope<string>,
     searchMarket: async (query: ScriptSearchInput): Promise<MarketPage<MarketScriptRecord>> => {
@@ -268,13 +267,11 @@ export const scriptService = {
     downloadMarketScript: async (
         scriptId: string,
         runtimeType: string,
-        currentUserId: string | null,
         replaceLocalScriptId: string | null = null,
     ) =>
         (await invoke('backend_download_script', {
             scriptId,
             runtimeType,
-            currentUserId,
             replaceLocalScriptId,
         })) as ApiEnvelope<string>,
     getYoloLabels: async (path: string): Promise<Array<{ index: number; label: string }>> => {
