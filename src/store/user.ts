@@ -118,12 +118,16 @@ const normalizeAuthSession = (payload: unknown): AuthSession | null => {
 };
 
 export const useUserStore = defineStore('user', () => {
+    type AuthPendingAction = 'login' | 'register' | 'reset' | 'updateUsername' | null;
+
     const isAuthModalOpen = ref(false);
     const authSession = ref<AuthSession | null>(null);
     const userProfile = ref<UserProfile | null>(null);
     const authHydrated = ref(false);
     const profileLoading = ref(false);
     const authSubmitting = ref(false);
+    const authPendingAction = ref<AuthPendingAction>(null);
+    const verificationCodeSending = ref(false);
     const isLoggedIn = computed(() => Boolean(authSession.value?.accessToken));
     const authStage = computed(() => normalizeAuthStage(userProfile.value?.authStage));
     const isDeveloper = computed(() => userProfile.value?.isDeveloper ?? false);
@@ -259,7 +263,11 @@ export const useUserStore = defineStore('user', () => {
     };
 
     const login = async (payload: LoginPayload) => {
+        if (authSubmitting.value) {
+            return;
+        }
         authSubmitting.value = true;
+        authPendingAction.value = 'login';
         try {
             assertPassword(payload.password);
             const res = (await invoke('backend_login', {
@@ -286,11 +294,16 @@ export const useUserStore = defineStore('user', () => {
             throw error;
         } finally {
             authSubmitting.value = false;
+            authPendingAction.value = null;
         }
     };
 
     const register = async (payload: RegisterPayload) => {
+        if (authSubmitting.value) {
+            return;
+        }
         authSubmitting.value = true;
+        authPendingAction.value = 'register';
         try {
             assertUsername(payload.username);
             assertEmail(payload.email);
@@ -310,20 +323,33 @@ export const useUserStore = defineStore('user', () => {
             throw error;
         } finally {
             authSubmitting.value = false;
+            authPendingAction.value = null;
         }
     };
 
     const sendVerificationCode = async (email: string) => {
-        assertEmail(email);
-        const res = (await invoke('backend_send_verification_code', { email })) as ApiEnvelope<unknown>;
-        if (!res.success) {
-            throw new Error(res.message || '验证码发送失败');
+        if (verificationCodeSending.value) {
+            return;
         }
-        showToast(res.message || '验证码已发送', 'success');
+        assertEmail(email);
+        verificationCodeSending.value = true;
+        try {
+            const res = (await invoke('backend_send_verification_code', { email })) as ApiEnvelope<unknown>;
+            if (!res.success) {
+                throw new Error(res.message || '验证码发送失败');
+            }
+            showToast(res.message || '验证码已发送', 'success');
+        } finally {
+            verificationCodeSending.value = false;
+        }
     };
 
     const resetPassword = async (payload: ResetPasswordPayload) => {
+        if (authSubmitting.value) {
+            return;
+        }
         authSubmitting.value = true;
+        authPendingAction.value = 'reset';
         try {
             assertEmail(payload.email);
             assertPassword(payload.newPassword);
@@ -342,11 +368,16 @@ export const useUserStore = defineStore('user', () => {
             throw error;
         } finally {
             authSubmitting.value = false;
+            authPendingAction.value = null;
         }
     };
 
     const updateUsername = async (newUsername: string) => {
+        if (authSubmitting.value) {
+            return;
+        }
         authSubmitting.value = true;
+        authPendingAction.value = 'updateUsername';
         try {
             const res = (await invoke('backend_update_username', { req: { newUsername } })) as ApiEnvelope<unknown>;
             if (!res.success) {
@@ -372,6 +403,7 @@ export const useUserStore = defineStore('user', () => {
             throw error;
         } finally {
             authSubmitting.value = false;
+            authPendingAction.value = null;
         }
     };
 
@@ -392,6 +424,7 @@ export const useUserStore = defineStore('user', () => {
     return {
         authSession,
         authHydrated,
+        authPendingAction,
         authStage,
         authSubmitting,
         canUsePublishedCloudScripts,
@@ -413,5 +446,6 @@ export const useUserStore = defineStore('user', () => {
         sendVerificationCode,
         updateUsername,
         userProfile,
+        verificationCodeSending,
     };
 });

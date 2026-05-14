@@ -32,9 +32,14 @@
               <AppIcon name="folder-output" :size="16" />
               保存目录
             </button>
-            <button class="app-button app-button-primary shadow-(--app-accent-soft)" type="button" @click="captureFromDevice">
+            <button
+              class="app-button app-button-primary shadow-(--app-accent-soft)"
+              type="button"
+              :disabled="capturePhase !== 'idle'"
+              @click="captureFromDevice"
+            >
               <AppIcon name="camera" :size="16" />
-              设备截图
+              {{ captureButtonLabel }}
             </button>
           </div>
         </div>
@@ -752,6 +757,7 @@ const captureErrorDialog = reactive({
 });
 const folderItems = ref<VisionSourceItem[]>([]);
 const captureItems = ref<VisionSourceItem[]>([]);
+const capturePhase = ref<'idle' | 'capturing' | 'preparing'>('idle');
 const selectedItemId = ref<string | null>(null);
 const selectedPreviewUrl = ref<string | null>(null);
 const selectedDeviceId = ref<string | null>(null);
@@ -837,6 +843,11 @@ const previewTools = [
 
 const selectedItem = computed(() => [...captureItems.value, ...folderItems.value].find((item) => item.id === selectedItemId.value) ?? null);
 const selectedDevice = computed<DeviceTable | null>(() => deviceStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null);
+const captureButtonLabel = computed(() => {
+  if (capturePhase.value === 'preparing') return '正在准备截图环境...';
+  if (capturePhase.value === 'capturing') return '正在截图...';
+  return '设备截图';
+});
 const selectedImagePath = computed(() => selectedItem.value?.path ?? null);
 const selectedImageData = computed(() => selectedItem.value?.imageData ?? null);
 const canRunVision = computed(() => Boolean(selectedImagePath.value || selectedImageData.value));
@@ -1278,10 +1289,14 @@ async function saveCaptureItem(item: VisionSourceItem) {
 }
 
 async function captureFromDevice() {
+  if (capturePhase.value !== 'idle') {
+    return;
+  }
   if (!selectedDevice.value) {
     showToast('请先选择设备', 'warning');
     return;
   }
+  capturePhase.value = 'capturing';
   try {
     let capture;
     try {
@@ -1302,9 +1317,11 @@ async function captureFromDevice() {
         return;
       }
 
+      capturePhase.value = 'preparing';
       const message = await deviceService.prepareCapture(selectedDevice.value.id);
       await deviceStore.refreshRunningDevices();
       showToast(message, 'success');
+      capturePhase.value = 'capturing';
       capture = await visionLabService.captureDevice(selectedDevice.value);
     }
 
@@ -1326,6 +1343,8 @@ async function captureFromDevice() {
   } catch (error) {
     captureErrorDialog.message = error instanceof Error ? error.message : '设备截图失败';
     captureErrorDialog.open = true;
+  } finally {
+    capturePhase.value = 'idle';
   }
 }
 

@@ -17,17 +17,17 @@
       </div>
 
       <div v-if="deviceIds.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <button class="app-button app-button-ghost group text-(--app-text-strong)" type="button" @click="deviceStore.pauseDevices(deviceIds)">
+        <button class="app-button app-button-ghost group text-(--app-text-strong)" type="button" :disabled="hasPendingDeviceAction" @click="deviceStore.pauseDevices(deviceIds)">
           <AppIcon name="pause" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-text-strong) transition-colors" />
-          全部暂停
+          {{ bulkActionLabel.pause }}
         </button>
-        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" @click="deviceStore.stopDevices(deviceIds)">
+        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" :disabled="hasPendingDeviceAction" @click="deviceStore.stopDevices(deviceIds)">
           <AppIcon name="square" :size="14" class="fill-current" />
-          全部停止
+          {{ bulkActionLabel.stop }}
         </button>
-        <button class="app-button app-button-primary shadow-lg shadow-(--app-vibrant-blue)/30 hover:shadow-(--app-vibrant-blue)/50 transition-shadow" type="button" @click="handleStartAllDevices">
+        <button class="app-button app-button-primary shadow-lg shadow-(--app-vibrant-blue)/30 hover:shadow-(--app-vibrant-blue)/50 transition-shadow" type="button" :disabled="hasPendingDeviceAction" @click="handleStartAllDevices">
           <AppIcon name="play" :size="16" class="fill-current" />
-          全部启动
+          {{ bulkActionLabel.start }}
         </button>
       </div>
     </div>
@@ -54,6 +54,8 @@
         :runtime-result="runtimeStore.getRuntimeResult(activeDevice.id)"
         :loading-assignments="Boolean(taskStore.loadingAssignments[activeDevice.id])"
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
+        :device-pending-action="deviceStore.getDevicePendingAction(activeDevice.id)"
+        :device-busy="deviceStore.isDeviceBusy(activeDevice.id)"
         @add-script="handleAddScript"
         @ensure-script-tasks="handleEnsureScriptTasks"
         @open-assignment-settings="handleOpenAssignmentSettings"
@@ -111,6 +113,20 @@ const deviceIds = computed(() => deviceStore.devices.map((device) => device.id))
 const orderedDevices = computed(() =>
   [...deviceStore.devices].sort((left, right) => Number(right.data.enable) - Number(left.data.enable)),
 );
+const hasPendingDeviceAction = computed(() => deviceIds.value.some((deviceId) => deviceStore.isDeviceBusy(deviceId)));
+const bulkActionLabel = computed(() => {
+  const phases = deviceIds.value.map((deviceId) => deviceStore.getDevicePendingAction(deviceId)).filter(Boolean);
+  if (phases.some((phase) => phase === 'spawning' || phase === 'starting')) {
+    return { start: '批量启动中...', pause: '全部暂停', stop: '全部停止' };
+  }
+  if (phases.some((phase) => phase === 'pausing')) {
+    return { start: '全部启动', pause: '批量暂停中...', stop: '全部停止' };
+  }
+  if (phases.some((phase) => phase === 'stopping' || phase === 'shuttingDown')) {
+    return { start: '全部启动', pause: '全部暂停', stop: '批量停止中...' };
+  }
+  return { start: '全部启动', pause: '全部暂停', stop: '全部停止' };
+});
 const activeDevice = computed(() =>
   orderedDevices.value.find((device) => device.id === deviceStore.selectedDeviceId) ?? orderedDevices.value[0] ?? null,
 );
@@ -322,6 +338,9 @@ const handleRunTarget = async (deviceId: string, target: RunTarget) => {
 };
 
 const handleStartDevice = async (deviceId: string) => {
+  if (deviceStore.isDeviceBusy(deviceId)) {
+    return;
+  }
   const error = validateDeviceQueueStart(deviceId);
   if (error) {
     showToast(error, 'warning');
@@ -336,6 +355,9 @@ const handleStartDevice = async (deviceId: string) => {
 };
 
 const handleStartAllDevices = async () => {
+  if (hasPendingDeviceAction.value) {
+    return;
+  }
   for (const deviceId of deviceIds.value) {
     const error = validateDeviceQueueStart(deviceId);
     if (error) {

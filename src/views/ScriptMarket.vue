@@ -28,8 +28,8 @@
       <input v-model.trim="filters.keyword" class="app-input" placeholder="按脚本名称" />
       <input v-model.trim="filters.author" class="app-input" placeholder="按作者" />
       <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="运行时" />
-      <button class="app-button app-button-primary" type="button" @click="search">
-        搜索
+      <button class="app-button app-button-primary" type="button" :disabled="scriptStore.marketLoading" @click="search">
+        {{ scriptStore.marketLoading ? '搜索中...' : '搜索' }}
       </button>
     </SurfacePanel>
 
@@ -127,8 +127,8 @@
           </div>
 
           <div class="flex flex-wrap gap-3">
-            <button class="app-button app-button-primary" type="button" :disabled="Boolean(downloadBlockedReason)" @click="downloadSelected">
-              {{ downloadButtonLabel }}
+            <button class="app-button app-button-primary" type="button" :disabled="Boolean(downloadBlockedReason) || downloadSubmitting" @click="downloadSelected">
+              {{ downloadSubmitting ? '下载中...' : downloadButtonLabel }}
             </button>
             <button class="app-button app-button-ghost" type="button" @click="router.push('/scripts')">
               查看本地库
@@ -172,6 +172,7 @@ const userStore = useUserStore();
 const selectedScriptId = ref<string | null>(null);
 const selectedChangeLogs = ref<Awaited<ReturnType<typeof scriptService.listChangeLogs>>>([]);
 const changeLogsLoading = ref(false);
+const downloadSubmitting = ref(false);
 const filters = reactive({
   keyword: '',
   author: '',
@@ -271,6 +272,9 @@ const loadSelectedChangeLogs = async () => {
 };
 
 const search = async () => {
+  if (scriptStore.marketLoading) {
+    return;
+  }
   if (!userStore.isLoggedIn) {
     userStore.openAuthModal();
     showToast('登录后才能搜索脚本市场', 'warning');
@@ -287,6 +291,9 @@ const search = async () => {
 };
 
 const downloadSelected = async () => {
+  if (downloadSubmitting.value) {
+    return;
+  }
   if (!selectedScript.value) {
     return;
   }
@@ -311,6 +318,7 @@ const downloadSelected = async () => {
   }
 
   try {
+    downloadSubmitting.value = true;
     const replaceLocalScriptId = await confirmDownloadAgainstLocal();
     if (replaceLocalScriptId === false) {
       return;
@@ -328,6 +336,8 @@ const downloadSelected = async () => {
     await scriptStore.loadScripts();
   } catch (error) {
     showToast(error instanceof Error ? error.message : '下载失败', 'error');
+  } finally {
+    downloadSubmitting.value = false;
   }
 };
 

@@ -30,12 +30,13 @@
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">
           <button class="app-button app-button-primary" type="submit" :disabled="userStore.authSubmitting">
-            登录
+            {{ userStore.authPendingAction === 'login' ? '登录中...' : '登录' }}
           </button>
           <button class="app-button app-button-ghost" type="button" @click="currentTab = 'reset'">
             忘记密码
           </button>
         </div>
+        <p v-if="userStore.authPendingAction === 'login'" class="text-xs text-(--app-text-faint)">正在登录并同步账户状态，请稍候...</p>
       </form>
 
       <form v-else-if="currentTab === 'register'" class="grid gap-4" @submit.prevent="handleRegister">
@@ -54,8 +55,13 @@
             <span class="text-sm text-(--app-text-soft)">验证码</span>
             <input v-model.trim="registerForm.code" class="app-input" placeholder="输入邮箱验证码" />
           </label>
-          <button class="app-button app-button-ghost self-end" type="button" @click="sendCode(registerForm.email)">
-            发送验证码
+          <button
+            class="app-button app-button-ghost self-end"
+            type="button"
+            :disabled="userStore.authSubmitting || userStore.verificationCodeSending"
+            @click="sendCode(registerForm.email)"
+          >
+            {{ userStore.verificationCodeSending ? '发送中...' : '发送验证码' }}
           </button>
         </div>
         <label class="grid gap-2">
@@ -64,12 +70,13 @@
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">
           <button class="app-button app-button-primary" type="submit" :disabled="userStore.authSubmitting">
-            创建账户
+            {{ userStore.authPendingAction === 'register' ? '创建中...' : '创建账户' }}
           </button>
           <button class="app-button app-button-ghost" type="button" @click="currentTab = 'login'">
             已有账户
           </button>
         </div>
+        <p v-if="userStore.authPendingAction === 'register'" class="text-xs text-(--app-text-faint)">正在提交注册请求，请稍候...</p>
       </form>
 
       <form v-else class="grid gap-4" @submit.prevent="handleResetPassword">
@@ -82,8 +89,13 @@
             <span class="text-sm text-(--app-text-soft)">验证码</span>
             <input v-model.trim="resetForm.code" class="app-input" placeholder="输入邮箱验证码" />
           </label>
-          <button class="app-button app-button-ghost self-end" type="button" @click="sendCode(resetForm.email)">
-            发送验证码
+          <button
+            class="app-button app-button-ghost self-end"
+            type="button"
+            :disabled="userStore.authSubmitting || userStore.verificationCodeSending"
+            @click="sendCode(resetForm.email)"
+          >
+            {{ userStore.verificationCodeSending ? '发送中...' : '发送验证码' }}
           </button>
         </div>
         <label class="grid gap-2">
@@ -92,12 +104,13 @@
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">
           <button class="app-button app-button-primary" type="submit" :disabled="userStore.authSubmitting">
-            重置密码
+            {{ userStore.authPendingAction === 'reset' ? '重置中...' : '重置密码' }}
           </button>
           <button class="app-button app-button-ghost" type="button" @click="currentTab = 'login'">
             返回登录
           </button>
         </div>
+        <p v-if="userStore.authPendingAction === 'reset'" class="text-xs text-(--app-text-faint)">正在重置密码，请稍候...</p>
       </form>
     </div>
   </AppDialog>

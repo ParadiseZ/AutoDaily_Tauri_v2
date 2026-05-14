@@ -10,21 +10,22 @@
           <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
           <span v-if="status.currentScript">· 正在执行 {{ status.currentScript }}</span>
         </div>
+        <p v-if="devicePendingMessage" class="text-sm font-medium text-(--app-accent)">{{ devicePendingMessage }}</p>
         <p v-if="status.message" class="text-sm text-(--app-text-faint)">{{ status.message }}</p>
       </div>
 
       <div class="flex flex-wrap gap-2">
-        <button class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" @click="$emit('start', device.id)">
+        <button class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" :disabled="deviceBusy" @click="$emit('start', device.id)">
           <AppIcon name="play" :size="16" class="fill-current" />
-          运行队列
+          {{ startButtonLabel }}
         </button>
-        <button class="app-button app-button-ghost group" type="button" @click="$emit('pause', device.id)">
+        <button class="app-button app-button-ghost group" type="button" :disabled="deviceBusy" @click="$emit('pause', device.id)">
           <AppIcon name="pause" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-text-strong) transition-colors" />
-          暂停
+          {{ pauseButtonLabel }}
         </button>
-        <button class="app-button app-button-warning" type="button" @click="$emit('stop', device.id)">
+        <button class="app-button app-button-warning" type="button" :disabled="deviceBusy" @click="$emit('stop', device.id)">
           <AppIcon name="square" :size="14" class="fill-current" />
-          停止
+          {{ stopButtonLabel }}
         </button>
       </div>
     </div>
@@ -88,7 +89,7 @@
             <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
               <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择要追加的脚本" />
               <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
-              <button class="app-button app-button-ghost group" type="button" @click="handleAddScript">
+              <button class="app-button app-button-ghost group" type="button" :disabled="deviceBusy" @click="handleAddScript">
                 <AppIcon name="list-plus" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
                 追加
               </button>
@@ -210,7 +211,7 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2">
-                  <button class="app-button app-button-ghost group" type="button" :disabled="!selectedTemporaryScriptId" @click="handleRunTemporaryScript">
+                  <button class="app-button app-button-ghost group" type="button" :disabled="deviceBusy || !selectedTemporaryScriptId" @click="handleRunTemporaryScript">
                     <AppIcon
                       name="file-play"
                       :size="16"
@@ -218,7 +219,7 @@
                     />
                     运行脚本
                   </button>
-                  <button class="app-button app-button-ghost group" type="button" :disabled="!selectedTemporaryTaskId" @click="handleRunTemporaryTask">
+                  <button class="app-button app-button-ghost group" type="button" :disabled="deviceBusy || !selectedTemporaryTaskId" @click="handleRunTemporaryTask">
                     <AppIcon
                       name="list-checks"
                       :size="16"
@@ -262,7 +263,7 @@
                         <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ row.name }}</p>
                         <p class="mt-1 text-xs text-(--app-text-faint)">Task</p>
                       </div>
-                      <button class="app-button app-button-ghost h-8 px-3 text-sm" type="button" @click.stop="runSpecificTemporaryTask(row.id)">
+                      <button class="app-button app-button-ghost h-8 px-3 text-sm" type="button" :disabled="deviceBusy" @click.stop="runSpecificTemporaryTask(row.id)">
                         运行
                       </button>
                     </div>
@@ -350,6 +351,8 @@ const props = defineProps<{
   runtimeResult: RuntimeResultProjection;
   loadingAssignments: boolean;
   loadingSchedules: boolean;
+  devicePendingAction: 'spawning' | 'starting' | 'pausing' | 'stopping' | 'shuttingDown' | null;
+  deviceBusy: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -451,6 +454,37 @@ const progressPhaseLabels: Record<string, string> = {
   Completed: '已完成',
   Failed: '失败',
 };
+
+const devicePendingMessage = computed(() => {
+  switch (props.devicePendingAction) {
+    case 'spawning':
+      return '正在启动设备子进程...';
+    case 'starting':
+      return '正在启动设备队列...';
+    case 'pausing':
+      return '正在暂停当前设备...';
+    case 'stopping':
+      return '正在停止当前设备...';
+    case 'shuttingDown':
+      return '正在关闭设备子进程...';
+    default:
+      return null;
+  }
+});
+
+const startButtonLabel = computed(() => {
+  if (props.devicePendingAction === 'spawning') return '正在启动子进程...';
+  if (props.devicePendingAction === 'starting') return '正在启动队列...';
+  return '运行队列';
+});
+
+const pauseButtonLabel = computed(() => (props.devicePendingAction === 'pausing' ? '正在暂停...' : '暂停'));
+
+const stopButtonLabel = computed(() => {
+  if (props.devicePendingAction === 'stopping') return '正在停止...';
+  if (props.devicePendingAction === 'shuttingDown') return '正在关闭子进程...';
+  return '停止';
+});
 
 const runtimeProgressLabel = computed(() =>
   progressPhaseLabels[props.runtimeResult.latestProgress?.phase ?? ''] ?? props.runtimeResult.latestProgress?.phase ?? '暂无',

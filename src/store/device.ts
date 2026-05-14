@@ -43,9 +43,12 @@ const toStatusEvent = (payload: unknown): DeviceStatusEvent | null => {
 };
 
 export const useDeviceStore = defineStore('device', () => {
+    type DevicePendingAction = 'spawning' | 'starting' | 'pausing' | 'stopping' | 'shuttingDown';
+
     const devices = ref<DeviceTable[]>([]);
     const onlineDeviceIds = ref<string[]>([]);
     const deviceStatuses = ref<Record<string, DeviceRuntimeStatus>>({});
+    const devicePendingActions = ref<Record<string, DevicePendingAction | null>>({});
     const selectedDeviceId = ref<string | null>(null);
     const loading = ref(false);
     const cpuCount = ref(0);
@@ -90,27 +93,53 @@ export const useDeviceStore = defineStore('device', () => {
         await loadDevices();
     };
 
+    const setDevicePendingAction = (deviceId: string, action: DevicePendingAction | null) => {
+        devicePendingActions.value = {
+            ...devicePendingActions.value,
+            [deviceId]: action,
+        };
+    };
+
     const deleteDevice = async (deviceId: string) => {
         await deviceService.remove(deviceId);
         deviceStatuses.value = Object.fromEntries(
             Object.entries(deviceStatuses.value).filter(([currentId]) => currentId !== deviceId),
+        );
+        devicePendingActions.value = Object.fromEntries(
+            Object.entries(devicePendingActions.value).filter(([currentId]) => currentId !== deviceId),
         );
         await loadDevices();
         await refreshRunningDevices();
     };
 
     const spawnDeviceProcess = async (deviceId: string) => {
-        await deviceService.spawn(deviceId);
-        await refreshRunningDevices();
+        if (isDeviceBusy(deviceId)) {
+            return;
+        }
+        setDevicePendingAction(deviceId, 'spawning');
+        try {
+            await deviceService.spawn(deviceId);
+            await refreshRunningDevices();
+        } finally {
+            setDevicePendingAction(deviceId, null);
+        }
     };
 
     const shutdownDeviceProcess = async (deviceId: string) => {
-        await deviceService.shutdown(deviceId);
-        deviceStatuses.value = {
-            ...deviceStatuses.value,
-            [deviceId]: emptyStatus,
-        };
-        await refreshRunningDevices();
+        if (isDeviceBusy(deviceId)) {
+            return;
+        }
+        setDevicePendingAction(deviceId, 'shuttingDown');
+        try {
+            await deviceService.shutdown(deviceId);
+            deviceStatuses.value = {
+                ...deviceStatuses.value,
+                [deviceId]: emptyStatus,
+            };
+            await refreshRunningDevices();
+        } finally {
+            setDevicePendingAction(deviceId, null);
+        }
     };
 
     const sendTaskStart = async (deviceId: string) => {
@@ -126,24 +155,51 @@ export const useDeviceStore = defineStore('device', () => {
     };
 
     const startDevice = async (deviceId: string) => {
-        if (!onlineDeviceIds.value.includes(deviceId)) {
-            await spawnDeviceProcess(deviceId);
+        if (isDeviceBusy(deviceId)) {
+            return;
         }
-        await sendTaskStart(deviceId);
+        try {
+            if (!onlineDeviceIds.value.includes(deviceId)) {
+                setDevicePendingAction(deviceId, 'spawning');
+                await deviceService.spawn(deviceId);
+                await refreshRunningDevices();
+            }
+            setDevicePendingAction(deviceId, 'starting');
+            await sendTaskStart(deviceId);
+            await refreshRunningDevices();
+        } finally {
+            setDevicePendingAction(deviceId, null);
+        }
     };
 
     const pauseDevice = async (deviceId: string) => {
+        if (isDeviceBusy(deviceId)) {
+            return;
+        }
         if (!onlineDeviceIds.value.includes(deviceId)) {
             return;
         }
-        await sendTaskPause(deviceId);
+        setDevicePendingAction(deviceId, 'pausing');
+        try {
+            await sendTaskPause(deviceId);
+        } finally {
+            setDevicePendingAction(deviceId, null);
+        }
     };
 
     const stopDevice = async (deviceId: string) => {
+        if (isDeviceBusy(deviceId)) {
+            return;
+        }
         if (!onlineDeviceIds.value.includes(deviceId)) {
             return;
         }
-        await sendTaskStop(deviceId);
+        setDevicePendingAction(deviceId, 'stopping');
+        try {
+            await sendTaskStop(deviceId);
+        } finally {
+            setDevicePendingAction(deviceId, null);
+        }
     };
 
     const startDevices = async (deviceIds: string[]) => {
@@ -176,6 +232,8 @@ export const useDeviceStore = defineStore('device', () => {
     };
 
     const isDeviceOnline = (deviceId: string) => onlineDeviceIds.value.includes(deviceId);
+    const getDevicePendingAction = (deviceId: string) => devicePendingActions.value[deviceId] ?? null;
+    const isDeviceBusy = (deviceId: string) => Boolean(getDevicePendingAction(deviceId));
 
     let ipcInitialized = false;
     const initIpcListeners = async () => {
@@ -223,11 +281,14 @@ export const useDeviceStore = defineStore('device', () => {
     return {
         cpuCount,
         deleteDevice,
+        devicePendingActions,
         deviceStatuses,
         deviceSummary,
         devices,
+        getDevicePendingAction,
         getDeviceStatus,
         initIpcListeners,
+        isDeviceBusy,
         isDeviceOnline,
         loadCpuCount,
         loadDevices,
