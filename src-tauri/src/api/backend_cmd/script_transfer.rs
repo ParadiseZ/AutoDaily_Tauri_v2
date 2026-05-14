@@ -7,6 +7,7 @@ pub use market::{
     backend_upload_script,
 };
 pub use model_transfer::{backend_download_model, backend_upload_model};
+pub(crate) use model_transfer::local_scripts_dir;
 
 #[cfg(test)]
 mod tests {

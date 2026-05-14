@@ -134,51 +134,6 @@
       </div>
       <MarkdownView :content="script.data.contentMd" empty-text="当前脚本还没有填写更新日志。" />
     </SurfacePanel>
-
-    <SurfacePanel tone="muted" padding="sm" class="space-y-4">
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <p class="text-sm font-semibold text-(--app-text-strong)">上传记录</p>
-          <p class="text-xs text-(--app-text-faint)">这里显示当前脚本最近几次上传结果，登录后会自动重试待上传请求。</p>
-        </div>
-        <span class="text-xs text-(--app-text-faint)">{{ uploadActivities.length }} 条</span>
-      </div>
-
-      <div v-if="uploadActivities.length" class="space-y-3">
-        <div
-          v-for="activity in uploadActivities"
-          :key="activity.id"
-          class="rounded-[18px] border border-(--app-border) bg-(--app-panel)/55 px-4 py-3"
-        >
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <div class="flex flex-wrap items-center gap-2">
-              <StatusBadge
-                :label="formatUploadActivityStatusLabel(activity.status)"
-                :tone="formatUploadActivityStatusTone(activity.status)"
-              />
-              <span class="text-sm font-medium text-(--app-text-strong)">{{ activity.message }}</span>
-            </div>
-            <span class="text-xs text-(--app-text-faint)">{{ formatDateTime(activity.at) }}</span>
-          </div>
-
-          <div class="mt-3 grid gap-2 text-xs text-(--app-text-soft) md:grid-cols-2">
-            <div class="flex items-center justify-between gap-3">
-              <span>云端关联</span>
-              <span class="truncate text-(--app-text-strong)">{{ activity.cloudId || '首次上传' }}</span>
-            </div>
-            <div class="flex items-center justify-between gap-3">
-              <span>上传账号</span>
-              <span class="truncate text-(--app-text-strong)">{{ activity.username || '未确认' }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <EmptyState
-        v-else
-        title="还没有上传记录"
-        description="上传前会先检查登录态；上传成功、失败或待登录重试，都会记录在这里。"
-      />
-    </SurfacePanel>
   </SurfacePanel>
 
   <EmptyState
@@ -194,23 +149,19 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import MarkdownView from '@/components/shared/MarkdownView.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
-import type { ScriptTableRecord, ScriptUploadActivity } from '@/types/app/domain';
+import type { ScriptTableRecord } from '@/types/app/domain';
 import {
   formatDate,
-  formatDateTime,
   formatNumberLike,
   formatPlatformLabel,
   formatRuntimeLabel,
   formatScriptType,
-  formatUploadActivityStatusLabel,
-  formatUploadActivityStatusTone,
 } from '@/utils/presenters';
 
 const props = defineProps<{
   currentUserId: string | null;
   currentUsername: string | null;
   script: ScriptTableRecord | null;
-  uploadActivities: ScriptUploadActivity[];
 }>();
 
 const canEditScript = computed(() => props.script?.data.scriptType !== 'published');
@@ -222,11 +173,10 @@ const canCloneScript = computed(() => {
 
   return (
     props.script.data.allowClone ||
-    props.script.data.userId === props.currentUserId ||
-    props.script.data.userName === props.currentUsername
+    props.script.data.userId === props.currentUserId
   );
 });
-const cloneButtonLabel = computed(() => (props.script?.data.scriptType === 'published' ? '克隆为本地脚本' : '克隆'));
+const cloneButtonLabel = computed(() => (props.script?.data.scriptType === 'published' ? '克隆' : '克隆'));
 
 defineEmits<{
   'open-editor': [scriptId: string];

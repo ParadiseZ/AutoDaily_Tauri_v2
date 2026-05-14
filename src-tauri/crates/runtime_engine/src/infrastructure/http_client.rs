@@ -2,6 +2,7 @@ use crate::api::backend_dto::{AuthRes, BackendApiRes, RefreshTokenReq};
 use crate::app::app_error::{AppError, AppResult};
 use crate::constant::sys_conf_path::{APP_STORE, AUTH_SESSION_KEY};
 use crate::infrastructure::logging::log_trait::Log;
+use futures_util::StreamExt;
 use machineid_rs::{Encryption, HWIDComponent, IdBuilder};
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize};
@@ -10,6 +11,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
+use tokio_util::io::ReaderStream;
 
 pub fn get_machine_code() -> String {
     static MACHINE_CODE: OnceLock<String> = OnceLock::new();
@@ -56,6 +58,12 @@ struct RemoteServerConfig {
 pub struct HttpClient {
     client: Client,
     app_handle: AppHandle,
+}
+
+#[derive(Debug, Clone)]
+pub struct FileTransferProgress {
+    pub transferred_bytes: u64,
+    pub total_bytes: Option<u64>,
 }
 
 impl HttpClient {
@@ -436,6 +444,20 @@ impl HttpClient {
         target_path: &std::path::Path,
         expected_sha256: Option<&str>,
     ) -> AppResult<()> {
+        self.download_file_with_resume_progress(endpoint, target_path, expected_sha256, |_| {})
+            .await
+    }
+
+    pub async fn download_file_with_resume_progress<F>(
+        &self,
+        endpoint: &str,
+        target_path: &std::path::Path,
+        expected_sha256: Option<&str>,
+        mut on_progress: F,
+    ) -> AppResult<()>
+    where
+        F: FnMut(FileTransferProgress),
+    {
         use reqwest::header::{ETAG, IF_RANGE, RANGE};
         use std::fs::{self, OpenOptions};
         use std::io::Write;
@@ -515,11 +537,6 @@ impl HttpClient {
             let _ = fs::remove_file(&part_path);
         }
 
-        let bytes = response.bytes().await.map_err(|e| AppError::HttpErr {
-            detail: "读取下载文件流失败".to_string(),
-            e: e.to_string(),
-        })?;
-
         let mut file = OpenOptions::new()
             .create(true)
             .write(true)
@@ -531,10 +548,29 @@ impl HttpClient {
                 e: e.to_string(),
             })?;
 
-        file.write_all(&bytes).map_err(|e| AppError::HttpErr {
-            detail: format!("写入临时文件 {} 失败", part_path.display()),
-            e: e.to_string(),
-        })?;
+        let total_bytes = resolve_response_total_bytes(response.headers(), append, resume_from);
+        let mut transferred_bytes = if append { resume_from } else { 0 };
+        on_progress(FileTransferProgress {
+            transferred_bytes,
+            total_bytes,
+        });
+
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| AppError::HttpErr {
+                detail: "读取下载文件流失败".to_string(),
+                e: e.to_string(),
+            })?;
+            file.write_all(&chunk).map_err(|e| AppError::HttpErr {
+                detail: format!("写入临时文件 {} 失败", part_path.display()),
+                e: e.to_string(),
+            })?;
+            transferred_bytes += chunk.len() as u64;
+            on_progress(FileTransferProgress {
+                transferred_bytes,
+                total_bytes,
+            });
+        }
 
         if let Some(etag) = response_etag.as_deref() {
             fs::write(&etag_path, etag).map_err(|e| AppError::HttpErr {
@@ -586,20 +622,92 @@ impl HttpClient {
         file_part_name: &str,
         file_name: &str,
     ) -> AppResult<T> {
+        self.upload_file_with_progress(endpoint, file_path, file_part_name, file_name, |_| {})
+            .await
+    }
+
+    pub async fn upload_file_with_progress<T: DeserializeOwned, F>(
+        &self,
+        endpoint: &str,
+        file_path: &std::path::Path,
+        file_part_name: &str,
+        file_name: &str,
+        mut on_progress: F,
+    ) -> AppResult<T>
+    where
+        F: FnMut(FileTransferProgress) + Send + 'static,
+    {
         let base_url = self.backend_base_url().await;
         let url = format!("{}{}", base_url, endpoint);
-        let file_contents = std::fs::read(file_path).map_err(|e| AppError::HttpErr {
-            detail: format!("读取本地文件 {} 失败", file_path.display()),
-            e: e.to_string(),
-        })?;
+        let file = tokio::fs::File::open(file_path)
+            .await
+            .map_err(|e| AppError::HttpErr {
+                detail: format!("读取本地文件 {} 失败", file_path.display()),
+                e: e.to_string(),
+            })?;
+        let total_bytes = file
+            .metadata()
+            .await
+            .map_err(|e| AppError::HttpErr {
+                detail: format!("读取本地文件 {} 元信息失败", file_path.display()),
+                e: e.to_string(),
+            })?
+            .len();
 
-        let part = reqwest::multipart::Part::bytes(file_contents).file_name(file_name.to_string());
+        on_progress(FileTransferProgress {
+            transferred_bytes: 0,
+            total_bytes: Some(total_bytes),
+        });
+
+        let mut transferred_bytes = 0_u64;
+        let stream = ReaderStream::new(file).map(move |item| {
+            item.map(|bytes| {
+                transferred_bytes += bytes.len() as u64;
+                on_progress(FileTransferProgress {
+                    transferred_bytes,
+                    total_bytes: Some(total_bytes),
+                });
+                bytes
+            })
+        });
+
+        let body = reqwest::Body::wrap_stream(stream);
+        let part = reqwest::multipart::Part::stream_with_length(body, total_bytes)
+            .file_name(file_name.to_string());
 
         let form = reqwest::multipart::Form::new().part(file_part_name.to_string(), part);
         let request = self.client.post(&url).multipart(form);
 
         self.execute(request).await
     }
+}
+
+fn resolve_response_total_bytes(
+    headers: &reqwest::header::HeaderMap,
+    append: bool,
+    resume_from: u64,
+) -> Option<u64> {
+    use reqwest::header::{CONTENT_LENGTH, CONTENT_RANGE};
+
+    if let Some(content_range) = headers.get(CONTENT_RANGE).and_then(|value| value.to_str().ok()) {
+        if let Some((_, total_part)) = content_range.rsplit_once('/') {
+            if let Ok(total) = total_part.parse::<u64>() {
+                return Some(total);
+            }
+        }
+    }
+
+    headers
+        .get(CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(|content_length| {
+            if append {
+                resume_from + content_length
+            } else {
+                content_length
+            }
+        })
 }
 
 fn part_path_for(target_path: &std::path::Path) -> std::path::PathBuf {

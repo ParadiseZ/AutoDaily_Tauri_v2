@@ -18,6 +18,7 @@ import { useSettingsStore } from './store/settings';
 import { useDeviceStore } from './store/device';
 import { useLogsStore } from './store/logs';
 import { useRuntimeStore } from './store/runtime';
+import { useScriptTransferStore } from './store/scriptTransfer';
 import AuthModal from "@/components/AuthModal.vue";
 import AppConfirmHost from "@/components/shared/AppConfirmHost.vue";
 import AppUpdateDialogHost from "@/components/shared/AppUpdateDialogHost.vue";
@@ -30,6 +31,7 @@ const settingsStore = useSettingsStore();
 const deviceStore = useDeviceStore();
 const logsStore = useLogsStore();
 const runtimeStore = useRuntimeStore();
+const scriptTransferStore = useScriptTransferStore();
 
 const layout = computed(() => {
   return route.path === '/editor' || route.path === '/vision-lab' ? 'div' : MainLayout;
@@ -44,6 +46,7 @@ onMounted(async () => {
     deviceStore.initIpcListeners(),
     logsStore.initListener(),
     runtimeStore.initIpcListeners(),
+    scriptTransferStore.initListener(),
   ]);
   void checkForAppUpdateSilently();
 });

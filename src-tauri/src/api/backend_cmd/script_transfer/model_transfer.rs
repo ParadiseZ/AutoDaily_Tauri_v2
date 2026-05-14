@@ -25,9 +25,9 @@ pub(super) struct LocalModelUpload {
 }
 
 #[derive(Clone, Copy)]
-struct ModelTypeSpec {
-    type_name: &'static str,
-    file_name: &'static str,
+pub(super) struct ModelTypeSpec {
+    pub(super) type_name: &'static str,
+    pub(super) file_name: &'static str,
 }
 
 const IMG_DET_MODEL: ModelTypeSpec = ModelTypeSpec {
@@ -51,7 +51,7 @@ pub(super) fn runtime_type_param(runtime_type: &RuntimeType) -> Result<String, S
         .ok_or_else(|| "runtime_type 序列化结果不是字符串".to_string())
 }
 
-pub(super) fn local_scripts_dir(app_handle: &AppHandle) -> PathBuf {
+pub(crate) fn local_scripts_dir(app_handle: &AppHandle) -> PathBuf {
     app_handle
         .store(APP_STORE)
         .map(|store| get_or_init_config::<ScriptsConfig>(store, SCRIPTS_CONFIG_KEY).dir)
@@ -109,45 +109,6 @@ pub(super) fn rewrite_script_model_paths_for_published(script: &mut ScriptTable,
     rewrite_recognizer_model_path(&mut script.data.txt_rec_model, script_id, TXT_REC_MODEL.file_name);
 }
 
-pub(super) async fn download_script_models(
-    client: &HttpClient,
-    local_script_id: &str,
-    model_files: &[ScriptModelFileDto],
-    scripts_root: &Path,
-) -> Result<(), String> {
-    if model_files.is_empty() {
-        return Ok(());
-    }
-
-    let script_dir = scripts_root.join(local_script_id);
-    std::fs::create_dir_all(&script_dir)
-        .map_err(|error| format!("创建脚本模型目录 {} 失败: {}", script_dir.display(), error))?;
-
-    for model in model_files {
-        let target = normalize_model_type(model.r#type.as_str())?;
-        let endpoint = normalize_download_endpoint(model.download_path.as_str())?;
-        if let Some(hash_algorithm) = model.hash_algorithm.as_deref() {
-            if !hash_algorithm.eq_ignore_ascii_case("SHA-256") {
-                return Err(format!(
-                    "模型 {} 使用了不支持的 hash 算法: {}",
-                    model.file_name, hash_algorithm
-                ));
-            }
-        }
-
-        client
-            .download_file_with_resume(
-                endpoint.as_str(),
-                &script_dir.join(target.file_name),
-                model.hash_value.as_deref(),
-            )
-            .await
-            .map_err(|error| format!("下载模型 {} 失败: {}", model.file_name, error))?;
-    }
-
-    Ok(())
-}
-
 pub(super) fn normalize_download_endpoint(download_path: &str) -> Result<String, String> {
     let trimmed = download_path.trim();
     if trimmed.is_empty() {
@@ -162,7 +123,7 @@ pub(super) fn normalize_download_endpoint(download_path: &str) -> Result<String,
     Ok(format!("/{}", trimmed))
 }
 
-fn normalize_model_type(value: &str) -> Result<ModelTypeSpec, String> {
+pub(super) fn normalize_model_type(value: &str) -> Result<ModelTypeSpec, String> {
     match value.trim().to_ascii_lowercase().as_str() {
         "img_det_model" | "img-det-model" | "imgdetmodel" | "det" => Ok(IMG_DET_MODEL),
         "txt_det_model" | "txt-det-model" | "txtdetmodel" | "txt-det" => Ok(TXT_DET_MODEL),

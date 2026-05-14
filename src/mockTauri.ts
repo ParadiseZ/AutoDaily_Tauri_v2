@@ -1,5 +1,5 @@
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
-import type { AuthSession, LogConfig, ScriptTimeTemplateValuesDto, UserProfile } from '@/types/app/domain';
+import type { AuthSession, LogConfig, ScriptTimeTemplateValuesDto, ScriptTransferRecord, UserProfile } from '@/types/app/domain';
 import type { DeviceTable, PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
 
 type StoreData = Record<string, unknown>;
@@ -35,6 +35,7 @@ interface MockState {
   runningDeviceIds: string[];
   runtimeProjections: RuntimeProjectionMap;
   scriptTemplateValues: ScriptTemplateValueMap;
+  transferRecords: ScriptTransferRecord[];
   devices: StoredDeviceTable[];
   timeTemplates: unknown[];
 }
@@ -77,6 +78,7 @@ const createDefaultState = (): MockState => ({
   runningDeviceIds: [],
   runtimeProjections: {},
   scriptTemplateValues: {},
+  transferRecords: [],
   devices: [],
   timeTemplates: [],
 });
@@ -113,6 +115,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         runningDeviceIds: parsed.runningDeviceIds ?? [],
         runtimeProjections: parsed.runtimeProjections ?? {},
         scriptTemplateValues: parsed.scriptTemplateValues ?? {},
+        transferRecords: parsed.transferRecords ?? [],
         devices: parsed.devices ?? [],
         timeTemplates: parsed.timeTemplates ?? [],
       };
@@ -150,6 +153,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       runningDeviceIds: partial.runningDeviceIds ?? current.runningDeviceIds,
       runtimeProjections: partial.runtimeProjections ?? current.runtimeProjections,
       scriptTemplateValues: partial.scriptTemplateValues ?? current.scriptTemplateValues,
+      transferRecords: partial.transferRecords ?? current.transferRecords,
       devices: partial.devices ?? current.devices,
       timeTemplates: partial.timeTemplates ?? current.timeTemplates,
     }));
@@ -228,7 +232,22 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       scriptTemplateValues: Object.fromEntries(
         Object.entries(current.scriptTemplateValues).filter(([, record]) => record.scriptId !== scriptId),
       ),
+      transferRecords: current.transferRecords.filter((record) => record.localScriptId !== scriptId),
     };
+  };
+
+  const upsertTransferRecord = (records: ScriptTransferRecord[], nextRecord: ScriptTransferRecord) => {
+    const next = [...records];
+    const index = next.findIndex((record) => record.id === nextRecord.id);
+    if (index >= 0) {
+      next[index] = nextRecord;
+    } else {
+      next.unshift(nextRecord);
+    }
+    return next.sort(
+      (left, right) =>
+        new Date(right.updatedAt || right.startedAt).getTime() - new Date(left.updatedAt || left.startedAt).getTime(),
+    );
   };
 
   const readStoreValue = (state: MockState, key: string) => {
@@ -661,12 +680,48 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             data: buildUploadPreflight(readState(), String(args.scriptId)),
             message: null,
           };
+        case 'list_script_transfer_records_cmd': {
+          const direction = typeof args.direction === 'string' ? args.direction : null;
+          const localScriptId = typeof args.localScriptId === 'string' ? args.localScriptId : null;
+          const cloudScriptId = typeof args.cloudScriptId === 'string' ? args.cloudScriptId : null;
+          const limit = typeof args.limit === 'number' ? args.limit : 20;
+          return readState().transferRecords
+            .filter((record) => {
+              if (direction && record.direction !== direction) return false;
+              if (localScriptId && record.localScriptId !== localScriptId) return false;
+              if (cloudScriptId && record.cloudScriptId !== cloudScriptId) return false;
+              return true;
+            })
+            .slice(0, limit);
+        }
+        case 'delete_script_transfer_record_cmd':
+          updateState((current) => ({
+            ...current,
+            transferRecords: current.transferRecords.filter((record) => record.id !== String(args.recordId)),
+          }));
+          return null;
+        case 'clear_script_transfer_records_cmd':
+          updateState((current) => ({
+            ...current,
+            transferRecords: current.transferRecords.filter((record) => {
+              const direction = typeof args.direction === 'string' ? args.direction : null;
+              const localScriptId = typeof args.localScriptId === 'string' ? args.localScriptId : null;
+              const cloudScriptId = typeof args.cloudScriptId === 'string' ? args.cloudScriptId : null;
+              if (direction && record.direction !== direction) return true;
+              if (localScriptId && record.localScriptId !== localScriptId) return true;
+              if (cloudScriptId && record.cloudScriptId !== cloudScriptId) return true;
+              return false;
+            }),
+          }));
+          return null;
         case 'backend_download_script':
           {
             const replaceLocalScriptId =
               typeof args.replaceLocalScriptId === 'string' && args.replaceLocalScriptId.trim().length > 0
                 ? String(args.replaceLocalScriptId)
                 : null;
+            const recordId = buildUuid();
+            const now = new Date().toISOString();
             updateState((current) => {
               const nextScripts = [...current.scripts];
               if (replaceLocalScriptId) {
@@ -687,6 +742,25 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
               return {
                 ...current,
                 scripts: nextScripts,
+                transferRecords: upsertTransferRecord(current.transferRecords, {
+                  id: recordId,
+                  direction: 'download',
+                  localScriptId: replaceLocalScriptId,
+                  cloudScriptId: String(args.scriptId),
+                  scriptName: findScript(current, String(args.scriptId))?.data.name ?? '市场脚本',
+                  status: 'success',
+                  modelFileCount: 0,
+                  completedModelFileCount: 0,
+                  latestFileName: null,
+                  bytesTransferred: 0,
+                  totalBytes: 0,
+                  latestMessage: '脚本下载并写入成功',
+                  errorMessage: null,
+                  startedAt: now,
+                  finishedAt: now,
+                  createdAt: now,
+                  updatedAt: now,
+                }),
               };
             });
           }
@@ -694,6 +768,38 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             success: true,
             data: String(args.scriptId),
             message: '脚本下载并写入成功',
+          };
+        case 'backend_upload_script':
+          {
+            const recordId = buildUuid();
+            const now = new Date().toISOString();
+            updateState((current) => ({
+              ...current,
+              transferRecords: upsertTransferRecord(current.transferRecords, {
+                id: recordId,
+                direction: 'upload',
+                localScriptId: String(args.scriptId),
+                cloudScriptId: String(args.scriptId),
+                scriptName: findScript(current, String(args.scriptId))?.data.name ?? '本地脚本',
+                status: 'success',
+                modelFileCount: 0,
+                completedModelFileCount: 0,
+                latestFileName: null,
+                bytesTransferred: 0,
+                totalBytes: 0,
+                latestMessage: '脚本已上传',
+                errorMessage: null,
+                startedAt: now,
+                finishedAt: now,
+                createdAt: now,
+                updatedAt: now,
+              }),
+            }));
+          }
+          return {
+            success: true,
+            data: null,
+            message: '脚本已上传',
           };
         case 'get_log_config_cmd':
           return DEFAULT_LOG_CONFIG;

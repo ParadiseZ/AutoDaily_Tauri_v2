@@ -1,4 +1,5 @@
 use crate::api::api_response::ApiResponse;
+use crate::api::backend_cmd::local_scripts_dir;
 use crate::api::infrastructure::profile_cache::load_current_authenticated_user;
 use crate::api::infrastructure::runtime_sync::{
     load_assigned_device_ids_by_script, sync_device_sessions_if_online,
@@ -63,8 +64,13 @@ pub async fn delete_script_cmd(
     app_handle: tauri::AppHandle,
     script_id: ScriptId,
 ) -> Result<(), String> {
+    let script_dir = local_scripts_dir(&app_handle).join(script_id.to_string());
     let affected_device_ids = load_assigned_device_ids_by_script(script_id).await?;
     DbRepo::delete(SCRIPT_TABLE, &script_id.to_string()).await?;
+    if script_dir.exists() {
+        std::fs::remove_dir_all(&script_dir)
+            .map_err(|error| format!("删除脚本目录 {} 失败: {}", script_dir.display(), error))?;
+    }
     sync_device_sessions_if_online(&app_handle, affected_device_ids).await
 }
 

@@ -4,6 +4,19 @@
       title="脚本市场"
     />
 
+    <ScriptTransferHistoryPanel
+      :title="selectedScript ? `下载记录 · ${selectedScript.name || '未命名脚本'}` : '下载记录'"
+      description="显示当前选中云端脚本的模型下载进度与最近结果。"
+      empty-title="还没有下载记录"
+      empty-description="执行下载后，这里会显示模型传输进度、结果和错误信息。"
+      :open="downloadHistoryOpen"
+      :records="selectedTransferRecords"
+      :get-progress-event="scriptTransferStore.getLatestProgressEvent"
+      @toggle="downloadHistoryOpen = !downloadHistoryOpen"
+      @clear="void handleClearTransferRecords()"
+      @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
+    />
+
     <AppLoadingState v-if="!userStore.authHydrated" label="正在恢复登录状态..." />
 
     <SurfacePanel v-else-if="!userStore.isLoggedIn" class="mx-auto w-full max-w-3xl">
@@ -152,6 +165,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import ScriptTransferHistoryPanel from '@/components/script-transfer/ScriptTransferHistoryPanel.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
@@ -159,6 +173,7 @@ import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import MarkdownView from '@/components/shared/MarkdownView.vue';
 import { useScriptStore } from '@/store/script';
+import { useScriptTransferStore } from '@/store/scriptTransfer';
 import { useUserStore } from '@/store/user';
 import { scriptService } from '@/services/scriptService';
 import { showToast } from '@/utils/toast';
@@ -168,11 +183,13 @@ import { requestAppConfirm } from '@/services/appDialogService';
 
 const router = useRouter();
 const scriptStore = useScriptStore();
+const scriptTransferStore = useScriptTransferStore();
 const userStore = useUserStore();
 const selectedScriptId = ref<string | null>(null);
 const selectedChangeLogs = ref<Awaited<ReturnType<typeof scriptService.listChangeLogs>>>([]);
 const changeLogsLoading = ref(false);
 const downloadSubmitting = ref(false);
+const downloadHistoryOpen = ref(false);
 const filters = reactive({
   keyword: '',
   author: '',
@@ -193,6 +210,14 @@ const runtimeOptions = [
 
 const selectedScript = computed(
   () => scriptStore.marketPage.records.find((script) => script.id === selectedScriptId.value) ?? null,
+);
+const selectedTransferRecords = computed(() =>
+  selectedScript.value
+    ? scriptTransferStore.getRecordsForScope({
+        direction: 'download',
+        cloudScriptId: selectedScript.value.id,
+      })
+    : [],
 );
 const isSelectedIncompatible = computed(() => selectedScript.value?.compatibility?.compatible === false);
 const downloadBlockedReason = computed(() => {
@@ -341,6 +366,30 @@ const downloadSelected = async () => {
   }
 };
 
+const handleDeleteTransferRecord = async (recordId: string) => {
+  try {
+    await scriptTransferStore.deleteRecord(recordId);
+    showToast('传输记录已删除', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '删除记录失败', 'error');
+  }
+};
+
+const handleClearTransferRecords = async () => {
+  if (!selectedScript.value) {
+    return;
+  }
+  try {
+    await scriptTransferStore.clearRecords({
+      direction: 'download',
+      cloudScriptId: selectedScript.value.id,
+    });
+    showToast('下载记录已清空', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '清空记录失败', 'error');
+  }
+};
+
 const enterMarket = async (openModalWhenGuest: boolean) => {
   if (!userStore.authHydrated) {
     return;
@@ -364,7 +413,24 @@ onMounted(() => {
 
 watch(selectedScriptId, () => {
   void loadSelectedChangeLogs();
+  if (selectedScriptId.value) {
+    void scriptTransferStore.loadRecords({
+      direction: 'download',
+      cloudScriptId: selectedScriptId.value,
+      limit: 12,
+    });
+  }
 });
+
+watch(
+  () => selectedTransferRecords.value.some((record) => record.status === 'running'),
+  (hasRunning) => {
+    if (hasRunning) {
+      downloadHistoryOpen.value = true;
+    }
+  },
+  { immediate: true },
+);
 
 watch(
   () => [userStore.authHydrated, userStore.isLoggedIn] as const,

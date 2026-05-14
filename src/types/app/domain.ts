@@ -366,6 +366,49 @@ export interface ScriptUploadActivity {
     autoRetry: boolean;
 }
 
+export type ScriptTransferDirection = 'upload' | 'download';
+export type ScriptTransferStatus = 'running' | 'success' | 'error';
+
+export interface ScriptTransferRecord {
+    id: string;
+    direction: ScriptTransferDirection;
+    localScriptId: string | null;
+    cloudScriptId: string | null;
+    scriptName: string | null;
+    status: ScriptTransferStatus;
+    modelFileCount: number;
+    completedModelFileCount: number;
+    latestFileName: string | null;
+    bytesTransferred: number;
+    totalBytes: number;
+    latestMessage: string | null;
+    errorMessage: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ScriptTransferProgressEvent {
+    id: string;
+    direction: ScriptTransferDirection;
+    localScriptId: string | null;
+    cloudScriptId: string | null;
+    scriptName: string | null;
+    status: ScriptTransferStatus;
+    modelFileCount: number;
+    completedModelFileCount: number;
+    currentFileName: string | null;
+    latestFileName: string | null;
+    bytesTransferred: number;
+    totalBytes: number;
+    latestMessage: string | null;
+    errorMessage: string | null;
+    startedAt: string;
+    finishedAt: string | null;
+    updatedAt: string;
+}
+
 export interface MarketPage<T> {
     records: T[];
     total: number;

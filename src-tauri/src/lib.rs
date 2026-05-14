@@ -37,6 +37,10 @@ use crate::api::domain::scripts::{
     clone_local_script_cmd, delete_script_cmd, get_all_scripts_cmd, get_script_by_id_cmd,
     get_script_tasks_cmd, get_yolo_labels_cmd, save_script_cmd, save_script_tasks_cmd,
 };
+use crate::api::domain::script_transfer_records::{
+    clear_script_transfer_records_cmd, delete_script_transfer_record_cmd,
+    list_script_transfer_records_cmd,
+};
 use crate::api::infrastructure::config::email::{
     get_email_config_cmd, send_test_email_cmd, set_email_config_cmd,
 };
@@ -143,6 +147,9 @@ pub fn run() {
             save_script_tasks_cmd,
             get_yolo_labels_cmd,
             clone_local_script_cmd,
+            list_script_transfer_records_cmd,
+            delete_script_transfer_record_cmd,
+            clear_script_transfer_records_cmd,
             // 策略管理
             get_all_policies_cmd,
             save_policy_cmd,

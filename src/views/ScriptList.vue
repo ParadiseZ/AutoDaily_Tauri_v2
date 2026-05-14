@@ -4,6 +4,19 @@
       title="本地列表"
     />
 
+    <ScriptTransferHistoryPanel
+      :title="selectedScript ? `上传记录 · ${selectedScript.data.name}` : '上传记录'"
+      description="显示当前选中脚本的模型上传进度与最近结果。"
+      empty-title="还没有上传记录"
+      empty-description="执行上传后，这里会显示模型传输进度、结果和错误信息。"
+      :open="uploadHistoryOpen"
+      :records="selectedTransferRecords"
+      :get-progress-event="scriptTransferStore.getLatestProgressEvent"
+      @toggle="uploadHistoryOpen = !uploadHistoryOpen"
+      @clear="void handleClearTransferRecords()"
+      @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
+    />
+
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
     <div class="grid min-h-full gap-4 xl:grid-cols-[300px_minmax(0,1fr)_390px]">
       <ScriptListSidebar
@@ -18,7 +31,6 @@
         :current-user-id="userStore.userProfile?.id ?? null"
         :current-username="userStore.userProfile?.username ?? userStore.authSession?.username ?? null"
         :script="selectedScript"
-        :upload-activities="selectedUploadActivities"
         @open-editor="openEditor"
         @edit-info="openEditDialog"
         @upload="handleUpload"
@@ -52,6 +64,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import ScriptTransferHistoryPanel from '@/components/script-transfer/ScriptTransferHistoryPanel.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import { requestAppConfirm } from '@/services/appDialogService';
 import { createScriptName, scriptService } from '@/services/scriptService';
@@ -62,24 +75,26 @@ import ScriptListSidebar from '@/views/script-list/ScriptListSidebar.vue';
 import ScriptTaskInspector from '@/views/script-list/ScriptTaskInspector.vue';
 import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
+import { useScriptTransferStore } from '@/store/scriptTransfer';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
-import type { ScriptTableRecord, ScriptUploadActivity } from '@/types/app/domain';
+import type { ScriptTableRecord } from '@/types/app/domain';
 import { formatScriptInfoValidationMessage, validateScriptInfo } from '@/utils/scriptInfoValidation';
 import { showToast } from '@/utils/toast';
 
 const router = useRouter();
 const deviceStore = useDeviceStore();
 const scriptStore = useScriptStore();
+const scriptTransferStore = useScriptTransferStore();
 const taskStore = useTaskStore();
 const userStore = useUserStore();
 const searchQuery = ref('');
 const scriptInfoDialogOpen = ref(false);
 const dialogMode = ref<'create' | 'edit'>('create');
 const dialogScript = ref<ScriptTableRecord | null>(null);
-const uploadActivitiesByScriptId = ref<Record<string, ScriptUploadActivity[]>>({});
 const pendingUploadScriptId = ref<string | null>(null);
 const pendingUploadRetrying = ref(false);
+const uploadHistoryOpen = ref(false);
 
 const isAuthFailure = (message?: string | null) =>
   Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
@@ -139,8 +154,13 @@ const selectedScript = computed(() => {
   return filteredScripts.value[0] ?? null;
 });
 
-const selectedUploadActivities = computed(() =>
-  selectedScript.value ? uploadActivitiesByScriptId.value[selectedScript.value.id] ?? [] : [],
+const selectedTransferRecords = computed(() =>
+  selectedScript.value
+    ? scriptTransferStore.getRecordsForScope({
+        direction: 'upload',
+        localScriptId: selectedScript.value.id,
+      })
+    : [],
 );
 
 const isPublishedScript = (script: ScriptTableRecord | null | undefined) => script?.data.scriptType === 'published';
@@ -156,42 +176,8 @@ const canCloneScript = (
         script.data.userName === currentUsername),
   );
 
-const pushUploadActivity = (
-  scriptId: string,
-  activity: Omit<ScriptUploadActivity, 'id' | 'scriptId' | 'at'> & { at?: string },
-) => {
-  const nextActivity: ScriptUploadActivity = {
-    id: `${scriptId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    scriptId,
-    at: activity.at ?? new Date().toISOString(),
-    ...activity,
-  };
-  const current = uploadActivitiesByScriptId.value[scriptId] ?? [];
-  const previous = current[0];
-  const merged =
-    previous &&
-    previous.status === 'waitingAuth' &&
-    nextActivity.status === 'waitingAuth' &&
-    previous.message === nextActivity.message
-      ? [{ ...previous, at: nextActivity.at, autoRetry: nextActivity.autoRetry }]
-      : [nextActivity, ...current];
-
-  uploadActivitiesByScriptId.value = {
-    ...uploadActivitiesByScriptId.value,
-    [scriptId]: merged.slice(0, 6),
-  };
-};
-
 const queueUploadAfterLogin = (scriptId: string, message: string) => {
   pendingUploadScriptId.value = scriptId;
-  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? selectedScript.value;
-  pushUploadActivity(scriptId, {
-    status: 'waitingAuth',
-    message,
-    cloudId: script?.data.cloudId ?? null,
-    username: userStore.userProfile?.username ?? userStore.authSession?.username ?? null,
-    autoRetry: true,
-  });
   userStore.openAuthModal();
   showToast(message, 'warning');
 };
@@ -348,13 +334,6 @@ const performUpload = async (scriptId: string) => {
       throw new Error(message);
     }
     const message = normalizeResultMessage(result.message, '脚本已上传');
-    pushUploadActivity(scriptId, {
-      status: 'success',
-      message,
-      cloudId: script?.data.cloudId ?? scriptId,
-      username: userStore.userProfile?.username ?? userStore.authSession?.username ?? null,
-      autoRetry: false,
-    });
     if (pendingUploadScriptId.value === scriptId) {
       pendingUploadScriptId.value = null;
     }
@@ -367,13 +346,6 @@ const performUpload = async (scriptId: string) => {
       queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
       return;
     }
-    pushUploadActivity(scriptId, {
-      status: 'error',
-      message,
-      cloudId: script?.data.cloudId ?? null,
-      username: userStore.userProfile?.username ?? userStore.authSession?.username ?? null,
-      autoRetry: false,
-    });
     showToast(message, 'error');
   }
 };
@@ -480,6 +452,30 @@ const handleDelete = async (scriptId: string) => {
   }
 };
 
+const handleDeleteTransferRecord = async (recordId: string) => {
+  try {
+    await scriptTransferStore.deleteRecord(recordId);
+    showToast('传输记录已删除', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '删除记录失败', 'error');
+  }
+};
+
+const handleClearTransferRecords = async () => {
+  if (!selectedScript.value) {
+    return;
+  }
+  try {
+    await scriptTransferStore.clearRecords({
+      direction: 'upload',
+      localScriptId: selectedScript.value.id,
+    });
+    showToast('上传记录已清空', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '清空记录失败', 'error');
+  }
+};
+
 onMounted(async () => {
   await Promise.all([scriptStore.loadScripts(), deviceStore.loadDevices()]);
   await taskStore.hydrateForDevices(deviceStore.devices.map((device) => device.id));
@@ -491,7 +487,24 @@ watch(
     if (!scriptId) {
       return;
     }
-    await scriptStore.loadScriptTasks(scriptId);
+    await Promise.all([
+      scriptStore.loadScriptTasks(scriptId),
+      scriptTransferStore.loadRecords({
+        direction: 'upload',
+        localScriptId: scriptId,
+        limit: 12,
+      }),
+    ]);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => selectedTransferRecords.value.some((record) => record.status === 'running'),
+  (hasRunning) => {
+    if (hasRunning) {
+      uploadHistoryOpen.value = true;
+    }
   },
   { immediate: true },
 );

@@ -4,6 +4,7 @@ import type { LogLevel } from '@/types/bindings/LogLevel';
 import type {
     DeviceRuntimeStatus,
     ScriptTableRecord,
+    ScriptTransferStatus,
     ScriptUploadActivityStatus,
 } from '@/types/app/domain';
 import type { TaskCycle } from '@/types/bindings/TaskCycle';
@@ -94,6 +95,18 @@ export const formatUploadActivityStatusLabel = (status: ScriptUploadActivityStat
 
 export const formatUploadActivityStatusTone = (status: ScriptUploadActivityStatus) => {
     if (status === 'waitingAuth') return 'warning';
+    if (status === 'success') return 'success';
+    return 'danger';
+};
+
+export const formatScriptTransferStatusLabel = (status: ScriptTransferStatus) => {
+    if (status === 'running') return '进行中';
+    if (status === 'success') return '已完成';
+    return '失败';
+};
+
+export const formatScriptTransferStatusTone = (status: ScriptTransferStatus) => {
+    if (status === 'running') return 'info';
     if (status === 'success') return 'success';
     return 'danger';
 };

@@ -12,6 +12,7 @@ pub use script_transfer::{
     backend_preflight_upload_script, backend_search_scripts, backend_upload_model,
     backend_upload_script,
 };
+pub(crate) use script_transfer::local_scripts_dir;
 
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_dto::{AuthRes, BackendApiRes};

@@ -39,6 +39,37 @@ const SCHEMA_MIGRATIONS_TABLE_SQL: &str = "CREATE TABLE IF NOT EXISTS schema_mig
             applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )";
 
+const SCRIPT_TRANSFER_RECORDS_TABLE_SQL: &str =
+    "CREATE TABLE IF NOT EXISTS script_transfer_records (
+            id TEXT PRIMARY KEY,
+            direction TEXT NOT NULL,
+            local_script_id TEXT,
+            cloud_script_id TEXT,
+            script_name TEXT,
+            status TEXT NOT NULL DEFAULT 'running',
+            model_file_count INTEGER NOT NULL DEFAULT 0,
+            completed_model_file_count INTEGER NOT NULL DEFAULT 0,
+            latest_file_name TEXT,
+            bytes_transferred INTEGER NOT NULL DEFAULT 0,
+            total_bytes INTEGER NOT NULL DEFAULT 0,
+            latest_message TEXT,
+            error_message TEXT,
+            started_at TEXT NOT NULL,
+            finished_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (local_script_id) REFERENCES scripts(id) ON DELETE CASCADE
+        )";
+
+const SCRIPT_TRANSFER_RECORDS_SCOPE_INDEX_SQL: &str =
+    "CREATE INDEX IF NOT EXISTS idx_script_transfer_records_scope
+        ON script_transfer_records (
+            direction,
+            ifnull(local_script_id, ''),
+            ifnull(cloud_script_id, ''),
+            updated_at DESC
+        )";
+
 pub static POOL: OnceCell<SqlitePool> = OnceCell::const_new();
 
 /// 子进程初始化数据库
@@ -259,6 +290,16 @@ pub async fn init_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
 
+    // 13. 脚本上传下载记录表
+    sqlx::query(SCRIPT_TRANSFER_RECORDS_TABLE_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query(SCRIPT_TRANSFER_RECORDS_SCOPE_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
     apply_schema_migrations(pool).await?;
 
     Ok(())
@@ -292,6 +333,16 @@ async fn apply_schema_migrations(pool: &Pool<Sqlite>) -> Result<(), String> {
             pool,
             "2026043003",
             "ensure_script_time_template_values_scope",
+        )
+        .await?;
+    }
+
+    if should_apply_schema_migration(pool, "2026051401").await? {
+        ensure_script_transfer_records_schema(pool).await?;
+        mark_schema_migration_applied(
+            pool,
+            "2026051401",
+            "ensure_script_transfer_records_schema",
         )
         .await?;
     }
@@ -568,6 +619,18 @@ async fn ensure_script_time_template_values_schema(pool: &Pool<Sqlite>) -> Resul
         .await
         .map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+async fn ensure_script_transfer_records_schema(pool: &Pool<Sqlite>) -> Result<(), String> {
+    sqlx::query(SCRIPT_TRANSFER_RECORDS_TABLE_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query(SCRIPT_TRANSFER_RECORDS_SCOPE_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 

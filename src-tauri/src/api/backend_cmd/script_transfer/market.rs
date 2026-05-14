@@ -1,10 +1,15 @@
 use super::model_transfer::{
-    build_model_file_payload, collect_model_uploads, download_script_models, local_scripts_dir,
-    rewrite_script_model_paths_for_published, runtime_type_param,
+    build_model_file_payload, collect_model_uploads, local_scripts_dir, normalize_download_endpoint,
+    normalize_model_type, rewrite_script_model_paths_for_published, runtime_type_param,
 };
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_dto::*;
 use crate::api::backend_cmd::{app_error_message, format_backend_message, trans_api_res};
+use crate::api::domain::script_transfer_records::{
+    emit_script_transfer_event, finish_script_transfer_record, insert_script_transfer_record,
+    now_rfc3339, CreateScriptTransferRecordInput, FinishScriptTransferRecordInput,
+    ScriptTransferProgressEvent,
+};
 use crate::api::infrastructure::script_version_preflight::{
     build_download_preflight, extract_cloud_summary_version, find_replaceable_local_published_script,
     format_version_label, version_num_to_i64, ScriptVersionPreflight,
@@ -15,12 +20,158 @@ use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
 use crate::infrastructure::core::UserId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::http_client::HttpClient;
+use crate::infrastructure::logging::log_trait::Log;
 use tauri::{command, AppHandle};
 
 #[derive(Debug)]
 struct UploadAuthor {
     id: UserId,
     username: String,
+}
+
+#[derive(Clone)]
+struct ScriptTransferRun {
+    app_handle: AppHandle,
+    id: String,
+    direction: &'static str,
+    local_script_id: Option<String>,
+    cloud_script_id: Option<String>,
+    script_name: Option<String>,
+    model_file_count: i64,
+    total_bytes: i64,
+    started_at: String,
+}
+
+impl ScriptTransferRun {
+    fn new(
+        app_handle: AppHandle,
+        direction: &'static str,
+        local_script_id: Option<String>,
+        cloud_script_id: Option<String>,
+        script_name: Option<String>,
+        model_file_count: i64,
+        total_bytes: i64,
+    ) -> Self {
+        Self {
+            app_handle,
+            id: uuid::Uuid::now_v7().to_string(),
+            direction,
+            local_script_id,
+            cloud_script_id,
+            script_name,
+            model_file_count,
+            total_bytes,
+            started_at: now_rfc3339(),
+        }
+    }
+
+    async fn start(&self, latest_message: Option<String>) {
+        if let Err(error) = insert_script_transfer_record(CreateScriptTransferRecordInput {
+            id: self.id.clone(),
+            direction: self.direction.to_string(),
+            local_script_id: self.local_script_id.clone(),
+            cloud_script_id: self.cloud_script_id.clone(),
+            script_name: self.script_name.clone(),
+            status: "running".to_string(),
+            model_file_count: self.model_file_count,
+            completed_model_file_count: 0,
+            latest_file_name: None,
+            bytes_transferred: 0,
+            total_bytes: self.total_bytes,
+            latest_message: latest_message.clone(),
+            error_message: None,
+            started_at: self.started_at.clone(),
+            finished_at: None,
+        })
+        .await
+        {
+            Log::error(&format!("写入传输记录失败: {}", error));
+        }
+
+        self.emit(
+            "running",
+            0,
+            None,
+            None,
+            0,
+            latest_message,
+            None,
+            None,
+        );
+    }
+
+    fn emit(
+        &self,
+        status: &str,
+        completed_model_file_count: i64,
+        current_file_name: Option<String>,
+        latest_file_name: Option<String>,
+        bytes_transferred: i64,
+        latest_message: Option<String>,
+        error_message: Option<String>,
+        finished_at: Option<String>,
+    ) {
+        emit_script_transfer_event(
+            &self.app_handle,
+            &ScriptTransferProgressEvent {
+                id: self.id.clone(),
+                direction: self.direction.to_string(),
+                local_script_id: self.local_script_id.clone(),
+                cloud_script_id: self.cloud_script_id.clone(),
+                script_name: self.script_name.clone(),
+                status: status.to_string(),
+                model_file_count: self.model_file_count,
+                completed_model_file_count,
+                current_file_name,
+                latest_file_name,
+                bytes_transferred,
+                total_bytes: self.total_bytes,
+                latest_message,
+                error_message,
+                started_at: self.started_at.clone(),
+                finished_at,
+                updated_at: now_rfc3339(),
+            },
+        );
+    }
+
+    async fn finish(
+        &self,
+        status: &str,
+        completed_model_file_count: i64,
+        latest_file_name: Option<String>,
+        bytes_transferred: i64,
+        latest_message: Option<String>,
+        error_message: Option<String>,
+    ) {
+        let finished_at = Some(now_rfc3339());
+        if let Err(error) = finish_script_transfer_record(FinishScriptTransferRecordInput {
+            id: self.id.clone(),
+            status: status.to_string(),
+            completed_model_file_count,
+            latest_file_name: latest_file_name.clone(),
+            bytes_transferred,
+            total_bytes: self.total_bytes,
+            latest_message: latest_message.clone(),
+            error_message: error_message.clone(),
+            finished_at: finished_at.clone(),
+        })
+        .await
+        {
+            Log::error(&format!("更新传输记录失败: {}", error));
+        }
+
+        self.emit(
+            status,
+            completed_model_file_count,
+            None,
+            latest_file_name,
+            bytes_transferred,
+            latest_message,
+            error_message,
+            finished_at,
+        );
+    }
 }
 
 #[command]
@@ -333,24 +484,198 @@ pub async fn backend_download_script(
         }
     }
 
-    if let Err(error) = download_script_models(
-        &client,
-        &local_script_id.to_string(),
-        &download_data.model_files,
-        &local_scripts_dir(&app_handle),
-    )
-    .await
-    {
-        return ApiResponse::error(Some(error));
+    let transfer_total_bytes = download_data
+        .model_files
+        .iter()
+        .map(|model| model.size_bytes.unwrap_or(0) as i64)
+        .sum::<i64>();
+    let transfer_model_count = download_data.model_files.len() as i64;
+    let transfer_run = ScriptTransferRun::new(
+        app_handle.clone(),
+        "download",
+        Some(local_script_id.to_string()),
+        Some(script_id.clone()),
+        Some(download_data.script.data.name.clone()),
+        transfer_model_count,
+        transfer_total_bytes,
+    );
+    transfer_run
+        .start(Some(if transfer_model_count > 0 {
+            "正在下载模型文件".to_string()
+        } else {
+            "正在写入脚本数据".to_string()
+        }))
+        .await;
+
+    let scripts_root = local_scripts_dir(&app_handle);
+    let script_dir = scripts_root.join(local_script_id.to_string());
+    if let Err(error) = std::fs::create_dir_all(&script_dir) {
+        transfer_run
+            .finish(
+                "error",
+                0,
+                None,
+                0,
+                Some("创建脚本模型目录失败".to_string()),
+                Some(error.to_string()),
+            )
+            .await;
+        return ApiResponse::error(Some(format!(
+            "创建脚本模型目录 {} 失败: {}",
+            script_dir.display(),
+            error
+        )));
+    }
+
+    let mut completed_model_count = 0_i64;
+    let mut bytes_transferred = 0_i64;
+    let mut latest_file_name: Option<String> = None;
+
+    for model in &download_data.model_files {
+        let normalized_type = match normalize_model_type(model.r#type.as_str()) {
+            Ok(value) => value,
+            Err(error) => {
+                transfer_run
+                    .finish(
+                        "error",
+                        completed_model_count,
+                        latest_file_name.clone(),
+                        bytes_transferred,
+                        Some("解析模型类型失败".to_string()),
+                        Some(error.clone()),
+                    )
+                    .await;
+                return ApiResponse::error(Some(error));
+            }
+        };
+        let endpoint = match normalize_download_endpoint(model.download_path.as_str()) {
+            Ok(value) => value,
+            Err(error) => {
+                transfer_run
+                    .finish(
+                        "error",
+                        completed_model_count,
+                        latest_file_name.clone(),
+                        bytes_transferred,
+                        Some("解析模型下载地址失败".to_string()),
+                        Some(error.clone()),
+                    )
+                    .await;
+                return ApiResponse::error(Some(error));
+            }
+        };
+        if let Some(hash_algorithm) = model.hash_algorithm.as_deref() {
+            if !hash_algorithm.eq_ignore_ascii_case("SHA-256") {
+                let error = format!(
+                    "模型 {} 使用了不支持的 hash 算法: {}",
+                    model.file_name, hash_algorithm
+                );
+                transfer_run
+                    .finish(
+                        "error",
+                        completed_model_count,
+                        latest_file_name.clone(),
+                        bytes_transferred,
+                        Some("模型校验配置不支持".to_string()),
+                        Some(error.clone()),
+                    )
+                    .await;
+                return ApiResponse::error(Some(error));
+            }
+        }
+
+        latest_file_name = Some(model.file_name.clone());
+        transfer_run.emit(
+            "running",
+            completed_model_count,
+            latest_file_name.clone(),
+            latest_file_name.clone(),
+            bytes_transferred,
+            Some(format!("正在下载模型 {}", model.file_name)),
+            None,
+            None,
+        );
+
+        let completed_bytes_before = bytes_transferred;
+        let download_result = client
+            .download_file_with_resume_progress(
+                endpoint.as_str(),
+                &script_dir.join(normalized_type.file_name),
+                model.hash_value.as_deref(),
+                |progress| {
+                    let current_file_bytes = progress.transferred_bytes as i64;
+                    transfer_run.emit(
+                        "running",
+                        completed_model_count,
+                        latest_file_name.clone(),
+                        latest_file_name.clone(),
+                        completed_bytes_before + current_file_bytes,
+                        Some(format!("正在下载模型 {}", model.file_name)),
+                        None,
+                        None,
+                    );
+                },
+            )
+            .await;
+
+        if let Err(error) = download_result {
+            let error_message = format!("下载模型 {} 失败: {}", model.file_name, error);
+            transfer_run
+                .finish(
+                    "error",
+                    completed_model_count,
+                    latest_file_name.clone(),
+                    bytes_transferred,
+                    Some(error_message.clone()),
+                    Some(error.to_string()),
+                )
+                .await;
+            return ApiResponse::error(Some(error_message));
+        }
+
+        completed_model_count += 1;
+        bytes_transferred = completed_bytes_before + model.size_bytes.unwrap_or(0) as i64;
+        transfer_run.emit(
+            "running",
+            completed_model_count,
+            latest_file_name.clone(),
+            latest_file_name.clone(),
+            bytes_transferred,
+            Some(format!("模型 {} 下载完成", model.file_name)),
+            None,
+            None,
+        );
     }
 
     let mut tx = match pool.begin().await {
         Ok(transaction) => transaction,
-        Err(error) => return ApiResponse::error(Some(format!("开启事务失败: {}", error))),
+        Err(error) => {
+            transfer_run
+                .finish(
+                    "error",
+                    completed_model_count,
+                    latest_file_name.clone(),
+                    bytes_transferred,
+                    Some("开启事务失败".to_string()),
+                    Some(error.to_string()),
+                )
+                .await;
+            return ApiResponse::error(Some(format!("开启事务失败: {}", error)));
+        }
     };
 
     if let Some(existing_script) = replacement_target.as_ref() {
         if let Err(error) = delete_local_script_graph(&mut tx, &existing_script.id).await {
+            transfer_run
+                .finish(
+                    "error",
+                    completed_model_count,
+                    latest_file_name.clone(),
+                    bytes_transferred,
+                    Some("删除本地旧副本失败".to_string()),
+                    Some(error.clone()),
+                )
+                .await;
             return ApiResponse::error(Some(error));
         }
     }
@@ -367,22 +692,54 @@ pub async fn backend_download_script(
     )
     .await
     {
+        transfer_run
+            .finish(
+                "error",
+                completed_model_count,
+                latest_file_name.clone(),
+                bytes_transferred,
+                Some("写入本地脚本失败".to_string()),
+                Some(error.clone()),
+            )
+            .await;
         return ApiResponse::error(Some(error));
     }
 
     if let Err(error) = tx.commit().await {
+        transfer_run
+            .finish(
+                "error",
+                completed_model_count,
+                latest_file_name.clone(),
+                bytes_transferred,
+                Some("提交事务失败".to_string()),
+                Some(error.to_string()),
+            )
+            .await;
         return ApiResponse::error(Some(format!("提交事务失败: {}", error)));
     }
 
+    let success_message = match existing_local_ver_num {
+        Some(existing_ver_num) if existing_ver_num == download_data.script.data.ver_num => {
+            "相同版本已覆盖到本地库".to_string()
+        }
+        Some(_) => "云端脚本已更新到本地库".to_string(),
+        None => "脚本下载并写入成功".to_string(),
+    };
+    transfer_run
+        .finish(
+            "success",
+            completed_model_count,
+            latest_file_name,
+            bytes_transferred,
+            Some(success_message.clone()),
+            None,
+        )
+        .await;
+
     ApiResponse::success(
         Some(local_script_id.to_string()),
-        Some(match existing_local_ver_num {
-            Some(existing_ver_num) if existing_ver_num == download_data.script.data.ver_num => {
-                "相同版本已覆盖到本地库".to_string()
-            }
-            Some(_) => "云端脚本已更新到本地库".to_string(),
-            None => "脚本下载并写入成功".to_string(),
-        }),
+        Some(success_message),
     )
 }
 
@@ -529,6 +886,28 @@ pub async fn backend_upload_script(
     .unwrap_or_default();
 
     let script_version = script.data.ver_num;
+    let transfer_total_bytes = model_uploads
+        .iter()
+        .map(|model| model.size_bytes as i64)
+        .sum::<i64>();
+    let transfer_model_count = model_uploads.len() as i64;
+    let transfer_run = ScriptTransferRun::new(
+        app_handle.clone(),
+        "upload",
+        Some(script_id.clone()),
+        Some(script_id.clone()),
+        Some(script.data.name.clone()),
+        transfer_model_count,
+        transfer_total_bytes,
+    );
+    transfer_run
+        .start(Some(if transfer_model_count > 0 {
+            "正在上传脚本数据".to_string()
+        } else {
+            "正在上传脚本".to_string()
+        }))
+        .await;
+
     let upload_req = ScriptUploadRequest {
         script,
         policies,
@@ -555,32 +934,128 @@ pub async fn backend_upload_script(
     match res {
         Ok(api_res) => {
             if api_res.code == 200 {
+                let mut completed_model_count = 0_i64;
+                let mut bytes_transferred = 0_i64;
+                let mut latest_file_name: Option<String> = None;
+
                 for model in &model_uploads {
                     let upload_url = format!(
                         "/scripts/upload/model/{}/{}?runtime_type={}",
                         script_id, model.type_name, runtime_type
                     );
+                    latest_file_name = Some(model.file_name.to_string());
+                    transfer_run.emit(
+                        "running",
+                        completed_model_count,
+                        latest_file_name.clone(),
+                        latest_file_name.clone(),
+                        bytes_transferred,
+                        Some(format!("正在上传模型 {}", model.file_name)),
+                        None,
+                        None,
+                    );
+
+                    let completed_bytes_before = bytes_transferred;
+                    let progress_run = transfer_run.clone();
+                    let progress_completed_model_count = completed_model_count;
+                    let progress_file_name = latest_file_name.clone();
+                    let progress_model_name = model.file_name.to_string();
                     let upload_res: AppResult<BackendApiRes<String>> = client
-                        .upload_file(&upload_url, &model.local_path, "file", model.file_name)
+                        .upload_file_with_progress(
+                            &upload_url,
+                            &model.local_path,
+                            "file",
+                            model.file_name,
+                            move |progress| {
+                                progress_run.emit(
+                                    "running",
+                                    progress_completed_model_count,
+                                    progress_file_name.clone(),
+                                    progress_file_name.clone(),
+                                    completed_bytes_before + progress.transferred_bytes as i64,
+                                    Some(format!("正在上传模型 {}", progress_model_name)),
+                                    None,
+                                    None,
+                                );
+                            },
+                        )
                         .await;
                     match upload_res {
-                        Ok(model_api_res) if model_api_res.code == 200 => {}
+                        Ok(model_api_res) if model_api_res.code == 200 => {
+                            completed_model_count += 1;
+                            bytes_transferred = completed_bytes_before + model.size_bytes as i64;
+                            transfer_run.emit(
+                                "running",
+                                completed_model_count,
+                                latest_file_name.clone(),
+                                latest_file_name.clone(),
+                                bytes_transferred,
+                                Some(format!("模型 {} 上传完成", model.file_name)),
+                                None,
+                                None,
+                            );
+                        }
                         Ok(model_api_res) => {
+                            let error_message =
+                                format!("脚本已上传，但模型 {} 上传失败: {}", model.file_name, model_api_res.message);
+                            transfer_run
+                                .finish(
+                                    "error",
+                                    completed_model_count,
+                                    latest_file_name.clone(),
+                                    bytes_transferred,
+                                    Some(error_message.clone()),
+                                    Some(model_api_res.message),
+                                )
+                                .await;
                             return ApiResponse::error(Some(format!(
-                                "脚本已上传，但模型 {} 上传失败: {}",
-                                model.file_name, model_api_res.message
+                                "{}",
+                                error_message
                             )));
                         }
                         Err(error) => {
+                            let error_message =
+                                format!("脚本已上传，但模型 {} 上传失败: {}", model.file_name, error);
+                            transfer_run
+                                .finish(
+                                    "error",
+                                    completed_model_count,
+                                    latest_file_name.clone(),
+                                    bytes_transferred,
+                                    Some(error_message.clone()),
+                                    Some(error.to_string()),
+                                )
+                                .await;
                             return ApiResponse::error(Some(format!(
-                                "脚本已上传，但模型 {} 上传失败: {}",
-                                model.file_name, error
+                                "{}",
+                                error_message
                             )));
                         }
                     }
                 }
-                ApiResponse::success(None, Some(api_res.message))
+                let success_message = api_res.message;
+                transfer_run
+                    .finish(
+                        "success",
+                        completed_model_count,
+                        latest_file_name,
+                        bytes_transferred,
+                        Some(success_message.clone()),
+                        None,
+                    )
+                    .await;
+                ApiResponse::success(None, Some(success_message))
             } else {
+                transfer_run
+                    .finish(
+                        "error",
+                        0,
+                        None,
+                        0,
+                        Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                        Some(api_res.message.clone()),
+                    )
+                    .await;
                 ApiResponse::failed_with_details(
                     None,
                     Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
@@ -588,7 +1063,20 @@ pub async fn backend_upload_script(
                 )
             }
         }
-        Err(error) => ApiResponse::error(Some(app_error_message(error))),
+        Err(error) => {
+            let error_message = app_error_message(error);
+            transfer_run
+                .finish(
+                    "error",
+                    0,
+                    None,
+                    0,
+                    Some(error_message.clone()),
+                    Some(error_message.clone()),
+                )
+                .await;
+            ApiResponse::error(Some(error_message))
+        }
     }
 }
 
