@@ -3,12 +3,11 @@ use crate::api::backend_dto::BackendApiRes;
 use crate::api::infrastructure::profile_cache::{
     load_cached_user_profile, should_use_cached_profile,
 };
-use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
+use crate::app::config::vision_cache_conf::get_vision_text_cache_runtime_config_app;
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, DEVICE_TABLE, GROUP_POLICIES, POLICY_GROUP_TABLE, POLICY_SET_TABLE,
     POLICY_TABLE, SCRIPT_TABLE, SCRIPT_TASK_TABLE, SCRIPT_TIME_TEMPLATE_VALUES_TABLE, SET_GROUPS,
 };
-use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
 use crate::domain::devices::device_conf::{
     DevicePlatform, DeviceTable, TimeoutAction as DeviceTimeoutAction,
     TimeoutNotifyChannel as DeviceTimeoutNotifyChannel,
@@ -40,7 +39,6 @@ use serde::Serialize;
 use std::collections::HashSet;
 use tauri::command;
 use tauri::Manager;
-use tauri_plugin_store::StoreExt;
 
 struct LoadedScriptBundle {
     script_id: ScriptId,
@@ -68,27 +66,6 @@ fn validate_runtime_platform_supported(device_table: &DeviceTable) -> Result<(),
             device_table.data.0.device_name
         )),
     }
-}
-
-fn load_vision_text_cache_runtime_config(
-    app_handle: &tauri::AppHandle,
-) -> Result<crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig, String> {
-    let store = app_handle
-        .store(APP_STORE)
-        .map_err(|e| format!("读取 OCR 缓存配置失败: {}", e))?;
-
-    let persisted = store
-        .get(VISION_TEXT_CACHE_CONFIG_KEY)
-        .and_then(|value| serde_json::from_value::<VisionTextCacheConfig>(value.clone()).ok())
-        .unwrap_or_default();
-
-    let fallback_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("获取 OCR 缓存默认目录失败: {}", e))?
-        .join("ocr-text-cache");
-
-    Ok(persisted.to_runtime_config(fallback_dir))
 }
 
 fn to_runtime_policy(
@@ -620,7 +597,9 @@ async fn build_runtime_session_snapshot(
     };
     let runtime_policy = to_runtime_policy(
         &device_table,
-        load_vision_text_cache_runtime_config(app_handle)?,
+        get_vision_text_cache_runtime_config_app(app_handle)
+            .await
+            .map_err(|e| format!("读取 OCR 缓存配置失败: {}", e))?,
     );
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
     validate_published_script_runtime_access(app_handle, &loaded_script_bundles).await?;
@@ -743,7 +722,9 @@ async fn build_child_init_data(
         log_level: device_config.log_level.clone(),
         cpu_cores: device_config.cores.iter().map(|c| *c as usize).collect(),
         db_path,
-        vision_text_cache_config: load_vision_text_cache_runtime_config(app_handle)?,
+        vision_text_cache_config: get_vision_text_cache_runtime_config_app(app_handle)
+            .await
+            .map_err(|e| format!("读取 OCR 缓存配置失败: {}", e))?,
     })
 }
 
