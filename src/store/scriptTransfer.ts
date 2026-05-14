@@ -62,6 +62,20 @@ const eventToRecord = (event: ScriptTransferProgressEvent): ScriptTransferRecord
 const recordUpdatedAt = (record: ScriptTransferRecord) =>
   new Date(record.updatedAt || record.finishedAt || record.startedAt || 0).getTime();
 
+const matchesScope = (
+  record: Pick<ScriptTransferRecord, 'direction' | 'localScriptId' | 'cloudScriptId'>,
+  options: {
+    direction?: ScriptTransferDirection | null;
+    localScriptId?: string | null;
+    cloudScriptId?: string | null;
+  },
+) => {
+  if (options.direction && record.direction !== options.direction) return false;
+  if (options.localScriptId && record.localScriptId !== options.localScriptId) return false;
+  if (options.cloudScriptId && record.cloudScriptId !== options.cloudScriptId) return false;
+  return true;
+};
+
 export const useScriptTransferStore = defineStore('scriptTransfer', () => {
   const initialized = ref(false);
   const recordsById = ref<Record<string, ScriptTransferRecord>>({});
@@ -102,7 +116,9 @@ export const useScriptTransferStore = defineStore('scriptTransfer', () => {
     limit?: number;
   }) => {
     const records = await scriptTransferService.listRecords(options);
-    const next = { ...recordsById.value };
+    const next = Object.fromEntries(
+      Object.entries(recordsById.value).filter(([, record]) => !matchesScope(record, options)),
+    );
     for (const record of records) {
       next[record.id] = record;
     }
@@ -128,18 +144,12 @@ export const useScriptTransferStore = defineStore('scriptTransfer', () => {
     await scriptTransferService.clearRecords(options);
     const nextRecords = Object.fromEntries(
       Object.entries(recordsById.value).filter(([, record]) => {
-        if (options.direction && record.direction !== options.direction) return true;
-        if (options.localScriptId && record.localScriptId !== options.localScriptId) return true;
-        if (options.cloudScriptId && record.cloudScriptId !== options.cloudScriptId) return true;
-        return false;
+        return !matchesScope(record, options);
       }),
     );
     const nextEvents = Object.fromEntries(
       Object.entries(lastProgressEventById.value).filter(([, record]) => {
-        if (options.direction && record.direction !== options.direction) return true;
-        if (options.localScriptId && record.localScriptId !== options.localScriptId) return true;
-        if (options.cloudScriptId && record.cloudScriptId !== options.cloudScriptId) return true;
-        return false;
+        return !matchesScope(record, options);
       }),
     );
     recordsById.value = nextRecords;

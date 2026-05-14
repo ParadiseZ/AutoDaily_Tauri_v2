@@ -1,18 +1,20 @@
 use super::model_transfer::{
-    build_model_file_payload, collect_model_uploads, local_scripts_dir, normalize_download_endpoint,
-    normalize_model_type, rewrite_script_model_paths_for_published, runtime_type_param,
+    build_model_file_payload, collect_model_uploads, local_scripts_dir,
+    normalize_download_endpoint, normalize_model_type, rewrite_script_model_paths_for_published,
+    runtime_type_param,
 };
 use crate::api::api_response::ApiResponse;
-use crate::api::backend_dto::*;
 use crate::api::backend_cmd::{app_error_message, format_backend_message, trans_api_res};
+use crate::api::backend_dto::*;
 use crate::api::domain::script_transfer_records::{
     emit_script_transfer_event, finish_script_transfer_record, insert_script_transfer_record,
     now_rfc3339, CreateScriptTransferRecordInput, FinishScriptTransferRecordInput,
     ScriptTransferProgressEvent,
 };
 use crate::api::infrastructure::script_version_preflight::{
-    build_download_preflight, extract_cloud_summary_version, find_replaceable_local_published_script,
-    format_version_label, version_num_to_i64, ScriptVersionPreflight,
+    build_download_preflight, extract_cloud_summary_version,
+    find_replaceable_local_published_script, format_version_label, version_num_to_i64,
+    ScriptVersionPreflight,
 };
 use crate::app::app_error::AppResult;
 use crate::constant::table_name::SCRIPT_TABLE;
@@ -88,16 +90,7 @@ impl ScriptTransferRun {
             Log::error(&format!("写入传输记录失败: {}", error));
         }
 
-        self.emit(
-            "running",
-            0,
-            None,
-            None,
-            0,
-            latest_message,
-            None,
-            None,
-        );
+        self.emit("running", 0, None, None, 0, latest_message, None, None);
     }
 
     fn emit(
@@ -237,15 +230,16 @@ pub async fn backend_preflight_upload_script(
     script_id: String,
 ) -> ApiResponse<ScriptVersionPreflight> {
     let pool = crate::infrastructure::db::get_pool();
-    let local_script = match sqlx::query_as::<_, ScriptTable>("SELECT id, `data` FROM scripts WHERE id = ?")
-        .bind(&script_id)
-        .fetch_optional(pool)
-        .await
-    {
-        Ok(Some(script)) => script,
-        Ok(None) => return ApiResponse::error(Some("脚本不存在".to_string())),
-        Err(error) => return ApiResponse::error(Some(format!("读取本地脚本失败: {}", error))),
-    };
+    let local_script =
+        match sqlx::query_as::<_, ScriptTable>("SELECT id, `data` FROM scripts WHERE id = ?")
+            .bind(&script_id)
+            .fetch_optional(pool)
+            .await
+        {
+            Ok(Some(script)) => script,
+            Ok(None) => return ApiResponse::error(Some("脚本不存在".to_string())),
+            Err(error) => return ApiResponse::error(Some(format!("读取本地脚本失败: {}", error))),
+        };
 
     if local_script.data.script_type != ScriptType::Dev {
         return ApiResponse::error(Some("只有本地脚本 (Dev) 才能被上传".to_string()));
@@ -266,7 +260,10 @@ pub async fn backend_preflight_upload_script(
     if api_res.code != 200 {
         return ApiResponse::failed_with_details(
             None,
-            Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+            Some(format_backend_message(
+                &api_res.message,
+                api_res.details.as_ref(),
+            )),
             api_res.details,
         );
     }
@@ -349,7 +346,10 @@ pub async fn backend_download_script(
     use crate::infrastructure::db::get_pool;
 
     let client = HttpClient::new(app_handle.clone());
-    let url = format!("/scripts/download/{}?runtime_type={}", script_id, runtime_type);
+    let url = format!(
+        "/scripts/download/{}?runtime_type={}",
+        script_id, runtime_type
+    );
     let req = ScriptDownloadReq {
         client: current_client_capability(),
     };
@@ -386,10 +386,16 @@ pub async fn backend_download_script(
                     if local_script.data.script_type != ScriptType::Published {
                         return ApiResponse::error(Some("只能覆盖本地云端脚本副本".to_string()));
                     }
-                    if local_script.data.cloud_id.as_ref().map(|value| value.to_string())
+                    if local_script
+                        .data
+                        .cloud_id
+                        .as_ref()
+                        .map(|value| value.to_string())
                         != Some(script_id.clone())
                     {
-                        return ApiResponse::error(Some("本地脚本与当前云端脚本不匹配，无法覆盖".to_string()));
+                        return ApiResponse::error(Some(
+                            "本地脚本与当前云端脚本不匹配，无法覆盖".to_string(),
+                        ));
                     }
                     Some(local_script)
                 }
@@ -406,11 +412,14 @@ pub async fn backend_download_script(
         .as_ref()
         .map(|script| script.id.clone())
         .unwrap_or_else(ScriptId::new_v7);
-    let existing_local_ver_num = replacement_target.as_ref().map(|script| script.data.ver_num);
+    let existing_local_ver_num = replacement_target
+        .as_ref()
+        .map(|script| script.data.ver_num);
 
-    if let (Some(existing_ver_num), Some(remote_ver_num)) =
-        (existing_local_ver_num, Some(download_data.script.data.ver_num))
-    {
+    if let (Some(existing_ver_num), Some(remote_ver_num)) = (
+        existing_local_ver_num,
+        Some(download_data.script.data.ver_num),
+    ) {
         if remote_ver_num < existing_ver_num {
             return ApiResponse::error(Some(format!(
                 "本地已有 {}，云端当前仅为 {}。不允许用较旧的云端版本覆盖本地副本。",
@@ -429,15 +438,20 @@ pub async fn backend_download_script(
     }
 
     let old_script_id = download_data.script.id.clone();
-    let mut policy_map: std::collections::HashMap<PolicyId, PolicyId> = std::collections::HashMap::new();
+    let mut policy_map: std::collections::HashMap<PolicyId, PolicyId> =
+        std::collections::HashMap::new();
     let mut group_map: std::collections::HashMap<PolicyGroupId, PolicyGroupId> =
         std::collections::HashMap::new();
-    let mut set_map: std::collections::HashMap<PolicySetId, PolicySetId> = std::collections::HashMap::new();
+    let mut set_map: std::collections::HashMap<PolicySetId, PolicySetId> =
+        std::collections::HashMap::new();
 
     download_data.script.id = local_script_id.clone();
     download_data.script.data.cloud_id = Some(old_script_id);
     download_data.script.data.script_type = ScriptType::Published;
-    rewrite_script_model_paths_for_published(&mut download_data.script, &local_script_id.to_string());
+    rewrite_script_model_paths_for_published(
+        &mut download_data.script,
+        &local_script_id.to_string(),
+    );
 
     for policy in download_data.policies.iter_mut() {
         let new_pid = PolicyId::new_v7();
@@ -737,10 +751,7 @@ pub async fn backend_download_script(
         )
         .await;
 
-    ApiResponse::success(
-        Some(local_script_id.to_string()),
-        Some(success_message),
-    )
+    ApiResponse::success(Some(local_script_id.to_string()), Some(success_message))
 }
 
 #[command]
@@ -790,14 +801,17 @@ pub async fn backend_upload_script(
     }
 
     let summary_url = format!("/scripts/{}/summary", script_id);
-    let summary_response: AppResult<BackendApiRes<serde_json::Value>> = client.get(&summary_url).await;
+    let summary_response: AppResult<BackendApiRes<serde_json::Value>> =
+        client.get(&summary_url).await;
     let local_ver_num = version_num_to_i64(Some(script.data.ver_num));
-    let local_version_label = format_version_label(Some(script.data.ver_name.as_str()), local_ver_num);
+    let local_version_label =
+        format_version_label(Some(script.data.ver_name.as_str()), local_ver_num);
     match summary_response {
         Ok(api_res) if api_res.code == 200 => {
             if let Some(summary) = api_res.data {
                 let (remote_ver_name, remote_ver_num) = extract_cloud_summary_version(&summary);
-                if let (Some(local_ver_num), Some(remote_ver_num)) = (local_ver_num, remote_ver_num) {
+                if let (Some(local_ver_num), Some(remote_ver_num)) = (local_ver_num, remote_ver_num)
+                {
                     if local_ver_num < remote_ver_num {
                         return ApiResponse::error(Some(format!(
                             "云端当前为 {}，本地仅为 {}。不允许用较旧的本地版本覆盖云端脚本。",
@@ -811,7 +825,10 @@ pub async fn backend_upload_script(
         Ok(api_res) => {
             return ApiResponse::failed_with_details(
                 None,
-                Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                Some(format_backend_message(
+                    &api_res.message,
+                    api_res.details.as_ref(),
+                )),
                 api_res.details,
             );
         }
@@ -819,7 +836,10 @@ pub async fn backend_upload_script(
     }
 
     let script_user_name = script.data.user_name.as_deref().unwrap_or("").trim();
-    if auth_session.username == "Guest" || script_user_name.is_empty() || script_user_name == "Guest" {
+    if auth_session.username == "Guest"
+        || script_user_name.is_empty()
+        || script_user_name == "Guest"
+    {
         let author = match fetch_upload_author(&client).await {
             Ok(author) => author,
             Err(error) => return ApiResponse::error(Some(error)),
@@ -828,7 +848,9 @@ pub async fn backend_upload_script(
         script.data.user_id = author.id;
         script.data.user_name = Some(author.username);
 
-        if let Err(error) = DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await {
+        if let Err(error) =
+            DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await
+        {
             return ApiResponse::error(Some(format!("更新本地脚本作者信息失败: {}", error)));
         }
     }
@@ -996,8 +1018,10 @@ pub async fn backend_upload_script(
                             );
                         }
                         Ok(model_api_res) => {
-                            let error_message =
-                                format!("脚本已上传，但模型 {} 上传失败: {}", model.file_name, model_api_res.message);
+                            let error_message = format!(
+                                "脚本已上传，但模型 {} 上传失败: {}",
+                                model.file_name, model_api_res.message
+                            );
                             transfer_run
                                 .finish(
                                     "error",
@@ -1008,14 +1032,13 @@ pub async fn backend_upload_script(
                                     Some(model_api_res.message),
                                 )
                                 .await;
-                            return ApiResponse::error(Some(format!(
-                                "{}",
-                                error_message
-                            )));
+                            return ApiResponse::error(Some(format!("{}", error_message)));
                         }
                         Err(error) => {
-                            let error_message =
-                                format!("脚本已上传，但模型 {} 上传失败: {}", model.file_name, error);
+                            let error_message = format!(
+                                "脚本已上传，但模型 {} 上传失败: {}",
+                                model.file_name, error
+                            );
                             transfer_run
                                 .finish(
                                     "error",
@@ -1026,10 +1049,7 @@ pub async fn backend_upload_script(
                                     Some(error.to_string()),
                                 )
                                 .await;
-                            return ApiResponse::error(Some(format!(
-                                "{}",
-                                error_message
-                            )));
+                            return ApiResponse::error(Some(format!("{}", error_message)));
                         }
                     }
                 }
@@ -1052,13 +1072,19 @@ pub async fn backend_upload_script(
                         0,
                         None,
                         0,
-                        Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                        Some(format_backend_message(
+                            &api_res.message,
+                            api_res.details.as_ref(),
+                        )),
                         Some(api_res.message.clone()),
                     )
                     .await;
                 ApiResponse::failed_with_details(
                     None,
-                    Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                    Some(format_backend_message(
+                        &api_res.message,
+                        api_res.details.as_ref(),
+                    )),
                     api_res.details,
                 )
             }
@@ -1196,11 +1222,12 @@ async fn delete_local_script_graph(
     tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     script_id: &crate::infrastructure::core::ScriptId,
 ) -> Result<(), String> {
-    let policy_group_ids: Vec<String> = sqlx::query_scalar("SELECT id FROM policy_groups WHERE script_id = ?")
-        .bind(script_id.to_string())
-        .fetch_all(&mut **tx)
-        .await
-        .map_err(|error| format!("读取本地策略组失败: {}", error))?;
+    let policy_group_ids: Vec<String> =
+        sqlx::query_scalar("SELECT id FROM policy_groups WHERE script_id = ?")
+            .bind(script_id.to_string())
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(|error| format!("读取本地策略组失败: {}", error))?;
 
     for group_id in policy_group_ids {
         sqlx::query("DELETE FROM group_policies WHERE group_id = ?")
@@ -1210,11 +1237,12 @@ async fn delete_local_script_graph(
             .map_err(|error| format!("删除本地策略组关联失败: {}", error))?;
     }
 
-    let policy_set_ids: Vec<String> = sqlx::query_scalar("SELECT id FROM policy_sets WHERE script_id = ?")
-        .bind(script_id.to_string())
-        .fetch_all(&mut **tx)
-        .await
-        .map_err(|error| format!("读取本地策略集失败: {}", error))?;
+    let policy_set_ids: Vec<String> =
+        sqlx::query_scalar("SELECT id FROM policy_sets WHERE script_id = ?")
+            .bind(script_id.to_string())
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(|error| format!("读取本地策略集失败: {}", error))?;
 
     for set_id in policy_set_ids {
         sqlx::query("DELETE FROM set_groups WHERE set_id = ?")
