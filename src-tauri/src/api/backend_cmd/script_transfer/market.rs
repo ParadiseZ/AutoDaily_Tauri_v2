@@ -23,6 +23,7 @@ use crate::infrastructure::core::UserId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::http_client::HttpClient;
 use crate::infrastructure::logging::log_trait::Log;
+use std::path::{Path, PathBuf};
 use tauri::{command, AppHandle};
 
 #[derive(Debug)]
@@ -42,6 +43,14 @@ struct ScriptTransferRun {
     model_file_count: i64,
     total_bytes: i64,
     started_at: String,
+}
+
+struct ScriptDirSwapState {
+    final_dir: PathBuf,
+    staging_root: PathBuf,
+    staging_dir: PathBuf,
+    backup_dir: PathBuf,
+    backup_created: bool,
 }
 
 impl ScriptTransferRun {
@@ -522,21 +531,42 @@ pub async fn backend_download_script(
         .await;
 
     let scripts_root = local_scripts_dir(&app_handle);
-    let script_dir = scripts_root.join(local_script_id.to_string());
-    if let Err(error) = std::fs::create_dir_all(&script_dir) {
+    let mut dir_swap = match prepare_script_dir_swap(
+        &scripts_root,
+        &local_script_id.to_string(),
+        transfer_run.id.as_str(),
+    ) {
+        Ok(state) => state,
+        Err(error) => {
+            transfer_run
+                .finish(
+                    "error",
+                    0,
+                    None,
+                    0,
+                    Some("创建脚本模型暂存目录失败".to_string()),
+                    Some(error.clone()),
+                )
+                .await;
+            return ApiResponse::error(Some(error));
+        }
+    };
+
+    if let Err(error) = std::fs::create_dir_all(&dir_swap.staging_dir) {
         transfer_run
             .finish(
                 "error",
                 0,
                 None,
                 0,
-                Some("创建脚本模型目录失败".to_string()),
+                Some("创建脚本模型暂存目录失败".to_string()),
                 Some(error.to_string()),
             )
             .await;
+        cleanup_script_dir_swap_temp(&dir_swap);
         return ApiResponse::error(Some(format!(
-            "创建脚本模型目录 {} 失败: {}",
-            script_dir.display(),
+            "创建脚本模型暂存目录 {} 失败: {}",
+            dir_swap.staging_dir.display(),
             error
         )));
     }
@@ -559,6 +589,7 @@ pub async fn backend_download_script(
                         Some(error.clone()),
                     )
                     .await;
+                cleanup_script_dir_swap_temp(&dir_swap);
                 return ApiResponse::error(Some(error));
             }
         };
@@ -575,6 +606,7 @@ pub async fn backend_download_script(
                         Some(error.clone()),
                     )
                     .await;
+                cleanup_script_dir_swap_temp(&dir_swap);
                 return ApiResponse::error(Some(error));
             }
         };
@@ -594,6 +626,7 @@ pub async fn backend_download_script(
                         Some(error.clone()),
                     )
                     .await;
+                cleanup_script_dir_swap_temp(&dir_swap);
                 return ApiResponse::error(Some(error));
             }
         }
@@ -614,7 +647,7 @@ pub async fn backend_download_script(
         let download_result = client
             .download_file_with_resume_progress(
                 endpoint.as_str(),
-                &script_dir.join(normalized_type.file_name),
+                &dir_swap.staging_dir.join(normalized_type.file_name),
                 model.hash_value.as_deref(),
                 |progress| {
                     let current_file_bytes = progress.transferred_bytes as i64;
@@ -644,6 +677,7 @@ pub async fn backend_download_script(
                     Some(error.to_string()),
                 )
                 .await;
+            cleanup_script_dir_swap_temp(&dir_swap);
             return ApiResponse::error(Some(error_message));
         }
 
@@ -674,6 +708,7 @@ pub async fn backend_download_script(
                     Some(error.to_string()),
                 )
                 .await;
+            cleanup_script_dir_swap_temp(&dir_swap);
             return ApiResponse::error(Some(format!("开启事务失败: {}", error)));
         }
     };
@@ -690,6 +725,7 @@ pub async fn backend_download_script(
                     Some(error.clone()),
                 )
                 .await;
+            cleanup_script_dir_swap_temp(&dir_swap);
             return ApiResponse::error(Some(error));
         }
     }
@@ -716,10 +752,33 @@ pub async fn backend_download_script(
                 Some(error.clone()),
             )
             .await;
+        cleanup_script_dir_swap_temp(&dir_swap);
+        return ApiResponse::error(Some(error));
+    }
+
+    if let Err(error) = activate_script_dir_swap(&mut dir_swap) {
+        transfer_run
+            .finish(
+                "error",
+                completed_model_count,
+                latest_file_name.clone(),
+                bytes_transferred,
+                Some("切换脚本模型目录失败".to_string()),
+                Some(error.clone()),
+            )
+            .await;
+        cleanup_script_dir_swap_temp(&dir_swap);
         return ApiResponse::error(Some(error));
     }
 
     if let Err(error) = tx.commit().await {
+        if let Err(rollback_error) = rollback_script_dir_swap(&mut dir_swap) {
+            Log::error(&format!(
+                "提交失败后恢复脚本模型目录失败: {}, final_dir={}",
+                rollback_error,
+                dir_swap.final_dir.display()
+            ));
+        }
         transfer_run
             .finish(
                 "error",
@@ -732,6 +791,8 @@ pub async fn backend_download_script(
             .await;
         return ApiResponse::error(Some(format!("提交事务失败: {}", error)));
     }
+
+    cleanup_script_dir_swap_temp(&dir_swap);
 
     let success_message = match existing_local_ver_num {
         Some(existing_ver_num) if existing_ver_num == download_data.script.data.ver_num => {
@@ -1267,4 +1328,106 @@ async fn delete_local_script_graph(
     }
 
     Ok(())
+}
+
+fn prepare_script_dir_swap(
+    scripts_root: &Path,
+    script_id: &str,
+    transfer_id: &str,
+) -> Result<ScriptDirSwapState, String> {
+    let staging_root = scripts_root.join(".download-staging").join(transfer_id);
+    let staging_dir = staging_root.join(script_id);
+    let backup_dir = scripts_root
+        .join(".download-backup")
+        .join(format!("{transfer_id}-{script_id}"));
+
+    if staging_root.exists() {
+        std::fs::remove_dir_all(&staging_root).map_err(|error| {
+            format!("清理旧的暂存目录 {} 失败: {}", staging_root.display(), error)
+        })?;
+    }
+
+    if backup_dir.exists() {
+        std::fs::remove_dir_all(&backup_dir).map_err(|error| {
+            format!("清理旧的备份目录 {} 失败: {}", backup_dir.display(), error)
+        })?;
+    }
+
+    Ok(ScriptDirSwapState {
+        final_dir: scripts_root.join(script_id),
+        staging_root,
+        staging_dir,
+        backup_dir,
+        backup_created: false,
+    })
+}
+
+fn activate_script_dir_swap(state: &mut ScriptDirSwapState) -> Result<(), String> {
+    if let Some(parent) = state.backup_dir.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            format!("创建脚本模型备份目录 {} 失败: {}", parent.display(), error)
+        })?;
+    }
+
+    if state.final_dir.exists() {
+        std::fs::rename(&state.final_dir, &state.backup_dir).map_err(|error| {
+            format!(
+                "备份旧脚本模型目录 {} -> {} 失败: {}",
+                state.final_dir.display(),
+                state.backup_dir.display(),
+                error
+            )
+        })?;
+        state.backup_created = true;
+    }
+
+    if let Err(error) = std::fs::rename(&state.staging_dir, &state.final_dir) {
+        if state.backup_created {
+            let _ = std::fs::rename(&state.backup_dir, &state.final_dir);
+            state.backup_created = false;
+        }
+        return Err(format!(
+            "启用新的脚本模型目录 {} -> {} 失败: {}",
+            state.staging_dir.display(),
+            state.final_dir.display(),
+            error
+        ));
+    }
+
+    Ok(())
+}
+
+fn rollback_script_dir_swap(state: &mut ScriptDirSwapState) -> Result<(), String> {
+    if state.final_dir.exists() {
+        std::fs::remove_dir_all(&state.final_dir).map_err(|error| {
+            format!(
+                "回滚时删除新脚本模型目录 {} 失败: {}",
+                state.final_dir.display(),
+                error
+            )
+        })?;
+    }
+
+    if state.backup_created && state.backup_dir.exists() {
+        std::fs::rename(&state.backup_dir, &state.final_dir).map_err(|error| {
+            format!(
+                "回滚旧脚本模型目录 {} -> {} 失败: {}",
+                state.backup_dir.display(),
+                state.final_dir.display(),
+                error
+            )
+        })?;
+        state.backup_created = false;
+    }
+
+    Ok(())
+}
+
+fn cleanup_script_dir_swap_temp(state: &ScriptDirSwapState) {
+    if state.staging_root.exists() {
+        let _ = std::fs::remove_dir_all(&state.staging_root);
+    }
+    if state.backup_dir.exists() {
+        let _ = std::fs::remove_dir_all(&state.backup_dir);
+    }
 }
