@@ -2,20 +2,20 @@
   <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="本地列表"
-    />
-
-    <ScriptTransferHistoryPanel
-      :title="selectedScript ? `上传记录 · ${selectedScript.data.name}` : '上传记录'"
-      description="显示当前选中脚本的模型上传进度与最近结果。"
-      empty-title="还没有上传记录"
-      empty-description="执行上传后，这里会显示模型传输进度、结果和错误信息。"
-      :open="uploadHistoryOpen"
-      :records="selectedTransferRecords"
-      :get-progress-event="scriptTransferStore.getLatestProgressEvent"
-      @toggle="uploadHistoryOpen = !uploadHistoryOpen"
-      @clear="void handleClearTransferRecords()"
-      @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
-    />
+    >
+      <template #center>
+      <ScriptTransferHistoryPanel
+        :title="selectedScript ? `上传记录 · ${selectedScript.data.name}` : '上传记录'"
+        empty-title="还没有上传记录"
+        empty-description="执行上传后，这里会显示模型传输进度、结果和错误信息。"
+        :open="uploadHistoryOpen"
+        :records="selectedTransferRecords"
+        :get-progress-event="scriptTransferStore.getLatestProgressEvent"
+        @toggle="uploadHistoryOpen = !uploadHistoryOpen"
+        @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
+      />
+      </template>
+    </AppPageHeader>
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
     <div class="grid min-h-full gap-4 xl:grid-cols-[300px_minmax(0,1fr)_390px]">
@@ -79,6 +79,7 @@ import { useScriptTransferStore } from '@/store/scriptTransfer';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
 import type { ScriptTableRecord } from '@/types/app/domain';
+import { createServerResponseError, isAuthFailure } from '@/utils/api';
 import { formatScriptInfoValidationMessage, validateScriptInfo } from '@/utils/scriptInfoValidation';
 import { showToast } from '@/utils/toast';
 
@@ -95,42 +96,6 @@ const dialogScript = ref<ScriptTableRecord | null>(null);
 const pendingUploadScriptId = ref<string | null>(null);
 const pendingUploadRetrying = ref(false);
 const uploadHistoryOpen = ref(false);
-
-const isAuthFailure = (message?: string | null) =>
-  Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
-
-const formatValidationDetails = (details: unknown) => {
-  if (!details || typeof details !== 'object' || !('issues' in details)) {
-    return null;
-  }
-  const issues = (details as { issues?: Array<{ path?: string; message?: string }> }).issues;
-  if (!Array.isArray(issues) || issues.length === 0) {
-    return null;
-  }
-
-  const lines = issues
-    .map((issue) => {
-      const message = issue?.message?.trim();
-      if (!message) {
-        return null;
-      }
-      const path = issue.path?.trim();
-      return path ? `- ${path}: ${message}` : `- ${message}`;
-    })
-    .filter((line): line is string => Boolean(line));
-
-  return lines.length > 0 ? lines.join('\n') : null;
-};
-
-const normalizeResultMessage = (message: string | null | undefined, fallback: string, details?: unknown) => {
-  const trimmed = message?.trim();
-  const base = trimmed ? trimmed : fallback;
-  const detailText = formatValidationDetails(details);
-  if (!detailText || base.includes(detailText)) {
-    return base;
-  }
-  return `${base}\n${detailText}`;
-};
 
 const filteredScripts = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -326,14 +291,14 @@ const performUpload = async (scriptId: string) => {
   try {
     const result = await scriptStore.uploadScript(scriptId);
     if (!result.success) {
-      const message = normalizeResultMessage(result.message, '上传失败', result.details);
+      const message = createServerResponseError('backend_upload_script', result).message;
       if (isAuthFailure(message)) {
         queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
         return;
       }
       throw new Error(message);
     }
-    const message = normalizeResultMessage(result.message, '脚本已上传');
+    const message = result.message?.trim() || '脚本已上传';
     if (pendingUploadScriptId.value === scriptId) {
       pendingUploadScriptId.value = null;
     }
@@ -341,7 +306,7 @@ const performUpload = async (scriptId: string) => {
     await scriptStore.loadScripts();
     void userStore.checkProfile();
   } catch (error) {
-    const message = normalizeResultMessage(error instanceof Error ? error.message : null, '上传失败');
+    const message = error instanceof Error ? error.message : '上传失败，请稍后重试。';
     if (isAuthFailure(message)) {
       queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
       return;
@@ -458,21 +423,6 @@ const handleDeleteTransferRecord = async (recordId: string) => {
     showToast('传输记录已删除', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '删除记录失败', 'error');
-  }
-};
-
-const handleClearTransferRecords = async () => {
-  if (!selectedScript.value) {
-    return;
-  }
-  try {
-    await scriptTransferStore.clearRecords({
-      direction: 'upload',
-      localScriptId: selectedScript.value.id,
-    });
-    showToast('上传记录已清空', 'success');
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : '清空记录失败', 'error');
   }
 };
 

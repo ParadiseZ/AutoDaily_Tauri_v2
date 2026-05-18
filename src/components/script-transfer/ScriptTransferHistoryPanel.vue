@@ -1,106 +1,97 @@
 <template>
-  <div class="relative z-20">
-    <div
-      class="flex flex-wrap items-start justify-between gap-3 rounded-[22px] border border-(--app-border) bg-(--app-panel)/88 px-4 py-3 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur"
-      :class="open ? 'border-(--app-accent)/35' : ''"
+  <div class="pointer-events-none relative z-20 flex w-full justify-center">
+    <button
+      class="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-(--app-border) bg-(--app-panel)/92 text-(--app-text-soft) shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur transition-all duration-200 hover:border-(--app-accent)/40 hover:text-(--app-text-strong)"
+      :class="open ? 'border-(--app-accent)/35 text-(--app-text-strong)' : ''"
+      :title="title"
+      type="button"
+      @click="$emit('toggle')"
     >
-      <div class="space-y-1">
-        <div class="flex items-center gap-2">
-          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('toggle')">
-            <AppIcon :name="open ? 'chevron-up' : 'chevron-down'" :size="14" />
-            {{ title }}
-          </button>
-          <span class="text-xs text-(--app-text-faint)">{{ records.length }} 条</span>
-        </div>
-        <p v-if="description" class="text-xs text-(--app-text-faint)">{{ description }}</p>
-      </div>
+      <AppIcon
+        name="chevron-down"
+        :size="16"
+        class="transition-transform duration-200"
+        :class="open ? 'rotate-180' : ''"
+      />
+    </button>
 
-      <button
-        v-if="open && records.length"
-        class="app-button app-button-ghost app-toolbar-button"
-        type="button"
-        @click="$emit('clear')"
+    <transition name="transfer-history-sheet">
+      <div
+        v-if="open"
+        class="pointer-events-auto absolute inset-x-0 top-full z-30 mt-3 overflow-hidden rounded-[26px] shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
       >
-        <AppIcon name="eraser" :size="14" />
-        清空记录
-      </button>
-    </div>
+        <SurfacePanel tone="muted" padding="sm" class="space-y-3 border border-(--app-border) bg-(--app-panel)/96 backdrop-blur">
+          <div
+            v-for="record in records"
+            :key="record.id"
+            class="rounded-[18px] border border-(--app-border) bg-(--app-panel)/55 px-4 py-3"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0 flex-1 space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                  <StatusBadge
+                    :label="formatScriptTransferStatusLabel(record.status)"
+                    :tone="formatScriptTransferStatusTone(record.status)"
+                  />
+                  <span class="truncate text-sm font-medium text-(--app-text-strong)">
+                    {{ record.latestMessage || fallbackTitle(record) }}
+                  </span>
+                </div>
 
-    <div
-      v-if="open"
-      class="absolute inset-x-0 top-full mt-3 z-30 max-h-[min(70vh,720px)] overflow-y-auto rounded-[26px] shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
-    >
-      <SurfacePanel tone="muted" padding="sm" class="space-y-3 border border-(--app-border) bg-(--app-panel)/96 backdrop-blur">
-        <div
-          v-for="record in records"
-          :key="record.id"
-          class="rounded-[18px] border border-(--app-border) bg-(--app-panel)/55 px-4 py-3"
-        >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="min-w-0 flex-1 space-y-2">
-              <div class="flex flex-wrap items-center gap-2">
-                <StatusBadge
-                  :label="formatScriptTransferStatusLabel(record.status)"
-                  :tone="formatScriptTransferStatusTone(record.status)"
-                />
-                <span class="truncate text-sm font-medium text-(--app-text-strong)">
-                  {{ record.latestMessage || fallbackTitle(record) }}
-                </span>
-              </div>
-
-              <div class="grid gap-2 text-xs text-(--app-text-soft) md:grid-cols-2">
-                <div class="flex items-center justify-between gap-3">
-                  <span>模型进度</span>
-                  <span class="text-(--app-text-strong)">{{ record.completedModelFileCount }} / {{ record.modelFileCount }}</span>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <span>最近文件</span>
-                  <span class="truncate text-(--app-text-strong)">{{ activeFileName(record) || '未记录' }}</span>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <span>传输大小</span>
-                  <span class="text-(--app-text-strong)">{{ progressLabel(record) }}</span>
-                </div>
-                <div class="flex items-center justify-between gap-3">
-                  <span>时间</span>
-                  <span class="text-(--app-text-strong)">{{ formatDateTime(record.updatedAt || record.startedAt) }}</span>
-                </div>
-              </div>
-
-              <template v-if="percent(record) !== null">
-                <div class="space-y-1 pt-1">
-                  <div class="flex items-center justify-between text-[11px] text-(--app-text-faint)">
-                    <span>{{ etaLabel(record) }}</span>
-                    <span>{{ percent(record) }}%</span>
+                <div class="grid gap-2 text-xs text-(--app-text-soft) md:grid-cols-2">
+                  <div class="flex items-center justify-between gap-3">
+                    <span>模型进度</span>
+                    <span class="text-(--app-text-strong)">{{ record.completedModelFileCount }} / {{ record.modelFileCount }}</span>
                   </div>
-                  <div class="h-2 overflow-hidden rounded-full bg-(--app-border)">
-                    <div class="h-full rounded-full bg-(--app-accent)" :style="{ width: `${percent(record)}%` }" />
+                  <div class="flex items-center justify-between gap-3">
+                    <span>最近文件</span>
+                    <span class="truncate text-(--app-text-strong)">{{ activeFileName(record) || '未记录' }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span>传输大小</span>
+                    <span class="text-(--app-text-strong)">{{ progressLabel(record) }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span>时间</span>
+                    <span class="text-(--app-text-strong)">{{ formatDateTime(record.updatedAt || record.startedAt) }}</span>
                   </div>
                 </div>
-              </template>
 
-              <p v-if="record.errorMessage" class="text-xs text-red-600">{{ record.errorMessage }}</p>
+                <template v-if="percent(record) !== null">
+                  <div class="space-y-1 pt-1">
+                    <div class="flex items-center justify-between text-[11px] text-(--app-text-faint)">
+                      <span>{{ etaLabel(record) }}</span>
+                      <span>{{ percent(record) }}%</span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded-full bg-(--app-border)">
+                      <div class="h-full rounded-full bg-(--app-accent)" :style="{ width: `${percent(record)}%` }" />
+                    </div>
+                  </div>
+                </template>
+
+                <p v-if="record.errorMessage" class="text-xs text-red-600">{{ record.errorMessage }}</p>
+              </div>
+
+              <button
+                class="app-button app-button-ghost app-toolbar-button shrink-0"
+                type="button"
+                :disabled="record.status === 'running'"
+                @click="$emit('delete-record', record.id)"
+              >
+                <AppIcon name="trash-2" :size="14" />
+                删除
+              </button>
             </div>
-
-            <button
-              class="app-button app-button-ghost app-toolbar-button shrink-0"
-              type="button"
-              :disabled="record.status === 'running'"
-              @click="$emit('delete-record', record.id)"
-            >
-              <AppIcon name="trash-2" :size="14" />
-              删除
-            </button>
           </div>
-        </div>
 
-        <EmptyState
-          v-if="!records.length"
-          :title="emptyTitle"
-          :description="emptyDescription"
-        />
-      </SurfacePanel>
-    </div>
+          <EmptyState
+            v-if="!records.length"
+            :title="emptyTitle"
+            :description="emptyDescription"
+          />
+        </SurfacePanel>
+      </div>
+    </transition>
   </div>
 </template>
 
@@ -114,7 +105,6 @@ import { formatDateTime, formatScriptTransferStatusLabel, formatScriptTransferSt
 
 const props = defineProps<{
   title: string;
-  description?: string;
   emptyTitle: string;
   emptyDescription: string;
   open: boolean;
@@ -124,7 +114,6 @@ const props = defineProps<{
 
 defineEmits<{
   toggle: [];
-  clear: [];
   'delete-record': [recordId: string];
 }>();
 
@@ -191,3 +180,31 @@ function formatDuration(seconds: number) {
   return remainMinutes > 0 ? `${hours} 小时 ${remainMinutes} 分` : `${hours} 小时`;
 }
 </script>
+
+<style scoped>
+.transfer-history-sheet-enter-active,
+.transfer-history-sheet-leave-active {
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
+}
+
+.transfer-history-sheet-enter-from,
+.transfer-history-sheet-leave-to {
+  opacity: 0;
+  transform: translateY(-8px) scaleY(0.84);
+}
+
+.transfer-history-sheet-enter-to,
+.transfer-history-sheet-leave-from {
+  opacity: 1;
+  transform: translateY(0) scaleY(1);
+}
+
+.transfer-history-sheet-enter-from,
+.transfer-history-sheet-enter-to,
+.transfer-history-sheet-leave-from,
+.transfer-history-sheet-leave-to {
+  transform-origin: top center;
+}
+</style>

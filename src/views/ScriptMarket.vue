@@ -2,20 +2,20 @@
   <div class="flex h-full min-h-0 flex-col gap-4">
     <AppPageHeader
       title="脚本市场"
-    />
-
-    <ScriptTransferHistoryPanel
-      :title="selectedScript ? `下载记录 · ${selectedScript.name || '未命名脚本'}` : '下载记录'"
-      description="显示当前选中云端脚本的模型下载进度与最近结果。"
-      empty-title="还没有下载记录"
-      empty-description="执行下载后，这里会显示模型传输进度、结果和错误信息。"
-      :open="downloadHistoryOpen"
-      :records="selectedTransferRecords"
-      :get-progress-event="scriptTransferStore.getLatestProgressEvent"
-      @toggle="downloadHistoryOpen = !downloadHistoryOpen"
-      @clear="void handleClearTransferRecords()"
-      @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
-    />
+    >
+      <template #center>
+      <ScriptTransferHistoryPanel
+        :title="selectedScript ? `下载记录 · ${selectedScript.name || '未命名脚本'}` : '下载记录'"
+        empty-title="还没有下载记录"
+        empty-description="执行下载后，这里会显示模型传输进度、结果和错误信息。"
+        :open="downloadHistoryOpen"
+        :records="selectedTransferRecords"
+        :get-progress-event="scriptTransferStore.getLatestProgressEvent"
+        @toggle="downloadHistoryOpen = !downloadHistoryOpen"
+        @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
+      />
+      </template>
+    </AppPageHeader>
 
     <AppLoadingState v-if="!userStore.authHydrated" label="正在恢复登录状态..." />
 
@@ -176,6 +176,7 @@ import { useScriptStore } from '@/store/script';
 import { useScriptTransferStore } from '@/store/scriptTransfer';
 import { useUserStore } from '@/store/user';
 import { scriptService } from '@/services/scriptService';
+import { createServerResponseError } from '@/utils/api';
 import { showToast } from '@/utils/toast';
 import { formatDate, formatRuntimeLabel } from '@/utils/presenters';
 import AppLoadingState from '@/components/shared/AppLoadingState.vue';
@@ -306,13 +307,18 @@ const search = async () => {
     return;
   }
 
-  await scriptStore.searchMarket({
-    page: 1,
-    keyword: filters.keyword,
-    author: filters.author,
-    runtimeType: filters.runtimeType,
-  });
-  selectedScriptId.value = scriptStore.marketPage.records[0]?.id ?? null;
+  try {
+    await scriptStore.searchMarket({
+      page: 1,
+      keyword: filters.keyword,
+      author: filters.author,
+      runtimeType: filters.runtimeType,
+    });
+    selectedScriptId.value = scriptStore.marketPage.records[0]?.id ?? null;
+  } catch (error) {
+    selectedScriptId.value = null;
+    showToast(error instanceof Error ? error.message : '搜索脚本市场失败，请稍后重试。', 'error');
+  }
 };
 
 const downloadSelected = async () => {
@@ -355,7 +361,7 @@ const downloadSelected = async () => {
       replaceLocalScriptId,
     );
     if (!result.success) {
-      throw new Error(result.message || '下载失败');
+      throw createServerResponseError('backend_download_script', result);
     }
     showToast(result.message || '脚本已写入本地库', 'success');
     await scriptStore.loadScripts();
@@ -372,21 +378,6 @@ const handleDeleteTransferRecord = async (recordId: string) => {
     showToast('传输记录已删除', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '删除记录失败', 'error');
-  }
-};
-
-const handleClearTransferRecords = async () => {
-  if (!selectedScript.value) {
-    return;
-  }
-  try {
-    await scriptTransferStore.clearRecords({
-      direction: 'download',
-      cloudScriptId: selectedScript.value.id,
-    });
-    showToast('下载记录已清空', 'success');
-  } catch (error) {
-    showToast(error instanceof Error ? error.message : '清空记录失败', 'error');
   }
 };
 

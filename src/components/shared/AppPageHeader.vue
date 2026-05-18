@@ -7,6 +7,9 @@
         <p v-if="description" class="app-page-description">{{ description }}</p>
       </div>
     </div>
+    <div v-if="$slots.center" class="app-page-header-center">
+      <slot name="center" />
+    </div>
     <div v-if="$slots.actions" class="flex items-center gap-2">
       <slot name="actions" />
     </div>

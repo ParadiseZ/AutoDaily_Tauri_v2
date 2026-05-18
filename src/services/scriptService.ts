@@ -1,4 +1,4 @@
-import { invoke } from '@/utils/api';
+import { ApiEnvelope, createServerResponseError, invoke } from '@/utils/api';
 import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
 import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
@@ -24,13 +24,6 @@ type RawScriptTable = ScriptTable & {
         activityName?: unknown;
     };
 };
-
-interface ApiEnvelope<T> {
-    success: boolean;
-    data?: T;
-    message?: string;
-    details?: unknown;
-}
 
 type ScriptTablePayload = {
     id: string;
@@ -211,6 +204,9 @@ export const scriptService = {
         })) as ApiEnvelope<string>,
     searchMarket: async (query: ScriptSearchInput): Promise<MarketPage<MarketScriptRecord>> => {
         const response = (await invoke('backend_search_scripts', { req: query })) as ApiEnvelope<MarketPage<MarketScriptRecord>>;
+        if (!response.success) {
+            throw createServerResponseError('backend_search_scripts', response);
+        }
         if (!response.success || !response.data) {
             return emptyMarketPage(query);
         }
@@ -232,7 +228,7 @@ export const scriptService = {
             scriptId,
         })) as ApiEnvelope<ScriptCloudSummary | null>;
         if (!response.success) {
-            throw new Error(response.message || '获取云端脚本信息失败');
+            throw createServerResponseError('backend_get_script_cloud_summary', response);
         }
         return response.data ?? null;
     },
@@ -247,7 +243,7 @@ export const scriptService = {
             verNum,
         })) as ApiEnvelope<ScriptVersionPreflight>;
         if (!response.success || !response.data) {
-            throw new Error(response.message || '获取下载版本信息失败');
+            throw createServerResponseError('backend_preflight_download_script', response);
         }
         return response.data;
     },
@@ -256,7 +252,7 @@ export const scriptService = {
             scriptId,
         })) as ApiEnvelope<ScriptVersionPreflight>;
         if (!response.success || !response.data) {
-            throw new Error(response.message || '获取上传版本信息失败');
+            throw createServerResponseError('backend_preflight_upload_script', response);
         }
         return response.data;
     },

@@ -1,16 +1,10 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { requestAppConfirm } from '@/services/appDialogService';
-import { invoke } from '@/utils/api';
+import { ApiEnvelope, createServerResponseError, invoke, isAuthFailure } from '@/utils/api';
 import { sha256Hex } from '@/utils/passwordHash';
 import { showToast } from '@/utils/toast';
 import type { AuthSession, UserProfile } from '@/types/app/domain';
-
-interface ApiEnvelope<T> {
-    success: boolean;
-    data?: T;
-    message?: string;
-}
 
 interface LoginPayload {
     username: string;
@@ -27,9 +21,6 @@ interface ResetPasswordPayload {
     code: string;
     newPassword: string;
 }
-
-const isAuthFailure = (message: string | undefined) =>
-    Boolean(message && (message.includes('401') || message.includes('未登录') || message.includes('认证失败')));
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const usernamePattern = /^[A-Za-z0-9_]{3,16}$/;
@@ -277,7 +268,7 @@ export const useUserStore = defineStore('user', () => {
                 },
             })) as ApiEnvelope<unknown>;
             if (!res.success) {
-                throw new Error(res.message || '登录失败');
+                throw createServerResponseError('backend_login', res);
             }
 
             const session = normalizeAuthSession(res.data);
@@ -315,7 +306,7 @@ export const useUserStore = defineStore('user', () => {
                 },
             })) as ApiEnvelope<unknown>;
             if (!res.success) {
-                throw new Error(res.message || '注册失败');
+                throw createServerResponseError('backend_register', res);
             }
             showToast(res.message || '注册成功，请登录', 'success');
         } catch (error) {
@@ -336,7 +327,7 @@ export const useUserStore = defineStore('user', () => {
         try {
             const res = (await invoke('backend_send_verification_code', { email })) as ApiEnvelope<unknown>;
             if (!res.success) {
-                throw new Error(res.message || '验证码发送失败');
+                throw createServerResponseError('backend_send_verification_code', res);
             }
             showToast(res.message || '验证码已发送', 'success');
         } finally {
@@ -360,7 +351,7 @@ export const useUserStore = defineStore('user', () => {
                 },
             })) as ApiEnvelope<unknown>;
             if (!res.success) {
-                throw new Error(res.message || '重置密码失败');
+                throw createServerResponseError('backend_reset_password', res);
             }
             showToast(res.message || '密码已重置，请重新登录', 'success');
         } catch (error) {
@@ -381,7 +372,7 @@ export const useUserStore = defineStore('user', () => {
         try {
             const res = (await invoke('backend_update_username', { req: { newUsername } })) as ApiEnvelope<unknown>;
             if (!res.success) {
-                throw new Error(res.message || '用户名更新失败');
+                throw createServerResponseError('backend_update_username', res);
             }
 
             const nextSession = normalizeAuthSession(res.data);

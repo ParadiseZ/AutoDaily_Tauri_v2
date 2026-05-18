@@ -1,5 +1,6 @@
 import { reactive } from 'vue';
 import type { DownloadEvent, Update } from '@tauri-apps/plugin-updater';
+import { createServerRequestError } from '@/utils/api';
 
 export type AppUpdatePhase = 'idle' | 'checking' | 'available' | 'downloading' | 'installing' | 'installed' | 'error';
 
@@ -100,7 +101,7 @@ const performCheckForAppUpdate = async (reportUnsupportedRuntime: boolean) => {
     appUpdateState.version = '';
     appUpdateState.date = '';
     appUpdateState.hasChecked = true;
-    appUpdateState.error = error instanceof Error ? error.message : String(error);
+    appUpdateState.error = createServerRequestError('app-update-check', error, '检查更新失败，请检查网络后重试。').message;
     return null;
   }
 };
@@ -138,6 +139,6 @@ export const installPendingAppUpdate = async () => {
     await relaunch();
   } catch (error) {
     appUpdateState.phase = 'error';
-    appUpdateState.error = error instanceof Error ? error.message : String(error);
+    appUpdateState.error = createServerRequestError('app-update-install', error, '下载更新失败，请检查网络后重试。').message;
   }
 };
