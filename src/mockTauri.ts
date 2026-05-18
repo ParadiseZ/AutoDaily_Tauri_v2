@@ -700,6 +700,36 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             transferRecords: current.transferRecords.filter((record) => record.id !== String(args.recordId)),
           }));
           return null;
+        case 'pause_script_transfer_record_cmd':
+          updateState((current) => ({
+            ...current,
+            transferRecords: current.transferRecords.map((record) =>
+              record.id === String(args.recordId)
+                ? {
+                    ...record,
+                    status: 'paused',
+                    latestMessage: '已暂停',
+                    updatedAt: new Date().toISOString(),
+                  }
+                : record,
+            ),
+          }));
+          return null;
+        case 'resume_script_transfer_record_cmd':
+          updateState((current) => ({
+            ...current,
+            transferRecords: current.transferRecords.map((record) =>
+              record.id === String(args.recordId)
+                ? {
+                    ...record,
+                    status: 'running',
+                    latestMessage: '继续传输',
+                    updatedAt: new Date().toISOString(),
+                  }
+                : record,
+            ),
+          }));
+          return null;
         case 'clear_script_transfer_records_cmd':
           updateState((current) => ({
             ...current,

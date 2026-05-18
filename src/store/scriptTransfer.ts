@@ -120,7 +120,8 @@ export const useScriptTransferStore = defineStore('scriptTransfer', () => {
       Object.entries(recordsById.value).filter(([, record]) => !matchesScope(record, options)),
     );
     for (const record of records) {
-      next[record.id] = record;
+      const liveEvent = lastProgressEventById.value[record.id];
+      next[record.id] = liveEvent ? eventToRecord(liveEvent) : record;
     }
     recordsById.value = next;
     return records;
@@ -134,6 +135,14 @@ export const useScriptTransferStore = defineStore('scriptTransfer', () => {
     delete nextEvents[recordId];
     recordsById.value = nextRecords;
     lastProgressEventById.value = nextEvents;
+  };
+
+  const pauseRecord = async (recordId: string) => {
+    await scriptTransferService.pauseRecord(recordId);
+  };
+
+  const resumeRecord = async (recordId: string) => {
+    await scriptTransferService.resumeRecord(recordId);
   };
 
   const clearRecords = async (options: {
@@ -178,6 +187,9 @@ export const useScriptTransferStore = defineStore('scriptTransfer', () => {
       return false;
     });
 
+  const getRecordsByDirection = (direction: ScriptTransferDirection) =>
+    allRecords.value.filter((record) => record.direction === direction);
+
   const getLatestProgressEvent = (recordId: string) => lastProgressEventById.value[recordId] ?? null;
 
   return {
@@ -185,11 +197,14 @@ export const useScriptTransferStore = defineStore('scriptTransfer', () => {
     clearRecords,
     deleteRecord,
     getLatestProgressEvent,
+    getRecordsByDirection,
     getRecordsForScope,
     initListener,
     initialized,
     lastProgressEventById,
     loadRecords,
+    pauseRecord,
     recordsById,
+    resumeRecord,
   };
 });

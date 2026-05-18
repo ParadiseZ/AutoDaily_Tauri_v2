@@ -38,7 +38,7 @@ const backendCommandFallbackMessages: Record<string, string> = {
 };
 
 const technicalErrorPattern =
-    /(exception|traceback|panic|stack|reqwest|sqlx|serde|json|uuid|parse|syntaxerror|typeerror|referenceerror|timed?\s*out|timeout|connection|network|fetch|refused|reset|status\s*\d{3}|http\s*\d{3}|unexpected|os error|io error|econn|enotfound|<html|<\/html>)/i;
+    /(exception|traceback|panic|stack|reqwest|sqlx|serde|json|uuid|parse|syntaxerror|typeerror|referenceerror|timed?\s*out|timeout|connection|network|fetch|refused|reset|status\s*\d{3}|http\s*\d{3}|unexpected|os error|io error|econn|enotfound|error sending request for url|https?:\/\/|localhost:|\/api\/|<html|<\/html>)/i;
 
 export const isAuthFailure = (message: string | undefined | null) =>
     Boolean(

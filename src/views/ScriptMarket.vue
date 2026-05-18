@@ -5,13 +5,15 @@
     >
       <template #center>
       <ScriptTransferHistoryPanel
-        :title="selectedScript ? `下载记录 · ${selectedScript.name || '未命名脚本'}` : '下载记录'"
+        title="下载记录"
         empty-title="还没有下载记录"
         empty-description="执行下载后，这里会显示模型传输进度、结果和错误信息。"
         :open="downloadHistoryOpen"
-        :records="selectedTransferRecords"
+        :records="downloadTransferRecords"
         :get-progress-event="scriptTransferStore.getLatestProgressEvent"
         @toggle="downloadHistoryOpen = !downloadHistoryOpen"
+        @pause-record="(recordId) => void handlePauseTransferRecord(recordId)"
+        @resume-record="(recordId) => void handleResumeTransferRecord(recordId)"
         @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
       />
       </template>
@@ -38,9 +40,9 @@
 
     <template v-else>
     <SurfacePanel class="grid gap-3 lg:grid-cols-[1.2fr_1fr_220px_120px]">
-      <input v-model.trim="filters.keyword" class="app-input" placeholder="按脚本名称" />
-      <input v-model.trim="filters.author" class="app-input" placeholder="按作者" />
-      <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="运行时" />
+      <input v-model.trim="filters.keyword" class="app-input" placeholder="按脚本名称" :disabled="scriptStore.marketLoading" />
+      <input v-model.trim="filters.author" class="app-input" placeholder="按作者" :disabled="scriptStore.marketLoading" />
+      <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="运行时" :disabled="scriptStore.marketLoading" />
       <button class="app-button app-button-primary" type="button" :disabled="scriptStore.marketLoading" @click="search">
         {{ scriptStore.marketLoading ? '搜索中...' : '搜索' }}
       </button>
@@ -124,7 +126,7 @@
             <div v-if="selectedChangeLogs.length" class="space-y-4">
               <div v-for="log in selectedChangeLogs" :key="log.id ?? `${log.versionNum}-${log.versionName}`" class="border-t border-(--app-border) pt-3 first:border-t-0 first:pt-0">
                 <p class="mb-2 text-sm font-semibold text-(--app-text-strong)">
-                  {{ log.versionName || `版本 ${log.versionNum ?? '-'}` }}
+            {{ log.versionName || `版本 ${log.versionNum ?? '-'}` }}
                 </p>
                 <MarkdownView :content="log.contentMd" empty-text="该版本没有填写更新日志。" />
               </div>
@@ -141,7 +143,7 @@
 
           <div class="flex flex-wrap gap-3">
             <button class="app-button app-button-primary" type="button" :disabled="Boolean(downloadBlockedReason) || downloadSubmitting" @click="downloadSelected">
-              {{ downloadSubmitting ? '下载中...' : downloadButtonLabel }}
+              {{ downloadSubmitting ? downloadPendingLabel : downloadButtonLabel }}
             </button>
             <button class="app-button app-button-ghost" type="button" @click="router.push('/scripts')">
               查看本地库
@@ -190,6 +192,7 @@ const selectedScriptId = ref<string | null>(null);
 const selectedChangeLogs = ref<Awaited<ReturnType<typeof scriptService.listChangeLogs>>>([]);
 const changeLogsLoading = ref(false);
 const downloadSubmitting = ref(false);
+const downloadPendingLabel = ref('下载中...');
 const downloadHistoryOpen = ref(false);
 const filters = reactive({
   keyword: '',
@@ -212,15 +215,9 @@ const runtimeOptions = [
 const selectedScript = computed(
   () => scriptStore.marketPage.records.find((script) => script.id === selectedScriptId.value) ?? null,
 );
-const selectedTransferRecords = computed(() =>
-  selectedScript.value
-    ? scriptTransferStore.getRecordsForScope({
-        direction: 'download',
-        cloudScriptId: selectedScript.value.id,
-      })
-    : [],
-);
+const downloadTransferRecords = computed(() => scriptTransferStore.getRecordsByDirection('download'));
 const isSelectedIncompatible = computed(() => selectedScript.value?.compatibility?.compatible === false);
+const isTransferDeletedMessage = (message: string) => message.includes('传输已删除');
 const downloadBlockedReason = computed(() => {
   if (!selectedScript.value) {
     return '请先选择要下载的脚本。';
@@ -253,6 +250,7 @@ const confirmDownloadAgainstLocal = async () => {
     return null;
   }
 
+  downloadPendingLabel.value = '正在检查下载版本...';
   const preflight = await scriptService.preflightDownloadMarketScript(
     selectedScript.value.id,
     selectedScript.value.verName ?? null,
@@ -349,26 +347,35 @@ const downloadSelected = async () => {
   }
 
   try {
+    downloadPendingLabel.value = '正在检查登录状态...';
     downloadSubmitting.value = true;
     const replaceLocalScriptId = await confirmDownloadAgainstLocal();
     if (replaceLocalScriptId === false) {
       return;
     }
 
+    downloadPendingLabel.value = '下载中...';
     const result = await scriptStore.downloadMarketScript(
       selectedScript.value.id,
       selectedScript.value.runtimeType || 'rhai',
       replaceLocalScriptId,
     );
     if (!result.success) {
+      if (isTransferDeletedMessage(result.message ?? '')) {
+        return;
+      }
       throw createServerResponseError('backend_download_script', result);
     }
     showToast(result.message || '脚本已写入本地库', 'success');
     await scriptStore.loadScripts();
   } catch (error) {
+    if (error instanceof Error && isTransferDeletedMessage(error.message)) {
+      return;
+    }
     showToast(error instanceof Error ? error.message : '下载失败', 'error');
   } finally {
     downloadSubmitting.value = false;
+    downloadPendingLabel.value = '下载中...';
   }
 };
 
@@ -378,6 +385,22 @@ const handleDeleteTransferRecord = async (recordId: string) => {
     showToast('传输记录已删除', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '删除记录失败', 'error');
+  }
+};
+
+const handlePauseTransferRecord = async (recordId: string) => {
+  try {
+    await scriptTransferStore.pauseRecord(recordId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '暂停传输失败', 'error');
+  }
+};
+
+const handleResumeTransferRecord = async (recordId: string) => {
+  try {
+    await scriptTransferStore.resumeRecord(recordId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '继续传输失败', 'error');
   }
 };
 
@@ -400,23 +423,20 @@ const enterMarket = async (openModalWhenGuest: boolean) => {
 
 onMounted(() => {
   void enterMarket(true);
+  void scriptTransferStore.loadRecords({
+    direction: 'download',
+    limit: 80,
+  });
 });
 
 watch(selectedScriptId, () => {
   void loadSelectedChangeLogs();
-  if (selectedScriptId.value) {
-    void scriptTransferStore.loadRecords({
-      direction: 'download',
-      cloudScriptId: selectedScriptId.value,
-      limit: 12,
-    });
-  }
 });
 
 watch(
-  () => selectedTransferRecords.value.some((record) => record.status === 'running'),
-  (hasRunning) => {
-    if (hasRunning) {
+  () => downloadTransferRecords.value.some((record) => record.status === 'running' || record.status === 'paused'),
+  (hasActiveTransfer) => {
+    if (hasActiveTransfer) {
       downloadHistoryOpen.value = true;
     }
   },

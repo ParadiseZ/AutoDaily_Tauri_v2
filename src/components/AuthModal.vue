@@ -13,6 +13,7 @@
           type="button"
           class="app-tab"
           :class="{ 'app-tab-active': currentTab === item.value }"
+          :disabled="isAuthBusy"
           @click="currentTab = item.value"
         >
           {{ item.label }}
@@ -22,17 +23,17 @@
       <form v-if="currentTab === 'login'" class="grid gap-4" @submit.prevent="handleLogin">
         <label class="grid gap-2">
           <span class="text-sm text-(--app-text-soft)">用户名 / 邮箱</span>
-          <input v-model.trim="loginForm.username" class="app-input" placeholder="输入用户名或邮箱" />
+          <input v-model.trim="loginForm.username" class="app-input" placeholder="输入用户名或邮箱" :disabled="isAuthBusy" />
         </label>
         <label class="grid gap-2">
           <span class="text-sm text-(--app-text-soft)">密码</span>
-          <input v-model="loginForm.password" class="app-input" type="password" placeholder="输入密码" />
+          <input v-model="loginForm.password" class="app-input" type="password" placeholder="输入密码" :disabled="isAuthBusy" />
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">
-          <button class="app-button app-button-primary" type="submit" :disabled="userStore.authSubmitting">
+          <button class="app-button app-button-primary" type="submit" :disabled="isAuthBusy">
             {{ userStore.authPendingAction === 'login' ? '登录中...' : '登录' }}
           </button>
-          <button class="app-button app-button-ghost" type="button" @click="currentTab = 'reset'">
+          <button class="app-button app-button-ghost" type="button" :disabled="isAuthBusy" @click="currentTab = 'reset'">
             忘记密码
           </button>
         </div>
@@ -43,22 +44,22 @@
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
             <span class="text-sm text-(--app-text-soft)">用户名</span>
-            <input v-model.trim="registerForm.username" class="app-input" placeholder="输入用户名" />
+            <input v-model.trim="registerForm.username" class="app-input" placeholder="输入用户名" :disabled="isAuthBusy" />
           </label>
           <label class="grid gap-2">
             <span class="text-sm text-(--app-text-soft)">邮箱</span>
-            <input v-model.trim="registerForm.email" class="app-input" placeholder="name@example.com" />
+            <input v-model.trim="registerForm.email" class="app-input" placeholder="name@example.com" :disabled="isAuthBusy" />
           </label>
         </div>
         <div class="grid gap-4 md:grid-cols-[1fr_auto]">
           <label class="grid gap-2">
             <span class="text-sm text-(--app-text-soft)">验证码</span>
-            <input v-model.trim="registerForm.code" class="app-input" placeholder="输入邮箱验证码" />
+            <input v-model.trim="registerForm.code" class="app-input" placeholder="输入邮箱验证码" :disabled="isAuthBusy" />
           </label>
           <button
             class="app-button app-button-ghost self-end"
             type="button"
-            :disabled="userStore.authSubmitting || userStore.verificationCodeSending"
+            :disabled="isAuthBusy || userStore.verificationCodeSending"
             @click="sendCode(registerForm.email)"
           >
             {{ userStore.verificationCodeSending ? '发送中...' : '发送验证码' }}
@@ -66,13 +67,13 @@
         </div>
         <label class="grid gap-2">
           <span class="text-sm text-(--app-text-soft)">密码</span>
-          <input v-model="registerForm.password" class="app-input" type="password" placeholder="设置密码" />
+          <input v-model="registerForm.password" class="app-input" type="password" placeholder="设置密码" :disabled="isAuthBusy" />
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">
-          <button class="app-button app-button-primary" type="submit" :disabled="userStore.authSubmitting">
+          <button class="app-button app-button-primary" type="submit" :disabled="isAuthBusy">
             {{ userStore.authPendingAction === 'register' ? '创建中...' : '创建账户' }}
           </button>
-          <button class="app-button app-button-ghost" type="button" @click="currentTab = 'login'">
+          <button class="app-button app-button-ghost" type="button" :disabled="isAuthBusy" @click="currentTab = 'login'">
             已有账户
           </button>
         </div>
@@ -82,17 +83,17 @@
       <form v-else class="grid gap-4" @submit.prevent="handleResetPassword">
         <label class="grid gap-2">
           <span class="text-sm text-(--app-text-soft)">邮箱</span>
-          <input v-model.trim="resetForm.email" class="app-input" placeholder="输入注册邮箱" />
+          <input v-model.trim="resetForm.email" class="app-input" placeholder="输入注册邮箱" :disabled="isAuthBusy" />
         </label>
         <div class="grid gap-4 md:grid-cols-[1fr_auto]">
           <label class="grid gap-2">
             <span class="text-sm text-(--app-text-soft)">验证码</span>
-            <input v-model.trim="resetForm.code" class="app-input" placeholder="输入邮箱验证码" />
+            <input v-model.trim="resetForm.code" class="app-input" placeholder="输入邮箱验证码" :disabled="isAuthBusy" />
           </label>
           <button
             class="app-button app-button-ghost self-end"
             type="button"
-            :disabled="userStore.authSubmitting || userStore.verificationCodeSending"
+            :disabled="isAuthBusy || userStore.verificationCodeSending"
             @click="sendCode(resetForm.email)"
           >
             {{ userStore.verificationCodeSending ? '发送中...' : '发送验证码' }}
@@ -100,13 +101,13 @@
         </div>
         <label class="grid gap-2">
           <span class="text-sm text-(--app-text-soft)">新密码</span>
-          <input v-model="resetForm.newPassword" class="app-input" type="password" placeholder="设置新密码" />
+          <input v-model="resetForm.newPassword" class="app-input" type="password" placeholder="设置新密码" :disabled="isAuthBusy" />
         </label>
         <div class="flex items-center justify-between gap-3 pt-2">
-          <button class="app-button app-button-primary" type="submit" :disabled="userStore.authSubmitting">
+          <button class="app-button app-button-primary" type="submit" :disabled="isAuthBusy">
             {{ userStore.authPendingAction === 'reset' ? '重置中...' : '重置密码' }}
           </button>
-          <button class="app-button app-button-ghost" type="button" @click="currentTab = 'login'">
+          <button class="app-button app-button-ghost" type="button" :disabled="isAuthBusy" @click="currentTab = 'login'">
             返回登录
           </button>
         </div>
@@ -117,12 +118,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import { useUserStore } from '@/store/user';
 
 const userStore = useUserStore();
 const currentTab = ref<'login' | 'register' | 'reset'>('login');
+const isAuthBusy = computed(() => userStore.authSubmitting || userStore.verificationCodeSending);
 
 const tabs = [
   { label: '登录', value: 'login' as const },

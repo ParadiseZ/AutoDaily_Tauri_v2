@@ -42,10 +42,11 @@
           v-if="canUploadScript"
           class="app-button app-button-ghost app-toolbar-button"
           type="button"
+          :disabled="uploadPending"
           @click="$emit('upload', script.id)"
         >
           <AppIcon name="cloud-upload" :size="14" />
-          上传
+          {{ uploadButtonLabel }}
         </button>
         <button
           v-if="canCloneScript"
@@ -162,6 +163,8 @@ const props = defineProps<{
   currentUserId: string | null;
   currentUsername: string | null;
   script: ScriptTableRecord | null;
+  uploadPending?: boolean;
+  uploadPendingLabel?: string;
 }>();
 
 const canEditScript = computed(() => props.script?.data.scriptType !== 'published');
@@ -177,6 +180,7 @@ const canCloneScript = computed(() => {
   );
 });
 const cloneButtonLabel = computed(() => (props.script?.data.scriptType === 'published' ? '克隆' : '克隆'));
+const uploadButtonLabel = computed(() => props.uploadPendingLabel?.trim() || '上传');
 
 defineEmits<{
   'open-editor': [scriptId: string];

@@ -5,13 +5,15 @@
     >
       <template #center>
       <ScriptTransferHistoryPanel
-        :title="selectedScript ? `上传记录 · ${selectedScript.data.name}` : '上传记录'"
+        title="上传记录"
         empty-title="还没有上传记录"
         empty-description="执行上传后，这里会显示模型传输进度、结果和错误信息。"
         :open="uploadHistoryOpen"
-        :records="selectedTransferRecords"
+        :records="uploadTransferRecords"
         :get-progress-event="scriptTransferStore.getLatestProgressEvent"
         @toggle="uploadHistoryOpen = !uploadHistoryOpen"
+        @pause-record="(recordId) => void handlePauseTransferRecord(recordId)"
+        @resume-record="(recordId) => void handleResumeTransferRecord(recordId)"
         @delete-record="(recordId) => void handleDeleteTransferRecord(recordId)"
       />
       </template>
@@ -31,6 +33,8 @@
         :current-user-id="userStore.userProfile?.id ?? null"
         :current-username="userStore.userProfile?.username ?? userStore.authSession?.username ?? null"
         :script="selectedScript"
+        :upload-pending="isSelectedScriptUploading"
+        :upload-pending-label="selectedUploadPendingLabel"
         @open-editor="openEditor"
         @edit-info="openEditDialog"
         @upload="handleUpload"
@@ -96,6 +100,8 @@ const dialogScript = ref<ScriptTableRecord | null>(null);
 const pendingUploadScriptId = ref<string | null>(null);
 const pendingUploadRetrying = ref(false);
 const uploadHistoryOpen = ref(false);
+const uploadPendingScriptId = ref<string | null>(null);
+const uploadPendingLabel = ref('上传中...');
 
 const filteredScripts = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();
@@ -119,14 +125,14 @@ const selectedScript = computed(() => {
   return filteredScripts.value[0] ?? null;
 });
 
-const selectedTransferRecords = computed(() =>
-  selectedScript.value
-    ? scriptTransferStore.getRecordsForScope({
-        direction: 'upload',
-        localScriptId: selectedScript.value.id,
-      })
-    : [],
+const uploadTransferRecords = computed(() => scriptTransferStore.getRecordsByDirection('upload'));
+const isSelectedScriptUploading = computed(
+  () => Boolean(selectedScript.value && uploadPendingScriptId.value === selectedScript.value.id),
 );
+const selectedUploadPendingLabel = computed(() =>
+  isSelectedScriptUploading.value ? uploadPendingLabel.value : '上传',
+);
+const isTransferDeletedMessage = (message: string) => message.includes('传输已删除');
 
 const isPublishedScript = (script: ScriptTableRecord | null | undefined) => script?.data.scriptType === 'published';
 const canCloneScript = (
@@ -147,14 +153,29 @@ const queueUploadAfterLogin = (scriptId: string, message: string) => {
   showToast(message, 'warning');
 };
 
+const setUploadPendingState = (scriptId: string, label: string) => {
+  uploadPendingScriptId.value = scriptId;
+  uploadPendingLabel.value = label;
+};
+
+const clearUploadPendingState = (scriptId?: string | null) => {
+  if (!scriptId || uploadPendingScriptId.value === scriptId) {
+    uploadPendingScriptId.value = null;
+    uploadPendingLabel.value = '上传中...';
+  }
+};
+
 const ensureUploadAuth = async (scriptId: string) => {
+  setUploadPendingState(scriptId, '正在检查登录状态...');
   if (!userStore.authSession) {
+    clearUploadPendingState(scriptId);
     queueUploadAfterLogin(scriptId, '上传前请先登录，登录后会自动继续');
     return false;
   }
 
   const profile = await userStore.ensureProfileForAction('上传脚本');
   if (!profile) {
+    clearUploadPendingState(scriptId);
     if (!userStore.authSession) {
       queueUploadAfterLogin(scriptId, '登录信息已失效，请重新登录后继续上传');
     }
@@ -287,12 +308,13 @@ const openEditor = (scriptId: string) => {
 };
 
 const performUpload = async (scriptId: string) => {
-  const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? selectedScript.value;
   try {
+    setUploadPendingState(scriptId, '上传中...');
     const result = await scriptStore.uploadScript(scriptId);
     if (!result.success) {
       const message = createServerResponseError('backend_upload_script', result).message;
       if (isAuthFailure(message)) {
+        clearUploadPendingState(scriptId);
         queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
         return;
       }
@@ -307,15 +329,25 @@ const performUpload = async (scriptId: string) => {
     void userStore.checkProfile();
   } catch (error) {
     const message = error instanceof Error ? error.message : '上传失败，请稍后重试。';
+    if (isTransferDeletedMessage(message)) {
+      return;
+    }
     if (isAuthFailure(message)) {
+      clearUploadPendingState(scriptId);
       queueUploadAfterLogin(scriptId, '登录已失效，请重新登录后继续上传');
       return;
     }
     showToast(message, 'error');
+  } finally {
+    clearUploadPendingState(scriptId);
   }
 };
 
 const handleUpload = async (scriptId: string) => {
+  if (uploadPendingScriptId.value === scriptId) {
+    return;
+  }
+
   const script = scriptStore.scripts.find((item) => item.id === scriptId) ?? null;
   if (isPublishedScript(script)) {
     showToast('云端下载脚本不可直接上传，请先克隆为本地脚本', 'warning');
@@ -327,7 +359,9 @@ const handleUpload = async (scriptId: string) => {
   if (!(await ensureUploadAuth(scriptId))) {
     return;
   }
+  setUploadPendingState(scriptId, '正在检查云端版本...');
   if (!(await ensureUploadVersionConfirmed(scriptId))) {
+    clearUploadPendingState(scriptId);
     return;
   }
   await performUpload(scriptId);
@@ -426,9 +460,29 @@ const handleDeleteTransferRecord = async (recordId: string) => {
   }
 };
 
+const handlePauseTransferRecord = async (recordId: string) => {
+  try {
+    await scriptTransferStore.pauseRecord(recordId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '暂停传输失败', 'error');
+  }
+};
+
+const handleResumeTransferRecord = async (recordId: string) => {
+  try {
+    await scriptTransferStore.resumeRecord(recordId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '继续传输失败', 'error');
+  }
+};
+
 onMounted(async () => {
   await Promise.all([scriptStore.loadScripts(), deviceStore.loadDevices()]);
   await taskStore.hydrateForDevices(deviceStore.devices.map((device) => device.id));
+  await scriptTransferStore.loadRecords({
+    direction: 'upload',
+    limit: 80,
+  });
 });
 
 watch(
@@ -437,22 +491,15 @@ watch(
     if (!scriptId) {
       return;
     }
-    await Promise.all([
-      scriptStore.loadScriptTasks(scriptId),
-      scriptTransferStore.loadRecords({
-        direction: 'upload',
-        localScriptId: scriptId,
-        limit: 12,
-      }),
-    ]);
+    await scriptStore.loadScriptTasks(scriptId);
   },
   { immediate: true },
 );
 
 watch(
-  () => selectedTransferRecords.value.some((record) => record.status === 'running'),
-  (hasRunning) => {
-    if (hasRunning) {
+  () => uploadTransferRecords.value.some((record) => record.status === 'running' || record.status === 'paused'),
+  (hasActiveTransfer) => {
+    if (hasActiveTransfer) {
       uploadHistoryOpen.value = true;
     }
   },
@@ -493,6 +540,7 @@ watch(
       }
 
       pendingUploadScriptId.value = null;
+      setUploadPendingState(scriptId, '上传中...');
       await performUpload(scriptId);
     } finally {
       pendingUploadRetrying.value = false;

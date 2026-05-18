@@ -1,3 +1,4 @@
+use crate::infrastructure::logging::log_trait::Log;
 use tauri::{command, WebviewWindow};
 
 #[command]
@@ -7,23 +8,18 @@ pub async fn frontend_debug_log_cmd(
     details: Option<String>,
 ) -> Result<(), String> {
     let normalized_level = level.to_ascii_lowercase();
-    let prefix = format!("[frontend:{}] {}", normalized_level, message);
-
-    match details {
+    let full_message = match details {
         Some(extra) if !extra.trim().is_empty() => {
-            if normalized_level == "error" || normalized_level == "warn" {
-                eprintln!("{prefix}\n{extra}");
-            } else {
-                println!("{prefix}\n{extra}");
-            }
+            format!("[frontend:{}] {}\n{}", normalized_level, message, extra)
         }
-        _ => {
-            if normalized_level == "error" || normalized_level == "warn" {
-                eprintln!("{prefix}");
-            } else {
-                println!("{prefix}");
-            }
-        }
+        _ => format!("[frontend:{}] {}", normalized_level, message),
+    };
+
+    match normalized_level.as_str() {
+        "error" => Log::error(&full_message),
+        "warn" | "warning" => Log::warn(&full_message),
+        "debug" => Log::debug(&full_message),
+        _ => Log::info(&full_message),
     }
 
     Ok(())

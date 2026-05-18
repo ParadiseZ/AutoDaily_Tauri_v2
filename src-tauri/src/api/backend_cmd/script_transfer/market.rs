@@ -8,8 +8,9 @@ use crate::api::backend_cmd::{app_error_message, format_backend_message, trans_a
 use crate::api::backend_dto::*;
 use crate::api::domain::script_transfer_records::{
     emit_script_transfer_event, finish_script_transfer_record, insert_script_transfer_record,
-    now_rfc3339, CreateScriptTransferRecordInput, FinishScriptTransferRecordInput,
-    ScriptTransferProgressEvent,
+    now_rfc3339, register_script_transfer_control, unregister_script_transfer_control,
+    CreateScriptTransferRecordInput, FinishScriptTransferRecordInput, ScriptTransferControl,
+    ScriptTransferControlState, ScriptTransferProgressEvent,
 };
 use crate::api::infrastructure::script_version_preflight::{
     build_download_preflight, extract_cloud_summary_version,
@@ -23,8 +24,11 @@ use crate::infrastructure::core::UserId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::http_client::HttpClient;
 use crate::infrastructure::logging::log_trait::Log;
+use std::sync::Arc;
 use std::path::{Path, PathBuf};
 use tauri::{command, AppHandle};
+
+const TRANSFER_DELETED_MESSAGE: &str = "传输已删除";
 
 #[derive(Debug)]
 struct UploadAuthor {
@@ -43,6 +47,7 @@ struct ScriptTransferRun {
     model_file_count: i64,
     total_bytes: i64,
     started_at: String,
+    control: Arc<ScriptTransferControl>,
 }
 
 struct ScriptDirSwapState {
@@ -63,9 +68,11 @@ impl ScriptTransferRun {
         model_file_count: i64,
         total_bytes: i64,
     ) -> Self {
+        let id = uuid::Uuid::now_v7().to_string();
         Self {
             app_handle,
-            id: uuid::Uuid::now_v7().to_string(),
+            control: register_script_transfer_control(&id),
+            id,
             direction,
             local_script_id,
             cloud_script_id,
@@ -137,6 +144,78 @@ impl ScriptTransferRun {
         );
     }
 
+    fn checkpoint_blocking(
+        &self,
+        completed_model_file_count: i64,
+        current_file_name: Option<String>,
+        latest_file_name: Option<String>,
+        bytes_transferred: i64,
+        running_message: String,
+    ) -> Result<(), String> {
+        tokio::task::block_in_place(|| {
+            tauri::async_runtime::block_on(self.checkpoint_async(
+                completed_model_file_count,
+                current_file_name,
+                latest_file_name,
+                bytes_transferred,
+                running_message,
+            ))
+        })
+    }
+
+    async fn checkpoint_async(
+        &self,
+        completed_model_file_count: i64,
+        current_file_name: Option<String>,
+        latest_file_name: Option<String>,
+        bytes_transferred: i64,
+        running_message: String,
+    ) -> Result<(), String> {
+        let mut paused_emitted = false;
+        loop {
+            match self.control.state() {
+                ScriptTransferControlState::Running => {
+                    if paused_emitted {
+                        self.emit(
+                            "running",
+                            completed_model_file_count,
+                            current_file_name.clone(),
+                            latest_file_name.clone(),
+                            bytes_transferred,
+                            Some(running_message.clone()),
+                            None,
+                            None,
+                        );
+                    }
+                    return Ok(());
+                }
+                ScriptTransferControlState::Paused => {
+                    if !paused_emitted {
+                        self.emit(
+                            "paused",
+                            completed_model_file_count,
+                            current_file_name.clone(),
+                            latest_file_name.clone(),
+                            bytes_transferred,
+                            Some("已暂停".to_string()),
+                            None,
+                            None,
+                        );
+                        paused_emitted = true;
+                    }
+                    self.control.wait_for_signal().await;
+                }
+                ScriptTransferControlState::DeleteRequested => {
+                    return Err(TRANSFER_DELETED_MESSAGE.to_string());
+                }
+            }
+        }
+    }
+
+    fn close(&self) {
+        unregister_script_transfer_control(&self.id);
+    }
+
     async fn finish(
         &self,
         status: &str,
@@ -146,6 +225,11 @@ impl ScriptTransferRun {
         latest_message: Option<String>,
         error_message: Option<String>,
     ) {
+        if self.control.state() == ScriptTransferControlState::DeleteRequested {
+            self.close();
+            return;
+        }
+
         let finished_at = Some(now_rfc3339());
         if let Err(error) = finish_script_transfer_record(FinishScriptTransferRecordInput {
             id: self.id.clone(),
@@ -173,6 +257,17 @@ impl ScriptTransferRun {
             error_message,
             finished_at,
         );
+
+        self.close();
+    }
+}
+
+fn is_transfer_deleted_error(error: &crate::app::app_error::AppError) -> bool {
+    match error {
+        crate::app::app_error::AppError::HttpErr { detail, e } => {
+            detail.contains(TRANSFER_DELETED_MESSAGE) || e.contains(TRANSFER_DELETED_MESSAGE)
+        }
+        _ => false,
     }
 }
 
@@ -376,7 +471,7 @@ pub async fn backend_download_script(
                 return ApiResponse::error(Some(api_res.message));
             }
         }
-        Err(error) => return ApiResponse::error(Some(error.to_string())),
+        Err(error) => return ApiResponse::error(Some(app_error_message(error))),
     };
 
     if let Some(error) = validate_script_compatibility(&download_data.script.data) {
@@ -632,6 +727,20 @@ pub async fn backend_download_script(
         }
 
         latest_file_name = Some(model.file_name.clone());
+        if let Err(message) = transfer_run
+            .checkpoint_async(
+                completed_model_count,
+                latest_file_name.clone(),
+                latest_file_name.clone(),
+                bytes_transferred,
+                format!("正在下载模型 {}", model.file_name),
+            )
+            .await
+        {
+            transfer_run.close();
+            cleanup_script_dir_swap_temp(&dir_swap);
+            return ApiResponse::error(Some(message));
+        }
         transfer_run.emit(
             "running",
             completed_model_count,
@@ -662,11 +771,26 @@ pub async fn backend_download_script(
                         None,
                     );
                 },
+                || {
+                    transfer_run.checkpoint_blocking(
+                        completed_model_count,
+                        latest_file_name.clone(),
+                        latest_file_name.clone(),
+                        completed_bytes_before,
+                        format!("正在下载模型 {}", model.file_name),
+                    )
+                },
             )
             .await;
 
         if let Err(error) = download_result {
-            let error_message = format!("下载模型 {} 失败: {}", model.file_name, error);
+            if is_transfer_deleted_error(&error) {
+                transfer_run.close();
+                cleanup_script_dir_swap_temp(&dir_swap);
+                return ApiResponse::error(Some(TRANSFER_DELETED_MESSAGE.to_string()));
+            }
+            let friendly_error = app_error_message(error);
+            let error_message = format!("下载模型 {} 失败，请检查网络后重试。", model.file_name);
             transfer_run
                 .finish(
                     "error",
@@ -674,7 +798,7 @@ pub async fn backend_download_script(
                     latest_file_name.clone(),
                     bytes_transferred,
                     Some(error_message.clone()),
-                    Some(error.to_string()),
+                    Some(friendly_error),
                 )
                 .await;
             cleanup_script_dir_swap_temp(&dir_swap);
@@ -693,6 +817,12 @@ pub async fn backend_download_script(
             None,
             None,
         );
+    }
+
+    if transfer_run.control.state() == ScriptTransferControlState::DeleteRequested {
+        transfer_run.close();
+        cleanup_script_dir_swap_temp(&dir_swap);
+        return ApiResponse::error(Some(TRANSFER_DELETED_MESSAGE.to_string()));
     }
 
     let mut tx = match pool.begin().await {
@@ -801,6 +931,10 @@ pub async fn backend_download_script(
         Some(_) => "云端脚本已更新到本地库".to_string(),
         None => "脚本下载并写入成功".to_string(),
     };
+    if transfer_run.control.state() == ScriptTransferControlState::DeleteRequested {
+        transfer_run.close();
+        return ApiResponse::error(Some(TRANSFER_DELETED_MESSAGE.to_string()));
+    }
     transfer_run
         .finish(
             "success",
@@ -1014,6 +1148,11 @@ pub async fn backend_upload_script(
         )
         .await;
 
+    if transfer_run.control.state() == ScriptTransferControlState::DeleteRequested {
+        transfer_run.close();
+        return ApiResponse::error(Some(TRANSFER_DELETED_MESSAGE.to_string()));
+    }
+
     match res {
         Ok(api_res) => {
             if api_res.code == 200 {
@@ -1027,6 +1166,19 @@ pub async fn backend_upload_script(
                         script_id, model.type_name, runtime_type
                     );
                     latest_file_name = Some(model.file_name.to_string());
+                    if let Err(message) = transfer_run
+                        .checkpoint_async(
+                            completed_model_count,
+                            latest_file_name.clone(),
+                            latest_file_name.clone(),
+                            bytes_transferred,
+                            format!("正在上传模型 {}", model.file_name),
+                        )
+                        .await
+                    {
+                        transfer_run.close();
+                        return ApiResponse::error(Some(message));
+                    }
                     transfer_run.emit(
                         "running",
                         completed_model_count,
@@ -1039,10 +1191,13 @@ pub async fn backend_upload_script(
                     );
 
                     let completed_bytes_before = bytes_transferred;
-                    let progress_run = transfer_run.clone();
+                    let progress_emit_run = transfer_run.clone();
+                    let progress_control_run = transfer_run.clone();
                     let progress_completed_model_count = completed_model_count;
-                    let progress_file_name = latest_file_name.clone();
-                    let progress_model_name = model.file_name.to_string();
+                    let progress_emit_file_name = latest_file_name.clone();
+                    let progress_control_file_name = latest_file_name.clone();
+                    let progress_emit_model_name = model.file_name.to_string();
+                    let progress_control_model_name = model.file_name.to_string();
                     let upload_res: AppResult<BackendApiRes<String>> = client
                         .upload_file_with_progress(
                             &upload_url,
@@ -1050,16 +1205,25 @@ pub async fn backend_upload_script(
                             "file",
                             model.file_name,
                             move |progress| {
-                                progress_run.emit(
+                                progress_emit_run.emit(
                                     "running",
                                     progress_completed_model_count,
-                                    progress_file_name.clone(),
-                                    progress_file_name.clone(),
+                                    progress_emit_file_name.clone(),
+                                    progress_emit_file_name.clone(),
                                     completed_bytes_before + progress.transferred_bytes as i64,
-                                    Some(format!("正在上传模型 {}", progress_model_name)),
+                                    Some(format!("正在上传模型 {}", progress_emit_model_name)),
                                     None,
                                     None,
                                 );
+                            },
+                            move || {
+                                progress_control_run.checkpoint_blocking(
+                                    progress_completed_model_count,
+                                    progress_control_file_name.clone(),
+                                    progress_control_file_name.clone(),
+                                    completed_bytes_before,
+                                    format!("正在上传模型 {}", progress_control_model_name),
+                                )
                             },
                         )
                         .await;
@@ -1096,9 +1260,16 @@ pub async fn backend_upload_script(
                             return ApiResponse::error(Some(format!("{}", error_message)));
                         }
                         Err(error) => {
+                            if is_transfer_deleted_error(&error) {
+                                transfer_run.close();
+                                return ApiResponse::error(Some(
+                                    TRANSFER_DELETED_MESSAGE.to_string(),
+                                ));
+                            }
+                            let friendly_error = app_error_message(error);
                             let error_message = format!(
-                                "脚本已上传，但模型 {} 上传失败: {}",
-                                model.file_name, error
+                                "脚本已上传，但模型 {} 上传失败，请检查网络后重试。",
+                                model.file_name
                             );
                             transfer_run
                                 .finish(
@@ -1107,7 +1278,7 @@ pub async fn backend_upload_script(
                                     latest_file_name.clone(),
                                     bytes_transferred,
                                     Some(error_message.clone()),
-                                    Some(error.to_string()),
+                                    Some(friendly_error),
                                 )
                                 .await;
                             return ApiResponse::error(Some(format!("{}", error_message)));
@@ -1115,6 +1286,10 @@ pub async fn backend_upload_script(
                     }
                 }
                 let success_message = api_res.message;
+                if transfer_run.control.state() == ScriptTransferControlState::DeleteRequested {
+                    transfer_run.close();
+                    return ApiResponse::error(Some(TRANSFER_DELETED_MESSAGE.to_string()));
+                }
                 transfer_run
                     .finish(
                         "success",
@@ -1255,7 +1430,7 @@ fn is_version_greater(required: &str, current: &str) -> bool {
 
 async fn fetch_upload_author(client: &HttpClient) -> Result<UploadAuthor, String> {
     let res: AppResult<BackendApiRes<serde_json::Value>> = client.get("/user/profile").await;
-    let api_res = res.map_err(|error| error.to_string())?;
+    let api_res = res.map_err(app_error_message)?;
 
     if api_res.code != 200 {
         return Err(api_res.message);

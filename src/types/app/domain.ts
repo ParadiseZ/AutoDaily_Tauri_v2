@@ -367,7 +367,7 @@ export interface ScriptUploadActivity {
 }
 
 export type ScriptTransferDirection = 'upload' | 'download';
-export type ScriptTransferStatus = 'running' | 'success' | 'error';
+export type ScriptTransferStatus = 'running' | 'paused' | 'success' | 'error';
 
 export interface ScriptTransferRecord {
     id: string;

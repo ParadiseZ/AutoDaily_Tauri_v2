@@ -101,12 +101,14 @@ export const formatUploadActivityStatusTone = (status: ScriptUploadActivityStatu
 
 export const formatScriptTransferStatusLabel = (status: ScriptTransferStatus) => {
     if (status === 'running') return '进行中';
+    if (status === 'paused') return '已暂停';
     if (status === 'success') return '已完成';
     return '失败';
 };
 
 export const formatScriptTransferStatusTone = (status: ScriptTransferStatus) => {
     if (status === 'running') return 'info';
+    if (status === 'paused') return 'warning';
     if (status === 'success') return 'success';
     return 'danger';
 };

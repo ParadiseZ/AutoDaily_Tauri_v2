@@ -20,7 +20,7 @@
         v-if="open"
         class="pointer-events-auto absolute inset-x-0 top-full z-30 mt-3 overflow-hidden rounded-[26px] shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
       >
-        <SurfacePanel tone="muted" padding="sm" class="space-y-3 border border-(--app-border) bg-(--app-panel)/96 backdrop-blur">
+        <SurfacePanel tone="muted" padding="sm" class="max-h-[min(72vh,760px)] space-y-3 overflow-y-auto border border-(--app-border) bg-(--app-panel)/96 backdrop-blur">
           <div
             v-for="record in records"
             :key="record.id"
@@ -34,9 +34,13 @@
                     :tone="formatScriptTransferStatusTone(record.status)"
                   />
                   <span class="truncate text-sm font-medium text-(--app-text-strong)">
-                    {{ record.latestMessage || fallbackTitle(record) }}
+                    {{ primaryTitle(record) }}
                   </span>
                 </div>
+
+                <p v-if="secondaryTitle(record)" class="truncate text-xs text-(--app-text-soft)">
+                  {{ secondaryTitle(record) }}
+                </p>
 
                 <div class="grid gap-2 text-xs text-(--app-text-soft) md:grid-cols-2">
                   <div class="flex items-center justify-between gap-3">
@@ -50,6 +54,10 @@
                   <div class="flex items-center justify-between gap-3">
                     <span>传输大小</span>
                     <span class="text-(--app-text-strong)">{{ progressLabel(record) }}</span>
+                  </div>
+                  <div class="flex items-center justify-between gap-3">
+                    <span>传输速度</span>
+                    <span class="text-(--app-text-strong)">{{ speedLabel(record) }}</span>
                   </div>
                   <div class="flex items-center justify-between gap-3">
                     <span>时间</span>
@@ -72,15 +80,34 @@
                 <p v-if="record.errorMessage" class="text-xs text-red-600">{{ record.errorMessage }}</p>
               </div>
 
-              <button
-                class="app-button app-button-ghost app-toolbar-button shrink-0"
-                type="button"
-                :disabled="record.status === 'running'"
-                @click="$emit('delete-record', record.id)"
-              >
-                <AppIcon name="trash-2" :size="14" />
-                删除
-              </button>
+              <div class="flex items-center gap-2">
+                <button
+                  v-if="record.status === 'running'"
+                  class="app-button app-button-ghost app-toolbar-button shrink-0"
+                  type="button"
+                  title="暂停"
+                  @click="$emit('pause-record', record.id)"
+                >
+                  <AppIcon name="pause" :size="14" />
+                </button>
+                <button
+                  v-else-if="record.status === 'paused'"
+                  class="app-button app-button-ghost app-toolbar-button shrink-0"
+                  type="button"
+                  title="继续"
+                  @click="$emit('resume-record', record.id)"
+                >
+                  <AppIcon name="play" :size="14" />
+                </button>
+                <button
+                  class="app-button app-button-ghost app-toolbar-button shrink-0"
+                  type="button"
+                  :title="record.status === 'running' || record.status === 'paused' ? '删除并停止' : '删除记录'"
+                  @click="$emit('delete-record', record.id)"
+                >
+                  <AppIcon name="trash-2" :size="14" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -115,12 +142,22 @@ const props = defineProps<{
 defineEmits<{
   toggle: [];
   'delete-record': [recordId: string];
+  'pause-record': [recordId: string];
+  'resume-record': [recordId: string];
 }>();
 
 const fallbackTitle = (record: ScriptTransferRecord) => (record.direction === 'upload' ? '上传记录' : '下载记录');
 
 const activeEvent = (record: ScriptTransferRecord) => props.getProgressEvent(record.id);
 const activeFileName = (record: ScriptTransferRecord) => activeEvent(record)?.currentFileName || record.latestFileName;
+const primaryTitle = (record: ScriptTransferRecord) => record.scriptName || activeFileName(record) || fallbackTitle(record);
+const secondaryTitle = (record: ScriptTransferRecord) => {
+  const fileName = activeFileName(record);
+  if (record.scriptName && fileName) {
+    return fileName;
+  }
+  return record.latestMessage || null;
+};
 
 const percent = (record: ScriptTransferRecord) => {
   const total = activeEvent(record)?.totalBytes ?? record.totalBytes;
@@ -142,7 +179,7 @@ const progressLabel = (record: ScriptTransferRecord) => {
 
 const etaLabel = (record: ScriptTransferRecord) => {
   const event = activeEvent(record);
-  if (!event || record.status !== 'running') {
+  if (!event || (record.status !== 'running' && record.status !== 'paused')) {
     return '传输进度';
   }
 
@@ -164,10 +201,27 @@ const etaLabel = (record: ScriptTransferRecord) => {
   return remainingSeconds > 0 ? `预计剩余 ${formatDuration(remainingSeconds)}` : '即将完成';
 };
 
+const speedLabel = (record: ScriptTransferRecord) => {
+  const event = activeEvent(record);
+  if (!event || (record.status !== 'running' && record.status !== 'paused')) {
+    return '未统计';
+  }
+
+  const startedAt = Date.parse(event.startedAt);
+  const updatedAt = Date.parse(event.updatedAt);
+  if (!Number.isFinite(startedAt) || !Number.isFinite(updatedAt) || updatedAt <= startedAt || event.bytesTransferred <= 0) {
+    return '计算中';
+  }
+
+  const elapsedSeconds = Math.max(1, (updatedAt - startedAt) / 1000);
+  return `${formatBytes(event.bytesTransferred / elapsedSeconds)}/s`;
+};
+
 function formatBytes(value: number) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
+  return `${(value / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function formatDuration(seconds: number) {

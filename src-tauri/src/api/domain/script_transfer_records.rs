@@ -2,9 +2,100 @@ use crate::infrastructure::db::get_pool;
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, QueryBuilder, Sqlite};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Emitter};
+use tokio::sync::Notify;
 
 const SCRIPT_TRANSFER_EVENT: &str = "script-transfer";
+const TRANSFER_STATE_RUNNING: u8 = 0;
+const TRANSFER_STATE_PAUSED: u8 = 1;
+const TRANSFER_STATE_DELETE_REQUESTED: u8 = 2;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptTransferControlState {
+    Running,
+    Paused,
+    DeleteRequested,
+}
+
+#[derive(Debug)]
+pub struct ScriptTransferControl {
+    state: AtomicU8,
+    notify: Notify,
+}
+
+impl ScriptTransferControl {
+    fn new() -> Self {
+        Self {
+            state: AtomicU8::new(TRANSFER_STATE_RUNNING),
+            notify: Notify::new(),
+        }
+    }
+
+    pub fn pause(&self) {
+        if self.state() == ScriptTransferControlState::DeleteRequested {
+            return;
+        }
+        self.state.store(TRANSFER_STATE_PAUSED, Ordering::SeqCst);
+    }
+
+    pub fn resume(&self) {
+        if self.state() == ScriptTransferControlState::DeleteRequested {
+            return;
+        }
+        self.state.store(TRANSFER_STATE_RUNNING, Ordering::SeqCst);
+        self.notify.notify_waiters();
+    }
+
+    pub fn request_delete(&self) {
+        self.state
+            .store(TRANSFER_STATE_DELETE_REQUESTED, Ordering::SeqCst);
+        self.notify.notify_waiters();
+    }
+
+    pub fn state(&self) -> ScriptTransferControlState {
+        match self.state.load(Ordering::SeqCst) {
+            TRANSFER_STATE_PAUSED => ScriptTransferControlState::Paused,
+            TRANSFER_STATE_DELETE_REQUESTED => ScriptTransferControlState::DeleteRequested,
+            _ => ScriptTransferControlState::Running,
+        }
+    }
+
+    pub async fn wait_for_signal(&self) {
+        self.notify.notified().await;
+    }
+}
+
+fn transfer_controls() -> &'static Mutex<HashMap<String, Arc<ScriptTransferControl>>> {
+    static CONTROLS: OnceLock<Mutex<HashMap<String, Arc<ScriptTransferControl>>>> =
+        OnceLock::new();
+    CONTROLS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub fn register_script_transfer_control(record_id: &str) -> Arc<ScriptTransferControl> {
+    let control = Arc::new(ScriptTransferControl::new());
+    let mut controls = transfer_controls()
+        .lock()
+        .expect("script transfer control mutex poisoned");
+    controls.insert(record_id.to_string(), control.clone());
+    control
+}
+
+pub fn get_script_transfer_control(record_id: &str) -> Option<Arc<ScriptTransferControl>> {
+    let controls = transfer_controls()
+        .lock()
+        .expect("script transfer control mutex poisoned");
+    controls.get(record_id).cloned()
+}
+
+pub fn unregister_script_transfer_control(record_id: &str) {
+    let mut controls = transfer_controls()
+        .lock()
+        .expect("script transfer control mutex poisoned");
+    controls.remove(record_id);
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 #[serde(rename_all = "camelCase")]
@@ -233,13 +324,10 @@ pub async fn list_script_transfer_records_cmd(
 
 #[tauri::command]
 pub async fn delete_script_transfer_record_cmd(record_id: String) -> Result<(), String> {
-    let pool = get_pool();
-    sqlx::query("DELETE FROM script_transfer_records WHERE id = ?")
-        .bind(record_id)
-        .execute(pool)
-        .await
-        .map_err(|error| error.to_string())?;
-    Ok(())
+    if let Some(control) = get_script_transfer_control(&record_id) {
+        control.request_delete();
+    }
+    delete_script_transfer_record(&record_id).await
 }
 
 #[tauri::command]
@@ -267,6 +355,34 @@ pub async fn clear_script_transfer_records_cmd(
 
     query
         .build()
+        .execute(pool)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn pause_script_transfer_record_cmd(record_id: String) -> Result<(), String> {
+    let Some(control) = get_script_transfer_control(&record_id) else {
+        return Err("传输已结束，无法暂停".to_string());
+    };
+    control.pause();
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn resume_script_transfer_record_cmd(record_id: String) -> Result<(), String> {
+    let Some(control) = get_script_transfer_control(&record_id) else {
+        return Err("传输已结束，无法继续".to_string());
+    };
+    control.resume();
+    Ok(())
+}
+
+async fn delete_script_transfer_record(record_id: &str) -> Result<(), String> {
+    let pool = get_pool();
+    sqlx::query("DELETE FROM script_transfer_records WHERE id = ?")
+        .bind(record_id)
         .execute(pool)
         .await
         .map_err(|error| error.to_string())?;

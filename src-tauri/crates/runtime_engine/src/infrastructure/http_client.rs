@@ -444,19 +444,23 @@ impl HttpClient {
         target_path: &std::path::Path,
         expected_sha256: Option<&str>,
     ) -> AppResult<()> {
-        self.download_file_with_resume_progress(endpoint, target_path, expected_sha256, |_| {})
+        self.download_file_with_resume_progress(endpoint, target_path, expected_sha256, |_| {}, || {
+            Ok(())
+        })
             .await
     }
 
-    pub async fn download_file_with_resume_progress<F>(
+    pub async fn download_file_with_resume_progress<F, C>(
         &self,
         endpoint: &str,
         target_path: &std::path::Path,
         expected_sha256: Option<&str>,
         mut on_progress: F,
+        mut check_control: C,
     ) -> AppResult<()>
     where
         F: FnMut(FileTransferProgress),
+        C: FnMut() -> Result<(), String>,
     {
         use reqwest::header::{ETAG, IF_RANGE, RANGE};
         use std::fs::{self, OpenOptions};
@@ -550,6 +554,10 @@ impl HttpClient {
 
         let total_bytes = resolve_response_total_bytes(response.headers(), append, resume_from);
         let mut transferred_bytes = if append { resume_from } else { 0 };
+        check_control().map_err(|message| AppError::HttpErr {
+            detail: message.clone(),
+            e: message,
+        })?;
         on_progress(FileTransferProgress {
             transferred_bytes,
             total_bytes,
@@ -557,6 +565,10 @@ impl HttpClient {
 
         let mut stream = response.bytes_stream();
         while let Some(chunk) = stream.next().await {
+            check_control().map_err(|message| AppError::HttpErr {
+                detail: message.clone(),
+                e: message,
+            })?;
             let chunk = chunk.map_err(|e| AppError::HttpErr {
                 detail: "读取下载文件流失败".to_string(),
                 e: e.to_string(),
@@ -622,20 +634,29 @@ impl HttpClient {
         file_part_name: &str,
         file_name: &str,
     ) -> AppResult<T> {
-        self.upload_file_with_progress(endpoint, file_path, file_part_name, file_name, |_| {})
-            .await
+        self.upload_file_with_progress(
+            endpoint,
+            file_path,
+            file_part_name,
+            file_name,
+            |_| {},
+            || Ok(()),
+        )
+        .await
     }
 
-    pub async fn upload_file_with_progress<T: DeserializeOwned, F>(
+    pub async fn upload_file_with_progress<T: DeserializeOwned, F, C>(
         &self,
         endpoint: &str,
         file_path: &std::path::Path,
         file_part_name: &str,
         file_name: &str,
         mut on_progress: F,
+        mut check_control: C,
     ) -> AppResult<T>
     where
         F: FnMut(FileTransferProgress) + Send + 'static,
+        C: FnMut() -> Result<(), String> + Send + 'static,
     {
         let base_url = self.backend_base_url().await;
         let url = format!("{}{}", base_url, endpoint);
@@ -654,6 +675,10 @@ impl HttpClient {
             })?
             .len();
 
+        check_control().map_err(|message| AppError::HttpErr {
+            detail: message.clone(),
+            e: message,
+        })?;
         on_progress(FileTransferProgress {
             transferred_bytes: 0,
             total_bytes: Some(total_bytes),
@@ -661,13 +686,14 @@ impl HttpClient {
 
         let mut transferred_bytes = 0_u64;
         let stream = ReaderStream::new(file).map(move |item| {
-            item.map(|bytes| {
+            item.and_then(|bytes| {
+                check_control().map_err(std::io::Error::other)?;
                 transferred_bytes += bytes.len() as u64;
                 on_progress(FileTransferProgress {
                     transferred_bytes,
                     total_bytes: Some(total_bytes),
                 });
-                bytes
+                Ok(bytes)
             })
         });
 

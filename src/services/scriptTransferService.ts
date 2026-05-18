@@ -27,6 +27,10 @@ export const scriptTransferService = {
   },
   deleteRecord: (recordId: string) =>
     invoke('delete_script_transfer_record_cmd', { recordId }) as Promise<void>,
+  pauseRecord: (recordId: string) =>
+    invoke('pause_script_transfer_record_cmd', { recordId }) as Promise<void>,
+  resumeRecord: (recordId: string) =>
+    invoke('resume_script_transfer_record_cmd', { recordId }) as Promise<void>,
   clearRecords: (options: {
     direction?: ScriptTransferDirection | null;
     localScriptId?: string | null;

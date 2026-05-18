@@ -19,6 +19,7 @@ use crate::api::backend_dto::{AuthRes, BackendApiRes};
 use crate::app::app_error::{AppError, AppResult};
 use crate::infrastructure::core::Serialize;
 use crate::infrastructure::http_client::HttpClient;
+use crate::infrastructure::logging::log_trait::Log;
 
 fn trans_api_res<T: Serialize>(api_res: AppResult<BackendApiRes<T>>) -> ApiResponse<T> {
     match api_res {
@@ -61,10 +62,59 @@ fn trans_api_res_token(
 }
 
 fn app_error_message(error: AppError) -> String {
+    Log::error(&format!("服务器接口调用失败: {}", error));
     match error {
-        AppError::HttpErr { e, .. } if !e.trim().is_empty() => e,
+        AppError::HttpErr { detail, e } => friendly_http_error_message(&detail, &e),
         other => other.to_string(),
     }
+}
+
+fn friendly_http_error_message(detail: &str, raw_error: &str) -> String {
+    let detail_lower = detail.trim().to_ascii_lowercase();
+    let raw_lower = raw_error.trim().to_ascii_lowercase();
+
+    if raw_lower.contains("401") || raw_lower.contains("unauthorized") {
+        return "登录状态已失效，请重新登录后重试。".to_string();
+    }
+
+    if raw_lower.contains("403") || raw_lower.contains("forbidden") {
+        return "当前账号没有权限执行此操作。".to_string();
+    }
+
+    if detail_lower.contains("请求发送失败")
+        || raw_lower.contains("error sending request for url")
+        || raw_lower.contains("connection refused")
+        || raw_lower.contains("dns error")
+        || raw_lower.contains("failed to connect")
+        || raw_lower.contains("tcp connect error")
+        || raw_lower.contains("timed out")
+        || raw_lower.contains("timeout")
+    {
+        return "连接服务器失败，请检查服务是否启动或网络是否可用后重试。".to_string();
+    }
+
+    if detail_lower.contains("接口返回错误状态码") || detail_lower.contains("文件下载返回了失败状态码")
+    {
+        if raw_lower.contains("404") {
+            return "请求的服务器接口暂不可用，请稍后重试。".to_string();
+        }
+
+        if raw_lower.contains("5") && raw_lower.contains("internal server error") {
+            return "服务器暂时不可用，请稍后重试。".to_string();
+        }
+
+        return "服务器处理请求失败，请稍后重试。".to_string();
+    }
+
+    if detail_lower.contains("解析响应 json 失败") || detail_lower.contains("解析接口响应失败") {
+        return "服务器返回的数据异常，请稍后重试。".to_string();
+    }
+
+    if detail_lower.contains("请求下载文件失败") {
+        return "下载失败，请检查网络后重试。".to_string();
+    }
+
+    "服务器暂时不可用，请稍后重试。".to_string()
 }
 
 fn format_backend_message(message: &str, details: Option<&serde_json::Value>) -> String {
