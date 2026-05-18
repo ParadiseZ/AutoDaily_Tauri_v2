@@ -1,10 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col rounded-[22px] border border-(--app-border) bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,247,252,0.88))] px-5 py-5 shadow-(--app-shadow-soft)">
     <div v-if="showHeader" class="flex items-center justify-between gap-3">
-      <div>
-        <p class="text-xs uppercase tracking-[0.18em] text-(--app-text-faint)">Script Preview</p>
-        <h3 class="text-lg font-semibold text-(--app-text-strong)">整表任务预览</h3>
-      </div>
       <span class="rounded-full border border-(--app-border) bg-white/60 px-3 py-1 text-xs text-(--app-text-faint)">
         {{ taskCount }} 个任务行
       </span>

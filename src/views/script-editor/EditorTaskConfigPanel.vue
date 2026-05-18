@@ -20,7 +20,7 @@
       <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
         <div v-if="activePanel === 'basic'" class="grid gap-3 md:grid-cols-2">
           <div class="grid gap-3 md:col-span-2 md:grid-cols-[72px_minmax(0,1fr)] md:items-center">
-            <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">行类型</span>
+            <p class="text-xs font-medium uppercase tracking-[0.14em]">行类型</p>
             <EditorSelectField
               :model-value="taskRowType"
               :options="taskRowTypeOptions"
@@ -28,10 +28,6 @@
               test-id="editor-task-row-type"
               @update:model-value="$emit('update:task-row-type', $event as 'task' | 'title')"
             />
-          </div>
-
-          <div class="rounded-[18px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft) md:col-span-2">
-            任务行专属设置已移动到右侧“任务概览”工作区，方便结合整表预览一起调整。
           </div>
 
           <label class="flex items-center gap-3 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft) md:col-span-2">
@@ -42,16 +38,13 @@
               data-testid="editor-task-hidden"
               @change="$emit('update:task-hidden', ($event.target as HTMLInputElement).checked)"
             />
-            <span>在工作台中隐藏当前任务</span>
+            <span>UI中隐藏</span>
           </label>
         </div>
 
         <div v-else-if="activePanel === 'inputs'" class="space-y-4">
           <div class="flex items-center justify-between gap-3">
             <div class="flex gap-2">
-              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', 'inputs')">
-                JSON
-              </button>
               <button class="app-button app-button-primary app-toolbar-button" type="button" data-testid="editor-input-add" @click="$emit('add-input')">
                 添加输入
               </button>
@@ -92,7 +85,6 @@
           <EmptyState
             v-else
             title="还没有变量"
-            description="先添加变量，再在右侧编辑名称、键、类型、作用域和值。"
           />
 
           <p v-if="inputError" class="text-sm text-red-700">{{ inputError }}</p>
@@ -101,9 +93,6 @@
         <div v-else-if="activePanel === 'ui'" class="space-y-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-sm font-semibold text-(--app-text-strong)">界面字段</p>
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', 'ui')">
-              JSON
-            </button>
           </div>
 
           <div class="flex flex-wrap gap-2">
@@ -148,8 +137,7 @@
 
           <EmptyState
             v-else
-            title="还没有 UI 字段"
-            description="先从模板插入字段，再在右侧预览和细调内容。"
+            title="点击上方按钮以添加UI内容"
           />
         </div>
 
@@ -158,9 +146,6 @@
             <div>
               <p class="text-sm font-semibold text-(--app-text-strong)">快速模板</p>
             </div>
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', 'steps')">
-              JSON
-            </button>
           </div>
 
           <div class="space-y-3">

@@ -81,12 +81,11 @@
               <button
                   class="app-icon-button app-icon-button-sec"
                   type="button"
-                  :aria-label="task.isHidden ? '显示' : '隐藏'"
-                  :title="task.isHidden ? '显示' : '隐藏'"
+                  :title="task.isHidden ? '点击显示' : '点击隐藏'"
                   @click.stop="$emit('toggle-hidden', task.id)"
               >
-                <Eye v-if="task.isHidden" class="h-4 w-4" />
-                <EyeOff v-else class = "h-4 w-4" />
+                <EyeOff v-if="task.isHidden" class = "h-4 w-4" />
+                <Eye v-else class="h-4 w-4" />
               </button>
             </div>
           </div>

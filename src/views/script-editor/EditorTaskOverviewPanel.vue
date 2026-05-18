@@ -2,7 +2,6 @@
   <div v-if="task?.rowType === 'task'" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-5 py-5">
     <div class="mb-4">
       <p class="text-sm font-semibold text-(--app-text-strong)">任务行设置</p>
-      <p class="mt-1 text-xs text-(--app-text-faint)">这里放运行入口、分组、缩进、默认周期和普通用户预览相关配置。</p>
     </div>
 
     <div class="grid gap-x-3 gap-y-3 lg:grid-cols-[72px_minmax(0,1fr)_72px_minmax(0,1fr)]">
@@ -66,12 +65,12 @@
         />
       </div>
 
-      <div class="overview-label">默认周期</div>
+      <div class="overview-label">运行周期</div>
       <div class="overview-content flex flex-wrap items-center gap-3">
         <EditorSelectField
           :model-value="defaultTaskCycleValue"
           :options="taskCycleOptions"
-          placeholder="选择默认周期"
+          placeholder="选择运行周期"
           test-id="editor-task-cycle"
           @update:model-value="$emit('update:default-task-cycle-value', String($event || 'everyRun'))"
         />
@@ -108,7 +107,7 @@
           data-testid="editor-task-record-schedule"
           @change="$emit('update:record-schedule', ($event.target as HTMLInputElement).checked)"
         />
-        <span>执行或调度后记录结果</span>
+        <span>调度后记录结果</span>
       </label>
 
       <div class="overview-label">显示开关</div>
@@ -120,10 +119,10 @@
           data-testid="editor-task-show-enabled-toggle"
           @change="$emit('update:show-enabled-toggle', ($event.target as HTMLInputElement).checked)"
         />
-        <span>普通用户预览中显示启用开关</span>
+        <span>UI中显示启用开关</span>
       </label>
 
-      <div class="overview-label">默认启用</div>
+      <div class="overview-label">是否启用</div>
       <label class="overview-content overview-check">
         <input
           :checked="defaultEnabled"
@@ -132,14 +131,14 @@
           data-testid="editor-task-default-enabled"
           @change="$emit('update:default-enabled', ($event.target as HTMLInputElement).checked)"
         />
-        <span>该任务默认启用</span>
+        <span>默认启用任务</span>
       </label>
     </div>
   </div>
 
   <div v-else class="rounded-[18px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-5 py-5 text-sm text-(--app-text-soft)">
     <div class="grid gap-3 md:grid-cols-[72px_minmax(0,1fr)] md:items-center">
-      <div class="overview-label">标题名称</div>
+      <div class="overview-label">名称</div>
       <div class="overview-content">
         <input
           :value="taskName"
@@ -150,7 +149,6 @@
         />
       </div>
     </div>
-    <p class="mt-4">标题行没有运行入口、分组、周期和启用开关配置。右侧任务概览工作区仅在普通任务行时显示这些设置。</p>
   </div>
 </template>
 

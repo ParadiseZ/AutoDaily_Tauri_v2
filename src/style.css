@@ -314,6 +314,7 @@ a {
 
 .app-button:hover,
 .app-icon-button:hover {
+  border-color: rgba(70, 110, 255, 1);
   transform: translateY(-1px);
   cursor: pointer;
 }

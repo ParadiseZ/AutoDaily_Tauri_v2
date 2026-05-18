@@ -118,8 +118,7 @@
 
     <EmptyState
       v-else
-      title="选择一个变量"
-      description="中间列表选中变量后，右侧才会显示名称、键、类型、作用域和值。"
+      title="中部区域选择一个变量后编辑"
     />
   </div>
 </template>

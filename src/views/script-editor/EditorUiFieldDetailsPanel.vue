@@ -200,8 +200,7 @@
 
     <EmptyState
       v-else
-      title="选择一个字段"
-      description="点击中间字段列表或上方预览项，下面会切换到当前字段的可编辑内容。"
+      title="选择一个字段元素后编辑"
     />
   </div>
 </template>

@@ -5,13 +5,11 @@
       title="拖动调整控制台高度"
       @mousedown.prevent="startResize"
     />
-    <div class="flex items-center justify-between border-b border-(--app-border) px-4 py-3">
+    <div class="flex items-center justify-between border-b border-(--app-border) px-1 py-1">
       <div class="space-y-1">
-        <p class="text-xs uppercase tracking-[0.16em] text-(--app-text-faint)">Console</p>
-        <h2 class="text-sm font-semibold text-(--app-text-strong)">调试输出</h2>
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-xs text-(--app-text-faint)">{{ lines.length }} / {{ maxLines }}</span>
+        <span class="text-xs">{{ lines.length }} / {{ maxLines }}</span>
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('clear')">
           清空
         </button>
@@ -106,9 +104,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .editor-console-resize {
-  height: 10px;
+  height: 4px;
   cursor: ns-resize;
   background:
     linear-gradient(180deg, transparent 0, transparent 3px, color-mix(in srgb, var(--app-border) 70%, transparent) 3px, color-mix(in srgb, var(--app-border) 70%, transparent) 4px, transparent 4px);
+}
+.editor-console-resize:hover{
+  background-color: rgba(70, 110, 255, 0.96);
 }
 </style>

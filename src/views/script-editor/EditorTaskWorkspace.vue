@@ -3,7 +3,7 @@
     <template v-if="task">
       <div class="flex items-start justify-between gap-3">
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', rawSection)">
-          查看底层结构
+          查看JSON结构
         </button>
       </div>
 
