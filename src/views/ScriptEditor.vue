@@ -1,7 +1,7 @@
 <template>
   <div class="editor-shell h-svh overflow-hidden px-1 py-1 lg:px-1 lg:py-1">
     <div class="mx-auto flex h-full flex-col gap-[1px]">
-      <header class="editor-toolbar rounded-[20px] border border-(--app-border) bg-(--app-panel) px-5 py-4 lg:px-6">
+      <header class="editor-toolbar border border-(--app-border) bg-(--app-panel) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-3">
             <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
@@ -88,19 +88,19 @@
         </div>
       </header>
 
-      <div v-if="loadError" class="rounded-[28px] border border-red-500/16 bg-red-500/8 px-6 py-8 text-red-700">
+      <div v-if="loadError" class="border border-red-500/16 bg-red-500/8 px-6 py-8 text-red-700">
         <h2 class="text-xl font-semibold">无法打开编辑器</h2>
         <p class="mt-3 max-w-2xl text-sm leading-6">{{ loadError }}</p>
       </div>
 
       <div
         v-else-if="isLoading"
-        class="rounded-[28px] border border-(--app-border) bg-(--app-panel) px-6 py-10 text-sm text-(--app-text-soft)"
+        class="border border-(--app-border) bg-(--app-panel) px-6 py-10 text-sm text-(--app-text-soft)"
       >
         正在读取脚本和任务结构...
       </div>
 
-      <div v-else class="flex min-h-0 flex-1 flex-col gap-[1px] bg-(--app-border) overflow-hidden rounded-[20px]">
+      <div v-else class="flex min-h-0 flex-1 flex-col gap-[1px] bg-(--app-border) overflow-hidden">
         <div class="editor-main-grid grid min-h-0 flex-1 gap-[1px]" :class="{ 'editor-main-grid-collapsed': leftSidebarCollapsed }">
           <EditorTaskSidebar
             v-if="activeMode === 'task'"
@@ -3472,5 +3472,9 @@ onBeforeUnmount(() => {
   .editor-main-grid-collapsed {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+:deep(.app-panel) {
+  border-radius: 0 !important;
 }
 </style>

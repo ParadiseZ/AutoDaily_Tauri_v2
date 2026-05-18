@@ -1,15 +1,15 @@
 <template>
-  <SurfacePanel padding="sm" class="shrink-0 overflow-hidden">
+  <SurfacePanel padding="none" class="shrink-0 overflow-hidden flex flex-col">
     <div
       class="editor-console-resize"
       title="拖动调整控制台高度"
       @mousedown.prevent="startResize"
     />
-    <div class="flex items-center justify-between border-b border-(--app-border) px-1 py-1">
+    <div class="flex items-center justify-between border-b border-(--app-border) px-4 py-2">
       <div class="space-y-1">
       </div>
       <div class="flex items-center gap-2">
-        <span class="text-xs">{{ lines.length }} / {{ maxLines }}</span>
+        <span class="text-xs text-(--app-text-faint)">{{ lines.length }} / {{ maxLines }}</span>
         <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('clear')">
           清空
         </button>
