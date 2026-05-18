@@ -359,6 +359,7 @@ const downloadSelected = async () => {
       selectedScript.value.id,
       selectedScript.value.runtimeType || 'rhai',
       replaceLocalScriptId,
+      selectedScript.value.name || '未命名脚本',
     );
     if (!result.success) {
       if (isTransferDeletedMessage(result.message ?? '')) {

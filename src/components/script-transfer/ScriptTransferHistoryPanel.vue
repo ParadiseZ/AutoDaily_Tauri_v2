@@ -20,94 +20,83 @@
         v-if="open"
         class="pointer-events-auto absolute inset-x-0 top-full z-30 mt-3 overflow-hidden rounded-[26px] shadow-[0_24px_64px_rgba(15,23,42,0.22)]"
       >
-        <SurfacePanel tone="muted" padding="sm" class="max-h-[min(72vh,760px)] space-y-3 overflow-y-auto border border-(--app-border) bg-(--app-panel)/96 backdrop-blur">
+        <SurfacePanel tone="muted" padding="sm" class="max-h-[min(72vh,760px)] overflow-y-auto border border-(--app-border) bg-(--app-panel)/96 backdrop-blur">
           <div
             v-for="record in records"
             :key="record.id"
-            class="rounded-[18px] border border-(--app-border) bg-(--app-panel)/55 px-4 py-3"
+            class="flex items-start gap-3 border-b border-(--app-border)/80 px-3 py-3 last:border-b-0"
           >
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div class="min-w-0 flex-1 space-y-2">
-                <div class="flex flex-wrap items-center gap-2">
-                  <StatusBadge
-                    :label="formatScriptTransferStatusLabel(record.status)"
-                    :tone="formatScriptTransferStatusTone(record.status)"
-                  />
-                  <span class="truncate text-sm font-medium text-(--app-text-strong)">
-                    {{ primaryTitle(record) }}
-                  </span>
+            <div class="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-(--app-panel-muted) text-(--app-accent)">
+              <AppIcon :name="directionIconName(record)" :size="18" />
+            </div>
+
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <span class="truncate text-sm font-medium text-(--app-text-strong)">
+                      {{ primaryTitle(record) }}
+                    </span>
+                    <span class="shrink-0 text-[11px]" :class="statusTextClass(record.status)">
+                      {{ formatScriptTransferStatusLabel(record.status) }}
+                    </span>
+                  </div>
+                  <p v-if="secondaryTitle(record)" class="truncate pt-0.5 text-xs text-(--app-text-soft)">
+                    {{ secondaryTitle(record) }}
+                  </p>
                 </div>
 
-                <p v-if="secondaryTitle(record)" class="truncate text-xs text-(--app-text-soft)">
-                  {{ secondaryTitle(record) }}
-                </p>
+                <div class="flex shrink-0 items-center gap-1">
+                  <button
+                    v-if="record.status === 'running'"
+                    class="transfer-action-button"
+                    type="button"
+                    title="暂停"
+                    @click="$emit('pause-record', record.id)"
+                  >
+                    <AppIcon name="pause" :size="14" />
+                  </button>
+                  <button
+                    v-else-if="record.status === 'paused'"
+                    class="transfer-action-button"
+                    type="button"
+                    title="继续"
+                    @click="$emit('resume-record', record.id)"
+                  >
+                    <AppIcon name="play" :size="14" />
+                  </button>
+                  <button
+                    class="transfer-action-button"
+                    type="button"
+                    :title="record.status === 'running' || record.status === 'paused' ? '删除并停止' : '删除记录'"
+                    @click="$emit('delete-record', record.id)"
+                  >
+                    <AppIcon name="trash-2" :size="14" />
+                  </button>
+                </div>
+              </div>
 
-                <div class="grid gap-2 text-xs text-(--app-text-soft) md:grid-cols-2">
-                  <div class="flex items-center justify-between gap-3">
-                    <span>模型进度</span>
-                    <span class="text-(--app-text-strong)">{{ record.completedModelFileCount }} / {{ record.modelFileCount }}</span>
+              <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-(--app-text-soft)">
+                <span>模型 {{ record.completedModelFileCount }} / {{ record.modelFileCount }}</span>
+                <span>{{ progressLabel(record) }}</span>
+                <span>{{ speedLabel(record) }}</span>
+                <span>{{ etaLabel(record) }}</span>
+                <span>{{ formatDateTime(record.updatedAt || record.startedAt) }}</span>
+              </div>
+
+              <template v-if="percent(record) !== null">
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between text-[11px] text-(--app-text-faint)">
+                    <span>{{ activeFileName(record) || '未记录文件名' }}</span>
+                    <span>{{ percent(record) }}%</span>
                   </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span>最近文件</span>
-                    <span class="truncate text-(--app-text-strong)">{{ activeFileName(record) || '未记录' }}</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span>传输大小</span>
-                    <span class="text-(--app-text-strong)">{{ progressLabel(record) }}</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span>传输速度</span>
-                    <span class="text-(--app-text-strong)">{{ speedLabel(record) }}</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-3">
-                    <span>时间</span>
-                    <span class="text-(--app-text-strong)">{{ formatDateTime(record.updatedAt || record.startedAt) }}</span>
+                  <div class="h-1.5 overflow-hidden rounded-full bg-(--app-border)">
+                    <div class="h-full rounded-full bg-(--app-accent)" :style="{ width: `${percent(record)}%` }" />
                   </div>
                 </div>
+              </template>
 
-                <template v-if="percent(record) !== null">
-                  <div class="space-y-1 pt-1">
-                    <div class="flex items-center justify-between text-[11px] text-(--app-text-faint)">
-                      <span>{{ etaLabel(record) }}</span>
-                      <span>{{ percent(record) }}%</span>
-                    </div>
-                    <div class="h-2 overflow-hidden rounded-full bg-(--app-border)">
-                      <div class="h-full rounded-full bg-(--app-accent)" :style="{ width: `${percent(record)}%` }" />
-                    </div>
-                  </div>
-                </template>
-
-                <p v-if="record.errorMessage" class="text-xs text-red-600">{{ record.errorMessage }}</p>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <button
-                  v-if="record.status === 'running'"
-                  class="app-button app-button-ghost app-toolbar-button shrink-0"
-                  type="button"
-                  title="暂停"
-                  @click="$emit('pause-record', record.id)"
-                >
-                  <AppIcon name="pause" :size="14" />
-                </button>
-                <button
-                  v-else-if="record.status === 'paused'"
-                  class="app-button app-button-ghost app-toolbar-button shrink-0"
-                  type="button"
-                  title="继续"
-                  @click="$emit('resume-record', record.id)"
-                >
-                  <AppIcon name="play" :size="14" />
-                </button>
-                <button
-                  class="app-button app-button-ghost app-toolbar-button shrink-0"
-                  type="button"
-                  :title="record.status === 'running' || record.status === 'paused' ? '删除并停止' : '删除记录'"
-                  @click="$emit('delete-record', record.id)"
-                >
-                  <AppIcon name="trash-2" :size="14" />
-                </button>
-              </div>
+              <p v-if="record.errorMessage" class="text-xs text-red-600">{{ record.errorMessage }}</p>
             </div>
           </div>
 
@@ -126,9 +115,8 @@
 import type { ScriptTransferProgressEvent, ScriptTransferRecord } from '@/types/app/domain';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
-import StatusBadge from '@/components/shared/StatusBadge.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
-import { formatDateTime, formatScriptTransferStatusLabel, formatScriptTransferStatusTone } from '@/utils/presenters';
+import { formatDateTime, formatScriptTransferStatusLabel } from '@/utils/presenters';
 
 const props = defineProps<{
   title: string;
@@ -147,6 +135,14 @@ defineEmits<{
 }>();
 
 const fallbackTitle = (record: ScriptTransferRecord) => (record.direction === 'upload' ? '上传记录' : '下载记录');
+const directionIconName = (record: ScriptTransferRecord) =>
+  record.direction === 'upload' ? 'upload' : 'download';
+const statusTextClass = (status: ScriptTransferRecord['status']) => {
+  if (status === 'running') return 'text-sky-600';
+  if (status === 'paused') return 'text-amber-600';
+  if (status === 'success') return 'text-emerald-600';
+  return 'text-red-600';
+};
 
 const activeEvent = (record: ScriptTransferRecord) => props.getProgressEvent(record.id);
 const activeFileName = (record: ScriptTransferRecord) => activeEvent(record)?.currentFileName || record.latestFileName;
@@ -236,6 +232,30 @@ function formatDuration(seconds: number) {
 </script>
 
 <style scoped>
+.transfer-action-button {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--app-border) 88%, transparent);
+  background: color-mix(in srgb, var(--app-panel) 86%, transparent);
+  color: var(--app-text-soft);
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.transfer-action-button:hover {
+  color: var(--app-text-strong);
+  border-color: color-mix(in srgb, var(--app-accent) 36%, transparent);
+  background: color-mix(in srgb, var(--app-panel-muted) 92%, transparent);
+  transform: translateY(-1px);
+}
+
 .transfer-history-sheet-enter-active,
 .transfer-history-sheet-leave-active {
   transition:

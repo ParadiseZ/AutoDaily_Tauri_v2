@@ -264,11 +264,13 @@ export const scriptService = {
         scriptId: string,
         runtimeType: string,
         replaceLocalScriptId: string | null = null,
+        scriptName: string | null = null,
     ) =>
         (await invoke('backend_download_script', {
             scriptId,
             runtimeType,
             replaceLocalScriptId,
+            scriptName,
         })) as ApiEnvelope<string>,
     getYoloLabels: async (path: string): Promise<Array<{ index: number; label: string }>> => {
         const labels = (await invoke('get_yolo_labels_cmd', { path })) as Record<string, string>;

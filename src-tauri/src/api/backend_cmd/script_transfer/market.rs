@@ -271,6 +271,66 @@ fn is_transfer_deleted_error(error: &crate::app::app_error::AppError) -> bool {
     }
 }
 
+async fn record_immediate_transfer_terminal_state(
+    app_handle: &AppHandle,
+    direction: &'static str,
+    local_script_id: Option<String>,
+    cloud_script_id: Option<String>,
+    script_name: Option<String>,
+    status: &'static str,
+    latest_message: String,
+    error_message: Option<String>,
+) {
+    let record_id = uuid::Uuid::now_v7().to_string();
+    let started_at = now_rfc3339();
+    let finished_at = Some(now_rfc3339());
+
+    if let Err(error) = insert_script_transfer_record(CreateScriptTransferRecordInput {
+        id: record_id.clone(),
+        direction: direction.to_string(),
+        local_script_id: local_script_id.clone(),
+        cloud_script_id: cloud_script_id.clone(),
+        script_name: script_name.clone(),
+        status: status.to_string(),
+        model_file_count: 0,
+        completed_model_file_count: 0,
+        latest_file_name: None,
+        bytes_transferred: 0,
+        total_bytes: 0,
+        latest_message: Some(latest_message.clone()),
+        error_message: error_message.clone(),
+        started_at: started_at.clone(),
+        finished_at: finished_at.clone(),
+    })
+    .await
+    {
+        Log::error(&format!("写入即时传输记录失败: {}", error));
+    }
+
+    emit_script_transfer_event(
+        app_handle,
+        &ScriptTransferProgressEvent {
+            id: record_id,
+            direction: direction.to_string(),
+            local_script_id,
+            cloud_script_id,
+            script_name,
+            status: status.to_string(),
+            model_file_count: 0,
+            completed_model_file_count: 0,
+            current_file_name: None,
+            latest_file_name: None,
+            bytes_transferred: 0,
+            total_bytes: 0,
+            latest_message: Some(latest_message),
+            error_message,
+            started_at,
+            finished_at,
+            updated_at: now_rfc3339(),
+        },
+    );
+}
+
 #[command]
 pub async fn backend_search_scripts(
     app_handle: AppHandle,
@@ -445,6 +505,7 @@ pub async fn backend_download_script(
     script_id: String,
     runtime_type: String,
     replace_local_script_id: Option<String>,
+    script_name: Option<String>,
 ) -> ApiResponse<String> {
     use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, ScriptId, TaskId};
     use crate::infrastructure::db::get_pool;
@@ -465,16 +526,64 @@ pub async fn backend_download_script(
                 if let Some(data) = api_res.data {
                     data
                 } else {
+                    let message = "返回数据为空".to_string();
+                    record_immediate_transfer_terminal_state(
+                        &app_handle,
+                        "download",
+                        replace_local_script_id.clone(),
+                        Some(script_id.clone()),
+                        script_name.clone(),
+                        "error",
+                        message.clone(),
+                        Some(message.clone()),
+                    )
+                    .await;
                     return ApiResponse::error(Some("返回数据为空".to_string()));
                 }
             } else {
+                record_immediate_transfer_terminal_state(
+                    &app_handle,
+                    "download",
+                    replace_local_script_id.clone(),
+                    Some(script_id.clone()),
+                    script_name.clone(),
+                    "error",
+                    api_res.message.clone(),
+                    Some(api_res.message.clone()),
+                )
+                .await;
                 return ApiResponse::error(Some(api_res.message));
             }
         }
-        Err(error) => return ApiResponse::error(Some(app_error_message(error))),
+        Err(error) => {
+            let message = app_error_message(error);
+            record_immediate_transfer_terminal_state(
+                &app_handle,
+                "download",
+                replace_local_script_id.clone(),
+                Some(script_id.clone()),
+                script_name.clone(),
+                "error",
+                message.clone(),
+                Some(message.clone()),
+            )
+            .await;
+            return ApiResponse::error(Some(message));
+        }
     };
 
     if let Some(error) = validate_script_compatibility(&download_data.script.data) {
+        record_immediate_transfer_terminal_state(
+            &app_handle,
+            "download",
+            replace_local_script_id.clone(),
+            Some(script_id.clone()),
+            script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+            "error",
+            error.clone(),
+            Some(error.clone()),
+        )
+        .await;
         return ApiResponse::error(Some(error));
     }
 
@@ -488,6 +597,17 @@ pub async fn backend_download_script(
             {
                 Ok(Some(local_script)) => {
                     if local_script.data.script_type != ScriptType::Published {
+                        record_immediate_transfer_terminal_state(
+                            &app_handle,
+                            "download",
+                            Some(local_script_id.to_string()),
+                            Some(script_id.clone()),
+                            script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                            "error",
+                            "只能覆盖本地云端脚本副本".to_string(),
+                            Some("只能覆盖本地云端脚本副本".to_string()),
+                        )
+                        .await;
                         return ApiResponse::error(Some("只能覆盖本地云端脚本副本".to_string()));
                     }
                     if local_script
@@ -497,15 +617,53 @@ pub async fn backend_download_script(
                         .map(|value| value.to_string())
                         != Some(script_id.clone())
                     {
+                        let message = "本地脚本与当前云端脚本不匹配，无法覆盖".to_string();
+                        record_immediate_transfer_terminal_state(
+                            &app_handle,
+                            "download",
+                            Some(local_script_id.to_string()),
+                            Some(script_id.clone()),
+                            script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                            "error",
+                            message.clone(),
+                            Some(message.clone()),
+                        )
+                        .await;
                         return ApiResponse::error(Some(
                             "本地脚本与当前云端脚本不匹配，无法覆盖".to_string(),
                         ));
                     }
                     Some(local_script)
                 }
-                Ok(None) => return ApiResponse::error(Some("要覆盖的本地脚本不存在".to_string())),
+                Ok(None) => {
+                    let message = "要覆盖的本地脚本不存在".to_string();
+                    record_immediate_transfer_terminal_state(
+                        &app_handle,
+                        "download",
+                        Some(local_script_id.to_string()),
+                        Some(script_id.clone()),
+                        script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                        "error",
+                        message.clone(),
+                        Some(message.clone()),
+                    )
+                    .await;
+                    return ApiResponse::error(Some(message));
+                }
                 Err(error) => {
-                    return ApiResponse::error(Some(format!("读取本地脚本失败: {}", error)));
+                    let message = format!("读取本地脚本失败: {}", error);
+                    record_immediate_transfer_terminal_state(
+                        &app_handle,
+                        "download",
+                        Some(local_script_id.to_string()),
+                        Some(script_id.clone()),
+                        script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                        "error",
+                        message.clone(),
+                        Some(message.clone()),
+                    )
+                    .await;
+                    return ApiResponse::error(Some(message));
                 }
             }
         }
@@ -525,6 +683,30 @@ pub async fn backend_download_script(
         Some(download_data.script.data.ver_num),
     ) {
         if remote_ver_num < existing_ver_num {
+            let message = format!(
+                "本地已有 {}，云端当前仅为 {}。不允许用较旧的云端版本覆盖本地副本。",
+                format_version_label(
+                    replacement_target
+                        .as_ref()
+                        .map(|script| script.data.ver_name.as_str()),
+                    version_num_to_i64(Some(existing_ver_num)),
+                ),
+                format_version_label(
+                    Some(download_data.script.data.ver_name.as_str()),
+                    version_num_to_i64(Some(remote_ver_num)),
+                ),
+            );
+            record_immediate_transfer_terminal_state(
+                &app_handle,
+                "download",
+                replacement_target.as_ref().map(|script| script.id.to_string()),
+                Some(script_id.clone()),
+                script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                "error",
+                message.clone(),
+                Some(message.clone()),
+            )
+            .await;
             return ApiResponse::error(Some(format!(
                 "本地已有 {}，云端当前仅为 {}。不允许用较旧的云端版本覆盖本地副本。",
                 format_version_label(

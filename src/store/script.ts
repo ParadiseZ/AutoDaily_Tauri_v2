@@ -153,7 +153,8 @@ export const useScriptStore = defineStore('script', () => {
         scriptId: string,
         runtimeType: string,
         replaceLocalScriptId: string | null = null,
-    ) => scriptService.downloadMarketScript(scriptId, runtimeType, replaceLocalScriptId);
+        scriptName: string | null = null,
+    ) => scriptService.downloadMarketScript(scriptId, runtimeType, replaceLocalScriptId, scriptName);
 
     return {
         cloneScript,

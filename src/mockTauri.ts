@@ -777,7 +777,12 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
                   direction: 'download',
                   localScriptId: replaceLocalScriptId,
                   cloudScriptId: String(args.scriptId),
-                  scriptName: findScript(current, String(args.scriptId))?.data.name ?? '市场脚本',
+                  scriptName:
+                    (typeof args.scriptName === 'string' && args.scriptName.trim().length > 0
+                      ? String(args.scriptName)
+                      : null) ??
+                    findScript(current, String(args.scriptId))?.data.name ??
+                    '市场脚本',
                   status: 'success',
                   modelFileCount: 0,
                   completedModelFileCount: 0,
