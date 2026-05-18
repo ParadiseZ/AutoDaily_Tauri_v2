@@ -1,7 +1,8 @@
 use super::model_transfer::{
     build_model_file_payload, collect_model_uploads, local_scripts_dir,
-    normalize_download_endpoint, normalize_model_type, rewrite_script_model_paths_for_published,
-    runtime_type_param,
+    model_hash_matches_path, model_hash_matches_sha256, normalize_download_endpoint,
+    normalize_model_type, rewrite_script_model_paths_for_published, runtime_type_param,
+    verification_sha256,
 };
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_cmd::{app_error_message, format_backend_message, trans_api_res};
@@ -24,6 +25,7 @@ use crate::infrastructure::core::UserId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::http_client::HttpClient;
 use crate::infrastructure::logging::log_trait::Log;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
 use tauri::{command, AppHandle};
@@ -329,6 +331,48 @@ async fn record_immediate_transfer_terminal_state(
             updated_at: now_rfc3339(),
         },
     );
+}
+
+async fn fetch_remote_model_file_index(
+    client: &HttpClient,
+    script_id: &str,
+    runtime_type: &str,
+) -> Option<HashMap<String, ScriptModelFileDto>> {
+    let url = format!(
+        "/scripts/download/{}?runtime_type={}",
+        script_id, runtime_type
+    );
+    let req = ScriptDownloadReq {
+        client: current_client_capability(),
+    };
+    let response: AppResult<BackendApiRes<ScriptUploadRequest>> = client.post(&url, &req).await;
+    let api_res = match response {
+        Ok(value) => value,
+        Err(error) => {
+            Log::warn(&format!(
+                "获取云端模型元数据失败，将回退为完整模型上传: {}",
+                app_error_message(error)
+            ));
+            return None;
+        }
+    };
+    if api_res.code != 200 {
+        Log::warn(&format!(
+            "获取云端模型元数据返回失败，将回退为完整模型上传: {}",
+            api_res.message
+        ));
+        return None;
+    }
+    let Some(data) = api_res.data else {
+        return None;
+    };
+
+    Some(
+        data.model_files
+            .into_iter()
+            .map(|model| (model.r#type.to_ascii_lowercase(), model))
+            .collect(),
+    )
 }
 
 #[command]
@@ -887,27 +931,6 @@ pub async fn backend_download_script(
                 return ApiResponse::error(Some(error));
             }
         };
-        if let Some(hash_algorithm) = model.hash_algorithm.as_deref() {
-            if !hash_algorithm.eq_ignore_ascii_case("SHA-256") {
-                let error = format!(
-                    "模型 {} 使用了不支持的 hash 算法: {}",
-                    model.file_name, hash_algorithm
-                );
-                transfer_run
-                    .finish(
-                        "error",
-                        completed_model_count,
-                        latest_file_name.clone(),
-                        bytes_transferred,
-                        Some("模型校验配置不支持".to_string()),
-                        Some(error.clone()),
-                    )
-                    .await;
-                cleanup_script_dir_swap_temp(&dir_swap);
-                return ApiResponse::error(Some(error));
-            }
-        }
-
         latest_file_name = Some(model.file_name.clone());
         if let Err(message) = transfer_run
             .checkpoint_async(
@@ -934,12 +957,79 @@ pub async fn backend_download_script(
             None,
         );
 
+        let existing_model_path = replacement_target
+            .as_ref()
+            .map(|script| scripts_root.join(script.id.to_string()).join(normalized_type.file_name));
+        if let Some(existing_model_path) = existing_model_path.as_ref() {
+            match model_hash_matches_path(
+                model.hash_algorithm.as_deref(),
+                model.hash_value.as_deref(),
+                existing_model_path,
+            ) {
+                Ok(true) => {
+                    if let Err(error) = std::fs::copy(
+                        existing_model_path,
+                        dir_swap.staging_dir.join(normalized_type.file_name),
+                    ) {
+                        transfer_run
+                            .finish(
+                                "error",
+                                completed_model_count,
+                                latest_file_name.clone(),
+                                bytes_transferred,
+                                Some("复用本地模型失败".to_string()),
+                                Some(error.to_string()),
+                            )
+                            .await;
+                        cleanup_script_dir_swap_temp(&dir_swap);
+                        return ApiResponse::error(Some(format!(
+                            "复制本地模型 {} 失败: {}",
+                            existing_model_path.display(),
+                            error
+                        )));
+                    }
+
+                    completed_model_count += 1;
+                    bytes_transferred += model.size_bytes.unwrap_or(0) as i64;
+                    transfer_run.emit(
+                        "running",
+                        completed_model_count,
+                        latest_file_name.clone(),
+                        latest_file_name.clone(),
+                        bytes_transferred,
+                        Some(format!("模型 {} 已复用，无需下载", model.file_name)),
+                        None,
+                        None,
+                    );
+                    continue;
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    transfer_run
+                        .finish(
+                            "error",
+                            completed_model_count,
+                            latest_file_name.clone(),
+                            bytes_transferred,
+                            Some("校验本地模型失败".to_string()),
+                            Some(error.clone()),
+                        )
+                        .await;
+                    cleanup_script_dir_swap_temp(&dir_swap);
+                    return ApiResponse::error(Some(error));
+                }
+            }
+        }
+
         let completed_bytes_before = bytes_transferred;
         let download_result = client
             .download_file_with_resume_progress(
                 endpoint.as_str(),
                 &dir_swap.staging_dir.join(normalized_type.file_name),
-                model.hash_value.as_deref(),
+                verification_sha256(
+                    model.hash_algorithm.as_deref(),
+                    model.hash_value.as_deref(),
+                ),
                 |progress| {
                     let current_file_bytes = progress.transferred_bytes as i64;
                     transfer_run.emit(
@@ -1285,6 +1375,7 @@ pub async fn backend_upload_script(
     .unwrap_or_default();
 
     let script_version = script.data.ver_num;
+    let remote_model_files = fetch_remote_model_file_index(&client, &script_id, &runtime_type).await;
     let transfer_total_bytes = model_uploads
         .iter()
         .map(|model| model.size_bytes as i64)
@@ -1371,6 +1462,31 @@ pub async fn backend_upload_script(
                         None,
                         None,
                     );
+
+                    if let Some(remote_model) = remote_model_files
+                        .as_ref()
+                        .and_then(|items| items.get(&model.type_name.to_ascii_lowercase()))
+                    {
+                        if model_hash_matches_sha256(
+                            remote_model.hash_algorithm.as_deref(),
+                            remote_model.hash_value.as_deref(),
+                            &model.sha256,
+                        ) {
+                            completed_model_count += 1;
+                            bytes_transferred += model.size_bytes as i64;
+                            transfer_run.emit(
+                                "running",
+                                completed_model_count,
+                                latest_file_name.clone(),
+                                latest_file_name.clone(),
+                                bytes_transferred,
+                                Some(format!("模型 {} 已存在，无需上传", model.file_name)),
+                                None,
+                                None,
+                            );
+                            continue;
+                        }
+                    }
 
                     let completed_bytes_before = bytes_transferred;
                     let progress_emit_run = transfer_run.clone();

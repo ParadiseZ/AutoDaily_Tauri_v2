@@ -132,6 +132,50 @@ pub(super) fn normalize_model_type(value: &str) -> Result<ModelTypeSpec, String>
     }
 }
 
+pub(super) fn model_hash_matches_path(
+    hash_algorithm: Option<&str>,
+    expected_hash: Option<&str>,
+    path: &Path,
+) -> Result<bool, String> {
+    let Some(expected_hash) = expected_hash
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(false);
+    };
+    if !path.exists() {
+        return Ok(false);
+    }
+    if !is_sha256_hash_algorithm(hash_algorithm) {
+        return Ok(false);
+    }
+    Ok(sha256_file_hex(path)?.eq_ignore_ascii_case(expected_hash))
+}
+
+pub(super) fn model_hash_matches_sha256(
+    hash_algorithm: Option<&str>,
+    expected_hash: Option<&str>,
+    actual_sha256: &str,
+) -> bool {
+    let Some(expected_hash) = expected_hash
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return false;
+    };
+    is_sha256_hash_algorithm(hash_algorithm) && actual_sha256.eq_ignore_ascii_case(expected_hash)
+}
+
+pub(super) fn verification_sha256<'a>(
+    hash_algorithm: Option<&str>,
+    hash_value: Option<&'a str>,
+) -> Option<&'a str> {
+    if is_sha256_hash_algorithm(hash_algorithm) {
+        return hash_value.map(str::trim).filter(|value| !value.is_empty());
+    }
+    None
+}
+
 fn detector_upload(
     model: Option<&DetectorType>,
     scripts_root: &Path,
@@ -205,6 +249,13 @@ fn sha256_file_hex(path: &Path) -> Result<String, String> {
         hasher.update(&buffer[..read]);
     }
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn is_sha256_hash_algorithm(hash_algorithm: Option<&str>) -> bool {
+    match hash_algorithm.map(str::trim).filter(|value| !value.is_empty()) {
+        None => true,
+        Some(value) => value.eq_ignore_ascii_case("SHA-256") || value.eq_ignore_ascii_case("SHA256"),
+    }
 }
 
 fn rewrite_detector_model_path(model: &mut Option<DetectorType>, script_id: &str, file_name: &str) {
