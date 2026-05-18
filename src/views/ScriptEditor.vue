@@ -1,7 +1,7 @@
 <template>
   <div class="editor-shell h-svh overflow-hidden px-1 py-1 lg:px-1 lg:py-1">
-    <div class="mx-auto flex h-full flex-col gap-1">
-      <header class="editor-toolbar rounded-[20px] border border-(--app-border) px-5 py-4 lg:px-6">
+    <div class="mx-auto flex h-full flex-col gap-[1px]">
+      <header class="editor-toolbar rounded-[20px] border border-(--app-border) bg-(--app-panel) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-3">
             <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
@@ -100,8 +100,8 @@
         正在读取脚本和任务结构...
       </div>
 
-      <div v-else class="flex min-h-0 flex-1 flex-col gap-1">
-        <div class="editor-main-grid grid min-h-0 flex-1 gap-1" :class="{ 'editor-main-grid-collapsed': leftSidebarCollapsed }">
+      <div v-else class="flex min-h-0 flex-1 flex-col gap-[1px] bg-(--app-border) overflow-hidden rounded-[20px]">
+        <div class="editor-main-grid grid min-h-0 flex-1 gap-[1px]" :class="{ 'editor-main-grid-collapsed': leftSidebarCollapsed }">
           <EditorTaskSidebar
             v-if="activeMode === 'task'"
             :tasks="draftTasks"
@@ -179,8 +179,8 @@
             </template>
           </EditorCollectionSidebar>
 
-          <div class="flex min-h-0 flex-1 flex-col gap-4">
-            <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+          <div class="flex min-h-0 flex-1 flex-col gap-[1px]">
+            <div class="grid min-h-0 flex-1 gap-[1px] xl:grid-cols-[360px_minmax(0,1fr)]">
               <EditorTaskConfigPanel
                 v-if="activeMode === 'task'"
                 :task="currentTask"
