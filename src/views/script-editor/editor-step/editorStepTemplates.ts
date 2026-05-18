@@ -15,6 +15,7 @@ import {
 
 export interface EditorStepTemplate {
   id: string;
+  icon: string;
   label: string;
   description: string;
   group: string;
@@ -33,9 +34,45 @@ const createBaseStep = (partial: Record<string, unknown>) =>
     ...partial,
   });
 
+const genSvg= (svg_name:string)=>{
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'
+        + svg_name
+        + '</svg>'
+}
+
+const SVG_ICONS = {
+  capture: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  launch: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M10 8l6 4-6 4v-8z"/>',
+  stop: '<rect x="3" y="3" width="18" height="18" rx="4"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
+  click: '<path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>',
+  swipe: '<path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>',
+  back: '<path d="M15 18l-6-6 6-6"/>',
+  add: '<circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/>',
+  minus: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>',
+  next: '<path d="M6 9l6 6 6-6"/>',
+  wait: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  branch: '<path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
+  loop: '<path d="M21 12a9 9 0 1 1-9-9c2.5 0 4.8 1 6.5 2.5L21 8"/><path d="M21 2v6h-6"/>',
+  forEach: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+  repeat: '<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  continue: '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>',
+  break: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  policySet: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  policy: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  setVar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
+  getVar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
+  color: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.836-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>',
+  state: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  sequence: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>'
+};
+
 export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'capture',
+    icon: genSvg(SVG_ICONS.capture),
     label: '截图',
     description: '将当前画面写入变量，常用于后续视觉识别。',
     group: '动作',
@@ -52,6 +89,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'launch-app',
+    icon: genSvg(SVG_ICONS.launch),
     label: '启动应用',
     description: '使用包名和 Activity 启动应用，适合作为任务开头。',
     group: '动作',
@@ -69,6 +107,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'stop-app',
+    icon: genSvg(SVG_ICONS.stop),
     label: '停止应用',
     description: '主动停止目标包名，适合切换账号或重置状态。',
     group: '动作',
@@ -85,6 +124,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'click-point',
+    icon: genSvg(SVG_ICONS.click),
     label: '点击坐标',
     description: '按绝对坐标点击，适合固定布局。',
     group: '动作',
@@ -102,6 +142,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'click-percent',
+    icon: genSvg(SVG_ICONS.click),
     label: '点击百分比',
     description: '按相对坐标点击，适合多分辨率脚本。',
     group: '动作',
@@ -119,6 +160,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'click-text',
+    icon: genSvg(SVG_ICONS.click),
     label: '点击文字',
     description: '搜索 OCR 文本后点击对应区域。',
     group: '动作',
@@ -137,6 +179,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'click-label',
+    icon: genSvg(SVG_ICONS.click),
     label: '点击标签',
     description: '根据视觉标签索引点击对应目标。',
     group: '动作',
@@ -155,6 +198,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-point',
+    icon: genSvg(SVG_ICONS.swipe),
     label: '滑动坐标',
     description: '按绝对坐标执行滑动。',
     group: '动作',
@@ -174,6 +218,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-percent',
+    icon: genSvg(SVG_ICONS.swipe),
     label: '滑动百分比',
     description: '按相对坐标执行滑动。',
     group: '动作',
@@ -193,6 +238,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-text',
+    icon: genSvg(SVG_ICONS.swipe),
     label: '滑动文字',
     description: '按 OCR 文字起止点执行滑动。',
     group: '动作',
@@ -213,6 +259,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-label',
+    icon: genSvg(SVG_ICONS.swipe),
     label: '滑动标签',
     description: '按视觉标签索引起止点执行滑动。',
     group: '动作',
@@ -233,6 +280,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'back',
+    icon: genSvg(SVG_ICONS.back),
     label: '返回',
     description: '执行 Android 返回键动作。',
     group: '动作',
@@ -248,6 +296,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'pos-add',
+    icon: genSvg(SVG_ICONS.add),
     label: '点击索引加一',
     description: '运行时把指定策略的当前位置加一，用于多个相同目标时改下次点击命中。',
     group: '动作',
@@ -264,6 +313,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'pos-minus',
+    icon: genSvg(SVG_ICONS.minus),
     label: '点击索引减一',
     description: '运行时把指定策略的当前位置减一，最低回到 0，不持久化。',
     group: '动作',
@@ -280,6 +330,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'drop-set-next',
+    icon: genSvg(SVG_ICONS.next),
     label: 'UI 变量下一个',
     description: '把指定任务的 Select/Radio 变量切换到下一个选项并写回模板变量。',
     group: '动作',
@@ -297,6 +348,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'wait',
+    icon: genSvg(SVG_ICONS.wait),
     label: '等待',
     description: '在关键跳转后留出稳定时间。',
     group: '流程',
@@ -312,6 +364,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'if',
+    icon: genSvg(SVG_ICONS.branch),
     label: '条件分支',
     description: '创建一段最小化的条件判断骨架。',
     group: '流程',
@@ -332,6 +385,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'while',
+    icon: genSvg(SVG_ICONS.loop),
     label: '循环条件',
     description: '根据 ConditionNode 条件循环执行子步骤。',
     group: '流程',
@@ -351,6 +405,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'for-each',
+    icon: genSvg(SVG_ICONS.forEach),
     label: '遍历循环',
     description: '遍历输入变量中的数组元素，并把当前元素映射到运行时变量。',
     group: '流程',
@@ -369,6 +424,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'repeat',
+    icon: genSvg(SVG_ICONS.repeat),
     label: '次数循环',
     description: '按绑定的数字变量重复执行子步骤，适合用 UI 变量控制执行次数。',
     group: '流程',
@@ -386,6 +442,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'continue',
+    icon: genSvg(SVG_ICONS.continue),
     label: '继续循环',
     description: '在循环内部跳过后续步骤并继续下一轮。',
     group: '流程',
@@ -400,6 +457,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'break',
+    icon: genSvg(SVG_ICONS.break),
     label: '跳出循环',
     description: '在循环内部立即结束当前循环。',
     group: '流程',
@@ -414,6 +472,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'handle-policy-set',
+    icon: genSvg(SVG_ICONS.policySet),
     label: '处理策略集',
     description: '执行策略集匹配并把命中结果输出为 JSON 变量。',
     group: '流程',
@@ -431,6 +490,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'handle-policy',
+    icon: genSvg(SVG_ICONS.policy),
     label: '处理策略',
     description: '执行指定策略并把结果输出为 JSON 变量。',
     group: '流程',
@@ -448,6 +508,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'set-var',
+    icon: genSvg(SVG_ICONS.setVar),
     label: '设置变量',
     description: '向任务上下文写入一个变量。',
     group: '数据',
@@ -465,6 +526,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'get-var',
+    icon: genSvg(SVG_ICONS.getVar),
     label: '读取变量',
     description: '从上下文读取变量并写回当前步骤使用。',
     group: '兼容',
@@ -481,6 +543,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'filter-var',
+    icon: genSvg(SVG_ICONS.filter),
     label: '过滤变量',
     description: '对输入变量执行过滤或映射逻辑。',
     group: '数据',
@@ -502,6 +565,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'color-compare',
+    icon: genSvg(SVG_ICONS.color),
     label: '颜色比较',
     description: '按 OCR 结果区域比较字体色或背景色，并输出命中结果集。',
     group: '数据',
@@ -530,6 +594,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'vision-search',
+    icon: genSvg(SVG_ICONS.search),
     label: '视觉搜索',
     description: '基于 OCR / YOLO 规则搜索目标并输出结果变量。',
     group: '视觉',
@@ -552,6 +617,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'set-task-state',
+    icon: genSvg(SVG_ICONS.state),
     label: '设置状态',
     description: '设置任务或策略的 skip/done 状态。',
     group: '状态',
@@ -575,6 +641,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'link-task',
+    icon: genSvg(SVG_ICONS.link),
     label: '跳转任务',
     description: '将执行流切换到另一个任务。',
     group: '流程',
@@ -590,6 +657,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'sequence',
+    icon: genSvg(SVG_ICONS.sequence),
     label: '子序列',
     description: '在当前任务内嵌套一段顺序步骤。',
     group: '容器',

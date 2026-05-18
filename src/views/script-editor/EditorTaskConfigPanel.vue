@@ -181,7 +181,7 @@
                   type="button"
                   @click="$emit('append-template-step', template.id)"
                 >
-                  <span class="editor-template-dot" />
+                  <span class="editor-template-icon" v-html="template.icon" />
                   <span class="truncate">{{ template.label }}</span>
                 </button>
               </div>
@@ -320,14 +320,22 @@ const templateGroups = computed(() => {
 }
 
 .editor-template-tile:hover {
-  border-color: rgba(70, 110, 255, 0.22);
+  border-color: rgba(70, 110, 255, 1);
+  cursor: pointer;
 }
 
-.editor-template-dot {
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--app-accent) 60%, white);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 14%, transparent);
+.editor-template-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--app-accent);
+  flex-shrink: 0;
+}
+
+.editor-template-icon :deep(svg) {
+  width: 100%;
+  height: 100%;
 }
 </style>
