@@ -47,15 +47,15 @@
                 @drop.prevent="handleAssignedNativeDrop(item.id)"
               >
                 <div class="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
-                  <span class="flex h-9 w-9 items-center justify-center rounded-full border border-(--app-border) bg-white/70 text-sm font-semibold text-(--app-text-strong)">
+                  <span class="flex h-9 w-9 items-center justify-center rounded-full border border-(--app-border) bg-(--app-panel-muted) text-sm font-semibold text-(--app-text-strong)">
                     {{ index + 1 }}
                   </span>
                   <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.title }}</p>
                   <p class="truncate text-sm text-(--app-text-faint)">{{ item.subtitle }}</p>
                   <div class="flex items-center gap-2">
                     <button
-                      class="editor-drag-handle"
-                      :class="{ 'editor-drag-handle-active': draggingAssignedId === item.id }"
+                      class="app-drag-handle"
+                      :class="{ 'app-drag-handle-active': draggingAssignedId === item.id }"
                       type="button"
                       aria-label="拖动排序"
                       :data-testid="`editor-relation-drag-${index}`"
@@ -254,29 +254,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.editor-drag-handle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 12px;
-  border: 1px dashed var(--app-border);
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--app-text-faint);
-  cursor: grab;
-}
-
-.editor-drag-handle:active,
-.editor-drag-handle-active {
-  cursor: grabbing;
-}
-
-.editor-drag-handle-active {
-  border-color: var(--app-state-active-border);
-  background: var(--app-state-active-bg);
-  color: var(--app-text-strong);
-}
 
 .editor-dragging-item {
   border-color: rgba(70, 110, 255, 0.24);

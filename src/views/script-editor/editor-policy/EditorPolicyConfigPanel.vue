@@ -153,7 +153,7 @@ const templateGroups = computed(() => {
   width: 100%;
   border-radius: 14px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.52);
+  background: var(--app-panel-muted);
   padding: 0.7rem 0.8rem;
   text-align: left;
   color: var(--app-text-strong);

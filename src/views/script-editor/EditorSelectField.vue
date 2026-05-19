@@ -110,7 +110,7 @@ const selectOption = (value: SelectValue) => {
   align-items: center;
   border-radius: 14px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--app-panel-muted);
   padding: 0.65rem 0.8rem;
   text-align: left;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
@@ -160,8 +160,8 @@ const selectOption = (value: SelectValue) => {
   margin-top: 0.1rem;
   border-radius: 999px;
   border: 1px solid var(--app-border-strong);
-  background: white;
-  box-shadow: inset 0 0 0 2px white;
+  background: var(--app-panel);
+  box-shadow: inset 0 0 0 2px var(--app-panel);
 }
 
 .editor-select-chip-radio-active {

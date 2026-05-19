@@ -27,8 +27,8 @@
         >
           <div class="grid grid-cols-[34px_minmax(0,1fr)] items-start gap-2">
             <button
-              class="editor-collection-card-handle"
-              :class="{ 'editor-collection-card-handle-active': draggingId === item.id }"
+              class="app-drag-handle"
+              :class="{ 'app-drag-handle-active': draggingId === item.id }"
               type="button"
               aria-label="拖动排序"
               @mousedown.prevent="startDrag(item.id)"
@@ -147,23 +147,4 @@ onBeforeUnmount(() => {
   background: rgba(70, 110, 255, 0.08);
 }
 
-.editor-collection-card-handle {
-  display: inline-flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  border-radius: 12px;
-  border: 1px dashed var(--app-border);
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--app-text-faint);
-  cursor: grab;
-}
-
-.editor-collection-card-handle-active {
-  border-color: var(--app-state-active-border);
-  background: var(--app-state-active-bg);
-  color: var(--app-text-strong);
-  cursor: grabbing;
-}
 </style>

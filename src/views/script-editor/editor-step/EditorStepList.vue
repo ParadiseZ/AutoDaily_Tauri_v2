@@ -16,8 +16,8 @@
       <div class="grid grid-cols-[34px_36px_minmax(0,1fr)_auto] items-start gap-2">
         <button
           v-if="allowReorder"
-          class="editor-step-card-handle"
-          :class="{ 'editor-step-card-handle-active': draggingIndex === index }"
+          class="app-drag-handle"
+          :class="{ 'app-drag-handle-active': draggingIndex === index }"
           :data-testid="`editor-step-drag-${index}`"
           type="button"
           aria-label="拖动排序"
@@ -151,40 +151,13 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.24);
 }
 
-.editor-step-card-handle {
-  align-self: center;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 32px;
-  border-radius: 12px;
-  border: 1px dashed var(--app-border);
-  background: rgba(255, 255, 255, 0.55);
-  padding: 0.25rem 0.2rem;
-  color: var(--app-text-faint);
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: -0.08em;
-  cursor: grab;
-}
-
-.editor-step-card-handle:active,
-.editor-step-card-handle-active {
-  cursor: grabbing;
-}
-
-.editor-step-card-handle-active {
-  border-color: var(--app-state-active-border);
-  background: var(--app-state-active-bg);
-  color: var(--app-text-strong);
-}
 
 .editor-step-order {
   width: 36px;
   height: 36px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid var(--app-border);
+  background: var(--app-panel-muted);
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--app-text-strong);

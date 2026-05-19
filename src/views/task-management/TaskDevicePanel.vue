@@ -116,7 +116,7 @@
                 <div
                   v-for="item in pendingAssignments"
                   :key="item.assignment.id"
-                  class="rounded-[16px] border border-(--app-border) bg-white/70 px-4 py-3 dark:bg-white/5"
+                  class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3"
                 >
                   <div class="flex items-center justify-between gap-3">
                     <div class="min-w-0">

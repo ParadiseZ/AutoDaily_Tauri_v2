@@ -623,6 +623,28 @@ a {
   font-size: 0.86rem;
 }
 
+.app-drag-handle {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  border-radius: 12px;
+  border: 1px dashed var(--app-border);
+  background: var(--app-panel-muted);
+  color: var(--app-text-faint);
+  cursor: grab;
+  transition: all 0.2s;
+}
+
+.app-drag-handle-active,
+.app-drag-handle:active {
+  border-color: var(--app-state-active-border);
+  background: var(--app-state-active-bg);
+  color: var(--app-text-strong);
+  cursor: grabbing;
+}
+
 .app-loading-state {
   display: flex;
   min-height: 10rem;

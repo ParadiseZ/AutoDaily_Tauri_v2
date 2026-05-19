@@ -72,7 +72,7 @@
         </div>
 
         <div class="mt-4 space-y-3">
-          <div v-for="entry in unboundEntries" :key="entry.id" class="rounded-[16px] border border-(--app-border) bg-white/70 px-4 py-3 dark:bg-white/5">
+          <div v-for="entry in unboundEntries" :key="entry.id" class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div class="space-y-1">
                 <p class="text-sm font-semibold text-(--app-text-strong)">{{ entry.name }}</p>

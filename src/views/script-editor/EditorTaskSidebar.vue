@@ -46,8 +46,8 @@
         >
           <div class="grid grid-cols-[34px_minmax(0,1fr)_auto] items-start gap-2">
             <button
-              class="editor-task-card-handle"
-              :class="{ 'editor-task-card-handle-active': draggingTaskId === task.id }"
+              class="app-drag-handle"
+              :class="{ 'app-drag-handle-active': draggingTaskId === task.id }"
               :data-testid="`editor-task-drag-${task.id}`"
               type="button"
               aria-label="拖动排序"
@@ -207,23 +207,4 @@ onBeforeUnmount(() => {
   background: rgba(70, 110, 255, 0.08);
 }
 
-.editor-task-card-handle {
-  display: inline-flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  border-radius: 12px;
-  border: 1px dashed var(--app-border);
-  background: rgba(255, 255, 255, 0.55);
-  color: var(--app-text-faint);
-  cursor: grab;
-}
-
-.editor-task-card-handle-active {
-  border-color: var(--app-state-active-border);
-  background: var(--app-state-active-bg);
-  color: var(--app-text-strong);
-  cursor: grabbing;
-}
 </style>
