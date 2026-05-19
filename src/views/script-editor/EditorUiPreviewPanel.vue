@@ -397,7 +397,7 @@ watch(
 .editor-ui-preview-shell {
   border-radius: 16px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--app-panel-muted);
   padding: 0.82rem 1rem;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
@@ -408,7 +408,7 @@ watch(
 }
 
 .editor-ui-preview-shell-readonly:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--app-state-hover-bg);
 }
 
 .editor-ui-preview-shell-embedded {
@@ -450,7 +450,7 @@ watch(
   flex: 0 0 42px;
   border-radius: 14px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--app-panel);
 }
 
 .editor-ui-task-name {
@@ -499,7 +499,7 @@ watch(
   min-width: 72px;
   border-radius: 12px;
   border: 1px solid var(--app-border);
-  background: white;
+  background: var(--app-panel);
   padding: 0.45rem 0.75rem;
   color: var(--app-text-strong);
   appearance: none;
@@ -508,7 +508,7 @@ watch(
 
 .editor-ui-inline-control:disabled {
   cursor: not-allowed;
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--app-panel-muted);
   color: var(--app-text-soft);
 }
 
@@ -535,7 +535,7 @@ watch(
 .editor-ui-inline-pill {
   border-radius: 999px;
   border: 1px solid var(--app-border);
-  background: white;
+  background: var(--app-panel);
   padding: 0.3rem 0.7rem;
   font-size: 0.75rem;
   color: var(--app-text-soft);
@@ -553,8 +553,8 @@ watch(
   height: 0.7rem;
   border-radius: 999px;
   border: 1px solid var(--app-border-strong);
-  background: white;
-  box-shadow: inset 0 0 0 2px white;
+  background: var(--app-panel);
+  box-shadow: inset 0 0 0 2px var(--app-panel);
 }
 
 .editor-ui-inline-pill-active {
@@ -595,7 +595,7 @@ watch(
 }
 
 .editor-ui-switch input:checked + .editor-ui-switch-track {
-  background: color-mix(in srgb, var(--app-accent) 72%, white);
+  background: var(--app-accent);
 }
 
 .editor-ui-switch input:checked + .editor-ui-switch-track .editor-ui-switch-thumb {
@@ -645,7 +645,7 @@ watch(
   align-items: center;
   border-radius: 999px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--app-panel-muted);
   padding: 0.22rem 0.55rem;
   font-size: 0.72rem;
   color: var(--app-text-faint);
@@ -655,7 +655,7 @@ watch(
   width: 74px;
   border-radius: 12px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--app-panel);
   padding: 0.55rem 0.65rem;
   color: var(--app-text-strong);
 }

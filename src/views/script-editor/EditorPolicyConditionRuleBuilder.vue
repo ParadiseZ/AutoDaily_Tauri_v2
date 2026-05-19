@@ -1,15 +1,15 @@
 <template>
   <div
-    class="editor-search-rule-card"
+    class="app-rule-card"
     :class="{
-      'editor-search-rule-nested': depth > 0,
-      'editor-search-rule-group': currentRule.type === POLICY_CONDITION_RULE_TYPE.group,
+      'app-rule-card-nested': depth > 0,
+      'app-rule-card-group': currentRule.type === POLICY_CONDITION_RULE_TYPE.group,
     }"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="min-w-0 flex-1 space-y-1">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="editor-search-rule-badge">{{ currentRule.type === POLICY_CONDITION_RULE_TYPE.group ? '规则组' : '精判规则' }}</span>
+          <span class="app-rule-badge">{{ currentRule.type === POLICY_CONDITION_RULE_TYPE.group ? '规则组' : '精判规则' }}</span>
           <span class="truncate text-xs text-(--app-text-faint)">{{ describePolicyConditionRule(currentRule) }}</span>
         </div>
 
@@ -256,20 +256,20 @@ const removeGroupItem = (index: number) => {
 </script>
 
 <style scoped>
-.editor-search-rule-card {
+.app-rule-card {
   border-radius: 18px;
   border: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-panel-muted) 88%, white);
   padding: 1rem;
 }
 
-.editor-search-rule-nested {
+.app-rule-card-nested {
   position: relative;
   margin-left: 0.4rem;
   background: rgba(255, 255, 255, 0.56);
 }
 
-.editor-search-rule-nested::before {
+.app-rule-card-nested::before {
   content: '';
   position: absolute;
   top: 14px;
@@ -280,13 +280,13 @@ const removeGroupItem = (index: number) => {
   background: rgba(70, 110, 255, 0.18);
 }
 
-.editor-search-rule-group {
+.app-rule-card-group {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 248, 255, 0.7)),
     color-mix(in srgb, var(--app-panel-muted) 88%, white);
 }
 
-.editor-search-rule-badge {
+.app-rule-badge {
   border-radius: 999px;
   border: 1px solid var(--app-border);
   background: rgba(255, 255, 255, 0.72);

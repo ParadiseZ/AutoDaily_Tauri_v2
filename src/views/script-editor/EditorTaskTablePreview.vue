@@ -1,7 +1,7 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col rounded-[22px] border border-(--app-border) bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(245,247,252,0.88))] px-5 py-5 shadow-(--app-shadow-soft)">
+  <div class="flex h-full min-h-0 flex-col rounded-[22px] border border-(--app-border) bg-(--app-panel) px-5 py-5 shadow-(--app-shadow-soft)">
     <div v-if="showHeader" class="flex items-center justify-between gap-3">
-      <span class="rounded-full border border-(--app-border) bg-white/60 px-3 py-1 text-xs text-(--app-text-faint)">
+      <span class="rounded-full border border-(--app-border) bg-(--app-panel-muted) px-3 py-1 text-xs text-(--app-text-faint)">
         {{ taskCount }} 个任务行
       </span>
     </div>
@@ -261,21 +261,17 @@ const forwardTaskCycleDay = (taskId: string, value: number) => {
   gap: 0.65rem;
   border-radius: 16px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--app-panel-muted);
   padding: 0.85rem 1rem;
   text-align: left;
+  font-weight: 700;
+  color: var(--app-text-strong);
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
 
 .preview-title-row-active {
   border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 18%, transparent);
-}
-
-.preview-title-row {
-  background: linear-gradient(135deg, rgba(244, 247, 255, 0.96), rgba(250, 250, 252, 0.9));
-  font-weight: 700;
-  color: var(--app-text-strong);
 }
 
 .preview-title-dot {

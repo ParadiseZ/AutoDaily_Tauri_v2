@@ -1,5 +1,5 @@
 <template>
-  <div class="editor-condition-card" :class="{ 'editor-condition-nested': depth > 0 }">
+  <div class="app-rule-card" :class="{ 'app-rule-card-nested': depth > 0 }">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
       <EditorSelectField
@@ -1132,14 +1132,14 @@ const updateColorNumber = (field: 'r' | 'g' | 'b', value: string) => {
 </script>
 
 <style scoped>
-.editor-condition-card {
+.app-rule-card {
   border-radius: 18px;
   border: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-panel-muted) 88%, white);
   padding: 1rem;
 }
 
-.editor-condition-nested {
+.app-rule-card-nested {
   background: rgba(255, 255, 255, 0.56);
 }
 
