@@ -1,7 +1,7 @@
 <template>
-  <div class="editor-shell h-svh overflow-hidden px-1 py-1 lg:px-1 lg:py-1">
+  <div class="editor-shell h-svh overflow-hidden">
     <div class="mx-auto flex h-full flex-col gap-[1px]">
-      <header class="editor-toolbar border border-(--app-border) bg-(--app-panel) px-5 py-4 lg:px-6">
+      <header class="editor-toolbar bg-(--app-panel) px-5 py-2.5 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="flex flex-wrap items-center gap-3">
             <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
@@ -102,7 +102,7 @@
 
       <div v-else class="flex min-h-0 flex-1 flex-col gap-[1px] bg-(--app-border) overflow-hidden">
         <div class="flex min-h-0 flex-1 gap-[1px]">
-          <div class="relative shrink-0 flex flex-col min-h-0 transition-[width] duration-200" :style="{ width: leftSidebarCollapsed ? '64px' : `${sidebarWidth}px` }">
+          <div class="relative shrink-0 flex flex-col min-h-0" :class="{ 'transition-[width] duration-200': !isResizingSidebar }" :style="{ width: leftSidebarCollapsed ? '64px' : `${sidebarWidth}px` }">
           <EditorTaskSidebar
             v-if="activeMode === 'task'"
             :tasks="draftTasks"
@@ -3521,5 +3521,6 @@ onBeforeUnmount(() => {
 
 :deep(.app-panel) {
   border-radius: 0 !important;
+  border: none !important;
 }
 </style>

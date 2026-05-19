@@ -112,6 +112,17 @@
   --app-vibrant-purple: rgba(167, 139, 250, 0.94);
 }
 
+[data-theme='dark'] .editor-toolbar {
+  background:
+    radial-gradient(circle at 16% 20%, rgba(255, 255, 255, 0.05), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    var(--app-panel);
+}
+
+[data-theme='dark'] .app-icon-button {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 html,
 body,
 #app {

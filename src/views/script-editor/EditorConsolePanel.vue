@@ -5,7 +5,7 @@
       title="拖动调整控制台高度"
       @mousedown.prevent="startResize"
     />
-    <div class="flex items-center justify-between border-b border-(--app-border) px-4 py-2">
+    <div class="flex items-center justify-between border-b border-(--app-border) px-2 py-2">
       <div class="space-y-1">
       </div>
       <div class="flex items-center gap-2">
@@ -16,7 +16,7 @@
       </div>
     </div>
 
-    <div ref="scrollPanel" class="overflow-y-auto bg-slate-950 px-4 py-3 font-mono text-xs leading-6 text-slate-100" :style="{ height: `${height}px` }">
+    <div ref="scrollPanel" class="overflow-y-auto bg-slate-950 px-2 py-3 font-mono text-xs leading-6 text-slate-100" :style="{ height: `${height}px` }">
       <div v-if="lines.length" class="space-y-1">
         <div v-for="(line, index) in lines" :key="`${index}-${line}`" class="whitespace-pre-wrap break-all">
           {{ line }}
