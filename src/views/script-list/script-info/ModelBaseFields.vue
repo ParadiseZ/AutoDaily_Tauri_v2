@@ -192,7 +192,7 @@ const pickModelPath = async () => {
   border: 1px solid var(--app-border);
   border-radius: 16px;
   padding: 0.85rem 0.95rem;
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--app-panel-muted);
 }
 
 .dialog-toggle-head {

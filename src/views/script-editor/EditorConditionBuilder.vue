@@ -419,7 +419,7 @@
       </template>
 
       <template v-else-if="modelValue.type === 'policyCondition'">
-        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="space-y-2">
             <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入图像变量</span>
             <EditorSelectField

@@ -341,7 +341,7 @@ a {
 }
 
 .app-button-ghost {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--app-icon-button-bg);
   color: var(--app-text-strong);
   border-color: var(--app-border);
 }

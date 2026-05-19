@@ -1,7 +1,7 @@
 <template>
   <div class="space-y-3">
     <template v-if="selectedData.type === DATA_TYPE.setVar">
-      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <div class="editor-inline-grid">
           <div class="editor-inline-label">目标名称</div>
           <div class="editor-inline-content md:col-span-3">
@@ -87,7 +87,7 @@
 
       <div
         v-else-if="selectedSetVarTarget && !selectedSetVarKind"
-        class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
+        class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
       >
         当前变量类型不适合直接写固定值，请使用表达式。
       </div>
@@ -103,7 +103,7 @@
     </template>
 
     <template v-else-if="selectedData.type === DATA_TYPE.getVar">
-      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <div class="editor-inline-grid">
           <div class="editor-inline-label">读取名称</div>
           <div class="editor-inline-content md:col-span-3">
@@ -288,7 +288,7 @@
             />
           </div>
         </div>
-        <div class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-3">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
           <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">命中后行为</p>
           <div class="mt-2 flex items-center justify-between gap-3">
             <span class="text-sm text-(--app-text-soft)">{{ filterBranchTarget?.count ?? 0 }} 个步骤</span>

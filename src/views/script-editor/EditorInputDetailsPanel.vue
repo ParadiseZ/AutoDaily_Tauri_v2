@@ -109,7 +109,7 @@
 
         <div
           v-else
-          class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
+          class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
         >
           {{ selectedInputEntry.namespace === 'runtime' ? 'Runtime 变量只定义结构和来源，不在这里设置默认值。' : 'System 变量由运行时注入，只在这里保留元数据。' }}
         </div>
@@ -174,7 +174,7 @@ const scopeOptions = [
 
 .editor-input-invalid {
   border-color: rgba(220, 38, 38, 0.38);
-  background: rgba(254, 242, 242, 0.78);
+  background: rgba(220, 38, 38, 0.08);
 }
 
 @media (min-width: 768px) {

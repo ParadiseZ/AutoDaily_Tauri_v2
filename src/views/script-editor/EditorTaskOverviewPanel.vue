@@ -215,7 +215,7 @@ defineEmits<{
   gap: 0.7rem;
   border-radius: 14px;
   border: 1px solid var(--app-border);
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--app-panel-muted);
   padding: 0.75rem 0.9rem;
   color: var(--app-text-soft);
   font-size: 0.92rem;

@@ -13,7 +13,7 @@
       </label>
       <div v-else class="detail-item">
         <span class="detail-label">名称</span>
-        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3 text-sm text-(--app-text-strong)">{{ displayName }}</div>
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-strong)">{{ displayName }}</div>
       </div>
 
       <label v-if="editableEntry" class="detail-item">
@@ -22,7 +22,7 @@
       </label>
       <div v-else class="detail-item">
         <span class="detail-label">键</span>
-        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3 text-sm text-(--app-text-strong) break-all">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-strong) break-all">
           {{ displayKey || '未设置键' }}
         </div>
       </div>
@@ -33,7 +33,7 @@
       </div>
       <div v-else class="detail-item">
         <span class="detail-label">类型</span>
-        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3 text-sm text-(--app-text-strong)">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-strong)">
           {{ typeLabel }}
         </div>
       </div>
@@ -44,7 +44,7 @@
       </div>
       <div v-else class="detail-item">
         <span class="detail-label">作用域</span>
-        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3 text-sm text-(--app-text-strong)">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-strong)">
           {{ namespaceLabel }}
         </div>
       </div>
@@ -60,7 +60,7 @@
       </label>
       <div v-else class="detail-item">
         <span class="detail-label">备注</span>
-        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3 text-sm text-(--app-text-soft)">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft)">
           {{ displayDescription }}
         </div>
       </div>
@@ -94,7 +94,7 @@
 
         <div v-else class="detail-item detail-item-top">
           <span class="detail-label">默认值</span>
-          <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3 text-sm text-(--app-text-strong) whitespace-pre-wrap break-all">
+          <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-strong) whitespace-pre-wrap break-all">
             {{ defaultValueLabel }}
           </div>
         </div>
@@ -102,7 +102,7 @@
 
       <div
         v-else
-        class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
+        class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
       >
         {{ effectiveNamespace === 'runtime' ? 'Runtime 变量只定义结构和来源，不在这里设置默认值。' : 'System 变量由运行时注入，只在这里保留元数据。' }}
       </div>

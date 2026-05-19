@@ -1,6 +1,6 @@
 <template>
   <div class="grid gap-3 xl:grid-cols-2">
-    <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+    <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
       <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">目标</p>
       <div class="grid gap-3 xl:grid-cols-[78px_minmax(0,1fr)_78px_minmax(0,1fr)] xl:items-center">
         <div class="editor-inline-label">动作类型</div>
@@ -62,7 +62,7 @@
       </div>
     </div>
 
-    <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+    <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
       <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">状态</p>
       <div class="grid gap-3 xl:grid-cols-[78px_minmax(0,1fr)] xl:items-center">
         <div class="editor-inline-label">状态类型</div>
@@ -75,7 +75,7 @@
           />
         </div>
       </div>
-      <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-3">
+      <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
         <input
           :checked="Boolean(selectedTaskControl.status.value)"
           type="checkbox"

@@ -19,7 +19,7 @@
     </div>
 
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
-      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出名称</span>
           <EditorSelectField

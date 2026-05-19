@@ -139,7 +139,7 @@
               <div
                 v-for="assignment in assignments"
                 :key="assignment.id"
-                class="rounded-[18px] border bg-white/20 px-4 py-3 dark:bg-white/5"
+                class="rounded-[18px] border bg-white/20 px-4 py-3"
                 :class="assignmentWarning(assignment) ? 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-(--app-border)'"
               >
                 <div class="flex items-center gap-3">
@@ -202,7 +202,7 @@
               </button>
             </div>
 
-            <div class="space-y-4 rounded-[18px] border border-(--app-border) bg-white/45 px-4 py-4 dark:bg-white/5">
+            <div class="space-y-4 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-(--app-text-strong)">
@@ -293,7 +293,7 @@
           <div
             v-for="schedule in schedules.slice(0, 6)"
             :key="schedule.id"
-            class="rounded-[18px] border border-(--app-border) bg-white/20 px-4 py-3 dark:bg-white/5"
+            class="rounded-[18px] border border-(--app-border) bg-white/20 px-4 py-3"
           >
             <div class="flex items-center justify-between gap-3">
               <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(schedule.scriptId) }}</p>

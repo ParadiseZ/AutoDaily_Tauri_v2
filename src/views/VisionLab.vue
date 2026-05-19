@@ -114,7 +114,7 @@
                   v-for="item in filteredFolderItems"
                   :key="item.id"
                   class="vision-list-item w-full rounded-[20px] border px-3 py-3 text-left transition"
-                  :class="selectedItem?.id === item.id ? 'border-(--app-accent) bg-(--app-accent-soft)/40' : 'border-(--app-border) hover:border-(--app-accent)/35'"
+                  :class="selectedItem?.id === item.id ? 'border-(--app-state-active-border) bg-(--app-state-active-bg)' : 'border-(--app-border) hover:border-(--app-state-active-hover-border)'"
                   type="button"
                   @click="selectItem(item)"
                 >
@@ -234,7 +234,7 @@
                   </div>
                   <div class="rounded-[18px] border border-(--app-border) px-3 py-3 text-xs text-(--app-text-soft)">
                     <p class="font-semibold text-(--app-text-strong)">目标颜色</p>
-                    <input v-model="targetColorHex" class="mt-2 h-11 w-full rounded-[14px] border border-(--app-border) bg-transparent px-3" type="color" />
+                    <input v-model="targetColorHex" class="mt-2 h-11 w-full rounded-[14px] border border-(--app-border) bg-(--app-panel) px-3" type="color" />
                     <p class="mt-2">用于点取色和区域采样的差异对比。</p>
                   </div>
                 </div>
@@ -1749,10 +1749,7 @@ onMounted(async () => {
 }
 
 .vision-lab-header {
-  background:
-    radial-gradient(circle at 10% 18%, rgba(255, 255, 255, 0.42), transparent 28%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.58), rgba(245, 248, 255, 0.3)),
-    var(--app-panel);
+  background: var(--app-toolbar-bg);
   box-shadow: var(--app-shadow-soft);
   backdrop-filter: blur(16px);
 }
@@ -1766,7 +1763,7 @@ onMounted(async () => {
 }
 
 .vision-list-item {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.18));
+  background: var(--app-panel-muted);
 }
 
 .vision-path-row {

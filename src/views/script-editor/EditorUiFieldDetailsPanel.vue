@@ -12,7 +12,7 @@
       </div>
 
       <div class="mt-4 space-y-4">
-        <section class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+        <section class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="mb-3">
             <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">字段本体</p>
           </div>
@@ -60,7 +60,7 @@
           </div>
         </section>
 
-        <section class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+        <section class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="mb-3">
             <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">变量绑定</p>
           </div>
@@ -107,7 +107,7 @@
           </div>
         </section>
 
-        <section class="rounded-[16px] border border-(--app-border) bg-white/35 px-4 py-4">
+        <section class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="mb-3">
             <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">展示内容</p>
           </div>
@@ -143,7 +143,7 @@
 
             <div
               v-if="selectedUiField.control === 'slider' && sliderValueType"
-              class="detail-span-2 rounded-[14px] border border-(--app-border) bg-white/45 px-4 py-4"
+              class="detail-span-2 rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4"
             >
               <div class="mb-3 flex items-center justify-between gap-3">
                 <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">滑块范围</p>
@@ -189,7 +189,7 @@
 
             <div
               v-else-if="selectedUiField.control === 'slider'"
-              class="detail-span-2 rounded-[14px] border border-dashed border-(--app-border) bg-white/35 px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
+              class="detail-span-2 rounded-[14px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
             >
               请绑定变量。滑块只支持绑定整数或浮点变量，绑定后再设置最小值、最大值和步长。
             </div>

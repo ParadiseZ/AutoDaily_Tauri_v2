@@ -44,7 +44,7 @@
       </template>
 
       <template v-else-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.relative">
-        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-4">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="editor-inline-grid">
             <div class="editor-inline-label">锚点类型</div>
             <div class="editor-inline-content">
@@ -138,7 +138,7 @@
       </template>
 
       <template v-else-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.group">
-        <div class="rounded-[16px] border border-(--app-border) bg-white/45 px-4 py-4">
+        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="editor-inline-grid">
             <div class="editor-inline-label">组合逻辑</div>
             <div class="editor-inline-content">
