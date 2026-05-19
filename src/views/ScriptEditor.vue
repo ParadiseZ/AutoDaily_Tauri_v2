@@ -3496,10 +3496,7 @@ onBeforeUnmount(() => {
 }
 
 .editor-toolbar {
-  background:
-    radial-gradient(circle at 16% 20%, rgba(255, 255, 255, 0.42), transparent 30%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.62), rgba(245, 248, 255, 0.34)),
-    var(--app-panel);
+  background: var(--app-toolbar-bg);
   box-shadow: var(--app-shadow-soft);
   backdrop-filter: blur(16px);
 }
