@@ -22,6 +22,6 @@ const props = withDefaults(
 
 const panelClasses = computed(() => [
   props.tone === 'muted' ? 'app-panel-muted' : '',
-  props.padding === 'none' ? '' : props.padding === 'sm' ? 'p-4' : props.padding === 'lg' ? 'p-7' : 'p-5',
+  props.padding === 'none' ? '' : props.padding === 'sm' ? 'p-2' : props.padding === 'lg' ? 'p-7' : 'p-5',
 ]);
 </script>

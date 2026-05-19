@@ -101,7 +101,8 @@
       </div>
 
       <div v-else class="flex min-h-0 flex-1 flex-col gap-[1px] bg-(--app-border) overflow-hidden">
-        <div class="editor-main-grid grid min-h-0 flex-1 gap-[1px]" :class="{ 'editor-main-grid-collapsed': leftSidebarCollapsed }">
+        <div class="flex min-h-0 flex-1 gap-[1px]">
+          <div class="relative shrink-0 flex flex-col min-h-0 transition-[width] duration-200" :style="{ width: leftSidebarCollapsed ? '64px' : `${sidebarWidth}px` }">
           <EditorTaskSidebar
             v-if="activeMode === 'task'"
             :tasks="draftTasks"
@@ -178,9 +179,12 @@
               <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
             </template>
           </EditorCollectionSidebar>
+            <div class="absolute -right-[3px] top-0 bottom-0 w-[5px] cursor-col-resize z-10 hover:bg-[rgba(70,110,255,0.96)] transition-colors" @mousedown.prevent="startSidebarResize" v-show="!leftSidebarCollapsed" />
+          </div>
 
           <div class="flex min-h-0 flex-1 flex-col gap-[1px]">
-            <div class="grid min-h-0 flex-1 gap-[1px] xl:grid-cols-[360px_minmax(0,1fr)]">
+            <div class="flex min-h-0 flex-1 gap-[1px]">
+              <div class="relative shrink-0 flex flex-col min-h-0" :style="{ width: `${configPanelWidth}px` }">
               <EditorTaskConfigPanel
                 v-if="activeMode === 'task'"
                 :task="currentTask"
@@ -269,7 +273,10 @@
                 @update:name="updateRelationName('policySet', $event)"
                 @update:note="updateRelationNote('policySet', $event)"
               />
+              <div class="absolute -right-[3px] top-0 bottom-0 w-[5px] cursor-col-resize z-10 hover:bg-[rgba(70,110,255,0.96)] transition-colors" @mousedown.prevent="startConfigPanelResize" />
+            </div>
 
+            <div class="min-w-0 flex-1 flex flex-col min-h-0">
               <EditorTaskWorkspace
                 v-if="activeMode === 'task'"
                 :task="currentTask"
@@ -396,6 +403,7 @@
                 @unlink="unlinkGroupFromSet"
                 @reorder="reorderSetGroups"
               />
+              </div>
             </div>
           </div>
         </div>
@@ -601,6 +609,39 @@ const textDetLabelHint = ref<string | null>('请先在脚本信息里设置文�
 const textDetLabelLoading = ref(false);
 const selectedRunTargetKey = ref<string | null>(null);
 
+const sidebarWidth = ref(340);
+const configPanelWidth = ref(360);
+const isResizingSidebar = ref(false);
+const isResizingConfigPanel = ref(false);
+let resizeStartX = 0;
+let resizeStartWidth = 0;
+
+const startSidebarResize = (e: MouseEvent) => {
+  isResizingSidebar.value = true;
+  resizeStartX = e.clientX;
+  resizeStartWidth = sidebarWidth.value;
+};
+
+const startConfigPanelResize = (e: MouseEvent) => {
+  isResizingConfigPanel.value = true;
+  resizeStartX = e.clientX;
+  resizeStartWidth = configPanelWidth.value;
+};
+
+const handleMouseMove = (e: MouseEvent) => {
+  if (isResizingSidebar.value) {
+    const delta = e.clientX - resizeStartX;
+    sidebarWidth.value = Math.max(200, Math.min(800, resizeStartWidth + delta));
+  } else if (isResizingConfigPanel.value) {
+    const delta = e.clientX - resizeStartX;
+    configPanelWidth.value = Math.max(250, Math.min(800, resizeStartWidth + delta));
+  }
+};
+
+const stopResize = () => {
+  isResizingSidebar.value = false;
+  isResizingConfigPanel.value = false;
+};
 const MAX_CONSOLE_LINES = 300;
 let detachChildLogListener: null | (() => void) = null;
 
@@ -3417,6 +3458,8 @@ watch(
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeydown);
+  window.addEventListener('mousemove', handleMouseMove);
+  window.addEventListener('mouseup', stopResize);
   void deviceStore.initIpcListeners();
   void Promise.all([deviceStore.refreshAll(), settingsStore.loadPreferences()]);
   void listen('child-log', (event) => {
@@ -3436,6 +3479,8 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown);
+  window.removeEventListener('mousemove', handleMouseMove);
+  window.removeEventListener('mouseup', stopResize);
   detachChildLogListener?.();
   detachChildLogListener = null;
 });
