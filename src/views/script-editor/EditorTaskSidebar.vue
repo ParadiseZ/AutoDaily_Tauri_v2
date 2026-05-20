@@ -280,6 +280,7 @@ const ROOT_MENU_WIDTH = 220;
 const SUBMENU_WIDTH = 240;
 const ACTION_MENU_WIDTH = 144;
 const VIEWPORT_PADDING = 12;
+const EXPANDED_MENU_MAX_HEIGHT = 320;
 
 const search = ref('');
 const draggingTaskId = ref<string | null>(null);
@@ -332,28 +333,97 @@ const taskMenuTargets = computed(() =>
 );
 const activeSectionTarget = computed(() => titleRows.value.find((title) => title.id === activeSectionTargetId.value) ?? null);
 const activeTaskTarget = computed(() => taskRows.value.find((task) => task.id === activeTaskTargetId.value) ?? null);
-const clampMenuPosition = (x: number, y: number, width: number) => ({
-  left: `${Math.max(VIEWPORT_PADDING, Math.min(x, window.innerWidth - width - VIEWPORT_PADDING))}px`,
-  top: `${Math.max(VIEWPORT_PADDING, Math.min(y, window.innerHeight - 180 - VIEWPORT_PADDING))}px`,
-});
+const clampHorizontalPosition = (x: number, width: number) =>
+  Math.max(VIEWPORT_PADDING, Math.min(x, window.innerWidth - width - VIEWPORT_PADDING));
 
-const buildSubmenuPosition = (rect: MenuRect | null, width: number) => {
-  if (!rect) {
-    return clampMenuPosition(VIEWPORT_PADDING, VIEWPORT_PADDING, width);
+const resolveFloatingMenuHeight = (element: HTMLElement | null, maxHeight?: number) => {
+  const viewportLimit = window.innerHeight - VIEWPORT_PADDING * 2;
+  const naturalHeight = element ? Math.ceil(element.scrollHeight) : 0;
+  const cappedByMenu = typeof maxHeight === 'number' ? Math.min(naturalHeight || maxHeight, maxHeight) : naturalHeight;
+  return Math.min(cappedByMenu || 0, viewportLimit);
+};
+
+const buildFloatingMenuStyle = (
+  x: number,
+  y: number,
+  width: number,
+  element: HTMLElement | null,
+  options?: {
+    maxHeight?: number;
+    alignBottomToRect?: MenuRect | null;
+  },
+) => {
+  const left = clampHorizontalPosition(x, width);
+  const maxHeight = Math.min(options?.maxHeight ?? Number.POSITIVE_INFINITY, window.innerHeight - VIEWPORT_PADDING * 2);
+  const menuHeight = resolveFloatingMenuHeight(element, Number.isFinite(maxHeight) ? maxHeight : undefined);
+  let top = y;
+
+  if (menuHeight > 0 && top + menuHeight > window.innerHeight - VIEWPORT_PADDING) {
+    if (options?.alignBottomToRect) {
+      top = options.alignBottomToRect.bottom - menuHeight;
+    } else {
+      top = window.innerHeight - VIEWPORT_PADDING - menuHeight;
+    }
   }
 
-  const prefersRight = rect.right + width + 8 <= window.innerWidth - VIEWPORT_PADDING;
-  const x = prefersRight ? rect.right + 8 : rect.left - width - 8;
-  return clampMenuPosition(x, rect.top, width);
+  top = Math.max(VIEWPORT_PADDING, top);
+
+  return {
+    left: `${left}px`,
+    top: `${top}px`,
+    ...(Number.isFinite(maxHeight) ? { maxHeight: `${maxHeight}px` } : {}),
+  };
+};
+
+const buildSubmenuPosition = (
+  triggerRect: MenuRect | null,
+  width: number,
+  element: HTMLElement | null,
+  alignBottomToRect?: MenuRect | null,
+) => {
+  if (!triggerRect) {
+    return buildFloatingMenuStyle(VIEWPORT_PADDING, VIEWPORT_PADDING, width, element, {
+      maxHeight: EXPANDED_MENU_MAX_HEIGHT,
+    });
+  }
+
+  const prefersRight = triggerRect.right + width + 8 <= window.innerWidth - VIEWPORT_PADDING;
+  const x = prefersRight ? triggerRect.right + 8 : triggerRect.left - width - 8;
+  return buildFloatingMenuStyle(x, triggerRect.top, width, element, {
+    maxHeight: EXPANDED_MENU_MAX_HEIGHT,
+    alignBottomToRect,
+  });
+};
+
+const readElementRect = (element: HTMLElement | null): MenuRect | null => {
+  if (!element) {
+    return null;
+  }
+
+  const rect = element.getBoundingClientRect();
+  return {
+    top: rect.top,
+    left: rect.left,
+    right: rect.right,
+    bottom: rect.bottom,
+  };
 };
 
 const contextMenuStyle = computed(() =>
-  contextMenu.value ? clampMenuPosition(contextMenu.value.x, contextMenu.value.y, ROOT_MENU_WIDTH) : {},
+  contextMenu.value ? buildFloatingMenuStyle(contextMenu.value.x, contextMenu.value.y, ROOT_MENU_WIDTH, contextMenuRoot.value) : {},
 );
-const sectionMenuStyle = computed(() => buildSubmenuPosition(branchAnchor.value, SUBMENU_WIDTH));
-const taskMenuStyle = computed(() => buildSubmenuPosition(branchAnchor.value, SUBMENU_WIDTH));
-const sectionActionMenuStyle = computed(() => buildSubmenuPosition(activeLeafAnchor.value, ACTION_MENU_WIDTH));
-const taskActionMenuStyle = computed(() => buildSubmenuPosition(activeLeafAnchor.value, ACTION_MENU_WIDTH));
+const rootContextMenuRect = computed(() => readElementRect(contextMenuRoot.value));
+const activeBranchPanelRect = computed(() =>
+  activeBranchMenu.value === 'section' ? readElementRect(sectionMenuRoot.value) : readElementRect(taskMenuRoot.value),
+);
+const sectionMenuStyle = computed(() => buildSubmenuPosition(branchAnchor.value, SUBMENU_WIDTH, sectionMenuRoot.value, rootContextMenuRect.value));
+const taskMenuStyle = computed(() => buildSubmenuPosition(branchAnchor.value, SUBMENU_WIDTH, taskMenuRoot.value, rootContextMenuRect.value));
+const sectionActionMenuStyle = computed(() =>
+  buildSubmenuPosition(activeLeafAnchor.value, ACTION_MENU_WIDTH, actionMenuRoot.value, activeBranchPanelRect.value),
+);
+const taskActionMenuStyle = computed(() =>
+  buildSubmenuPosition(activeLeafAnchor.value, ACTION_MENU_WIDTH, actionMenuRoot.value, activeBranchPanelRect.value),
+);
 
 const isTitleExpanded = (titleId: string) => keyword.value.length > 0 || !collapsedTitleIds.value.includes(titleId);
 
@@ -492,6 +562,20 @@ const handleDocumentClick = (event: MouseEvent) => {
   closeContextMenu();
 };
 
+const handleWindowScroll = (event: Event) => {
+  const target = event.target as Node | null;
+  if (
+    (target && contextMenuRoot.value?.contains(target)) ||
+    (target && sectionMenuRoot.value?.contains(target)) ||
+    (target && taskMenuRoot.value?.contains(target)) ||
+    (target && actionMenuRoot.value?.contains(target))
+  ) {
+    return;
+  }
+
+  closeContextMenu();
+};
+
 const handleWindowKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     closeContextMenu();
@@ -516,7 +600,7 @@ watch(
 onMounted(() => {
   window.addEventListener('mouseup', handleWindowMouseUp);
   window.addEventListener('resize', closeContextMenu);
-  window.addEventListener('scroll', closeContextMenu, true);
+  window.addEventListener('scroll', handleWindowScroll, true);
   window.addEventListener('keydown', handleWindowKeydown);
   document.addEventListener('click', handleDocumentClick);
 });
@@ -524,7 +608,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('mouseup', handleWindowMouseUp);
   window.removeEventListener('resize', closeContextMenu);
-  window.removeEventListener('scroll', closeContextMenu, true);
+  window.removeEventListener('scroll', handleWindowScroll, true);
   window.removeEventListener('keydown', handleWindowKeydown);
   document.removeEventListener('click', handleDocumentClick);
 });
@@ -562,6 +646,7 @@ onBeforeUnmount(() => {
   min-width: 220px;
   max-width: 240px;
   padding: 0.35rem;
+  overscroll-behavior: contain;
 }
 
 .editor-task-menu-item {

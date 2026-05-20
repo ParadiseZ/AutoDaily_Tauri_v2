@@ -252,6 +252,67 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
 
+test('allows clearing task and title row names without auto-filling text', async ({ page }) => {
+  const scriptId = 'script-editor-empty-name';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '空名称验证脚本',
+      description: '验证任务名称删除后不会自动回填',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  const taskNameInput = page.getByTestId('editor-task-name');
+  await expect(taskNameInput).toHaveValue('主任务 1');
+
+  await taskNameInput.fill('');
+  await expect(taskNameInput).toHaveValue('');
+
+  await page.getByTestId('editor-save').click();
+
+  let state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.scriptTasks[scriptId]?.[0]?.name).toBe('');
+
+  await selectOptionByValue(page, 'editor-task-row-type', 'title');
+  await expect(taskNameInput).toHaveValue('');
+
+  await taskNameInput.fill('分组标题');
+  await expect(taskNameInput).toHaveValue('分组标题');
+  await taskNameInput.fill('');
+  await expect(taskNameInput).toHaveValue('');
+
+  await page.getByTestId('editor-save').click();
+
+  state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.scriptTasks[scriptId]?.[0]?.rowType).toBe('title');
+  expect(state?.scriptTasks[scriptId]?.[0]?.name).toBe('');
+
+  await page.reload();
+  await expect(page.getByTestId('editor-task-name')).toHaveValue('');
+});
+
 test('persists flow conditions and action forms from step workspace', async ({ page }) => {
   const scriptId = 'script-editor-conditions';
   const script: StoredScriptTable = {

@@ -1120,7 +1120,7 @@ const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable =>
   return {
     ...task,
     scriptId: task.scriptId || scriptId.value,
-    name: task.name || `任务 ${index + 1}`,
+    name: task.name ?? `任务 ${index + 1}`,
     rowType,
     triggerMode: task.triggerMode ?? (legacyTaskType === 'child' ? 'linkOnly' : 'rootOnly'),
     recordSchedule: isTitle ? false : task.recordSchedule ?? true,
@@ -1447,6 +1447,38 @@ const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
   }
 
   const nextTasks = [...draftTasks.value];
+  const sourceTask = nextTasks[fromIndex];
+  if (!sourceTask) {
+    return;
+  }
+
+  if (action.kind === 'current') {
+    if (sourceTask.rowType === 'title') {
+      const blockIds = new Set([
+        sourceTask.id,
+        ...nextTasks.filter((task) => task.rowType === 'task' && task.sectionId === sourceTask.id).map((task) => task.id),
+      ]);
+      const block = nextTasks.filter((task) => blockIds.has(task.id));
+      const remainder = nextTasks.filter((task) => !blockIds.has(task.id));
+      nextTasks.splice(
+        0,
+        nextTasks.length,
+        ...(action.position === 'top' ? [...block, ...remainder] : [...remainder, ...block]),
+      );
+      draftTasks.value = nextTasks.map((task, index) => normalizeTask(task, index));
+      return;
+    }
+
+    const [movedTask] = nextTasks.splice(fromIndex, 1);
+    if (!movedTask) {
+      return;
+    }
+    movedTask.sectionId = null;
+    nextTasks.splice(action.position === 'top' ? 0 : nextTasks.length, 0, movedTask);
+    draftTasks.value = nextTasks.map((task, index) => normalizeTask(task, index));
+    return;
+  }
+
   const [movedTask] = nextTasks.splice(fromIndex, 1);
   if (!movedTask) {
     return;
@@ -1486,13 +1518,7 @@ const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
     nextTasks.splice(insertIndex, 0, movedTask);
   };
 
-  if (action.kind === 'current') {
-    if (movedTask.sectionId) {
-      insertBySection(movedTask.sectionId, action.position);
-    } else {
-      insertAsUngrouped(action.position);
-    }
-  } else if (action.kind === 'section') {
+  if (action.kind === 'section') {
     insertBySection(action.sectionId, action.position);
   } else {
     const targetIndex = nextTasks.findIndex((task) => task.id === action.taskId);
@@ -3301,7 +3327,7 @@ watch(taskName, (value) => {
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.name = value.trim() || '未命名任务';
+    task.name = value.trim();
     return task;
   });
 });
