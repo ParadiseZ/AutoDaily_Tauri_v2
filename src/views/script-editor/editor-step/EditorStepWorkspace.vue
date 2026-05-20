@@ -100,6 +100,8 @@
                 :flow-condition="flowCondition"
                 :has-else-branch="hasElseBranch"
                 :branch-summary="flowBranchSummary"
+                :branch-targets="flowBranchTargets"
+                :active-branch-path="activeBranchPath"
                 :flow-type-options="flowTypeOptions"
                 :readable-catalog-variable-options="readableCatalogVariableOptions"
                 :variable-input-entries="inputEntries"
@@ -118,6 +120,7 @@
                 @update-flow-type="updateFlowType"
                 @update-flow-condition="updateFlowCondition"
                 @toggle-else-branch="toggleElseBranch"
+                @navigate-branch="$emit('navigate-branch', $event)"
               />
 
               <EditorStepDataPanel
@@ -214,28 +217,6 @@
             </div>
           </div>
 
-          <div v-if="branchTargets.length" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-            <p class="text-sm font-semibold text-(--app-text-strong)">可进入层级</p>
-            <div class="mt-3 grid gap-3">
-              <button
-                v-for="target in branchTargets"
-                :key="target.key"
-                class="app-list-item"
-                :class="{ 'app-list-item-active': isSameBranchPath(activeBranchPath, target.path) }"
-                type="button"
-                :data-testid="`editor-branch-${target.key}`"
-                @click="$emit('navigate-branch', target.path)"
-              >
-                <div class="flex items-center justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ target.label }}</p>
-                    <p class="mt-1 text-xs text-(--app-text-faint)">{{ target.count }} 个步骤</p>
-                  </div>
-                  <span class="text-xs text-(--app-text-faint)">进入</span>
-                </div>
-              </button>
-            </div>
-          </div>
         </div>
 
         <EmptyState
@@ -698,6 +679,10 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
 });
 const visionBranchTarget = computed(() => branchTargets.value.find((target) => target.key === 'visionThen') ?? null);
 const filterBranchTarget = computed(() => branchTargets.value.find((target) => target.key === 'filterThen') ?? null);
+const flowBranchTargets = computed(() =>
+  branchTargets.value.filter((target): target is { key: 'then' | 'else' | 'flow'; label: string; count: number; path: StepBranchPath } =>
+    target.key === 'then' || target.key === 'else' || target.key === 'flow'),
+);
 
 const selectCurrentBranchStep = (index: number) => {
   emit('select-step-path', buildStepPath(props.activeBranchPath, index));

@@ -229,23 +229,30 @@
     </template>
 
     <template v-else-if="flowWithCondition && flowCondition">
-      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">流程类型</div>
-          <div class="editor-inline-content xl:col-span-3">
-            <EditorSelectField
-              :model-value="flowWithCondition.type"
-              :options="flowTypeOptions"
-              placeholder="流程类型"
-              @update:model-value="$emit('update-flow-type', String($event || FLOW_TYPE.if))"
-            />
-          </div>
-        </div>
+      <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <EditorSelectField
+            :model-value="flowWithCondition.type"
+            :options="flowTypeOptions"
+            placeholder="流程类型"
+            class="min-w-[180px] flex-1"
+            @update:model-value="$emit('update-flow-type', String($event || FLOW_TYPE.if))"
+          />
 
-        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
-          <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">分支概览</p>
-          <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <span class="text-sm text-(--app-text-soft)">{{ branchSummary }}</span>
+          <div class="flex flex-wrap items-center gap-2" v-if="branchTargets.length">
+            <button
+              v-for="target in branchTargets"
+              :key="target.key"
+              class="editor-branch-pill"
+              :class="{ 'editor-branch-pill-active': isActiveBranch(target.path) }"
+              type="button"
+              :data-testid="`editor-branch-${target.key}`"
+              @click="$emit('navigate-branch', target.path)"
+            >
+              <span>{{ target.label }}</span>
+              <span class="editor-branch-pill-count">{{ target.count }}</span>
+            </button>
+
             <button
               v-if="flowWithCondition.type === FLOW_TYPE.if"
               class="app-button app-button-ghost app-toolbar-button"
@@ -256,10 +263,11 @@
             </button>
           </div>
         </div>
-      </div>
 
-      <div class="space-y-2">
-        <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">条件</p>
+        <div v-if="flowWithCondition.type !== FLOW_TYPE.if && branchSummary" class="text-xs text-(--app-text-faint)">
+          {{ branchSummary }}
+        </div>
+
         <EditorConditionBuilder
           :model-value="flowCondition"
           :variable-options="readableCatalogVariableOptions"
@@ -292,6 +300,7 @@ import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
 import { FLOW_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import { isSameBranchPath, type StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
 import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepFlowPanel' });
@@ -303,6 +312,7 @@ const emit = defineEmits<{
   'update-flow-condition': [condition: ConditionNode];
   'toggle-else-branch': [];
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
+  'navigate-branch': [path: StepBranchPath];
 }>();
 
 const props = defineProps<{
@@ -311,6 +321,8 @@ const props = defineProps<{
   flowCondition: ConditionNode | null;
   hasElseBranch: boolean;
   branchSummary: string;
+  branchTargets: Array<{ key: 'then' | 'else' | 'flow'; label: string; count: number; path: StepBranchPath }>;
+  activeBranchPath: StepBranchPath;
   flowTypeOptions: Array<{ label: string; value: string; description: string }>;
   readableCatalogVariableOptions: Array<{ label: string; value: string; description: string }>;
   variableInputEntries?: EditorInputEntry[];
@@ -324,6 +336,8 @@ const props = defineProps<{
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
+
+const isActiveBranch = (branchPath: StepBranchPath) => isSameBranchPath(branchPath, props.activeBranchPath);
 
 const resolvedTaskReferenceOptions = computed(() =>
   withResolvedReferenceOption(props.taskReferenceOptions, selectedLinkTarget.value, 'task'),
@@ -581,5 +595,38 @@ const jumpToFlowOutputVariable = () => {
 
 .editor-inline-content {
   min-height: 44px;
+}
+
+.editor-branch-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.58);
+  padding: 0.5rem 0.8rem;
+  color: var(--app-text-soft);
+  font-size: 0.86rem;
+  font-weight: 600;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.editor-branch-pill:hover {
+  border-color: color-mix(in srgb, var(--app-accent) 48%, white);
+  color: var(--app-text-strong);
+}
+
+.editor-branch-pill-active {
+  border-color: color-mix(in srgb, var(--app-accent) 70%, white);
+  background: color-mix(in srgb, var(--app-accent) 14%, white);
+  color: var(--app-text-strong);
+}
+
+.editor-branch-pill-count {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 0.1rem 0.45rem;
+  font-size: 0.74rem;
+  color: var(--app-text-faint);
 }
 </style>

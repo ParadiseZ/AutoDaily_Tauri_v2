@@ -1,12 +1,12 @@
 <template>
-  <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-    <div>
+  <div class="variable-meta-card" :class="{ 'variable-meta-card-compact': compact }">
+    <div v-if="!hideHeader">
       <p class="text-sm font-semibold text-(--app-text-strong)">变量详情</p>
       <p class="mt-1 text-xs text-(--app-text-faint)">{{ displayName }}</p>
       <p v-if="displayKey && displayKey !== displayName" class="mt-1 text-[11px] text-(--app-text-faint)">键：{{ displayKey }}</p>
     </div>
 
-    <div class="mt-4 detail-grid">
+    <div :class="[hideHeader ? 'detail-grid' : 'mt-4 detail-grid', { 'detail-grid-compact': compact }]">
       <label v-if="editableEntry" class="detail-item">
         <span class="detail-label">名称</span>
         <input :value="editableEntry.name" class="app-input" placeholder="例如：扫荡次数" @input="emitUpdate('name', ($event.target as HTMLInputElement).value)" />
@@ -102,7 +102,7 @@
 
       <div
         v-else
-        class="detail-item detail-span-2 detail-item-top rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
+        class="detail-item detail-span-2 detail-item-top variable-meta-note"
       >
         {{ effectiveNamespace === 'runtime' ? 'Runtime 变量只定义结构和来源，不在这里设置默认值。' : 'System 变量由运行时注入，只在这里保留元数据。' }}
       </div>
@@ -123,11 +123,20 @@ import {
   type EditorVariableOption,
 } from '@/views/script-editor/editorVariables';
 
-const props = defineProps<{
-  variable: EditorVariableOption;
-  inputEntry?: EditorInputEntry | null;
-  editable?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    variable: EditorVariableOption;
+    inputEntry?: EditorInputEntry | null;
+    editable?: boolean;
+    compact?: boolean;
+    hideHeader?: boolean;
+  }>(),
+  {
+    editable: false,
+    compact: false,
+    hideHeader: false,
+  },
+);
 
 const emit = defineEmits<{
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
@@ -189,14 +198,35 @@ const emitUpdate = (
 </script>
 
 <style scoped>
+.variable-meta-card {
+  border-radius: 18px;
+  border: 1px solid var(--app-border);
+  background: var(--app-panel-muted);
+  padding: 1rem;
+}
+
+.variable-meta-card-compact {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 0.9rem;
+}
+
 .detail-grid {
   display: grid;
   gap: 0.9rem 1rem;
 }
 
+.detail-grid-compact {
+  gap: 0.7rem 0.9rem;
+}
+
 .detail-item {
   display: grid;
   gap: 0.75rem;
+}
+
+.detail-grid-compact .detail-item {
+  gap: 0.55rem;
 }
 
 .detail-label {
@@ -208,6 +238,28 @@ const emitUpdate = (
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.detail-grid-compact .detail-label {
+  min-height: 38px;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.variable-meta-note {
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+  background: var(--app-panel-muted);
+  padding: 1rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--app-text-soft);
+}
+
+.detail-grid-compact .variable-meta-note {
+  padding: 0.85rem 0.9rem;
+  font-size: 0.84rem;
 }
 
 @media (min-width: 768px) {
@@ -226,6 +278,10 @@ const emitUpdate = (
 
   .detail-span-2 {
     grid-column: 1 / -1;
+  }
+
+  .detail-grid-compact .detail-item {
+    grid-template-columns: 60px minmax(0, 1fr);
   }
 }
 </style>

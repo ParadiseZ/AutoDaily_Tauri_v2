@@ -1,17 +1,14 @@
 <template>
   <div class="app-rule-card" :class="{ 'app-rule-card-nested': depth > 0 }">
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
       <EditorSelectField
           :model-value="modelValue.type"
           :options="conditionTypeOptions"
           placeholder="条件类型"
-          class="min-w-[180px]"
+          class="min-w-[180px] flex-1"
           :test-id="rootTestId('type')"
           @update:model-value="changeType(String($event || 'rawExpr'))"
         />
-        <span class="truncate text-xs text-(--app-text-faint)">{{ conditionSummary }}</span>
-      </div>
 
       <button
         v-if="removable"
@@ -84,11 +81,9 @@
           />
         </div>
 
-        <EmptyState
-          v-if="!modelValue.items.length"
-          title="还没有子条件"
-          description="先添加表达式、颜色、任务状态等子条件。"
-        />
+        <div v-if="!modelValue.items.length" class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-faint)">
+          还没有条件
+        </div>
       </template>
 
       <template v-else-if="modelValue.type === 'execNumCompare'">
@@ -257,44 +252,43 @@
       </template>
 
       <template v-else-if="modelValue.type === 'varCompare'">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">变量名称</div>
-          <div class="editor-inline-content md:col-span-3">
+        <div class="editor-compact-grid">
+          <label class="space-y-2">
+            <span class="text-xs font-medium text-(--app-text-faint)">变量</span>
             <EditorSelectField
               :model-value="modelValue.var_name || null"
               :options="variableOptions"
-              :show-description="true"
               placeholder="从变量列表中选择"
               :test-id="rootTestId('var-name')"
               @update:model-value="updateVarCompareField('var_name', String($event || ''))"
             />
-          </div>
+          </label>
 
-          <div class="editor-inline-label">比较方式</div>
-          <div class="editor-inline-content">
+          <label class="space-y-2">
+            <span class="text-xs font-medium text-(--app-text-faint)">比较</span>
             <EditorSelectField
               :model-value="modelValue.op"
               :options="compareOpOptions"
               placeholder="比较方式"
               @update:model-value="updateVarCompareField('op', String($event || 'eq'))"
             />
-          </div>
+          </label>
 
-          <div class="editor-inline-label">值类型</div>
-          <div class="editor-inline-content">
+          <label class="space-y-2">
+            <span class="text-xs font-medium text-(--app-text-faint)">值类型</span>
             <EditorSelectField
               :model-value="currentVarValueDraft.kind"
               :options="varValueTypeOptions"
               placeholder="值类型"
               @update:model-value="updateVarCompareValueKind(String($event || 'string'))"
             />
-          </div>
+          </label>
         </div>
 
         <div v-if="createVariable || (selectedVarCompareOption && jumpToVariable)" class="flex flex-wrap gap-2">
           <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createVarCompareVariable">
             <AppIcon name="plus" :size="14" />
-            新建变量
+            新建
           </button>
           <button
             v-if="selectedVarCompareOption && jumpToVariable"
@@ -303,7 +297,7 @@
             @click="jumpToVarCompareVariable"
           >
             <AppIcon name="locate-fixed" :size="14" />
-            定位变量
+            定位
           </button>
         </div>
 
@@ -312,6 +306,8 @@
           :variable="selectedVarCompareOption"
           :input-entry="selectedVarCompareInputEntry"
           editable
+          compact
+          hide-header
           @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
         />
 
@@ -503,7 +499,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
-import EmptyState from '@/components/shared/EmptyState.vue';
 import EditorPolicyConditionRuleBuilder from '@/views/script-editor/EditorPolicyConditionRuleBuilder.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
@@ -517,7 +512,6 @@ import {
   compareOpOptions,
   conditionTypeOptions,
   createConditionNode,
-  describeConditionNode,
   logicOpOptions,
   policySetResultCompareOptions,
   policySetResultFieldOptions,
@@ -742,15 +736,6 @@ const resolvedPolicySetResultTargetOptions = computed(() => {
         : 'policy',
   );
 });
-const conditionSummary = computed(() => {
-  if (props.modelValue.type !== 'policySetResult') {
-    return describeConditionNode(props.modelValue);
-  }
-
-  const node = props.modelValue;
-  return `策略集结果 · ${getPolicySetResultFieldLabel(node.field)}`;
-});
-
 watch(
   () => props.modelValue.type,
   (type) => {
@@ -1018,19 +1003,6 @@ const updateVarCompareBool = (value: boolean) => {
   });
 };
 
-const getPolicySetResultFieldLabel = (field: 'matched' | 'policySetId' | 'policyGroupId' | 'policyId') => {
-  switch (field) {
-    case 'matched':
-      return 'matched';
-    case 'policyGroupId':
-      return 'policyGroupId';
-    case 'policyId':
-      return 'policyId';
-    default:
-      return 'policySetId';
-  }
-};
-
 const updatePolicySetResultField = (field: 'result_var', value: string) => {
   if (props.modelValue.type !== 'policySetResult') return;
   replaceNode({
@@ -1168,6 +1140,18 @@ const updateColorNumber = (field: 'r' | 'g' | 'b', value: string) => {
 
 .editor-inline-content {
   min-height: 44px;
+}
+
+.editor-compact-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 900px) {
+  .editor-compact-grid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
 }
 
 .editor-target-list {
