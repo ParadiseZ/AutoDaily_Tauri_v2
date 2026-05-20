@@ -114,6 +114,7 @@
             @toggle-hidden="toggleTaskHidden"
             @remove="removeTask"
             @reorder="reorderTasks"
+            @move-task="moveTaskByMenu"
           >
             <template #mode-switch>
               <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
@@ -496,6 +497,7 @@ import EditorPolicyWorkspace from '@/views/script-editor/editor-policy/EditorPol
 import EditorRelationConfigPanel from '@/views/script-editor/editor-policy/EditorRelationConfigPanel.vue';
 import EditorRelationWorkspace from '@/views/script-editor/editor-policy/EditorRelationWorkspace.vue';
 import type { EditorReferenceKind, EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
+import type { EditorTaskMoveAction } from '@/views/script-editor/editorTaskMove';
 import {
   createEmptyRelationMap,
   editorModeOptions,
@@ -1436,6 +1438,75 @@ const reorderTasks = (draggedTaskId: string, targetTaskId: string) => {
   }
 
   draftTasks.value = reorderCollection(draftTasks.value, fromIndex, toIndex).map((task, index) => normalizeTask(task, index));
+};
+
+const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
+  const fromIndex = draftTasks.value.findIndex((task) => task.id === taskId);
+  if (fromIndex < 0) {
+    return;
+  }
+
+  const nextTasks = [...draftTasks.value];
+  const [movedTask] = nextTasks.splice(fromIndex, 1);
+  if (!movedTask) {
+    return;
+  }
+
+  const insertBySection = (sectionId: string, position: 'top' | 'bottom') => {
+    const sectionTaskIndexes = nextTasks.reduce<number[]>((indexes, task, index) => {
+      if (task.rowType === 'task' && task.sectionId === sectionId) {
+        indexes.push(index);
+      }
+      return indexes;
+    }, []);
+    const titleIndex = nextTasks.findIndex((task) => task.id === sectionId);
+    const anchorIndex = titleIndex >= 0 ? titleIndex + 1 : nextTasks.length;
+    const insertIndex =
+      position === 'top'
+        ? sectionTaskIndexes[0] ?? anchorIndex
+        : (sectionTaskIndexes[sectionTaskIndexes.length - 1] ?? titleIndex) + 1;
+
+    movedTask.sectionId = sectionId;
+    nextTasks.splice(insertIndex, 0, movedTask);
+  };
+
+  const insertAsUngrouped = (position: 'top' | 'bottom') => {
+    const ungroupedIndexes = nextTasks.reduce<number[]>((indexes, task, index) => {
+      if (task.rowType === 'task' && !task.sectionId) {
+        indexes.push(index);
+      }
+      return indexes;
+    }, []);
+    const insertIndex =
+      position === 'top'
+        ? (ungroupedIndexes[0] ?? 0)
+        : (ungroupedIndexes[ungroupedIndexes.length - 1] ?? -1) + 1;
+
+    movedTask.sectionId = null;
+    nextTasks.splice(insertIndex, 0, movedTask);
+  };
+
+  if (action.kind === 'current') {
+    if (movedTask.sectionId) {
+      insertBySection(movedTask.sectionId, action.position);
+    } else {
+      insertAsUngrouped(action.position);
+    }
+  } else if (action.kind === 'section') {
+    insertBySection(action.sectionId, action.position);
+  } else {
+    const targetIndex = nextTasks.findIndex((task) => task.id === action.taskId);
+    const targetTask = targetIndex >= 0 ? nextTasks[targetIndex] : null;
+    if (!targetTask) {
+      nextTasks.splice(fromIndex, 0, movedTask);
+      return;
+    }
+
+    movedTask.sectionId = targetTask.sectionId ?? null;
+    nextTasks.splice(action.position === 'top' ? targetIndex : targetIndex + 1, 0, movedTask);
+  }
+
+  draftTasks.value = nextTasks.map((task, index) => normalizeTask(task, index));
 };
 
 const createPolicy = async () => {

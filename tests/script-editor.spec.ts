@@ -104,6 +104,28 @@ const dragRelationByHandle = async (page: Page, fromIndex: number, toIndex: numb
   await page.evaluate(() => window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 })));
 };
 
+const openTaskContextMenu = async (page: Page, taskId: string) => {
+  await page.getByTestId(`editor-task-item-${taskId}`).dispatchEvent('contextmenu', {
+    button: 2,
+    clientX: 240,
+    clientY: 240,
+  });
+  await expect(page.getByTestId('editor-task-context-menu')).toBeVisible();
+};
+
+const openTaskContextMenuWithShift = async (page: Page, taskId: string) => {
+  await page.getByTestId(`editor-task-item-${taskId}`).evaluate((element: HTMLElement) => {
+    element.dispatchEvent(new MouseEvent('contextmenu', {
+      bubbles: true,
+      cancelable: true,
+      button: 2,
+      shiftKey: true,
+      clientX: 240,
+      clientY: 240,
+    }));
+  });
+};
+
 test('edits script tasks with visual task editor and persists payload', async ({ page }) => {
   const scriptId = 'script-editor-1';
   const script: StoredScriptTable = {
@@ -787,6 +809,223 @@ test('renders script-level task preview with title groups and task metadata', as
   await expect(page.getByText('未分组任务')).toBeVisible();
   await expect(page.getByText('每日').first()).toBeVisible();
   await expect(page.locator('.editor-ui-task-name', { hasText: '签到' })).toBeVisible();
+});
+
+test('collapses task groups and moves tasks from context menu', async ({ page }) => {
+  const scriptId = 'script-editor-task-context-move';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '任务分组菜单脚本',
+      description: '验证左栏折叠和右键移动菜单',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const titleGlobalId = 'title-global-settings';
+    const titleDailyId = 'title-daily';
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: titleGlobalId,
+        scriptId: currentScriptId,
+        name: '全局设置',
+        rowType: 'title',
+        triggerMode: 'rootOnly',
+        recordSchedule: false,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        execMax: 0,
+        showEnabledToggle: false,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+      {
+        id: 'task-auto-download',
+        scriptId: currentScriptId,
+        name: '自动下载资源',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: titleGlobalId,
+        indentLevel: 1,
+        defaultTaskCycle: 'daily',
+        execMax: 0,
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 1,
+      },
+      {
+        id: titleDailyId,
+        scriptId: currentScriptId,
+        name: '每日任务',
+        rowType: 'title',
+        triggerMode: 'rootOnly',
+        recordSchedule: false,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        execMax: 0,
+        showEnabledToggle: false,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 2,
+      },
+      {
+        id: 'task-daily-sign',
+        scriptId: currentScriptId,
+        name: '签到',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: titleDailyId,
+        indentLevel: 1,
+        defaultTaskCycle: 'daily',
+        execMax: 0,
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 3,
+      },
+      {
+        id: 'task-receive-reward',
+        scriptId: currentScriptId,
+        name: '奖励领取',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'weekly',
+        execMax: 0,
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 4,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await expect(page.getByTestId('editor-task-item-task-auto-download')).toBeVisible();
+  await page.getByTestId('editor-task-group-toggle-title-global-settings').click();
+  await expect(page.getByTestId('editor-task-item-task-auto-download')).toBeHidden();
+  await page.getByTestId('editor-task-group-toggle-title-global-settings').click();
+  await expect(page.getByTestId('editor-task-item-task-auto-download')).toBeVisible();
+
+  await openTaskContextMenu(page, 'title-global-settings');
+  await expect(page.getByTestId('editor-task-context-menu')).toBeVisible();
+
+  await openTaskContextMenuWithShift(page, 'task-daily-sign');
+  await expect(page.getByTestId('editor-task-context-menu')).toHaveCount(0);
+
+  await openTaskContextMenu(page, 'task-daily-sign');
+  await page.getByTestId('editor-task-move-section').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-task-move-section-item-title-global-settings').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-task-move-section-title-global-settings-top').evaluate((element: HTMLElement) => element.click());
+
+  await openTaskContextMenu(page, 'task-daily-sign');
+  await page.getByTestId('editor-task-move-current-bottom').evaluate((element: HTMLElement) => element.click());
+
+  await openTaskContextMenu(page, 'task-receive-reward');
+  await page.getByTestId('editor-task-move-task').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-task-move-task-item-task-auto-download').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-task-move-task-task-auto-download-bottom').evaluate((element: HTMLElement) => element.click());
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.scriptTasks[scriptId].map((task) => task.id)).toEqual([
+    'title-global-settings',
+    'task-auto-download',
+    'task-receive-reward',
+    'task-daily-sign',
+    'title-daily',
+  ]);
+
+  const movedSign = state?.scriptTasks[scriptId].find((task) => task.id === 'task-daily-sign');
+  const movedReward = state?.scriptTasks[scriptId].find((task) => task.id === 'task-receive-reward');
+  expect(movedSign?.sectionId).toBe('title-global-settings');
+  expect(movedReward?.sectionId).toBe('title-global-settings');
 });
 
 test('persists varCompare conditions and nested branch steps', async ({ page }) => {

@@ -21,7 +21,10 @@
         </button>
       </div>
 
-      <div v-if="!collapsed" class="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-3 gap-y-2 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+      <div
+        v-if="!collapsed"
+        class="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-x-3 gap-y-2 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3"
+      >
         <span class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">任务</span>
         <span class="text-xl font-semibold text-(--app-text-strong)">{{ tasks.length }}</span>
         <span class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">隐藏</span>
@@ -29,83 +32,68 @@
       </div>
     </div>
 
-    <div v-if="!collapsed" class="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
-      <div v-if="filteredTasks.length" class="space-y-2 pr-1">
-        <article
-          v-for="task in filteredTasks"
-          :key="task.id"
-          class="app-list-item space-y-3 transition-colors"
-          :class="{
-            'app-list-item-active': selectedTaskId === task.id,
-            'editor-task-drop-target': overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id,
-            'editor-task-card-dragging': draggingTaskId === task.id,
-          }"
-          :data-testid="`editor-task-item-${task.id}`"
-          @mouseenter="handleMouseEnter(task.id)"
-          @mouseup="handleMouseUp(task.id)"
-        >
-          <div class="grid grid-cols-[34px_minmax(0,1fr)_auto] items-start gap-2">
-            <button
-              class="app-drag-handle"
-              :class="{ 'app-drag-handle-active': draggingTaskId === task.id }"
-              :data-testid="`editor-task-drag-${task.id}`"
-              type="button"
-              aria-label="拖动排序"
-              @mousedown.prevent="startDrag(task.id)"
-              @click.stop
-            >
-              <GripVertical class="h-4 w-4" />
-            </button>
+    <div v-if="!collapsed" class="min-h-0 flex-1 overflow-y-auto custom-scrollbar" @scroll="closeContextMenu">
+      <div v-if="hasVisibleRows" class="space-y-3 pr-1">
+        <div v-if="ungroupedTasks.length" class="space-y-2">
+          <EditorTaskSidebarTaskCard
+            v-for="task in ungroupedTasks"
+            :key="task.id"
+            :task="task"
+            :selected="selectedTaskId === task.id"
+            :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
+            :dragging="draggingTaskId === task.id"
+            :disable-remove="tasks.length <= 1"
+            @mouseenter="handleMouseEnter"
+            @mouseup="handleMouseUp"
+            @contextmenu="handleTaskContextMenu"
+            @drag-start="startDrag"
+            @select="selectTask"
+            @toggle-hidden="$emit('toggle-hidden', $event)"
+            @duplicate="$emit('duplicate', $event)"
+            @remove="$emit('remove', $event)"
+          />
+        </div>
 
-            <button
-              class="min-w-0 flex-1 text-left"
-              type="button"
-              :style="task.rowType === 'title' ? undefined : { paddingLeft: `${task.indentLevel * 0.85}rem` }"
-              @click="$emit('select', task.id)"
-            >
-              <div class="flex items-center gap-2">
-                <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-faint)">
-                  {{ task.index + 1 }}
-                </span>
-                <p class="truncate text-sm font-semibold text-(--app-text-strong)">
-                  {{ task.name }}
-                </p>
-              </div>
-              <p class="mt-2 text-xs text-(--app-text-faint)">
-                <template v-if="task.rowType === 'title'">标题行 · 分组标题</template>
-                <template v-else>{{ formatTriggerModeLabel(task.triggerMode) }} · {{ task.data.steps.length }} 个步骤</template>
-              </p>
-            </button>
+        <section v-for="title in visibleTitleRows" :key="title.id" class="space-y-2">
+          <EditorTaskSidebarTitleCard
+            :title="title"
+            :selected="selectedTaskId === title.id"
+            :dragging="draggingTaskId === title.id"
+            :drop-target="overTaskId === title.id && draggingTaskId !== null && draggingTaskId !== title.id"
+            :expanded="isTitleExpanded(title.id)"
+            :task-count="groupedTasksByTitle[title.id]?.length ?? 0"
+            :disable-remove="tasks.length <= 1"
+            @mouseenter="handleMouseEnter"
+            @mouseup="handleMouseUp"
+            @contextmenu="handleTaskContextMenu"
+            @drag-start="startDrag"
+            @select="selectTask"
+            @toggle-collapsed="toggleTitleCollapsed"
+            @toggle-hidden="$emit('toggle-hidden', $event)"
+            @duplicate="$emit('duplicate', $event)"
+            @remove="$emit('remove', $event)"
+          />
 
-            <div class="flex flex-col items-end gap-2">
-              <button
-                  class="app-icon-button app-icon-button-sec"
-                  type="button"
-                  :title="task.isHidden ? '点击显示' : '点击隐藏'"
-                  @click.stop="$emit('toggle-hidden', task.id)"
-              >
-                <EyeOff v-if="task.isHidden" class = "h-4 w-4" />
-                <Eye v-else class="h-4 w-4" />
-              </button>
-            </div>
+          <div v-if="isTitleExpanded(title.id)" class="space-y-2">
+            <EditorTaskSidebarTaskCard
+              v-for="task in groupedTasksByTitle[title.id] ?? []"
+              :key="task.id"
+              :task="task"
+              :selected="selectedTaskId === task.id"
+              :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
+              :dragging="draggingTaskId === task.id"
+              :disable-remove="tasks.length <= 1"
+              @mouseenter="handleMouseEnter"
+              @mouseup="handleMouseUp"
+              @contextmenu="handleTaskContextMenu"
+              @drag-start="startDrag"
+              @select="selectTask"
+              @toggle-hidden="$emit('toggle-hidden', $event)"
+              @duplicate="$emit('duplicate', $event)"
+              @remove="$emit('remove', $event)"
+            />
           </div>
-
-          <div class="flex flex-wrap gap-2">
-            <button class="app-icon-button app-icon-button-sec" type="button" aria-label="复制" title="复制" @click.stop="$emit('duplicate', task.id)">
-              <Copy class="h-4 w-4" />
-            </button>
-            <button
-              class="app-icon-button app-crash-icon app-icon-button-sec"
-              type="button"
-              :disabled="tasks.length <= 1"
-              aria-label="删除"
-              title="删除"
-              @click.stop="$emit('remove', task.id)"
-            >
-              <Trash2 class="h-4 w-4" />
-            </button>
-          </div>
-        </article>
+        </section>
       </div>
 
       <EmptyState
@@ -115,15 +103,162 @@
       />
     </div>
   </SurfacePanel>
+
+  <Teleport to="body">
+    <div
+      v-if="contextMenu"
+      ref="contextMenuRoot"
+      class="editor-task-menu app-select-menu app-select-menu-floating"
+      data-testid="editor-task-context-menu"
+      :style="contextMenuStyle"
+    >
+      <button
+        class="editor-task-menu-item"
+        data-testid="editor-task-move-current-top"
+        type="button"
+        @click="emitMove('current', 'top')"
+      >
+        移动到顶部
+      </button>
+      <button
+        class="editor-task-menu-item"
+        data-testid="editor-task-move-current-bottom"
+        type="button"
+        @click="emitMove('current', 'bottom')"
+      >
+        移动到底部
+      </button>
+      <button
+        class="editor-task-menu-item editor-task-menu-item-branch"
+        data-testid="editor-task-move-section"
+        type="button"
+        @mouseenter="openBranchMenu('section', $event)"
+      >
+        <span>移动到分组</span>
+        <ChevronRight class="h-4 w-4" />
+      </button>
+      <button
+        class="editor-task-menu-item editor-task-menu-item-branch"
+        data-testid="editor-task-move-task"
+        type="button"
+        @mouseenter="openBranchMenu('task', $event)"
+      >
+        <span>移动到任务</span>
+        <ChevronRight class="h-4 w-4" />
+      </button>
+    </div>
+
+    <div
+      v-if="contextMenu && activeBranchMenu === 'section'"
+      ref="sectionMenuRoot"
+      class="editor-task-menu app-select-menu app-select-menu-floating"
+      data-testid="editor-task-context-section-menu"
+      :style="sectionMenuStyle"
+    >
+      <button
+        v-for="title in sectionMenuTargets"
+        :key="title.id"
+        class="editor-task-menu-item editor-task-menu-item-branch"
+        :data-testid="`editor-task-move-section-item-${title.id}`"
+        type="button"
+        @mouseenter="setActiveSectionTarget(title.id, $event)"
+      >
+        <span class="truncate">{{ title.name }}</span>
+        <ChevronRight class="h-4 w-4" />
+      </button>
+      <div v-if="!sectionMenuTargets.length" class="app-select-empty">没有匹配分组</div>
+    </div>
+
+    <div
+      v-if="contextMenu && activeBranchMenu === 'task'"
+      ref="taskMenuRoot"
+      class="editor-task-menu app-select-menu app-select-menu-floating"
+      data-testid="editor-task-context-task-menu"
+      :style="taskMenuStyle"
+    >
+      <button
+        v-for="task in taskMenuTargets"
+        :key="task.id"
+        class="editor-task-menu-item editor-task-menu-item-branch"
+        :data-testid="`editor-task-move-task-item-${task.id}`"
+        type="button"
+        @mouseenter="setActiveTaskTarget(task.id, $event)"
+      >
+        <span class="truncate">{{ task.name }}</span>
+        <ChevronRight class="h-4 w-4" />
+      </button>
+      <div v-if="!taskMenuTargets.length" class="app-select-empty">没有匹配任务</div>
+    </div>
+
+    <div
+      v-if="contextMenu && activeBranchMenu === 'section' && activeSectionTarget"
+      ref="actionMenuRoot"
+      class="editor-task-menu app-select-menu app-select-menu-floating"
+      data-testid="editor-task-context-section-action-menu"
+      :style="sectionActionMenuStyle"
+    >
+      <button
+        class="editor-task-menu-item"
+        :data-testid="`editor-task-move-section-${activeSectionTarget.id}-top`"
+        type="button"
+        @click="emitMove('section', 'top', activeSectionTarget.id)"
+      >
+        顶部
+      </button>
+      <button
+        class="editor-task-menu-item"
+        :data-testid="`editor-task-move-section-${activeSectionTarget.id}-bottom`"
+        type="button"
+        @click="emitMove('section', 'bottom', activeSectionTarget.id)"
+      >
+        底部
+      </button>
+    </div>
+
+    <div
+      v-if="contextMenu && activeBranchMenu === 'task' && activeTaskTarget"
+      ref="actionMenuRoot"
+      class="editor-task-menu app-select-menu app-select-menu-floating"
+      data-testid="editor-task-context-task-action-menu"
+      :style="taskActionMenuStyle"
+    >
+      <button
+        class="editor-task-menu-item"
+        :data-testid="`editor-task-move-task-${activeTaskTarget.id}-top`"
+        type="button"
+        @click="emitMove('task', 'top', activeTaskTarget.id)"
+      >
+        顶部
+      </button>
+      <button
+        class="editor-task-menu-item"
+        :data-testid="`editor-task-move-task-${activeTaskTarget.id}-bottom`"
+        type="button"
+        @click="emitMove('task', 'bottom', activeTaskTarget.id)"
+      >
+        底部
+      </button>
+    </div>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Copy, Eye, EyeOff, GripVertical, Plus, Trash2 } from 'lucide-vue-next';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { ChevronRight, Plus } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
+import EditorTaskSidebarTaskCard from '@/views/script-editor/EditorTaskSidebarTaskCard.vue';
+import EditorTaskSidebarTitleCard from '@/views/script-editor/EditorTaskSidebarTitleCard.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
-import { formatTaskTriggerModeLabel } from '@/utils/presenters';
+import type { EditorTaskMoveAction } from '@/views/script-editor/editorTaskMove';
+
+type BranchMenuKind = 'section' | 'task' | null;
+type MenuRect = {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+};
 
 const props = defineProps<{
   tasks: ScriptTaskTable[];
@@ -138,30 +273,121 @@ const emit = defineEmits<{
   'toggle-hidden': [taskId: string];
   remove: [taskId: string];
   reorder: [draggedTaskId: string, targetTaskId: string];
+  'move-task': [taskId: string, action: EditorTaskMoveAction];
 }>();
+
+const ROOT_MENU_WIDTH = 220;
+const SUBMENU_WIDTH = 240;
+const ACTION_MENU_WIDTH = 144;
+const VIEWPORT_PADDING = 12;
 
 const search = ref('');
 const draggingTaskId = ref<string | null>(null);
 const overTaskId = ref<string | null>(null);
+const collapsedTitleIds = ref<string[]>([]);
+const contextMenu = ref<{ taskId: string; x: number; y: number } | null>(null);
+const activeBranchMenu = ref<BranchMenuKind>(null);
+const branchAnchor = ref<MenuRect | null>(null);
+const activeSectionTargetId = ref<string | null>(null);
+const activeTaskTargetId = ref<string | null>(null);
+const activeLeafAnchor = ref<MenuRect | null>(null);
+const contextMenuRoot = ref<HTMLElement | null>(null);
+const sectionMenuRoot = ref<HTMLElement | null>(null);
+const taskMenuRoot = ref<HTMLElement | null>(null);
+const actionMenuRoot = ref<HTMLElement | null>(null);
 
-const filteredTasks = computed(() => {
-  const keyword = search.value.trim().toLowerCase();
-  if (!keyword) {
-    return props.tasks;
-  }
+const keyword = computed(() => search.value.trim().toLowerCase());
+const sortedTasks = computed(() => [...props.tasks].sort((left, right) => left.index - right.index));
+const titleRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'title'));
+const titleIdSet = computed(() => new Set(titleRows.value.map((task) => task.id)));
+const taskRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'task'));
 
-  return props.tasks.filter((task) => task.name.toLowerCase().includes(keyword));
+const matchesKeyword = (task: ScriptTaskTable) => !keyword.value || task.name.toLowerCase().includes(keyword.value);
+
+const groupedTasksByTitle = computed<Record<string, ScriptTaskTable[]>>(() =>
+  Object.fromEntries(
+    titleRows.value.map((title) => [
+      title.id,
+      taskRows.value.filter((task) => task.sectionId === title.id && matchesKeyword(task)),
+    ]),
+  ),
+);
+
+const visibleTitleRows = computed(() =>
+  titleRows.value.filter((title) => matchesKeyword(title) || (groupedTasksByTitle.value[title.id]?.length ?? 0) > 0),
+);
+
+const ungroupedTasks = computed(() =>
+  taskRows.value.filter((task) => (!task.sectionId || !titleIdSet.value.has(task.sectionId)) && matchesKeyword(task)),
+);
+
+const hasVisibleRows = computed(() => ungroupedTasks.value.length > 0 || visibleTitleRows.value.length > 0);
+const hiddenCount = computed(() => props.tasks.filter((task) => task.isHidden).length);
+const currentContextTask = computed(() => taskRows.value.find((task) => task.id === contextMenu.value?.taskId) ?? null);
+const sectionMenuTargets = computed(() =>
+  titleRows.value.filter((title) => !keyword.value || title.name.toLowerCase().includes(keyword.value)),
+);
+const taskMenuTargets = computed(() =>
+  taskRows.value.filter((task) => task.id !== contextMenu.value?.taskId && matchesKeyword(task)),
+);
+const activeSectionTarget = computed(() => titleRows.value.find((title) => title.id === activeSectionTargetId.value) ?? null);
+const activeTaskTarget = computed(() => taskRows.value.find((task) => task.id === activeTaskTargetId.value) ?? null);
+const clampMenuPosition = (x: number, y: number, width: number) => ({
+  left: `${Math.max(VIEWPORT_PADDING, Math.min(x, window.innerWidth - width - VIEWPORT_PADDING))}px`,
+  top: `${Math.max(VIEWPORT_PADDING, Math.min(y, window.innerHeight - 180 - VIEWPORT_PADDING))}px`,
 });
 
-const hiddenCount = computed(() => props.tasks.filter((task) => task.isHidden).length);
-const formatTriggerModeLabel = (value: ScriptTaskTable['triggerMode']) => formatTaskTriggerModeLabel(value);
+const buildSubmenuPosition = (rect: MenuRect | null, width: number) => {
+  if (!rect) {
+    return clampMenuPosition(VIEWPORT_PADDING, VIEWPORT_PADDING, width);
+  }
+
+  const prefersRight = rect.right + width + 8 <= window.innerWidth - VIEWPORT_PADDING;
+  const x = prefersRight ? rect.right + 8 : rect.left - width - 8;
+  return clampMenuPosition(x, rect.top, width);
+};
+
+const contextMenuStyle = computed(() =>
+  contextMenu.value ? clampMenuPosition(contextMenu.value.x, contextMenu.value.y, ROOT_MENU_WIDTH) : {},
+);
+const sectionMenuStyle = computed(() => buildSubmenuPosition(branchAnchor.value, SUBMENU_WIDTH));
+const taskMenuStyle = computed(() => buildSubmenuPosition(branchAnchor.value, SUBMENU_WIDTH));
+const sectionActionMenuStyle = computed(() => buildSubmenuPosition(activeLeafAnchor.value, ACTION_MENU_WIDTH));
+const taskActionMenuStyle = computed(() => buildSubmenuPosition(activeLeafAnchor.value, ACTION_MENU_WIDTH));
+
+const isTitleExpanded = (titleId: string) => keyword.value.length > 0 || !collapsedTitleIds.value.includes(titleId);
+
+const selectTask = (taskId: string) => {
+  closeContextMenu();
+  emit('select', taskId);
+};
+
+const toggleTitleCollapsed = (titleId: string) => {
+  if (keyword.value) {
+    return;
+  }
+
+  collapsedTitleIds.value = collapsedTitleIds.value.includes(titleId)
+    ? collapsedTitleIds.value.filter((id) => id !== titleId)
+    : [...collapsedTitleIds.value, titleId];
+};
 
 const resetDrag = () => {
   draggingTaskId.value = null;
   overTaskId.value = null;
 };
 
+const closeContextMenu = () => {
+  contextMenu.value = null;
+  activeBranchMenu.value = null;
+  branchAnchor.value = null;
+  activeSectionTargetId.value = null;
+  activeTaskTargetId.value = null;
+  activeLeafAnchor.value = null;
+};
+
 const startDrag = (taskId: string) => {
+  closeContextMenu();
   draggingTaskId.value = taskId;
   overTaskId.value = taskId;
 };
@@ -183,16 +409,124 @@ const handleMouseUp = (targetTaskId: string) => {
   resetDrag();
 };
 
+const readRect = (event: MouseEvent): MenuRect => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+  return {
+    top: rect.top,
+    left: rect.left,
+    right: rect.right,
+    bottom: rect.bottom,
+  };
+};
+
+const openContextMenu = (event: MouseEvent, taskId: string) => {
+  closeContextMenu();
+  contextMenu.value = {
+    taskId,
+    x: event.clientX,
+    y: event.clientY,
+  };
+};
+
+const handleTaskContextMenu = (event: MouseEvent, taskId: string) => {
+  const allowNativeContextMenu = import.meta.env.DEV && event.shiftKey;
+  if (allowNativeContextMenu) {
+    closeContextMenu();
+    return;
+  }
+
+  event.preventDefault();
+  openContextMenu(event, taskId);
+};
+
+const openBranchMenu = (kind: Exclude<BranchMenuKind, null>, event: MouseEvent) => {
+  activeBranchMenu.value = kind;
+  branchAnchor.value = readRect(event);
+  activeLeafAnchor.value = null;
+  activeSectionTargetId.value = null;
+  activeTaskTargetId.value = null;
+};
+
+const setActiveSectionTarget = (sectionId: string, event: MouseEvent) => {
+  activeSectionTargetId.value = sectionId;
+  activeLeafAnchor.value = readRect(event);
+};
+
+const setActiveTaskTarget = (taskId: string, event: MouseEvent) => {
+  activeTaskTargetId.value = taskId;
+  activeLeafAnchor.value = readRect(event);
+};
+
+const emitMove = (kind: EditorTaskMoveAction['kind'], position: 'top' | 'bottom', targetId?: string) => {
+  if (!currentContextTask.value) {
+    closeContextMenu();
+    return;
+  }
+
+  if (kind === 'current') {
+    emit('move-task', currentContextTask.value.id, { kind, position });
+  } else if (kind === 'section' && targetId) {
+    emit('move-task', currentContextTask.value.id, { kind, sectionId: targetId, position });
+  } else if (kind === 'task' && targetId) {
+    emit('move-task', currentContextTask.value.id, { kind, taskId: targetId, position });
+  }
+
+  closeContextMenu();
+};
+
 const handleWindowMouseUp = () => {
   resetDrag();
 };
 
+const handleDocumentClick = (event: MouseEvent) => {
+  const target = event.target as Node;
+  if (
+    contextMenuRoot.value?.contains(target) ||
+    sectionMenuRoot.value?.contains(target) ||
+    taskMenuRoot.value?.contains(target) ||
+    actionMenuRoot.value?.contains(target)
+  ) {
+    return;
+  }
+
+  closeContextMenu();
+};
+
+const handleWindowKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    closeContextMenu();
+    resetDrag();
+  }
+};
+
+watch(titleRows, (titles) => {
+  const nextIds = new Set(titles.map((task) => task.id));
+  collapsedTitleIds.value = collapsedTitleIds.value.filter((id) => nextIds.has(id));
+}, { immediate: true });
+
+watch(
+  () => props.collapsed,
+  (nextCollapsed) => {
+    if (nextCollapsed) {
+      closeContextMenu();
+    }
+  },
+);
+
 onMounted(() => {
   window.addEventListener('mouseup', handleWindowMouseUp);
+  window.addEventListener('resize', closeContextMenu);
+  window.addEventListener('scroll', closeContextMenu, true);
+  window.addEventListener('keydown', handleWindowKeydown);
+  document.addEventListener('click', handleDocumentClick);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('mouseup', handleWindowMouseUp);
+  window.removeEventListener('resize', closeContextMenu);
+  window.removeEventListener('scroll', closeContextMenu, true);
+  window.removeEventListener('keydown', handleWindowKeydown);
+  document.removeEventListener('click', handleDocumentClick);
 });
 </script>
 
@@ -207,4 +541,50 @@ onBeforeUnmount(() => {
   background: rgba(70, 110, 255, 0.08);
 }
 
+.editor-task-collapse-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  color: var(--app-text-faint);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.editor-task-collapse-trigger:hover {
+  background: var(--app-state-hover-bg);
+  color: var(--app-text-strong);
+}
+
+.editor-task-menu {
+  width: 220px;
+  min-width: 220px;
+  max-width: 240px;
+  padding: 0.35rem;
+}
+
+.editor-task-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 0.72rem 0.8rem;
+  text-align: left;
+  color: var(--app-text);
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.editor-task-menu-item:hover,
+.editor-task-menu-item-branch {
+  cursor: pointer;
+}
+
+.editor-task-menu-item:hover {
+  background: var(--app-state-hover-bg);
+  border-color: var(--app-state-hover-border);
+}
 </style>
