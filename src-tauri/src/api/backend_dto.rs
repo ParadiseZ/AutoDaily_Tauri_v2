@@ -66,7 +66,7 @@ pub struct ScriptDownloadReq {
 #[serde(rename_all = "camelCase")]
 pub struct ScriptModelFileDto {
     pub script_id: Option<String>,
-    pub version_num: Option<u64>,
+    pub version_num: Option<u32>,
     pub runtime_type: String,
     pub r#type: String,
     pub file_name: String,

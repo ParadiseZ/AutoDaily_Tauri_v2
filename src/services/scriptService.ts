@@ -140,16 +140,6 @@ export const createBlankScript = (
     },
 });
 
-const serializeScriptTable = (script: ScriptTableRecord): ScriptTablePayload => ({
-    id: script.id,
-    data: {
-        ...stripScriptInfoAppTarget(script.data),
-        verNum: toSafeNumber(script.data.verNum, 1),
-        latestVer: toSafeNumber(script.data.latestVer, 1),
-        downloadCount: toSafeNumber(script.data.downloadCount, 0),
-    },
-});
-
 export const createScriptName = (index: number) => `未命名脚本 ${index}`;
 
 export const createEditableScript = async (
@@ -190,7 +180,7 @@ export const scriptService = {
     updateSetGroups: (setId: string, groupIds: string[]) =>
         invoke('update_set_groups_cmd', { setId, groupIds }) as Promise<void>,
     saveLocal: async (script: ScriptTableRecord): Promise<void> => {
-        await invoke('save_script_cmd', { script: serializeScriptTable(script) });
+        await invoke('save_script_cmd', { script });
     },
     removeLocal: async (scriptId: string): Promise<void> => {
         await invoke('delete_script_cmd', { scriptId });

@@ -60,7 +60,7 @@ pub(crate) fn local_scripts_dir(app_handle: &AppHandle) -> PathBuf {
 
 pub(super) fn build_model_file_payload(
     script_id: &str,
-    version_num: u64,
+    version_num: u32,
     runtime_type: &str,
     uploads: &[LocalModelUpload],
 ) -> Vec<ScriptModelFileDto> {
@@ -347,7 +347,7 @@ pub async fn backend_upload_model(
 pub async fn backend_download_model(
     app_handle: AppHandle,
     script_id: String,
-    version_num: u64,
+    version_num: u32,
     runtime_type: String,
     model_type: String,
     save_dir: String,

@@ -1,3 +1,4 @@
+use num::ToPrimitive;
 use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -8,11 +9,11 @@ pub struct ScriptVersionPreflight {
     pub local_script_id: Option<String>,
     pub local_version_label: Option<String>,
     pub remote_version_label: Option<String>,
-    pub local_ver_num: Option<i64>,
-    pub remote_ver_num: Option<i64>,
+    pub local_ver_num: Option<u32>,
+    pub remote_ver_num: Option<u32>,
 }
 
-pub fn format_version_label(ver_name: Option<&str>, ver_num: Option<i64>) -> String {
+pub fn format_version_label(ver_name: Option<&str>, ver_num: Option<u32>) -> String {
     if let Some(name) = ver_name.map(str::trim).filter(|value| !value.is_empty()) {
         return format!("v{}", name);
     }
@@ -22,9 +23,6 @@ pub fn format_version_label(ver_name: Option<&str>, ver_num: Option<i64>) -> Str
     "未标记版本".to_string()
 }
 
-pub fn version_num_to_i64(value: Option<u64>) -> Option<i64> {
-    value.and_then(|number| i64::try_from(number).ok())
-}
 
 pub async fn find_replaceable_local_published_script(
     cloud_script_id: &str,
@@ -72,7 +70,7 @@ pub async fn find_replaceable_local_published_script(
 pub fn build_download_preflight(
     existing_local_script: Option<&ScriptTable>,
     remote_ver_name: Option<&str>,
-    remote_ver_num: Option<i64>,
+    remote_ver_num: Option<u32>,
 ) -> ScriptVersionPreflight {
     let remote_version_label = format_version_label(remote_ver_name, remote_ver_num);
     let Some(local_script) = existing_local_script else {
@@ -90,7 +88,7 @@ pub fn build_download_preflight(
         };
     };
 
-    let local_ver_num = version_num_to_i64(Some(local_script.data.ver_num));
+    let local_ver_num = Some(local_script.data.ver_num);
     let local_version_label =
         format_version_label(Some(local_script.data.ver_name.as_str()), local_ver_num);
 
@@ -140,15 +138,14 @@ pub fn build_download_preflight(
     }
 }
 
-pub fn extract_cloud_summary_version(summary: &serde_json::Value) -> (Option<String>, Option<i64>) {
+pub fn extract_cloud_summary_version(summary: &serde_json::Value) -> (Option<String>, Option<u32>) {
     let ver_name = summary
         .get("verName")
         .and_then(|value| value.as_str())
         .map(str::to_string);
     let ver_num = summary.get("verNum").and_then(|value| {
-        value
-            .as_i64()
-            .or_else(|| value.as_u64().and_then(|num| i64::try_from(num).ok()))
+        value.as_u64()
+            .and_then(|num| num.to_u32())
     });
     (ver_name, ver_num)
 }

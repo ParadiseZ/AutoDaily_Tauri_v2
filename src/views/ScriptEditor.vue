@@ -1082,7 +1082,7 @@ const formattedSaveTime = computed(() => {
     return '';
   }
 
-  return new Date(saveTime.value).toLocaleString('zh-TW', {
+  return new Date(saveTime.value).toLocaleString('zh-CN', {
     hour12: false,
     month: '2-digit',
     day: '2-digit',
@@ -1114,7 +1114,6 @@ const rawDialogDescription = computed(() => {
 });
 
 const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable => {
-  const legacyTaskType = (task as ScriptTaskTable & { taskType?: 'main' | 'child' }).taskType;
   const rowType = task.rowType ?? 'task';
   const isTitle = rowType === 'title';
   return {
@@ -1122,7 +1121,7 @@ const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable =>
     scriptId: task.scriptId || scriptId.value,
     name: task.name ?? `任务 ${index + 1}`,
     rowType,
-    triggerMode: task.triggerMode ?? (legacyTaskType === 'child' ? 'linkOnly' : 'rootOnly'),
+    triggerMode: task.triggerMode ?? 'linkOnly',
     recordSchedule: isTitle ? false : task.recordSchedule ?? true,
     sectionId: isTitle ? null : task.sectionId ?? null,
     indentLevel: isTitle ? 0 : Math.max(0, Math.min(8, Number(task.indentLevel ?? 1))),
@@ -1153,7 +1152,7 @@ const buildTaskDraft = async (name?: string): Promise<ScriptTaskTable> => {
       scriptId: scriptId.value,
       name: name || `新任务 ${index + 1}`,
       rowType: 'task',
-      triggerMode: 'rootOnly',
+      triggerMode: 'linkOnly',
       recordSchedule: true,
       sectionId: draftTasks.value.filter((task) => task.rowType === 'title').at(-1)?.id ?? null,
       indentLevel: 1,
@@ -1195,7 +1194,7 @@ const hydrateTaskEditors = () => {
   if (!currentTask.value) {
     taskName.value = '';
     taskRowType.value = 'task';
-    taskTriggerMode.value = 'rootOnly';
+    taskTriggerMode.value = 'linkOnly';
     taskHidden.value = false;
     recordSchedule.value = true;
     sectionId.value = null;
@@ -3060,6 +3059,7 @@ const buildPolicySetPayload = () =>
   );
 
 const saveEditor = async () => {
+  let taskPoliciesGroupSet = false,policiesRelationship = false,scriptFlag = false;
   if (!draftScript.value) {
     return;
   }
@@ -3096,12 +3096,14 @@ const saveEditor = async () => {
     const nextPolicyGroupIds = new Set(policyGroups.map((item) => item.id));
     const nextPolicySetIds = new Set(policySets.map((item) => item.id));
 
+    console.log(tasks);
     await Promise.all([
       scriptStore.saveScriptTasks(script.id, tasks),
       ...policies.map((policy) => scriptService.savePolicy(policy)),
       ...policyGroups.map((group) => scriptService.savePolicyGroup(group)),
       ...policySets.map((set) => scriptService.savePolicySet(set)),
     ]);
+    taskPoliciesGroupSet = true;
 
     await Promise.all([
       ...Array.from(sourcePolicyIds).filter((id) => !nextPolicyIds.has(id)).map((id) => scriptService.removePolicy(id)),
@@ -3113,8 +3115,10 @@ const saveEditor = async () => {
       ...policyGroups.map((group) => scriptService.updateGroupPolicies(group.id, groupPolicyIdsByGroupId.value[group.id] ?? [])),
       ...policySets.map((set) => scriptService.updateSetGroups(set.id, setGroupIdsBySetId.value[set.id] ?? [])),
     ]);
+    policiesRelationship = true;
 
     await scriptStore.saveScript(script);
+    scriptFlag = true;
 
     draftTasks.value = tasks;
     draftPolicies.value = policies;
@@ -3132,9 +3136,9 @@ const saveEditor = async () => {
     appendConsoleLine(`脚本结构已保存：${script.data.name || script.id}`);
     showToast('脚本编辑结果已保存', 'success');
   } catch (error) {
-    console.error(error);
-    appendConsoleLine(`脚本保存失败：${error instanceof Error ? error.message : '未知错误'}`);
-    showToast(error instanceof Error ? error.message : '保存失败', 'error');
+    let msg =  `脚本保存失败,${error instanceof Error ? error.message : '未知错误: 任务+策略(+组+集合):'+taskPoliciesGroupSet+",关联关系:"+policiesRelationship+",脚本信息:"+scriptFlag}`;
+    showToast(msg, 'error',5000);
+    appendConsoleLine(msg);
   } finally {
     isSaving.value = false;
   }

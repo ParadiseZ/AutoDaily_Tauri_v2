@@ -99,9 +99,9 @@ pub struct ScriptInfo {
     pub create_time: Option<String>,
     pub update_time: Option<String>,
     pub ver_name: String,
-    pub ver_num: u64,
-    pub latest_ver: u64,
-    pub download_count: u64,
+    pub ver_num: u32,
+    pub latest_ver: u32,
+    pub download_count: u32,
     pub script_type: ScriptType,
     #[serde(default)]
     pub is_valid: bool,

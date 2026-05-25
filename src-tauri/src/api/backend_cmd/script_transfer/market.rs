@@ -15,7 +15,7 @@ use crate::api::domain::script_transfer_records::{
 };
 use crate::api::infrastructure::script_version_preflight::{
     build_download_preflight, extract_cloud_summary_version,
-    find_replaceable_local_published_script, format_version_label, version_num_to_i64,
+    find_replaceable_local_published_script, format_version_label,
     ScriptVersionPreflight,
 };
 use crate::app::app_error::AppResult;
@@ -417,7 +417,7 @@ pub async fn backend_get_script_cloud_summary(
 pub async fn backend_preflight_download_script(
     script_id: String,
     ver_name: Option<String>,
-    ver_num: Option<i64>,
+    ver_num: Option<u32>,
 ) -> ApiResponse<ScriptVersionPreflight> {
     match find_replaceable_local_published_script(&script_id).await {
         Ok(existing_local_script) => ApiResponse::success(
@@ -456,7 +456,7 @@ pub async fn backend_preflight_upload_script(
     let client = HttpClient::new(app_handle);
     let url = format!("/scripts/{}/summary", script_id);
     let response: AppResult<BackendApiRes<serde_json::Value>> = client.get(&url).await;
-    let local_ver_num = version_num_to_i64(Some(local_script.data.ver_num));
+    let local_ver_num =Some(local_script.data.ver_num);
     let local_version_label =
         format_version_label(Some(local_script.data.ver_name.as_str()), local_ver_num);
 
@@ -733,11 +733,11 @@ pub async fn backend_download_script(
                     replacement_target
                         .as_ref()
                         .map(|script| script.data.ver_name.as_str()),
-                    version_num_to_i64(Some(existing_ver_num)),
+                    Some(existing_ver_num),
                 ),
                 format_version_label(
                     Some(download_data.script.data.ver_name.as_str()),
-                    version_num_to_i64(Some(remote_ver_num)),
+                    Some(remote_ver_num),
                 ),
             );
             record_immediate_transfer_terminal_state(
@@ -757,11 +757,11 @@ pub async fn backend_download_script(
                     replacement_target
                         .as_ref()
                         .map(|script| script.data.ver_name.as_str()),
-                    version_num_to_i64(Some(existing_ver_num)),
+                    Some(existing_ver_num),
                 ),
                 format_version_label(
                     Some(download_data.script.data.ver_name.as_str()),
-                    version_num_to_i64(Some(remote_ver_num)),
+                    Some(remote_ver_num),
                 ),
             )));
         }
@@ -1270,7 +1270,7 @@ pub async fn backend_upload_script(
     let summary_url = format!("/scripts/{}/summary", script_id);
     let summary_response: AppResult<BackendApiRes<serde_json::Value>> =
         client.get(&summary_url).await;
-    let local_ver_num = version_num_to_i64(Some(script.data.ver_num));
+    let local_ver_num = Some(script.data.ver_num);
     let local_version_label =
         format_version_label(Some(script.data.ver_name.as_str()), local_ver_num);
     match summary_response {
