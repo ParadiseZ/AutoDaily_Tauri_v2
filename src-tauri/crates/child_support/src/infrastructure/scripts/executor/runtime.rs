@@ -235,10 +235,10 @@ impl ScriptExecutor {
 
     fn var_value_to_dynamic(value: &VarValue) -> Dynamic {
         match value {
-            VarValue::Int(value) => Dynamic::from_int((*value).into()),
-            VarValue::Float(value) => Dynamic::from_float((*value).into()),
-            VarValue::Bool(value) => Dynamic::from_bool(*value),
-            VarValue::String(value) => Dynamic::from(value.clone()),
+            VarValue::Int { value } => Dynamic::from_int((*value).into()),
+            VarValue::Float { value } => Dynamic::from_float((*value).into()),
+            VarValue::Bool { value } => Dynamic::from_bool(*value),
+            VarValue::String { value } => Dynamic::from(value.clone()),
         }
     }
 

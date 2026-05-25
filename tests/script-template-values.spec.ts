@@ -138,7 +138,6 @@ const seedTemplateValueState = async (page: Page) => {
             data: {
               variables: { count: 1 },
               uiData: {
-                layout: 'horizontal',
                 fields: [
                   {
                     key: 'count',
@@ -173,7 +172,6 @@ const seedTemplateValueState = async (page: Page) => {
             data: {
               variables: { hiddenCount: 1 },
               uiData: {
-                layout: 'horizontal',
                 fields: [
                   {
                     key: 'hiddenCount',

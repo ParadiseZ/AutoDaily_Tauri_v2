@@ -242,7 +242,6 @@ defineEmits<{
   'add-input': [];
   'select-input': [entryId: string];
   'remove-input': [entryId: string];
-  'update-ui-layout': [value: 'horizontal' | 'vertical'];
   'add-ui-field': [control: UiFieldControl];
   'select-ui-field': [fieldId: string];
   'remove-ui-field': [fieldId: string];

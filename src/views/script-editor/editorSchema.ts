@@ -24,7 +24,6 @@ export interface EditorUiField {
 }
 
 export interface EditorUiSchema {
-  layout: 'horizontal' | 'vertical';
   fields: EditorUiField[];
   extras: Record<string, JsonValue>;
 }
@@ -100,7 +99,6 @@ export const uiFieldTemplates: Array<{ id: UiFieldControl; label: string; descri
 ];
 
 export const createUiSchema = (): EditorUiSchema => ({
-  layout: 'horizontal',
   fields: [],
   extras: {},
 });
@@ -158,7 +156,6 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
   });
 
   return {
-    layout: value.layout === 'vertical' ? 'vertical' : 'horizontal',
     fields,
     extras,
   };
@@ -168,8 +165,6 @@ export const buildUiData = (schema: EditorUiSchema): Record<string, JsonValue> =
   const result: Record<string, JsonValue> = {
     ...schema.extras,
   };
-
-  result.layout = schema.layout;
 
   if (schema.fields.length) {
     result.fields = schema.fields.map((field) => {

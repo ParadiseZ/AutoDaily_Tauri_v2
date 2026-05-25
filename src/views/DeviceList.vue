@@ -155,9 +155,9 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
     enable: form.enable,
     autoStart: form.autoStart,
     executionPolicy: {
-      actionWaitMs: Math.max(0, Number(form.actionWaitMs) || 0),
+      actionWaitMs: BigInt(Math.max(0, Number(form.actionWaitMs) || 0)),
       progressTimeoutEnabled: form.progressTimeoutEnabled,
-      progressTimeoutMs: Math.max(1000, Number(form.progressTimeoutMs) || 30000),
+      progressTimeoutMs: BigInt(Math.max(1000, Number(form.progressTimeoutMs) || 30000)),
       timeoutAction: form.timeoutAction,
       timeoutNotifyChannels: [...form.timeoutNotifyChannels],
     },

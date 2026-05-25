@@ -78,8 +78,8 @@ pub enum ColorCompareMethod {
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum VarValue {
-    Int(i32),
-    Float(f32),
-    Bool(bool),
-    String(String),
+    Int { value: i32 },
+    Float { value: f32 },
+    Bool { value: bool },
+    String { value: String },
 }

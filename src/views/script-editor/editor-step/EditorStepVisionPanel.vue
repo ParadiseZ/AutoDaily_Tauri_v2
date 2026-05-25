@@ -54,6 +54,7 @@
               v-if="visionBranchTarget"
               class="app-button app-button-ghost app-toolbar-button"
               type="button"
+              data-testid="editor-branch-visionThen"
               @click="$emit('navigate-branch', visionBranchTarget.path)"
             >
               进入步骤

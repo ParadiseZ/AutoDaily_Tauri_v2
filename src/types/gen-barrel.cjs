@@ -1,6 +1,6 @@
 /**
  * Auto-generate barrel export (index.ts) for ts-rs bindings.
- * Run: node src/types/bindings/gen-barrel.cjs
+ * Run: node src/types/gen-barrel.cjs
  */
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +12,7 @@ const files = fs.readdirSync(dir)
 
 const lines = [
   '// Auto-generated barrel export. Do not edit manually.',
-  '// Run: node src/types/bindings/gen-barrel.cjs',
+  '// Run: node src/types/gen-barrel.cjs',
   '',
 ];
 

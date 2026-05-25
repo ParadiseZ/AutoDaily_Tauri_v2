@@ -753,7 +753,10 @@ const replaceNode = (value: ConditionNode) => {
 };
 
 const changeType = (type: string) => {
-  replaceNode(createConditionNode(type));
+  if (!conditionTypeOptions.some((option) => option.value === type)) {
+    return;
+  }
+  replaceNode(createConditionNode(type as ConditionNode['type']));
 };
 
 const updateGroupOp = (op: string) => {
@@ -766,9 +769,12 @@ const updateGroupOp = (op: string) => {
 
 const addGroupItem = (type: string) => {
   if (props.modelValue.type !== 'group') return;
+  if (!conditionTypeOptions.some((option) => option.value === type)) {
+    return;
+  }
   replaceNode({
     ...props.modelValue,
-    items: [...props.modelValue.items, createConditionNode(type)],
+    items: [...props.modelValue.items, createConditionNode(type as ConditionNode['type'])],
   });
 };
 

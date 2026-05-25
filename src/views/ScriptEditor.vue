@@ -512,6 +512,13 @@ import {
 } from '@/views/script-editor/editor-policy/editorPolicy';
 import { createStepFromTemplate } from '@/views/script-editor/editor-step/editorStepTemplates';
 import {
+  createStepList,
+  TASK_CYCLE_VALUE,
+  TASK_ROW_TYPE,
+  TASK_TONE,
+  TASK_TRIGGER_MODE,
+} from '@/views/script-editor/editor-step/editorStepKinds';
+import {
   buildStepPath,
   cloneStepPath,
   createSiblingSelection,
@@ -648,17 +655,17 @@ const MAX_CONSOLE_LINES = 300;
 let detachChildLogListener: null | (() => void) = null;
 
 const taskName = ref('');
-const taskRowType = ref<TaskRowType>('task');
-const taskTriggerMode = ref<TaskTriggerMode>('rootOnly');
+const taskRowType = ref<TaskRowType>(TASK_ROW_TYPE.task);
+const taskTriggerMode = ref<TaskTriggerMode>(TASK_TRIGGER_MODE.linkOnly);
 const taskHidden = ref(false);
 const recordSchedule = ref(true);
 const sectionId = ref<string | null>(null);
 const indentLevel = ref(1);
-const defaultTaskCycle = ref<TaskCycle>('everyRun');
+const defaultTaskCycle = ref<TaskCycle>(TASK_CYCLE_VALUE.everyRun);
 const taskExecMax = ref(0);
 const showEnabledToggle = ref(true);
 const defaultEnabled = ref(true);
-const taskTone = ref<TaskTone>('normal');
+const taskTone = ref<TaskTone>(TASK_TONE.normal);
 const inputEntries = ref<EditorInputEntry[]>([]);
 const inputError = ref<string | null>(null);
 const uiSchema = ref<EditorUiSchema>(createUiSchema());
@@ -776,7 +783,7 @@ const runTargetSelectOptions = computed(() => {
     ...draftTasks.value.map((task) => ({
       label: `任务 · ${task.name}`,
       value: buildRunTargetKey('task', task.id),
-      description: `${task.rowType === 'title' ? '标题行' : '任务行'} · ${task.index + 1}`,
+      description: `${task.rowType === TASK_ROW_TYPE.title ? '标题行' : '任务行'} · ${task.index + 1}`,
     })),
   );
   options.push(
@@ -827,7 +834,7 @@ const selectedRunTargetOption = computed(
 const scriptRecoveryTaskOptions = computed(() =>
     //@ts-ignore
   draftTasks.value
-    .filter((task) => task.rowType === 'task' && !task.isDeleted)
+    .filter((task) => task.rowType === TASK_ROW_TYPE.task && !task.isDeleted)
     .map((task) => ({
       label: task.name,
       value: task.id,
@@ -869,7 +876,7 @@ const titleTaskOptions = computed(() => [
     description: '直接显示在顶层，不归属到任何标题行。',
   },
   ...draftTasks.value
-    .filter((task) => task.rowType === 'title' && task.id !== currentTask.value?.id)
+    .filter((task) => task.rowType === TASK_ROW_TYPE.title && task.id !== currentTask.value?.id)
     .map((task) => ({
       label: task.name || '未命名标题',
       value: task.id,
@@ -942,9 +949,9 @@ const policySetItems = computed<EditorNamedItem[]>(() =>
 );
 const describeTaskReferenceTriggerMode = (mode: TaskTriggerMode) => {
   switch (mode) {
-    case 'linkOnly':
+    case TASK_TRIGGER_MODE.linkOnly:
       return '仅跳转';
-    case 'rootAndLink':
+    case TASK_TRIGGER_MODE.rootAndLink:
       return '循环 + 跳转';
     default:
       return '仅循环';
@@ -952,7 +959,7 @@ const describeTaskReferenceTriggerMode = (mode: TaskTriggerMode) => {
 };
 const taskReferenceOptions = computed<EditorReferenceOption[]>(() =>
   draftTasks.value
-    .filter((task) => task.rowType === 'task')
+    .filter((task) => task.rowType === TASK_ROW_TYPE.task)
     .map((task) => ({
       label: task.name,
       value: task.id,
@@ -963,7 +970,7 @@ const taskUiVariableOptions = computed<EditorTaskUiVariableOption[]>(() => {
   const variables = new Map((draftScript.value?.data.variableCatalog.variables ?? []).map((variable) => [variable.id, variable]));
   const result: EditorTaskUiVariableOption[] = [];
 
-  for (const task of draftTasks.value.filter((item) => item.rowType === 'task' && !item.isDeleted)) {
+  for (const task of draftTasks.value.filter((item) => item.rowType === TASK_ROW_TYPE.task && !item.isDeleted)) {
     const uiSchema = parseUiSchema(task.data.uiData ?? {});
     for (const field of uiSchema.fields) {
       if (field.control !== 'select' && field.control !== 'radio') {
@@ -1114,22 +1121,22 @@ const rawDialogDescription = computed(() => {
 });
 
 const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable => {
-  const rowType = task.rowType ?? 'task';
-  const isTitle = rowType === 'title';
+  const rowType = task.rowType ?? TASK_ROW_TYPE.task;
+  const isTitle = rowType === TASK_ROW_TYPE.title;
   return {
     ...task,
     scriptId: task.scriptId || scriptId.value,
     name: task.name ?? `任务 ${index + 1}`,
     rowType,
-    triggerMode: task.triggerMode ?? 'linkOnly',
+    triggerMode: task.triggerMode ?? TASK_TRIGGER_MODE.linkOnly,
     recordSchedule: isTitle ? false : task.recordSchedule ?? true,
     sectionId: isTitle ? null : task.sectionId ?? null,
     indentLevel: isTitle ? 0 : Math.max(0, Math.min(8, Number(task.indentLevel ?? 1))),
-    defaultTaskCycle: task.defaultTaskCycle ?? 'everyRun',
+    defaultTaskCycle: task.defaultTaskCycle ?? TASK_CYCLE_VALUE.everyRun,
     execMax: isTitle ? 0 : Math.max(0, Number(task.execMax ?? 0)),
     showEnabledToggle: isTitle ? false : task.showEnabledToggle ?? true,
     defaultEnabled: task.defaultEnabled ?? true,
-    taskTone: isTitle ? 'normal' : task.taskTone ?? 'normal',
+    taskTone: isTitle ? TASK_TONE.normal : task.taskTone ?? TASK_TONE.normal,
     isHidden: Boolean(task.isHidden),
     index,
     createdAt: task.createdAt || new Date().toISOString(),
@@ -1139,7 +1146,7 @@ const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable =>
     data: {
       uiData: task.data?.uiData ?? {},
       variables: task.data?.variables ?? {},
-      steps: Array.isArray(task.data?.steps) ? task.data.steps : [],
+      steps: Array.isArray(task.data?.steps) ? task.data.steps : createStepList(),
     },
   };
 };
@@ -1151,21 +1158,21 @@ const buildTaskDraft = async (name?: string): Promise<ScriptTaskTable> => {
       id: await taskService.requestUuid(),
       scriptId: scriptId.value,
       name: name || `新任务 ${index + 1}`,
-      rowType: 'task',
-      triggerMode: 'linkOnly',
+      rowType: TASK_ROW_TYPE.task,
+      triggerMode: TASK_TRIGGER_MODE.linkOnly,
       recordSchedule: true,
-      sectionId: draftTasks.value.filter((task) => task.rowType === 'title').at(-1)?.id ?? null,
+      sectionId: draftTasks.value.filter((task) => task.rowType === TASK_ROW_TYPE.title).at(-1)?.id ?? null,
       indentLevel: 1,
-      defaultTaskCycle: 'everyRun',
+      defaultTaskCycle: TASK_CYCLE_VALUE.everyRun,
       execMax: 0,
       showEnabledToggle: true,
       defaultEnabled: true,
-      taskTone: 'normal',
+      taskTone: TASK_TONE.normal,
       isHidden: false,
       data: {
         uiData: {},
         variables: {},
-        steps: [],
+        steps: createStepList(),
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1193,17 +1200,17 @@ const hydrateTaskEditors = () => {
 
   if (!currentTask.value) {
     taskName.value = '';
-    taskRowType.value = 'task';
-    taskTriggerMode.value = 'linkOnly';
+    taskRowType.value = TASK_ROW_TYPE.task;
+    taskTriggerMode.value = TASK_TRIGGER_MODE.linkOnly;
     taskHidden.value = false;
     recordSchedule.value = true;
     sectionId.value = null;
     indentLevel.value = 1;
-    defaultTaskCycle.value = 'everyRun';
+    defaultTaskCycle.value = TASK_CYCLE_VALUE.everyRun;
     taskExecMax.value = 0;
     showEnabledToggle.value = true;
     defaultEnabled.value = true;
-    taskTone.value = 'normal';
+    taskTone.value = TASK_TONE.normal;
     inputEntries.value = [];
     inputError.value = null;
     selectedInputId.value = null;
@@ -1228,7 +1235,7 @@ const hydrateTaskEditors = () => {
     inputError.value = null;
     selectedInputId.value = inputEntries.value.find((entry) => entry.id === selectedInputId.value)?.id ?? inputEntries.value[0]?.id ?? null;
     uiSchema.value = parseUiSchema(currentTask.value.data.uiData ?? {});
-    if (currentTask.value.rowType === 'title') {
+    if (currentTask.value.rowType === TASK_ROW_TYPE.title) {
       activePanel.value = 'basic';
     }
     if (!currentTask.value.data.steps.length) {
@@ -1304,9 +1311,9 @@ const buildPolicyDraft = async (name?: string): Promise<PolicyTable> =>
         curPos: 0,
         skipFlag: false,
         execMax: 1,
-        beforeAction: [],
+        beforeAction: createStepList(),
         cond: createSearchRule('group'),
-        afterAction: [],
+        afterAction: createStepList(),
       },
     },
     draftPolicies.value.length,
@@ -1452,10 +1459,10 @@ const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
   }
 
   if (action.kind === 'current') {
-    if (sourceTask.rowType === 'title') {
+    if (sourceTask.rowType === TASK_ROW_TYPE.title) {
       const blockIds = new Set([
         sourceTask.id,
-        ...nextTasks.filter((task) => task.rowType === 'task' && task.sectionId === sourceTask.id).map((task) => task.id),
+        ...nextTasks.filter((task) => task.rowType === TASK_ROW_TYPE.task && task.sectionId === sourceTask.id).map((task) => task.id),
       ]);
       const block = nextTasks.filter((task) => blockIds.has(task.id));
       const remainder = nextTasks.filter((task) => !blockIds.has(task.id));
@@ -1484,8 +1491,8 @@ const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
   }
 
   const insertBySection = (sectionId: string, position: 'top' | 'bottom') => {
-    const sectionTaskIndexes = nextTasks.reduce<number[]>((indexes, task, index) => {
-      if (task.rowType === 'task' && task.sectionId === sectionId) {
+      const sectionTaskIndexes = nextTasks.reduce<number[]>((indexes, task, index) => {
+      if (task.rowType === TASK_ROW_TYPE.task && task.sectionId === sectionId) {
         indexes.push(index);
       }
       return indexes;
@@ -1498,22 +1505,6 @@ const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
         : (sectionTaskIndexes[sectionTaskIndexes.length - 1] ?? titleIndex) + 1;
 
     movedTask.sectionId = sectionId;
-    nextTasks.splice(insertIndex, 0, movedTask);
-  };
-
-  const insertAsUngrouped = (position: 'top' | 'bottom') => {
-    const ungroupedIndexes = nextTasks.reduce<number[]>((indexes, task, index) => {
-      if (task.rowType === 'task' && !task.sectionId) {
-        indexes.push(index);
-      }
-      return indexes;
-    }, []);
-    const insertIndex =
-      position === 'top'
-        ? (ungroupedIndexes[0] ?? 0)
-        : (ungroupedIndexes[ungroupedIndexes.length - 1] ?? -1) + 1;
-
-    movedTask.sectionId = null;
     nextTasks.splice(insertIndex, 0, movedTask);
   };
 
@@ -2257,9 +2248,9 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
     enable: form.enable,
     autoStart: form.autoStart,
     executionPolicy: {
-      actionWaitMs: Math.max(0, Number(form.actionWaitMs) || 0),
+      actionWaitMs: BigInt(Math.max(0, Number(form.actionWaitMs) || 0)),
       progressTimeoutEnabled: form.progressTimeoutEnabled,
-      progressTimeoutMs: Math.max(1000, Number(form.progressTimeoutMs) || 30000),
+      progressTimeoutMs: BigInt(Math.max(1000, Number(form.progressTimeoutMs) || 30000)),
       timeoutAction: form.timeoutAction,
       timeoutNotifyChannels: [...form.timeoutNotifyChannels],
     },
@@ -3015,48 +3006,32 @@ const handleOpenVisionLab = async () => {
 };
 
 const buildSavePayload = () =>
-  draftTasks.value.map((task, index) =>
-    normalizeTask(
-      {
-        ...task,
-        scriptId: scriptId.value,
-      },
-      index,
-    ),
-  );
+  draftTasks.value.map((task, index) => ({
+    ...cloneJson(task),
+    scriptId: scriptId.value,
+    index,
+  }));
 
 const buildPolicyPayload = () =>
-  draftPolicies.value.map((policy, index) =>
-    normalizePolicy(
-      {
-        ...policy,
-        scriptId: scriptId.value,
-      },
-      index,
-    ),
-  );
+  draftPolicies.value.map((policy, index) => ({
+    ...cloneJson(policy),
+    scriptId: scriptId.value,
+    orderIndex: index,
+  }));
 
 const buildPolicyGroupPayload = () =>
-  draftPolicyGroups.value.map((group, index) =>
-    normalizePolicyGroup(
-      {
-        ...group,
-        scriptId: scriptId.value,
-      },
-      index,
-    ),
-  );
+  draftPolicyGroups.value.map((group, index) => ({
+    ...cloneJson(group),
+    scriptId: scriptId.value,
+    orderIndex: index,
+  }));
 
 const buildPolicySetPayload = () =>
-  draftPolicySets.value.map((set, index) =>
-    normalizePolicySet(
-      {
-        ...set,
-        scriptId: scriptId.value,
-      },
-      index,
-    ),
-  );
+  draftPolicySets.value.map((set, index) => ({
+    ...cloneJson(set),
+    scriptId: scriptId.value,
+    orderIndex: index,
+  }));
 
 const saveEditor = async () => {
   let taskPoliciesGroupSet = false,policiesRelationship = false,scriptFlag = false;
@@ -3096,7 +3071,6 @@ const saveEditor = async () => {
     const nextPolicyGroupIds = new Set(policyGroups.map((item) => item.id));
     const nextPolicySetIds = new Set(policySets.map((item) => item.id));
 
-    console.log(tasks);
     await Promise.all([
       scriptStore.saveScriptTasks(script.id, tasks),
       ...policies.map((policy) => scriptService.savePolicy(policy)),
@@ -3139,6 +3113,7 @@ const saveEditor = async () => {
     let msg =  `脚本保存失败,${error instanceof Error ? error.message : '未知错误: 任务+策略(+组+集合):'+taskPoliciesGroupSet+",关联关系:"+policiesRelationship+",脚本信息:"+scriptFlag}`;
     showToast(msg, 'error',5000);
     appendConsoleLine(msg);
+    console.log(error);
   } finally {
     isSaving.value = false;
   }
@@ -3343,21 +3318,21 @@ watch(taskRowType, (value) => {
 
   replaceTask(currentTask.value.id, (task) => {
     task.rowType = value;
-    if (value === 'title') {
+    if (value === TASK_ROW_TYPE.title) {
       activePanel.value = 'basic';
       task.recordSchedule = false;
       task.sectionId = null;
       task.indentLevel = 0;
       task.execMax = 0;
       task.showEnabledToggle = false;
-      task.taskTone = 'normal';
+      task.taskTone = TASK_TONE.normal;
     }
     return task;
   });
 });
 
 watch(taskTriggerMode, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3379,7 +3354,7 @@ watch(taskHidden, (value) => {
 });
 
 watch(recordSchedule, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3390,7 +3365,7 @@ watch(recordSchedule, (value) => {
 });
 
 watch(sectionId, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3401,7 +3376,7 @@ watch(sectionId, (value) => {
 });
 
 watch(indentLevel, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3412,7 +3387,7 @@ watch(indentLevel, (value) => {
 });
 
 watch(defaultTaskCycle, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3423,7 +3398,7 @@ watch(defaultTaskCycle, (value) => {
 });
 
 watch(taskExecMax, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3434,7 +3409,7 @@ watch(taskExecMax, (value) => {
 });
 
 watch(showEnabledToggle, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3445,7 +3420,7 @@ watch(showEnabledToggle, (value) => {
 });
 
 watch(defaultEnabled, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 
@@ -3456,7 +3431,7 @@ watch(defaultEnabled, (value) => {
 });
 
 watch(taskTone, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === 'title') {
+  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
     return;
   }
 

@@ -1,7 +1,6 @@
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { LogicOp } from '@/types/bindings/LogicOp';
 import type { CompareOp } from '@/types/bindings/CompareOp';
-import type { VarValue } from '@/types/bindings/VarValue';
 import {
   buildVarValue,
   parseVarValueDraft,
@@ -9,131 +8,138 @@ import {
   type VarValueDraft,
   type VarValueKind,
 } from '@/views/script-editor/editorVarValue';
+import {
+  COMPARE_OP,
+  CONDITION_TYPE,
+  createConditionNodeList,
+  createStateStatus,
+  createStateTarget,
+  createStateTargetList,
+  createStringList,
+  POLICY_SET_RESULT_COMPARE_OP,
+  POLICY_SET_RESULT_FIELD,
+  STATE_STATUS_TYPE,
+  TASK_CONTROL_TYPE,
+} from '@/views/script-editor/editor-step/editorStepKinds';
 
 const castCondition = (value: unknown) => value as ConditionNode;
-const castVarValue = (value: unknown) => value as VarValue;
 
 export const conditionTypeOptions = [
-  { label: '表达式', value: 'rawExpr', description: '直接编写 rhai 条件表达式。' },
-  { label: '条件组', value: 'group', description: '组合多个子条件。' },
-  { label: '执行次数', value: 'execNumCompare', description: '按任务或策略的执行次数判断。' },
-  { label: '任务状态', value: 'taskStatus', description: '按任务或策略完成/跳过状态判断。' },
-  { label: '当前任务', value: 'currentTaskIn', description: '判断当前执行任务是否属于指定列表。' },
-  { label: '变量比较', value: 'varCompare', description: '比较运行时变量或输入变量。' },
-  { label: '策略集结果', value: 'policySetResult', description: '按策略集处理步骤输出的结果对象判断。' },
-  { label: '策略条件', value: 'policyCondition', description: '基于图像做视觉精判，可用于策略或任务步骤。' },
+  { label: '表达式', value: CONDITION_TYPE.rawExpr, description: '直接编写 rhai 条件表达式。' },
+  { label: '条件组', value: CONDITION_TYPE.group, description: '组合多个子条件。' },
+  { label: '执行次数', value: CONDITION_TYPE.execNumCompare, description: '按任务或策略的执行次数判断。' },
+  { label: '任务状态', value: CONDITION_TYPE.taskStatus, description: '按任务或策略完成/跳过状态判断。' },
+  { label: '当前任务', value: CONDITION_TYPE.currentTaskIn, description: '判断当前执行任务是否属于指定列表。' },
+  { label: '变量比较', value: CONDITION_TYPE.varCompare, description: '比较运行时变量或输入变量。' },
+  { label: '策略集结果', value: CONDITION_TYPE.policySetResult, description: '按策略集处理步骤输出的结果对象判断。' },
+  { label: '策略条件', value: CONDITION_TYPE.policyCondition, description: '基于图像做视觉精判，可用于策略或任务步骤。' },
 ];
 
 export const logicOpOptions = [
-  { label: 'AND', value: 'And', description: '所有条件同时满足。' },
-  { label: 'OR', value: 'Or', description: '任一条件满足即可。' },
-  { label: 'NOT', value: 'Not', description: '对子条件结果取反。' },
+  { label: 'AND', value: 'And' satisfies LogicOp, description: '所有条件同时满足。' },
+  { label: 'OR', value: 'Or' satisfies LogicOp, description: '任一条件满足即可。' },
+  { label: 'NOT', value: 'Not' satisfies LogicOp, description: '对子条件结果取反。' },
 ];
 
 export const stateTargetTypeOptions = [
-  { label: '任务', value: 'task', description: '引用任务状态。' },
-  { label: '策略', value: 'policy', description: '引用策略状态。' },
+  { label: '任务', value: createStateTarget().type, description: '引用任务状态。' },
+  { label: '策略', value: createStateTarget('policy').type, description: '引用策略状态。' },
 ];
 
 export const taskControlTypeOptions = [
-  { label: '状态匹配', value: 'setState', description: '检查目标当前状态。' },
+  { label: '状态匹配', value: TASK_CONTROL_TYPE.setState, description: '检查目标当前状态。' },
 ];
 
 export const stateStatusTypeOptions = [
-  { label: '启用', value: 'enabled', description: '启用 / 禁用状态。' },
-  { label: '完成', value: 'done', description: '完成状态。' },
-  { label: '跳过', value: 'skip', description: '跳过状态。' },
+  { label: '启用', value: STATE_STATUS_TYPE.enabled, description: '启用 / 禁用状态。' },
+  { label: '完成', value: STATE_STATUS_TYPE.done, description: '完成状态。' },
+  { label: '跳过', value: STATE_STATUS_TYPE.skip, description: '跳过状态。' },
 ];
 
 export const policySetResultFieldOptions = [
-  { label: 'matched', value: 'matched', description: '判断是否命中了策略。' },
-  { label: 'policySetId', value: 'policySetId', description: '比较命中的策略集 id。' },
-  { label: 'policyGroupId', value: 'policyGroupId', description: '比较命中的策略组 id。' },
-  { label: 'policyId', value: 'policyId', description: '比较命中的策略 id。' },
+  { label: 'matched', value: POLICY_SET_RESULT_FIELD.matched, description: '判断是否命中了策略。' },
+  { label: 'policySetId', value: POLICY_SET_RESULT_FIELD.policySetId, description: '比较命中的策略集 id。' },
+  { label: 'policyGroupId', value: POLICY_SET_RESULT_FIELD.policyGroupId, description: '比较命中的策略组 id。' },
+  { label: 'policyId', value: POLICY_SET_RESULT_FIELD.policyId, description: '比较命中的策略 id。' },
 ];
 
 export const policySetResultCompareOptions = [
-  { label: '等于', value: 'eq', description: '与比较值相等。' },
-  { label: '不等于', value: 'ne', description: '与比较值不相等。' },
+  { label: '等于', value: POLICY_SET_RESULT_COMPARE_OP.eq, description: '与比较值相等。' },
+  { label: '不等于', value: POLICY_SET_RESULT_COMPARE_OP.ne, description: '与比较值不相等。' },
 ];
 
 export const compareOpOptions = [
-  { label: '等于', value: 'eq', description: '值相等。' },
-  { label: '不等于', value: 'ne', description: '值不相等。' },
-  { label: '小于', value: 'lt', description: '左侧小于右侧。' },
-  { label: '小于等于', value: 'le', description: '左侧小于等于右侧。' },
-  { label: '大于', value: 'gt', description: '左侧大于右侧。' },
-  { label: '大于等于', value: 'ge', description: '左侧大于等于右侧。' },
-  { label: '包含', value: 'contains', description: '字符串包含目标值。' },
-  { label: '不包含', value: 'notContains', description: '字符串不包含目标值。' },
+  { label: '等于', value: COMPARE_OP.eq, description: '值相等。' },
+  { label: '不等于', value: COMPARE_OP.ne, description: '值不相等。' },
+  { label: '小于', value: COMPARE_OP.lt, description: '左侧小于右侧。' },
+  { label: '小于等于', value: COMPARE_OP.le, description: '左侧小于等于右侧。' },
+  { label: '大于', value: COMPARE_OP.gt, description: '左侧大于右侧。' },
+  { label: '大于等于', value: COMPARE_OP.ge, description: '左侧大于等于右侧。' },
+  { label: '包含', value: COMPARE_OP.contains, description: '字符串包含目标值。' },
+  { label: '不包含', value: COMPARE_OP.notContains, description: '字符串不包含目标值。' },
 ];
 
-export const createConditionNode = (type: string = 'rawExpr'): ConditionNode => {
+export const createConditionNode = (type: ConditionNode['type'] = CONDITION_TYPE.rawExpr): ConditionNode => {
   switch (type) {
-    case 'group':
+    case CONDITION_TYPE.group:
       return castCondition({
-        type: 'group',
+        type: CONDITION_TYPE.group,
         op: 'And' satisfies LogicOp,
-        items: [],
+        items: createConditionNodeList(),
       });
-    case 'execNumCompare':
+    case CONDITION_TYPE.execNumCompare:
       return castCondition({
-        type: 'execNumCompare',
-        target: {
-          type: 'task',
-          id: '',
-        },
-        op: 'ge',
+        type: CONDITION_TYPE.execNumCompare,
+        target: createStateTarget(),
+        op: COMPARE_OP.ge,
       });
-    case 'taskStatus':
+    case CONDITION_TYPE.taskStatus:
       return castCondition({
-        type: 'taskStatus',
+        type: CONDITION_TYPE.taskStatus,
         a: {
-          type: 'setState',
-          target: {
-            type: 'task',
-            id: '',
-          },
-          targets: [],
-          status: {
-            type: 'done',
-            value: true,
-          },
+          type: TASK_CONTROL_TYPE.setState,
+          target: createStateTarget(),
+          targets: createStateTargetList(),
+          status: createStateStatus(),
         },
       });
-    case 'currentTaskIn':
+    case CONDITION_TYPE.currentTaskIn:
       return castCondition({
-        type: 'currentTaskIn',
-        targets: [],
+        type: CONDITION_TYPE.currentTaskIn,
+        targets: createStringList(),
       });
-    case 'varCompare':
+    case CONDITION_TYPE.varCompare:
       return castCondition({
-        type: 'varCompare',
+        type: CONDITION_TYPE.varCompare,
         var_name: 'runtime.ocr_text',
-        op: 'contains' satisfies CompareOp,
-        value: castVarValue('开始'),
+        op: COMPARE_OP.contains satisfies CompareOp,
+        value: buildVarValue({
+          kind: 'string',
+          textValue: '开始',
+          boolValue: false,
+        }),
       });
-    case 'policySetResult':
+    case CONDITION_TYPE.policySetResult:
       return castCondition({
-        type: 'policySetResult',
+        type: CONDITION_TYPE.policySetResult,
         result_var: 'runtime.policySetResult',
-        field: 'policyId',
-        op: 'eq',
+        field: POLICY_SET_RESULT_FIELD.policyId,
+        op: POLICY_SET_RESULT_COMPARE_OP.eq,
         value_bool: true,
         value_id: '',
       });
-    case 'policyCondition':
+    case CONDITION_TYPE.policyCondition:
       return castCondition({
-        type: 'policyCondition',
+        type: CONDITION_TYPE.policyCondition,
         input_var: null,
         rule: {
           type: 'regex',
           pattern: '.*',
         },
       });
-    case 'colorCompare':
+    case CONDITION_TYPE.colorCompare:
       return castCondition({
-        type: 'colorCompare',
+        type: CONDITION_TYPE.colorCompare,
         txt_target: '',
         is_font: true,
         r: 255,
@@ -142,7 +148,7 @@ export const createConditionNode = (type: string = 'rawExpr'): ConditionNode => 
       });
     default:
       return castCondition({
-        type: 'rawExpr',
+        type: CONDITION_TYPE.rawExpr,
         expr: 'true',
       });
   }

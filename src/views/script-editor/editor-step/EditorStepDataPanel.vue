@@ -296,6 +296,7 @@
               v-if="filterBranchTarget"
               class="app-button app-button-ghost app-toolbar-button"
               type="button"
+              data-testid="editor-branch-filterThen"
               @click="$emit('navigate-branch', filterBranchTarget.path)"
             >
               进入步骤

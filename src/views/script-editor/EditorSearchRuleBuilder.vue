@@ -168,7 +168,10 @@ const replaceRule = (value: SearchRule) => {
 };
 
 const changeType = (type: string) => {
-  replaceRule(createSearchRule(type));
+  if (!searchRuleTypeOptions.some((option) => option.value === type)) {
+    return;
+  }
+  replaceRule(createSearchRule(type as SearchRule['type']));
 };
 
 const updateGroupField = (field: 'op' | 'scope', value: string) => {
@@ -181,9 +184,12 @@ const updateGroupField = (field: 'op' | 'scope', value: string) => {
 
 const addGroupItem = (type: string) => {
   if (currentRule.value.type !== SEARCH_RULE_TYPE.group) return;
+  if (!searchRuleTypeOptions.some((option) => option.value === type)) {
+    return;
+  }
   replaceRule({
     ...currentRule.value,
-    items: [...currentRule.value.items, createSearchRule(type)],
+    items: [...currentRule.value.items, createSearchRule(type as SearchRule['type'])],
   });
 };
 

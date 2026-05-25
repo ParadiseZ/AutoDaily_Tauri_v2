@@ -1,5 +1,10 @@
 import type { SearchRule } from '@/types/bindings/SearchRule';
-import { LOGIC_OP, SEARCH_RULE_TYPE, SEARCH_SCOPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import {
+  createSearchRuleList,
+  LOGIC_OP,
+  SEARCH_RULE_TYPE,
+  SEARCH_SCOPE,
+} from '@/views/script-editor/editor-step/editorStepKinds';
 
 export const searchRuleTypeOptions = [
   { label: '文本', value: SEARCH_RULE_TYPE.txt, description: '按 OCR 文本召回策略。' },
@@ -18,7 +23,7 @@ export const searchScopeOptions = [
   { label: '条目', value: SEARCH_SCOPE.Item, description: '在单个条目内匹配。' },
 ];
 
-export const createSearchRule = (type: string): SearchRule => {
+export const createSearchRule = (type: SearchRule['type']): SearchRule => {
   switch (type) {
     case SEARCH_RULE_TYPE.detLabel:
       return { type: SEARCH_RULE_TYPE.detLabel, idx: 0 };
@@ -27,7 +32,7 @@ export const createSearchRule = (type: string): SearchRule => {
         type: SEARCH_RULE_TYPE.group,
         op: LOGIC_OP.And,
         scope: SEARCH_SCOPE.Global,
-        items: [],
+        items: createSearchRuleList(),
       };
     default:
       return { type: SEARCH_RULE_TYPE.txt, pattern: '开始' };

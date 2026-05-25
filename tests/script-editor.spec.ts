@@ -229,7 +229,6 @@ test('edits script tasks with visual task editor and persists payload', async ({
     ]),
   );
   expect(task.data.uiData).toEqual({
-    layout: 'horizontal',
     fields: [
       {
         key: 'activitySweepCount',
@@ -805,7 +804,6 @@ test('renders script-level task preview with title groups and task metadata', as
         isHidden: false,
         data: {
           uiData: {
-            layout: 'horizontal',
             fields: [
               {
                 key: 'signCount',
@@ -1150,7 +1148,10 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
       con: {
         type: 'varCompare',
         var_name: 'input.pkgName',
-        value: '已完成',
+        value: {
+          type: 'string',
+          value: '已完成',
+        },
       },
       then: [
         {
@@ -1317,7 +1318,10 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
     a: {
       type: 'setVar',
       name: 'input.sweepLimit',
-      val: 1.5,
+      val: {
+        type: 'float',
+        value: 1.5,
+      },
       expr: null,
     },
   });
@@ -1326,7 +1330,10 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
     a: {
       type: 'getVar',
       name: 'input.retryCount',
-      default_val: 3,
+      default_val: {
+        type: 'int',
+        value: 3,
+      },
     },
   });
   expect(task.data.steps[5]).toMatchObject({
@@ -1408,7 +1415,10 @@ test('creates variable from setVar template and persists catalog binding', async
     a: {
       type: 'setVar',
       name: 'input.newVar1',
-      val: 7,
+      val: {
+        type: 'int',
+        value: 7,
+      },
       expr: null,
     },
   });
@@ -1463,6 +1473,11 @@ test('renames input variable and syncs setVar reference', async ({ page }) => {
     a: {
       type: 'setVar',
       name: 'input.renamedVar',
+      val: {
+        type: 'int',
+        value: 0,
+      },
+      expr: null,
     },
   });
 });

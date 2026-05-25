@@ -253,6 +253,14 @@ import {
   ACTION_MODE,
   ACTION_TYPE,
   COLOR_COMPARE_METHOD_TYPE,
+  CONDITION_TYPE,
+  createColorCompareMethod,
+  createFilterMode,
+  createStateStatus,
+  createStateTarget,
+  createStateTargetList,
+  createStepList,
+  createStringList,
   DATA_TYPE,
   FILTER_MODE_TYPE,
   FLOW_TYPE,
@@ -521,6 +529,8 @@ const mapVariableTypeToVarKind = (valueType: EditorVariableOption['valueType']):
 };
 const createDefaultVarValueDraft = (kind: VarValueKind) =>
   parseVarValueDraft(kind === 'string' ? '' : kind === 'bool' ? false : 0, kind);
+const isVarValueKind = (value: string): value is VarValueKind =>
+  value === 'int' || value === 'float' || value === 'bool' || value === 'string';
 const currentSetVarName = computed(() =>
   selectedData.value?.type === DATA_TYPE.setVar ? selectedData.value.name : '',
 );
@@ -719,7 +729,7 @@ const updateActionExecMax = (value: string) => {
   });
 };
 
-const createClickAction = (mode: string): Action => {
+const createClickAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.percent | typeof ACTION_MODE.txt | typeof ACTION_MODE.labelIdx): Action => {
   switch (mode) {
     case ACTION_MODE.percent:
       return { ac: ACTION_TYPE.click, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
@@ -732,7 +742,7 @@ const createClickAction = (mode: string): Action => {
   }
 };
 
-const createSwipeAction = (mode: string): Action => {
+const createSwipeAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.percent | typeof ACTION_MODE.txt | typeof ACTION_MODE.labelIdx): Action => {
   switch (mode) {
     case ACTION_MODE.percent:
       return {
@@ -781,6 +791,9 @@ const updateActionModel = (value: Action) => {
 };
 
 const updateActionMode = (mode: string) => {
+  if (mode !== ACTION_MODE.point && mode !== ACTION_MODE.percent && mode !== ACTION_MODE.txt && mode !== ACTION_MODE.labelIdx) {
+    return;
+  }
   if (!selectedAction.value) return;
   if (selectedAction.value.ac === ACTION_TYPE.click) {
     updateActionModel(createClickAction(mode));
@@ -850,11 +863,11 @@ const updateFlowField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.flowControl) return;
     if ((step.a.type === FLOW_TYPE.handlePolicySet || step.a.type === FLOW_TYPE.handlePolicy) && field === 'target') {
-      let nextTarget: string[] = [];
+      let nextTarget = createStringList();
       try {
         nextTarget = JSON.parse(value) as string[];
       } catch {
-        nextTarget = [];
+        nextTarget = createStringList();
       }
       step.a = { ...step.a, target: nextTarget } as FlowControl;
       return;
@@ -1010,10 +1023,13 @@ const updateSetVarMode = (mode: string) => {
 };
 
 const updateSetVarType = (kind: string) => {
-  setVarKindPreference.value = kind as VarValueKind;
+  if (!isVarValueKind(kind)) {
+    return;
+  }
+  setVarKindPreference.value = kind;
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
-    const nextDraft = createDefaultVarValueDraft(kind as VarValueKind);
+    const nextDraft = createDefaultVarValueDraft(kind);
     step.a = {
       ...step.a,
       val: buildVarValue(nextDraft),
@@ -1065,13 +1081,16 @@ const toggleGetVarDefault = (enabled: boolean) => {
 };
 
 const updateGetVarType = (kind: string) => {
-  getVarKindPreference.value = kind as VarValueKind;
+  if (!isVarValueKind(kind)) {
+    return;
+  }
+  getVarKindPreference.value = kind;
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.getVar) return;
     step.a = {
       ...step.a,
       default_val: buildVarValue({
-        kind: kind as 'int' | 'float' | 'bool' | 'string',
+        kind,
         textValue: kind === 'string' ? '' : '0',
         boolValue: false,
       }),
@@ -1109,13 +1128,14 @@ const updateGetVarBool = (value: boolean) => {
 };
 
 const updateFilterMode = (value: string) => {
+  if (value !== FILTER_MODE_TYPE.filter && value !== FILTER_MODE_TYPE.map) {
+    return;
+  }
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.filter) return;
     step.a = {
       ...step.a,
-      mode: {
-        type: value as typeof FILTER_MODE_TYPE.filter | typeof FILTER_MODE_TYPE.map,
-      },
+      mode: createFilterMode(value),
     };
   });
 };
@@ -1148,14 +1168,14 @@ const updateColorCompareThreshold = (value: string) => {
 };
 
 const updateColorCompareMethod = (value: string) => {
+  if (value !== COLOR_COMPARE_METHOD_TYPE.oklabDistance) {
+    return;
+  }
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.colorCompare) return;
     step.a = {
       ...step.a,
-      method: {
-        type: value as typeof COLOR_COMPARE_METHOD_TYPE.oklabDistance,
-        threshold: step.a.method.threshold,
-      },
+      method: createColorCompareMethod(value, step.a.method.threshold),
     };
   });
 };
@@ -1171,32 +1191,32 @@ const updateColorCompareBoolean = (field: 'is_font', value: boolean) => {
 };
 
 const updateTaskControlType = (value: string) => {
+  if (value !== TASK_CONTROL_TYPE.setState) {
+    return;
+  }
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.taskControl) return;
     step.a = {
       ...step.a,
-      type: value as typeof TASK_CONTROL_TYPE.setState,
+      type: value,
     };
   });
 };
 
 const updateTaskControlTargetType = (value: string) => {
+  if (value !== STATE_TARGET_TYPE.task && value !== STATE_TARGET_TYPE.policy) {
+    return;
+  }
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.taskControl) return;
-    const nextTargetType = value as typeof STATE_TARGET_TYPE.task | typeof STATE_TARGET_TYPE.policy;
+    const nextTargetType = value;
     step.a = {
       ...step.a,
-      target: {
-        type: nextTargetType,
-        id: '',
-      },
-      targets: [],
+      target: createStateTarget(nextTargetType),
+      targets: createStateTargetList(),
       status:
         nextTargetType === STATE_TARGET_TYPE.policy && step.a.status.type === STATE_STATUS_TYPE.enabled
-          ? {
-              ...step.a.status,
-              type: STATE_STATUS_TYPE.done,
-            }
+          ? createStateStatus(STATE_STATUS_TYPE.done, step.a.status.value)
           : step.a.status,
     };
   });
@@ -1240,14 +1260,14 @@ const removeTaskControlTargetId = (value: string) => {
 };
 
 const updateTaskControlStatusType = (value: string) => {
+  if (value !== STATE_STATUS_TYPE.enabled && value !== STATE_STATUS_TYPE.done && value !== STATE_STATUS_TYPE.skip) {
+    return;
+  }
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.taskControl) return;
     step.a = {
       ...step.a,
-      status: {
-        ...step.a.status,
-        type: value as typeof STATE_STATUS_TYPE.enabled | typeof STATE_STATUS_TYPE.done | typeof STATE_STATUS_TYPE.skip,
-      },
+      status: createStateStatus(value, step.a.status.value),
     };
   });
 };
@@ -1316,11 +1336,17 @@ const updateFlowCondition = (condition: ConditionNode) => {
 };
 
 const updateFlowType = (type: string) => {
+  if (type !== FLOW_TYPE.if && type !== FLOW_TYPE.while && type !== FLOW_TYPE.forEach && type !== FLOW_TYPE.repeat) {
+    return;
+  }
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.flowControl) return;
-    const currentCondition = flowCondition.value ?? createConditionNode('rawExpr');
+    const currentCondition = flowCondition.value ?? createConditionNode(CONDITION_TYPE.rawExpr);
     if (type === FLOW_TYPE.if) {
-      const flowSteps = step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat ? step.a.flow : [];
+      const flowSteps =
+        step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat
+          ? step.a.flow
+          : createStepList();
       step.a = {
         type: FLOW_TYPE.if,
         con: currentCondition,
@@ -1336,7 +1362,7 @@ const updateFlowType = (type: string) => {
           ? step.a.then
           : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat
           ? step.a.flow
-          : [];
+          : createStepList();
       step.a = {
         type: FLOW_TYPE.while,
         con: currentCondition,
@@ -1351,7 +1377,7 @@ const updateFlowType = (type: string) => {
           ? step.a.then
           : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat
           ? step.a.flow
-          : [];
+          : createStepList();
       step.a = {
         type: FLOW_TYPE.forEach,
         input_var: 'runtime.items',
@@ -1368,7 +1394,7 @@ const updateFlowType = (type: string) => {
           ? step.a.then
           : step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat
           ? step.a.flow
-          : [];
+          : createStepList();
       step.a = {
         type: FLOW_TYPE.repeat,
         count_expr: '',
@@ -1382,7 +1408,7 @@ const updateFlowType = (type: string) => {
 const toggleElseBranch = () => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.flowControl || step.a.type !== FLOW_TYPE.if) return;
-    step.a.else_steps = step.a.else_steps ? null : [];
+    step.a.else_steps = step.a.else_steps ? null : createStepList();
   });
 };
 </script>

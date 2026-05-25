@@ -226,7 +226,12 @@ const addableRuleTypes = computed(() => policyConditionRuleTypeOptions.filter((o
 const rootTestId = (suffix: string) => (props.testIdPrefix ? `${props.testIdPrefix}-${suffix}` : undefined);
 
 const replaceRule = (value: PolicyConditionRule) => emit('update:modelValue', value);
-const changeType = (type: string) => replaceRule(createPolicyConditionRule(type));
+const changeType = (type: string) => {
+  if (!policyConditionRuleTypeOptions.some((option) => option.value === type)) {
+    return;
+  }
+  replaceRule(createPolicyConditionRule(type as PolicyConditionRule['type']));
+};
 
 const updateGroupOp = (op: string) => {
   if (currentRule.value.type !== POLICY_CONDITION_RULE_TYPE.group) return;
@@ -235,7 +240,10 @@ const updateGroupOp = (op: string) => {
 
 const addGroupItem = (type: string) => {
   if (currentRule.value.type !== POLICY_CONDITION_RULE_TYPE.group) return;
-  replaceRule({ ...currentRule.value, items: [...currentRule.value.items, createPolicyConditionRule(type)] });
+  if (!policyConditionRuleTypeOptions.some((option) => option.value === type)) {
+    return;
+  }
+  replaceRule({ ...currentRule.value, items: [...currentRule.value.items, createPolicyConditionRule(type as PolicyConditionRule['type'])] });
 };
 
 const updateGroupItem = (index: number, value: PolicyConditionRule) => {

@@ -1,14 +1,15 @@
 import type { VarValue } from '@/types/bindings/VarValue';
 
-const castVarValue = (value: unknown) => value as VarValue;
-
 export interface VarValueDraft {
-  kind: 'int' | 'float' | 'bool' | 'string';
+  kind: VarValue['type'];
   textValue: string;
   boolValue: boolean;
 }
 
-export type VarValueKind = VarValueDraft['kind'];
+export type VarValueKind = VarValue['type'];
+type TaggedVarValue = Extract<VarValue, { type: VarValueKind }>;
+
+const VAR_VALUE_KINDS = ['int', 'float', 'bool', 'string'] as const;
 
 export const varValueTypeOptions = [
   { label: '整数', value: 'int', description: '32 位整数。' },
@@ -17,13 +18,16 @@ export const varValueTypeOptions = [
   { label: '文本', value: 'string', description: '字符串。' },
 ];
 
-const isTaggedVarValue = (value: unknown): value is { type: VarValueKind; value: unknown } => {
+const isVarValueKind = (value: unknown): value is VarValueKind =>
+  typeof value === 'string' && VAR_VALUE_KINDS.includes(value as VarValueKind);
+
+const isTaggedVarValue = (value: unknown): value is TaggedVarValue => {
   if (!value || typeof value !== 'object') {
     return false;
   }
 
   const record = value as Record<string, unknown>;
-  return ['int', 'float', 'bool', 'string'].includes(String(record.type)) && 'value' in record;
+  return isVarValueKind(record.type) && 'value' in record;
 };
 
 const createDraft = (kind: VarValueKind, rawValue: unknown): VarValueDraft => {
@@ -46,6 +50,31 @@ const createDraft = (kind: VarValueKind, rawValue: unknown): VarValueDraft => {
         : String(rawValue),
     boolValue: Boolean(rawValue),
   };
+};
+
+const buildTaggedVarValue = (kind: VarValueKind, rawValue: unknown): TaggedVarValue => {
+  switch (kind) {
+    case 'bool':
+      return {
+        type: 'bool',
+        value: Boolean(rawValue),
+      };
+    case 'float':
+      return {
+        type: 'float',
+        value: Number(rawValue ?? 0),
+      };
+    case 'int':
+      return {
+        type: 'int',
+        value: Math.trunc(Number(rawValue ?? 0)),
+      };
+    default:
+      return {
+        type: 'string',
+        value: rawValue === null || rawValue === undefined ? '' : String(rawValue),
+      };
+  }
 };
 
 export const parseVarValueDraft = (value: unknown, preferredKind?: VarValueKind): VarValueDraft => {
@@ -81,15 +110,5 @@ export const parseVarValueDraft = (value: unknown, preferredKind?: VarValueKind)
   };
 };
 
-export const buildVarValue = (draft: VarValueDraft): VarValue => {
-  switch (draft.kind) {
-    case 'bool':
-      return castVarValue(Boolean(draft.boolValue));
-    case 'float':
-      return castVarValue(Number(draft.textValue || '0'));
-    case 'int':
-      return castVarValue(Math.trunc(Number(draft.textValue || '0')));
-    default:
-      return castVarValue(draft.textValue);
-  }
-};
+export const buildVarValue = (draft: VarValueDraft): VarValue =>
+  buildTaggedVarValue(draft.kind, draft.kind === 'bool' ? draft.boolValue : draft.textValue);
