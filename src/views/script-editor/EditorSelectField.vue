@@ -160,6 +160,7 @@ const selectOption = (value: SelectValue) => {
   margin-top: 0.1rem;
   border-radius: 999px;
   border: 1px solid var(--app-border-strong);
+  border-color: var(--app-accent);
   background: var(--app-panel);
   box-shadow: inset 0 0 0 2px var(--app-panel);
 }

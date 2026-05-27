@@ -1,6 +1,9 @@
 <template>
-  <div class="editor-overview-field" :class="width === 'compact' ? 'editor-overview-field-compact' : ''">
-    <span class="editor-overview-field-label">{{ label }}</span>
+  <div class="field" :class="{
+    'field-compact': width === 'compact',
+    'field-radio': width === 'radio'
+  }">
+    <span class="field-label">{{ label }}</span>
     <slot />
   </div>
 </template>
@@ -9,7 +12,7 @@
 withDefaults(
   defineProps<{
     label: string;
-    width?: 'full' | 'compact';
+    width?: 'full' | 'compact'| 'radio';
   }>(),
   {
     width: 'full',
@@ -22,15 +25,19 @@ defineOptions({ name: 'EditorOverviewField' });
 <style scoped>
 @reference "../../style.css";
 
-.editor-overview-field {
+.field {
   @apply flex w-full flex-col gap-1.5;
 }
 
-.editor-overview-field-compact {
+.field-compact {
   @apply max-w-[16rem];
 }
 
-.editor-overview-field-label {
+.field-radio{
+  @apply max-w-[24rem];
+}
+
+.field-label {
   @apply text-xs font-semibold tracking-wide text-(--app-text-soft);
 }
 </style>

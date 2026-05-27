@@ -24,7 +24,7 @@
       </EditorOverviewSection>
 
       <EditorOverviewSection title="调度与限制">
-        <EditorOverviewField label="进入方式">
+        <EditorOverviewField label="进入方式" width="radio">
           <EditorSelectField
               :model-value="taskTriggerMode"
               :options="taskTriggerModeOptions"
@@ -82,7 +82,7 @@
       </EditorOverviewSection>
 
       <EditorOverviewSection title="UI 显示行为">
-        <EditorOverviewField label="任务提醒">
+        <EditorOverviewField label="任务提醒" width="radio">
           <EditorSelectField
               :model-value="taskTone"
               :options="taskToneOptions"

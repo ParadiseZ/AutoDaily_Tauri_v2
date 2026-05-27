@@ -1,7 +1,16 @@
 <template>
   <section class="editor-overview-section">
     <div class="editor-overview-section-header">
-      <component :is="headingTag" class="editor-overview-section-title">{{ title }}</component>
+      <div class="min-w-0">
+        <slot name="header">
+          <component :is="headingTag" class="editor-overview-section-title">{{ title }}</component>
+          <p v-if="description" class="editor-overview-section-description">{{ description }}</p>
+        </slot>
+      </div>
+
+      <div v-if="$slots.actions" class="shrink-0">
+        <slot name="actions" />
+      </div>
     </div>
 
     <div
@@ -19,10 +28,12 @@ withDefaults(
     title: string;
     headingTag?: 'h1' | 'h2' | 'h3';
     width?: 'default' | 'wide';
+    description?: string;
   }>(),
   {
     headingTag: 'h3',
     width: 'default',
+    description: '',
   },
 );
 
@@ -37,11 +48,15 @@ defineOptions({ name: 'EditorOverviewSection' });
 }
 
 .editor-overview-section-header {
-  @apply mb-4 border-b border-(--app-border) pb-3;
+  @apply mb-4 flex items-start justify-between gap-3 border-b border-(--app-border) pb-3;
 }
 
 .editor-overview-section-title {
   @apply text-sm font-semibold text-(--app-text-strong);
+}
+
+.editor-overview-section-description {
+  @apply mt-1 text-xs text-(--app-text-faint);
 }
 
 .editor-overview-section-content {

@@ -29,7 +29,7 @@
           </button>
         </div>
 
-        <div v-if="uiWorkspaceTab === 'edit'" class="min-h-0 flex-1">
+        <div v-if="uiWorkspaceTab === 'edit'" class="min-h-0 flex-1 overflow-y-auto">
           <EditorUiFieldDetailsPanel
             v-if="task.rowType === 'task'"
             :selected-ui-field="selectedUiField"
