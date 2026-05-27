@@ -1,15 +1,15 @@
-  <template>
-    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-2">
+<template>
+    <div class="overview-scroll custom-scrollbar">
       <div v-if="task?.rowType === 'task'">
         <!-- Card 1: 基本属性 -->
-        <section class="rounded-[16px] border border-(--app-border) bg-(--app-panel) shadow-[0_4px_12px_rgba(15,23,42,0.03)] px-5 py-5">
-          <div class="border-b border-(--app-border) pb-3 mb-4">
-            <h1 class="text-sm font-semibold text-(--app-text-strong)">基本属性</h1>
+        <section class="overview-card">
+          <div class="overview-card-header">
+            <h1 class="overview-card-title">基本属性</h1>
           </div>
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="overview-stack">
             <!-- 任务名称 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">任务名称</span>
+            <div class="overview-field-2">
+              <span class="overview-label">任务名称</span>
               <input
                   :value="taskName"
                   class="app-input"
@@ -19,8 +19,8 @@
               />
             </div>
             <!-- 所属分组 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">所属分组</span>
+            <div class="overview-field-2">
+              <span class="overview-label">所属分组</span>
               <EditorSelectField
                   :model-value="sectionId"
                   :options="titleOptions"
@@ -33,14 +33,14 @@
         </section>
 
         <!-- Card 2: 调度与限制 -->
-        <section class="rounded-[16px] border border-(--app-border) bg-(--app-panel) shadow-[0_4px_12px_rgba(15,23,42,0.03)] px-5 py-5">
-          <div class="border-b border-(--app-border) pb-3 mb-4">
-            <h3 class="text-sm font-semibold text-(--app-text-strong)">调度与限制</h3>
+        <section class="overview-card">
+          <div class="overview-card-header">
+            <h3 class="overview-card-title">调度与限制</h3>
           </div>
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="overview-stack">
             <!-- 进入方式 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">进入方式</span>
+            <div class="overview-field-1">
+              <span class="overview-label">进入方式</span>
               <EditorSelectField
                   :model-value="taskTriggerMode"
                   :options="taskTriggerModeOptions"
@@ -50,21 +50,20 @@
               />
             </div>
             <!-- 运行周期 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">运行周期</span>
-              <div class="flex items-center gap-2">
+            <div class="overview-field-2">
+              <span class="overview-label">运行周期</span>
+              <div class="flex flex-col gap-2">
                 <EditorSelectField
                     :model-value="defaultTaskCycleValue"
                     :options="taskCycleOptions"
                     placeholder="选择运行周期"
                     test-id="editor-task-cycle"
-                    class="flex-1"
                     @update:model-value="$emit('update:default-task-cycle-value', String($event || 'everyRun'))"
                 />
                 <input
                     v-if="defaultTaskCycleMode === 'weekDay' || defaultTaskCycleMode === 'monthDay'"
                     :value="defaultTaskCycleDay"
-                    class="app-input max-w-[80px] shrink-0"
+                    class="app-input max-w-[120px]"
                     type="number"
                     :min="defaultTaskCycleMode === 'weekDay' ? 1 : 1"
                     :max="defaultTaskCycleMode === 'weekDay' ? 7 : 31"
@@ -74,8 +73,8 @@
               </div>
             </div>
             <!-- 最大次数 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">最大次数</span>
+            <div class="overview-field-2">
+              <span class="overview-label">最大次数</span>
               <input
                   :value="taskExecMax"
                   class="app-input"
@@ -86,9 +85,9 @@
               />
             </div>
             <!-- 记录调度 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">记录选项</span>
-              <label class="flex items-center gap-3 rounded-[12px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-2.5 text-sm text-(--app-text-soft) hover:bg-white/40 cursor-pointer transition-colors">
+            <div class="overview-field-2">
+              <span class="overview-label">记录选项</span>
+              <label class="overview-toggle">
                 <input
                     :checked="recordSchedule"
                     type="checkbox"
@@ -104,14 +103,14 @@
 
 
         <!-- Card 3: UI 显示行为 -->
-        <section class="rounded-[16px] border border-(--app-border) bg-(--app-panel) shadow-[0_4px_12px_rgba(15,23,42,0.03)] px-5 py-5">
-          <div class="border-b border-(--app-border) pb-3 mb-4">
-            <h3 class="text-sm font-semibold text-(--app-text-strong)">UI 显示行为</h3>
+        <section class="overview-card">
+          <div class="overview-card-header">
+            <h3 class="overview-card-title">UI 显示行为</h3>
           </div>
-          <div class="grid gap-3 sm:grid-cols-2">
+          <div class="overview-stack">
             <!-- 任务提醒 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">任务提醒</span>
+            <div class="overview-field-1">
+              <span class="overview-label">任务提醒</span>
               <EditorSelectField
                   :model-value="taskTone"
                   :options="taskToneOptions"
@@ -121,8 +120,8 @@
               />
             </div>
             <!-- 缩进量 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">缩进量</span>
+            <div class="overview-field-2">
+              <span class="overview-label">缩进量</span>
               <input
                   :value="indentLevel"
                   class="app-input"
@@ -133,42 +132,47 @@
                   @input="$emit('update:indent-level', Number(($event.target as HTMLInputElement).value || 0))"
               />
             </div>
-            <!-- 显示开关 -->
-            <label class="flex items-center gap-3 rounded-[12px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft) hover:bg-white/40 cursor-pointer transition-colors">
-              <input
-                  :checked="showEnabledToggle"
-                  type="checkbox"
-                  class="h-4 w-4 accent-(--app-accent)"
-                  data-testid="editor-task-show-enabled-toggle"
-                  @change="$emit('update:show-enabled-toggle', ($event.target as HTMLInputElement).checked)"
-              />
-              <span>UI中显示启用开关</span>
-            </label>
-            <!-- 是否启用 -->
-            <label class="flex items-center gap-3 rounded-[12px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft) hover:bg-white/40 cursor-pointer transition-colors">
-              <input
-                  :checked="defaultEnabled"
-                  type="checkbox"
-                  class="h-4 w-4 accent-(--app-accent)"
-                  data-testid="editor-task-default-enabled"
-                  @change="$emit('update:default-enabled', ($event.target as HTMLInputElement).checked)"
-              />
-              <span>默认启用任务</span>
-            </label>
+            <div class="overview-field">
+              <span class="overview-label">显示选项</span>
+              <div class="overview-toggle-list">
+                <!-- 显示开关 -->
+                <label class="overview-toggle">
+                  <input
+                      :checked="showEnabledToggle"
+                      type="checkbox"
+                      class="h-4 w-4 accent-(--app-accent)"
+                      data-testid="editor-task-show-enabled-toggle"
+                      @change="$emit('update:show-enabled-toggle', ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>UI中显示启用开关</span>
+                </label>
+                <!-- 是否启用 -->
+                <label class="overview-toggle">
+                  <input
+                      :checked="defaultEnabled"
+                      type="checkbox"
+                      class="h-4 w-4 accent-(--app-accent)"
+                      data-testid="editor-task-default-enabled"
+                      @change="$emit('update:default-enabled', ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>默认启用任务</span>
+                </label>
+              </div>
+            </div>
           </div>
         </section>
       </div>
 
       <div v-else>
         <!-- Card 1: 基本属性 -->
-        <section class="rounded-[16px] border border-(--app-border) bg-(--app-panel) shadow-[0_4px_12px_rgba(15,23,42,0.03)] px-5 py-5">
-          <div class="border-b border-(--app-border) pb-3 mb-4">
-            <h1 class="text-sm font-semibold text-(--app-text-strong)">基本属性</h1>
+        <section class="overview-card">
+          <div class="overview-card-header">
+            <h1 class="overview-card-title">基本属性</h1>
           </div>
-          <div class="grid gap-4 sm:grid-cols-2">
+          <div class="overview-stack">
             <!-- 任务名称 -->
-            <div class="flex flex-col gap-1.5">
-              <span class="text-xs font-semibold text-(--app-text-soft) tracking-wide">任务名称</span>
+            <div class="overview-field-2">
+              <span class="overview-label">任务名称</span>
               <input
                   :value="taskName"
                   class="app-input"
@@ -225,30 +229,45 @@ defineEmits<{
 </script>
 
 <style scoped>
+@reference "../../style.css";
+
+.overview-scroll {
+  @apply min-h-0 flex-1 space-y-2 overflow-y-auto pr-1;
+}
+
+.overview-card {
+  @apply rounded-[16px] border border-(--app-border) bg-(--app-panel) px-5 py-5 shadow-[0_4px_12px_rgba(15,23,42,0.03)];
+}
+
+.overview-card-header {
+  @apply mb-4 border-b border-(--app-border) pb-3;
+}
+
+.overview-card-title {
+  @apply text-sm font-semibold text-(--app-text-strong);
+}
+
+.overview-stack {
+  @apply flex w-full max-w-[38rem] flex-col gap-4;
+}
+
+.overview-field-1 {
+  @apply flex w-full flex-col gap-1.5;
+}
+.overview-field-2 {
+  @apply flex max-w-[16rem] flex-col gap-1.5;
+}
+
 .overview-label {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--app-text-faint);
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  @apply text-xs font-semibold tracking-wide text-(--app-text-soft);
 }
 
-.overview-content {
-  min-height: 44px;
+.overview-toggle-list {
+  @apply flex flex-col gap-3 max-w-[16rem];
 }
 
-.overview-check {
-  display: flex;
-  align-items: center;
-  gap: 0.7rem;
-  border-radius: 14px;
-  border: 1px solid var(--app-border);
-  background: var(--app-panel-muted);
-  padding: 0.75rem 0.9rem;
-  color: var(--app-text-soft);
-  font-size: 0.92rem;
+.overview-toggle {
+  @apply flex items-center gap-3 rounded-[12px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft) transition-colors hover:bg-white/40;
+  cursor: pointer;
 }
 </style>
