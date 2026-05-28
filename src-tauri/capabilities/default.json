@@ -13,17 +13,10 @@
     "core:resources:default",
     "core:menu:default",
     "core:tray:default",
-    "core:window:allow-set-title",
     "core:window:create",
     "core:window:show",
     "core:window:hide",
-    "core:window:close",
-    "core:webview:allow-create-webview-window",
-    "core:event:allow-listen",
-    "core:event:default",
-    "opener:default",
-    "process:default",
-    "updater:default"
+    "core:window:close"
   ],
   "capabilities": []
 }

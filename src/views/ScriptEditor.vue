@@ -1,43 +1,34 @@
 <template>
   <div class="editor-shell h-svh overflow-hidden">
     <div class="mx-auto flex h-full flex-col gap-[1px]">
-      <header class="editor-toolbar bg-(--app-panel) px-5 py-2.5 lg:px-6">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div class="flex flex-wrap items-center gap-3">
-            <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
-              <AppIcon name="arrow-left" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-            </button>
+      <EditorWindowTitlebar
+        :title="draftScript?.data.name || '脚本编辑器'"
+        :meta="formattedSaveTime ? `最近保存 ${formattedSaveTime}` : null"
+        :status-label="hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步'"
+        :status-tone="hasValidationErrors ? 'danger' : dirty ? 'warning' : 'success'"
+      >
+        <template #prefix>
+          <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
+            <AppIcon name="arrow-left" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+          </button>
+        </template>
 
-            <div class="space-y-1">
-              <div class="flex items-center gap-2 text-xs text-(--app-text-faint)">
-                <span v-if="formattedSaveTime">最近保存 {{ formattedSaveTime }}</span>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-xl font-semibold text-(--app-text-strong) lg:text-2xl">
-                  {{ draftScript?.data.name || '脚本编辑器' }}
-                </h1>
-                <button class="app-icon-button group" type="button" title="编辑脚本信息" aria-label="编辑脚本信息" data-testid="editor-script-info" @click="infoDialogOpen = true">
-                  <AppIcon name="file-text" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                </button>
-                <button class="app-icon-button group" type="button" title="视觉测试" aria-label="视觉测试" data-testid="editor-open-vision-lab" :disabled="!draftScript" @click="handleOpenVisionLab">
-                  <AppIcon name="scan-search" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                </button>
-                <button class="app-icon-button group" type="button" title="开发者工具" aria-label="开发者工具" data-testid="editor-open-devtools" @click="openCurrentDevtools">
-                  <AppIcon name="bug" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                </button>
-                <button class="app-icon-button group" type="button" title="刷新页面" aria-label="刷新页面" data-testid="editor-reload-page" @click="reloadCurrentPage">
-                  <AppIcon name="refresh-cw" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
-                </button>
-                <span
-                  class="rounded-full px-3 py-1 text-xs font-medium"
-                  :class="hasValidationErrors ? 'bg-red-500/12 text-red-700' : dirty ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
-                >
-                  {{ hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步' }}
-                </span>
-              </div>
-            </div>
-          </div>
+        <template #title-actions>
+          <button class="app-icon-button group" type="button" title="编辑脚本信息" aria-label="编辑脚本信息" data-testid="editor-script-info" @click="infoDialogOpen = true">
+            <AppIcon name="file-text" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+          </button>
+          <button class="app-icon-button group" type="button" title="视觉测试" aria-label="视觉测试" data-testid="editor-open-vision-lab" :disabled="!draftScript" @click="handleOpenVisionLab">
+            <AppIcon name="scan-search" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+          </button>
+          <button class="app-icon-button group" type="button" title="开发者工具" aria-label="开发者工具" data-testid="editor-open-devtools" @click="openCurrentDevtools">
+            <AppIcon name="bug" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+          </button>
+          <button class="app-icon-button group" type="button" title="刷新页面" aria-label="刷新页面" data-testid="editor-reload-page" @click="reloadCurrentPage">
+            <AppIcon name="refresh-cw" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+          </button>
+        </template>
 
+        <template #actions>
           <div class="flex flex-wrap items-center justify-end gap-2">
             <div class="min-w-[220px]">
               <AppSelect
@@ -85,8 +76,8 @@
               <AppIcon :name="isSaving ? 'loader-circle' : 'save'" :size="16" :class="{ 'app-loading-spinner': isSaving }" />
             </button>
           </div>
-        </div>
-      </header>
+        </template>
+      </EditorWindowTitlebar>
 
       <div v-if="loadError" class="border border-red-500/16 bg-red-500/8 px-6 py-8 text-red-700">
         <h2 class="text-xl font-semibold">无法打开编辑器</h2>
@@ -450,6 +441,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorWindowTitlebar from '@/views/script-editor/EditorWindowTitlebar.vue';
 import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
 import { useScriptStore } from '@/store/script';
 import { useDeviceStore } from '@/store/device';
@@ -3569,12 +3561,6 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 88% 14%, rgba(87, 196, 255, 0.15), transparent 22%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0)),
     transparent;
-}
-
-.editor-toolbar {
-  background: var(--app-toolbar-bg);
-  box-shadow: var(--app-shadow-soft);
-  backdrop-filter: blur(16px);
 }
 
 .editor-main-grid {
