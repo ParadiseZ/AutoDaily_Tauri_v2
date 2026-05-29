@@ -2,6 +2,7 @@
   <div class="editor-shell h-svh overflow-hidden">
     <div class="mx-auto flex h-full flex-col gap-[1px]">
       <EditorWindowTitlebar
+        class="script-editor-titlebar"
         :title="draftScript?.data.name || '脚本编辑器'"
         :meta="formattedSaveTime ? `最近保存 ${formattedSaveTime}` : null"
         :status-label="hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步'"
@@ -9,7 +10,7 @@
       >
         <template #prefix>
           <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
-            <AppIcon name="arrow-left" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+            <AppIcon name="chevron-left" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
           </button>
         </template>
 
@@ -30,7 +31,7 @@
 
         <template #actions>
           <div class="flex flex-wrap items-center justify-end gap-2">
-            <div class="min-w-[220px]">
+            <div class="max-w-[140px]">
               <AppSelect
                 v-model="selectedPreviewDeviceId"
                 :options="deviceSelectOptions"
@@ -41,13 +42,13 @@
             <button class="app-icon-button group" type="button" :title="selectedPreviewDeviceId ? '编辑设备' : '新建设备'" :aria-label="selectedPreviewDeviceId ? '编辑设备' : '新建设备'" @click="openDeviceEditor(selectedPreviewDeviceId)">
               <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
             </button>
-            <div class="min-w-[260px]">
+            <div class="max-w-[300px]">
               <AppSelect
                 v-model="selectedRunTargetKey"
                 :options="runTargetSelectOptions"
                 :placeholder="runTargetSelectPlaceholder"
                 searchable
-                search-placeholder="按任务名称搜索"
+                search-placeholder="按名称搜索"
                 :max-menu-height="360"
                 :show-description="true"
                 test-id="editor-header-target-item"
@@ -763,43 +764,33 @@ const runTargetSelectPlaceholder = computed(() => '选择运行目标');
 const runTargetSelectOptions = computed(() => {
   const options: Array<{ label: string; value: string; description?: string }> = [];
 
-  if (draftScript.value && scriptId.value) {
-    options.push({
-      label: `整脚本 · ${draftScript.value.data.name || scriptId.value}`,
+  options.push({
+      label: `脚本 · ${draftScript.value?.data.name || '(空)'}`,
       value: buildRunTargetKey('fullScript', scriptId.value),
-      description: '调试运行整个脚本',
+      //description: '调试运行整个脚本',
     });
-  }
 
   options.push(
-    ...draftTasks.value.map((task) => ({
-      label: `任务 · ${task.name}`,
-      value: buildRunTargetKey('task', task.id),
-      description: `${task.rowType === TASK_ROW_TYPE.title ? '标题行' : '任务行'} · ${task.index + 1}`,
-    })),
-  );
+      ...draftTasks.value.filter((task) => task.rowType=== TASK_ROW_TYPE.task).map((task) => ({
+        label: `任务 · ${task.name}`,
+        value: buildRunTargetKey('task', task.id),
+        //description: `${task.rowType === TASK_ROW_TYPE.title ? '标题行' : '任务行'} · ${task.index + 1}`,
+      })),
+    );
   options.push(
-    ...policyItems.value.map((item) => ({
-      label: `策略 · ${item.title}`,
-      value: buildRunTargetKey('policy', item.id),
-      description: item.subtitle,
-    })),
-  );
+      ...policyItems.value.map((item) => ({
+        label: `策略 · ${item.title}`,
+        value: buildRunTargetKey('policy', item.id),
+        //description: item.subtitle,
+      })),
+    );
   options.push(
-    ...policyGroupItems.value.map((item) => ({
-      label: `策略组 · ${item.title}`,
-      value: buildRunTargetKey('policyGroup', item.id),
-      description: item.subtitle,
-    })),
-  );
-  options.push(
-    ...policySetItems.value.map((item) => ({
-      label: `策略集 · ${item.title}`,
-      value: buildRunTargetKey('policySet', item.id),
-      description: item.subtitle,
-    })),
-  );
-
+      ...policySetItems.value.map((item) => ({
+        label: `策略集 · ${item.title}`,
+        value: buildRunTargetKey('policySet', item.id),
+        //description: item.subtitle,
+      })),
+    );
   return options;
 });
 
@@ -867,6 +858,7 @@ const titleTaskOptions = computed(() => [
     value: null,
     description: '直接显示在顶层，不归属到任何标题行。',
   },
+  //@ts-ignore
   ...draftTasks.value
     .filter((task) => task.rowType === TASK_ROW_TYPE.title && task.id !== currentTask.value?.id)
     .map((task) => ({
@@ -3581,5 +3573,44 @@ onBeforeUnmount(() => {
 :deep(.app-panel) {
   border-radius: 0 !important;
   border: none !important;
+}
+
+:deep(.script-editor-titlebar.editor-window-titlebar) {
+  min-height: 48px;
+  gap: 0.5rem;
+  padding: 0 !important;
+}
+
+:deep(.script-editor-titlebar .editor-window-titlebar__prefix),
+:deep(.script-editor-titlebar .editor-window-titlebar__title-actions),
+:deep(.script-editor-titlebar .editor-window-titlebar__actions) {
+  gap: 0.375rem;
+}
+
+:deep(.script-editor-titlebar .editor-window-titlebar__title) {
+  font-size: 0.95rem;
+}
+
+:deep(.script-editor-titlebar .editor-window-titlebar__status) {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 !important;
+}
+
+:deep(.script-editor-titlebar .editor-window-titlebar__window-button) {
+  width: 2.25rem;
+  min-height: 2rem;
+}
+
+:deep(.script-editor-titlebar .app-select) {
+  min-height: 2rem;
+  height: 2rem;
+  padding: 0 !important;
+}
+
+:deep(.script-editor-titlebar .app-select-trigger) {
+  min-height: 2rem;
+  height: 2rem;
+  padding: 0 !important;
 }
 </style>

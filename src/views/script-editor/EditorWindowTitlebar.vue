@@ -12,7 +12,7 @@
           </h6>
           <span
             v-if="statusLabel"
-            class="rounded-full px-3 py-1 text-xs font-medium"
+            class="editor-window-titlebar__status rounded-full text-xs font-medium"
             :class="statusToneClass"
           >
             {{ statusLabel }}
