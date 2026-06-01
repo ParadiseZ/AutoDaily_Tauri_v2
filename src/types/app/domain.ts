@@ -11,6 +11,7 @@ import type { ScriptType } from '@/types/bindings/ScriptType';
 import type { TimeoutAction } from '@/types/bindings/TimeoutAction';
 import type { TimeoutNotifyChannel } from '@/types/bindings/TimeoutNotifyChannel';
 import type { JsonValue as StoreJsonValue } from '@/types/bindings/serde_json/JsonValue';
+export type { RunTarget } from '@/types/bindings/RunTarget';
 
 export type JsonValue = StoreJsonValue;
 
@@ -187,14 +188,6 @@ export interface DeviceStatusEvent {
     currentScript?: string | null;
     message?: string | null;
 }
-
-export type RunTarget =
-    | { type: 'deviceQueue' }
-    | { type: 'fullScript'; scriptId: string }
-    | { type: 'task'; scriptId: string; taskId: string }
-    | { type: 'policyGroup'; scriptId: string; policyGroupId: string }
-    | { type: 'policySet'; scriptId: string; policySetId: string }
-    | { type: 'policy'; scriptId: string; policyId: string };
 
 export interface RuntimeLifecycleEvent {
     deviceId: string;

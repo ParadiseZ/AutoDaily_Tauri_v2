@@ -99,10 +99,12 @@ import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { formatStatusLabel, formatStatusTone, formatTemplateWindow } from '@/utils/presenters';
+import { getRunTargetDetails } from '@/utils/runTarget';
 import { toErrorText } from '@/utils/api';
 import { showToast } from '@/utils/toast';
 import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
-import type { AssignmentRecord, RunTarget } from '@/types/app/domain';
+import type { AssignmentRecord } from '@/types/app/domain';
+import type { RunTarget } from '@/types/bindings/RunTarget';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 
 const deviceStore = useDeviceStore();
@@ -256,6 +258,7 @@ const validateDeviceQueueStart = (deviceId: string) => {
 };
 
 const validateTemporaryRun = async (deviceId: string, target: RunTarget) => {
+  const details = getRunTargetDetails(target);
   const device = deviceStore.devices.find((item) => item.id === deviceId);
   if (!device) {
     return '目标设备不存在。';
@@ -266,21 +269,26 @@ const validateTemporaryRun = async (deviceId: string, target: RunTarget) => {
     return platformError;
   }
 
-  if (target.type !== 'fullScript' && target.type !== 'task') {
+  if (details.kind !== 'fullScript' && details.kind !== 'task') {
     return '任务管理页当前只支持临时运行整脚本或单任务。';
   }
 
-  const script = scriptStore.sortedScripts.find((item) => item.id === target.scriptId);
+  const scriptId = details.scriptId;
+  if (!scriptId) {
+    return '运行目标缺少脚本标识。';
+  }
+
+  const script = scriptStore.sortedScripts.find((item) => item.id === scriptId);
   if (!script) {
     return '目标脚本不存在。';
   }
 
   const tasks =
-    scriptStore.tasksByScriptId[target.scriptId] ?? (await scriptStore.loadScriptTasks(target.scriptId).catch(() => []));
+    scriptStore.tasksByScriptId[scriptId] ?? (await scriptStore.loadScriptTasks(scriptId).catch(() => []));
 
   if (
-    target.type === 'task' &&
-    !tasks.some((task) => task.id === target.taskId && task.rowType === 'task' && !task.isDeleted)
+    details.kind === 'task' &&
+    !tasks.some((task) => task.id === details.taskId && task.rowType === 'task' && !task.isDeleted)
   ) {
     return '目标任务不存在，或不是可执行 Task。';
   }

@@ -467,7 +467,7 @@ import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsServi
 import { requestAppConfirm } from '@/services/appDialogService';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
-import type { DeviceFormState, JsonValue, RunTarget, ScriptTableRecord } from '@/types/app/domain';
+import type { DeviceFormState, JsonValue, ScriptTableRecord } from '@/types/app/domain';
 import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
@@ -475,6 +475,7 @@ import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
 import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
+import type { RunTarget } from '@/types/bindings/RunTarget';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
@@ -486,6 +487,13 @@ import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
 import { toErrorText } from '@/utils/api';
 import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
+import {
+  createFullScriptRunTarget,
+  createPolicyGroupRunTarget,
+  createPolicyRunTarget,
+  createPolicySetRunTarget,
+  createTaskRunTarget,
+} from '@/utils/runTarget';
 import { validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
 import {
   rewritePublishedDetectorModelPath,
@@ -2325,10 +2333,7 @@ const buildActiveRunTarget = (): RunTarget | null => {
   const targetId = rawId?.trim() || '';
 
   if (kind === 'fullScript') {
-    return {
-      type: 'fullScript',
-      scriptId: scriptId.value,
-    };
+    return createFullScriptRunTarget(scriptId.value);
   }
 
   if (!targetId) {
@@ -2336,35 +2341,19 @@ const buildActiveRunTarget = (): RunTarget | null => {
   }
 
   if (kind === 'policy') {
-    return {
-      type: 'policy',
-      scriptId: scriptId.value,
-      policyId: targetId,
-    };
+    return createPolicyRunTarget(scriptId.value, targetId);
   }
 
   if (kind === 'policyGroup') {
-    return {
-      type: 'policyGroup',
-      scriptId: scriptId.value,
-      policyGroupId: targetId,
-    };
+    return createPolicyGroupRunTarget(scriptId.value, targetId);
   }
 
   if (kind === 'policySet') {
-    return {
-      type: 'policySet',
-      scriptId: scriptId.value,
-      policySetId: targetId,
-    };
+    return createPolicySetRunTarget(scriptId.value, targetId);
   }
 
   if (kind === 'task') {
-    return {
-      type: 'task',
-      scriptId: scriptId.value,
-      taskId: targetId,
-    };
+    return createTaskRunTarget(scriptId.value, targetId);
   }
 
   return null;

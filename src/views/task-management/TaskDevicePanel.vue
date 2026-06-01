@@ -318,17 +318,18 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import type {
   AssignmentRecord,
   DeviceRuntimeStatus,
-  RunTarget,
   RuntimeProgressEvent,
   RuntimeResultProjection,
   RuntimeTimeoutEvent,
   ScriptTableRecord,
 } from '@/types/app/domain';
+import type { RunTarget } from '@/types/bindings/RunTarget';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
 import { filterUserVisibleTaskRows } from '@/utils/scriptTaskVisibility';
+import { createFullScriptRunTarget, createTaskRunTarget } from '@/utils/runTarget';
 import {
   formatCaptureMethod,
   formatConnectLabel,
@@ -671,10 +672,7 @@ const handleRunTemporaryScript = () => {
     return;
   }
 
-  emit('runTarget', props.device.id, {
-    type: 'fullScript',
-    scriptId: selectedTemporaryScriptId.value,
-  });
+  emit('runTarget', props.device.id, createFullScriptRunTarget(selectedTemporaryScriptId.value));
 };
 
 const handleRunTemporaryTask = () => {
@@ -682,11 +680,7 @@ const handleRunTemporaryTask = () => {
     return;
   }
 
-  emit('runTarget', props.device.id, {
-    type: 'task',
-    scriptId: selectedTemporaryScriptId.value,
-    taskId: selectedTemporaryTaskId.value,
-  });
+  emit('runTarget', props.device.id, createTaskRunTarget(selectedTemporaryScriptId.value, selectedTemporaryTaskId.value));
 };
 
 const runSpecificTemporaryTask = (taskId: string) => {
