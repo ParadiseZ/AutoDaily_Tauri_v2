@@ -14,6 +14,12 @@
           </button>
         </template>
 
+        <template #status-actions>
+          <button class="app-icon-button group" type="button" title="显示日志" aria-label="显示日志" data-testid="editor-show-console" @click="showConsole">
+            <AppIcon name="scroll-text" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+          </button>
+        </template>
+
         <template #title-actions>
           <button class="app-icon-button group" type="button" title="编辑脚本信息" aria-label="编辑脚本信息" data-testid="editor-script-info" @click="infoDialogOpen = true">
             <AppIcon name="file-text" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
@@ -401,7 +407,13 @@
           </div>
         </div>
 
-        <EditorConsolePanel :lines="consoleLines" :max-lines="MAX_CONSOLE_LINES" @clear="clearConsole" />
+        <EditorConsolePanel
+          v-if="isConsoleVisible"
+          :entries="consoleEntries"
+          :max-lines="MAX_CONSOLE_LINES"
+          @clear="clearConsole"
+          @close="hideConsole"
+        />
       </div>
     </div>
 
@@ -470,6 +482,7 @@ import type { TaskTone } from '@/types/bindings/TaskTone';
 import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
+import { toErrorText } from '@/utils/api';
 import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
 import { validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
 import {
@@ -602,7 +615,8 @@ const sourcePolicyGroupsSnapshot = ref('');
 const sourcePolicySetsSnapshot = ref('');
 const sourceGroupPoliciesSnapshot = ref('');
 const sourceSetGroupsSnapshot = ref('');
-const consoleLines = ref<string[]>([]);
+const consoleEntries = ref<EditorConsoleEntry[]>([]);
+const isConsoleVisible = ref(true);
 const selectedPreviewDeviceId = ref<string | null>(null);
 const deviceEditorOpen = ref(false);
 const editingDeviceId = ref<string | null>(null);
@@ -647,6 +661,14 @@ const stopResize = () => {
 const MAX_CONSOLE_LINES = 300;
 let detachChildLogListener: null | (() => void) = null;
 
+type EditorConsoleLevel = 'info' | 'warning' | 'error' | 'debug';
+
+interface EditorConsoleEntry {
+  time: string;
+  message: string;
+  level: EditorConsoleLevel;
+}
+
 const taskName = ref('');
 const taskRowType = ref<TaskRowType>(TASK_ROW_TYPE.task);
 const taskTriggerMode = ref<TaskTriggerMode>(TASK_TRIGGER_MODE.linkOnly);
@@ -668,18 +690,46 @@ const hydratingTaskPanels = ref(false);
 
 const scriptId = computed(() => (typeof route.query.scriptId === 'string' ? route.query.scriptId : ''));
 
-const appendConsoleLine = (message: string) => {
-  const stamp = new Date().toLocaleTimeString('zh-CN', {
+const buildConsoleTimestamp = () =>
+  new Date().toLocaleTimeString('zh-CN', {
     hour12: false,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   });
-  consoleLines.value = [...consoleLines.value, `[${stamp}] ${message}`].slice(-MAX_CONSOLE_LINES);
+
+const normalizeConsoleLevel = (value: unknown): EditorConsoleLevel => {
+  const level = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (level === 'error') {
+    return 'error';
+  }
+  if (level === 'warn' || level === 'warning') {
+    return 'warning';
+  }
+  if (level === 'debug' || level === 'trace') {
+    return 'debug';
+  }
+  return 'info';
+};
+
+const appendConsoleLine = (
+  message: string,
+  level: EditorConsoleLevel = 'info',
+  time = buildConsoleTimestamp(),
+) => {
+  consoleEntries.value = [...consoleEntries.value, { time, message, level }].slice(-MAX_CONSOLE_LINES);
 };
 
 const clearConsole = () => {
-  consoleLines.value = [];
+  consoleEntries.value = [];
+};
+
+const showConsole = () => {
+  isConsoleVisible.value = true;
+};
+
+const hideConsole = () => {
+  isConsoleVisible.value = false;
 };
 
 const currentTask = computed<ScriptTaskTable | null>(() => {
@@ -2162,7 +2212,7 @@ const loadTextDetLabels = async (path: string) => {
   if (!trimmedPath) {
     textDetLabelOptions.value = [];
     textDetLabelHint.value = '当前脚本未设置文字检测模型的标签文件，请先在“编辑脚本信息 > 模型信息 > 文字检测”里配置标签路径。';
-    appendConsoleLine('文字检测标签文件未配置。');
+    appendConsoleLine('文字检测标签文件未配置。', 'warning');
     return;
   }
 
@@ -2181,7 +2231,7 @@ const loadTextDetLabels = async (path: string) => {
     console.error(error);
     textDetLabelOptions.value = [];
     textDetLabelHint.value = error instanceof Error ? `标签文件读取失败：${error.message}` : '标签文件读取失败，请检查路径和格式。';
-    appendConsoleLine(`文字检测标签加载失败：${error instanceof Error ? error.message : '未知错误'}`);
+    appendConsoleLine(`文字检测标签加载失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
   } finally {
     textDetLabelLoading.value = false;
   }
@@ -2255,7 +2305,7 @@ const savePreviewDevice = async (form: DeviceFormState) => {
     appendConsoleLine(`设备已保存：${device.data.deviceName}`);
     showToast('设备已保存', 'success');
   } catch (error) {
-    appendConsoleLine(`设备保存失败：${error instanceof Error ? error.message : '未知错误'}`);
+    appendConsoleLine(`设备保存失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
     showToast(error instanceof Error ? error.message : '设备保存失败', 'error');
   }
 };
@@ -2321,7 +2371,7 @@ const handleRunSelection = async () => {
   }
 
   if (selectedPreviewDeviceRuntimeError.value) {
-    appendConsoleLine(`运行前校验失败：${selectedPreviewDeviceRuntimeError.value}`);
+    appendConsoleLine(`运行前校验失败：${selectedPreviewDeviceRuntimeError.value}`, 'warning');
     showToast(selectedPreviewDeviceRuntimeError.value, 'warning');
     return;
   }
@@ -2339,17 +2389,17 @@ const handleRunSelection = async () => {
       draftTasks.value,
     );
     if (recoveryError) {
-      appendConsoleLine(`运行前校验失败：${recoveryError}`);
+      appendConsoleLine(`运行前校验失败：${recoveryError}`, 'warning');
       showToast(recoveryError, 'warning');
       return;
     }
   }
 
   if (dirty.value) {
-    appendConsoleLine('运行前检测到未保存改动，先保存当前脚本结构。');
+    appendConsoleLine('运行前检测到未保存改动，先保存当前脚本结构。', 'warning');
     await saveEditor();
     if (dirty.value) {
-      appendConsoleLine('运行已取消：脚本草稿仍未保存。');
+      appendConsoleLine('运行已取消：脚本草稿仍未保存。', 'warning');
       return;
     }
   }
@@ -2364,8 +2414,8 @@ const handleRunSelection = async () => {
     appendConsoleLine(result);
     showToast('运行命令已发送', 'success');
   } catch (error) {
-    const message = error instanceof Error ? error.message : '运行命令发送失败';
-    appendConsoleLine(`运行失败：${message}`);
+    const message = toErrorText(error).trim() || '运行命令发送失败';
+    appendConsoleLine(`运行失败：${message}`, 'error');
     showToast(message, 'error');
   }
 };
@@ -3096,7 +3146,7 @@ const saveEditor = async () => {
   } catch (error) {
     let msg =  `脚本保存失败,${error instanceof Error ? error.message : '未知错误: 任务+策略(+组+集合):'+taskPoliciesGroupSet+",关联关系:"+policiesRelationship+",脚本信息:"+scriptFlag}`;
     showToast(msg, 'error',5000);
-    appendConsoleLine(msg);
+    appendConsoleLine(msg, 'error');
     console.log(error);
   } finally {
     isSaving.value = false;
@@ -3171,7 +3221,7 @@ const loadEditor = async () => {
   } catch (error) {
     console.error(error);
     loadError.value = error instanceof Error ? error.message : '脚本编辑器初始化失败';
-    appendConsoleLine(`编辑器载入失败：${loadError.value}`);
+    appendConsoleLine(`编辑器载入失败：${loadError.value}`, 'error');
   } finally {
     isLoading.value = false;
   }
@@ -3530,8 +3580,9 @@ onMounted(() => {
     if (!selectedPreviewDeviceId.value || payload.deviceId !== selectedPreviewDeviceId.value) {
       return;
     }
-    const level = typeof payload.level === 'string' ? payload.level : 'INFO';
-    appendConsoleLine(`[child:${level}] ${payload.message}`);
+    const rawLevel = typeof payload.level === 'string' ? payload.level : 'Info';
+    const time = typeof payload.time === 'string' ? payload.time : buildConsoleTimestamp();
+    appendConsoleLine(`[child:${rawLevel}] ${payload.message}`, normalizeConsoleLevel(rawLevel), time);
   }).then((unlisten) => {
     detachChildLogListener = unlisten;
   });
@@ -3600,6 +3651,10 @@ onBeforeUnmount(() => {
 :deep(.script-editor-titlebar .editor-window-titlebar__window-button) {
   width: 2.25rem;
   min-height: 2rem;
+}
+
+:deep(.script-editor-titlebar .editor-window-titlebar__window-controls) {
+  margin-left: 1rem;
 }
 
 :deep(.script-editor-titlebar .app-select) {

@@ -1,8 +1,7 @@
 <template>
   <div class="space-y-3">
-    <div class="editor-inline-grid">
-      <div class="editor-inline-label">最大执行次数</div>
-      <div class="editor-inline-content">
+    <EditorOverviewSection title="动作配置">
+      <EditorOverviewField label="执行次数" width="compact">
         <input
           :value="String(actionExecMax)"
           class="app-input"
@@ -10,13 +9,10 @@
           min="0"
           data-testid="editor-action-exec-max"
           @input="$emit('update-exec-max', ($event.target as HTMLInputElement).value)"
+          placeholder="0表示无限次"
         />
-      </div>
-      <div class="editor-inline-label">说明</div>
-      <div class="editor-inline-content text-sm text-(--app-text-soft)">
-        `0` 表示无限次。
-      </div>
-    </div>
+      </EditorOverviewField>
+    </EditorOverviewSection>
 
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
@@ -445,6 +441,8 @@ import type { Action } from '@/types/bindings/Action';
 import { ACTION_MODE, ACTION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import type { EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
 import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import EditorOverviewSection from '../EditorOverviewSection.vue';
+import EditorOverviewField from '../EditorOverviewField.vue';
 
 defineOptions({ name: 'EditorStepActionPanel' });
 

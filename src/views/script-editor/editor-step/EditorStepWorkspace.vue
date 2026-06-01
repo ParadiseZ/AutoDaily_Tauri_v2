@@ -33,8 +33,8 @@
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         <div v-if="selectedStep" class="space-y-4">
           <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] xl:items-start">
-              <div class="min-w-0">
+            <div class="grid gap-4">
+              <!-- <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ describeStep(selectedStep) }}</p>
                   <span class="rounded-full bg-white/50 px-3 py-1 text-xs text-(--app-text-soft)">{{ selectedStep.op }}</span>
@@ -42,10 +42,10 @@
                 <p v-if="describeStepMeta(selectedStep) !== describeStep(selectedStep)" class="mt-2 text-xs text-(--app-text-faint)">
                   {{ describeStepMeta(selectedStep) }}
                 </p>
-              </div>
+              </div> -->
 
               <label class="space-y-2">
-                <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">步骤标题</span>
+                <span class="text-xs font-medium tracking-[0.12em] text-(--app-text-faint)">步骤标题</span>
                 <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
               </label>
             </div>
@@ -270,7 +270,8 @@ import {
   TASK_CONTROL_TYPE,
   VISION_TYPE,
 } from '@/views/script-editor/editor-step/editorStepKinds';
-import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
+//import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
+import { describeStep } from '@/views/script-editor/editor-step/editorStepTemplates';
 import {
   buildVarValue,
   parseVarValueDraft,

@@ -4,9 +4,9 @@
       <slot name="prefix" />
     </div>
 
-    <div class="editor-window-titlebar__drag" data-tauri-drag-region @mousedown.left.prevent="handleStartDragging">
+    <div class="editor-window-titlebar__drag" @mousedown.left.prevent="handleStartDragging">
       <div class="space-y-1">
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="editor-window-titlebar__title-row">
           <h6 class="editor-window-titlebar__title">
             {{ title }}
           </h6>
@@ -17,6 +17,13 @@
           >
             {{ statusLabel }}
           </span>
+          <div
+            v-if="$slots['status-actions']"
+            class="editor-window-titlebar__status-actions"
+            @mousedown.stop
+          >
+            <slot name="status-actions" />
+          </div>
         </div>
       </div>
     </div>
@@ -191,6 +198,14 @@ onBeforeUnmount(() => {
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1;
+}
+
+.editor-window-titlebar__title-row,
+.editor-window-titlebar__status-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .editor-window-titlebar__window-controls {

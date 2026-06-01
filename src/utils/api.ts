@@ -55,7 +55,7 @@ export const isAuthFailure = (message: string | undefined | null) =>
 
 const isBackendCommand = (cmd: string) => cmd.startsWith('backend_');
 
-const toErrorText = (error: unknown) => {
+export const toErrorText = (error: unknown) => {
     if (typeof error === 'string') {
         return error;
     }

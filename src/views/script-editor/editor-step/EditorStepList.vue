@@ -49,11 +49,11 @@
 
         <button
           v-if="allowRemove"
-          class="app-button app-button-danger app-toolbar-button shrink-0"
+          class="app-icon-button app-crash-icon app-icon-button-sec"
           type="button"
           @click.stop="$emit('remove', index)"
         >
-          删除
+          <Trash2 class="h-4 w-4" />
         </button>
       </div>
     </article>
@@ -66,6 +66,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import type { Step } from '@/types/bindings/Step';
 import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
 import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import { Trash2 } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
   steps: Step[];

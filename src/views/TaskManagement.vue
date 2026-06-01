@@ -99,6 +99,7 @@ import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
 import { formatStatusLabel, formatStatusTone, formatTemplateWindow } from '@/utils/presenters';
+import { toErrorText } from '@/utils/api';
 import { showToast } from '@/utils/toast';
 import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
 import type { AssignmentRecord, RunTarget } from '@/types/app/domain';
@@ -333,7 +334,7 @@ const handleRunTarget = async (deviceId: string, target: RunTarget) => {
     const result = await runtimeService.runScriptTarget(deviceId, target);
     showToast(result, 'success');
   } catch (error) {
-    showToast(error instanceof Error ? error.message : '临时运行失败', 'error');
+    showToast(toErrorText(error).trim() || '临时运行失败', 'error');
   }
 };
 

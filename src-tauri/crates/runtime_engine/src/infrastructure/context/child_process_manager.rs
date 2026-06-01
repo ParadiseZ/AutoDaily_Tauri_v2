@@ -1,3 +1,5 @@
+use crate::constant::project::MAIN_WINDOW;
+use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
@@ -5,8 +7,12 @@ use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
 };
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::logging::LogLevel;
 use std::collections::HashMap;
+use std::process::Stdio;
 use std::sync::Arc;
+use tauri::{Emitter, Manager};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::RwLock;
 
@@ -40,6 +46,49 @@ pub fn get_process_manager() -> Option<Arc<ChildProcessManager>> {
     PROCESS_MANAGER.get().cloned()
 }
 
+fn spawn_child_stderr_forwarder(
+    device_id: DeviceId,
+    device_name: String,
+    stderr: tokio::process::ChildStderr,
+) {
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        loop {
+            match lines.next_line().await {
+                Ok(Some(line)) => {
+                    let message = line.trim();
+                    if message.is_empty() {
+                        continue;
+                    }
+
+                    Log::error(&format!(
+                        "[ process ] 设备[{}]子进程 stderr: {}",
+                        device_name, message
+                    ));
+
+                    if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
+                        let emit_data = serde_json::json!({
+                            "deviceId": device_id.to_string(),
+                            "level": LogLevel::Error.to_string(),
+                            "message": message,
+                            "time": chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+                        });
+                        let _ = main_window.emit("child-log", emit_data);
+                    }
+                }
+                Ok(None) => break,
+                Err(error) => {
+                    Log::warn(&format!(
+                        "[ process ] 读取设备[{}]子进程 stderr 失败: {}",
+                        device_name, error
+                    ));
+                    break;
+                }
+            }
+        }
+    });
+}
+
 impl ChildProcessManager {
     /// 启动一个子进程
     pub async fn spawn_child(&self, init_data: ChildProcessInitData) -> Result<(), String> {
@@ -65,12 +114,17 @@ impl ChildProcessManager {
             std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
 
         // 启动子进程
-        let child = Command::new(&exe_path)
+        let mut child = Command::new(&exe_path)
             .arg("--child")
             .env("CHILD_CONTEXT_DATA", &init_json)
+            .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
             .map_err(|e| format!("启动子进程失败: {}", e))?;
+
+        if let Some(stderr) = child.stderr.take() {
+            spawn_child_stderr_forwarder(device_id, device_name.clone(), stderr);
+        }
 
         let pid = child.id();
         Log::info(&format!(
