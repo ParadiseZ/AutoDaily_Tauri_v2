@@ -320,6 +320,10 @@ impl ADBExecutor {
                     cmd_string.push_str(&stop_app_cmd(pkg_name));
                     cmd_string.push_str(" &&");
                 }
+                ADBCommand::StartActivity(package_name, activity_name) => {
+                    cmd_string.push_str(&format!("am start -n {}/{}", package_name, activity_name));
+                    cmd_string.push_str(" &&");
+                }
                 ADBCommand::InputText(text) => {
                     cmd_string.push_str(&input_text_cmd(text));
                     cmd_string.push_str(" &&");
@@ -368,7 +372,7 @@ impl ADBExecutor {
                 };
             }
             ADBCmdConv::ADBSleepCommand(ADBCommand::Duration(interval)) => {
-                tokio::time::sleep(Duration::from_secs(*interval)).await;
+                tokio::time::sleep(Duration::from_millis(*interval)).await;
             }
             _ => { /* Ok(ADBCommandResult::Success) */ }
         }

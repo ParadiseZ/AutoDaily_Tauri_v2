@@ -50,7 +50,7 @@ const emit = defineEmits<{
 
 const branchLabelMap: Record<StepBranchKind, string> = {
   root: '顶层步骤',
-  sequence: '顺序步骤',
+  sequence: '动作序列',
   then: 'Then',
   else: 'Else',
   flow: '循环体',

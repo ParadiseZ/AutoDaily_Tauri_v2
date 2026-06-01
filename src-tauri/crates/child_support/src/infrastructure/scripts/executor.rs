@@ -32,6 +32,8 @@ use crate::infrastructure::core::{
     AccountId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScheduleId,
     ScriptId, ScriptTemplateValueId, StepId, TaskId, TemplateId,
 };
+use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
+use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;
 use crate::infrastructure::db::get_pool;
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
@@ -275,6 +277,10 @@ impl ScriptExecutor {
     }
 
     async fn execute_sequence(&mut self, steps: &[Step]) -> ExecuteResult<ControlFlow> {
+        if let Some(flow) = self.try_execute_action_sequence(steps).await? {
+            return Ok(flow);
+        }
+
         for step in steps {
             let flow = self.execute_step(step).await?;
             if !matches!(flow, ControlFlow::Next) {

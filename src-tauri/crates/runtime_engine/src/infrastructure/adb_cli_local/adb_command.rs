@@ -14,8 +14,14 @@ pub const TOUCH_SCREEN: &str = "input touchscreen swipe";
 pub const STOP_APP: &str = "am force-stop";
 pub const COMMAND_WRITE_ERROR_MSG: &str = "ADB命令写入缓冲区数据失败！";
 
-pub fn sleep_cmd(interval: u64) -> String {
-    format!("sleep {}", interval)
+pub fn sleep_cmd(interval_ms: u64) -> String {
+    let seconds = interval_ms / 1000;
+    let millis = interval_ms % 1000;
+    if millis == 0 {
+        format!("sleep {}", seconds)
+    } else {
+        format!("sleep {}.{:03}", seconds, millis)
+    }
 }
 
 pub fn click_cmd(p: &Point<u16>) -> String {
@@ -154,4 +160,17 @@ pub enum ADBCommandResult {
     Failed(String),
     Output(Vec<u8>),
     Image(RgbaImage),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sleep_cmd;
+
+    #[test]
+    fn sleep_cmd_formats_milliseconds() {
+        assert_eq!(sleep_cmd(0), "sleep 0");
+        assert_eq!(sleep_cmd(150), "sleep 0.150");
+        assert_eq!(sleep_cmd(1000), "sleep 1");
+        assert_eq!(sleep_cmd(1250), "sleep 1.250");
+    }
 }

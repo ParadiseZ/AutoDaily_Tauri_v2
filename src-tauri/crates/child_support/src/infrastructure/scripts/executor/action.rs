@@ -88,6 +88,144 @@ impl ScriptExecutor {
             .await
     }
 
+    async fn try_execute_action_sequence(
+        &mut self,
+        steps: &[Step],
+    ) -> ExecuteResult<Option<ControlFlow>> {
+        let Some(commands) = self.compile_action_sequence(steps).await? else {
+            return Ok(None);
+        };
+
+        if commands.is_empty() {
+            return Ok(Some(ControlFlow::Next));
+        }
+
+        if let Some(timeout_flow) = self
+            .record_progress_evidence(
+                "sequence.prepare",
+                format!("准备执行动作序列，共 {} 条设备命令", commands.len()),
+            )
+            .await?
+        {
+            return Ok(Some(timeout_flow));
+        }
+
+        get_adb_ctx().send_adb_cmd(&ADBCommand::Sequence(commands));
+        Ok(Some(ControlFlow::Next))
+    }
+
+    async fn compile_action_sequence(
+        &mut self,
+        steps: &[Step],
+    ) -> ExecuteResult<Option<Vec<ADBCommand>>> {
+        let mut commands = Vec::new();
+        for step in steps {
+            if step.skip_flag {
+                continue;
+            }
+
+            let Some(mut next_commands) = self.compile_action_sequence_step(step).await? else {
+                return Ok(None);
+            };
+            commands.append(&mut next_commands);
+        }
+        Ok(Some(commands))
+    }
+
+    async fn compile_action_sequence_step(
+        &mut self,
+        step: &Step,
+    ) -> ExecuteResult<Option<Vec<ADBCommand>>> {
+        match &step.kind {
+            StepKind::Action { exec_max, a } => {
+                if *exec_max > 0 {
+                    return Ok(None);
+                }
+                Ok(self
+                    .compile_action_sequence_action(a)
+                    .await?
+                    .map(|command| vec![command]))
+            }
+            StepKind::FlowControl {
+                a: FlowControl::WaitMs { ms },
+            } => {
+                if *ms == 0 {
+                    return Ok(Some(Vec::new()));
+                }
+                Ok(Some(vec![ADBCommand::Duration(*ms)]))
+            }
+            _ => Ok(None),
+        }
+    }
+
+    async fn compile_action_sequence_action(
+        &mut self,
+        action: &Action,
+    ) -> ExecuteResult<Option<ADBCommand>> {
+        match action {
+            Action::Click { mode } => self.compile_action_sequence_click(mode).await,
+            Action::Swipe { duration, mode } => {
+                self.compile_action_sequence_swipe(mode, *duration).await
+            }
+            Action::Back => Ok(Some(ADBCommand::Back)),
+            Action::LaunchApp {
+                pkg_name,
+                activity_name,
+            } => {
+                if pkg_name.trim().is_empty() || activity_name.trim().is_empty() {
+                    return Err(Self::execute_error(
+                        "sequence.launchApp",
+                        "LaunchApp 需要同时提供 pkg_name 和 activity_name".to_string(),
+                    ));
+                }
+                Ok(Some(ADBCommand::StartActivity(
+                    pkg_name.clone(),
+                    activity_name.clone(),
+                )))
+            }
+            Action::StopApp { pkg_name } => Ok(Some(ADBCommand::StopApp(pkg_name.clone()))),
+            _ => Ok(None),
+        }
+    }
+
+    async fn compile_action_sequence_click(
+        &mut self,
+        mode: &ClickMode,
+    ) -> ExecuteResult<Option<ADBCommand>> {
+        let point = match mode {
+            ClickMode::Point { p } => Self::point_to_absolute(p),
+            ClickMode::Percent { p } => {
+                let screen_size = self.ensure_screen_size().await?;
+                Self::percent_point_to_absolute(p, screen_size)?
+            }
+            ClickMode::Txt { .. } | ClickMode::LabelIdx { .. } => return Ok(None),
+        };
+        Ok(Some(ADBCommand::Click(
+            self.apply_click_random_offset(point).await?,
+        )))
+    }
+
+    async fn compile_action_sequence_swipe(
+        &mut self,
+        mode: &SwipeMode,
+        duration: u64,
+    ) -> ExecuteResult<Option<ADBCommand>> {
+        let (from, to) = match mode {
+            SwipeMode::Point { from, to } => {
+                (Self::point_to_absolute(from), Self::point_to_absolute(to))
+            }
+            SwipeMode::Percent { from, to } => {
+                let screen_size = self.ensure_screen_size().await?;
+                (
+                    Self::percent_point_to_absolute(from, screen_size)?,
+                    Self::percent_point_to_absolute(to, screen_size)?,
+                )
+            }
+            SwipeMode::Txt { .. } | SwipeMode::LabelIdx { .. } => return Ok(None),
+        };
+        Ok(Some(ADBCommand::SwipeWithDuration(from, to, duration)))
+    }
+
     async fn dispatch_action(
         &mut self,
         action: &Action,

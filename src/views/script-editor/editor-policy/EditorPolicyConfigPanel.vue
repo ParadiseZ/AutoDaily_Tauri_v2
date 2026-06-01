@@ -106,14 +106,18 @@ import { computed } from 'vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import { policyPanelTabs, type PolicyEditorPanelId } from '@/views/script-editor/editor-policy/editorPolicy';
-import { editorStepTemplates } from '@/views/script-editor/editor-step/editorStepTemplates';
+import {
+  editorStepTemplates,
+  isActionSequenceTemplateId,
+} from '@/views/script-editor/editor-step/editorStepTemplates';
 
-defineProps<{
+const props = defineProps<{
   policy: PolicyTable | null;
   activePanel: PolicyEditorPanelId;
   policyName: string;
   policyNote: string;
   policyLogPrint: string | null;
+  restrictSequenceTemplates?: boolean;
 }>();
 
 defineEmits<{
@@ -129,12 +133,15 @@ defineEmits<{
 const templateGroups = computed(() => {
   const grouped = new Map<string, typeof editorStepTemplates>();
   for (const template of editorStepTemplates) {
+    if (props.restrictSequenceTemplates && !isActionSequenceTemplateId(template.id)) {
+      continue;
+    }
     const bucket = grouped.get(template.group) ?? [];
     bucket.push(template);
     grouped.set(template.group, bucket);
   }
 
-  const groupOrder = ['动作', '流程', '数据', '视觉', '状态', '容器', '兼容'];
+  const groupOrder = props.restrictSequenceTemplates ? ['动作', '流程'] : ['动作', '流程', '数据', '视觉', '状态', '容器', '兼容'];
   return Array.from(grouped.entries())
     .sort(([left], [right]) => {
       const leftIndex = groupOrder.indexOf(left);

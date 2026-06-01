@@ -1165,13 +1165,13 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
   });
 });
 
-test('persists sequence, vision rule, and task state forms', async ({ page }) => {
+test('persists action sequence, vision rule, and task state forms', async ({ page }) => {
   const scriptId = 'script-editor-leaf-forms';
   const script: StoredScriptTable = {
     id: scriptId,
     data: {
       name: '叶子表单脚本',
-      description: '验证 sequence、vision、taskControl 表单保存',
+      description: '验证动作序列、vision、taskControl 表单保存',
       userId: 'tester',
       userName: 'Tester',
       runtimeType: 'rhai',
@@ -1244,6 +1244,12 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
 
   await page.getByTestId('editor-step-template-sequence').click();
   await page.getByTestId('editor-step-card-0').click();
+  await page.getByTestId('editor-branch-sequence').click();
+  await expect(page.getByTestId('editor-step-template-click-point')).toBeVisible();
+  await expect(page.getByTestId('editor-step-template-vision-search')).toHaveCount(0);
+  await page.getByTestId('editor-step-template-click-point').click();
+  await page.getByTestId('editor-step-template-wait').click();
+  await page.getByRole('button', { name: '顶层步骤' }).click();
 
   await page.getByTestId('editor-step-template-vision-search').click();
   await page.getByTestId('editor-step-card-1').click();
@@ -1280,6 +1286,22 @@ test('persists sequence, vision rule, and task state forms', async ({ page }) =>
   const [task] = state!.scriptTasks[scriptId];
   expect(task.data.steps[0]).toMatchObject({
     op: 'sequence',
+    steps: [
+      {
+        op: 'action',
+        a: {
+          ac: 'click',
+          mode: 'point',
+        },
+      },
+      {
+        op: 'flowControl',
+        a: {
+          type: 'waitMs',
+          ms: 1000,
+        },
+      },
+    ],
   });
   expect(task.data.steps[1]).toMatchObject({
     op: 'vision',

@@ -193,7 +193,10 @@ import type { TaskRowType } from '@/types/bindings/TaskRowType';
 import type { TaskTone } from '@/types/bindings/TaskTone';
 import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
-import { editorStepTemplates } from '@/views/script-editor/editor-step/editorStepTemplates';
+import {
+  editorStepTemplates,
+  isActionSequenceTemplateId,
+} from '@/views/script-editor/editor-step/editorStepTemplates';
 import { getUiControlLabel, uiFieldTemplates } from '@/views/script-editor/editorSchema';
 import type { EditorPanelId, EditorUiSchema, UiFieldControl } from '@/views/script-editor/editorSchema';
 import { taskRowTypeOptions } from '@/views/script-editor/editorTaskMeta';
@@ -222,6 +225,7 @@ const props = defineProps<{
   uiSchema: EditorUiSchema;
   selectedInputId: string | null;
   selectedUiFieldId: string | null;
+  restrictSequenceTemplates?: boolean;
 }>();
 
 defineEmits<{
@@ -271,12 +275,15 @@ const getScopeLabel = (scope: EditorInputEntry['namespace']) => {
 const templateGroups = computed(() => {
   const grouped = new Map<string, typeof editorStepTemplates>();
   for (const template of editorStepTemplates) {
+    if (props.restrictSequenceTemplates && !isActionSequenceTemplateId(template.id)) {
+      continue;
+    }
     const bucket = grouped.get(template.group) ?? [];
     bucket.push(template);
     grouped.set(template.group, bucket);
   }
 
-  const groupOrder = ['动作', '流程', '数据', '视觉', '状态', '容器', '兼容'];
+  const groupOrder = props.restrictSequenceTemplates ? ['动作', '流程'] : ['动作', '流程', '数据', '视觉', '状态', '容器', '兼容'];
 
   return Array.from(grouped.entries())
     .sort(([left], [right]) => {

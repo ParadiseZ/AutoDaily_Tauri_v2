@@ -34,6 +34,20 @@ export interface EditorStepTemplate {
   create: () => Step;
 }
 
+export const ACTION_SEQUENCE_TEMPLATE_IDS = [
+  'launch-app',
+  'stop-app',
+  'click-point',
+  'click-percent',
+  'swipe-point',
+  'swipe-percent',
+  'back',
+  'wait',
+] as const;
+
+export const isActionSequenceTemplateId = (templateId: string) =>
+  ACTION_SEQUENCE_TEMPLATE_IDS.includes(templateId as (typeof ACTION_SEQUENCE_TEMPLATE_IDS)[number]);
+
 const castStep = (value: unknown) => value as Step;
 
 const createBaseStep = (partial: Record<string, unknown>) =>
@@ -667,12 +681,12 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'sequence',
     icon: genSvg(SVG_ICONS.sequence),
-    label: '子序列',
-    description: '在当前任务内嵌套一段顺序步骤。',
+    label: '动作序列',
+    description: '将一组设备动作与显式等待合并为紧凑执行序列。',
     group: '容器',
     create: () =>
       createBaseStep({
-        label: '子序列',
+        label: '动作序列',
         op: STEP_OP.sequence,
         steps: createStepList(),
       }),
@@ -684,7 +698,7 @@ export const createStepFromTemplate = (templateId: string) =>
 
 export const describeStepTitle = (step: Step) => {
   if (step.op === STEP_OP.sequence) {
-    return '顺序步骤';
+    return '动作序列';
   }
 
   if (step.op === STEP_OP.action) {
@@ -749,7 +763,7 @@ export const describeStepTitle = (step: Step) => {
 
 export const describeStepMeta = (step: Step) => {
   if (step.op === STEP_OP.sequence) {
-    return `顺序容器 · ${step.steps.length} 个子步骤`;
+    return `动作序列 · ${step.steps.length} 个子步骤`;
   }
 
   if (step.op === STEP_OP.action) {

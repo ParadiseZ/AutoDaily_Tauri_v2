@@ -211,6 +211,30 @@
                 @navigate-branch="$emit('navigate-branch', $event)"
               />
 
+              <div
+                v-else-if="selectedStep.op === STEP_OP.sequence && sequenceBranchTarget"
+                class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4"
+              >
+                <div class="space-y-2">
+                  <p class="text-sm font-semibold text-(--app-text-strong)">动作序列</p>
+                  <p class="text-sm leading-6 text-(--app-text-soft)">
+                    这里只用于收拢设备动作与显式等待。运行时会优先尝试合并为单条 ADB sequence，以减少多次下发带来的耗时。
+                  </p>
+                </div>
+                <div class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
+                  允许的子步骤：启动应用、停止应用、固定坐标点击/滑动、百分比点击/滑动、返回、等待。
+                </div>
+                <button
+                  class="app-button app-button-primary app-toolbar-button"
+                  type="button"
+                  data-testid="editor-branch-sequence"
+                  @click="$emit('navigate-branch', sequenceBranchTarget.path)"
+                >
+                  编辑序列步骤
+                  <span class="text-xs text-white/80">{{ sequenceBranchTarget.count }}</span>
+                </button>
+              </div>
+
               <p v-else class="text-sm leading-6 text-(--app-text-soft)">
                 当前步骤暂未提供专用表单，必要时可从右上角打开底层结构调试。
               </p>
@@ -661,7 +685,7 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
   if (!selectedStep.value || !props.selectedStepPath) return [];
 
   if (selectedStep.value.op === STEP_OP.sequence) {
-    return [{ key: 'sequence', label: '顺序步骤', count: selectedStep.value.steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'sequence' } }];
+    return [{ key: 'sequence', label: '动作序列', count: selectedStep.value.steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'sequence' } }];
   }
 
   if (selectedFlow.value?.type === FLOW_TYPE.if) {
@@ -688,6 +712,7 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
 
   return [];
 });
+const sequenceBranchTarget = computed(() => branchTargets.value.find((target) => target.key === 'sequence') ?? null);
 const visionBranchTarget = computed(() => branchTargets.value.find((target) => target.key === 'visionThen') ?? null);
 const filterBranchTarget = computed(() => branchTargets.value.find((target) => target.key === 'filterThen') ?? null);
 const flowBranchTargets = computed(() =>

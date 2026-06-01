@@ -208,6 +208,7 @@
                 :ui-schema="uiSchema"
                 :selected-input-id="selectedInputId"
                 :selected-ui-field-id="selectedUiFieldId"
+                :restrict-sequence-templates="activeBranchPath.branch === 'sequence'"
                 @update:active-panel="activePanel = $event"
                 @update:task-name="taskName = $event"
                 @update:task-row-type="taskRowType = $event"
@@ -244,6 +245,7 @@
                 :policy-name="currentPolicy?.data.name || ''"
                 :policy-note="currentPolicy?.data.note || ''"
                 :policy-log-print="currentPolicy?.data.logPrint ?? null"
+                :restrict-sequence-templates="activePolicyBranchPath.branch === 'sequence'"
                 @update:active-panel="activePolicyPanel = $event"
                 @update:policy-name="updatePolicyTextField('name', $event)"
                 @update:policy-note="updatePolicyTextField('note', $event)"
@@ -516,7 +518,10 @@ import {
   type PolicyEditorPanelId,
   type RelationEditorPanelId,
 } from '@/views/script-editor/editor-policy/editorPolicy';
-import { createStepFromTemplate } from '@/views/script-editor/editor-step/editorStepTemplates';
+import {
+  createStepFromTemplate,
+  isActionSequenceTemplateId,
+} from '@/views/script-editor/editor-step/editorStepTemplates';
 import {
   createStepList,
   TASK_CYCLE_VALUE,
@@ -2775,7 +2780,14 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
   return nextStep;
 };
 
+const actionSequenceTemplateBlockedMessage = '动作序列里只允许固定设备动作和显式等待。';
+
 const appendTemplateStep = async (templateId: string) => {
+  if (activeBranchPath.value.branch === 'sequence' && !isActionSequenceTemplateId(templateId)) {
+    showToast(actionSequenceTemplateBlockedMessage, 'warning');
+    return;
+  }
+
   const templateStep = createStepFromTemplate(templateId);
   const step = templateStep ? await bindTemplateVariableDefaults(templateId, templateStep) : null;
   if (!step) {
@@ -2841,6 +2853,11 @@ const updateStep = (index: number, nextStep: Step) => {
 };
 
 const appendPolicyTemplateStep = (templateId: string) => {
+  if (activePolicyBranchPath.value.branch === 'sequence' && !isActionSequenceTemplateId(templateId)) {
+    showToast(actionSequenceTemplateBlockedMessage, 'warning');
+    return;
+  }
+
   const step = createStepFromTemplate(templateId);
   if (!step) {
     return;
