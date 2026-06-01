@@ -157,6 +157,15 @@ fn handle_runtime_event(
                 });
                 let _ = main_window.emit("device-schedule", emit_data);
             }
+            RuntimeEventMessage::Connection(connection) => {
+                let emit_data = serde_json::json!({
+                    "deviceId": device_id.to_string(),
+                    "status": format!("{:?}", connection.status),
+                    "message": connection.message,
+                    "at": connection.at,
+                });
+                let _ = main_window.emit("device-connection-status", emit_data);
+            }
         }
     }
 }

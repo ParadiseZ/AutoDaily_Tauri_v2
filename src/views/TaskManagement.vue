@@ -43,6 +43,7 @@
         v-if="activeDevice"
         :device="activeDevice"
         :status="deviceStore.getDeviceStatus(activeDevice.id)"
+        :connection-status="deviceStore.getDeviceConnectionStatus(activeDevice.id)"
         :scripts="scriptStore.sortedScripts"
         :time-templates="taskStore.timeTemplates"
         :assignments="taskStore.assignmentsByDevice[activeDevice.id] ?? []"
@@ -85,7 +86,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
@@ -132,6 +133,11 @@ const bulkActionLabel = computed(() => {
 });
 const activeDevice = computed(() =>
   orderedDevices.value.find((device) => device.id === deviceStore.selectedDeviceId) ?? orderedDevices.value[0] ?? null,
+);
+const probeCandidateIds = computed(() =>
+  orderedDevices.value
+    .filter((device) => device.data.enable && deviceStore.onlineDeviceIds.includes(device.id))
+    .map((device) => device.id),
 );
 const assignmentSettingsOpen = ref(false);
 const assignmentSettingsScriptId = ref<string | null>(null);
@@ -385,6 +391,17 @@ const handleStartAllDevices = async () => {
 onMounted(async () => {
   await loadPageData();
 });
+
+watch(
+  () => probeCandidateIds.value.join(','),
+  (signature) => {
+    if (!signature) {
+      return;
+    }
+    void deviceStore.probeEnabledDeviceConnections(probeCandidateIds.value);
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>

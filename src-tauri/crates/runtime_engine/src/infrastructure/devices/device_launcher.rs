@@ -77,7 +77,7 @@ async fn try_connect_with_retry(
             attempt, max_retries
         ));
 
-        match probe_connection(adb_connect) {
+        match probe_device_connection(adb_connect) {
             Ok(_) => {
                 Log::info("[ launcher ] 设备连接成功！");
                 return Ok(());
@@ -101,7 +101,7 @@ async fn try_connect_with_retry(
 }
 
 /// 探测设备连接（同步，一次性尝试连接并验证）
-fn probe_connection(adb_connect: &ADBConnectConfig) -> Result<(), String> {
+pub fn probe_device_connection(adb_connect: &ADBConnectConfig) -> Result<(), String> {
     match adb_connect {
         ADBConnectConfig::ServerConnectByName(dev) => {
             if !dev.valid() {

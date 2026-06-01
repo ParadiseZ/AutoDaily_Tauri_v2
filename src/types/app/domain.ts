@@ -20,6 +20,7 @@ export type DefaultRoute = '/' | '/tasks' | '/devices' | '/scripts' | '/market' 
 export type StartMode = 'normal' | 'minimized' | 'tray';
 export type IdleAction = 'none' | 'shutdown' | 'sleep' | 'hibernate';
 export type DeviceStatusKind = 'idle' | 'running' | 'paused' | 'stopped' | 'error' | 'unknown';
+export type DeviceConnectionKind = 'unknown' | 'checking' | 'connected' | 'disconnected';
 
 export interface ShortCutConfig {
     toggleWindow: string;
@@ -187,6 +188,12 @@ export interface DeviceStatusEvent {
     status: string;
     currentScript?: string | null;
     message?: string | null;
+}
+
+export interface DeviceConnectionStatus {
+    kind: DeviceConnectionKind;
+    message?: string | null;
+    at?: string | null;
 }
 
 export interface RuntimeLifecycleEvent {

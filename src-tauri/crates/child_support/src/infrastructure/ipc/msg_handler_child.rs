@@ -1,18 +1,22 @@
 use crate::infrastructure::context::child_process_sec::{
     get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
+use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
-    ConfigUpdateMessage, ConfigUpdateType, IpcMessage, MessagePayload, ProcessAction,
-    ProcessControlMessage, RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus,
-    SessionControlMessage,
+    ConfigUpdateMessage, ConfigUpdateType, ConnectionAction, ConnectionControlMessage,
+    ConnectionStatusKind, IpcMessage, MessagePayload, ProcessAction, ProcessControlMessage,
+    RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus, SessionControlMessage,
 };
 use crate::infrastructure::ipc::runtime_reporter::{
-    emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event, emit_schedule_event,
+    emit_connection_event, emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event,
+    emit_schedule_event,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::session::runtime_session::{
     clear_runtime_session, replace_runtime_session,
 };
+use runtime_engine::domain::devices::device_conf::DevicePlatform;
+use runtime_engine::infrastructure::devices::device_launcher::probe_device_connection;
 use std::sync::atomic::Ordering;
 
 /// 子进程消息处理器
@@ -25,6 +29,9 @@ pub async fn handle_main_message(msg: IpcMessage) {
         MessagePayload::SessionControl(control) => {
             handle_session_control(control).await;
         }
+        MessagePayload::ConnectionControl(control) => {
+            handle_connection_control(control).await;
+        }
         MessagePayload::ConfigUpdate(config) => {
             handle_config_update(config);
         }
@@ -33,6 +40,45 @@ pub async fn handle_main_message(msg: IpcMessage) {
                 "[ child ] 收到未处理的消息类型: {:?}",
                 msg.message_type
             ));
+        }
+    }
+}
+
+async fn handle_connection_control(control: ConnectionControlMessage) {
+    match control.action {
+        ConnectionAction::Probe => {
+            Log::info("[ child ] 收到连接探测命令");
+            emit_connection_event(
+                ConnectionStatusKind::Checking,
+                Some("正在检查设备连接".to_string()),
+            );
+
+            let device_config = get_device_ctx().device_config.read().await.clone();
+            if matches!(device_config.platform, DevicePlatform::Desktop) {
+                emit_connection_event(
+                    ConnectionStatusKind::Connected,
+                    Some("Desktop 平台无需 ADB 连接".to_string()),
+                );
+                return;
+            }
+
+            let result = match device_config.adb_connect.as_ref() {
+                Some(adb_connect) => probe_device_connection(adb_connect),
+                None => Err("未配置设备连接信息".to_string()),
+            };
+
+            match result {
+                Ok(()) => {
+                    emit_connection_event(
+                        ConnectionStatusKind::Connected,
+                        Some("设备连接可用".to_string()),
+                    );
+                }
+                Err(error) => {
+                    Log::warn(&format!("[ child ] 设备连接探测失败: {}", error));
+                    emit_connection_event(ConnectionStatusKind::Disconnected, Some(error));
+                }
+            }
         }
     }
 }

@@ -989,6 +989,8 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             ),
           }));
           return '启动阶段已检查启用设备并拉起子进程';
+        case 'cmd_probe_device_connections':
+          return `已发起 ${(Array.isArray(args.deviceIds) ? args.deviceIds.length : 0)} 台设备连接探测`;
         case 'cmd_prepare_device_capture':
           updateState((current) => ({
             ...current,

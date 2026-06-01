@@ -7,6 +7,8 @@
           <span>·</span>
           <span>{{ formatConnectLabel(device.data.adbConnect, device.data.transportKind) }}</span>
           <span>·</span>
+          <span>{{ connectionStatusLabel }}</span>
+          <span>·</span>
           <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
           <span v-if="status.currentScript">· 正在执行 {{ status.currentScript }}</span>
         </div>
@@ -317,6 +319,7 @@ import StatusBadge from '@/components/shared/StatusBadge.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import type {
   AssignmentRecord,
+  DeviceConnectionStatus,
   DeviceRuntimeStatus,
   RuntimeProgressEvent,
   RuntimeResultProjection,
@@ -341,6 +344,7 @@ import {
 const props = defineProps<{
   device: DeviceTable;
   status: DeviceRuntimeStatus;
+  connectionStatus: DeviceConnectionStatus;
   scripts: ScriptTableRecord[];
   timeTemplates: TimeTemplate[];
   assignments: AssignmentRecord[];
@@ -472,6 +476,19 @@ const devicePendingMessage = computed(() => {
       return '正在关闭设备子进程...';
     default:
       return null;
+  }
+});
+
+const connectionStatusLabel = computed(() => {
+  switch (props.connectionStatus.kind) {
+    case 'connected':
+      return '连接正常';
+    case 'checking':
+      return '连接检查中';
+    case 'disconnected':
+      return '连接断开';
+    default:
+      return '待检测连接';
   }
 });
 

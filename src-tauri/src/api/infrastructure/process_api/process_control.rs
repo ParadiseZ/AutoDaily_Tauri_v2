@@ -10,8 +10,8 @@ use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
-    IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage, RunTarget,
-    SessionControlMessage,
+    ConnectionAction, ConnectionControlMessage, IpcMessage, MessagePayload, MessageType,
+    ProcessAction, ProcessControlMessage, RunTarget, SessionControlMessage,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use tauri::{command, Manager};
@@ -34,6 +34,15 @@ fn send_process_control(device_id: DeviceId, action: ProcessAction) {
     tauri::async_runtime::spawn(async move {
         IpcServer::send_to_client(&device_id, msg).await;
     });
+}
+
+async fn send_connection_control(device_id: DeviceId, action: ConnectionAction) {
+    let msg = IpcMessage::new(
+        device_id,
+        MessageType::Command,
+        MessagePayload::ConnectionControl(ConnectionControlMessage { action }),
+    );
+    IpcServer::send_to_client(&device_id, msg).await;
 }
 
 async fn wait_for_ipc_client(
@@ -233,6 +242,42 @@ pub async fn cmd_bootstrap_enabled_devices(
     );
     Log::info(&format!("[ process ] {}", summary));
     Ok(summary)
+}
+
+#[command]
+pub async fn cmd_probe_device_connections(
+    app_handle: tauri::AppHandle,
+    device_ids: Vec<DeviceId>,
+) -> Result<String, String> {
+    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
+    let mut queued = 0usize;
+    let mut skipped = 0usize;
+
+    for device_id in device_ids {
+        if !manager.is_running(&device_id).await {
+            skipped += 1;
+            continue;
+        }
+
+        match wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(2)).await {
+            Ok(()) => {
+                send_connection_control(device_id, ConnectionAction::Probe).await;
+                queued += 1;
+            }
+            Err(error) => {
+                skipped += 1;
+                Log::warn(&format!(
+                    "[ process ] 跳过设备[{}]连接探测：{}",
+                    device_id, error
+                ));
+            }
+        }
+    }
+
+    Ok(format!(
+        "已发起 {} 台设备连接探测，跳过 {} 台",
+        queued, skipped
+    ))
 }
 
 #[command]

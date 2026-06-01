@@ -48,6 +48,7 @@ pub enum MessagePayload {
     SocketRegistration(u32),
     ProcessControl(ProcessControlMessage),
     SessionControl(SessionControlMessage),
+    ConnectionControl(ConnectionControlMessage),
     RuntimeEvent(RuntimeEventMessage),
     ConfigUpdate(ConfigUpdateMessage),
     Logger(LogMessage),
@@ -67,6 +68,16 @@ pub enum ProcessAction {
     Stop,
     Pause,
     Shutdown,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct ConnectionControlMessage {
+    pub action: ConnectionAction,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub enum ConnectionAction {
+    Probe,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
@@ -261,10 +272,28 @@ pub struct RuntimeScheduleEvent {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub enum ConnectionStatusKind {
+    Unknown,
+    Checking,
+    Connected,
+    Disconnected,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionStatusEvent {
+    pub status: ConnectionStatusKind,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RuntimeEventMessage {
     Lifecycle(RuntimeLifecycleEvent),
     Progress(RuntimeProgressEvent),
     Schedule(RuntimeScheduleEvent),
+    Connection(ConnectionStatusEvent),
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]

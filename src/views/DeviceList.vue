@@ -41,9 +41,33 @@
               <div class="flex flex-wrap items-center gap-3">
                 <StatusBadge :label="device.data.enable ? '已启用' : '已停用'" :tone="device.data.enable ? 'success' : 'neutral'" />
                 <div class="flex items-center gap-1.5 rounded-full bg-(--app-panel-muted) px-2.5 py-1">
-                  <AppIcon type="custom" :name="deviceStore.isDeviceOnline(device.id) ? 'status-online' : 'status-offline'" :size="16" :color="deviceStore.isDeviceOnline(device.id) ? 'var(--app-vibrant-emerald)' : 'var(--app-text-faint)'" />
-                  <span class="text-xs font-semibold tracking-wide" :class="deviceStore.isDeviceOnline(device.id) ? 'text-(--app-vibrant-emerald)' : 'text-(--app-text-faint)'">
-                    {{ deviceStore.isDeviceOnline(device.id) ? '在线' : '离线' }}
+                  <AppIcon
+                    type="custom"
+                    :name="deviceStore.getDevicePresence(device.id).icon"
+                    :size="16"
+                    :color="
+                      deviceStore.getDevicePresence(device.id).tone === 'success'
+                        ? 'var(--app-vibrant-emerald)'
+                        : deviceStore.getDevicePresence(device.id).tone === 'danger'
+                          ? 'var(--app-danger)'
+                          : deviceStore.getDevicePresence(device.id).tone === 'warning'
+                            ? 'var(--app-warning)'
+                            : 'var(--app-text-faint)'
+                    "
+                  />
+                  <span
+                    class="text-xs font-semibold tracking-wide"
+                    :class="
+                      deviceStore.getDevicePresence(device.id).tone === 'success'
+                        ? 'text-(--app-vibrant-emerald)'
+                        : deviceStore.getDevicePresence(device.id).tone === 'danger'
+                          ? 'text-(--app-danger)'
+                          : deviceStore.getDevicePresence(device.id).tone === 'warning'
+                            ? 'text-(--app-warning)'
+                            : 'text-(--app-text-faint)'
+                    "
+                  >
+                    {{ deviceStore.getDevicePresence(device.id).label }}
                   </span>
                 </div>
               </div>
