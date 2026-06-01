@@ -94,6 +94,30 @@ export const useDeviceStore = defineStore('device', () => {
         await Promise.all([loadDevices(), refreshRunningDevices(), loadCpuCount()]);
     };
 
+    const bootstrapEnabledDeviceProcesses = async () => {
+        const pendingDeviceIds = devices.value
+            .filter((device) => device.data.enable && !onlineDeviceIds.value.includes(device.id))
+            .map((device) => device.id);
+
+        if (pendingDeviceIds.length === 0) {
+            return;
+        }
+
+        pendingDeviceIds.forEach((deviceId) => setDevicePendingAction(deviceId, 'spawning'));
+        try {
+            await deviceService.bootstrapEnabledProcesses();
+            await refreshRunningDevices();
+        } catch (error) {
+            console.error('[device bootstrap] 启动启用设备子进程失败', error);
+        } finally {
+            pendingDeviceIds.forEach((deviceId) => {
+                if (devicePendingActions.value[deviceId] === 'spawning') {
+                    setDevicePendingAction(deviceId, null);
+                }
+            });
+        }
+    };
+
     const resolveSavePendingAction = (nextDevice: DeviceTable): DevicePendingAction | null => {
         const previous = devices.value.find((device) => device.id === nextDevice.id) ?? null;
         const isRunning = onlineDeviceIds.value.includes(nextDevice.id);
@@ -315,6 +339,7 @@ export const useDeviceStore = defineStore('device', () => {
     };
 
     return {
+        bootstrapEnabledDeviceProcesses,
         cpuCount,
         deleteDevice,
         devicePendingActions,

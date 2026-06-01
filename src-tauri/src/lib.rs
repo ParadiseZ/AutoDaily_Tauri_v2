@@ -62,20 +62,25 @@ use crate::api::infrastructure::process_api::{
     cmd_device_pause, cmd_device_shutdown, cmd_device_start, cmd_device_stop,
     cmd_get_running_devices, cmd_is_device_running, cmd_prepare_device_capture,
     cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
+    cmd_bootstrap_enabled_devices,
     cmd_sync_device_runtime_session,
 };
+use crate::app::before_exit::before_exit;
 use crate::api::infrastructure::vision_lab::{
     get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd, vision_list_image_files_cmd,
     vision_save_capture_image_cmd,
 };
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::context::main_process::MainProcessCtx;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{App, Emitter, Manager};
+
+static APP_EXITING: AtomicBool = AtomicBool::new(false);
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(MainProcessCtx::new())
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!("{}, {argv:?}, {cwd}", app.package_info().name);
@@ -179,6 +184,7 @@ pub fn run() {
             cmd_restart_device_runtime,
             cmd_get_running_devices,
             cmd_spawn_device,
+            cmd_bootstrap_enabled_devices,
             cmd_is_device_running,
             cmd_prepare_device_capture,
             // 调度管理
@@ -216,7 +222,20 @@ pub fn run() {
             backend_reset_password,
             backend_update_username,
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running tauri application");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+            if APP_EXITING.swap(true, Ordering::SeqCst) {
+                return;
+            }
+
+            api.prevent_exit();
+            tauri::async_runtime::block_on(before_exit(app_handle));
+            app_handle.exit(code.unwrap_or(0));
+        }
+    });
+
     ort::init().with_telemetry(false).commit();
 }

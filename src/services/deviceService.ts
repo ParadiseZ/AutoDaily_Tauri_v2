@@ -9,6 +9,7 @@ export const deviceService = {
     getCpuCount: () => invoke('get_cpu_count_cmd') as Promise<number>,
     getRunningDeviceIds: () => invoke('cmd_get_running_devices') as Promise<string[]>,
     isRunning: (deviceId: string) => invoke('cmd_is_device_running', { deviceId }) as Promise<boolean>,
+    bootstrapEnabledProcesses: () => invoke('cmd_bootstrap_enabled_devices') as Promise<string>,
     prepareCapture: (deviceId: string) =>
         invoke('cmd_prepare_device_capture', { deviceId }) as Promise<string>,
     spawn: (deviceId: string) => invoke('cmd_spawn_device', { deviceId }) as Promise<string>,

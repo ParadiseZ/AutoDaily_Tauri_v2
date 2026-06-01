@@ -976,6 +976,19 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return readState().runningDeviceIds;
         case 'cmd_is_device_running':
           return readState().runningDeviceIds.includes(String(args.deviceId));
+        case 'cmd_bootstrap_enabled_devices':
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: Array.from(
+              new Set([
+                ...current.runningDeviceIds,
+                ...current.devices
+                  .filter((device) => device.data.enable)
+                  .map((device) => device.id),
+              ]),
+            ),
+          }));
+          return '启动阶段已检查启用设备并拉起子进程';
         case 'cmd_prepare_device_capture':
           updateState((current) => ({
             ...current,
@@ -1194,10 +1207,20 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         case 'get_all_scripts_cmd':
           return readState().scripts;
         case 'save_device_cmd':
-          updateState((current) => ({
-            ...current,
-            devices: upsertById(current.devices, args.device as StoredDeviceTable),
-          }));
+          updateState((current) => {
+            const nextDevice = args.device as StoredDeviceTable;
+            const nextRunningDeviceIds = nextDevice.data.enable
+              ? current.runningDeviceIds.includes(nextDevice.id)
+                ? current.runningDeviceIds
+                : [...current.runningDeviceIds, nextDevice.id]
+              : current.runningDeviceIds.filter((deviceId) => deviceId !== nextDevice.id);
+
+            return {
+              ...current,
+              devices: upsertById(current.devices, nextDevice),
+              runningDeviceIds: nextRunningDeviceIds,
+            };
+          });
           return null;
         case 'delete_device_cmd':
           updateState((current) => ({

@@ -2,14 +2,18 @@ use super::runtime_session::{
     build_child_init_data, load_device_table, load_runtime_session_for_target,
     validate_runtime_platform_supported,
 };
+use crate::constant::table_name::DEVICE_TABLE;
+use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::DeviceId;
+use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage, RunTarget,
     SessionControlMessage,
 };
+use crate::infrastructure::logging::log_trait::Log;
 use tauri::{command, Manager};
 
 async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
@@ -185,6 +189,50 @@ pub async fn cmd_spawn_device(
     wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
 
     Ok(format!("设备[{}]({})子进程已启动", device_name, device_id))
+}
+
+#[command]
+pub async fn cmd_bootstrap_enabled_devices(
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
+    let devices = DbRepo::get_all::<DeviceTable>(DEVICE_TABLE).await?;
+    let enabled_devices: Vec<DeviceTable> = devices
+        .into_iter()
+        .filter(|device| device.data.0.enable)
+        .collect();
+
+    let total = enabled_devices.len();
+    let mut started = 0usize;
+    let mut skipped = 0usize;
+    let mut failed = 0usize;
+
+    for device in enabled_devices {
+        if manager.is_running(&device.id).await {
+            skipped += 1;
+            continue;
+        }
+
+        match cmd_spawn_device(app_handle.clone(), device.id).await {
+            Ok(_) => {
+                started += 1;
+            }
+            Err(error) => {
+                failed += 1;
+                Log::error(&format!(
+                    "[ process ] 启动阶段自动拉起设备[{}]子进程失败: {}",
+                    device.data.0.device_name, error
+                ));
+            }
+        }
+    }
+
+    let summary = format!(
+        "启动阶段已检查 {} 台启用设备，启动 {} 台，跳过 {} 台，失败 {} 台",
+        total, started, skipped, failed
+    );
+    Log::info(&format!("[ process ] {}", summary));
+    Ok(summary)
 }
 
 #[command]
