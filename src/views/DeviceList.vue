@@ -34,7 +34,7 @@
               </div>
             </td>
             <td>{{ formatPlatformLabel(device.data.platform) }}</td>
-            <td>{{ formatConnectLabel(device.data.adbConnect) }}</td>
+            <td>{{ formatConnectLabel(device.data.adbConnect, device.data.transportKind) }}</td>
             <td>{{ formatCaptureMethod(device.data.capMethod) }}</td>
             <td>{{ device.data.cores.length ? device.data.cores.join(', ') : '未绑定' }}</td>
             <td>
@@ -116,7 +116,7 @@ const buildAdbConnect = (form: DeviceFormState): ADBConnectConfig | null => {
     serverConnect: `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
   };
 
-  if (form.connectMethod === 'directTcp') {
+  if (form.transportKind === 'emulatorTcp') {
     return {
       directTcp: form.connectAddress || null,
     };
@@ -134,7 +134,7 @@ const buildAdbConnect = (form: DeviceFormState): ADBConnectConfig | null => {
   return {
     serverConnectByName: {
       adbConfig: serverConfig,
-      deviceName: form.connectDeviceName || null,
+      deviceName: form.connectIdentifier || null,
     },
   };
 };
@@ -144,6 +144,7 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
   data: {
     deviceName: form.deviceName,
     platform: form.platform,
+    transportKind: form.transportKind,
     exePath: form.exePath || null,
     exeArgs: form.exeArgs || null,
     cores: form.cores,

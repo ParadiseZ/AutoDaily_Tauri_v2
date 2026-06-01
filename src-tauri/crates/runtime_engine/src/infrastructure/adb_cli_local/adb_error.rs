@@ -12,7 +12,7 @@ pub enum AdbError {
     #[error("adb配置失败")]
     ConfigErr { detail: String },
 
-    #[error("通过设备名称连接设备失败{detail}")]
+    #[error("通过设备标识连接设备失败{detail}")]
     GetDeviceByNameFailed { detail: String },
 
     #[error("连接设备{ipv4addr}失败")]

@@ -781,7 +781,7 @@ const deviceSelectOptions = computed(() =>
   deviceStore.devices.map((device) => ({
     label: device.data.deviceName,
     value: device.id,
-    description: `${formatConnectLabel(device.data.adbConnect)} · ${formatCaptureMethod(device.data.capMethod)}`,
+    description: `${formatConnectLabel(device.data.adbConnect, device.data.transportKind)} · ${formatCaptureMethod(device.data.capMethod)}`,
   })),
 );
 
@@ -2248,7 +2248,7 @@ const buildAdbConnect = (form: DeviceFormState): ADBConnectConfig | null => {
     serverConnect: `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
   };
 
-  if (form.connectMethod === 'directTcp') {
+  if (form.transportKind === 'emulatorTcp') {
     return {
       directTcp: form.connectAddress || null,
     };
@@ -2266,7 +2266,7 @@ const buildAdbConnect = (form: DeviceFormState): ADBConnectConfig | null => {
   return {
     serverConnectByName: {
       adbConfig: serverConfig,
-      deviceName: form.connectDeviceName || null,
+      deviceName: form.connectIdentifier || null,
     },
   };
 };
@@ -2276,6 +2276,7 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
   data: {
     deviceName: form.deviceName,
     platform: form.platform,
+    transportKind: form.transportKind,
     exePath: form.exePath || null,
     exeArgs: form.exeArgs || null,
     cores: form.cores,

@@ -51,22 +51,22 @@
 
         <div class="grid gap-4 md:grid-cols-2">
           <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">连接方式</span>
-            <AppSelect v-model="form.connectMethod" :options="connectOptions" />
+            <span class="text-sm text-(--app-text-soft)">连接通道</span>
+            <AppSelect v-model="form.transportKind" :options="transportOptions" />
           </label>
           <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">地址 / 设备名</span>
+            <span class="text-sm text-(--app-text-soft)">{{ transportFieldLabel }}</span>
             <input
-              v-if="form.connectMethod !== 'serverConnectByName'"
+              v-if="usesAddressInput"
               v-model.trim="form.connectAddress"
               class="app-input"
-              placeholder="127.0.0.1:5555"
+              :placeholder="transportFieldPlaceholder"
             />
             <input
               v-else
-              v-model.trim="form.connectDeviceName"
+              v-model.trim="form.connectIdentifier"
               class="app-input"
-              placeholder="emulator-5554"
+              :placeholder="transportFieldPlaceholder"
             />
           </label>
         </div>
@@ -197,6 +197,7 @@ import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import type { DeviceFormState } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
+import { resolveTransportKind } from '@/utils/presenters';
 
 const props = defineProps<{
   open: boolean;
@@ -213,6 +214,7 @@ const createEmptyForm = (): DeviceFormState => ({
   id: null,
   deviceName: '',
   platform: 'android',
+  transportKind: 'emulatorTcp',
   exePath: '',
   exeArgs: '',
   cores: [],
@@ -222,7 +224,7 @@ const createEmptyForm = (): DeviceFormState => ({
   capMethodValue: '',
   connectMethod: 'directTcp',
   connectAddress: '',
-  connectDeviceName: '',
+  connectIdentifier: '',
   enable: true,
   autoStart: false,
   actionWaitMs: 500,
@@ -241,6 +243,27 @@ const tabs = [
 ];
 
 const cpuIndexes = computed(() => Array.from({ length: props.cpuCount }, (_, index) => index));
+const usesAddressInput = computed(
+  () => form.transportKind === 'emulatorTcp' || form.connectMethod === 'serverConnectByIp',
+);
+const transportFieldLabel = computed(() => {
+  if (form.transportKind === 'emulatorTcp') {
+    return 'TCP 地址';
+  }
+  if (form.connectMethod === 'serverConnectByIp') {
+    return '连接地址（兼容旧配置）';
+  }
+  return '设备标识';
+});
+const transportFieldPlaceholder = computed(() => {
+  if (form.transportKind === 'emulatorTcp') {
+    return '127.0.0.1:5555';
+  }
+  if (form.connectMethod === 'serverConnectByIp') {
+    return '192.168.1.20:37145';
+  }
+  return '例如 emulator-5554 / 设备序列号';
+});
 
 const logLevelOptions = [
   { label: 'Off', value: 'Off' },
@@ -255,10 +278,10 @@ const captureOptions = [
   { label: 'ADB 截图', value: 'adb' },
 ];
 
-const connectOptions = [
-  { label: 'TCP 直连', value: 'directTcp' },
-  { label: 'ADB 服务（按 IP）', value: 'serverConnectByIp' },
-  { label: 'ADB 服务（按名称）', value: 'serverConnectByName' },
+const transportOptions = [
+  { label: '模拟器 TCP', value: 'emulatorTcp' },
+  { label: 'ADB USB', value: 'adbUsb' },
+  { label: 'ADB 无线', value: 'adbWireless' },
 ];
 
 /*const platformOptions = [
@@ -288,6 +311,7 @@ const syncForm = (device: DeviceTable | null) => {
   form.id = device.id;
   form.deviceName = device.data.deviceName;
   form.platform = device.data.platform ?? 'android';
+  form.transportKind = resolveTransportKind(device.data.transportKind, device.data.adbConnect);
   form.exePath = device.data.exePath ?? '';
   form.exeArgs = device.data.exeArgs ?? '';
   form.cores = [...device.data.cores];
@@ -321,7 +345,7 @@ const syncForm = (device: DeviceTable | null) => {
     form.connectAddress = connect.serverConnectByIp.clientConnect ?? '';
   } else if ('serverConnectByName' in connect) {
     form.connectMethod = 'serverConnectByName';
-    form.connectDeviceName = connect.serverConnectByName.deviceName ?? '';
+    form.connectIdentifier = connect.serverConnectByName.deviceName ?? '';
   }
 };
 
@@ -350,6 +374,23 @@ watch(
     }
   },
   { immediate: true },
+);
+
+watch(
+  () => form.transportKind,
+  (transportKind) => {
+    if (transportKind === 'emulatorTcp') {
+      form.connectMethod = 'directTcp';
+      return;
+    }
+    if (transportKind === 'adbUsb') {
+      form.connectMethod = 'serverConnectByName';
+      return;
+    }
+    if (form.connectMethod === 'directTcp') {
+      form.connectMethod = 'serverConnectByName';
+    }
+  },
 );
 </script>
 

@@ -1,6 +1,7 @@
 import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { CapMethod } from '@/types/bindings/CapMethod';
 import type { LogLevel } from '@/types/bindings/LogLevel';
+import type { DeviceTransportKind } from '@/types/bindings/DeviceTransportKind';
 import type {
     DeviceRuntimeStatus,
     ScriptTableRecord,
@@ -113,13 +114,33 @@ export const formatScriptTransferStatusTone = (status: ScriptTransferStatus) => 
     return 'danger';
 };
 
-export const formatConnectLabel = (config: ADBConnectConfig | null) => {
+export const resolveTransportKind = (
+    transportKind: DeviceTransportKind | null | undefined,
+    config: ADBConnectConfig | null,
+): DeviceTransportKind => {
+    if (transportKind) {
+        return transportKind;
+    }
+
+    if (config && 'directTcp' in config) {
+        return 'emulatorTcp';
+    }
+
+    return 'adbWireless';
+};
+
+export const formatConnectLabel = (
+    config: ADBConnectConfig | null,
+    transportKind?: DeviceTransportKind | null,
+) => {
     if (!config) {
         return '未配置连接';
     }
 
+    const resolvedKind = resolveTransportKind(transportKind, config);
+
     if ('directTcp' in config) {
-        return config.directTcp || 'TCP 直连';
+        return `模拟器 TCP · ${config.directTcp || '未设置地址'}`;
     }
 
     if ('directUsb' in config) {
@@ -127,10 +148,12 @@ export const formatConnectLabel = (config: ADBConnectConfig | null) => {
     }
 
     if ('serverConnectByIp' in config) {
-        return `ADB 服务 · ${config.serverConnectByIp.clientConnect || '未设置地址'}`;
+        const prefix = resolvedKind === 'adbUsb' ? 'ADB USB' : 'ADB 无线';
+        return `${prefix} · ${config.serverConnectByIp.clientConnect || '未设置地址'}`;
     }
 
-    return `ADB 服务 · ${config.serverConnectByName.deviceName || '未设置名称'}`;
+    const prefix = resolvedKind === 'adbUsb' ? 'ADB USB' : 'ADB 无线';
+    return `${prefix} · ${config.serverConnectByName.deviceName || '未设置设备标识'}`;
 };
 
 export const formatCaptureMethod = (method: CapMethod) =>

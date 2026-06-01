@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "gen:types": "cd src-tauri && cargo test -p runtime_common export_bindings && cargo test -p vision_core export_bindings && cargo test -p runtime_engine export_bindings && cd .. && cd../ && node src/types/gen-barrel.cjs",
+    "gen:types": "cd src-tauri && cargo test -p runtime_common export_bindings && cargo test -p vision_core export_bindings && cargo test -p runtime_engine export_bindings && cd .. && node src/types/gen-barrel.cjs",
     "type-check": "vue-tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"

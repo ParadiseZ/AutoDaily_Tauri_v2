@@ -33,6 +33,8 @@ pub struct DeviceConfig {
     pub device_name: String,
     #[serde(default)]
     pub platform: DevicePlatform,
+    #[serde(default)]
+    pub transport_kind: Option<DeviceTransportKind>,
 
     // 执行路径
     pub exe_path: Option<String>,
@@ -123,11 +125,21 @@ pub enum DevicePlatform {
     Desktop,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum DeviceTransportKind {
+    EmulatorTcp,
+    AdbUsb,
+    AdbWireless,
+}
+
 impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
             device_name: "MuMu模拟器12".into(),
             platform: DevicePlatform::default(),
+            transport_kind: Some(DeviceTransportKind::EmulatorTcp),
             exe_path: None,
             exe_args: None,
             cores: vec![0, 1],

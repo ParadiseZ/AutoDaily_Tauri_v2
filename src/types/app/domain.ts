@@ -1,5 +1,6 @@
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
 import type { DevicePlatform } from '@/types/bindings/DevicePlatform';
+import type { DeviceTransportKind } from '@/types/bindings/DeviceTransportKind';
 import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
@@ -420,6 +421,7 @@ export interface DeviceFormState {
     id: string | null;
     deviceName: string;
     platform: DevicePlatform;
+    transportKind: DeviceTransportKind;
     exePath: string;
     exeArgs: string;
     cores: number[];
@@ -427,9 +429,9 @@ export interface DeviceFormState {
     logToFile: boolean;
     capMethodType: 'window' | 'adb';
     capMethodValue: string;
-    connectMethod: 'directTcp' | 'directUsb' | 'serverConnectByIp' | 'serverConnectByName';
+    connectMethod: 'directTcp' | 'serverConnectByIp' | 'serverConnectByName';
     connectAddress: string;
-    connectDeviceName: string;
+    connectIdentifier: string;
     enable: boolean;
     autoStart: boolean;
     actionWaitMs: number;

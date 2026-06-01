@@ -5,7 +5,7 @@
         <div class="flex flex-wrap gap-2 text-sm text-(--app-text-soft)">
           <span>{{ formatPlatformLabel(device.data.platform) }}</span>
           <span>·</span>
-          <span>{{ formatConnectLabel(device.data.adbConnect) }}</span>
+          <span>{{ formatConnectLabel(device.data.adbConnect, device.data.transportKind) }}</span>
           <span>·</span>
           <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
           <span v-if="status.currentScript">· 正在执行 {{ status.currentScript }}</span>

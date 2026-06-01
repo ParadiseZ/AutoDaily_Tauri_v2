@@ -67,7 +67,7 @@ fn describe_adb_config_issue(adb_conf: &ADBConnectConfig) -> Option<String> {
                 .as_deref()
                 .is_none_or(|value| value.trim().is_empty())
             {
-                return Some("未设置设备名称".to_string());
+                return Some("未设置设备标识".to_string());
             }
             None
         }
