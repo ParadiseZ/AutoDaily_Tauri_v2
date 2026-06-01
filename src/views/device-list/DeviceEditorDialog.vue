@@ -6,185 +6,189 @@
     @close="$emit('close')"
   >
     <form class="grid gap-5" @submit.prevent="$emit('save', form)">
-      <div class="overflow-x-auto">
-        <div class="editor-panel-tabs min-w-max">
-          <button
-            v-for="tab in tabs"
-            :key="tab.value"
-            type="button"
-            class="editor-panel-tab"
-            :class="{ 'editor-panel-tab-active': activeTab === tab.value }"
-            @click="activeTab = tab.value"
-          >
-            {{ tab.label }}
+      <fieldset :disabled="busy" class="grid gap-5">
+        <div class="overflow-x-auto">
+          <div class="editor-panel-tabs min-w-max">
+            <button
+              v-for="tab in tabs"
+              :key="tab.value"
+              type="button"
+              class="editor-panel-tab"
+              :class="{ 'editor-panel-tab-active': activeTab === tab.value }"
+              @click="activeTab = tab.value"
+            >
+              {{ tab.label }}
+            </button>
+          </div>
+        </div>
+
+        <template v-if="activeTab === 'basic'">
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">名称</span>
+              <input v-model.trim="form.deviceName" class="app-input" placeholder="MuMu 模拟器 12" />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">日志级别</span>
+              <AppSelect v-model="form.logLevel" :options="logLevelOptions" />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">截图方式</span>
+              <AppSelect v-model="form.capMethodType" :options="captureOptions" />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">窗口名 / 标识</span>
+              <input
+                v-model.trim="form.capMethodValue"
+                class="app-input"
+                :placeholder="form.capMethodType === 'window' ? '窗口标题' : 'ADB 截图无需额外配置'"
+                :disabled="form.capMethodType === 'adb'"
+              />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">连接通道</span>
+              <AppSelect v-model="form.transportKind" :options="transportOptions" />
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">{{ transportFieldLabel }}</span>
+              <input
+                v-if="usesAddressInput"
+                v-model.trim="form.connectAddress"
+                class="app-input"
+                :placeholder="transportFieldPlaceholder"
+              />
+              <input
+                v-else
+                v-model.trim="form.connectIdentifier"
+                class="app-input"
+                :placeholder="transportFieldPlaceholder"
+              />
+            </label>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">设备启动路径（可选）</span>
+              <div class="path-input-row">
+                <input v-model.trim="form.exePath" class="app-input" placeholder="模拟器启动路径" />
+                <button class="app-button app-button-ghost path-picker-button" type="button" @click="pickExePath">
+                  <AppIcon name="folder-open" :size="16" />
+                </button>
+              </div>
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">启动参数（可选）</span>
+              <input v-model.trim="form.exeArgs" class="app-input" placeholder="例如 --instance 1" />
+            </label>
+          </div>
+
+          <div class="grid gap-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-(--app-text-strong)">CPU 核心绑定</span>
+              <span class="text-xs text-(--app-text-faint)">显示的是物理核心索引，共 {{ cpuCount }} 个</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <label
+                v-for="core in cpuIndexes"
+                :key="core"
+                class="flex items-center gap-2 rounded-full border border-(--app-border) px-3 py-2 text-sm"
+              >
+                <input
+                  type="checkbox"
+                  class="h-4 w-4"
+                  :checked="form.cores.includes(core)"
+                  @change="toggleCore(core)"
+                />
+                <span>{{ core }}</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">启用设备</span>
+              <input v-model="form.enable" type="checkbox" class="toggle toggle-sm" />
+            </label>
+            <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
+              <span class="text-sm text-(--app-text-strong)">自动启动设备进程</span>
+              <input v-model="form.autoStart" type="checkbox" class="toggle toggle-sm" />
+            </label>
+          </div>
+        </template>
+
+        <template v-else>
+          <div class="grid gap-4 rounded-[24px] border border-(--app-border) bg-(--app-panel-muted)/60 p-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-semibold text-(--app-text-strong)">执行策略</p>
+                <p class="text-xs text-(--app-text-faint)">设备级运行策略，作用于当前设备会话，不属于脚本定义。</p>
+              </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-sm text-(--app-text-soft)">动作后等待（毫秒）</span>
+                <input v-model.number="form.actionWaitMs" class="app-input" type="number" min="0" step="100" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm text-(--app-text-soft)">超时行为</span>
+                <AppSelect v-model="form.timeoutAction" :options="timeoutActionOptions" />
+              </label>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <label class="flex items-center justify-between rounded-[18px] border border-(--app-border) bg-(--app-panel) px-4 py-3">
+                <span class="text-sm text-(--app-text-strong)">启用无有效进展超时</span>
+                <input v-model="form.progressTimeoutEnabled" type="checkbox" class="toggle toggle-sm" />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-sm text-(--app-text-soft)">超时时间（毫秒）</span>
+                <input
+                  v-model.number="form.progressTimeoutMs"
+                  class="app-input"
+                  type="number"
+                  min="1000"
+                  step="1000"
+                  :disabled="!form.progressTimeoutEnabled"
+                />
+              </label>
+            </div>
+
+            <div class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">通知渠道</span>
+              <div class="flex flex-wrap gap-3">
+                <label class="flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-3 py-2 text-sm text-(--app-text-strong)">
+                  <input v-model="form.timeoutNotifyChannels" type="checkbox" value="systemNotification" class="h-4 w-4" />
+                  系统通知
+                </label>
+                <label class="flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-3 py-2 text-sm text-(--app-text-strong)">
+                  <input v-model="form.timeoutNotifyChannels" type="checkbox" value="email" class="h-4 w-4" />
+                  邮件
+                </label>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <p v-if="busy" class="text-sm text-(--app-text-soft)">正在处理设备子进程，请稍候。</p>
+
+        <div class="flex justify-end gap-3 pt-2">
+          <button class="app-button app-button-ghost text-(--app-text-strong) group" type="button" @click="$emit('close')">
+            <AppIcon name="x" :size="16" class="opacity-70 transition-opacity group-hover:opacity-100" />
+            取消
+          </button>
+          <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="submit">
+            <AppIcon name="save" :size="16" />
+            保存设备
           </button>
         </div>
-      </div>
-
-      <template v-if="activeTab === 'basic'">
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">名称</span>
-            <input v-model.trim="form.deviceName" class="app-input" placeholder="MuMu 模拟器 12" />
-          </label>
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">日志级别</span>
-            <AppSelect v-model="form.logLevel" :options="logLevelOptions" />
-          </label>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">截图方式</span>
-            <AppSelect v-model="form.capMethodType" :options="captureOptions" />
-          </label>
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">窗口名 / 标识</span>
-            <input
-              v-model.trim="form.capMethodValue"
-              class="app-input"
-              :placeholder="form.capMethodType === 'window' ? '窗口标题' : 'ADB 截图无需额外配置'"
-              :disabled="form.capMethodType === 'adb'"
-            />
-          </label>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">连接通道</span>
-            <AppSelect v-model="form.transportKind" :options="transportOptions" />
-          </label>
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">{{ transportFieldLabel }}</span>
-            <input
-              v-if="usesAddressInput"
-              v-model.trim="form.connectAddress"
-              class="app-input"
-              :placeholder="transportFieldPlaceholder"
-            />
-            <input
-              v-else
-              v-model.trim="form.connectIdentifier"
-              class="app-input"
-              :placeholder="transportFieldPlaceholder"
-            />
-          </label>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-2">
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">设备启动路径（可选）</span>
-            <div class="path-input-row">
-              <input v-model.trim="form.exePath" class="app-input" placeholder="模拟器启动路径" />
-              <button class="app-button app-button-ghost path-picker-button" type="button" @click="pickExePath">
-                <AppIcon name="folder-open" :size="16" />
-              </button>
-            </div>
-          </label>
-          <label class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">启动参数（可选）</span>
-            <input v-model.trim="form.exeArgs" class="app-input" placeholder="例如 --instance 1" />
-          </label>
-        </div>
-
-        <div class="grid gap-3">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-(--app-text-strong)">CPU 核心绑定</span>
-            <span class="text-xs text-(--app-text-faint)">显示的是物理核心索引，共 {{ cpuCount }} 个</span>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <label
-              v-for="core in cpuIndexes"
-              :key="core"
-              class="flex items-center gap-2 rounded-full border border-(--app-border) px-3 py-2 text-sm"
-            >
-              <input
-                type="checkbox"
-                class="h-4 w-4"
-                :checked="form.cores.includes(core)"
-                @change="toggleCore(core)"
-              />
-              <span>{{ core }}</span>
-            </label>
-          </div>
-        </div>
-
-        <div class="grid gap-3 md:grid-cols-2">
-          <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
-            <span class="text-sm text-(--app-text-strong)">启用设备</span>
-            <input v-model="form.enable" type="checkbox" class="toggle toggle-sm" />
-          </label>
-          <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
-            <span class="text-sm text-(--app-text-strong)">自动启动设备进程</span>
-            <input v-model="form.autoStart" type="checkbox" class="toggle toggle-sm" />
-          </label>
-        </div>
-      </template>
-
-      <template v-else>
-        <div class="grid gap-4 rounded-[24px] border border-(--app-border) bg-(--app-panel-muted)/60 p-4">
-          <div class="flex items-center justify-between">
-            <div>
-              <p class="text-sm font-semibold text-(--app-text-strong)">执行策略</p>
-              <p class="text-xs text-(--app-text-faint)">设备级运行策略，作用于当前设备会话，不属于脚本定义。</p>
-            </div>
-          </div>
-
-          <div class="grid gap-4 md:grid-cols-2">
-            <label class="grid gap-2">
-              <span class="text-sm text-(--app-text-soft)">动作后等待（毫秒）</span>
-              <input v-model.number="form.actionWaitMs" class="app-input" type="number" min="0" step="100" />
-            </label>
-            <label class="grid gap-2">
-              <span class="text-sm text-(--app-text-soft)">超时行为</span>
-              <AppSelect v-model="form.timeoutAction" :options="timeoutActionOptions" />
-            </label>
-          </div>
-
-          <div class="grid gap-4 md:grid-cols-2">
-            <label class="flex items-center justify-between rounded-[18px] border border-(--app-border) bg-(--app-panel) px-4 py-3">
-              <span class="text-sm text-(--app-text-strong)">启用无有效进展超时</span>
-              <input v-model="form.progressTimeoutEnabled" type="checkbox" class="toggle toggle-sm" />
-            </label>
-            <label class="grid gap-2">
-              <span class="text-sm text-(--app-text-soft)">超时时间（毫秒）</span>
-              <input
-                v-model.number="form.progressTimeoutMs"
-                class="app-input"
-                type="number"
-                min="1000"
-                step="1000"
-                :disabled="!form.progressTimeoutEnabled"
-              />
-            </label>
-          </div>
-
-          <div class="grid gap-2">
-            <span class="text-sm text-(--app-text-soft)">通知渠道</span>
-            <div class="flex flex-wrap gap-3">
-              <label class="flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-3 py-2 text-sm text-(--app-text-strong)">
-                <input v-model="form.timeoutNotifyChannels" type="checkbox" value="systemNotification" class="h-4 w-4" />
-                系统通知
-              </label>
-              <label class="flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-3 py-2 text-sm text-(--app-text-strong)">
-                <input v-model="form.timeoutNotifyChannels" type="checkbox" value="email" class="h-4 w-4" />
-                邮件
-              </label>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <div class="flex justify-end gap-3 pt-2">
-        <button class="app-button app-button-ghost text-(--app-text-strong) group" type="button" @click="$emit('close')">
-          <AppIcon name="x" :size="16" class="opacity-70 transition-opacity group-hover:opacity-100" />
-          取消
-        </button>
-        <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="submit">
-          <AppIcon name="save" :size="16" />
-          保存设备
-        </button>
-      </div>
+      </fieldset>
     </form>
   </AppDialog>
 </template>
@@ -203,6 +207,7 @@ const props = defineProps<{
   open: boolean;
   device: DeviceTable | null;
   cpuCount: number;
+  busy?: boolean;
 }>();
 
 defineEmits<{

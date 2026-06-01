@@ -45,7 +45,14 @@
                 test-id="editor-header-device"
               />
             </div>
-            <button class="app-icon-button group" type="button" :title="selectedPreviewDeviceId ? '编辑设备' : '新建设备'" :aria-label="selectedPreviewDeviceId ? '编辑设备' : '新建设备'" @click="openDeviceEditor(selectedPreviewDeviceId)">
+            <button
+              class="app-icon-button group"
+              type="button"
+              :title="selectedPreviewDeviceId ? '编辑设备' : '新建设备'"
+              :aria-label="selectedPreviewDeviceId ? '编辑设备' : '新建设备'"
+              :disabled="selectedPreviewDeviceBusy"
+              @click="openDeviceEditor(selectedPreviewDeviceId)"
+            >
               <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
             </button>
             <div class="max-w-[300px]">
@@ -444,6 +451,7 @@
       :open="deviceEditorOpen"
       :device="editingDevice"
       :cpu-count="deviceStore.cpuCount"
+      :busy="editingPreviewDeviceBusy"
       @close="deviceEditorOpen = false"
       @save="savePreviewDevice"
     />
@@ -782,6 +790,12 @@ const currentPolicySet = computed<PolicySetTable | null>(() => {
 
 const editingDevice = computed(() => deviceStore.devices.find((device) => device.id === editingDeviceId.value) ?? null);
 const selectedPreviewDevice = computed(() => deviceStore.devices.find((device) => device.id === selectedPreviewDeviceId.value) ?? null);
+const editingPreviewDeviceBusy = computed(() =>
+  editingDevice.value ? deviceStore.isDeviceBusy(editingDevice.value.id) : false,
+);
+const selectedPreviewDeviceBusy = computed(() =>
+  selectedPreviewDeviceId.value ? deviceStore.isDeviceBusy(selectedPreviewDeviceId.value) : false,
+);
 const selectedPreviewDeviceRuntimeError = computed(() =>
   selectedPreviewDevice.value ? validateDeviceRuntimePlatform(selectedPreviewDevice.value) : null,
 );
@@ -2306,6 +2320,9 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
 });
 
 const openDeviceEditor = (deviceId: string | null) => {
+  if (deviceId && deviceStore.isDeviceBusy(deviceId)) {
+    return;
+  }
   editingDeviceId.value = deviceId;
   deviceEditorOpen.value = true;
 };

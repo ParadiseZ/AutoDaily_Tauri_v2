@@ -50,11 +50,21 @@
             </td>
             <td>
               <div class="flex justify-end gap-2">
-                <button class="app-button app-button-ghost h-9 px-3 group text-sm" type="button" @click="openEditor(device.id)">
+                <button
+                  class="app-button app-button-ghost h-9 px-3 group text-sm"
+                  type="button"
+                  :disabled="deviceStore.isDeviceBusy(device.id)"
+                  @click="openEditor(device.id)"
+                >
                   <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) transition-colors group-hover:text-(--app-accent)" />
                   编辑
                 </button>
-                <button class="app-button app-button-danger h-9 px-3 group text-sm" type="button" @click="removeDevice(device.id)">
+                <button
+                  class="app-button app-button-danger h-9 px-3 group text-sm"
+                  type="button"
+                  :disabled="deviceStore.isDeviceBusy(device.id)"
+                  @click="removeDevice(device.id)"
+                >
                   <AppIcon name="trash-2" :size="16" class="opacity-70 transition-opacity group-hover:opacity-100" />
                   删除
                 </button>
@@ -77,6 +87,7 @@
       :open="editorOpen"
       :device="currentDevice"
       :cpu-count="deviceStore.cpuCount"
+      :busy="editingDeviceBusy"
       @close="editorOpen = false"
       @save="saveDevice"
     />
@@ -108,6 +119,9 @@ const editingDeviceId = ref<string | null>(null);
 
 const currentDevice = computed(
   () => deviceStore.devices.find((device) => device.id === editingDeviceId.value) ?? null,
+);
+const editingDeviceBusy = computed(() =>
+  currentDevice.value ? deviceStore.isDeviceBusy(currentDevice.value.id) : false,
 );
 
 const buildAdbConnect = (form: DeviceFormState): ADBConnectConfig | null => {
@@ -166,6 +180,9 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
 });
 
 const openEditor = (deviceId: string | null) => {
+  if (deviceId && deviceStore.isDeviceBusy(deviceId)) {
+    return;
+  }
   editingDeviceId.value = deviceId;
   editorOpen.value = true;
 };

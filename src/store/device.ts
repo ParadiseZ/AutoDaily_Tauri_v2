@@ -43,7 +43,13 @@ const toStatusEvent = (payload: unknown): DeviceStatusEvent | null => {
 };
 
 export const useDeviceStore = defineStore('device', () => {
-    type DevicePendingAction = 'spawning' | 'starting' | 'pausing' | 'stopping' | 'shuttingDown';
+    type DevicePendingAction =
+        | 'spawning'
+        | 'starting'
+        | 'pausing'
+        | 'stopping'
+        | 'shuttingDown'
+        | 'restarting';
 
     const devices = ref<DeviceTable[]>([]);
     const onlineDeviceIds = ref<string[]>([]);
@@ -88,9 +94,39 @@ export const useDeviceStore = defineStore('device', () => {
         await Promise.all([loadDevices(), refreshRunningDevices(), loadCpuCount()]);
     };
 
+    const resolveSavePendingAction = (nextDevice: DeviceTable): DevicePendingAction | null => {
+        const previous = devices.value.find((device) => device.id === nextDevice.id) ?? null;
+        const isRunning = onlineDeviceIds.value.includes(nextDevice.id);
+        const nextEnabled = nextDevice.data.enable;
+
+        if (!nextEnabled) {
+            return isRunning ? 'shuttingDown' : null;
+        }
+
+        if (!isRunning) {
+            return 'spawning';
+        }
+
+        if (previous && previous.data.cores.join(',') !== nextDevice.data.cores.join(',')) {
+            return 'restarting';
+        }
+
+        return null;
+    };
+
     const saveDevice = async (device: DeviceTable) => {
-        await deviceService.save(device);
-        await loadDevices();
+        const pendingAction = resolveSavePendingAction(device);
+        if (pendingAction) {
+            setDevicePendingAction(device.id, pendingAction);
+        }
+        try {
+            await deviceService.save(device);
+            await Promise.all([loadDevices(), refreshRunningDevices()]);
+        } finally {
+            if (pendingAction) {
+                setDevicePendingAction(device.id, null);
+            }
+        }
     };
 
     const setDevicePendingAction = (deviceId: string, action: DevicePendingAction | null) => {

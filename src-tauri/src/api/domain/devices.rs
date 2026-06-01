@@ -1,5 +1,6 @@
 use crate::api::infrastructure::process_api::{
-    cmd_device_shutdown, cmd_restart_device_runtime, cmd_sync_device_runtime_session,
+    cmd_device_shutdown, cmd_restart_device_runtime, cmd_spawn_device,
+    cmd_sync_device_runtime_session,
 };
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_conf::DeviceTable;
@@ -13,16 +14,28 @@ async fn reconcile_runtime_after_device_save(
     previous: Option<&DeviceTable>,
     device: &DeviceTable,
 ) -> Result<(), String> {
-    let Some(previous) = previous else {
-        return Ok(());
-    };
     let Some(manager) = get_process_manager() else {
         return Ok(());
     };
 
-    if !manager.is_running(&device.id).await {
+    let is_running = manager.is_running(&device.id).await;
+    let is_enabled = device.data.0.enable;
+
+    if !is_enabled {
+        if is_running {
+            cmd_device_shutdown(device.id).await?;
+        }
         return Ok(());
     }
+
+    if !is_running {
+        cmd_spawn_device(app_handle.clone(), device.id).await?;
+        return Ok(());
+    }
+
+    let Some(previous) = previous else {
+        return Ok(());
+    };
 
     if previous.data.0.cores != device.data.0.cores {
         cmd_restart_device_runtime(app_handle.clone(), device.id).await?;
