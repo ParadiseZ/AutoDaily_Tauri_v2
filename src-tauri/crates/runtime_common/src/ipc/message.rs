@@ -69,8 +69,9 @@ pub enum ProcessAction {
     Shutdown,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum RunTarget {
     DeviceQueue,
     FullScript {

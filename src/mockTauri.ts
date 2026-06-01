@@ -46,6 +46,17 @@ interface MockApi {
   seed: (partial: Partial<MockState>) => MockState;
 }
 
+type MockRunTargetType = 'deviceQueue' | 'fullScript' | 'task' | 'policyGroup' | 'policySet' | 'policy';
+
+interface MockRunTargetShape {
+  type: MockRunTargetType;
+  scriptId?: string;
+  taskId?: string;
+  policyGroupId?: string;
+  policySetId?: string;
+  policyId?: string;
+}
+
 declare global {
   interface Window {
     __AUTODAILY_MOCK__?: MockApi;
@@ -322,8 +333,8 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       return;
     }
 
-    const targetRecord = target && typeof target === 'object' ? (target as Record<string, unknown>) : null;
-    const runType = typeof targetRecord?.type === 'string' ? targetRecord.type : 'deviceQueue';
+    const normalizedTarget = normalizeRunTargetShape(target);
+    const runType = normalizedTarget?.type ?? 'deviceQueue';
 
     if (runType === 'deviceQueue') {
       for (const assignment of state.assignmentsByDevice[deviceId] ?? []) {
@@ -337,10 +348,105 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       return;
     }
 
-    const scriptId = typeof targetRecord?.scriptId === 'string' ? targetRecord.scriptId : null;
+    const scriptId = normalizedTarget?.scriptId ?? null;
     if (scriptId) {
       validateRecoveryPolicyForScript(state, scriptId);
     }
+  };
+
+  const normalizeRunTargetShape = (target: unknown): MockRunTargetShape | null => {
+    if (target === 'deviceQueue') {
+      return { type: 'deviceQueue' };
+    }
+
+    if (!target || typeof target !== 'object') {
+      return null;
+    }
+
+    const targetRecord = target as Record<string, unknown>;
+    if (typeof targetRecord.type === 'string') {
+      return {
+        type: targetRecord.type as MockRunTargetType,
+        scriptId:
+          typeof targetRecord.scriptId === 'string'
+            ? targetRecord.scriptId
+            : typeof targetRecord.script_id === 'string'
+              ? targetRecord.script_id
+              : undefined,
+        taskId:
+          typeof targetRecord.taskId === 'string'
+            ? targetRecord.taskId
+            : typeof targetRecord.task_id === 'string'
+              ? targetRecord.task_id
+              : undefined,
+        policyGroupId:
+          typeof targetRecord.policyGroupId === 'string'
+            ? targetRecord.policyGroupId
+            : typeof targetRecord.policy_group_id === 'string'
+              ? targetRecord.policy_group_id
+              : undefined,
+        policySetId:
+          typeof targetRecord.policySetId === 'string'
+            ? targetRecord.policySetId
+            : typeof targetRecord.policy_set_id === 'string'
+              ? targetRecord.policy_set_id
+              : undefined,
+        policyId:
+          typeof targetRecord.policyId === 'string'
+            ? targetRecord.policyId
+            : typeof targetRecord.policy_id === 'string'
+              ? targetRecord.policy_id
+              : undefined,
+      };
+    }
+
+    const entries = Object.entries(targetRecord);
+    if (entries.length !== 1) {
+      return null;
+    }
+
+    const [variant, value] = entries[0];
+    if (variant === 'deviceQueue') {
+      return { type: 'deviceQueue' };
+    }
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const payload = value as Record<string, unknown>;
+    return {
+      type: variant as MockRunTargetType,
+      scriptId:
+        typeof payload.scriptId === 'string'
+          ? payload.scriptId
+          : typeof payload.script_id === 'string'
+            ? payload.script_id
+            : undefined,
+      taskId:
+        typeof payload.taskId === 'string'
+          ? payload.taskId
+          : typeof payload.task_id === 'string'
+            ? payload.task_id
+            : undefined,
+      policyGroupId:
+        typeof payload.policyGroupId === 'string'
+          ? payload.policyGroupId
+          : typeof payload.policy_group_id === 'string'
+            ? payload.policy_group_id
+            : undefined,
+      policySetId:
+        typeof payload.policySetId === 'string'
+          ? payload.policySetId
+          : typeof payload.policy_set_id === 'string'
+            ? payload.policy_set_id
+            : undefined,
+      policyId:
+        typeof payload.policyId === 'string'
+          ? payload.policyId
+          : typeof payload.policy_id === 'string'
+            ? payload.policy_id
+            : undefined,
+    };
   };
 
   const validateRuntimePlatformSupported = (state: MockState, deviceId: string) => {
@@ -924,7 +1030,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         case 'cmd_run_script_target':
           {
             const state = readState();
-            const target = args.target && typeof args.target === 'object' ? (args.target as { scriptId?: unknown; type?: unknown }) : null;
+            const target = normalizeRunTargetShape(args.target);
             const scriptIds =
               target?.type === 'deviceQueue'
                 ? (state.assignmentsByDevice[String(args.deviceId)] ?? [])

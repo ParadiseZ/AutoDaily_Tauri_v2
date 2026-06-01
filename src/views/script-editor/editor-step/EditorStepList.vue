@@ -13,10 +13,10 @@
       @mouseenter="handleMouseEnter(index)"
       @mouseup="handleMouseUp(index)"
     >
-      <div class="grid grid-cols-[34px_36px_minmax(0,1fr)_auto] items-start gap-2">
+      <div class="flex items-start gap-2">
         <button
           v-if="allowReorder"
-          class="app-drag-handle"
+          class="app-drag-handle shrink-0"
           :class="{ 'app-drag-handle-active': draggingIndex === index }"
           :data-testid="`editor-step-drag-${index}`"
           type="button"
@@ -27,11 +27,7 @@
           ::
         </button>
 
-        <button class="editor-step-order" type="button" @click="$emit('select', index)">
-          {{ index + 1 }}
-        </button>
-
-        <button class="min-w-0 text-left" type="button" @click="$emit('select', index)">
+        <button class="min-w-0 flex-1 text-left" type="button" @click="$emit('select', index)">
           <div class="min-w-0">
             <div class="flex flex-wrap items-center gap-2">
               <AppIcon name="node" :size="16" class="text-(--app-vibrant-blue) opacity-80 shrink-0" />
@@ -49,7 +45,7 @@
 
         <button
           v-if="allowRemove"
-          class="app-icon-button app-crash-icon app-icon-button-sec"
+          class="app-icon-button app-crash-icon app-icon-button-sec shrink-0 self-start"
           type="button"
           @click.stop="$emit('remove', index)"
         >
@@ -150,17 +146,5 @@ onBeforeUnmount(() => {
 
 .editor-step-card-drop-target {
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.24);
-}
-
-
-.editor-step-order {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  border: 1px solid var(--app-border);
-  background: var(--app-panel-muted);
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--app-text-strong);
 }
 </style>
