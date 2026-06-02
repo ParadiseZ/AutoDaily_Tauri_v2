@@ -7,10 +7,28 @@ use crate::infrastructure::core::{
     AssignmentId, DeviceId, ExecutionId, ScheduleId, ScriptId, TaskId,
 };
 use crate::infrastructure::db::get_pool;
+use serde::Serialize;
+use sha2::{Digest, Sha256};
 
 pub struct ScheduleJournal;
 
+#[derive(Serialize)]
+struct TaskDedupScope<'a> {
+    base_scope_hash: &'a str,
+    task_id: String,
+}
+
 impl ScheduleJournal {
+    pub fn compute_dedup_scope_hash(base_scope_hash: &str, task_id: TaskId) -> Result<String, String> {
+        let payload = TaskDedupScope {
+            base_scope_hash,
+            task_id: task_id.to_string(),
+        };
+        let json = serde_json::to_vec(&payload).map_err(|error| error.to_string())?;
+        let digest = Sha256::digest(json);
+        Ok(format!("{:x}", digest))
+    }
+
     fn task_cycle_value(task_cycle: &TaskCycle) -> Result<String, String> {
         let json = serde_json::to_value(task_cycle).map_err(|error| error.to_string())?;
         Ok(match json {

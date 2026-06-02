@@ -168,7 +168,7 @@ pub struct RuntimeQueueItem {
     pub account_data_json: Option<String>,
     pub order_index: u32,
     pub template_values_json: Option<String>,
-    pub dedup_scope_hash: String,
+    pub dedup_scope_base_hash: String,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]

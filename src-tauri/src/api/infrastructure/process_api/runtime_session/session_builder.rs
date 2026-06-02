@@ -107,7 +107,7 @@ pub(super) async fn build_runtime_session_snapshot(
                     account_data_json: None,
                     order_index: 0,
                     template_values_json: None,
-                    dedup_scope_hash: String::new(),
+                    dedup_scope_base_hash: String::new(),
                 });
             }
             queue

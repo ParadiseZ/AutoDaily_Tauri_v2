@@ -92,7 +92,7 @@ struct RuntimeDedupScope {
     task_settings: Value,
 }
 
-fn compute_dedup_scope_hash(
+fn compute_dedup_scope_base_hash(
     device_id: DeviceId,
     script_id: ScriptId,
     time_template_id: Option<TemplateId>,
@@ -305,7 +305,7 @@ async fn build_runtime_queue_item(
         .transpose()?,
         None => None,
     };
-    let dedup_scope_hash = compute_dedup_scope_hash(
+    let dedup_scope_base_hash = compute_dedup_scope_base_hash(
         device_id,
         assignment.script_id,
         assignment.time_template_id,
@@ -322,7 +322,7 @@ async fn build_runtime_queue_item(
         account_data_json: Some(account_data_json),
         order_index: assignment.index,
         template_values_json,
-        dedup_scope_hash,
+        dedup_scope_base_hash,
     })
 }
 
@@ -349,7 +349,7 @@ pub(super) async fn load_script_bundles(
 
 #[cfg(test)]
 mod tests {
-    use super::compute_dedup_scope_hash;
+    use super::compute_dedup_scope_base_hash;
     use crate::domain::schedule::time_template::TimeTemplate;
     use crate::infrastructure::core::UuidV7;
 
@@ -363,8 +363,8 @@ mod tests {
     }
 
     #[test]
-    fn dedup_scope_hash_ignores_unrelated_template_values() {
-        let hash_a = compute_dedup_scope_hash(
+    fn dedup_scope_base_hash_ignores_unrelated_template_values() {
+        let hash_a = compute_dedup_scope_base_hash(
             UuidV7(1),
             UuidV7(2),
             Some(UuidV7(3)),
@@ -375,7 +375,7 @@ mod tests {
             ),
         )
         .expect("hash a");
-        let hash_b = compute_dedup_scope_hash(
+        let hash_b = compute_dedup_scope_base_hash(
             UuidV7(1),
             UuidV7(2),
             Some(UuidV7(3)),
@@ -391,8 +391,8 @@ mod tests {
     }
 
     #[test]
-    fn dedup_scope_hash_changes_with_time_window_or_task_settings() {
-        let base = compute_dedup_scope_hash(
+    fn dedup_scope_base_hash_changes_with_time_window_or_task_settings() {
+        let base = compute_dedup_scope_base_hash(
             UuidV7(1),
             UuidV7(2),
             Some(UuidV7(3)),
@@ -401,7 +401,7 @@ mod tests {
             Some(r#"{"taskSettings":{"task-a":{"enabled":true}}}"#),
         )
         .expect("base hash");
-        let changed_window = compute_dedup_scope_hash(
+        let changed_window = compute_dedup_scope_base_hash(
             UuidV7(1),
             UuidV7(2),
             Some(UuidV7(3)),
@@ -410,7 +410,7 @@ mod tests {
             Some(r#"{"taskSettings":{"task-a":{"enabled":true}}}"#),
         )
         .expect("window hash");
-        let changed_task_setting = compute_dedup_scope_hash(
+        let changed_task_setting = compute_dedup_scope_base_hash(
             UuidV7(1),
             UuidV7(2),
             Some(UuidV7(3)),

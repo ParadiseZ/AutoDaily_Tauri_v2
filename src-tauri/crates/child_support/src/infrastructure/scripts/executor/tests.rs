@@ -336,7 +336,7 @@ async fn install_runtime_policy_for_test(timeout_action: TimeoutAction) {
             account_data_json: None,
             order_index: 0,
             template_values_json: None,
-            dedup_scope_hash: String::new(),
+            dedup_scope_base_hash: String::new(),
         }],
         script_bundles: Vec::new(),
         issued_at: chrono::Utc::now().to_rfc3339(),

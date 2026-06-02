@@ -413,7 +413,10 @@ impl ScriptScheduler {
                     assignment_id,
                     script_id,
                     &skipped.task,
-                    &queue_item.dedup_scope_hash,
+                    &ScheduleJournal::compute_dedup_scope_hash(
+                        &queue_item.dedup_scope_base_hash,
+                        skipped.task.id,
+                    )?,
                     &skipped.task_cycle,
                     RunStatus::Skipped,
                     now.clone(),
@@ -534,7 +537,10 @@ impl ScriptScheduler {
                             assignment_id,
                             script_id,
                             &task,
-                            &queue_item.dedup_scope_hash,
+                            &ScheduleJournal::compute_dedup_scope_hash(
+                                &queue_item.dedup_scope_base_hash,
+                                task.id,
+                            )?,
                             &task_cycle,
                             if task_skipped {
                                 RunStatus::Skipped
@@ -591,7 +597,10 @@ impl ScriptScheduler {
                             assignment_id,
                             script_id,
                             &task,
-                            &queue_item.dedup_scope_hash,
+                            &ScheduleJournal::compute_dedup_scope_hash(
+                                &queue_item.dedup_scope_base_hash,
+                                task.id,
+                            )?,
                             &task_cycle,
                             RunStatus::Failed,
                             task_started_at,
