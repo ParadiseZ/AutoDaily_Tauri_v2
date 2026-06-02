@@ -7,7 +7,8 @@ use child_support::infrastructure::context::child_process_sec::{
 use child_support::infrastructure::context::init_error::InitError;
 use child_support::infrastructure::core::{Deserialize, Error, Serialize};
 use child_support::infrastructure::ipc::message::RuntimeLifecyclePhase;
-use child_support::infrastructure::ipc::runtime_reporter::emit_lifecycle_event;
+use child_support::infrastructure::ipc::runtime_reporter::{emit_dispatch_event, emit_lifecycle_event};
+use child_support::infrastructure::ipc::message::RuntimeDispatchPhase;
 use child_support::infrastructure::logging::log_trait::Log;
 use child_support::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
 use tokio_util::sync::CancellationToken;
@@ -141,6 +142,13 @@ async fn run_main_loop(cancel_token: CancellationToken) {
                                 emit_lifecycle_event(
                                     RuntimeLifecyclePhase::Idle,
                                     Some("脚本队列已空".to_string()),
+                                );
+                                emit_dispatch_event(
+                                    None,
+                                    None,
+                                    None,
+                                    RuntimeDispatchPhase::RequestNext,
+                                    Some("当前 dispatch 已结束，请求下一个 dispatch".to_string()),
                                 );
                             }
                         } else {

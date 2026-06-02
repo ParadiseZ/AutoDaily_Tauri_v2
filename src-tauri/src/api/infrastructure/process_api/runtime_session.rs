@@ -4,7 +4,7 @@ mod session_builder;
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::core::DeviceId;
-use crate::infrastructure::ipc::message::{RunTarget, RuntimeSessionSnapshot};
+use crate::infrastructure::ipc::message::{RunTarget, RuntimeQueueItem, RuntimeSessionSnapshot};
 
 pub(super) async fn load_device_table(device_id: DeviceId) -> Result<DeviceTable, String> {
     session_builder::load_device_table(device_id).await
@@ -20,6 +20,14 @@ pub(super) async fn load_runtime_session_for_target(
     run_target: RunTarget,
 ) -> Result<RuntimeSessionSnapshot, String> {
     session_builder::load_runtime_session_for_target(app_handle, device_id, run_target).await
+}
+
+pub(super) async fn load_runtime_session_for_queue_item(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    queue_item: RuntimeQueueItem,
+) -> Result<RuntimeSessionSnapshot, String> {
+    session_builder::load_runtime_session_for_queue_item(app_handle, device_id, queue_item).await
 }
 
 pub(super) async fn build_child_init_data(

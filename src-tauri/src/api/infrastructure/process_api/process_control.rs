@@ -1,18 +1,23 @@
+use super::bundle_loader::load_runtime_queue_for_current_window;
+use super::dispatch_planner::{
+    insert_assignment_schedule, update_assignment_schedule_status_by_dispatch_id, DispatchPlanner,
+};
 use super::runtime_session::{
-    build_child_init_data, load_device_table, load_runtime_session_for_target,
-    validate_runtime_platform_supported,
+    build_child_init_data, load_device_table, load_runtime_session_for_queue_item,
+    load_runtime_session_for_target, validate_runtime_platform_supported,
 };
 use crate::constant::table_name::DEVICE_TABLE;
+use crate::domain::devices::device_schedule::{AssignmentScheduleStatus, AssignmentTriggerSource};
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
-use crate::infrastructure::context::main_process::MainProcessCtx;
+use crate::infrastructure::context::main_process::{DeviceDispatchSignal, MainProcessCtx};
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     CaptureControlMessage, ConnectionAction, ConnectionControlMessage, ConnectionStatusKind,
-    IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage, RunTarget,
-    SessionControlMessage,
+    DispatchSource, IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
+    RunTarget, RuntimeDispatchPhase, RuntimeQueueItem, SessionControlMessage,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use tauri::{command, Manager};
@@ -55,6 +60,57 @@ async fn send_capture_control(device_id: DeviceId) -> crate::infrastructure::cor
     let request_id = msg.id;
     IpcServer::send_to_client(&device_id, msg).await;
     request_id
+}
+
+async fn dispatch_queue_item_to_child(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    queue_item: RuntimeQueueItem,
+) -> Result<(), String> {
+    let session = load_runtime_session_for_queue_item(app_handle, device_id, queue_item.clone()).await?;
+    if matches!(queue_item.dispatch_source, DispatchSource::Planner) {
+        let _ = insert_assignment_schedule(
+            device_id,
+            queue_item.assignment_id,
+            queue_item.time_template_id,
+            queue_item.window_start_at.clone(),
+            queue_item.dispatch_id,
+            AssignmentScheduleStatus::Dispatched,
+            AssignmentTriggerSource::Planner,
+            Some("dispatch 已派发到子进程".to_string()),
+        )
+        .await;
+    }
+    send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
+    send_process_control(device_id, ProcessAction::Start);
+    DispatchPlanner::init().mark_active_dispatch(device_id, Some(queue_item.dispatch_id))?;
+    Ok(())
+}
+
+async fn dispatch_next_pending_queue_item(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<bool, String> {
+    let planner = DispatchPlanner::init();
+    let Some(queue_item) = planner.pop_next_dispatch(device_id)? else {
+        planner.mark_active_dispatch(device_id, None)?;
+        return Ok(false);
+    };
+    dispatch_queue_item_to_child(app_handle, device_id, queue_item).await?;
+    Ok(true)
+}
+
+async fn rebuild_device_queue_pending_dispatches(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<Vec<RuntimeQueueItem>, String> {
+    ensure_device_ready(app_handle, device_id).await?;
+    let queue = load_runtime_queue_for_current_window(device_id).await?;
+    let planner = DispatchPlanner::init();
+    planner.ensure_device_state(device_id)?;
+    planner.replace_pending_dispatches(device_id, queue.clone())?;
+    planner.mark_active_dispatch(device_id, None)?;
+    Ok(queue)
 }
 
 async fn wait_for_ipc_client(
@@ -240,6 +296,75 @@ async fn wait_for_capture_result(
     }
 }
 
+pub(crate) fn spawn_dispatch_signal_loop(
+    app_handle: tauri::AppHandle,
+    mut rx: tokio::sync::mpsc::UnboundedReceiver<DeviceDispatchSignal>,
+) {
+    tauri::async_runtime::spawn(async move {
+        while let Some(signal) = rx.recv().await {
+            let result = match signal.phase {
+                RuntimeDispatchPhase::Started => {
+                    if let Some(dispatch_id) = signal.dispatch_id {
+                        update_assignment_schedule_status_by_dispatch_id(
+                            dispatch_id,
+                            AssignmentScheduleStatus::Running,
+                            Some(signal.at.clone()),
+                            None,
+                            signal.message.clone(),
+                        )
+                        .await
+                    } else {
+                        Ok(())
+                    }
+                }
+                RuntimeDispatchPhase::Finished => {
+                    if let Some(dispatch_id) = signal.dispatch_id {
+                        update_assignment_schedule_status_by_dispatch_id(
+                            dispatch_id,
+                            AssignmentScheduleStatus::Success,
+                            None,
+                            Some(signal.at.clone()),
+                            signal.message.clone(),
+                        )
+                        .await
+                    } else {
+                        Ok(())
+                    }
+                }
+                RuntimeDispatchPhase::Failed => {
+                    if let Some(dispatch_id) = signal.dispatch_id {
+                        update_assignment_schedule_status_by_dispatch_id(
+                            dispatch_id,
+                            AssignmentScheduleStatus::Failed,
+                            None,
+                            Some(signal.at.clone()),
+                            signal.message.clone(),
+                        )
+                        .await
+                    } else {
+                        Ok(())
+                    }
+                }
+                RuntimeDispatchPhase::RequestNext => {
+                    match DispatchPlanner::init().mark_active_dispatch(signal.device_id, None) {
+                        Ok(()) => dispatch_next_pending_queue_item(&app_handle, signal.device_id)
+                            .await
+                            .map(|_| ()),
+                        Err(error) => Err(error),
+                    }
+                }
+            };
+
+            if let Err(error) = result {
+                Log::error(&format!(
+                    "[ process ] 处理设备[{}] dispatch 信号失败: {}",
+                    signal.device_id, error
+                ));
+            }
+        }
+    });
+}
+
 async fn restart_device_runtime_internal(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
@@ -254,10 +379,8 @@ async fn restart_device_runtime_internal(
     let init_data = build_child_init_data(app_handle, device_id, false).await?;
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
-    let session = load_runtime_session_for_target(app_handle, device_id, RunTarget::DeviceQueue).await?;
-    send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
 
-    Ok(format!("设备[{}]子进程已重启并重新装填 session", device_id))
+    Ok(format!("设备[{}]子进程已重启", device_id))
 }
 
 #[command]
@@ -265,11 +388,12 @@ pub async fn cmd_device_start(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    ensure_device_ready(&app_handle, device_id).await?;
-    let session = load_runtime_session_for_target(&app_handle, device_id, RunTarget::DeviceQueue).await?;
-    send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
-    send_process_control(device_id, ProcessAction::Start);
-    Ok(format!("已向设备[{}]发送启动命令", device_id))
+    let queue = rebuild_device_queue_pending_dispatches(&app_handle, device_id).await?;
+    if queue.is_empty() {
+        return Ok(format!("设备[{}]当前时间窗口下没有可运行的队列项", device_id));
+    }
+    dispatch_next_pending_queue_item(&app_handle, device_id).await?;
+    Ok(format!("已向设备[{}]派发 {} 个队列项，开始执行第一项", device_id, queue.len()))
 }
 
 #[command]
@@ -289,11 +413,12 @@ pub async fn cmd_sync_device_runtime_session(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    ensure_device_ready(&app_handle, device_id).await?;
-    let session =
-        load_runtime_session_for_target(&app_handle, device_id, RunTarget::DeviceQueue).await?;
-    send_session_control(device_id, SessionControlMessage::ReloadSession { session }).await;
-    Ok(format!("已同步设备[{}]运行会话", device_id))
+    let queue = rebuild_device_queue_pending_dispatches(&app_handle, device_id).await?;
+    Ok(format!(
+        "已同步设备[{}]待执行队列，当前时间窗口下共有 {} 个候选项",
+        device_id,
+        queue.len()
+    ))
 }
 
 #[command]

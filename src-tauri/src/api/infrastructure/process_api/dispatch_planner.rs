@@ -230,3 +230,28 @@ pub async fn update_assignment_schedule_status(
 
     Ok(())
 }
+
+pub async fn update_assignment_schedule_status_by_dispatch_id(
+    dispatch_id: DispatchId,
+    status: AssignmentScheduleStatus,
+    started_at: Option<String>,
+    completed_at: Option<String>,
+    message: Option<String>,
+) -> Result<(), String> {
+    sqlx::query(&format!(
+        "UPDATE {}
+         SET status = ?, started_at = COALESCE(?, started_at), completed_at = COALESCE(?, completed_at), message = ?
+         WHERE dispatch_id = ?",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(assignment_schedule_status_value(&status))
+    .bind(started_at)
+    .bind(completed_at)
+    .bind(message)
+    .bind(dispatch_id.to_string())
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(())
+}

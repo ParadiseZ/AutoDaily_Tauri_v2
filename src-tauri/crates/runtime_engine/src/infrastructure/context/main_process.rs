@@ -1,10 +1,11 @@
 use crate::infrastructure::context::init_error::InitResult;
-use crate::infrastructure::core::{DeviceId, HashMap, MessageId};
+use crate::infrastructure::core::{AssignmentId, DeviceId, DispatchId, HashMap, MessageId, ScriptId};
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
-use crate::infrastructure::ipc::message::ConnectionStatusKind;
+use crate::infrastructure::ipc::message::{ConnectionStatusKind, RuntimeDispatchPhase};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
 use std::sync::{Arc, RwLock};
+use tokio::sync::mpsc;
 
 #[derive(Clone, Debug)]
 pub struct DeviceConnectionState {
@@ -17,6 +18,17 @@ pub struct DeviceCaptureResult {
     pub device_id: DeviceId,
     pub image_data: Option<String>,
     pub message: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DeviceDispatchSignal {
+    pub device_id: DeviceId,
+    pub dispatch_id: Option<DispatchId>,
+    pub assignment_id: Option<AssignmentId>,
+    pub script_id: Option<ScriptId>,
+    pub phase: RuntimeDispatchPhase,
+    pub message: Option<String>,
+    pub at: String,
 }
 
 /// 主进程上下文 - 优化的数据存储策略
@@ -32,16 +44,24 @@ pub struct MainProcessCtx {
 
     /// 设备截图结果（由子进程按请求回传）
     pub device_capture_results: Arc<RwLock<HashMap<MessageId, DeviceCaptureResult>>>,
+
+    /// dispatch 运行信号，供主进程调度器消费
+    pub dispatch_signal_tx: mpsc::UnboundedSender<DeviceDispatchSignal>,
 }
 
 impl MainProcessCtx {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> (Self, mpsc::UnboundedReceiver<DeviceDispatchSignal>) {
+        let (dispatch_signal_tx, dispatch_signal_rx) = mpsc::unbounded_channel();
+        (
+            Self {
             script_manager: Arc::new(RwLock::new(ScriptManager::empty())),
             ipc_servers: Arc::new(RwLock::new(HashMap::new())),
             device_connections: Arc::new(RwLock::new(HashMap::new())),
             device_capture_results: Arc::new(RwLock::new(HashMap::new())),
-        }
+            dispatch_signal_tx,
+        },
+            dispatch_signal_rx,
+        )
     }
 
     pub async fn init_scripts_mgr() -> InitResult<()> {

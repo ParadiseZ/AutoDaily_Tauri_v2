@@ -21,6 +21,62 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
+use chrono::TimeZone;
+
+fn parse_hhmm(value: &str) -> Result<chrono::NaiveTime, String> {
+    chrono::NaiveTime::parse_from_str(value, "%H:%M")
+        .map_err(|error| format!("解析时间模板时间失败[{}]: {}", value, error))
+}
+
+fn compute_window_start_at(
+    template: &TimeTemplate,
+    now: chrono::DateTime<chrono::Local>,
+) -> Result<Option<String>, String> {
+    let start = template.start_time.as_deref().map(parse_hhmm).transpose()?;
+    let end = template.end_time.as_deref().map(parse_hhmm).transpose()?;
+    let today = now.date_naive();
+    let now_time = now.time();
+
+    let window_start = match (start, end) {
+        (None, None) => return Ok(None),
+        (Some(start), None) => {
+            if now_time < start {
+                return Ok(None);
+            }
+            today.and_time(start)
+        }
+        (None, Some(end)) => {
+            if now_time > end {
+                return Ok(None);
+            }
+            today.and_hms_opt(0, 0, 0)
+                .ok_or_else(|| "构造时间窗口起点失败".to_string())?
+        }
+        (Some(start), Some(end)) if start <= end => {
+            if now_time < start || now_time > end {
+                return Ok(None);
+            }
+            today.and_time(start)
+        }
+        (Some(start), Some(end)) => {
+            if now_time >= start {
+                today.and_time(start)
+            } else if now_time <= end {
+                (today - chrono::Days::new(1)).and_time(start)
+            } else {
+                return Ok(None);
+            }
+        }
+    };
+
+    Ok(Some(
+        chrono::Local
+            .from_local_datetime(&window_start)
+            .single()
+            .ok_or_else(|| "构造时间窗口实例失败".to_string())?
+            .to_rfc3339(),
+    ))
+}
 
 fn normalize_account_id(account_id: Option<AccountId>) -> Option<AccountId> {
     account_id.and_then(|value| {
@@ -278,7 +334,41 @@ pub(super) async fn load_runtime_queue(device_id: DeviceId) -> Result<Vec<Runtim
 
     let mut queue = Vec::with_capacity(assignments.len());
     for assignment in assignments {
-        queue.push(build_runtime_queue_item(device_id, assignment).await?);
+        queue.push(build_runtime_queue_item(device_id, assignment, None).await?);
+    }
+
+    Ok(queue)
+}
+
+pub(super) async fn load_runtime_queue_for_current_window(
+    device_id: DeviceId,
+) -> Result<Vec<RuntimeQueueItem>, String> {
+    let query = format!(
+        "SELECT id, device_id, script_id, time_template_id, account_data, `index` FROM {} WHERE device_id = ? ORDER BY `index` ASC",
+        ASSIGNMENT_TABLE
+    );
+    let assignments = sqlx::query_as::<_, DeviceScriptAssignment>(&query)
+        .bind(device_id.to_string())
+        .fetch_all(get_pool())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let now = chrono::Local::now();
+    let mut queue = Vec::new();
+    for assignment in assignments {
+        let window_start_at = match assignment.time_template_id {
+            Some(time_template_id) => {
+                let Some(template) = load_time_template(time_template_id).await? else {
+                    continue;
+                };
+                match compute_window_start_at(&template, now)? {
+                    Some(window_start_at) => Some(window_start_at),
+                    None => continue,
+                }
+            }
+            None => None,
+        };
+        queue.push(build_runtime_queue_item(device_id, assignment, window_start_at).await?);
     }
 
     Ok(queue)
@@ -287,6 +377,7 @@ pub(super) async fn load_runtime_queue(device_id: DeviceId) -> Result<Vec<Runtim
 async fn build_runtime_queue_item(
     device_id: DeviceId,
     assignment: DeviceScriptAssignment,
+    window_start_at: Option<String>,
 ) -> Result<RuntimeQueueItem, String> {
     let account_data_json =
         serde_json::to_string(&assignment.account_data.0).map_err(|e| e.to_string())?;
@@ -326,7 +417,7 @@ async fn build_runtime_queue_item(
         account_id,
         account_data_json: Some(account_data_json),
         order_index: assignment.index,
-        window_start_at: None,
+        window_start_at,
         template_values_json,
         dedup_scope_base_hash,
     })

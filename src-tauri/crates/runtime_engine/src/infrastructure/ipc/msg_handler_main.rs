@@ -1,7 +1,7 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::main_process::{
-    DeviceCaptureResult, DeviceConnectionState, MainProcessCtx,
+    DeviceCaptureResult, DeviceConnectionState, DeviceDispatchSignal, MainProcessCtx,
 };
 use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
@@ -198,6 +198,31 @@ fn handle_runtime_event(
                         },
                     );
                 }
+            }
+            RuntimeEventMessage::Dispatch(dispatch) => {
+                let _ = get_app_handle()
+                    .state::<MainProcessCtx>()
+                    .dispatch_signal_tx
+                    .send(DeviceDispatchSignal {
+                        device_id,
+                        dispatch_id: dispatch.dispatch_id,
+                        assignment_id: dispatch.assignment_id,
+                        script_id: dispatch.script_id,
+                        phase: dispatch.phase.clone(),
+                        message: dispatch.message.clone(),
+                        at: dispatch.at.clone(),
+                    });
+
+                let emit_data = serde_json::json!({
+                    "deviceId": device_id.to_string(),
+                    "dispatchId": dispatch.dispatch_id.map(|id| id.to_string()),
+                    "assignmentId": dispatch.assignment_id.map(|id| id.to_string()),
+                    "scriptId": dispatch.script_id.map(|id| id.to_string()),
+                    "phase": format!("{:?}", dispatch.phase),
+                    "message": dispatch.message,
+                    "at": dispatch.at,
+                });
+                let _ = main_window.emit("device-dispatch", emit_data);
             }
         }
     }

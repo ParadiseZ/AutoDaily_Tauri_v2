@@ -64,7 +64,7 @@ use crate::api::infrastructure::process_api::{
     cmd_prepare_device_capture,
     cmd_probe_device_connections, cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
     cmd_bootstrap_enabled_devices,
-    cmd_sync_device_runtime_session,
+    cmd_sync_device_runtime_session, spawn_dispatch_signal_loop,
 };
 use crate::app::before_exit::before_exit;
 use crate::api::infrastructure::vision_lab::{
@@ -81,8 +81,9 @@ static APP_EXITING: AtomicBool = AtomicBool::new(false);
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let (main_process_ctx, dispatch_signal_rx) = MainProcessCtx::new();
     let app = tauri::Builder::default()
-        .manage(MainProcessCtx::new())
+        .manage(main_process_ctx)
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!("{}, {argv:?}, {cwd}", app.package_info().name);
             let _ = app.emit("single-instance", ());
@@ -98,6 +99,7 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app: &mut App| {
             let app_handle = app.app_handle().clone();
+            spawn_dispatch_signal_loop(app_handle.clone(), dispatch_signal_rx);
             tauri::async_runtime::spawn(async move {
                 // 启动时初始化
                 init_at_start(&app_handle).await;

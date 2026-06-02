@@ -87,6 +87,40 @@ pub(super) async fn load_runtime_session_for_target(
     build_runtime_session_snapshot(app_handle, device_id, run_target).await
 }
 
+pub(super) async fn load_runtime_session_for_queue_item(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    queue_item: RuntimeQueueItem,
+) -> Result<RuntimeSessionSnapshot, String> {
+    let device_table = load_device_table(device_id).await?;
+    validate_runtime_platform_supported(&device_table)?;
+    let runtime_policy = to_runtime_policy(
+        &device_table,
+        get_vision_text_cache_runtime_config_app(app_handle)
+            .await
+            .map_err(|e| format!("读取 OCR 缓存配置失败: {}", e))?,
+    );
+    let queue = vec![queue_item];
+    let run_target = RunTarget::DeviceQueue;
+    let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
+    validate_published_script_runtime_access(app_handle, &loaded_script_bundles).await?;
+    validate_run_target_support(&run_target, &loaded_script_bundles)?;
+    validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
+    let script_bundles = loaded_script_bundles
+        .into_iter()
+        .map(|bundle| bundle.snapshot)
+        .collect();
+    Ok(RuntimeSessionSnapshot {
+        session_id: SessionId::new_v7(),
+        device_id,
+        run_target,
+        runtime_policy,
+        queue,
+        script_bundles,
+        issued_at: chrono::Local::now().to_rfc3339(),
+    })
+}
+
 pub(super) async fn build_runtime_session_snapshot(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,

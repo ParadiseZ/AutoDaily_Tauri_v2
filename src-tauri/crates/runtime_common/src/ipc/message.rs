@@ -110,6 +110,16 @@ pub enum DispatchSource {
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+pub enum RuntimeDispatchPhase {
+    Started,
+    Finished,
+    Failed,
+    RequestNext,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum RunTarget {
     DeviceQueue,
     FullScript {
@@ -330,12 +340,24 @@ pub struct CaptureResultEvent {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct RuntimeDispatchEvent {
+    pub dispatch_id: Option<DispatchId>,
+    pub assignment_id: Option<AssignmentId>,
+    pub script_id: Option<ScriptId>,
+    pub phase: RuntimeDispatchPhase,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RuntimeEventMessage {
     Lifecycle(RuntimeLifecycleEvent),
     Progress(RuntimeProgressEvent),
     Schedule(RuntimeScheduleEvent),
     Connection(ConnectionStatusEvent),
     Capture(CaptureResultEvent),
+    Dispatch(RuntimeDispatchEvent),
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]

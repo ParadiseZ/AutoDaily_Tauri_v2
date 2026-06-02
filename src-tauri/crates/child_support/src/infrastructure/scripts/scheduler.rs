@@ -11,10 +11,12 @@ use crate::infrastructure::context::runtime_context::get_runtime_ctx;
 use crate::infrastructure::core::ExecutionId;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::ipc::message::{
-    RunTarget, RuntimeProgressPhase, RuntimeQueueItem, RuntimeScheduleStatus,
+    RunTarget, RuntimeDispatchPhase, RuntimeProgressPhase, RuntimeQueueItem, RuntimeScheduleStatus,
     RuntimeSessionSnapshot,
 };
-use crate::infrastructure::ipc::runtime_reporter::{emit_progress_event, emit_schedule_event};
+use crate::infrastructure::ipc::runtime_reporter::{
+    emit_dispatch_event, emit_progress_event, emit_schedule_event,
+};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::execution_plan::ExecutionPlanAssembler;
 use crate::infrastructure::scripts::executor::ScriptExecutor;
@@ -233,6 +235,13 @@ impl ScriptScheduler {
         // 标记当前脚本
         *self.current_script.write().await = Some(script_id);
         Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_id));
+        emit_dispatch_event(
+            Some(queue_item.dispatch_id),
+            Some(assignment_id),
+            Some(script_id),
+            RuntimeDispatchPhase::Started,
+            Some("dispatch 已开始执行".to_string()),
+        );
         emit_progress_event(
             RuntimeProgressPhase::Loading,
             Some(assignment_id),
@@ -260,9 +269,23 @@ impl ScriptScheduler {
         match result {
             Ok(()) => {
                 Log::info(&format!("[ scheduler ] 脚本[{}]执行完成", script_id));
+                emit_dispatch_event(
+                    Some(queue_item.dispatch_id),
+                    Some(assignment_id),
+                    Some(script_id),
+                    RuntimeDispatchPhase::Finished,
+                    Some("dispatch 执行完成".to_string()),
+                );
             }
             Err(e) => {
                 Log::error(&format!("[ scheduler ] 脚本[{}]执行失败: {}", script_id, e));
+                emit_dispatch_event(
+                    Some(queue_item.dispatch_id),
+                    Some(assignment_id),
+                    Some(script_id),
+                    RuntimeDispatchPhase::Failed,
+                    Some(e.clone()),
+                );
                 emit_progress_event(
                     RuntimeProgressPhase::Failed,
                     Some(assignment_id),

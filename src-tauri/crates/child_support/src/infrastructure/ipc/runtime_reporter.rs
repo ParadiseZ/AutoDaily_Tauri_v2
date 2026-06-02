@@ -1,11 +1,12 @@
 use crate::infrastructure::context::child_process_sec::get_ipc_client;
 use crate::infrastructure::core::{
-    AssignmentId, ExecutionId, MessageId, ScriptId, SessionId, StepId, TaskId,
+    AssignmentId, DispatchId, ExecutionId, MessageId, ScriptId, SessionId, StepId, TaskId,
 };
 use crate::infrastructure::ipc::message::{
     CaptureResultEvent, ConnectionStatusEvent, ConnectionStatusKind, IpcMessage, MessagePayload,
-    MessageType, RuntimeEventMessage, RuntimeLifecycleEvent, RuntimeLifecyclePhase,
-    RuntimeProgressEvent, RuntimeProgressPhase, RuntimeScheduleEvent, RuntimeScheduleStatus,
+    MessageType, RuntimeDispatchEvent, RuntimeDispatchPhase, RuntimeEventMessage,
+    RuntimeLifecycleEvent, RuntimeLifecyclePhase, RuntimeProgressEvent, RuntimeProgressPhase,
+    RuntimeScheduleEvent, RuntimeScheduleStatus,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::scheduler::get_scheduler;
@@ -136,5 +137,25 @@ pub fn emit_capture_event(
             at: now_millis_string(),
         }),
         "截图结果事件",
+    );
+}
+
+pub fn emit_dispatch_event(
+    dispatch_id: Option<DispatchId>,
+    assignment_id: Option<AssignmentId>,
+    script_id: Option<ScriptId>,
+    phase: RuntimeDispatchPhase,
+    message: Option<String>,
+) {
+    emit_runtime_event(
+        RuntimeEventMessage::Dispatch(RuntimeDispatchEvent {
+            dispatch_id,
+            assignment_id,
+            script_id,
+            phase,
+            message,
+            at: now_millis_string(),
+        }),
+        "dispatch事件",
     );
 }
