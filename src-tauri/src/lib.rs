@@ -64,7 +64,7 @@ use crate::api::infrastructure::process_api::{
     cmd_prepare_device_capture,
     cmd_probe_device_connections, cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
     cmd_bootstrap_enabled_devices,
-    cmd_sync_device_runtime_session, spawn_dispatch_signal_loop,
+    cmd_sync_device_runtime_session, spawn_auto_dispatch_planner_loop, spawn_dispatch_signal_loop,
 };
 use crate::app::before_exit::before_exit;
 use crate::api::infrastructure::vision_lab::{
@@ -100,6 +100,7 @@ pub fn run() {
         .setup(|app: &mut App| {
             let app_handle = app.app_handle().clone();
             spawn_dispatch_signal_loop(app_handle.clone(), dispatch_signal_rx);
+            spawn_auto_dispatch_planner_loop(app_handle.clone());
             tauri::async_runtime::spawn(async move {
                 // 启动时初始化
                 init_at_start(&app_handle).await;

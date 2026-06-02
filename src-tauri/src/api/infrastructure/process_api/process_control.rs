@@ -1,6 +1,7 @@
 use super::bundle_loader::load_runtime_queue_for_current_window;
 use super::dispatch_planner::{
-    insert_assignment_schedule, update_assignment_schedule_status_by_dispatch_id, DispatchPlanner,
+    find_assignment_schedule_scope, insert_assignment_schedule,
+    update_assignment_schedule_status_by_dispatch_id, DispatchPlanner,
 };
 use super::runtime_session::{
     build_child_init_data, load_device_table, load_runtime_session_for_queue_item,
@@ -9,10 +10,11 @@ use super::runtime_session::{
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_schedule::{AssignmentScheduleStatus, AssignmentTriggerSource};
 use crate::domain::devices::device_conf::DeviceTable;
+use crate::domain::schedule::time_template::TimeTemplate;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::context::main_process::{DeviceDispatchSignal, MainProcessCtx};
 use crate::infrastructure::core::DeviceId;
-use crate::infrastructure::db::DbRepo;
+use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     CaptureControlMessage, ConnectionAction, ConnectionControlMessage, ConnectionStatusKind,
@@ -21,6 +23,7 @@ use crate::infrastructure::ipc::message::{
 };
 use crate::infrastructure::logging::log_trait::Log;
 use tauri::{command, Manager};
+use chrono::{Days, Local, NaiveTime, TimeZone};
 
 async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
     let msg = IpcMessage::new(
@@ -87,6 +90,52 @@ async fn dispatch_queue_item_to_child(
     Ok(())
 }
 
+fn to_planner_queue_item(mut queue_item: RuntimeQueueItem) -> RuntimeQueueItem {
+    queue_item.dispatch_source = DispatchSource::Planner;
+    queue_item
+}
+
+fn parse_hhmm(value: &str) -> Result<NaiveTime, String> {
+    NaiveTime::parse_from_str(value, "%H:%M")
+        .map_err(|error| format!("解析时间模板时间失败[{}]: {}", value, error))
+}
+
+fn compute_next_due_from_template(
+    template: &TimeTemplate,
+    now: chrono::DateTime<Local>,
+) -> Result<Option<chrono::DateTime<Local>>, String> {
+    let Some(start_text) = template.start_time.as_deref() else {
+        return Ok(None);
+    };
+    let start = parse_hhmm(start_text)?;
+    let today = now.date_naive();
+    let today_due = Local
+        .from_local_datetime(&today.and_time(start))
+        .single()
+        .ok_or_else(|| "构造下一次调度时间失败".to_string())?;
+    if today_due > now {
+        return Ok(Some(today_due));
+    }
+    Ok(Some(
+        Local
+            .from_local_datetime(&(today + Days::new(1)).and_time(start))
+            .single()
+            .ok_or_else(|| "构造下一次调度时间失败".to_string())?,
+    ))
+}
+
+async fn load_time_template_by_id(
+    template_id: crate::infrastructure::core::TemplateId,
+) -> Result<Option<TimeTemplate>, String> {
+    sqlx::query_as::<_, TimeTemplate>(
+        "SELECT id, name, start_time, end_time FROM time_templates WHERE id = ?",
+    )
+    .bind(template_id.to_string())
+    .fetch_optional(get_pool())
+    .await
+    .map_err(|error| error.to_string())
+}
+
 async fn dispatch_next_pending_queue_item(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
@@ -109,8 +158,126 @@ async fn rebuild_device_queue_pending_dispatches(
     let planner = DispatchPlanner::init();
     planner.ensure_device_state(device_id)?;
     planner.replace_pending_dispatches(device_id, queue.clone())?;
-    planner.mark_active_dispatch(device_id, None)?;
     Ok(queue)
+}
+
+pub(crate) async fn reevaluate_device_auto_dispatch(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<usize, String> {
+    let device = load_device_table(device_id).await?;
+    if !device.data.0.enable || !device.data.0.auto_start {
+        return Ok(0);
+    }
+
+    ensure_device_ready(app_handle, device_id).await?;
+
+    let planner = DispatchPlanner::init();
+    planner.ensure_device_state(device_id)?;
+    let state = planner.snapshot_device_state(device_id)?;
+    if state.active_dispatch.is_some() || !state.pending_dispatches.is_empty() {
+        return Ok(0);
+    }
+
+    let queue = load_runtime_queue_for_current_window(device_id).await?;
+    let mut filtered = Vec::new();
+    for queue_item in queue.into_iter().map(to_planner_queue_item) {
+        if find_assignment_schedule_scope(
+            queue_item.assignment_id,
+            queue_item.window_start_at.as_deref(),
+            AssignmentTriggerSource::Planner,
+        )
+        .await?
+        .is_none()
+        {
+            filtered.push(queue_item);
+        }
+    }
+
+    if filtered.is_empty() {
+        return Ok(0);
+    }
+
+    planner.replace_pending_dispatches(device_id, filtered.clone())?;
+    dispatch_next_pending_queue_item(app_handle, device_id).await?;
+    Ok(filtered.len())
+}
+
+pub(crate) async fn reevaluate_all_auto_dispatches(
+    app_handle: &tauri::AppHandle,
+) -> Result<usize, String> {
+    let devices = DbRepo::get_all::<DeviceTable>(DEVICE_TABLE).await?;
+    let mut total = 0usize;
+    for device in devices {
+        total += reevaluate_device_auto_dispatch(app_handle, device.id).await?;
+    }
+    Ok(total)
+}
+
+async fn compute_next_auto_due_at() -> Result<Option<chrono::DateTime<Local>>, String> {
+    let devices = DbRepo::get_all::<DeviceTable>(DEVICE_TABLE).await?;
+    let now = Local::now();
+    let mut next_due: Option<chrono::DateTime<Local>> = None;
+
+    for device in devices {
+        if !device.data.0.enable || !device.data.0.auto_start {
+            continue;
+        }
+        let query = "SELECT id, device_id, script_id, time_template_id, account_data, `index` FROM device_script_assignments WHERE device_id = ? AND time_template_id IS NOT NULL";
+        let assignments = sqlx::query_as::<_, crate::domain::devices::device_schedule::DeviceScriptAssignment>(query)
+            .bind(device.id.to_string())
+            .fetch_all(get_pool())
+            .await
+            .map_err(|error| error.to_string())?;
+
+        for assignment in assignments {
+            let Some(template_id) = assignment.time_template_id else {
+                continue;
+            };
+            let Some(template) = load_time_template_by_id(template_id).await? else {
+                continue;
+            };
+            let Some(candidate) = compute_next_due_from_template(&template, now)? else {
+                continue;
+            };
+            next_due = match next_due {
+                Some(current) if current <= candidate => Some(current),
+                _ => Some(candidate),
+            };
+        }
+    }
+
+    Ok(next_due)
+}
+
+pub(crate) fn spawn_auto_dispatch_planner_loop(app_handle: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            let sleep_duration = match compute_next_auto_due_at().await {
+                Ok(Some(next_due)) => {
+                    let now = Local::now();
+                    (next_due - now)
+                        .to_std()
+                        .unwrap_or_else(|_| std::time::Duration::from_secs(1))
+                }
+                Ok(None) => std::time::Duration::from_secs(300),
+                Err(error) => {
+                    Log::error(&format!("[ process ] 计算下一次自动调度时间失败: {}", error));
+                    std::time::Duration::from_secs(60)
+                }
+            };
+            tokio::time::sleep(sleep_duration).await;
+            match reevaluate_all_auto_dispatches(&app_handle).await {
+                Ok(count) if count > 0 => {
+                    Log::info(&format!("[ process ] 自动调度派发了 {} 个队列项", count));
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    Log::error(&format!("[ process ] 自动调度 reevaluate 失败: {}", error));
+                }
+            }
+        }
+    });
 }
 
 async fn wait_for_ipc_client(
@@ -389,6 +556,10 @@ pub async fn cmd_device_start(
     device_id: DeviceId,
 ) -> Result<String, String> {
     let queue = rebuild_device_queue_pending_dispatches(&app_handle, device_id).await?;
+    let state = DispatchPlanner::init().snapshot_device_state(device_id)?;
+    if state.active_dispatch.is_some() {
+        return Ok(format!("设备[{}]当前已有运行中的 dispatch，已刷新待执行队列", device_id));
+    }
     if queue.is_empty() {
         return Ok(format!("设备[{}]当前时间窗口下没有可运行的队列项", device_id));
     }
@@ -399,6 +570,7 @@ pub async fn cmd_device_start(
 #[command]
 pub async fn cmd_device_stop(device_id: DeviceId) -> Result<String, String> {
     send_process_control(device_id, ProcessAction::Stop);
+    let _ = DispatchPlanner::init().clear_device_state(device_id);
     Ok(format!("已向设备[{}]发送停止命令", device_id))
 }
 
@@ -414,6 +586,11 @@ pub async fn cmd_sync_device_runtime_session(
     device_id: DeviceId,
 ) -> Result<String, String> {
     let queue = rebuild_device_queue_pending_dispatches(&app_handle, device_id).await?;
+    let device = load_device_table(device_id).await?;
+    let state = DispatchPlanner::init().snapshot_device_state(device_id)?;
+    if device.data.0.auto_start && state.active_dispatch.is_none() && !queue.is_empty() {
+        let _ = dispatch_next_pending_queue_item(&app_handle, device_id).await?;
+    }
     Ok(format!(
         "已同步设备[{}]待执行队列，当前时间窗口下共有 {} 个候选项",
         device_id,
@@ -428,7 +605,13 @@ pub async fn cmd_run_script_target(
     target: RunTarget,
 ) -> Result<String, String> {
     ensure_device_ready(&app_handle, device_id).await?;
+    let planner = DispatchPlanner::init();
+    planner.clear_device_state(device_id)?;
     let session = load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
+    if let Some(queue_item) = session.queue.first() {
+        planner.ensure_device_state(device_id)?;
+        planner.mark_active_dispatch(device_id, Some(queue_item.dispatch_id))?;
+    }
     send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
     send_process_control(device_id, ProcessAction::Start);
     Ok(format!("已向设备[{}]发送运行目标: {:?}", device_id, target))
@@ -439,13 +622,16 @@ pub async fn cmd_restart_device_runtime(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    restart_device_runtime_internal(&app_handle, device_id).await
+    let message = restart_device_runtime_internal(&app_handle, device_id).await?;
+    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    Ok(message)
 }
 
 #[command]
 pub async fn cmd_device_shutdown(device_id: DeviceId) -> Result<String, String> {
     if let Some(manager) = get_process_manager() {
         manager.stop_child(&device_id).await?;
+        let _ = DispatchPlanner::init().clear_device_state(device_id);
         Ok(format!("设备[{}]子进程已关闭", device_id))
     } else {
         Err("进程管理器未初始化".to_string())
@@ -472,6 +658,7 @@ pub async fn cmd_spawn_device(
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
 
     Ok(format!("设备[{}]({})子进程已启动", device_name, device_id))
 }

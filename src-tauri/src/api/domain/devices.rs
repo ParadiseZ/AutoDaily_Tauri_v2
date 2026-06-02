@@ -1,5 +1,6 @@
 use crate::api::infrastructure::process_api::{
     cmd_device_shutdown, cmd_restart_device_runtime, cmd_spawn_device,
+    reevaluate_device_auto_dispatch,
     cmd_sync_device_runtime_session,
 };
 use crate::constant::table_name::DEVICE_TABLE;
@@ -44,6 +45,10 @@ async fn reconcile_runtime_after_device_save(
 
     if previous.data.0.execution_policy != device.data.0.execution_policy {
         cmd_sync_device_runtime_session(app_handle.clone(), device.id).await?;
+    }
+
+    if !previous.data.0.auto_start && device.data.0.auto_start {
+        let _ = reevaluate_device_auto_dispatch(app_handle, device.id).await;
     }
 
     Ok(())

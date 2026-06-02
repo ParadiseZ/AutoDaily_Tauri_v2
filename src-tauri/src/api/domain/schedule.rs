@@ -3,6 +3,7 @@ use crate::api::infrastructure::runtime_sync::{
     load_assigned_device_ids_by_time_template, sync_device_session_if_online,
     sync_device_sessions_if_online,
 };
+use crate::api::infrastructure::process_api::reevaluate_device_auto_dispatch;
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
     SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
@@ -102,6 +103,7 @@ pub async fn save_assignment_cmd(
     .await
     .map_err(|e| e.to_string())?;
     sync_device_session_if_online(&app_handle, assignment.device_id).await?;
+    let _ = reevaluate_device_auto_dispatch(&app_handle, assignment.device_id).await;
     Ok(())
 }
 
@@ -129,7 +131,9 @@ pub async fn delete_assignment_cmd(
 
     if let Some(device_id) = device_id {
         let parsed = uuid::Uuid::parse_str(&device_id).map_err(|e| e.to_string())?;
-        sync_device_session_if_online(&app_handle, DeviceId::from(parsed)).await?;
+        let device_id = DeviceId::from(parsed);
+        sync_device_session_if_online(&app_handle, device_id).await?;
+        let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
     }
     Ok(())
 }
@@ -155,6 +159,7 @@ pub async fn reorder_assignments_cmd(
         .map_err(|e| e.to_string())?;
     }
     sync_device_session_if_online(&app_handle, device_id).await?;
+    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
     Ok(())
 }
 
@@ -225,7 +230,10 @@ pub async fn get_all_time_templates_cmd() -> Result<Vec<TimeTemplate>, String> {
 
 /// 保存（新增或更新）时间模板
 #[command]
-pub async fn save_time_template_cmd(template: TimeTemplate) -> Result<(), String> {
+pub async fn save_time_template_cmd(
+    app_handle: tauri::AppHandle,
+    template: TimeTemplate,
+) -> Result<(), String> {
     let pool = get_pool();
     sqlx::query(&format!(
         "INSERT INTO {} (id, name, start_time, end_time) VALUES (?, ?, ?, ?)
@@ -239,6 +247,11 @@ pub async fn save_time_template_cmd(template: TimeTemplate) -> Result<(), String
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
+    let affected_device_ids = load_assigned_device_ids_by_time_template(&template.id.to_string()).await?;
+    for device_id in affected_device_ids {
+        sync_device_session_if_online(&app_handle, device_id).await?;
+        let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    }
     Ok(())
 }
 
@@ -255,7 +268,11 @@ pub async fn delete_time_template_cmd(
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    sync_device_sessions_if_online(&app_handle, affected_device_ids).await
+    sync_device_sessions_if_online(&app_handle, affected_device_ids.clone()).await?;
+    for device_id in affected_device_ids {
+        let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    }
+    Ok(())
 }
 
 // ========== 脚本时间模板变量值 ==========
@@ -378,7 +395,12 @@ pub async fn save_script_time_template_values_cmd(
             .device_id
             .ok_or_else(|| "device_id 不能为空".to_string())?,
     )
-    .await
+    .await?;
+    let device_id = record
+        .device_id
+        .ok_or_else(|| "device_id 不能为空".to_string())?;
+    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    Ok(())
 }
 
 /// 删除某设备某脚本在某时间模板和账号下的覆盖值
@@ -407,5 +429,7 @@ pub async fn delete_script_time_template_values_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    sync_device_session_if_online(&app_handle, device_id).await
+    sync_device_session_if_online(&app_handle, device_id).await?;
+    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    Ok(())
 }

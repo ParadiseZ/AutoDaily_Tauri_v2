@@ -97,6 +97,15 @@ impl DispatchPlanner {
             .map_err(|_| "读取 dispatch planner 状态失败".to_string())?;
         Ok(guard.get(&device_id).cloned().unwrap_or_default())
     }
+
+    pub fn clear_device_state(&self, device_id: DeviceId) -> Result<(), String> {
+        let mut guard = self
+            .device_states
+            .write()
+            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
+        guard.remove(&device_id);
+        Ok(())
+    }
 }
 
 fn assignment_schedule_status_value(status: &AssignmentScheduleStatus) -> &'static str {
