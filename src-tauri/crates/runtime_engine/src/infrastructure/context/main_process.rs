@@ -1,9 +1,23 @@
 use crate::infrastructure::context::init_error::InitResult;
-use crate::infrastructure::core::{DeviceId, HashMap};
+use crate::infrastructure::core::{DeviceId, HashMap, MessageId};
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
+use crate::infrastructure::ipc::message::ConnectionStatusKind;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_info_model::ScriptManager;
 use std::sync::{Arc, RwLock};
+
+#[derive(Clone, Debug)]
+pub struct DeviceConnectionState {
+    pub status: ConnectionStatusKind,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DeviceCaptureResult {
+    pub device_id: DeviceId,
+    pub image_data: Option<String>,
+    pub message: Option<String>,
+}
 
 /// 主进程上下文 - 优化的数据存储策略
 pub struct MainProcessCtx {
@@ -12,6 +26,12 @@ pub struct MainProcessCtx {
 
     /// IPC通道映射（运行时数据，必须在内存中）
     pub ipc_servers: Arc<RwLock<HashMap<Arc<DeviceId>, Arc<IpcClientState>>>>,
+
+    /// 设备连接状态（由子进程回传）
+    pub device_connections: Arc<RwLock<HashMap<DeviceId, DeviceConnectionState>>>,
+
+    /// 设备截图结果（由子进程按请求回传）
+    pub device_capture_results: Arc<RwLock<HashMap<MessageId, DeviceCaptureResult>>>,
 }
 
 impl MainProcessCtx {
@@ -19,6 +39,8 @@ impl MainProcessCtx {
         Self {
             script_manager: Arc::new(RwLock::new(ScriptManager::empty())),
             ipc_servers: Arc::new(RwLock::new(HashMap::new())),
+            device_connections: Arc::new(RwLock::new(HashMap::new())),
+            device_capture_results: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

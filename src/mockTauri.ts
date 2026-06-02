@@ -999,6 +999,14 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
               : [...current.runningDeviceIds, String(args.deviceId)],
           }));
           return `设备[${String(args.deviceId)}]已启动并完成连接准备`;
+        case 'cmd_capture_device_image':
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
+              ? current.runningDeviceIds
+              : [...current.runningDeviceIds, String(args.deviceId)],
+          }));
+          return MOCK_PNG_BASE64;
         case 'cmd_spawn_device':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
           updateState((current) => ({
@@ -1033,6 +1041,12 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           );
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateTimeoutPolicyForRun(readState(), String(args.deviceId));
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
+              ? current.runningDeviceIds
+              : [...current.runningDeviceIds, String(args.deviceId)],
+          }));
           return `已向设备[${String(args.deviceId)}]发送启动命令`;
         case 'cmd_device_pause':
           return `已向设备[${String(args.deviceId)}]发送暂停命令`;
@@ -1058,6 +1072,12 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           }
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
           validateTimeoutPolicyForRun(readState(), String(args.deviceId), args.target);
+          updateState((current) => ({
+            ...current,
+            runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
+              ? current.runningDeviceIds
+              : [...current.runningDeviceIds, String(args.deviceId)],
+          }));
           return `已向设备[${String(args.deviceId)}]发送运行目标`;
         case 'get_cpu_count_cmd':
           return 8;

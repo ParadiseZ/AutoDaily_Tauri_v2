@@ -3,21 +3,26 @@ use crate::infrastructure::context::child_process_sec::{
 };
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
-    ConfigUpdateMessage, ConfigUpdateType, ConnectionAction, ConnectionControlMessage,
-    ConnectionStatusKind, IpcMessage, MessagePayload, ProcessAction, ProcessControlMessage,
-    RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus, SessionControlMessage,
+    CaptureControlMessage, ConfigUpdateMessage, ConfigUpdateType, ConnectionAction,
+    ConnectionControlMessage, ConnectionStatusKind, IpcMessage, MessagePayload, ProcessAction,
+    ProcessControlMessage, RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus,
+    SessionControlMessage,
 };
 use crate::infrastructure::ipc::runtime_reporter::{
-    emit_connection_event, emit_lifecycle_event, emit_lifecycle_event_with, emit_progress_event,
-    emit_schedule_event,
+    emit_capture_event, emit_connection_event, emit_lifecycle_event, emit_lifecycle_event_with,
+    emit_progress_event, emit_schedule_event,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::session::runtime_session::{
     clear_runtime_session, replace_runtime_session,
 };
+use image::DynamicImage;
 use runtime_engine::domain::devices::device_conf::DevicePlatform;
-use runtime_engine::infrastructure::devices::device_launcher::probe_device_connection;
+use runtime_engine::infrastructure::devices::device_launcher::{
+    ensure_device_connection, probe_device_connection,
+};
 use std::sync::atomic::Ordering;
+use vision_core::infrastructure::image::load_image::dynamic_image_to_base64;
 
 /// 子进程消息处理器
 /// 处理来自主进程的命令消息
@@ -31,6 +36,9 @@ pub async fn handle_main_message(msg: IpcMessage) {
         }
         MessagePayload::ConnectionControl(control) => {
             handle_connection_control(control).await;
+        }
+        MessagePayload::CaptureControl(control) => {
+            handle_capture_control(msg.id, control).await;
         }
         MessagePayload::ConfigUpdate(config) => {
             handle_config_update(config);
@@ -80,6 +88,64 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
                 }
             }
         }
+        ConnectionAction::EnsureReady => {
+            Log::info("[ child ] 收到连接准备命令");
+            emit_connection_event(
+                ConnectionStatusKind::Checking,
+                Some("正在准备设备连接".to_string()),
+            );
+
+            let device_config = get_device_ctx().device_config.read().await.clone();
+            if matches!(device_config.platform, DevicePlatform::Desktop) {
+                emit_connection_event(
+                    ConnectionStatusKind::Connected,
+                    Some("Desktop 平台无需 ADB 连接".to_string()),
+                );
+                return;
+            }
+
+            match ensure_device_connection(&device_config).await {
+                Ok(()) => {
+                    emit_connection_event(
+                        ConnectionStatusKind::Connected,
+                        Some("设备连接已就绪".to_string()),
+                    );
+                }
+                Err(error) => {
+                    Log::warn(&format!("[ child ] 设备连接准备失败: {}", error));
+                    emit_connection_event(ConnectionStatusKind::Disconnected, Some(error));
+                }
+            }
+        }
+    }
+}
+
+async fn handle_capture_control(
+    request_id: crate::infrastructure::core::MessageId,
+    _control: CaptureControlMessage,
+) {
+    Log::info("[ child ] 收到设备截图命令");
+    let device_ctx = get_device_ctx();
+
+    if !device_ctx.valid_capture().await {
+        emit_capture_event(
+            request_id,
+            None,
+            Some("设备截图校验失败：请检查截图方式、窗口状态或设备连接".to_string()),
+        );
+        return;
+    }
+
+    match device_ctx.get_screenshot().await {
+        Some(image) => match dynamic_image_to_base64(&DynamicImage::ImageRgba8(image)) {
+            Ok(image_data) => emit_capture_event(request_id, Some(image_data), None),
+            Err(error) => emit_capture_event(
+                request_id,
+                None,
+                Some(format!("设备截图编码失败：{}", error)),
+            ),
+        },
+        None => emit_capture_event(request_id, None, Some("设备截图失败".to_string())),
     }
 }
 

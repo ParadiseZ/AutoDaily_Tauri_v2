@@ -10,8 +10,9 @@ use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
-    ConnectionAction, ConnectionControlMessage, IpcMessage, MessagePayload, MessageType,
-    ProcessAction, ProcessControlMessage, RunTarget, SessionControlMessage,
+    CaptureControlMessage, ConnectionAction, ConnectionControlMessage, ConnectionStatusKind,
+    IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage, RunTarget,
+    SessionControlMessage,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use tauri::{command, Manager};
@@ -43,6 +44,17 @@ async fn send_connection_control(device_id: DeviceId, action: ConnectionAction) 
         MessagePayload::ConnectionControl(ConnectionControlMessage { action }),
     );
     IpcServer::send_to_client(&device_id, msg).await;
+}
+
+async fn send_capture_control(device_id: DeviceId) -> crate::infrastructure::core::MessageId {
+    let msg = IpcMessage::new(
+        device_id,
+        MessageType::Command,
+        MessagePayload::CaptureControl(CaptureControlMessage),
+    );
+    let request_id = msg.id;
+    IpcServer::send_to_client(&device_id, msg).await;
+    request_id
 }
 
 async fn wait_for_ipc_client(
@@ -89,6 +101,145 @@ async fn ensure_device_online(
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await
 }
 
+async fn set_connection_status(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    status: ConnectionStatusKind,
+    message: Option<String>,
+) -> Result<(), String> {
+    let state = app_handle.state::<MainProcessCtx>();
+    let mut guard = state
+        .device_connections
+        .write()
+        .map_err(|_| "写入连接状态失败".to_string())?;
+    guard.insert(
+        device_id,
+        crate::infrastructure::context::main_process::DeviceConnectionState { status, message },
+    );
+    Ok(())
+}
+
+async fn wait_for_connection_status(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    timeout: std::time::Duration,
+) -> Result<(ConnectionStatusKind, Option<String>), String> {
+    let started_at = tokio::time::Instant::now();
+    loop {
+        {
+            let state = app_handle.state::<MainProcessCtx>();
+            let guard = state
+                .device_connections
+                .read()
+                .map_err(|_| "读取连接状态失败".to_string())?;
+            if let Some(status) = guard.get(&device_id) {
+                match status.status {
+                    ConnectionStatusKind::Connected | ConnectionStatusKind::Disconnected => {
+                        return Ok((status.status.clone(), status.message.clone()));
+                    }
+                    ConnectionStatusKind::Unknown | ConnectionStatusKind::Checking => {}
+                }
+            }
+        }
+
+        if started_at.elapsed() >= timeout {
+            return Err(format!("设备[{}]连接准备超时", device_id));
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+}
+
+async fn ensure_device_connection_ready(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    set_connection_status(
+        app_handle,
+        device_id,
+        ConnectionStatusKind::Checking,
+        Some("正在准备设备连接".to_string()),
+    )
+    .await?;
+    send_connection_control(device_id, ConnectionAction::EnsureReady).await;
+
+    match wait_for_connection_status(app_handle, device_id, std::time::Duration::from_secs(35)).await?
+    {
+        (ConnectionStatusKind::Connected, _) => Ok(()),
+        (ConnectionStatusKind::Disconnected, message) => Err(
+            message.unwrap_or_else(|| format!("设备[{}]连接准备失败", device_id)),
+        ),
+        (ConnectionStatusKind::Unknown, _) | (ConnectionStatusKind::Checking, _) => {
+            Err(format!("设备[{}]连接状态未知", device_id))
+        }
+    }
+}
+
+async fn ensure_device_ready(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    let device_table = load_device_table(device_id).await?;
+    validate_runtime_platform_supported(&device_table)?;
+    if !device_table.data.0.enable {
+        return Err(format!("设备[{}]未启用", device_table.data.0.device_name));
+    }
+
+    ensure_device_online(app_handle, device_id).await?;
+    ensure_device_connection_ready(app_handle, device_id).await
+}
+
+async fn ensure_device_capture_ready(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<String, String> {
+    let device_table = load_device_table(device_id).await?;
+    validate_runtime_platform_supported(&device_table)?;
+    let device_name = device_table.data.0.device_name.clone();
+    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
+
+    if !manager.is_running(&device_id).await {
+        let init_data = build_child_init_data(app_handle, device_id, true).await?;
+        manager.spawn_child(init_data).await?;
+        wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+    }
+
+    ensure_device_connection_ready(app_handle, device_id).await?;
+    Ok(device_name)
+}
+
+async fn wait_for_capture_result(
+    app_handle: &tauri::AppHandle,
+    request_id: crate::infrastructure::core::MessageId,
+    timeout: std::time::Duration,
+) -> Result<String, String> {
+    let started_at = tokio::time::Instant::now();
+    loop {
+        {
+            let state = app_handle.state::<MainProcessCtx>();
+            let mut guard = state
+                .device_capture_results
+                .write()
+                .map_err(|_| "读取设备截图结果失败".to_string())?;
+            if let Some(result) = guard.remove(&request_id) {
+                let crate::infrastructure::context::main_process::DeviceCaptureResult {
+                    device_id,
+                    image_data,
+                    message,
+                } = result;
+                return image_data
+                    .ok_or_else(|| message.unwrap_or_else(|| format!("设备[{}]截图失败", device_id)));
+            }
+        }
+
+        if started_at.elapsed() >= timeout {
+            return Err("等待设备截图结果超时".to_string());
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+}
+
 async fn restart_device_runtime_internal(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
@@ -114,7 +265,7 @@ pub async fn cmd_device_start(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    ensure_device_online(&app_handle, device_id).await?;
+    ensure_device_ready(&app_handle, device_id).await?;
     let session = load_runtime_session_for_target(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
     send_process_control(device_id, ProcessAction::Start);
@@ -138,7 +289,7 @@ pub async fn cmd_sync_device_runtime_session(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    ensure_device_online(&app_handle, device_id).await?;
+    ensure_device_ready(&app_handle, device_id).await?;
     let session =
         load_runtime_session_for_target(&app_handle, device_id, RunTarget::DeviceQueue).await?;
     send_session_control(device_id, SessionControlMessage::ReloadSession { session }).await;
@@ -151,7 +302,7 @@ pub async fn cmd_run_script_target(
     device_id: DeviceId,
     target: RunTarget,
 ) -> Result<String, String> {
-    ensure_device_online(&app_handle, device_id).await?;
+    ensure_device_ready(&app_handle, device_id).await?;
     let session = load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
     send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
     send_process_control(device_id, ProcessAction::Start);
@@ -261,6 +412,13 @@ pub async fn cmd_probe_device_connections(
 
         match wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(2)).await {
             Ok(()) => {
+                let _ = set_connection_status(
+                    &app_handle,
+                    device_id,
+                    ConnectionStatusKind::Checking,
+                    Some("正在检查设备连接".to_string()),
+                )
+                .await;
                 send_connection_control(device_id, ConnectionAction::Probe).await;
                 queued += 1;
             }
@@ -285,20 +443,18 @@ pub async fn cmd_prepare_device_capture(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
-    if manager.is_running(&device_id).await {
-        return Ok(format!("设备[{}]子进程已在运行", device_id));
-    }
+    let device_name = ensure_device_capture_ready(&app_handle, device_id).await?;
+    Ok(format!("设备[{}]({})已启动并完成连接准备", device_name, device_id))
+}
 
-    let init_data = build_child_init_data(&app_handle, device_id, true).await?;
-    let device_name = init_data.device_config.device_name.clone();
-    manager.spawn_child(init_data).await?;
-    wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
-
-    Ok(format!(
-        "设备[{}]({})已启动并完成连接准备",
-        device_name, device_id
-    ))
+#[command]
+pub async fn cmd_capture_device_image(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<String, String> {
+    ensure_device_capture_ready(&app_handle, device_id).await?;
+    let request_id = send_capture_control(device_id).await;
+    wait_for_capture_result(&app_handle, request_id, std::time::Duration::from_secs(20)).await
 }
 
 #[command]

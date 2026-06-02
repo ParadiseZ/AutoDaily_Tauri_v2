@@ -646,9 +646,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
-import { requestAppConfirm } from '@/services/appDialogService';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
-import { deviceService } from '@/services/deviceService';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
 import { scriptService } from '@/services/scriptService';
 import { visionLabConfigService } from '@/services/visionLabConfigService';
@@ -1296,34 +1294,10 @@ async function captureFromDevice() {
     showToast('请先选择设备', 'warning');
     return;
   }
-  capturePhase.value = 'capturing';
+  capturePhase.value = 'preparing';
   try {
-    let capture;
-    try {
-      capture = await visionLabService.captureDevice(selectedDevice.value);
-    } catch (initialError) {
-      const running = await deviceService.isRunning(selectedDevice.value.id);
-      if (running) {
-        throw initialError;
-      }
-
-      const approved = await requestAppConfirm({
-        title: '设备截图',
-        message: '设备当前未完成运行时准备。是否先启动设备并尝试连接后再截图？',
-        confirmText: '启动并截图',
-        tone: 'warning',
-      });
-      if (!approved) {
-        return;
-      }
-
-      capturePhase.value = 'preparing';
-      const message = await deviceService.prepareCapture(selectedDevice.value.id);
-      await deviceStore.refreshRunningDevices();
-      showToast(message, 'success');
-      capturePhase.value = 'capturing';
-      capture = await visionLabService.captureDevice(selectedDevice.value);
-    }
+    const capture = await visionLabService.captureDevice(selectedDevice.value);
+    await deviceStore.refreshRunningDevices();
 
     const suggestedName = `${selectedDevice.value.data.deviceName}_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
     const item: VisionSourceItem = {

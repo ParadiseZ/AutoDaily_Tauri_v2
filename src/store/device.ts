@@ -314,13 +314,8 @@ export const useDeviceStore = defineStore('device', () => {
         if (isDeviceBusy(deviceId)) {
             return;
         }
+        setDevicePendingAction(deviceId, 'starting');
         try {
-            if (!onlineDeviceIds.value.includes(deviceId)) {
-                setDevicePendingAction(deviceId, 'spawning');
-                await deviceService.spawn(deviceId);
-                await refreshRunningDevices();
-            }
-            setDevicePendingAction(deviceId, 'starting');
             await sendTaskStart(deviceId);
             await refreshRunningDevices();
         } finally {

@@ -4,11 +4,6 @@ import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { OcrResult } from '@/types/bindings/OcrResult';
 import type { DetResult } from '@/types/bindings/DetResult';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
-import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
-
-const fallbackAdbConfig: ADBConnectConfig = { directTcp: null };
-
-const resolveCaptureMethod = (device: DeviceTable) => (device.data.capMethod === 'adb' ? 2 : 1);
 const resolveCaptureType = (device: DeviceTable) => (device.data.capMethod === 'adb' ? 'adb' : 'window');
 
 export const visionLabService = {
@@ -29,10 +24,8 @@ export const visionLabService = {
     runOcrForImageData: (detModel: DetectorType, recModel: RecognizerType, imageData: string) =>
         invoke('paddle_ocr_inference_image_data_test', { detModel, recModel, imageData }) as Promise<OcrResult[]>,
     captureDevice: async (device: DeviceTable) => {
-        const imageData = await invoke('dev_capture_test', {
-            method: resolveCaptureMethod(device),
-            deviceConf: device.data,
-            adbConf: device.data.adbConnect ?? fallbackAdbConfig,
+        const imageData = await invoke('cmd_capture_device_image', {
+            deviceId: device.id,
         }) as string;
 
         return {

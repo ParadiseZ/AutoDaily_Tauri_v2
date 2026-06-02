@@ -1,5 +1,8 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::infrastructure::app_handle::get_app_handle;
+use crate::infrastructure::context::main_process::{
+    DeviceCaptureResult, DeviceConnectionState, MainProcessCtx,
+};
 use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::RuntimeEventMessage;
@@ -158,6 +161,20 @@ fn handle_runtime_event(
                 let _ = main_window.emit("device-schedule", emit_data);
             }
             RuntimeEventMessage::Connection(connection) => {
+                if let Ok(mut guard) = get_app_handle()
+                    .state::<MainProcessCtx>()
+                    .device_connections
+                    .write()
+                {
+                    guard.insert(
+                        device_id,
+                        DeviceConnectionState {
+                            status: connection.status.clone(),
+                            message: connection.message.clone(),
+                        },
+                    );
+                }
+
                 let emit_data = serde_json::json!({
                     "deviceId": device_id.to_string(),
                     "status": format!("{:?}", connection.status),
@@ -165,6 +182,22 @@ fn handle_runtime_event(
                     "at": connection.at,
                 });
                 let _ = main_window.emit("device-connection-status", emit_data);
+            }
+            RuntimeEventMessage::Capture(capture) => {
+                if let Ok(mut guard) = get_app_handle()
+                    .state::<MainProcessCtx>()
+                    .device_capture_results
+                    .write()
+                {
+                    guard.insert(
+                        capture.request_id,
+                        DeviceCaptureResult {
+                            device_id,
+                            image_data: capture.image_data.clone(),
+                            message: capture.message.clone(),
+                        },
+                    );
+                }
             }
         }
     }

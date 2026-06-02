@@ -49,6 +49,7 @@ pub enum MessagePayload {
     ProcessControl(ProcessControlMessage),
     SessionControl(SessionControlMessage),
     ConnectionControl(ConnectionControlMessage),
+    CaptureControl(CaptureControlMessage),
     RuntimeEvent(RuntimeEventMessage),
     ConfigUpdate(ConfigUpdateMessage),
     Logger(LogMessage),
@@ -78,7 +79,11 @@ pub struct ConnectionControlMessage {
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub enum ConnectionAction {
     Probe,
+    EnsureReady,
 }
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct CaptureControlMessage;
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
@@ -289,11 +294,21 @@ pub struct ConnectionStatusEvent {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
+pub struct CaptureResultEvent {
+    pub request_id: MessageId,
+    pub image_data: Option<String>,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum RuntimeEventMessage {
     Lifecycle(RuntimeLifecycleEvent),
     Progress(RuntimeProgressEvent),
     Schedule(RuntimeScheduleEvent),
     Connection(ConnectionStatusEvent),
+    Capture(CaptureResultEvent),
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]

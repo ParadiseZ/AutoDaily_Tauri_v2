@@ -60,7 +60,8 @@ use crate::api::infrastructure::get_uuid_v7;
 use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::process_api::{
     cmd_device_pause, cmd_device_shutdown, cmd_device_start, cmd_device_stop,
-    cmd_get_running_devices, cmd_is_device_running, cmd_prepare_device_capture,
+    cmd_capture_device_image, cmd_get_running_devices, cmd_is_device_running,
+    cmd_prepare_device_capture,
     cmd_probe_device_connections, cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
     cmd_bootstrap_enabled_devices,
     cmd_sync_device_runtime_session,
@@ -188,6 +189,7 @@ pub fn run() {
             cmd_probe_device_connections,
             cmd_is_device_running,
             cmd_prepare_device_capture,
+            cmd_capture_device_image,
             // 调度管理
             get_assignments_by_device_cmd,
             save_assignment_cmd,

@@ -65,6 +65,28 @@ pub async fn launch_device(config: &DeviceConfig) -> Result<(), String> {
     Ok(())
 }
 
+pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<(), String> {
+    if let Some(adb_connect) = &config.adb_connect {
+        if probe_device_connection(adb_connect).is_ok() {
+            return Ok(());
+        }
+    }
+
+    if config
+        .exe_path
+        .as_deref()
+        .is_some_and(|path| !path.trim().is_empty())
+    {
+        return launch_device(config).await;
+    }
+
+    if let Some(adb_connect) = &config.adb_connect {
+        try_connect_with_retry(adb_connect, MAX_RETRIES, RETRY_INTERVAL).await
+    } else {
+        Err("未配置设备连接信息".to_string())
+    }
+}
+
 /// 重试连接设备
 async fn try_connect_with_retry(
     adb_connect: &ADBConnectConfig,
