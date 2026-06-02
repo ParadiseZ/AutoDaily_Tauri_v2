@@ -1718,7 +1718,7 @@ impl ScriptExecutor {
         &self,
     ) -> (
         Option<ExecutionId>,
-        Option<ScheduleId>,
+        Option<crate::infrastructure::core::AssignmentId>,
         Option<crate::infrastructure::core::ScriptId>,
         Option<TaskId>,
         Option<StepId>,

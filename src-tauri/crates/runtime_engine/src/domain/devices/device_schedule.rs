@@ -1,7 +1,8 @@
 // 设备脚本分配（队列定义）+ 调度记录
 
 use crate::infrastructure::core::{
-    Deserialize, DeviceId, ExecutionId, ScheduleId, ScriptId, Serialize, TaskId, TemplateId,
+    AssignmentId, Deserialize, DeviceId, ExecutionId, ScheduleId, ScriptId, Serialize, TaskId,
+    TemplateId,
 };
 use sqlx::FromRow;
 
@@ -40,7 +41,7 @@ pub enum RunStatus {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceScriptAssignment {
-    pub id: ScheduleId,
+    pub id: AssignmentId,
     pub device_id: DeviceId,
     pub script_id: ScriptId,
     pub time_template_id: Option<TemplateId>,
@@ -54,7 +55,7 @@ pub struct DeviceScriptAssignment {
 impl Default for DeviceScriptAssignment {
     fn default() -> Self {
         Self {
-            id: ScheduleId::new_v7(),
+            id: AssignmentId::new_v7(),
             device_id: DeviceId::new_v7(),
             script_id: ScriptId::new_v7(),
             time_template_id: None,
@@ -72,9 +73,10 @@ pub struct DeviceScriptSchedule {
     pub id: ScheduleId,
     pub device_id: DeviceId,
     pub execution_id: Option<ExecutionId>,
-    pub assignment_id: Option<ScheduleId>,
+    pub assignment_id: Option<AssignmentId>,
     pub script_id: ScriptId,
     pub task_id: TaskId,
+    pub dedup_scope_hash: String,
     /// 从 ScriptTaskTable 继承的周期
     #[ts(type = "string")]
     pub task_cycle: String,

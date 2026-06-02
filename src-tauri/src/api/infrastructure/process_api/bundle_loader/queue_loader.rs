@@ -2,8 +2,10 @@ use super::LoadedScriptBundle;
 use crate::constant::table_name::{
     ASSIGNMENT_TABLE, GROUP_POLICIES, POLICY_GROUP_TABLE, POLICY_SET_TABLE, POLICY_TABLE,
     SCRIPT_TABLE, SCRIPT_TASK_TABLE, SCRIPT_TIME_TEMPLATE_VALUES_TABLE, SET_GROUPS,
+    TIME_TEMPLATE_TABLE,
 };
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
+use crate::domain::schedule::time_template::TimeTemplate;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
@@ -14,7 +16,9 @@ use crate::infrastructure::core::{AccountId, DeviceId, ScriptId, TemplateId};
 use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::ipc::message::{RunTarget, RuntimeQueueItem};
 use serde::Serialize;
-use std::collections::HashSet;
+use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, HashSet};
 
 fn normalize_account_id(account_id: Option<AccountId>) -> Option<AccountId> {
     account_id.and_then(|value| {
@@ -29,6 +33,85 @@ fn normalize_account_id(account_id: Option<AccountId>) -> Option<AccountId> {
 
 fn serialize_to_json_string<T: Serialize>(value: &T) -> Result<String, String> {
     serde_json::to_string(value).map_err(|e| e.to_string())
+}
+
+async fn load_time_template(time_template_id: TemplateId) -> Result<Option<TimeTemplate>, String> {
+    let query = format!(
+        "SELECT id, name, start_time, end_time FROM {} WHERE id = ?",
+        TIME_TEMPLATE_TABLE
+    );
+    sqlx::query_as::<_, TimeTemplate>(&query)
+        .bind(time_template_id.to_string())
+        .fetch_optional(get_pool())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+fn extract_task_settings_scope(template_values_json: Option<&str>) -> Result<Value, String> {
+    let Some(content) = template_values_json else {
+        return Ok(Value::Object(Map::new()));
+    };
+    let root: Value =
+        serde_json::from_str(content).map_err(|error| format!("解析模板覆盖值失败: {}", error))?;
+    let Some(task_settings) = root.get("taskSettings").and_then(Value::as_object) else {
+        return Ok(Value::Object(Map::new()));
+    };
+
+    let mut ordered = BTreeMap::new();
+    for (task_id, setting) in task_settings {
+        let Some(setting_object) = setting.as_object() else {
+            continue;
+        };
+        let mut scoped_setting = Map::new();
+        if let Some(enabled) = setting_object.get("enabled").filter(|value| !value.is_null()) {
+            scoped_setting.insert("enabled".to_string(), enabled.clone());
+        }
+        if let Some(task_cycle) = setting_object.get("taskCycle").filter(|value| !value.is_null()) {
+            scoped_setting.insert("taskCycle".to_string(), task_cycle.clone());
+        }
+        if !scoped_setting.is_empty() {
+            ordered.insert(task_id.clone(), Value::Object(scoped_setting));
+        }
+    }
+
+    let mut task_settings_scope = Map::new();
+    for (task_id, setting) in ordered {
+        task_settings_scope.insert(task_id, setting);
+    }
+    Ok(Value::Object(task_settings_scope))
+}
+
+#[derive(Serialize)]
+struct RuntimeDedupScope {
+    device_id: String,
+    script_id: String,
+    time_template_id: Option<String>,
+    account_id: Option<String>,
+    start_time: Option<String>,
+    end_time: Option<String>,
+    task_settings: Value,
+}
+
+fn compute_dedup_scope_hash(
+    device_id: DeviceId,
+    script_id: ScriptId,
+    time_template_id: Option<TemplateId>,
+    account_id: Option<&str>,
+    template: Option<&TimeTemplate>,
+    template_values_json: Option<&str>,
+) -> Result<String, String> {
+    let scope = RuntimeDedupScope {
+        device_id: device_id.to_string(),
+        script_id: script_id.to_string(),
+        time_template_id: time_template_id.map(|id| id.to_string()),
+        account_id: account_id.map(str::to_string),
+        start_time: template.and_then(|item| item.start_time.clone()),
+        end_time: template.and_then(|item| item.end_time.clone()),
+        task_settings: extract_task_settings_scope(template_values_json)?,
+    };
+    let json = serde_json::to_vec(&scope).map_err(|error| error.to_string())?;
+    let digest = Sha256::digest(json);
+    Ok(format!("{:x}", digest))
 }
 
 async fn find_template_values_with_fallback(
@@ -206,6 +289,10 @@ async fn build_runtime_queue_item(
     let account_data_json =
         serde_json::to_string(&assignment.account_data.0).map_err(|e| e.to_string())?;
     let account_id = None;
+    let time_template = match assignment.time_template_id {
+        Some(time_template_id) => load_time_template(time_template_id).await?,
+        None => None,
+    };
     let template_values_json = match assignment.time_template_id {
         Some(time_template_id) => find_template_values_with_fallback(
             device_id,
@@ -218,6 +305,14 @@ async fn build_runtime_queue_item(
         .transpose()?,
         None => None,
     };
+    let dedup_scope_hash = compute_dedup_scope_hash(
+        device_id,
+        assignment.script_id,
+        assignment.time_template_id,
+        account_id.as_deref(),
+        time_template.as_ref(),
+        template_values_json.as_deref(),
+    )?;
 
     Ok(RuntimeQueueItem {
         assignment_id: assignment.id,
@@ -227,6 +322,7 @@ async fn build_runtime_queue_item(
         account_data_json: Some(account_data_json),
         order_index: assignment.index,
         template_values_json,
+        dedup_scope_hash,
     })
 }
 
@@ -249,4 +345,82 @@ pub(super) async fn load_script_bundles(
     }
     bundles.sort_by_key(|bundle| bundle.snapshot.script_id.to_string());
     Ok(bundles)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::compute_dedup_scope_hash;
+    use crate::domain::schedule::time_template::TimeTemplate;
+    use crate::infrastructure::core::UuidV7;
+
+    fn sample_template(start_time: Option<&str>, end_time: Option<&str>) -> TimeTemplate {
+        TimeTemplate {
+            id: UuidV7(3),
+            name: "sample".to_string(),
+            start_time: start_time.map(str::to_string),
+            end_time: end_time.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn dedup_scope_hash_ignores_unrelated_template_values() {
+        let hash_a = compute_dedup_scope_hash(
+            UuidV7(1),
+            UuidV7(2),
+            Some(UuidV7(3)),
+            None,
+            Some(&sample_template(Some("09:00"), Some("18:00"))),
+            Some(
+                r#"{"taskSettings":{"task-b":{"taskCycle":"daily"},"task-a":{"enabled":true}},"variables":{"foo":"bar"}}"#,
+            ),
+        )
+        .expect("hash a");
+        let hash_b = compute_dedup_scope_hash(
+            UuidV7(1),
+            UuidV7(2),
+            Some(UuidV7(3)),
+            None,
+            Some(&sample_template(Some("09:00"), Some("18:00"))),
+            Some(
+                r#"{"variables":{"foo":"baz"},"taskSettings":{"task-a":{"enabled":true,"label":"ignored"},"task-b":{"taskCycle":"daily"}}}"#,
+            ),
+        )
+        .expect("hash b");
+
+        assert_eq!(hash_a, hash_b);
+    }
+
+    #[test]
+    fn dedup_scope_hash_changes_with_time_window_or_task_settings() {
+        let base = compute_dedup_scope_hash(
+            UuidV7(1),
+            UuidV7(2),
+            Some(UuidV7(3)),
+            None,
+            Some(&sample_template(Some("09:00"), Some("18:00"))),
+            Some(r#"{"taskSettings":{"task-a":{"enabled":true}}}"#),
+        )
+        .expect("base hash");
+        let changed_window = compute_dedup_scope_hash(
+            UuidV7(1),
+            UuidV7(2),
+            Some(UuidV7(3)),
+            None,
+            Some(&sample_template(Some("10:00"), Some("18:00"))),
+            Some(r#"{"taskSettings":{"task-a":{"enabled":true}}}"#),
+        )
+        .expect("window hash");
+        let changed_task_setting = compute_dedup_scope_hash(
+            UuidV7(1),
+            UuidV7(2),
+            Some(UuidV7(3)),
+            None,
+            Some(&sample_template(Some("09:00"), Some("18:00"))),
+            Some(r#"{"taskSettings":{"task-a":{"enabled":false}}}"#),
+        )
+        .expect("task-setting hash");
+
+        assert_ne!(base, changed_window);
+        assert_ne!(base, changed_task_setting);
+    }
 }

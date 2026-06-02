@@ -62,6 +62,17 @@ pub(crate) const SCRIPT_TRANSFER_RECORDS_SCOPE_INDEX_SQL: &str =
             updated_at DESC
         )";
 
+pub(crate) const DEVICE_SCRIPT_SCHEDULES_DEDUP_INDEX_SQL: &str =
+    "CREATE INDEX IF NOT EXISTS idx_device_script_schedules_dedup_lookup
+        ON device_script_schedules (
+            assignment_id,
+            dedup_scope_hash,
+            task_id,
+            status,
+            completed_at DESC,
+            started_at DESC
+        )";
+
 pub(crate) fn script_tasks_table_sql(table_name: &str) -> String {
     format!(
         "CREATE TABLE IF NOT EXISTS {table_name} (
@@ -207,6 +218,7 @@ pub(crate) async fn create_base_tables(pool: &Pool<Sqlite>) -> Result<(), String
             assignment_id TEXT,
             script_id TEXT NOT NULL,
             task_id TEXT NOT NULL,
+            dedup_scope_hash TEXT NOT NULL DEFAULT '',
             task_cycle TEXT NOT NULL DEFAULT 'everyRun',
             status TEXT NOT NULL DEFAULT 'success',
             started_at TEXT NOT NULL,
@@ -219,6 +231,10 @@ pub(crate) async fn create_base_tables(pool: &Pool<Sqlite>) -> Result<(), String
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
+    sqlx::query(DEVICE_SCRIPT_SCHEDULES_DEDUP_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS time_templates (

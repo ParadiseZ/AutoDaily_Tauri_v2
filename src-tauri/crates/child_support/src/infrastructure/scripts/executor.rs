@@ -29,8 +29,8 @@ use crate::domain::vision::ocr_search::{
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{
-    AccountId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScheduleId,
-    ScriptId, ScriptTemplateValueId, StepId, TaskId, TemplateId,
+    AccountId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScriptId,
+    ScriptTemplateValueId, StepId, TaskId, TemplateId,
 };
 use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
 use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;

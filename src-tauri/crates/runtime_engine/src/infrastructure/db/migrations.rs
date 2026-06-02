@@ -1,7 +1,7 @@
 use super::schema::{
-    script_tasks_table_sql, SCHEMA_MIGRATIONS_TABLE_SQL, SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL,
-    SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL, SCRIPT_TRANSFER_RECORDS_SCOPE_INDEX_SQL,
-    SCRIPT_TRANSFER_RECORDS_TABLE_SQL,
+    script_tasks_table_sql, DEVICE_SCRIPT_SCHEDULES_DEDUP_INDEX_SQL, SCHEMA_MIGRATIONS_TABLE_SQL,
+    SCRIPT_TIME_TEMPLATE_VALUES_SCOPE_INDEX_SQL, SCRIPT_TIME_TEMPLATE_VALUES_TABLE_SQL,
+    SCRIPT_TRANSFER_RECORDS_SCOPE_INDEX_SQL, SCRIPT_TRANSFER_RECORDS_TABLE_SQL,
 };
 use sqlx::{Pool, Row, Sqlite};
 
@@ -42,6 +42,16 @@ pub(crate) async fn run_schema_migrations(pool: &Pool<Sqlite>) -> Result<(), Str
             pool,
             "2026051401",
             "ensure_script_transfer_records_schema",
+        )
+        .await?;
+    }
+
+    if should_apply(pool, "2026060201").await? {
+        ensure_device_script_schedule_dedup_schema(pool).await?;
+        mark_applied(
+            pool,
+            "2026060201",
+            "ensure_device_script_schedule_dedup_scope",
         )
         .await?;
     }
@@ -87,6 +97,26 @@ async fn ensure_device_script_schedule_columns(pool: &Pool<Sqlite>) -> Result<()
             .await
             .map_err(|e| e.to_string())?;
     }
+
+    Ok(())
+}
+
+async fn ensure_device_script_schedule_dedup_schema(pool: &Pool<Sqlite>) -> Result<(), String> {
+    let column_names = table_columns(pool, "device_script_schedules").await?;
+
+    if !column_names.iter().any(|column| column == "dedup_scope_hash") {
+        sqlx::query(
+            "ALTER TABLE device_script_schedules ADD COLUMN dedup_scope_hash TEXT NOT NULL DEFAULT ''",
+        )
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    sqlx::query(DEVICE_SCRIPT_SCHEDULES_DEDUP_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
 
     Ok(())
 }

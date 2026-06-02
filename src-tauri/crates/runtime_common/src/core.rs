@@ -26,6 +26,7 @@ pub type StepId = UuidV7;
 pub type MessageId = UuidV7;
 pub type SessionId = UuidV7;
 pub type ExecutionId = UuidV7;
+pub type AssignmentId = UuidV7;
 pub type ScheduleId = UuidV7;
 pub type TemplateId = UuidV7;
 pub type ScriptTemplateValueId = UuidV7;

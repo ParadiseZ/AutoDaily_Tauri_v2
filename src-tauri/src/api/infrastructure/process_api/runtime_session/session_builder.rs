@@ -9,7 +9,7 @@ use crate::domain::devices::device_conf::{
     TimeoutNotifyChannel as DeviceTimeoutNotifyChannel,
 };
 use crate::infrastructure::context::child_process::ChildProcessInitData;
-use crate::infrastructure::core::{DeviceId, ScheduleId, SessionId};
+use crate::infrastructure::core::{AssignmentId, DeviceId, SessionId};
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::message::{
@@ -100,13 +100,14 @@ pub(super) async fn build_runtime_session_snapshot(
             let mut queue = Vec::new();
             if let Some(script_id) = target.script_id() {
                 queue.push(RuntimeQueueItem {
-                    assignment_id: ScheduleId::new_v7(),
+                    assignment_id: AssignmentId::new_v7(),
                     script_id,
                     time_template_id: None,
                     account_id: None,
                     account_data_json: None,
                     order_index: 0,
                     template_values_json: None,
+                    dedup_scope_hash: String::new(),
                 });
             }
             queue

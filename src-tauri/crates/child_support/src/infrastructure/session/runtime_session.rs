@@ -54,7 +54,7 @@ impl ChildRuntimeSession {
 
     pub fn queue_item(
         &self,
-        assignment_id: crate::infrastructure::core::ScheduleId,
+        assignment_id: crate::infrastructure::core::AssignmentId,
     ) -> Option<RuntimeQueueItem> {
         self.snapshot
             .queue
@@ -99,7 +99,7 @@ pub async fn get_script_bundle_snapshot(script_id: ScriptId) -> Option<ScriptBun
 }
 
 pub async fn get_runtime_queue_item(
-    assignment_id: crate::infrastructure::core::ScheduleId,
+    assignment_id: crate::infrastructure::core::AssignmentId,
 ) -> Option<RuntimeQueueItem> {
     let store = get_runtime_session_store();
     let guard = store.read().await;

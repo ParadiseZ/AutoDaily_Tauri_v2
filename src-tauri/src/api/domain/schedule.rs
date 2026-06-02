@@ -12,7 +12,7 @@ use crate::domain::devices::device_schedule::DeviceScriptAssignment;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::schedule::time_template::TimeTemplate;
 use crate::domain::scripts::script_info::{ScriptPlatform, ScriptTable};
-use crate::infrastructure::core::{AccountId, DeviceId, ScheduleId, ScriptId, TemplateId};
+use crate::infrastructure::core::{AccountId, AssignmentId, DeviceId, ScriptId, TemplateId};
 use crate::infrastructure::db::{get_pool, DbRepo};
 use tauri::command;
 
@@ -109,7 +109,7 @@ pub async fn save_assignment_cmd(
 #[command]
 pub async fn delete_assignment_cmd(
     app_handle: tauri::AppHandle,
-    assignment_id: ScheduleId,
+    assignment_id: AssignmentId,
 ) -> Result<(), String> {
     let pool = get_pool();
     let device_id = sqlx::query_scalar::<_, String>(&format!(
@@ -139,7 +139,7 @@ pub async fn delete_assignment_cmd(
 pub async fn reorder_assignments_cmd(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
-    assignment_ids: Vec<ScheduleId>,
+    assignment_ids: Vec<AssignmentId>,
 ) -> Result<(), String> {
     let pool = get_pool();
     for (idx, id) in assignment_ids.iter().enumerate() {
@@ -167,7 +167,7 @@ pub async fn get_schedules_by_device_cmd(
 ) -> Result<Vec<crate::domain::devices::device_schedule::DeviceScriptSchedule>, String> {
     let pool = get_pool();
     let query = format!(
-        "SELECT id, device_id, execution_id, assignment_id, script_id, task_id, task_cycle, status, started_at, completed_at, message FROM {} WHERE device_id = ? ORDER BY started_at DESC",
+        "SELECT id, device_id, execution_id, assignment_id, script_id, task_id, dedup_scope_hash, task_cycle, status, started_at, completed_at, message FROM {} WHERE device_id = ? ORDER BY started_at DESC",
         SCHEDULE_TABLE
     );
     sqlx::query_as(&query)

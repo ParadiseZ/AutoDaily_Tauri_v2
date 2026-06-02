@@ -1,6 +1,6 @@
 use crate::infrastructure::context::child_process_sec::get_ipc_client;
 use crate::infrastructure::core::{
-    ExecutionId, MessageId, ScheduleId, ScriptId, SessionId, StepId, TaskId,
+    AssignmentId, ExecutionId, MessageId, ScriptId, SessionId, StepId, TaskId,
 };
 use crate::infrastructure::ipc::message::{
     CaptureResultEvent, ConnectionStatusEvent, ConnectionStatusKind, IpcMessage, MessagePayload,
@@ -66,7 +66,7 @@ pub fn emit_lifecycle_event_with(
 
 pub fn emit_progress_event(
     phase: RuntimeProgressPhase,
-    assignment_id: Option<ScheduleId>,
+    assignment_id: Option<AssignmentId>,
     script_id: Option<ScriptId>,
     task_id: Option<TaskId>,
     step_id: Option<StepId>,
@@ -90,7 +90,7 @@ pub fn emit_progress_event(
 pub fn emit_schedule_event(
     status: RuntimeScheduleStatus,
     execution_id: Option<ExecutionId>,
-    assignment_id: Option<ScheduleId>,
+    assignment_id: Option<AssignmentId>,
     script_id: Option<ScriptId>,
     task_id: Option<TaskId>,
     step_id: Option<StepId>,

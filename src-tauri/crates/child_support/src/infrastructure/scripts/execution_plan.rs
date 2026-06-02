@@ -1,6 +1,6 @@
 use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType, TaskTriggerMode};
-use crate::infrastructure::core::{DeviceId, ScheduleId, TaskId};
+use crate::infrastructure::core::{AssignmentId, DeviceId, TaskId};
 use crate::infrastructure::ipc::message::{RunTarget, RuntimeQueueItem};
 use crate::infrastructure::scripts::schedule_journal::ScheduleJournal;
 use chrono::{DateTime, Datelike, Duration, Local};
@@ -151,8 +151,8 @@ impl ExecutionPlanAssembler {
 
             if let Some(reason) = Self::should_skip_by_schedule(
                 run_target,
-                device_id,
                 queue_item.assignment_id,
+                &queue_item.dedup_scope_hash,
                 &task,
                 &task_cycle,
             )
@@ -230,8 +230,8 @@ impl ExecutionPlanAssembler {
 
     async fn should_skip_by_schedule(
         run_target: &RunTarget,
-        device_id: DeviceId,
-        assignment_id: ScheduleId,
+        assignment_id: AssignmentId,
+        dedup_scope_hash: &str,
         task: &ScriptTaskTable,
         task_cycle: &TaskCycle,
     ) -> Result<Option<String>, String> {
@@ -244,7 +244,8 @@ impl ExecutionPlanAssembler {
         }
 
         let Some(record) =
-            ScheduleJournal::load_latest_success_record(device_id, assignment_id, task.id).await?
+            ScheduleJournal::load_latest_success_record(assignment_id, dedup_scope_hash, task.id)
+                .await?
         else {
             return Ok(Self::skip_reason_without_history(task_cycle));
         };

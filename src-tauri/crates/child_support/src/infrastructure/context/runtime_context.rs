@@ -4,8 +4,8 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{
-    AccountId, DeviceId, ExecutionId, HashMap, PolicyId, PolicySetId, ScheduleId, ScriptId, StepId,
-    TaskId, TemplateId,
+    AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyId, PolicySetId, ScriptId,
+    StepId, TaskId, TemplateId,
 };
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
@@ -67,7 +67,7 @@ impl Default for TaskState {
 #[derive(Debug)]
 pub struct ExecutionState {
     pub current_execution_id: Option<ExecutionId>,
-    pub current_assignment_id: Option<ScheduleId>,
+    pub current_assignment_id: Option<AssignmentId>,
     pub current_device_id: Option<DeviceId>,
     pub current_time_template_id: Option<TemplateId>,
     pub current_account_id: Option<AccountId>,

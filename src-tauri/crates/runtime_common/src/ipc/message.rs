@@ -1,8 +1,8 @@
 use bincode::{Decode, Encode};
 
 use crate::core::{
-    AccountId, Deserialize, DeviceId, ExecutionId, MessageId, PolicyGroupId, PolicyId, PolicySetId,
-    ScheduleId, ScriptId, Serialize, SessionId, StepId, TaskId, TemplateId,
+    AccountId, AssignmentId, Deserialize, DeviceId, ExecutionId, MessageId, PolicyGroupId,
+    PolicyId, PolicySetId, ScriptId, Serialize, SessionId, StepId, TaskId, TemplateId,
 };
 use crate::logging::LogLevel;
 
@@ -161,13 +161,14 @@ pub struct RuntimeExecutionPolicy {
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeQueueItem {
-    pub assignment_id: ScheduleId,
+    pub assignment_id: AssignmentId,
     pub script_id: ScriptId,
     pub time_template_id: Option<TemplateId>,
     pub account_id: Option<AccountId>,
     pub account_data_json: Option<String>,
     pub order_index: u32,
     pub template_values_json: Option<String>,
+    pub dedup_scope_hash: String,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
@@ -241,7 +242,7 @@ pub enum RuntimeProgressPhase {
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeProgressEvent {
     pub session_id: Option<SessionId>,
-    pub assignment_id: Option<ScheduleId>,
+    pub assignment_id: Option<AssignmentId>,
     pub script_id: Option<ScriptId>,
     pub task_id: Option<TaskId>,
     pub step_id: Option<StepId>,
@@ -266,7 +267,7 @@ pub enum RuntimeScheduleStatus {
 pub struct RuntimeScheduleEvent {
     pub session_id: Option<SessionId>,
     pub execution_id: Option<ExecutionId>,
-    pub assignment_id: Option<ScheduleId>,
+    pub assignment_id: Option<AssignmentId>,
     pub script_id: Option<ScriptId>,
     pub task_id: Option<TaskId>,
     pub step_id: Option<StepId>,
