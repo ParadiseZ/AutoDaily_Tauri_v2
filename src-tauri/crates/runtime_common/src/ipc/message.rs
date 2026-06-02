@@ -1,8 +1,9 @@
 use bincode::{Decode, Encode};
 
 use crate::core::{
-    AccountId, AssignmentId, Deserialize, DeviceId, ExecutionId, MessageId, PolicyGroupId,
-    PolicyId, PolicySetId, ScriptId, Serialize, SessionId, StepId, TaskId, TemplateId,
+    AccountId, AssignmentId, Deserialize, DeviceId, DispatchId, ExecutionId, MessageId,
+    PolicyGroupId, PolicyId, PolicySetId, ScriptId, Serialize, SessionId, StepId, TaskId,
+    TemplateId,
 };
 use crate::logging::LogLevel;
 
@@ -88,6 +89,27 @@ pub struct CaptureControlMessage;
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+pub enum DispatchKind {
+    QueueAssignment,
+    TemporaryFullScript,
+    TemporaryTask,
+    DebugPolicy,
+    DebugGroup,
+    DebugSet,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DispatchSource {
+    Planner,
+    User,
+    Debug,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum RunTarget {
     DeviceQueue,
     FullScript {
@@ -161,12 +183,16 @@ pub struct RuntimeExecutionPolicy {
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeQueueItem {
+    pub dispatch_id: DispatchId,
+    pub dispatch_kind: DispatchKind,
+    pub dispatch_source: DispatchSource,
     pub assignment_id: AssignmentId,
     pub script_id: ScriptId,
     pub time_template_id: Option<TemplateId>,
     pub account_id: Option<AccountId>,
     pub account_data_json: Option<String>,
     pub order_index: u32,
+    pub window_start_at: Option<String>,
     pub template_values_json: Option<String>,
     pub dedup_scope_base_hash: String,
 }

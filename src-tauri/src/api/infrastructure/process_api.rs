@@ -1,4 +1,5 @@
 mod bundle_loader;
+mod dispatch_planner;
 mod process_control;
 mod runtime_session;
 

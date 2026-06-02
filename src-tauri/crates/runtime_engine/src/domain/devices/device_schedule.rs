@@ -1,8 +1,8 @@
 // 设备脚本分配（队列定义）+ 调度记录
 
 use crate::infrastructure::core::{
-    AssignmentId, Deserialize, DeviceId, ExecutionId, ScheduleId, ScriptId, Serialize, TaskId,
-    TemplateId,
+    AssignmentId, AssignmentScheduleId, Deserialize, DeviceId, DispatchId, ExecutionId,
+    ScheduleId, ScriptId, Serialize, TaskId, TemplateId,
 };
 use sqlx::FromRow;
 
@@ -33,6 +33,30 @@ pub enum RunStatus {
     Success,
     Failed,
     Skipped,
+}
+
+/// assignment 级调度账本状态
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum AssignmentScheduleStatus {
+    Planned,
+    Dispatched,
+    Running,
+    Success,
+    Failed,
+    Skipped,
+    Cancelled,
+}
+
+/// assignment 级调度触发来源
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum AssignmentTriggerSource {
+    Planner,
+    User,
+    Debug,
 }
 
 /// 队列定义：用户在 TaskManagement 中给设备安排的脚本计划
@@ -90,5 +114,28 @@ pub struct DeviceScriptSchedule {
     #[ts(type = "string | null")]
     pub completed_at: Option<String>,
     /// 错误信息等
+    pub message: Option<String>,
+}
+
+/// assignment 级调度账本
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub struct AssignmentSchedule {
+    pub id: AssignmentScheduleId,
+    pub device_id: DeviceId,
+    pub assignment_id: AssignmentId,
+    pub time_template_id: Option<TemplateId>,
+    #[ts(type = "string | null")]
+    pub window_start_at: Option<String>,
+    pub dispatch_id: DispatchId,
+    #[ts(type = "string")]
+    pub status: String,
+    #[ts(type = "string")]
+    pub trigger_source: String,
+    #[ts(type = "string | null")]
+    pub started_at: Option<String>,
+    #[ts(type = "string | null")]
+    pub completed_at: Option<String>,
     pub message: Option<String>,
 }

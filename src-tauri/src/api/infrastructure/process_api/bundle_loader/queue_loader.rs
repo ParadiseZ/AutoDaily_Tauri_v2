@@ -12,9 +12,11 @@ use crate::domain::scripts::policy::{
 };
 use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::{ScriptTaskTable, TaskRowType};
-use crate::infrastructure::core::{AccountId, DeviceId, ScriptId, TemplateId};
+use crate::infrastructure::core::{AccountId, DeviceId, DispatchId, ScriptId, TemplateId};
 use crate::infrastructure::db::{get_pool, DbRepo};
-use crate::infrastructure::ipc::message::{RunTarget, RuntimeQueueItem};
+use crate::infrastructure::ipc::message::{
+    DispatchKind, DispatchSource, RunTarget, RuntimeQueueItem,
+};
 use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -315,12 +317,16 @@ async fn build_runtime_queue_item(
     )?;
 
     Ok(RuntimeQueueItem {
+        dispatch_id: DispatchId::new_v7(),
+        dispatch_kind: DispatchKind::QueueAssignment,
+        dispatch_source: DispatchSource::User,
         assignment_id: assignment.id,
         script_id: assignment.script_id,
         time_template_id: assignment.time_template_id,
         account_id,
         account_data_json: Some(account_data_json),
         order_index: assignment.index,
+        window_start_at: None,
         template_values_json,
         dedup_scope_base_hash,
     })

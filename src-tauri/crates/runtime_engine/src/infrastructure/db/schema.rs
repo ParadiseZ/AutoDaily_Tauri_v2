@@ -73,6 +73,23 @@ pub(crate) const DEVICE_SCRIPT_SCHEDULES_DEDUP_INDEX_SQL: &str =
             started_at DESC
         )";
 
+pub(crate) const ASSIGNMENT_SCHEDULES_UNIQUE_SCOPE_INDEX_SQL: &str =
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_assignment_schedules_scope
+        ON assignment_schedules (
+            assignment_id,
+            ifnull(window_start_at, ''),
+            trigger_source
+        )";
+
+pub(crate) const ASSIGNMENT_SCHEDULES_DEVICE_STATUS_INDEX_SQL: &str =
+    "CREATE INDEX IF NOT EXISTS idx_assignment_schedules_device_status
+        ON assignment_schedules (
+            device_id,
+            status,
+            started_at DESC,
+            completed_at DESC
+        )";
+
 pub(crate) fn script_tasks_table_sql(table_name: &str) -> String {
     format!(
         "CREATE TABLE IF NOT EXISTS {table_name} (
@@ -232,6 +249,36 @@ pub(crate) async fn create_base_tables(pool: &Pool<Sqlite>) -> Result<(), String
     .await
     .map_err(|e| e.to_string())?;
     sqlx::query(DEVICE_SCRIPT_SCHEDULES_DEDUP_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS assignment_schedules (
+            id TEXT PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            assignment_id TEXT NOT NULL,
+            time_template_id TEXT,
+            window_start_at TEXT,
+            dispatch_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'planned',
+            trigger_source TEXT NOT NULL DEFAULT 'planner',
+            started_at TEXT,
+            completed_at TEXT,
+            message TEXT,
+            FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+            FOREIGN KEY (assignment_id) REFERENCES device_script_assignments(id) ON DELETE CASCADE,
+            FOREIGN KEY (time_template_id) REFERENCES time_templates(id) ON DELETE SET NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+    sqlx::query(ASSIGNMENT_SCHEDULES_UNIQUE_SCOPE_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query(ASSIGNMENT_SCHEDULES_DEVICE_STATUS_INDEX_SQL)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;

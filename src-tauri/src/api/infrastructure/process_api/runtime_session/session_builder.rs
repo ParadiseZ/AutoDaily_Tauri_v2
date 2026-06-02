@@ -13,9 +13,9 @@ use crate::infrastructure::core::{AssignmentId, DeviceId, SessionId};
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::message::{
-    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
-    RuntimeVisionTextCachePolicy, TimeoutAction as RuntimeTimeoutAction,
-    TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
+    DispatchKind, DispatchSource, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
+    RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy,
+    TimeoutAction as RuntimeTimeoutAction, TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
 };
 use crate::constant::table_name::DEVICE_TABLE;
 use tauri::Manager;
@@ -100,12 +100,16 @@ pub(super) async fn build_runtime_session_snapshot(
             let mut queue = Vec::new();
             if let Some(script_id) = target.script_id() {
                 queue.push(RuntimeQueueItem {
+                    dispatch_id: crate::infrastructure::core::DispatchId::new_v7(),
+                    dispatch_kind: dispatch_kind_for_run_target(target),
+                    dispatch_source: dispatch_source_for_run_target(target),
                     assignment_id: AssignmentId::new_v7(),
                     script_id,
                     time_template_id: None,
                     account_id: None,
                     account_data_json: None,
                     order_index: 0,
+                    window_start_at: None,
                     template_values_json: None,
                     dedup_scope_base_hash: String::new(),
                 });
@@ -161,6 +165,26 @@ async fn prepare_device_launch(
     }
 
     Ok(())
+}
+
+fn dispatch_kind_for_run_target(run_target: &RunTarget) -> DispatchKind {
+    match run_target {
+        RunTarget::DeviceQueue => DispatchKind::QueueAssignment,
+        RunTarget::FullScript { .. } => DispatchKind::TemporaryFullScript,
+        RunTarget::Task { .. } => DispatchKind::TemporaryTask,
+        RunTarget::PolicyGroup { .. } => DispatchKind::DebugGroup,
+        RunTarget::PolicySet { .. } => DispatchKind::DebugSet,
+        RunTarget::Policy { .. } => DispatchKind::DebugPolicy,
+    }
+}
+
+fn dispatch_source_for_run_target(run_target: &RunTarget) -> DispatchSource {
+    match run_target {
+        RunTarget::PolicyGroup { .. } | RunTarget::PolicySet { .. } | RunTarget::Policy { .. } => {
+            DispatchSource::Debug
+        }
+        _ => DispatchSource::User,
+    }
 }
 
 pub(super) async fn build_child_init_data(
