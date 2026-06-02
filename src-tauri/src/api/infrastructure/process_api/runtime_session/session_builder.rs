@@ -159,12 +159,6 @@ async fn prepare_device_launch(
         return Ok(());
     }
 
-    if device_config.auto_start && device_config.exe_path.is_some() {
-        launch_device(device_config)
-            .await
-            .map_err(|e| format!("自动启动设备失败: {}", e))?;
-    }
-
     Ok(())
 }
 

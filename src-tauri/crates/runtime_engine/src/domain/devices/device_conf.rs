@@ -55,7 +55,7 @@ pub struct DeviceConfig {
     pub image_compression: ImageCompression,
     // 是否启用
     pub enable: bool,
-    // 启用时是否自动启动（启动设备+连接+调度脚本）
+    // 启用时是否自动运行设备队列
     pub auto_start: bool,
     #[serde(default)]
     pub execution_policy: DeviceExecutionPolicy,

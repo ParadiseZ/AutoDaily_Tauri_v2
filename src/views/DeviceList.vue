@@ -102,7 +102,7 @@
     <EmptyState
       v-else
       title="设备列表还是空的"
-      description="先创建一台设备，配置连接方式、截图方案和自动启动策略"
+      description="先创建一台设备，配置连接方式、截图方案和自动运行策略"
       icon="smartphone"
     />
     </div>

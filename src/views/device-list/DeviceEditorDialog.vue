@@ -116,7 +116,7 @@
               <input v-model="form.enable" type="checkbox" class="toggle toggle-sm" />
             </label>
             <label class="flex items-center justify-between rounded-[20px] border border-(--app-border) px-4 py-3">
-              <span class="text-sm text-(--app-text-strong)">自动启动设备进程</span>
+              <span class="text-sm text-(--app-text-strong)">自动运行队列</span>
               <input v-model="form.autoStart" type="checkbox" class="toggle toggle-sm" />
             </label>
           </div>
