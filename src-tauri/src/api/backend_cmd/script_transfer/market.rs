@@ -1,8 +1,7 @@
 use super::model_transfer::{
-    build_model_file_payload, collect_model_uploads, local_scripts_dir,
-    model_hash_matches_path, model_hash_matches_sha256, normalize_download_endpoint,
-    normalize_model_type, rewrite_script_model_paths_for_published, runtime_type_param,
-    verification_sha256,
+    build_model_file_payload, collect_model_uploads, local_scripts_dir, model_hash_matches_path,
+    model_hash_matches_sha256, normalize_download_endpoint, normalize_model_type,
+    rewrite_script_model_paths_for_published, runtime_type_param, verification_sha256,
 };
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_cmd::{app_error_message, format_backend_message, trans_api_res};
@@ -15,8 +14,7 @@ use crate::api::domain::script_transfer_records::{
 };
 use crate::api::infrastructure::script_version_preflight::{
     build_download_preflight, extract_cloud_summary_version,
-    find_replaceable_local_published_script, format_version_label,
-    ScriptVersionPreflight,
+    find_replaceable_local_published_script, format_version_label, ScriptVersionPreflight,
 };
 use crate::app::app_error::AppResult;
 use crate::constant::table_name::SCRIPT_TABLE;
@@ -26,8 +24,8 @@ use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::http_client::HttpClient;
 use crate::infrastructure::logging::log_trait::Log;
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tauri::{command, AppHandle};
 
 const TRANSFER_DELETED_MESSAGE: &str = "传输已删除";
@@ -456,7 +454,7 @@ pub async fn backend_preflight_upload_script(
     let client = HttpClient::new(app_handle);
     let url = format!("/scripts/{}/summary", script_id);
     let response: AppResult<BackendApiRes<serde_json::Value>> = client.get(&url).await;
-    let local_ver_num =Some(local_script.data.ver_num);
+    let local_ver_num = Some(local_script.data.ver_num);
     let local_version_label =
         format_version_label(Some(local_script.data.ver_name.as_str()), local_ver_num);
 
@@ -622,7 +620,9 @@ pub async fn backend_download_script(
             "download",
             replace_local_script_id.clone(),
             Some(script_id.clone()),
-            script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+            script_name
+                .clone()
+                .or_else(|| Some(download_data.script.data.name.clone())),
             "error",
             error.clone(),
             Some(error.clone()),
@@ -646,7 +646,9 @@ pub async fn backend_download_script(
                             "download",
                             Some(local_script_id.to_string()),
                             Some(script_id.clone()),
-                            script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                            script_name
+                                .clone()
+                                .or_else(|| Some(download_data.script.data.name.clone())),
                             "error",
                             "只能覆盖本地云端脚本副本".to_string(),
                             Some("只能覆盖本地云端脚本副本".to_string()),
@@ -667,7 +669,9 @@ pub async fn backend_download_script(
                             "download",
                             Some(local_script_id.to_string()),
                             Some(script_id.clone()),
-                            script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                            script_name
+                                .clone()
+                                .or_else(|| Some(download_data.script.data.name.clone())),
                             "error",
                             message.clone(),
                             Some(message.clone()),
@@ -686,7 +690,9 @@ pub async fn backend_download_script(
                         "download",
                         Some(local_script_id.to_string()),
                         Some(script_id.clone()),
-                        script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                        script_name
+                            .clone()
+                            .or_else(|| Some(download_data.script.data.name.clone())),
                         "error",
                         message.clone(),
                         Some(message.clone()),
@@ -701,7 +707,9 @@ pub async fn backend_download_script(
                         "download",
                         Some(local_script_id.to_string()),
                         Some(script_id.clone()),
-                        script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                        script_name
+                            .clone()
+                            .or_else(|| Some(download_data.script.data.name.clone())),
                         "error",
                         message.clone(),
                         Some(message.clone()),
@@ -743,9 +751,13 @@ pub async fn backend_download_script(
             record_immediate_transfer_terminal_state(
                 &app_handle,
                 "download",
-                replacement_target.as_ref().map(|script| script.id.to_string()),
+                replacement_target
+                    .as_ref()
+                    .map(|script| script.id.to_string()),
                 Some(script_id.clone()),
-                script_name.clone().or_else(|| Some(download_data.script.data.name.clone())),
+                script_name
+                    .clone()
+                    .or_else(|| Some(download_data.script.data.name.clone())),
                 "error",
                 message.clone(),
                 Some(message.clone()),
@@ -957,9 +969,11 @@ pub async fn backend_download_script(
             None,
         );
 
-        let existing_model_path = replacement_target
-            .as_ref()
-            .map(|script| scripts_root.join(script.id.to_string()).join(normalized_type.file_name));
+        let existing_model_path = replacement_target.as_ref().map(|script| {
+            scripts_root
+                .join(script.id.to_string())
+                .join(normalized_type.file_name)
+        });
         if let Some(existing_model_path) = existing_model_path.as_ref() {
             match model_hash_matches_path(
                 model.hash_algorithm.as_deref(),
@@ -1026,10 +1040,7 @@ pub async fn backend_download_script(
             .download_file_with_resume_progress(
                 endpoint.as_str(),
                 &dir_swap.staging_dir.join(normalized_type.file_name),
-                verification_sha256(
-                    model.hash_algorithm.as_deref(),
-                    model.hash_value.as_deref(),
-                ),
+                verification_sha256(model.hash_algorithm.as_deref(), model.hash_value.as_deref()),
                 |progress| {
                     let current_file_bytes = progress.transferred_bytes as i64;
                     transfer_run.emit(
@@ -1375,7 +1386,8 @@ pub async fn backend_upload_script(
     .unwrap_or_default();
 
     let script_version = script.data.ver_num;
-    let remote_model_files = fetch_remote_model_file_index(&client, &script_id, &runtime_type).await;
+    let remote_model_files =
+        fetch_remote_model_file_index(&client, &script_id, &runtime_type).await;
     let transfer_total_bytes = model_uploads
         .iter()
         .map(|model| model.size_bytes as i64)
@@ -1816,7 +1828,11 @@ fn prepare_script_dir_swap(
 
     if staging_root.exists() {
         std::fs::remove_dir_all(&staging_root).map_err(|error| {
-            format!("清理旧的暂存目录 {} 失败: {}", staging_root.display(), error)
+            format!(
+                "清理旧的暂存目录 {} 失败: {}",
+                staging_root.display(),
+                error
+            )
         })?;
     }
 

@@ -19,7 +19,10 @@ struct TaskDedupScope<'a> {
 }
 
 impl ScheduleJournal {
-    pub fn compute_dedup_scope_hash(base_scope_hash: &str, task_id: TaskId) -> Result<String, String> {
+    pub fn compute_dedup_scope_hash(
+        base_scope_hash: &str,
+        task_id: TaskId,
+    ) -> Result<String, String> {
         let payload = TaskDedupScope {
             base_scope_hash,
             task_id: task_id.to_string(),

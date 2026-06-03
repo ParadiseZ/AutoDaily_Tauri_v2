@@ -243,13 +243,12 @@ impl ExecutionPlanAssembler {
             return Ok(None);
         }
 
-        let Some(record) =
-            ScheduleJournal::load_latest_success_record(
-                assignment_id,
-                &ScheduleJournal::compute_dedup_scope_hash(dedup_scope_base_hash, task.id)?,
-                task.id,
-            )
-            .await?
+        let Some(record) = ScheduleJournal::load_latest_success_record(
+            assignment_id,
+            &ScheduleJournal::compute_dedup_scope_hash(dedup_scope_base_hash, task.id)?,
+            task.id,
+        )
+        .await?
         else {
             return Ok(Self::skip_reason_without_history(task_cycle));
         };

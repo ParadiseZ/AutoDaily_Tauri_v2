@@ -1,7 +1,7 @@
 // 设备脚本分配（队列定义）+ 调度记录
 
 use crate::infrastructure::core::{
-    AssignmentId, AssignmentScheduleId, Deserialize, DeviceId, DispatchId, ExecutionId,
+    AssignmentId, AssignmentScheduleId, BatchId, Deserialize, DeviceId, DispatchId, ExecutionId,
     ScheduleId, ScriptId, Serialize, TaskId, TemplateId,
 };
 use sqlx::FromRow;
@@ -123,12 +123,19 @@ pub struct DeviceScriptSchedule {
 #[serde(rename_all = "camelCase")]
 pub struct AssignmentSchedule {
     pub id: AssignmentScheduleId,
+    pub batch_id: BatchId,
     pub device_id: DeviceId,
-    pub assignment_id: AssignmentId,
+    pub assignment_id: Option<AssignmentId>,
+    pub script_id: Option<ScriptId>,
     pub time_template_id: Option<TemplateId>,
     #[ts(type = "string | null")]
     pub window_start_at: Option<String>,
+    pub scope_hash: String,
     pub dispatch_id: DispatchId,
+    pub order_index: u32,
+    #[ts(type = "string")]
+    pub created_at: String,
+    pub run_target_json: Option<String>,
     #[ts(type = "string")]
     pub status: String,
     #[ts(type = "string")]

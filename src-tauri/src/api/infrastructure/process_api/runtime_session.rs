@@ -10,7 +10,9 @@ pub(super) async fn load_device_table(device_id: DeviceId) -> Result<DeviceTable
     session_builder::load_device_table(device_id).await
 }
 
-pub(super) fn validate_runtime_platform_supported(device_table: &DeviceTable) -> Result<(), String> {
+pub(super) fn validate_runtime_platform_supported(
+    device_table: &DeviceTable,
+) -> Result<(), String> {
     session_builder::validate_runtime_platform_supported(device_table)
 }
 

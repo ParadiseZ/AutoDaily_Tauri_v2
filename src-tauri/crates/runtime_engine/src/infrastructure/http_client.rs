@@ -444,10 +444,14 @@ impl HttpClient {
         target_path: &std::path::Path,
         expected_sha256: Option<&str>,
     ) -> AppResult<()> {
-        self.download_file_with_resume_progress(endpoint, target_path, expected_sha256, |_| {}, || {
-            Ok(())
-        })
-            .await
+        self.download_file_with_resume_progress(
+            endpoint,
+            target_path,
+            expected_sha256,
+            |_| {},
+            || Ok(()),
+        )
+        .await
     }
 
     pub async fn download_file_with_resume_progress<F, C>(
@@ -715,7 +719,10 @@ fn resolve_response_total_bytes(
 ) -> Option<u64> {
     use reqwest::header::{CONTENT_LENGTH, CONTENT_RANGE};
 
-    if let Some(content_range) = headers.get(CONTENT_RANGE).and_then(|value| value.to_str().ok()) {
+    if let Some(content_range) = headers
+        .get(CONTENT_RANGE)
+        .and_then(|value| value.to_str().ok())
+    {
         if let Some((_, total_part)) = content_range.rsplit_once('/') {
             if let Ok(total) = total_part.parse::<u64>() {
                 return Some(total);
@@ -801,4 +808,3 @@ fn is_valid_http_url(raw: &str) -> bool {
         .map(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
         .unwrap_or(false)
 }
-

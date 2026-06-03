@@ -38,12 +38,7 @@ pub(crate) async fn run_schema_migrations(pool: &Pool<Sqlite>) -> Result<(), Str
 
     if should_apply(pool, "2026051401").await? {
         ensure_script_transfer_records_schema(pool).await?;
-        mark_applied(
-            pool,
-            "2026051401",
-            "ensure_script_transfer_records_schema",
-        )
-        .await?;
+        mark_applied(pool, "2026051401", "ensure_script_transfer_records_schema").await?;
     }
 
     if should_apply(pool, "2026060201").await? {
@@ -104,7 +99,10 @@ async fn ensure_device_script_schedule_columns(pool: &Pool<Sqlite>) -> Result<()
 async fn ensure_device_script_schedule_dedup_schema(pool: &Pool<Sqlite>) -> Result<(), String> {
     let column_names = table_columns(pool, "device_script_schedules").await?;
 
-    if !column_names.iter().any(|column| column == "dedup_scope_hash") {
+    if !column_names
+        .iter()
+        .any(|column| column == "dedup_scope_hash")
+    {
         sqlx::query(
             "ALTER TABLE device_script_schedules ADD COLUMN dedup_scope_hash TEXT NOT NULL DEFAULT ''",
         )
@@ -199,12 +197,10 @@ async fn ensure_script_tasks_columns(pool: &Pool<Sqlite>) -> Result<(), String> 
     }
 
     if !has("task_tone") {
-        sqlx::query(
-            "ALTER TABLE script_tasks ADD COLUMN task_tone TEXT NOT NULL DEFAULT 'normal'",
-        )
-        .execute(pool)
-        .await
-        .map_err(|e| e.to_string())?;
+        sqlx::query("ALTER TABLE script_tasks ADD COLUMN task_tone TEXT NOT NULL DEFAULT 'normal'")
+            .execute(pool)
+            .await
+            .map_err(|e| e.to_string())?;
     }
 
     if !has("created_at") {

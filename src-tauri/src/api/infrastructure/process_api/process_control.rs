@@ -1,19 +1,23 @@
 use super::bundle_loader::load_runtime_queue_for_current_window;
 use super::dispatch_planner::{
-    find_assignment_schedule_scope, insert_assignment_schedule,
-    update_assignment_schedule_status_by_dispatch_id, DispatchPlanner,
+    has_complete_assignment_schedule_batch, insert_assignment_schedule,
+    insert_assignment_schedule_batch, load_next_planned_assignment_schedule,
+    update_assignment_schedule_status, update_assignment_schedule_status_by_dispatch_id,
+    DispatchPlanner,
 };
 use super::runtime_session::{
     build_child_init_data, load_device_table, load_runtime_session_for_queue_item,
     load_runtime_session_for_target, validate_runtime_platform_supported,
 };
 use crate::constant::table_name::DEVICE_TABLE;
-use crate::domain::devices::device_schedule::{AssignmentScheduleStatus, AssignmentTriggerSource};
 use crate::domain::devices::device_conf::DeviceTable;
+use crate::domain::devices::device_schedule::{
+    AssignmentSchedule, AssignmentScheduleStatus, AssignmentTriggerSource,
+};
 use crate::domain::schedule::time_template::TimeTemplate;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::context::main_process::{DeviceDispatchSignal, MainProcessCtx};
-use crate::infrastructure::core::DeviceId;
+use crate::infrastructure::core::{BatchId, DeviceId};
 use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
@@ -22,8 +26,17 @@ use crate::infrastructure::ipc::message::{
     RunTarget, RuntimeDispatchPhase, RuntimeQueueItem, SessionControlMessage,
 };
 use crate::infrastructure::logging::log_trait::Log;
-use tauri::{command, Manager};
 use chrono::{Days, Local, NaiveTime, TimeZone};
+use std::sync::{Arc, OnceLock};
+use tauri::{command, Manager};
+
+static AUTO_DISPATCH_NOTIFY: OnceLock<Arc<tokio::sync::Notify>> = OnceLock::new();
+
+pub(crate) fn notify_auto_dispatch_planner() {
+    if let Some(notify) = AUTO_DISPATCH_NOTIFY.get() {
+        notify.notify_one();
+    }
+}
 
 async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
     let msg = IpcMessage::new(
@@ -70,23 +83,19 @@ async fn dispatch_queue_item_to_child(
     device_id: DeviceId,
     queue_item: RuntimeQueueItem,
 ) -> Result<(), String> {
-    let session = load_runtime_session_for_queue_item(app_handle, device_id, queue_item.clone()).await?;
-    if matches!(queue_item.dispatch_source, DispatchSource::Planner) {
-        let _ = insert_assignment_schedule(
-            device_id,
-            queue_item.assignment_id,
-            queue_item.time_template_id,
-            queue_item.window_start_at.clone(),
-            queue_item.dispatch_id,
-            AssignmentScheduleStatus::Dispatched,
-            AssignmentTriggerSource::Planner,
-            Some("dispatch 已派发到子进程".to_string()),
-        )
-        .await;
-    }
+    let session =
+        load_runtime_session_for_queue_item(app_handle, device_id, queue_item.clone()).await?;
+    dispatch_session_to_child(device_id, session, queue_item.dispatch_id).await
+}
+
+async fn dispatch_session_to_child(
+    device_id: DeviceId,
+    session: crate::infrastructure::ipc::message::RuntimeSessionSnapshot,
+    dispatch_id: crate::infrastructure::core::DispatchId,
+) -> Result<(), String> {
     send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
     send_process_control(device_id, ProcessAction::Start);
-    DispatchPlanner::init().mark_active_dispatch(device_id, Some(queue_item.dispatch_id))?;
+    DispatchPlanner::init().mark_active_dispatch(device_id, Some(dispatch_id))?;
     Ok(())
 }
 
@@ -124,6 +133,14 @@ fn compute_next_due_from_template(
     ))
 }
 
+fn dispatch_priority(source: &DispatchSource) -> u8 {
+    match source {
+        DispatchSource::Debug => 3,
+        DispatchSource::User => 2,
+        DispatchSource::Planner => 1,
+    }
+}
+
 async fn load_time_template_by_id(
     template_id: crate::infrastructure::core::TemplateId,
 ) -> Result<Option<TimeTemplate>, String> {
@@ -136,29 +153,160 @@ async fn load_time_template_by_id(
     .map_err(|error| error.to_string())
 }
 
-async fn dispatch_next_pending_queue_item(
+fn schedule_trigger_source(record: &AssignmentSchedule) -> Result<AssignmentTriggerSource, String> {
+    match record.trigger_source.as_str() {
+        "planner" => Ok(AssignmentTriggerSource::Planner),
+        "user" => Ok(AssignmentTriggerSource::User),
+        "debug" => Ok(AssignmentTriggerSource::Debug),
+        value => Err(format!("未知 dispatch 来源: {}", value)),
+    }
+}
+
+fn schedule_dispatch_source(record: &AssignmentSchedule) -> Result<DispatchSource, String> {
+    match schedule_trigger_source(record)? {
+        AssignmentTriggerSource::Planner => Ok(DispatchSource::Planner),
+        AssignmentTriggerSource::User => Ok(DispatchSource::User),
+        AssignmentTriggerSource::Debug => Ok(DispatchSource::Debug),
+    }
+}
+
+fn queue_item_matches_schedule(item: &RuntimeQueueItem, record: &AssignmentSchedule) -> bool {
+    record.assignment_id == Some(item.assignment_id)
+        && record.window_start_at == item.window_start_at
+        && record.scope_hash == item.dedup_scope_base_hash
+}
+
+async fn ensure_planner_batch_for_device(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<usize, String> {
+    ensure_device_ready(app_handle, device_id).await?;
+    let queue = load_runtime_queue_for_current_window(device_id)
+        .await?
+        .into_iter()
+        .map(to_planner_queue_item)
+        .collect::<Vec<_>>();
+    if queue.is_empty() {
+        return Ok(0);
+    }
+    if has_complete_assignment_schedule_batch(device_id, AssignmentTriggerSource::Planner, &queue)
+        .await?
+    {
+        return Ok(0);
+    }
+    insert_assignment_schedule_batch(
+        device_id,
+        AssignmentTriggerSource::Planner,
+        &queue,
+        Some("planner 生成当前批次".to_string()),
+    )
+    .await?;
+    Ok(queue.len())
+}
+
+async fn dispatch_planner_schedule_to_child(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    record: AssignmentSchedule,
+) -> Result<(), String> {
+    let queue = load_runtime_queue_for_current_window(device_id).await?;
+    let Some(mut queue_item) = queue
+        .into_iter()
+        .find(|item| queue_item_matches_schedule(item, &record))
+    else {
+        update_assignment_schedule_status(
+            record.id,
+            AssignmentScheduleStatus::Cancelled,
+            None,
+            Some(Local::now().to_rfc3339()),
+            Some("当前 assignment/window/scope 已不存在，取消派发".to_string()),
+        )
+        .await?;
+        return Err("调度记录已过期，已取消".to_string());
+    };
+    queue_item.dispatch_id = record.dispatch_id;
+    queue_item.dispatch_source = schedule_dispatch_source(&record)?;
+    queue_item.order_index = record.order_index;
+    update_assignment_schedule_status(
+        record.id,
+        AssignmentScheduleStatus::Dispatched,
+        None,
+        None,
+        Some("dispatch 已派发到子进程".to_string()),
+    )
+    .await?;
+    dispatch_queue_item_to_child(app_handle, device_id, queue_item).await
+}
+
+async fn dispatch_user_schedule_to_child(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    record: AssignmentSchedule,
+) -> Result<(), String> {
+    let Some(run_target_json) = record.run_target_json.as_deref() else {
+        return Err("user 调度记录缺少 run_target_json".to_string());
+    };
+    let target: RunTarget = serde_json::from_str(run_target_json)
+        .map_err(|error| format!("解析 user 调度运行目标失败: {}", error))?;
+    let mut session = load_runtime_session_for_target(app_handle, device_id, target).await?;
+    if let Some(queue_item) = session.queue.first_mut() {
+        queue_item.dispatch_id = record.dispatch_id;
+        queue_item.dispatch_source = DispatchSource::User;
+        if let Some(assignment_id) = record.assignment_id {
+            queue_item.assignment_id = assignment_id;
+        }
+    }
+    update_assignment_schedule_status(
+        record.id,
+        AssignmentScheduleStatus::Dispatched,
+        None,
+        None,
+        Some("user dispatch 已派发到子进程".to_string()),
+    )
+    .await?;
+    dispatch_session_to_child(device_id, session, record.dispatch_id).await
+}
+
+async fn dispatch_schedule_to_child(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    record: AssignmentSchedule,
+) -> Result<(), String> {
+    match schedule_trigger_source(&record)? {
+        AssignmentTriggerSource::User => {
+            dispatch_user_schedule_to_child(app_handle, device_id, record).await
+        }
+        AssignmentTriggerSource::Planner => {
+            dispatch_planner_schedule_to_child(app_handle, device_id, record).await
+        }
+        AssignmentTriggerSource::Debug => Err("debug 调度不应持久化".to_string()),
+    }
+}
+
+async fn dispatch_next_scheduled_queue_item(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<bool, String> {
-    let planner = DispatchPlanner::init();
-    let Some(queue_item) = planner.pop_next_dispatch(device_id)? else {
-        planner.mark_active_dispatch(device_id, None)?;
-        return Ok(false);
-    };
-    dispatch_queue_item_to_child(app_handle, device_id, queue_item).await?;
-    Ok(true)
-}
-
-async fn rebuild_device_queue_pending_dispatches(
-    app_handle: &tauri::AppHandle,
-    device_id: DeviceId,
-) -> Result<Vec<RuntimeQueueItem>, String> {
-    ensure_device_ready(app_handle, device_id).await?;
-    let queue = load_runtime_queue_for_current_window(device_id).await?;
-    let planner = DispatchPlanner::init();
-    planner.ensure_device_state(device_id)?;
-    planner.replace_pending_dispatches(device_id, queue.clone())?;
-    Ok(queue)
+    for _ in 0..8 {
+        let record = match load_next_planned_assignment_schedule(device_id).await? {
+            Some(record) => Some(record),
+            None => {
+                let _ = ensure_planner_batch_for_device(app_handle, device_id).await?;
+                load_next_planned_assignment_schedule(device_id).await?
+            }
+        };
+        let Some(record) = record else {
+            DispatchPlanner::init().mark_active_dispatch(device_id, None)?;
+            return Ok(false);
+        };
+        match dispatch_schedule_to_child(app_handle, device_id, record).await {
+            Ok(()) => return Ok(true),
+            Err(error) if error == "调度记录已过期，已取消" => continue,
+            Err(error) => return Err(error),
+        }
+    }
+    DispatchPlanner::init().mark_active_dispatch(device_id, None)?;
+    Ok(false)
 }
 
 pub(crate) async fn reevaluate_device_auto_dispatch(
@@ -175,32 +323,13 @@ pub(crate) async fn reevaluate_device_auto_dispatch(
     let planner = DispatchPlanner::init();
     planner.ensure_device_state(device_id)?;
     let state = planner.snapshot_device_state(device_id)?;
-    if state.active_dispatch.is_some() || !state.pending_dispatches.is_empty() {
+    if state.active_dispatch.is_some() {
         return Ok(0);
     }
 
-    let queue = load_runtime_queue_for_current_window(device_id).await?;
-    let mut filtered = Vec::new();
-    for queue_item in queue.into_iter().map(to_planner_queue_item) {
-        if find_assignment_schedule_scope(
-            queue_item.assignment_id,
-            queue_item.window_start_at.as_deref(),
-            AssignmentTriggerSource::Planner,
-        )
-        .await?
-        .is_none()
-        {
-            filtered.push(queue_item);
-        }
-    }
-
-    if filtered.is_empty() {
-        return Ok(0);
-    }
-
-    planner.replace_pending_dispatches(device_id, filtered.clone())?;
-    dispatch_next_pending_queue_item(app_handle, device_id).await?;
-    Ok(filtered.len())
+    let created = ensure_planner_batch_for_device(app_handle, device_id).await?;
+    let dispatched = dispatch_next_scheduled_queue_item(app_handle, device_id).await?;
+    Ok(if dispatched { created.max(1) } else { created })
 }
 
 pub(crate) async fn reevaluate_all_auto_dispatches(
@@ -224,11 +353,14 @@ async fn compute_next_auto_due_at() -> Result<Option<chrono::DateTime<Local>>, S
             continue;
         }
         let query = "SELECT id, device_id, script_id, time_template_id, account_data, `index` FROM device_script_assignments WHERE device_id = ? AND time_template_id IS NOT NULL";
-        let assignments = sqlx::query_as::<_, crate::domain::devices::device_schedule::DeviceScriptAssignment>(query)
-            .bind(device.id.to_string())
-            .fetch_all(get_pool())
-            .await
-            .map_err(|error| error.to_string())?;
+        let assignments = sqlx::query_as::<
+            _,
+            crate::domain::devices::device_schedule::DeviceScriptAssignment,
+        >(query)
+        .bind(device.id.to_string())
+        .fetch_all(get_pool())
+        .await
+        .map_err(|error| error.to_string())?;
 
         for assignment in assignments {
             let Some(template_id) = assignment.time_template_id else {
@@ -251,6 +383,9 @@ async fn compute_next_auto_due_at() -> Result<Option<chrono::DateTime<Local>>, S
 }
 
 pub(crate) fn spawn_auto_dispatch_planner_loop(app_handle: tauri::AppHandle) {
+    let notify = AUTO_DISPATCH_NOTIFY
+        .get_or_init(|| Arc::new(tokio::sync::Notify::new()))
+        .clone();
     tauri::async_runtime::spawn(async move {
         loop {
             let sleep_duration = match compute_next_auto_due_at().await {
@@ -262,11 +397,17 @@ pub(crate) fn spawn_auto_dispatch_planner_loop(app_handle: tauri::AppHandle) {
                 }
                 Ok(None) => std::time::Duration::from_secs(300),
                 Err(error) => {
-                    Log::error(&format!("[ process ] 计算下一次自动调度时间失败: {}", error));
+                    Log::error(&format!(
+                        "[ process ] 计算下一次自动调度时间失败: {}",
+                        error
+                    ));
                     std::time::Duration::from_secs(60)
                 }
             };
-            tokio::time::sleep(sleep_duration).await;
+            tokio::select! {
+                _ = tokio::time::sleep(sleep_duration) => {}
+                _ = notify.notified() => {}
+            }
             match reevaluate_all_auto_dispatches(&app_handle).await {
                 Ok(count) if count > 0 => {
                     Log::info(&format!("[ process ] 自动调度派发了 {} 个队列项", count));
@@ -386,12 +527,13 @@ async fn ensure_device_connection_ready(
     .await?;
     send_connection_control(device_id, ConnectionAction::EnsureReady).await;
 
-    match wait_for_connection_status(app_handle, device_id, std::time::Duration::from_secs(35)).await?
+    match wait_for_connection_status(app_handle, device_id, std::time::Duration::from_secs(35))
+        .await?
     {
         (ConnectionStatusKind::Connected, _) => Ok(()),
-        (ConnectionStatusKind::Disconnected, message) => Err(
-            message.unwrap_or_else(|| format!("设备[{}]连接准备失败", device_id)),
-        ),
+        (ConnectionStatusKind::Disconnected, message) => {
+            Err(message.unwrap_or_else(|| format!("设备[{}]连接准备失败", device_id)))
+        }
         (ConnectionStatusKind::Unknown, _) | (ConnectionStatusKind::Checking, _) => {
             Err(format!("设备[{}]连接状态未知", device_id))
         }
@@ -450,8 +592,9 @@ async fn wait_for_capture_result(
                     image_data,
                     message,
                 } = result;
-                return image_data
-                    .ok_or_else(|| message.unwrap_or_else(|| format!("设备[{}]截图失败", device_id)));
+                return image_data.ok_or_else(|| {
+                    message.unwrap_or_else(|| format!("设备[{}]截图失败", device_id))
+                });
             }
         }
 
@@ -514,7 +657,7 @@ pub(crate) fn spawn_dispatch_signal_loop(
                 }
                 RuntimeDispatchPhase::RequestNext => {
                     match DispatchPlanner::init().mark_active_dispatch(signal.device_id, None) {
-                        Ok(()) => dispatch_next_pending_queue_item(&app_handle, signal.device_id)
+                        Ok(()) => dispatch_next_scheduled_queue_item(&app_handle, signal.device_id)
                             .await
                             .map(|_| ()),
                         Err(error) => Err(error),
@@ -555,16 +698,26 @@ pub async fn cmd_device_start(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    let queue = rebuild_device_queue_pending_dispatches(&app_handle, device_id).await?;
+    let created = ensure_planner_batch_for_device(&app_handle, device_id).await?;
     let state = DispatchPlanner::init().snapshot_device_state(device_id)?;
     if state.active_dispatch.is_some() {
-        return Ok(format!("设备[{}]当前已有运行中的 dispatch，已刷新待执行队列", device_id));
+        return Ok(format!(
+            "设备[{}]当前已有运行中的 dispatch，已唤醒 planner",
+            device_id
+        ));
     }
-    if queue.is_empty() {
-        return Ok(format!("设备[{}]当前时间窗口下没有可运行的队列项", device_id));
+    let dispatched = dispatch_next_scheduled_queue_item(&app_handle, device_id).await?;
+    if dispatched {
+        Ok(format!(
+            "已唤醒设备[{}]调度，新增 {} 条 planner 记录并开始执行下一项",
+            device_id, created
+        ))
+    } else {
+        Ok(format!(
+            "设备[{}]当前时间窗口下没有可运行的 planner 记录",
+            device_id
+        ))
     }
-    dispatch_next_pending_queue_item(&app_handle, device_id).await?;
-    Ok(format!("已向设备[{}]派发 {} 个队列项，开始执行第一项", device_id, queue.len()))
 }
 
 #[command]
@@ -585,16 +738,17 @@ pub async fn cmd_sync_device_runtime_session(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    let queue = rebuild_device_queue_pending_dispatches(&app_handle, device_id).await?;
     let device = load_device_table(device_id).await?;
     let state = DispatchPlanner::init().snapshot_device_state(device_id)?;
-    if device.data.0.auto_start && state.active_dispatch.is_none() && !queue.is_empty() {
-        let _ = dispatch_next_pending_queue_item(&app_handle, device_id).await?;
+    let mut created = 0usize;
+    let mut dispatched = false;
+    if device.data.0.auto_start && state.active_dispatch.is_none() {
+        created = ensure_planner_batch_for_device(&app_handle, device_id).await?;
+        dispatched = dispatch_next_scheduled_queue_item(&app_handle, device_id).await?;
     }
     Ok(format!(
-        "已同步设备[{}]待执行队列，当前时间窗口下共有 {} 个候选项",
-        device_id,
-        queue.len()
+        "已同步设备[{}]运行会话，新增 planner 记录 {} 条，派发下一项={}",
+        device_id, created, dispatched
     ))
 }
 
@@ -606,15 +760,82 @@ pub async fn cmd_run_script_target(
 ) -> Result<String, String> {
     ensure_device_ready(&app_handle, device_id).await?;
     let planner = DispatchPlanner::init();
+    let previous = planner.snapshot_device_state(device_id).ok();
     planner.clear_device_state(device_id)?;
-    let session = load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
+    let mut session =
+        load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
+    for queue_item in &mut session.queue {
+        queue_item.dispatch_source = DispatchSource::Debug;
+    }
     if let Some(queue_item) = session.queue.first() {
         planner.ensure_device_state(device_id)?;
         planner.mark_active_dispatch(device_id, Some(queue_item.dispatch_id))?;
     }
     send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
     send_process_control(device_id, ProcessAction::Start);
+    if let Some(previous) = previous {
+        if previous.active_dispatch.is_some() || !previous.pending_dispatches.is_empty() {
+            Log::info(&format!(
+                "[ process ] 设备[{}]调试/临时运行已覆盖原有 dispatch 队列，优先级={}",
+                device_id,
+                dispatch_priority(&DispatchSource::Debug)
+            ));
+        }
+    }
     Ok(format!("已向设备[{}]发送运行目标: {:?}", device_id, target))
+}
+
+#[command]
+pub async fn cmd_run_user_script_target(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+    target: RunTarget,
+) -> Result<String, String> {
+    ensure_device_ready(&app_handle, device_id).await?;
+    let mut session =
+        load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
+    let Some(first_item) = session.queue.first_mut() else {
+        return Err("临时运行目标未生成可派发队列项".to_string());
+    };
+    first_item.dispatch_source = DispatchSource::User;
+    let dispatch_id = first_item.dispatch_id;
+    let assignment_id = first_item.assignment_id;
+    let script_id = first_item.script_id;
+    let run_target_json = serde_json::to_string(&target)
+        .map_err(|error| format!("序列化临时运行目标失败: {}", error))?;
+
+    let record = insert_assignment_schedule(
+        BatchId::new_v7(),
+        device_id,
+        Some(assignment_id),
+        Some(script_id),
+        None,
+        None,
+        String::new(),
+        dispatch_id,
+        0,
+        Local::now().to_rfc3339(),
+        Some(run_target_json),
+        AssignmentScheduleStatus::Planned,
+        AssignmentTriggerSource::User,
+        Some("任务管理页临时运行".to_string()),
+    )
+    .await?;
+
+    update_assignment_schedule_status(
+        record.id,
+        AssignmentScheduleStatus::Dispatched,
+        None,
+        None,
+        Some("user dispatch 已派发到子进程".to_string()),
+    )
+    .await?;
+    DispatchPlanner::init().clear_device_state(device_id)?;
+    dispatch_session_to_child(device_id, session, dispatch_id).await?;
+    Ok(format!(
+        "已向设备[{}]发送临时运行目标: {:?}",
+        device_id, target
+    ))
 }
 
 #[command]
@@ -664,9 +885,7 @@ pub async fn cmd_spawn_device(
 }
 
 #[command]
-pub async fn cmd_bootstrap_enabled_devices(
-    app_handle: tauri::AppHandle,
-) -> Result<String, String> {
+pub async fn cmd_bootstrap_enabled_devices(app_handle: tauri::AppHandle) -> Result<String, String> {
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
     let devices = DbRepo::get_all::<DeviceTable>(DEVICE_TABLE).await?;
     let enabled_devices: Vec<DeviceTable> = devices
@@ -756,7 +975,10 @@ pub async fn cmd_prepare_device_capture(
     device_id: DeviceId,
 ) -> Result<String, String> {
     let device_name = ensure_device_capture_ready(&app_handle, device_id).await?;
-    Ok(format!("设备[{}]({})已启动并完成连接准备", device_name, device_id))
+    Ok(format!(
+        "设备[{}]({})已启动并完成连接准备",
+        device_name, device_id
+    ))
 }
 
 #[command]

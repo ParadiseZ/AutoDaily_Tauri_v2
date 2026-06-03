@@ -69,8 +69,7 @@ impl ScriptTransferControl {
 }
 
 fn transfer_controls() -> &'static Mutex<HashMap<String, Arc<ScriptTransferControl>>> {
-    static CONTROLS: OnceLock<Mutex<HashMap<String, Arc<ScriptTransferControl>>>> =
-        OnceLock::new();
+    static CONTROLS: OnceLock<Mutex<HashMap<String, Arc<ScriptTransferControl>>>> = OnceLock::new();
     CONTROLS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -181,7 +180,9 @@ pub fn emit_script_transfer_event(app_handle: &AppHandle, payload: &ScriptTransf
     let _ = app_handle.emit(SCRIPT_TRANSFER_EVENT, payload);
 }
 
-pub async fn insert_script_transfer_record(input: CreateScriptTransferRecordInput) -> Result<(), String> {
+pub async fn insert_script_transfer_record(
+    input: CreateScriptTransferRecordInput,
+) -> Result<(), String> {
     let pool = get_pool();
     let updated_at = input.finished_at.clone().unwrap_or_else(now_rfc3339);
 
@@ -230,7 +231,9 @@ pub async fn insert_script_transfer_record(input: CreateScriptTransferRecordInpu
     Ok(())
 }
 
-pub async fn finish_script_transfer_record(input: FinishScriptTransferRecordInput) -> Result<(), String> {
+pub async fn finish_script_transfer_record(
+    input: FinishScriptTransferRecordInput,
+) -> Result<(), String> {
     let pool = get_pool();
     let updated_at = input.finished_at.clone().unwrap_or_else(now_rfc3339);
 

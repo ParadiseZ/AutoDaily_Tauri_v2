@@ -72,7 +72,9 @@ pub async fn backend_get_profile(app_handle: AppHandle) -> ApiResponse<serde_jso
     match res {
         Ok(api_res) => {
             if api_res.code == 200 {
-                if let (Some(username), Some(profile)) = (cached_username.as_deref(), api_res.data.as_ref()) {
+                if let (Some(username), Some(profile)) =
+                    (cached_username.as_deref(), api_res.data.as_ref())
+                {
                     persist_cached_user_profile(&app_handle, username, profile);
                 }
                 return ApiResponse::success(api_res.data, Some(api_res.message));
@@ -84,7 +86,10 @@ pub async fn backend_get_profile(app_handle: AppHandle) -> ApiResponse<serde_jso
 
             ApiResponse::failed_with_details(
                 None,
-                Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                Some(format_backend_message(
+                    &api_res.message,
+                    api_res.details.as_ref(),
+                )),
                 api_res.details,
             )
         }

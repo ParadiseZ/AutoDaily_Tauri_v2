@@ -10,10 +10,11 @@ mod domain;
 pub mod infrastructure;
 
 use crate::api::backend_cmd::{
-    backend_download_model, backend_download_script, backend_get_auth_session, backend_get_cached_profile, backend_get_profile,
-    backend_get_script_change_logs, backend_get_script_cloud_summary, backend_login, backend_logout,
-    backend_preflight_download_script, backend_preflight_upload_script, backend_redeem_sponsor_code,
-    backend_register, backend_reset_password, backend_search_scripts,
+    backend_download_model, backend_download_script, backend_get_auth_session,
+    backend_get_cached_profile, backend_get_profile, backend_get_script_change_logs,
+    backend_get_script_cloud_summary, backend_login, backend_logout,
+    backend_preflight_download_script, backend_preflight_upload_script,
+    backend_redeem_sponsor_code, backend_register, backend_reset_password, backend_search_scripts,
     backend_send_verification_code, backend_update_username, backend_upload_model,
     backend_upload_script,
 };
@@ -33,14 +34,14 @@ use crate::api::domain::schedule::{
     get_script_time_template_values_cmd, reorder_assignments_cmd, save_assignment_cmd,
     save_script_time_template_values_cmd, save_time_template_cmd,
 };
-use crate::api::domain::scripts::{
-    clone_local_script_cmd, delete_script_cmd, get_all_scripts_cmd, get_script_by_id_cmd,
-    get_script_tasks_cmd, get_yolo_labels_cmd, save_script_cmd, save_script_tasks_cmd,
-};
 use crate::api::domain::script_transfer_records::{
     clear_script_transfer_records_cmd, delete_script_transfer_record_cmd,
     list_script_transfer_records_cmd, pause_script_transfer_record_cmd,
     resume_script_transfer_record_cmd,
+};
+use crate::api::domain::scripts::{
+    clone_local_script_cmd, delete_script_cmd, get_all_scripts_cmd, get_script_by_id_cmd,
+    get_script_tasks_cmd, get_yolo_labels_cmd, save_script_cmd, save_script_tasks_cmd,
 };
 use crate::api::infrastructure::config::email::{
     get_email_config_cmd, send_test_email_cmd, set_email_config_cmd,
@@ -59,18 +60,17 @@ use crate::api::infrastructure::frontend_debug::{
 use crate::api::infrastructure::get_uuid_v7;
 use crate::api::infrastructure::img::convert_img_to_base64_cmd;
 use crate::api::infrastructure::process_api::{
-    cmd_device_pause, cmd_device_shutdown, cmd_device_start, cmd_device_stop,
-    cmd_capture_device_image, cmd_get_running_devices, cmd_is_device_running,
-    cmd_prepare_device_capture,
-    cmd_probe_device_connections, cmd_restart_device_runtime, cmd_run_script_target, cmd_spawn_device,
-    cmd_bootstrap_enabled_devices,
+    cmd_bootstrap_enabled_devices, cmd_capture_device_image, cmd_device_pause, cmd_device_shutdown,
+    cmd_device_start, cmd_device_stop, cmd_get_running_devices, cmd_is_device_running,
+    cmd_prepare_device_capture, cmd_probe_device_connections, cmd_restart_device_runtime,
+    cmd_run_script_target, cmd_run_user_script_target, cmd_spawn_device,
     cmd_sync_device_runtime_session, spawn_auto_dispatch_planner_loop, spawn_dispatch_signal_loop,
 };
-use crate::app::before_exit::before_exit;
 use crate::api::infrastructure::vision_lab::{
     get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd, vision_list_image_files_cmd,
     vision_save_capture_image_cmd,
 };
+use crate::app::before_exit::before_exit;
 use crate::app::init_start::init_at_start;
 use crate::infrastructure::context::main_process::MainProcessCtx;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -184,6 +184,7 @@ pub fn run() {
             cmd_device_pause,
             cmd_sync_device_runtime_session,
             cmd_run_script_target,
+            cmd_run_user_script_target,
             cmd_device_shutdown,
             cmd_restart_device_runtime,
             cmd_get_running_devices,

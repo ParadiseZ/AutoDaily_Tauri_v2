@@ -4,6 +4,7 @@ use crate::api::infrastructure::process_api::bundle_loader::{
     validate_run_target_support,
 };
 use crate::app::config::vision_cache_conf::get_vision_text_cache_runtime_config_app;
+use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_conf::{
     DevicePlatform, DeviceTable, TimeoutAction as DeviceTimeoutAction,
     TimeoutNotifyChannel as DeviceTimeoutNotifyChannel,
@@ -14,10 +15,9 @@ use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::devices::device_launcher::launch_device;
 use crate::infrastructure::ipc::message::{
     DispatchKind, DispatchSource, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
-    RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy,
-    TimeoutAction as RuntimeTimeoutAction, TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
+    RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, TimeoutAction as RuntimeTimeoutAction,
+    TimeoutNotifyChannel as RuntimeTimeoutNotifyChannel,
 };
-use crate::constant::table_name::DEVICE_TABLE;
 use tauri::Manager;
 
 pub(super) async fn load_device_table(device_id: DeviceId) -> Result<DeviceTable, String> {
@@ -26,7 +26,9 @@ pub(super) async fn load_device_table(device_id: DeviceId) -> Result<DeviceTable
         .ok_or_else(|| format!("设备[{}]不存在", device_id))
 }
 
-pub(super) fn validate_runtime_platform_supported(device_table: &DeviceTable) -> Result<(), String> {
+pub(super) fn validate_runtime_platform_supported(
+    device_table: &DeviceTable,
+) -> Result<(), String> {
     match device_table.data.0.platform {
         DevicePlatform::Android => Ok(()),
         DevicePlatform::Desktop => Err(format!(

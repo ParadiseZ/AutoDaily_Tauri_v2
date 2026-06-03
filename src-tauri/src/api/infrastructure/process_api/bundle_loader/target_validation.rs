@@ -1,14 +1,17 @@
-use std::collections::HashSet;
 use super::LoadedScriptBundle;
 use crate::infrastructure::core::ScriptId;
 use crate::infrastructure::ipc::message::{RunTarget, RuntimeExecutionPolicy, TimeoutAction};
+use std::collections::HashSet;
 
 pub(super) fn validate_recovery_task_config(
     run_target: &RunTarget,
     runtime_policy: &RuntimeExecutionPolicy,
     bundles: &[LoadedScriptBundle],
 ) -> Result<(), String> {
-    if !matches!(runtime_policy.timeout_action, TimeoutAction::RunRecoveryTask) {
+    if !matches!(
+        runtime_policy.timeout_action,
+        TimeoutAction::RunRecoveryTask
+    ) {
         return Ok(());
     }
 
@@ -60,7 +63,10 @@ pub(super) fn validate_run_target_support(
                 ))
             }
         }
-        RunTarget::Policy { script_id, policy_id } => {
+        RunTarget::Policy {
+            script_id,
+            policy_id,
+        } => {
             let bundle = find_bundle(*script_id)
                 .ok_or_else(|| format!("运行目标中的脚本[{}]未装入当前 session", script_id))?;
             if bundle.policy_ids.contains(policy_id) {

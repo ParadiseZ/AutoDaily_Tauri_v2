@@ -1,5 +1,5 @@
-use crate::infrastructure::http_client::HttpClient;
 use crate::constant::sys_conf_path::APP_STORE;
+use crate::infrastructure::http_client::HttpClient;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 
@@ -17,7 +17,10 @@ pub struct CurrentAuthenticatedUser {
     pub username: String,
 }
 
-pub fn load_cached_user_profile(app_handle: &AppHandle, username: &str) -> Option<serde_json::Value> {
+pub fn load_cached_user_profile(
+    app_handle: &AppHandle,
+    username: &str,
+) -> Option<serde_json::Value> {
     let store = app_handle.store(APP_STORE).ok()?;
     let cached = store
         .get(USER_PROFILE_CACHE_KEY)
@@ -28,7 +31,9 @@ pub fn load_cached_user_profile(app_handle: &AppHandle, username: &str) -> Optio
     Some(cached.profile)
 }
 
-pub fn load_cached_profile_for_current_session(app_handle: &AppHandle) -> Option<serde_json::Value> {
+pub fn load_cached_profile_for_current_session(
+    app_handle: &AppHandle,
+) -> Option<serde_json::Value> {
     let client = HttpClient::new(app_handle.clone());
     let session = client.get_auth_session()?;
     load_cached_user_profile(app_handle, &session.username)

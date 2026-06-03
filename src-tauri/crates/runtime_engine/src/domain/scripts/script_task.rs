@@ -107,5 +107,3 @@ pub enum TaskTone {
     Warning,
     Danger,
 }
-
-

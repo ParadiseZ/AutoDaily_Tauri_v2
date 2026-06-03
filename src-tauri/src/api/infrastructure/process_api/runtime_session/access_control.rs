@@ -33,7 +33,10 @@ pub(super) async fn validate_published_script_runtime_access(
         return Err("请先登录后再运行云端下载脚本".to_string());
     }
 
-    let payload = match client.get::<BackendApiRes<serde_json::Value>>("/user/profile").await {
+    let payload = match client
+        .get::<BackendApiRes<serde_json::Value>>("/user/profile")
+        .await
+    {
         Ok(profile) if profile.code == 200 => profile
             .data
             .ok_or_else(|| "用户资料为空，无法校验云端脚本运行权限".to_string())?,
@@ -72,7 +75,8 @@ pub(super) async fn validate_published_script_runtime_access(
         .get("isDeveloper")
         .and_then(|value| value.as_bool())
         .unwrap_or(false);
-    let is_sponsor = has_active_sponsor(payload.get("sponsorUntil").and_then(|value| value.as_str()));
+    let is_sponsor =
+        has_active_sponsor(payload.get("sponsorUntil").and_then(|value| value.as_str()));
 
     if auth_stage == 2 && (is_developer || is_sponsor) {
         return Ok(());

@@ -6,8 +6,8 @@ pub use market::{
     backend_preflight_download_script, backend_preflight_upload_script, backend_search_scripts,
     backend_upload_script,
 };
-pub use model_transfer::{backend_download_model, backend_upload_model};
 pub(crate) use model_transfer::local_scripts_dir;
+pub use model_transfer::{backend_download_model, backend_upload_model};
 
 #[cfg(test)]
 mod tests {

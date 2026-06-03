@@ -5,8 +5,8 @@ use crate::constant::table_name::{
     TIME_TEMPLATE_TABLE,
 };
 use crate::domain::devices::device_schedule::DeviceScriptAssignment;
-use crate::domain::schedule::time_template::TimeTemplate;
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
+use crate::domain::schedule::time_template::TimeTemplate;
 use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
@@ -17,11 +17,11 @@ use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::ipc::message::{
     DispatchKind, DispatchSource, RunTarget, RuntimeQueueItem,
 };
+use chrono::TimeZone;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashSet};
-use chrono::TimeZone;
 
 fn parse_hhmm(value: &str) -> Result<chrono::NaiveTime, String> {
     chrono::NaiveTime::parse_from_str(value, "%H:%M")
@@ -49,7 +49,8 @@ fn compute_window_start_at(
             if now_time > end {
                 return Ok(None);
             }
-            today.and_hms_opt(0, 0, 0)
+            today
+                .and_hms_opt(0, 0, 0)
                 .ok_or_else(|| "构造时间窗口起点失败".to_string())?
         }
         (Some(start), Some(end)) if start <= end => {
@@ -121,10 +122,16 @@ fn extract_task_settings_scope(template_values_json: Option<&str>) -> Result<Val
             continue;
         };
         let mut scoped_setting = Map::new();
-        if let Some(enabled) = setting_object.get("enabled").filter(|value| !value.is_null()) {
+        if let Some(enabled) = setting_object
+            .get("enabled")
+            .filter(|value| !value.is_null())
+        {
             scoped_setting.insert("enabled".to_string(), enabled.clone());
         }
-        if let Some(task_cycle) = setting_object.get("taskCycle").filter(|value| !value.is_null()) {
+        if let Some(task_cycle) = setting_object
+            .get("taskCycle")
+            .filter(|value| !value.is_null())
+        {
             scoped_setting.insert("taskCycle".to_string(), task_cycle.clone());
         }
         if !scoped_setting.is_empty() {
@@ -321,7 +328,9 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
     })
 }
 
-pub(super) async fn load_runtime_queue(device_id: DeviceId) -> Result<Vec<RuntimeQueueItem>, String> {
+pub(super) async fn load_runtime_queue(
+    device_id: DeviceId,
+) -> Result<Vec<RuntimeQueueItem>, String> {
     let query = format!(
         "SELECT id, device_id, script_id, time_template_id, account_data, `index` FROM {} WHERE device_id = ? ORDER BY `index` ASC",
         ASSIGNMENT_TABLE

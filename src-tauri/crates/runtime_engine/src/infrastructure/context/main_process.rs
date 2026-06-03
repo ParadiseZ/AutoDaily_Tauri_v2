@@ -1,5 +1,7 @@
 use crate::infrastructure::context::init_error::InitResult;
-use crate::infrastructure::core::{AssignmentId, DeviceId, DispatchId, HashMap, MessageId, ScriptId};
+use crate::infrastructure::core::{
+    AssignmentId, DeviceId, DispatchId, HashMap, MessageId, ScriptId,
+};
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
 use crate::infrastructure::ipc::message::{ConnectionStatusKind, RuntimeDispatchPhase};
 use crate::infrastructure::logging::log_trait::Log;
@@ -54,12 +56,12 @@ impl MainProcessCtx {
         let (dispatch_signal_tx, dispatch_signal_rx) = mpsc::unbounded_channel();
         (
             Self {
-            script_manager: Arc::new(RwLock::new(ScriptManager::empty())),
-            ipc_servers: Arc::new(RwLock::new(HashMap::new())),
-            device_connections: Arc::new(RwLock::new(HashMap::new())),
-            device_capture_results: Arc::new(RwLock::new(HashMap::new())),
-            dispatch_signal_tx,
-        },
+                script_manager: Arc::new(RwLock::new(ScriptManager::empty())),
+                ipc_servers: Arc::new(RwLock::new(HashMap::new())),
+                device_connections: Arc::new(RwLock::new(HashMap::new())),
+                device_capture_results: Arc::new(RwLock::new(HashMap::new())),
+                dispatch_signal_tx,
+            },
             dispatch_signal_rx,
         )
     }

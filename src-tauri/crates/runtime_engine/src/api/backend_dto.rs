@@ -26,5 +26,3 @@ pub struct RefreshTokenReq {
     #[serde(rename = "refreshToken")]
     pub refresh_token: String,
 }
-
-

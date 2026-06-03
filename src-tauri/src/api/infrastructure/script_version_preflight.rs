@@ -1,5 +1,5 @@
-use num::ToPrimitive;
 use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
+use num::ToPrimitive;
 
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,7 +22,6 @@ pub fn format_version_label(ver_name: Option<&str>, ver_num: Option<u32>) -> Str
     }
     "未标记版本".to_string()
 }
-
 
 pub async fn find_replaceable_local_published_script(
     cloud_script_id: &str,
@@ -143,9 +142,8 @@ pub fn extract_cloud_summary_version(summary: &serde_json::Value) -> (Option<Str
         .get("verName")
         .and_then(|value| value.as_str())
         .map(str::to_string);
-    let ver_num = summary.get("verNum").and_then(|value| {
-        value.as_u64()
-            .and_then(|num| num.to_u32())
-    });
+    let ver_num = summary
+        .get("verNum")
+        .and_then(|value| value.as_u64().and_then(|num| num.to_u32()));
     (ver_name, ver_num)
 }

@@ -6,13 +6,13 @@ pub use auth_profile::{
     backend_logout, backend_redeem_sponsor_code, backend_register, backend_reset_password,
     backend_send_verification_code, backend_update_username,
 };
+pub(crate) use script_transfer::local_scripts_dir;
 pub use script_transfer::{
     backend_download_model, backend_download_script, backend_get_script_change_logs,
     backend_get_script_cloud_summary, backend_preflight_download_script,
     backend_preflight_upload_script, backend_search_scripts, backend_upload_model,
     backend_upload_script,
 };
-pub(crate) use script_transfer::local_scripts_dir;
 
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_dto::{AuthRes, BackendApiRes};
@@ -29,7 +29,10 @@ fn trans_api_res<T: Serialize>(api_res: AppResult<BackendApiRes<T>>) -> ApiRespo
             } else {
                 ApiResponse::failed_with_details(
                     None,
-                    Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                    Some(format_backend_message(
+                        &api_res.message,
+                        api_res.details.as_ref(),
+                    )),
                     api_res.details,
                 )
             }
@@ -52,7 +55,10 @@ fn trans_api_res_token(
             } else {
                 ApiResponse::failed_with_details(
                     None,
-                    Some(format_backend_message(&api_res.message, api_res.details.as_ref())),
+                    Some(format_backend_message(
+                        &api_res.message,
+                        api_res.details.as_ref(),
+                    )),
                     api_res.details,
                 )
             }
@@ -93,7 +99,8 @@ fn friendly_http_error_message(detail: &str, raw_error: &str) -> String {
         return "连接服务器失败，请检查服务是否启动或网络是否可用后重试。".to_string();
     }
 
-    if detail_lower.contains("接口返回错误状态码") || detail_lower.contains("文件下载返回了失败状态码")
+    if detail_lower.contains("接口返回错误状态码")
+        || detail_lower.contains("文件下载返回了失败状态码")
     {
         if raw_lower.contains("404") {
             return "请求的服务器接口暂不可用，请稍后重试。".to_string();
@@ -106,7 +113,8 @@ fn friendly_http_error_message(detail: &str, raw_error: &str) -> String {
         return "服务器处理请求失败，请稍后重试。".to_string();
     }
 
-    if detail_lower.contains("解析响应 json 失败") || detail_lower.contains("解析接口响应失败") {
+    if detail_lower.contains("解析响应 json 失败") || detail_lower.contains("解析接口响应失败")
+    {
         return "服务器返回的数据异常，请稍后重试。".to_string();
     }
 
@@ -138,7 +146,10 @@ fn extract_validation_issue_lines(details: Option<&serde_json::Value>) -> Vec<St
         .iter()
         .filter_map(|issue| {
             let message = issue.get("message").and_then(|value| value.as_str())?;
-            let path = issue.get("path").and_then(|value| value.as_str()).unwrap_or("");
+            let path = issue
+                .get("path")
+                .and_then(|value| value.as_str())
+                .unwrap_or("");
             if path.is_empty() {
                 Some(format!("- {}", message))
             } else {

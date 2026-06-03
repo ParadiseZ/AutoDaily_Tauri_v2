@@ -345,7 +345,7 @@ const handleRunTarget = async (deviceId: string, target: RunTarget) => {
   }
 
   try {
-    const result = await runtimeService.runScriptTarget(deviceId, target);
+    const result = await runtimeService.runUserScriptTarget(deviceId, target);
     showToast(result, 'success');
   } catch (error) {
     showToast(toErrorText(error).trim() || '临时运行失败', 'error');

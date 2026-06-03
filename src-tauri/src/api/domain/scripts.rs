@@ -49,7 +49,9 @@ pub async fn save_script_cmd(
         return Err(PUBLISHED_SCRIPT_EDIT_ERROR.to_string());
     }
 
-    if let Some(existing) = DbRepo::get_by_id::<ScriptTable>(SCRIPT_TABLE, &script.id.to_string()).await? {
+    if let Some(existing) =
+        DbRepo::get_by_id::<ScriptTable>(SCRIPT_TABLE, &script.id.to_string()).await?
+    {
         ensure_script_is_editable(&existing)?;
     }
 
@@ -191,12 +193,8 @@ pub async fn clone_local_script_cmd(
     };
 
     let current_user = load_current_authenticated_user(&app_handle);
-    let current_user_id = current_user
-        .as_ref()
-        .and_then(|user| user.id.as_deref());
-    let current_username = current_user
-        .as_ref()
-        .map(|user| user.username.as_str());
+    let current_user_id = current_user.as_ref().and_then(|user| user.id.as_deref());
+    let current_username = current_user.as_ref().map(|user| user.username.as_str());
     let owner_user_id = script.data.user_id.to_string();
 
     // 2. Permission Check

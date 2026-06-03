@@ -73,21 +73,34 @@ pub(crate) const DEVICE_SCRIPT_SCHEDULES_DEDUP_INDEX_SQL: &str =
             started_at DESC
         )";
 
-pub(crate) const ASSIGNMENT_SCHEDULES_UNIQUE_SCOPE_INDEX_SQL: &str =
-    "CREATE UNIQUE INDEX IF NOT EXISTS idx_assignment_schedules_scope
+pub(crate) const ASSIGNMENT_SCHEDULES_SCOPE_LOOKUP_INDEX_SQL: &str =
+    "CREATE INDEX IF NOT EXISTS idx_assignment_schedules_scope_lookup
         ON assignment_schedules (
+            device_id,
+            trigger_source,
             assignment_id,
             ifnull(window_start_at, ''),
-            trigger_source
+            scope_hash,
+            status,
+            created_at
         )";
 
 pub(crate) const ASSIGNMENT_SCHEDULES_DEVICE_STATUS_INDEX_SQL: &str =
     "CREATE INDEX IF NOT EXISTS idx_assignment_schedules_device_status
         ON assignment_schedules (
             device_id,
+            trigger_source,
             status,
-            started_at DESC,
-            completed_at DESC
+            created_at ASC,
+            order_index ASC
+        )";
+
+pub(crate) const ASSIGNMENT_SCHEDULES_BATCH_INDEX_SQL: &str =
+    "CREATE INDEX IF NOT EXISTS idx_assignment_schedules_batch
+        ON assignment_schedules (
+            batch_id,
+            status,
+            order_index ASC
         )";
 
 pub(crate) fn script_tasks_table_sql(table_name: &str) -> String {
@@ -116,6 +129,141 @@ pub(crate) fn script_tasks_table_sql(table_name: &str) -> String {
             FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE
         )"
     )
+}
+
+async fn add_assignment_schedule_column_if_missing(
+    pool: &Pool<Sqlite>,
+    sql: &str,
+) -> Result<(), String> {
+    match sqlx::query(sql).execute(pool).await {
+        Ok(_) => Ok(()),
+        Err(error) => {
+            let message = error.to_string();
+            if message.contains("duplicate column name") {
+                Ok(())
+            } else {
+                Err(message)
+            }
+        }
+    }
+}
+
+async fn migrate_assignment_schedules_table(pool: &Pool<Sqlite>) -> Result<(), String> {
+    let columns = sqlx::query_as::<_, (i64, String, String, i64, Option<String>, i64)>(
+        "PRAGMA table_info(assignment_schedules)",
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let assignment_not_null = columns
+        .iter()
+        .find(|(_, name, _, _, _, _)| name == "assignment_id")
+        .is_some_and(|(_, _, _, not_null, _, _)| *not_null != 0);
+    let has_batch_id = columns
+        .iter()
+        .any(|(_, name, _, _, _, _)| name == "batch_id");
+    let has_run_target_json = columns
+        .iter()
+        .any(|(_, name, _, _, _, _)| name == "run_target_json");
+
+    if !assignment_not_null && has_batch_id && has_run_target_json {
+        return Ok(());
+    }
+
+    sqlx::query("DROP INDEX IF EXISTS idx_assignment_schedules_scope")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DROP INDEX IF EXISTS idx_assignment_schedules_planner_scope")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DROP INDEX IF EXISTS idx_assignment_schedules_scope_lookup")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DROP INDEX IF EXISTS idx_assignment_schedules_device_status")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DROP INDEX IF EXISTS idx_assignment_schedules_batch")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DROP TABLE IF EXISTS assignment_schedules_next")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS assignment_schedules_next (
+            id TEXT PRIMARY KEY,
+            batch_id TEXT NOT NULL,
+            device_id TEXT NOT NULL,
+            assignment_id TEXT,
+            script_id TEXT,
+            time_template_id TEXT,
+            window_start_at TEXT,
+            scope_hash TEXT NOT NULL DEFAULT '',
+            dispatch_id TEXT NOT NULL,
+            order_index INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            run_target_json TEXT,
+            status TEXT NOT NULL DEFAULT 'planned',
+            trigger_source TEXT NOT NULL DEFAULT 'planner',
+            started_at TEXT,
+            completed_at TEXT,
+            message TEXT,
+            FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE,
+            FOREIGN KEY (time_template_id) REFERENCES time_templates(id) ON DELETE SET NULL
+        )",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    sqlx::query(
+        "INSERT INTO assignment_schedules_next (
+            id, batch_id, device_id, assignment_id, script_id, time_template_id,
+            window_start_at, scope_hash, dispatch_id, order_index, created_at,
+            run_target_json, status, trigger_source, started_at, completed_at, message
+        )
+        SELECT
+            id,
+            id,
+            device_id,
+            assignment_id,
+            NULL,
+            time_template_id,
+            window_start_at,
+            scope_hash,
+            dispatch_id,
+            0,
+            COALESCE(started_at, completed_at, CURRENT_TIMESTAMP),
+            NULL,
+            status,
+            trigger_source,
+            started_at,
+            completed_at,
+            message
+        FROM assignment_schedules",
+    )
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
+
+    sqlx::query("DROP TABLE assignment_schedules")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("ALTER TABLE assignment_schedules_next RENAME TO assignment_schedules")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }
 
 pub(crate) async fn create_base_tables(pool: &Pool<Sqlite>) -> Result<(), String> {
@@ -256,29 +404,78 @@ pub(crate) async fn create_base_tables(pool: &Pool<Sqlite>) -> Result<(), String
     sqlx::query(
         "CREATE TABLE IF NOT EXISTS assignment_schedules (
             id TEXT PRIMARY KEY,
+            batch_id TEXT NOT NULL,
             device_id TEXT NOT NULL,
-            assignment_id TEXT NOT NULL,
+            assignment_id TEXT,
+            script_id TEXT,
             time_template_id TEXT,
             window_start_at TEXT,
+            scope_hash TEXT NOT NULL DEFAULT '',
             dispatch_id TEXT NOT NULL,
+            order_index INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            run_target_json TEXT,
             status TEXT NOT NULL DEFAULT 'planned',
             trigger_source TEXT NOT NULL DEFAULT 'planner',
             started_at TEXT,
             completed_at TEXT,
             message TEXT,
             FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE,
-            FOREIGN KEY (assignment_id) REFERENCES device_script_assignments(id) ON DELETE CASCADE,
+            FOREIGN KEY (script_id) REFERENCES scripts(id) ON DELETE CASCADE,
             FOREIGN KEY (time_template_id) REFERENCES time_templates(id) ON DELETE SET NULL
         )",
     )
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    sqlx::query(ASSIGNMENT_SCHEDULES_UNIQUE_SCOPE_INDEX_SQL)
+    add_assignment_schedule_column_if_missing(
+        pool,
+        "ALTER TABLE assignment_schedules ADD COLUMN scope_hash TEXT NOT NULL DEFAULT ''",
+    )
+    .await?;
+    add_assignment_schedule_column_if_missing(
+        pool,
+        "ALTER TABLE assignment_schedules ADD COLUMN batch_id TEXT NOT NULL DEFAULT ''",
+    )
+    .await?;
+    add_assignment_schedule_column_if_missing(
+        pool,
+        "ALTER TABLE assignment_schedules ADD COLUMN script_id TEXT",
+    )
+    .await?;
+    add_assignment_schedule_column_if_missing(
+        pool,
+        "ALTER TABLE assignment_schedules ADD COLUMN order_index INTEGER NOT NULL DEFAULT 0",
+    )
+    .await?;
+    add_assignment_schedule_column_if_missing(
+        pool,
+        "ALTER TABLE assignment_schedules ADD COLUMN created_at TEXT NOT NULL DEFAULT ''",
+    )
+    .await?;
+    add_assignment_schedule_column_if_missing(
+        pool,
+        "ALTER TABLE assignment_schedules ADD COLUMN run_target_json TEXT",
+    )
+    .await?;
+    migrate_assignment_schedules_table(pool).await?;
+    sqlx::query("DROP INDEX IF EXISTS idx_assignment_schedules_scope")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query("DROP INDEX IF EXISTS idx_assignment_schedules_planner_scope")
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query(ASSIGNMENT_SCHEDULES_SCOPE_LOOKUP_INDEX_SQL)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
     sqlx::query(ASSIGNMENT_SCHEDULES_DEVICE_STATUS_INDEX_SQL)
+        .execute(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    sqlx::query(ASSIGNMENT_SCHEDULES_BATCH_INDEX_SQL)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;

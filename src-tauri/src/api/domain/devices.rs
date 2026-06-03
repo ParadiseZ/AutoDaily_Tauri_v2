@@ -1,7 +1,6 @@
 use crate::api::infrastructure::process_api::{
     cmd_device_shutdown, cmd_restart_device_runtime, cmd_spawn_device,
-    reevaluate_device_auto_dispatch,
-    cmd_sync_device_runtime_session,
+    cmd_sync_device_runtime_session, notify_auto_dispatch_planner, reevaluate_device_auto_dispatch,
 };
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_conf::DeviceTable;
@@ -74,6 +73,7 @@ pub async fn save_device_cmd(
 ) -> Result<(), String> {
     let previous = DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device.id.to_string()).await?;
     DbRepo::upsert_id_data(DEVICE_TABLE, &device.id.to_string(), &device.data).await?;
+    notify_auto_dispatch_planner();
     reconcile_runtime_after_device_save(&app_handle, previous.as_ref(), &device).await
 }
 

@@ -1,5 +1,5 @@
 use crate::api::api_response::ApiResponse;
-use crate::api::backend_cmd::{trans_api_res, app_error_message};
+use crate::api::backend_cmd::{app_error_message, trans_api_res};
 use crate::api::backend_dto::{BackendApiRes, ScriptModelFileDto};
 use crate::app::app_error::AppResult;
 use crate::constant::sys_conf_path::{APP_STORE, SCRIPTS_CONFIG_KEY};
@@ -90,13 +90,25 @@ pub(super) fn collect_model_uploads(
 ) -> Result<Vec<LocalModelUpload>, String> {
     let mut uploads = Vec::new();
 
-    if let Some(spec) = detector_upload(script.data.img_det_model.as_ref(), scripts_root, IMG_DET_MODEL)? {
+    if let Some(spec) = detector_upload(
+        script.data.img_det_model.as_ref(),
+        scripts_root,
+        IMG_DET_MODEL,
+    )? {
         uploads.push(spec);
     }
-    if let Some(spec) = detector_upload(script.data.txt_det_model.as_ref(), scripts_root, TXT_DET_MODEL)? {
+    if let Some(spec) = detector_upload(
+        script.data.txt_det_model.as_ref(),
+        scripts_root,
+        TXT_DET_MODEL,
+    )? {
         uploads.push(spec);
     }
-    if let Some(spec) = recognizer_upload(script.data.txt_rec_model.as_ref(), scripts_root, TXT_REC_MODEL)? {
+    if let Some(spec) = recognizer_upload(
+        script.data.txt_rec_model.as_ref(),
+        scripts_root,
+        TXT_REC_MODEL,
+    )? {
         uploads.push(spec);
     }
 
@@ -104,9 +116,21 @@ pub(super) fn collect_model_uploads(
 }
 
 pub(super) fn rewrite_script_model_paths_for_published(script: &mut ScriptTable, script_id: &str) {
-    rewrite_detector_model_path(&mut script.data.img_det_model, script_id, IMG_DET_MODEL.file_name);
-    rewrite_detector_model_path(&mut script.data.txt_det_model, script_id, TXT_DET_MODEL.file_name);
-    rewrite_recognizer_model_path(&mut script.data.txt_rec_model, script_id, TXT_REC_MODEL.file_name);
+    rewrite_detector_model_path(
+        &mut script.data.img_det_model,
+        script_id,
+        IMG_DET_MODEL.file_name,
+    );
+    rewrite_detector_model_path(
+        &mut script.data.txt_det_model,
+        script_id,
+        TXT_DET_MODEL.file_name,
+    );
+    rewrite_recognizer_model_path(
+        &mut script.data.txt_rec_model,
+        script_id,
+        TXT_REC_MODEL.file_name,
+    );
 }
 
 pub(super) fn normalize_download_endpoint(download_path: &str) -> Result<String, String> {
@@ -252,9 +276,14 @@ fn sha256_file_hex(path: &Path) -> Result<String, String> {
 }
 
 fn is_sha256_hash_algorithm(hash_algorithm: Option<&str>) -> bool {
-    match hash_algorithm.map(str::trim).filter(|value| !value.is_empty()) {
+    match hash_algorithm
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         None => true,
-        Some(value) => value.eq_ignore_ascii_case("SHA-256") || value.eq_ignore_ascii_case("SHA256"),
+        Some(value) => {
+            value.eq_ignore_ascii_case("SHA-256") || value.eq_ignore_ascii_case("SHA256")
+        }
     }
 }
 
@@ -328,7 +357,10 @@ pub async fn backend_upload_model(
 
     let path = std::path::Path::new(&local_file_path);
     if !path.exists() {
-        return ApiResponse::error(Some(format!("File {} does not exist locally", local_file_path)));
+        return ApiResponse::error(Some(format!(
+            "File {} does not exist locally",
+            local_file_path
+        )));
     }
 
     let file_name = path
@@ -336,9 +368,8 @@ pub async fn backend_upload_model(
         .and_then(|name| name.to_str())
         .unwrap_or(normalized_type.file_name);
 
-    let res: AppResult<BackendApiRes<String>> = client
-        .upload_file(&url, path, "file", file_name)
-        .await;
+    let res: AppResult<BackendApiRes<String>> =
+        client.upload_file(&url, path, "file", file_name).await;
 
     trans_api_res(res)
 }

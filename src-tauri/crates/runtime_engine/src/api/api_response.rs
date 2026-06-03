@@ -47,7 +47,11 @@ where
         }
     }
 
-    pub fn failed_with_details(data: Option<T>, message: Option<String>, details: Option<Value>) -> Self {
+    pub fn failed_with_details(
+        data: Option<T>,
+        message: Option<String>,
+        details: Option<Value>,
+    ) -> Self {
         Self {
             success: false,
             data,
