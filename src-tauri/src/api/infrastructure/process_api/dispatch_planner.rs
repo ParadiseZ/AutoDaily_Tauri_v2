@@ -9,7 +9,7 @@ use crate::infrastructure::core::{
     TemplateId,
 };
 use crate::infrastructure::db::get_pool;
-use crate::infrastructure::ipc::message::RuntimeQueueItem;
+use crate::infrastructure::ipc::message::{RuntimeQueueItem, RuntimeSessionSnapshot};
 use std::collections::{HashSet, VecDeque};
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -17,6 +17,7 @@ use std::sync::{Arc, OnceLock, RwLock};
 pub struct DeviceDispatchState {
     pub active_dispatch: Option<DispatchId>,
     pub pending_dispatches: VecDeque<RuntimeQueueItem>,
+    pub pending_debug_sessions: VecDeque<RuntimeSessionSnapshot>,
 }
 
 pub struct DispatchPlanner {
@@ -63,6 +64,32 @@ impl DispatchPlanner {
         let state = guard.entry(device_id).or_default();
         state.pending_dispatches = queue.into_iter().collect();
         Ok(())
+    }
+
+    pub fn push_debug_session(
+        &self,
+        device_id: DeviceId,
+        session: RuntimeSessionSnapshot,
+    ) -> Result<(), String> {
+        let mut guard = self
+            .device_states
+            .write()
+            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
+        let state = guard.entry(device_id).or_default();
+        state.pending_debug_sessions.push_back(session);
+        Ok(())
+    }
+
+    pub fn pop_debug_session(
+        &self,
+        device_id: DeviceId,
+    ) -> Result<Option<RuntimeSessionSnapshot>, String> {
+        let mut guard = self
+            .device_states
+            .write()
+            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
+        let state = guard.entry(device_id).or_default();
+        Ok(state.pending_debug_sessions.pop_front())
     }
 
     pub fn mark_active_dispatch(

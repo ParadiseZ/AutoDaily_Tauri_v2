@@ -47,6 +47,7 @@
         :scripts="scriptStore.sortedScripts"
         :time-templates="taskStore.timeTemplates"
         :assignments="taskStore.assignmentsByDevice[activeDevice.id] ?? []"
+        :assignment-schedules="taskStore.assignmentSchedulesByDevice[activeDevice.id] ?? []"
         :schedules="taskStore.schedulesByDevice[activeDevice.id] ?? []"
         :script-tasks-by-script-id="scriptStore.tasksByScriptId"
         :script-task-loading="scriptStore.taskLoading"
@@ -346,6 +347,7 @@ const handleRunTarget = async (deviceId: string, target: RunTarget) => {
 
   try {
     const result = await runtimeService.runUserScriptTarget(deviceId, target);
+    void taskStore.loadSchedules(deviceId);
     showToast(result, 'success');
   } catch (error) {
     showToast(toErrorText(error).trim() || '临时运行失败', 'error');
@@ -364,6 +366,7 @@ const handleStartDevice = async (deviceId: string) => {
 
   try {
     await deviceStore.startDevice(deviceId);
+    void taskStore.loadSchedules(deviceId);
   } catch (error) {
     showToast(error instanceof Error ? error.message : '启动失败', 'error');
   }
@@ -383,6 +386,9 @@ const handleStartAllDevices = async () => {
 
   try {
     await deviceStore.startDevices(deviceIds.value);
+    for (const deviceId of deviceIds.value) {
+      void taskStore.loadSchedules(deviceId);
+    }
   } catch (error) {
     showToast(error instanceof Error ? error.message : '批量启动失败', 'error');
   }
@@ -401,6 +407,22 @@ watch(
     void deviceStore.probeEnabledDeviceConnections(probeCandidateIds.value);
   },
   { immediate: true },
+);
+
+watch(
+  () => {
+    const deviceId = activeDevice.value?.id;
+    return deviceId ? `${deviceId}:${runtimeStore.getScheduleEvents(deviceId).length}` : '';
+  },
+  (signature, previous) => {
+    if (!signature || signature === previous) {
+      return;
+    }
+    const [deviceId] = signature.split(':', 1);
+    if (deviceId) {
+      void taskStore.loadSchedules(deviceId);
+    }
+  },
 );
 </script>
 

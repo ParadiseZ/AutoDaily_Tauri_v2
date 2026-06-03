@@ -288,23 +288,56 @@
         </div>
 
         <div v-if="loadingSchedules" class="py-10 text-sm text-(--app-text-soft)">正在读取记录...</div>
-        <div v-else-if="schedules.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
+        <div v-else-if="assignmentScheduleSections.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
           暂无运行记录。
         </div>
-        <div v-else class="space-y-2">
-          <div
-            v-for="schedule in schedules.slice(0, 6)"
-            :key="schedule.id"
-            class="rounded-[18px] border border-(--app-border) bg-white/20 px-4 py-3"
-          >
-            <div class="flex items-center justify-between gap-3">
-              <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(schedule.scriptId) }}</p>
-              <StatusBadge :label="schedule.status" :tone="schedule.status === 'Success' ? 'success' : schedule.status === 'Skipped' ? 'warning' : 'danger'" />
+        <div v-else class="space-y-4">
+          <section v-for="section in assignmentScheduleSections" :key="section.day" class="space-y-2">
+            <div class="text-xs font-semibold uppercase tracking-[0.16em] text-(--app-text-faint)">
+              {{ section.label }}
             </div>
-            <p class="mt-1 text-xs text-(--app-text-faint)">
-              {{ formatDateTime(schedule.startedAt) }} · {{ schedule.message || schedule.taskCycle }}
-            </p>
-          </div>
+            <div
+              v-for="record in section.items"
+              :key="record.id"
+              class="rounded-[18px] border border-(--app-border) bg-white/20 px-4 py-3"
+            >
+              <button
+                class="flex w-full items-start justify-between gap-3 text-left"
+                type="button"
+                @click="toggleAssignmentSchedule(record.id)"
+              >
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(record.scriptId ?? '') }}</p>
+                  <p class="mt-1 text-xs text-(--app-text-faint)">
+                    {{ formatAssignmentScheduleMeta(record) }}
+                  </p>
+                </div>
+                <div class="flex shrink-0 items-center gap-2">
+                  <StatusBadge :label="formatAssignmentScheduleStatus(record.status)" :tone="assignmentScheduleTone(record.status)" />
+                  <span class="text-xs text-(--app-text-faint)">{{ expandedAssignmentSchedules[record.id] ? '收起' : '展开' }}</span>
+                </div>
+              </button>
+
+              <div v-if="expandedAssignmentSchedules[record.id]" class="mt-3 space-y-2 border-t border-(--app-border) pt-3">
+                <div v-if="childSchedulesForAssignmentSchedule(record).length === 0" class="text-xs text-(--app-text-soft)">
+                  暂无子进程调度记录。
+                </div>
+                <div
+                  v-for="schedule in childSchedulesForAssignmentSchedule(record)"
+                  :key="schedule.id"
+                  class="rounded-[14px] bg-black/5 px-3 py-2 dark:bg-white/5"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="truncate text-xs font-medium text-(--app-text-strong)">{{ getTaskName(schedule.scriptId, schedule.taskId) }}</p>
+                    <StatusBadge :label="scheduleStatusLabels[schedule.status] ?? schedule.status" :tone="scheduleTone(schedule.status)" />
+                  </div>
+                  <p class="mt-1 text-xs text-(--app-text-faint)">
+                    {{ formatDateTime(schedule.startedAt) }} · {{ schedule.message || schedule.taskCycle }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </SurfacePanel>
     </div>
@@ -327,6 +360,7 @@ import type {
   ScriptTableRecord,
 } from '@/types/app/domain';
 import type { RunTarget } from '@/types/bindings/RunTarget';
+import type { AssignmentSchedule } from '@/types/bindings/AssignmentSchedule';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
@@ -348,6 +382,7 @@ const props = defineProps<{
   scripts: ScriptTableRecord[];
   timeTemplates: TimeTemplate[];
   assignments: AssignmentRecord[];
+  assignmentSchedules: AssignmentSchedule[];
   schedules: DeviceScriptSchedule[];
   scriptTasksByScriptId: Record<string, ScriptTaskTable[]>;
   scriptTaskLoading: Record<string, boolean>;
@@ -382,6 +417,7 @@ const selectedScriptId = ref('');
 const selectedTemplateId = ref('');
 const selectedTemporaryScriptId = ref('');
 const selectedTemporaryTaskId = ref('');
+const expandedAssignmentSchedules = ref<Record<string, boolean>>({});
 const nowTick = ref(Date.now());
 const timer = window.setInterval(() => {
   nowTick.value = Date.now();
@@ -449,6 +485,38 @@ const scheduleStatusLabels: Record<string, string> = {
   Skipped: '已跳过',
   Cleared: '已清空',
 };
+
+const assignmentScheduleStatusLabels: Record<string, string> = {
+  planned: '已计划',
+  dispatched: '已派发',
+  running: '运行中',
+  success: '成功',
+  failed: '失败',
+  skipped: '已跳过',
+  cancelled: '已取消',
+};
+
+const triggerSourceLabels: Record<string, string> = {
+  planner: '自动调度',
+  user: '临时运行',
+  debug: '调试',
+};
+
+const scheduleTone = (status: string) => {
+  if (status === 'Success') return 'success';
+  if (status === 'Skipped' || status === 'Queued' || status === 'Running') return 'warning';
+  if (status === 'Failed') return 'danger';
+  return 'neutral';
+};
+
+const assignmentScheduleTone = (status: string) => {
+  if (status === 'success') return 'success';
+  if (status === 'planned' || status === 'dispatched' || status === 'running' || status === 'skipped') return 'warning';
+  if (status === 'failed' || status === 'cancelled') return 'danger';
+  return 'neutral';
+};
+
+const formatAssignmentScheduleStatus = (status: string) => assignmentScheduleStatusLabels[status] ?? status;
 
 const progressPhaseLabels: Record<string, string> = {
   Idle: '空闲',
@@ -623,8 +691,58 @@ const getScriptName = (scriptId: string) => {
   return props.scripts.find((script) => script.id === scriptId)?.data.name || '未知脚本';
 };
 
+const getTaskName = (scriptId: string, taskId: string) => {
+  return props.scriptTasksByScriptId[scriptId]?.find((task) => task.id === taskId)?.name || '未知任务';
+};
+
 const getTemplateName = (templateId: string | null) => {
   return formatTemplateWindow(templateId ? templateMap.value[templateId] : null);
+};
+
+const assignmentScheduleTime = (record: AssignmentSchedule) =>
+  record.startedAt || record.createdAt || record.windowStartAt || '';
+
+const formatDayLabel = (day: string) => {
+  if (day === currentDayKey.value) {
+    return '今天';
+  }
+  return day;
+};
+
+const assignmentScheduleSections = computed(() => {
+  const groups = new Map<string, AssignmentSchedule[]>();
+  for (const record of props.assignmentSchedules) {
+    const time = assignmentScheduleTime(record);
+    const day = time ? scheduleDayKey(time) : '未记录日期';
+    groups.set(day, [...(groups.get(day) ?? []), record]);
+  }
+
+  return [...groups.entries()]
+    .sort(([left], [right]) => right.localeCompare(left))
+    .map(([day, items]) => ({
+      day,
+      label: formatDayLabel(day),
+      items: [...items].sort((left, right) => {
+        const leftTime = Date.parse(assignmentScheduleTime(left)) || 0;
+        const rightTime = Date.parse(assignmentScheduleTime(right)) || 0;
+        return rightTime - leftTime || left.orderIndex - right.orderIndex;
+      }),
+    }));
+});
+
+const formatAssignmentScheduleMeta = (record: AssignmentSchedule) => {
+  const source = triggerSourceLabels[record.triggerSource] ?? record.triggerSource;
+  const time = assignmentScheduleTime(record);
+  const timeText = time ? formatDateTime(time) : '未记录时间';
+  const detail = record.message || (record.windowStartAt ? `窗口 ${formatDateTime(record.windowStartAt)}` : '');
+  return [source, timeText, detail].filter(Boolean).join(' · ');
+};
+
+const toggleAssignmentSchedule = (recordId: string) => {
+  expandedAssignmentSchedules.value = {
+    ...expandedAssignmentSchedules.value,
+    [recordId]: !expandedAssignmentSchedules.value[recordId],
+  };
 };
 
 const parseTimeToMinutes = (value: string | null | undefined) => {
@@ -651,6 +769,37 @@ const currentMinuteOfDay = computed(() => {
 const scheduleDayKey = (value: string) => {
   const date = new Date(value);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const childSchedulesForAssignmentSchedule = (record: AssignmentSchedule) => {
+  const startedAt = record.startedAt ? Date.parse(record.startedAt) : null;
+  const completedAt = record.completedAt ? Date.parse(record.completedAt) : null;
+  const fallbackDay = scheduleDayKey(assignmentScheduleTime(record));
+
+  return props.schedules
+    .filter((schedule) => {
+      if (record.assignmentId && schedule.assignmentId === record.assignmentId) {
+        return true;
+      }
+      if (record.scriptId && schedule.scriptId !== record.scriptId) {
+        return false;
+      }
+      const scheduleStartedAt = Date.parse(schedule.startedAt);
+      if (!Number.isFinite(scheduleStartedAt)) {
+        return false;
+      }
+      if (startedAt !== null && Number.isFinite(startedAt) && scheduleStartedAt < startedAt) {
+        return false;
+      }
+      if (completedAt !== null && Number.isFinite(completedAt) && scheduleStartedAt > completedAt) {
+        return false;
+      }
+      if (startedAt === null && completedAt === null) {
+        return scheduleDayKey(schedule.startedAt) === fallbackDay;
+      }
+      return true;
+    })
+    .sort((left, right) => (Date.parse(left.startedAt) || 0) - (Date.parse(right.startedAt) || 0));
 };
 
 const ranAssignmentIdsToday = computed(() =>

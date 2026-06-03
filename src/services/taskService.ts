@@ -1,4 +1,5 @@
 import { invoke } from '@/utils/api';
+import type { AssignmentSchedule } from '@/types/bindings/AssignmentSchedule';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
@@ -14,6 +15,8 @@ export const taskService = {
         invoke('reorder_assignments_cmd', { deviceId, assignmentIds }) as Promise<void>,
     listSchedules: (deviceId: string) =>
         invoke('get_schedules_by_device_cmd', { deviceId }) as Promise<DeviceScriptSchedule[]>,
+    listAssignmentSchedules: (deviceId: string) =>
+        invoke('get_assignment_schedules_by_device_cmd', { deviceId }) as Promise<AssignmentSchedule[]>,
     clearSchedules: (deviceId: string) =>
         invoke('clear_schedules_cmd', { deviceId }) as Promise<void>,
     clearSchedulesByScript: (scriptId: string) =>

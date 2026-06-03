@@ -287,6 +287,16 @@ async fn dispatch_next_scheduled_queue_item(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<bool, String> {
+    if let Some(session) = DispatchPlanner::init().pop_debug_session(device_id)? {
+        let dispatch_id = session
+            .queue
+            .first()
+            .map(|queue_item| queue_item.dispatch_id)
+            .ok_or_else(|| "debug session 缺少 dispatch 队列项".to_string())?;
+        dispatch_session_to_child(device_id, session, dispatch_id).await?;
+        return Ok(true);
+    }
+
     for _ in 0..8 {
         let record = match load_next_planned_assignment_schedule(device_id).await? {
             Some(record) => Some(record),
@@ -760,28 +770,33 @@ pub async fn cmd_run_script_target(
 ) -> Result<String, String> {
     ensure_device_ready(&app_handle, device_id).await?;
     let planner = DispatchPlanner::init();
-    let previous = planner.snapshot_device_state(device_id).ok();
-    planner.clear_device_state(device_id)?;
+    planner.ensure_device_state(device_id)?;
+    let state = planner.snapshot_device_state(device_id)?;
     let mut session =
         load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
     for queue_item in &mut session.queue {
         queue_item.dispatch_source = DispatchSource::Debug;
     }
-    if let Some(queue_item) = session.queue.first() {
-        planner.ensure_device_state(device_id)?;
-        planner.mark_active_dispatch(device_id, Some(queue_item.dispatch_id))?;
+
+    if state.active_dispatch.is_some() {
+        planner.push_debug_session(device_id, session)?;
+        Log::info(&format!(
+            "[ process ] 设备[{}]调试运行已加入内存队列，request-next 优先级={}",
+            device_id,
+            dispatch_priority(&DispatchSource::Debug)
+        ));
+        return Ok(format!(
+            "设备[{}]正在运行，已加入调试队列并将在当前 dispatch 后优先执行: {:?}",
+            device_id, target
+        ));
     }
-    send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
-    send_process_control(device_id, ProcessAction::Start);
-    if let Some(previous) = previous {
-        if previous.active_dispatch.is_some() || !previous.pending_dispatches.is_empty() {
-            Log::info(&format!(
-                "[ process ] 设备[{}]调试/临时运行已覆盖原有 dispatch 队列，优先级={}",
-                device_id,
-                dispatch_priority(&DispatchSource::Debug)
-            ));
-        }
-    }
+
+    let dispatch_id = session
+        .queue
+        .first()
+        .map(|queue_item| queue_item.dispatch_id)
+        .ok_or_else(|| "调试运行目标未生成可派发队列项".to_string())?;
+    dispatch_session_to_child(device_id, session, dispatch_id).await?;
     Ok(format!("已向设备[{}]发送运行目标: {:?}", device_id, target))
 }
 
@@ -799,7 +814,6 @@ pub async fn cmd_run_user_script_target(
     };
     first_item.dispatch_source = DispatchSource::User;
     let dispatch_id = first_item.dispatch_id;
-    let assignment_id = first_item.assignment_id;
     let script_id = first_item.script_id;
     let run_target_json = serde_json::to_string(&target)
         .map_err(|error| format!("序列化临时运行目标失败: {}", error))?;
@@ -807,7 +821,7 @@ pub async fn cmd_run_user_script_target(
     let record = insert_assignment_schedule(
         BatchId::new_v7(),
         device_id,
-        Some(assignment_id),
+        None,
         Some(script_id),
         None,
         None,

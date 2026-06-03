@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { taskService } from '@/services/taskService';
 import type { AssignmentRecord, JsonValue } from '@/types/app/domain';
+import type { AssignmentSchedule } from '@/types/bindings/AssignmentSchedule';
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
 import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
@@ -13,6 +14,7 @@ const normalizeAssignment = (assignment: DeviceScriptAssignment): AssignmentReco
 
 export const useTaskStore = defineStore('task', () => {
     const assignmentsByDevice = ref<Record<string, AssignmentRecord[]>>({});
+    const assignmentSchedulesByDevice = ref<Record<string, AssignmentSchedule[]>>({});
     const schedulesByDevice = ref<Record<string, DeviceScriptSchedule[]>>({});
     const timeTemplates = ref<TimeTemplate[]>([]);
     const loadingAssignments = ref<Record<string, boolean>>({});
@@ -48,7 +50,14 @@ export const useTaskStore = defineStore('task', () => {
     const loadSchedules = async (deviceId: string) => {
         setLoadingFlag(loadingSchedules, deviceId, true);
         try {
-            const items = await taskService.listSchedules(deviceId);
+            const [assignmentSchedules, items] = await Promise.all([
+                taskService.listAssignmentSchedules(deviceId),
+                taskService.listSchedules(deviceId),
+            ]);
+            assignmentSchedulesByDevice.value = {
+                ...assignmentSchedulesByDevice.value,
+                [deviceId]: assignmentSchedules,
+            };
             schedulesByDevice.value = {
                 ...schedulesByDevice.value,
                 [deviceId]: items,
@@ -126,6 +135,10 @@ export const useTaskStore = defineStore('task', () => {
 
     const clearSchedules = async (deviceId: string) => {
         await taskService.clearSchedules(deviceId);
+        assignmentSchedulesByDevice.value = {
+            ...assignmentSchedulesByDevice.value,
+            [deviceId]: [],
+        };
         schedulesByDevice.value = {
             ...schedulesByDevice.value,
             [deviceId]: [],
@@ -138,6 +151,7 @@ export const useTaskStore = defineStore('task', () => {
 
     return {
         assignmentsByDevice,
+        assignmentSchedulesByDevice,
         clearSchedules,
         clearSchedulesByScript,
         createAssignment,

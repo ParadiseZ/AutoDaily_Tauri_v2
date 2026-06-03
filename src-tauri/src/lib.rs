@@ -30,9 +30,9 @@ use crate::api::domain::policy::*;
 use crate::api::domain::schedule::{
     clear_schedules_by_script_cmd, clear_schedules_cmd, delete_assignment_cmd,
     delete_script_time_template_values_cmd, delete_time_template_cmd, get_all_time_templates_cmd,
-    get_assignments_by_device_cmd, get_schedules_by_device_cmd,
-    get_script_time_template_values_cmd, reorder_assignments_cmd, save_assignment_cmd,
-    save_script_time_template_values_cmd, save_time_template_cmd,
+    get_assignment_schedules_by_device_cmd, get_assignments_by_device_cmd,
+    get_schedules_by_device_cmd, get_script_time_template_values_cmd, reorder_assignments_cmd,
+    save_assignment_cmd, save_script_time_template_values_cmd, save_time_template_cmd,
 };
 use crate::api::domain::script_transfer_records::{
     clear_script_transfer_records_cmd, delete_script_transfer_record_cmd,
@@ -196,6 +196,7 @@ pub fn run() {
             cmd_capture_device_image,
             // 调度管理
             get_assignments_by_device_cmd,
+            get_assignment_schedules_by_device_cmd,
             save_assignment_cmd,
             delete_assignment_cmd,
             reorder_assignments_cmd,

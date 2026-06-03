@@ -1,17 +1,18 @@
 // 调度管理 API — 供前端调用
 use crate::api::infrastructure::process_api::{
-    notify_auto_dispatch_planner, reevaluate_device_auto_dispatch,
+    load_assignment_schedules_by_device, notify_auto_dispatch_planner,
+    reevaluate_device_auto_dispatch,
 };
 use crate::api::infrastructure::runtime_sync::{
     load_assigned_device_ids_by_time_template, sync_device_session_if_online,
     sync_device_sessions_if_online,
 };
 use crate::constant::table_name::{
-    ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
+    ASSIGNMENT_SCHEDULE_TABLE, ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
     SCRIPT_TIME_TEMPLATE_VALUES_TABLE, TIME_TEMPLATE_TABLE,
 };
 use crate::domain::devices::device_conf::{DevicePlatform, DeviceTable};
-use crate::domain::devices::device_schedule::DeviceScriptAssignment;
+use crate::domain::devices::device_schedule::{AssignmentSchedule, DeviceScriptAssignment};
 use crate::domain::schedule::script_time_template_values::ScriptTimeTemplateValuesDto;
 use crate::domain::schedule::time_template::TimeTemplate;
 use crate::domain::scripts::script_info::{ScriptPlatform, ScriptTable};
@@ -187,10 +188,26 @@ pub async fn get_schedules_by_device_cmd(
         .map_err(|e| e.to_string())
 }
 
+/// 获取指定设备的 assignment dispatch 账本
+#[command]
+pub async fn get_assignment_schedules_by_device_cmd(
+    device_id: DeviceId,
+) -> Result<Vec<AssignmentSchedule>, String> {
+    load_assignment_schedules_by_device(device_id).await
+}
+
 /// 清除指定设备的所有调度记录
 #[command]
 pub async fn clear_schedules_cmd(device_id: DeviceId) -> Result<(), String> {
     let pool = get_pool();
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE device_id = ?",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(device_id.to_string())
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
     sqlx::query(&format!(
         "DELETE FROM {} WHERE device_id = ?",
         SCHEDULE_TABLE
@@ -206,6 +223,14 @@ pub async fn clear_schedules_cmd(device_id: DeviceId) -> Result<(), String> {
 #[command]
 pub async fn clear_schedules_by_script_cmd(script_id: ScriptId) -> Result<(), String> {
     let pool = get_pool();
+    sqlx::query(&format!(
+        "DELETE FROM {} WHERE script_id = ?",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(script_id.to_string())
+    .execute(pool)
+    .await
+    .map_err(|e| e.to_string())?;
     sqlx::query(&format!(
         "DELETE FROM {} WHERE script_id = ?",
         SCHEDULE_TABLE

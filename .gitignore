@@ -51,3 +51,5 @@ tools/windows_ui/__pycache__/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+.codegraph/*
