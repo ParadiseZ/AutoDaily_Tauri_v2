@@ -81,6 +81,7 @@ pub struct ConnectionControlMessage {
 pub enum ConnectionAction {
     Probe,
     EnsureReady,
+    EnsureReadyAfterLaunch,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]

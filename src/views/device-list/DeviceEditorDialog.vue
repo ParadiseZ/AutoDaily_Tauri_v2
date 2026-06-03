@@ -88,6 +88,21 @@
             </label>
           </div>
 
+          <div v-if="form.transportKind === 'emulatorTcp'" class="grid gap-2 md:max-w-sm">
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">启动探测延迟（秒）</span>
+              <input
+                v-model.number="form.startupDelaySecs"
+                class="app-input"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="15"
+              />
+            </label>
+            <p class="text-xs text-(--app-text-faint)">仅模拟器 TCP 生效。启动模拟器后会先等待这段时间，再开始连接探测。</p>
+          </div>
+
           <div class="grid gap-3">
             <div class="flex items-center justify-between">
               <span class="text-sm font-medium text-(--app-text-strong)">CPU 核心绑定</span>
@@ -220,6 +235,7 @@ const createEmptyForm = (): DeviceFormState => ({
   deviceName: '',
   platform: 'android',
   transportKind: 'emulatorTcp',
+  startupDelaySecs: 15,
   exePath: '',
   exeArgs: '',
   cores: [],
@@ -317,6 +333,7 @@ const syncForm = (device: DeviceTable | null) => {
   form.deviceName = device.data.deviceName;
   form.platform = device.data.platform ?? 'android';
   form.transportKind = resolveTransportKind(device.data.transportKind, device.data.adbConnect);
+  form.startupDelaySecs = Number(device.data.startupDelaySecs ?? 15);
   form.exePath = device.data.exePath ?? '';
   form.exeArgs = device.data.exeArgs ?? '';
   form.cores = [...device.data.cores];

@@ -422,6 +422,7 @@ export interface DeviceFormState {
     deviceName: string;
     platform: DevicePlatform;
     transportKind: DeviceTransportKind;
+    startupDelaySecs: number;
     exePath: string;
     exeArgs: string;
     cores: number[];

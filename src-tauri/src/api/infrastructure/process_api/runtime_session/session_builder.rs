@@ -182,7 +182,7 @@ async fn prepare_device_launch(
     device_config: &crate::domain::devices::device_conf::DeviceConfig,
     force_prepare: bool,
 ) -> Result<(), String> {
-    if force_prepare {
+    if force_prepare && device_config.uses_emulator_transport() {
         launch_device(device_config).await.map_err(|error| {
             if device_config
                 .exe_path

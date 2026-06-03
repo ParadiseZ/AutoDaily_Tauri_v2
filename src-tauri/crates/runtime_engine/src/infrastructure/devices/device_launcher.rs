@@ -12,21 +12,33 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::sleep;
 
-/// 默认启动延迟（等模拟器完全启动）
-const DEFAULT_STARTUP_DELAY: Duration = Duration::from_secs(15);
-/// 最大重试次数
-const MAX_RETRIES: u32 = 5;
-/// 重试间隔
-const RETRY_INTERVAL: Duration = Duration::from_secs(3);
+/// 启动后的固定探测间隔
+const PROBE_INTERVAL: Duration = Duration::from_secs(1);
+/// 启动后的最长连接等待时间
+const POST_LAUNCH_CONNECT_TIMEOUT: Duration = Duration::from_secs(60);
+/// 非启动路径下的最长连接等待时间
+const DIRECT_CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// 启动设备（模拟器）并等待连接就绪
 ///
 /// 流程：
 /// 1. 如有 exe_path → 启动模拟器进程
-/// 2. 等待 startup_delay
+/// 2. 等待 startup_delay_secs
 /// 3. 根据 adb_connect 重试连接
 pub async fn launch_device(config: &DeviceConfig) -> Result<(), String> {
-    // 1. 启动模拟器进程
+    start_device_process(config).await?;
+
+    // 3. 重试连接设备
+    if let Some(adb_connect) = &config.adb_connect {
+        wait_for_connection_ready(adb_connect, POST_LAUNCH_CONNECT_TIMEOUT, PROBE_INTERVAL).await?;
+    } else {
+        Log::warn("[ launcher ] 无 adb_connect 配置，跳过连接验证");
+    }
+
+    Ok(())
+}
+
+pub async fn start_device_process(config: &DeviceConfig) -> Result<(), String> {
     if let Some(exe_path) = &config.exe_path {
         Log::info(&format!("[ launcher ] 正在启动模拟器: {}", exe_path));
 
@@ -49,20 +61,30 @@ pub async fn launch_device(config: &DeviceConfig) -> Result<(), String> {
             }
         }
 
-        // 2. 等待模拟器启动
-        sleep(DEFAULT_STARTUP_DELAY).await;
+        let startup_delay = Duration::from_secs(config.startup_delay_secs);
+        Log::info(&format!(
+            "[ launcher ] 模拟器进程已启动，等待 {} 秒后开始探测连接...",
+            config.startup_delay_secs
+        ));
+        sleep(startup_delay).await;
     } else {
         Log::info("[ launcher ] 无 exe_path 配置，跳过模拟器启动，直接尝试连接...");
     }
 
-    // 3. 重试连接设备
-    if let Some(adb_connect) = &config.adb_connect {
-        try_connect_with_retry(adb_connect, MAX_RETRIES, RETRY_INTERVAL).await?;
-    } else {
-        Log::warn("[ launcher ] 无 adb_connect 配置，跳过连接验证");
-    }
-
     Ok(())
+}
+
+pub async fn wait_for_device_connection(config: &DeviceConfig) -> Result<(), String> {
+    if let Some(adb_connect) = &config.adb_connect {
+        let timeout = if config.uses_emulator_transport() {
+            POST_LAUNCH_CONNECT_TIMEOUT
+        } else {
+            DIRECT_CONNECT_TIMEOUT
+        };
+        wait_for_connection_ready(adb_connect, timeout, PROBE_INTERVAL).await
+    } else {
+        Err("未配置设备连接信息".to_string())
+    }
 }
 
 pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<(), String> {
@@ -72,7 +94,8 @@ pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<(), Strin
         }
     }
 
-    if config
+    if config.uses_emulator_transport()
+        && config
         .exe_path
         .as_deref()
         .is_some_and(|path| !path.trim().is_empty())
@@ -80,23 +103,24 @@ pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<(), Strin
         return launch_device(config).await;
     }
 
-    if let Some(adb_connect) = &config.adb_connect {
-        try_connect_with_retry(adb_connect, MAX_RETRIES, RETRY_INTERVAL).await
-    } else {
-        Err("未配置设备连接信息".to_string())
-    }
+    wait_for_device_connection(config).await
 }
 
-/// 重试连接设备
-async fn try_connect_with_retry(
+/// 在指定时间预算内循环探测连接就绪
+async fn wait_for_connection_ready(
     adb_connect: &ADBConnectConfig,
-    max_retries: u32,
+    timeout: Duration,
     retry_interval: Duration,
 ) -> Result<(), String> {
-    for attempt in 1..=max_retries {
+    let started_at = tokio::time::Instant::now();
+    let mut attempt = 0u32;
+
+    loop {
+        attempt += 1;
         Log::info(&format!(
-            "[ launcher ] 连接尝试 {}/{}...",
-            attempt, max_retries
+            "[ launcher ] 连接尝试第 {} 次，已等待 {} 秒...",
+            attempt,
+            started_at.elapsed().as_secs()
         ));
 
         match probe_device_connection(adb_connect) {
@@ -106,20 +130,20 @@ async fn try_connect_with_retry(
             }
             Err(e) => {
                 Log::warn(&format!(
-                    "[ launcher ] 连接失败 ({}/{}): {}",
-                    attempt, max_retries, e
+                    "[ launcher ] 连接失败（第 {} 次）: {}",
+                    attempt, e
                 ));
-                if attempt < max_retries {
-                    sleep(retry_interval).await;
+                if started_at.elapsed() >= timeout {
+                    return Err(format!(
+                        "设备连接失败：等待 {} 秒后仍未就绪，最后一次错误: {}",
+                        timeout.as_secs(),
+                        e
+                    ));
                 }
+                sleep(retry_interval).await;
             }
         }
     }
-
-    Err(format!(
-        "设备连接失败：已重试 {} 次，请检查设备是否正常运行",
-        max_retries
-    ))
 }
 
 /// 探测设备连接（同步，一次性尝试连接并验证）

@@ -31,6 +31,8 @@ const seedTemplateValueState = async (page: Page) => {
           data: {
             deviceName: '模板设备',
             platform: 'android',
+            transportKind: 'adbWireless',
+            startupDelaySecs: 15,
             exePath: null,
             exeArgs: null,
             cores: [],
@@ -269,6 +271,8 @@ const seedPublishedTaskState = async (page: Page) => {
           data: {
             deviceName: '云端设备',
             platform: 'android',
+            transportKind: 'adbWireless',
+            startupDelaySecs: 15,
             exePath: null,
             exeArgs: null,
             cores: [],

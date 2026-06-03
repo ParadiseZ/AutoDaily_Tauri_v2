@@ -183,6 +183,7 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
     deviceName: form.deviceName,
     platform: form.platform,
     transportKind: form.transportKind,
+    startupDelaySecs: BigInt(Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0))),
     exePath: form.exePath || null,
     exeArgs: form.exeArgs || null,
     cores: form.cores,

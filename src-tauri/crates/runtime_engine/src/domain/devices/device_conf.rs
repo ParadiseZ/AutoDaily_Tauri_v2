@@ -35,6 +35,8 @@ pub struct DeviceConfig {
     pub platform: DevicePlatform,
     #[serde(default)]
     pub transport_kind: Option<DeviceTransportKind>,
+    #[serde(default = "default_startup_delay_secs")]
+    pub startup_delay_secs: u64,
 
     // 执行路径
     pub exe_path: Option<String>,
@@ -140,6 +142,7 @@ impl Default for DeviceConfig {
             device_name: "MuMu模拟器12".into(),
             platform: DevicePlatform::default(),
             transport_kind: Some(DeviceTransportKind::EmulatorTcp),
+            startup_delay_secs: default_startup_delay_secs(),
             exe_path: None,
             exe_args: None,
             cores: vec![0, 1],
@@ -170,5 +173,30 @@ impl Default for DeviceExecutionPolicy {
             timeout_action: TimeoutAction::StopExecution,
             timeout_notify_channels: Vec::new(),
         }
+    }
+}
+
+fn default_startup_delay_secs() -> u64 {
+    15
+}
+
+impl DeviceConfig {
+    pub fn resolved_transport_kind(&self) -> DeviceTransportKind {
+        if let Some(kind) = &self.transport_kind {
+            return kind.clone();
+        }
+
+        if matches!(self.adb_connect, Some(ADBConnectConfig::DirectTcp(_))) {
+            DeviceTransportKind::EmulatorTcp
+        } else {
+            DeviceTransportKind::AdbWireless
+        }
+    }
+
+    pub fn uses_emulator_transport(&self) -> bool {
+        matches!(
+            self.resolved_transport_kind(),
+            DeviceTransportKind::EmulatorTcp
+        )
     }
 }

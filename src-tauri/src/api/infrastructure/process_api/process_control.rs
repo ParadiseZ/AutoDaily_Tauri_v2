@@ -10,7 +10,7 @@ use super::runtime_session::{
     load_runtime_session_for_target, validate_runtime_platform_supported,
 };
 use crate::constant::table_name::DEVICE_TABLE;
-use crate::domain::devices::device_conf::DeviceTable;
+use crate::domain::devices::device_conf::{DeviceConfig, DeviceTable};
 use crate::domain::devices::device_schedule::{
     AssignmentSchedule, AssignmentScheduleStatus, AssignmentTriggerSource,
 };
@@ -26,6 +26,9 @@ use crate::infrastructure::ipc::message::{
     RunTarget, RuntimeDispatchPhase, RuntimeQueueItem, SessionControlMessage,
 };
 use crate::infrastructure::logging::log_trait::Log;
+use runtime_engine::infrastructure::devices::device_launcher::{
+    probe_device_connection, start_device_process,
+};
 use chrono::{Days, Local, NaiveTime, TimeZone};
 use std::sync::{Arc, OnceLock};
 use tauri::{command, Manager};
@@ -475,6 +478,35 @@ async fn ensure_device_online(
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await
 }
 
+async fn ensure_emulator_launch_ready_in_main(device_config: &DeviceConfig) -> Result<bool, String> {
+    if !device_config.uses_emulator_transport() {
+        return Ok(false);
+    }
+
+    let adb_connect = device_config
+        .adb_connect
+        .as_ref()
+        .ok_or_else(|| "当前设备为模拟器 TCP，但未配置连接地址".to_string())?;
+
+    if probe_device_connection(adb_connect).is_ok() {
+        return Ok(false);
+    }
+
+    if device_config
+        .exe_path
+        .as_deref()
+        .is_none_or(|path| path.trim().is_empty())
+    {
+        return Err(
+            "当前设备为模拟器 TCP连接，但未填写设备启动路径，无法在主线程自动启动模拟器"
+                .to_string(),
+        );
+    }
+
+    start_device_process(device_config).await?;
+    Ok(true)
+}
+
 async fn set_connection_status(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
@@ -527,6 +559,7 @@ async fn wait_for_connection_status(
 async fn ensure_device_connection_ready(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
+    started_in_main: bool,
 ) -> Result<(), String> {
     set_connection_status(
         app_handle,
@@ -535,7 +568,12 @@ async fn ensure_device_connection_ready(
         Some("正在准备设备连接".to_string()),
     )
     .await?;
-    send_connection_control(device_id, ConnectionAction::EnsureReady).await;
+    let action = if started_in_main {
+        ConnectionAction::EnsureReadyAfterLaunch
+    } else {
+        ConnectionAction::EnsureReady
+    };
+    send_connection_control(device_id, action).await;
 
     match wait_for_connection_status(app_handle, device_id, std::time::Duration::from_secs(35))
         .await?
@@ -560,8 +598,9 @@ async fn ensure_device_ready(
         return Err(format!("设备[{}]未启用", device_table.data.0.device_name));
     }
 
+    let started_in_main = ensure_emulator_launch_ready_in_main(&device_table.data.0).await?;
     ensure_device_online(app_handle, device_id).await?;
-    ensure_device_connection_ready(app_handle, device_id).await
+    ensure_device_connection_ready(app_handle, device_id, started_in_main).await
 }
 
 async fn ensure_device_capture_ready(
@@ -579,7 +618,7 @@ async fn ensure_device_capture_ready(
         wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
     }
 
-    ensure_device_connection_ready(app_handle, device_id).await?;
+    ensure_device_connection_ready(app_handle, device_id, false).await?;
     Ok(device_name)
 }
 
