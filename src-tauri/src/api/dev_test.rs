@@ -32,25 +32,7 @@ fn describe_adb_config_issue(adb_conf: &ADBConnectConfig) -> Option<String> {
                 None
             }
         }
-        ADBConnectConfig::DirectUsb(_) => Some("当前暂不支持 DirectUsb 截图".to_string()),
-        ADBConnectConfig::ServerConnectByIp(config) => {
-            if config
-                .adb_config
-                .adb_path
-                .as_deref()
-                .is_none_or(|value| value.trim().is_empty())
-            {
-                return Some("未设置 adb 程序路径".to_string());
-            }
-            if !config.adb_config.valid() {
-                return Some("ADB 服务配置无效，请检查 adb 路径和服务地址".to_string());
-            }
-            if config.client_connect.is_none() {
-                return Some("未设置设备连接地址".to_string());
-            }
-            None
-        }
-        ADBConnectConfig::ServerConnectByName(config) => {
+        ADBConnectConfig::ServeByIdentifier(config) => {
             if config
                 .adb_config
                 .adb_path
@@ -63,7 +45,7 @@ fn describe_adb_config_issue(adb_conf: &ADBConnectConfig) -> Option<String> {
                 return Some("ADB 服务配置无效，请检查 adb 路径和服务地址".to_string());
             }
             if config
-                .device_name
+                .identifier
                 .as_deref()
                 .is_none_or(|value| value.trim().is_empty())
             {
@@ -81,7 +63,7 @@ fn validate_capture_request(
 ) -> Result<(), String> {
     match capture_method {
         CaptureMethod::Window => match &device_conf.cap_method {
-            CapMethod::Window(title) => {
+            CapMethod::Window { title } => {
                 let title = title.trim();
                 if title.is_empty() {
                     Err("窗口截图未配置窗口标题".to_string())
@@ -189,7 +171,7 @@ pub async fn dev_capture_test(
         ADBCtx::new(adb_conf).await;
     }
     let title = match device_conf.cap_method.clone() {
-        CapMethod::Window(title) => Some(title),
+        CapMethod::Window { title } => Some(title),
         CapMethod::Adb => None,
     };
     let device_ctx = DeviceCtx::new(
@@ -202,7 +184,7 @@ pub async fn dev_capture_test(
     if !device_ctx.valid_capture().await {
         let reason = match capture_method_for_error {
             CaptureMethod::Window => match &device_conf_for_error.cap_method {
-                CapMethod::Window(title) => format!(
+                CapMethod::Window { title } => format!(
                     "窗口截图校验失败：未找到标题包含“{}”的可截图窗口，或目标窗口已最小化",
                     title.trim()
                 ),

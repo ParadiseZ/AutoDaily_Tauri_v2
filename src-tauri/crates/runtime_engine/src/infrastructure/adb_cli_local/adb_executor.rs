@@ -510,58 +510,21 @@ impl ADBExecutor {
         //self.device = None;
         let cfg = self.adb_config.lock().await;
         let device: Option<Box<dyn ADBDeviceExt + Send + Sync>> = match &*cfg {
-            ADBConnectConfig::ServerConnectByName(dev) => {
+            ADBConnectConfig::ServeByIdentifier(dev) => {
                 // 检查服务器连接地址是否配置
                 if !dev.valid() {
-                    Log::warn("[ ADB ] ServerConnectByName 配置无效（缺少 adb_path/server_connect/device_name）");
+                    Log::warn("[ ADB ] ServeByIdentifier 配置无效（缺少 adb_path/server_connect/identifier）");
                     None
                 } else {
                     let device = ADBServer::new_from_path(
                         dev.adb_config.server_connect.unwrap(),
                         dev.adb_config.adb_path.clone(),
                     )
-                    .get_device_by_name(dev.device_name.as_ref().unwrap().as_str());
+                    .get_device_by_name(dev.identifier.as_ref().unwrap().as_str());
                     match device {
                         Ok(device) => Some(Box::new(device)),
                         Err(e) => {
-                            Log::warn(&format!("[ ADB ] ServerConnectByName 获取设备失败: {}", e));
-                            None
-                        }
-                    }
-                }
-            }
-            ADBConnectConfig::ServerConnectByIp(dev) => {
-                // 检查服务器连接地址是否配置
-                if !dev.valid() {
-                    Log::warn("[ ADB ] ServerConnectByIp 配置无效（缺少 adb_path/server_connect/client_connect）");
-                    None
-                } else {
-                    // 初始化 ADB 服务器+连接到设备
-                    let mut adb_server = ADBServer::new_from_path(
-                        dev.adb_config.server_connect.unwrap(),
-                        dev.adb_config.adb_path.clone(),
-                    );
-                    //连接设备
-                    match adb_server.connect_device(dev.client_connect.unwrap()) {
-                        Ok(_) => {
-                            match adb_server
-                                .get_device_by_name(&dev.client_connect.unwrap().to_string())
-                            {
-                                Ok(device) => Some(Box::new(device)),
-                                Err(e) => {
-                                    Log::warn(&format!(
-                                        "[ ADB ] ServerConnectByIp 获取设备失败: {}",
-                                        e
-                                    ));
-                                    None
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            Log::warn(&format!(
-                                "[ ADB ] ServerConnectByIp connect_device 失败: {}",
-                                e
-                            ));
+                            Log::warn(&format!("[ ADB ] ServeByIdentifier 获取设备失败: {}", e));
                             None
                         }
                     }
@@ -585,10 +548,6 @@ impl ADBExecutor {
                         }
                     }
                 }
-            }
-            ADBConnectConfig::DirectUsb(_) => {
-                Log::warn("[ ADB ] DirectUsb 暂不支持");
-                None
             }
         };
         self.device = device;

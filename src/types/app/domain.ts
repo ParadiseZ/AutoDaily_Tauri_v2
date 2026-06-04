@@ -430,9 +430,10 @@ export interface DeviceFormState {
     logToFile: boolean;
     capMethodType: 'window' | 'adb';
     capMethodValue: string;
-    connectMethod: 'directTcp' | 'serverConnectByIp' | 'serverConnectByName';
     connectAddress: string;
     connectIdentifier: string;
+    adbPath: string;
+    adbServerConnect: string;
     enable: boolean;
     autoStart: boolean;
     actionWaitMs: number;

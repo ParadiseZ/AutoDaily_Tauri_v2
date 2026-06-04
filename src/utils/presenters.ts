@@ -1,7 +1,6 @@
-import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { CapMethod } from '@/types/bindings/CapMethod';
+import type { DeviceConfig } from '@/types/bindings/DeviceConfig';
 import type { LogLevel } from '@/types/bindings/LogLevel';
-import type { DeviceTransportKind } from '@/types/bindings/DeviceTransportKind';
 import type {
     DeviceRuntimeStatus,
     ScriptTableRecord,
@@ -114,50 +113,17 @@ export const formatScriptTransferStatusTone = (status: ScriptTransferStatus) => 
     return 'danger';
 };
 
-export const resolveTransportKind = (
-    transportKind: DeviceTransportKind | null | undefined,
-    config: ADBConnectConfig | null,
-): DeviceTransportKind => {
-    if (transportKind) {
-        return transportKind;
+export const formatConnectLabel = (config: DeviceConfig) => {
+    if (config.transportKind === 'emulatorTcp') {
+        return `模拟器 TCP · ${config.connectAddress || '未设置地址'}`;
     }
 
-    if (config && 'directTcp' in config) {
-        return 'emulatorTcp';
-    }
-
-    return 'adbWireless';
-};
-
-export const formatConnectLabel = (
-    config: ADBConnectConfig | null,
-    transportKind?: DeviceTransportKind | null,
-) => {
-    if (!config) {
-        return '未配置连接';
-    }
-
-    const resolvedKind = resolveTransportKind(transportKind, config);
-
-    if ('directTcp' in config) {
-        return `模拟器 TCP · ${config.directTcp || '未设置地址'}`;
-    }
-
-    if ('directUsb' in config) {
-        return `USB · ${config.directUsb.vendorId}:${config.directUsb.productId}`;
-    }
-
-    if ('serverConnectByIp' in config) {
-        const prefix = resolvedKind === 'adbUsb' ? 'ADB USB' : 'ADB 无线';
-        return `${prefix} · ${config.serverConnectByIp.clientConnect || '未设置地址'}`;
-    }
-
-    const prefix = resolvedKind === 'adbUsb' ? 'ADB USB' : 'ADB 无线';
-    return `${prefix} · ${config.serverConnectByName.deviceName || '未设置设备标识'}`;
+    const prefix = config.transportKind === 'adbUsb' ? 'ADB USB' : 'ADB 无线';
+    return `${prefix} · ${config.connectIdentifier || '未设置设备标识'}`;
 };
 
 export const formatCaptureMethod = (method: CapMethod) =>
-    typeof method === 'string' ? 'ADB 截图' : `窗口截取 · ${method.window}`;
+    method.type === 'adb' ? 'ADB 截图' : `窗口截取 · ${method.title}`;
 
 export const formatStatusTone = (status: DeviceRuntimeStatus['kind'] | LogLevel) => {
     if (status === 'running' || status === 'Info') return 'success';

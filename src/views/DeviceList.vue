@@ -34,7 +34,7 @@
               </div>
             </td>
             <td>{{ formatPlatformLabel(device.data.platform) }}</td>
-            <td>{{ formatConnectLabel(device.data.adbConnect, device.data.transportKind) }}</td>
+            <td>{{ formatConnectLabel(device.data) }}</td>
             <td>{{ formatCaptureMethod(device.data.capMethod) }}</td>
             <td>{{ device.data.cores.length ? device.data.cores.join(', ') : '未绑定' }}</td>
             <td>
@@ -133,7 +133,6 @@ import { taskService } from '@/services/taskService';
 import { showToast } from '@/utils/toast';
 import { formatCaptureMethod, formatConnectLabel, formatPlatformLabel } from '@/utils/presenters';
 import type { DeviceFormState } from '@/types/app/domain';
-import type { ADBConnectConfig } from '@/types/bindings/ADBConnectConfig';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 
 const deviceStore = useDeviceStore();
@@ -148,35 +147,6 @@ const editingDeviceBusy = computed(() =>
   currentDevice.value ? deviceStore.isDeviceBusy(currentDevice.value.id) : false,
 );
 
-const buildAdbConnect = (form: DeviceFormState): ADBConnectConfig | null => {
-  const serverConfig = {
-    adbPath: settingsStore.preferences.adbPath || null,
-    serverConnect: `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
-  };
-
-  if (form.transportKind === 'emulatorTcp') {
-    return {
-      directTcp: form.connectAddress || null,
-    };
-  }
-
-  if (form.connectMethod === 'serverConnectByIp') {
-    return {
-      serverConnectByIp: {
-        adbConfig: serverConfig,
-        clientConnect: form.connectAddress || null,
-      },
-    };
-  }
-
-  return {
-    serverConnectByName: {
-      adbConfig: serverConfig,
-      deviceName: form.connectIdentifier || null,
-    },
-  };
-};
-
 const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => ({
   id: form.id ?? (await taskService.requestUuid()),
   data: {
@@ -184,13 +154,18 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
     platform: form.platform,
     transportKind: form.transportKind,
     startupDelaySecs: BigInt(Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0))),
+    connectAddress: form.transportKind === 'emulatorTcp' ? form.connectAddress || null : null,
+    connectIdentifier: form.transportKind === 'emulatorTcp' ? null : form.connectIdentifier || null,
+    adbPath: form.transportKind === 'emulatorTcp' ? null : form.adbPath || settingsStore.preferences.adbPath || null,
+    adbServerConnect: form.transportKind === 'emulatorTcp'
+      ? null
+      : form.adbServerConnect || `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
     exePath: form.exePath || null,
     exeArgs: form.exeArgs || null,
     cores: form.cores,
     logLevel: form.logLevel,
     logToFile: form.logToFile,
-    adbConnect: buildAdbConnect(form),
-    capMethod: form.capMethodType === 'adb' ? 'adb' : { window: form.capMethodValue || form.deviceName },
+    capMethod: form.capMethodType === 'adb' ? { type: 'adb' } : { type: 'window', title: form.capMethodValue || form.deviceName },
     imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
     enable: form.enable,
     autoStart: form.autoStart,

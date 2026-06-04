@@ -72,6 +72,22 @@
             </label>
           </div>
 
+          <div v-if="form.transportKind !== 'emulatorTcp'" class="grid gap-4 md:grid-cols-2">
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">ADB 程序路径</span>
+              <div class="path-input-row">
+                <input v-model.trim="form.adbPath" class="app-input" placeholder="adb.exe 路径" />
+                <button class="app-button app-button-ghost path-picker-button" type="button" @click="pickAdbPath">
+                  <AppIcon name="folder-open" :size="16" />
+                </button>
+              </div>
+            </label>
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">ADB Server</span>
+              <input v-model.trim="form.adbServerConnect" class="app-input" placeholder="127.0.0.1:5037" />
+            </label>
+          </div>
+
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-(--app-text-soft)">设备启动路径（可选）</span>
@@ -216,7 +232,6 @@ import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import type { DeviceFormState } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
-import { resolveTransportKind } from '@/utils/presenters';
 
 const props = defineProps<{
   open: boolean;
@@ -243,9 +258,10 @@ const createEmptyForm = (): DeviceFormState => ({
   logToFile: true,
   capMethodType: 'window',
   capMethodValue: '',
-  connectMethod: 'directTcp',
   connectAddress: '',
   connectIdentifier: '',
+  adbPath: '',
+  adbServerConnect: '127.0.0.1:5037',
   enable: true,
   autoStart: false,
   actionWaitMs: 500,
@@ -264,24 +280,16 @@ const tabs = [
 ];
 
 const cpuIndexes = computed(() => Array.from({ length: props.cpuCount }, (_, index) => index));
-const usesAddressInput = computed(
-  () => form.transportKind === 'emulatorTcp' || form.connectMethod === 'serverConnectByIp',
-);
+const usesAddressInput = computed(() => form.transportKind === 'emulatorTcp');
 const transportFieldLabel = computed(() => {
   if (form.transportKind === 'emulatorTcp') {
     return 'TCP 地址';
-  }
-  if (form.connectMethod === 'serverConnectByIp') {
-    return '连接地址（兼容旧配置）';
   }
   return '设备标识';
 });
 const transportFieldPlaceholder = computed(() => {
   if (form.transportKind === 'emulatorTcp') {
     return '127.0.0.1:5555';
-  }
-  if (form.connectMethod === 'serverConnectByIp') {
-    return '192.168.1.20:37145';
   }
   return '例如 emulator-5554 / 设备序列号';
 });
@@ -332,8 +340,12 @@ const syncForm = (device: DeviceTable | null) => {
   form.id = device.id;
   form.deviceName = device.data.deviceName;
   form.platform = device.data.platform ?? 'android';
-  form.transportKind = resolveTransportKind(device.data.transportKind, device.data.adbConnect);
+  form.transportKind = device.data.transportKind;
   form.startupDelaySecs = Number(device.data.startupDelaySecs ?? 15);
+  form.connectAddress = device.data.connectAddress ?? '';
+  form.connectIdentifier = device.data.connectIdentifier ?? '';
+  form.adbPath = device.data.adbPath ?? '';
+  form.adbServerConnect = device.data.adbServerConnect ?? '127.0.0.1:5037';
   form.exePath = device.data.exePath ?? '';
   form.exeArgs = device.data.exeArgs ?? '';
   form.cores = [...device.data.cores];
@@ -347,27 +359,11 @@ const syncForm = (device: DeviceTable | null) => {
   form.timeoutAction = normalizeTimeoutAction(device.data.executionPolicy?.timeoutAction);
   form.timeoutNotifyChannels = [...(device.data.executionPolicy?.timeoutNotifyChannels ?? [])];
 
-  if (typeof device.data.capMethod === 'string') {
+  if (device.data.capMethod.type === 'adb') {
     form.capMethodType = 'adb';
   } else {
     form.capMethodType = 'window';
-    form.capMethodValue = device.data.capMethod.window;
-  }
-
-  const connect = device.data.adbConnect;
-  if (!connect) {
-    return;
-  }
-
-  if ('directTcp' in connect) {
-    form.connectMethod = 'directTcp';
-    form.connectAddress = connect.directTcp ?? '';
-  } else if ('serverConnectByIp' in connect) {
-    form.connectMethod = 'serverConnectByIp';
-    form.connectAddress = connect.serverConnectByIp.clientConnect ?? '';
-  } else if ('serverConnectByName' in connect) {
-    form.connectMethod = 'serverConnectByName';
-    form.connectIdentifier = connect.serverConnectByName.deviceName ?? '';
+    form.capMethodValue = device.data.capMethod.title;
   }
 };
 
@@ -387,6 +383,17 @@ const pickExePath = async () => {
   }
 };
 
+const pickAdbPath = async () => {
+  const value = await dialogOpen({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'ADB Executable', extensions: ['exe'] }],
+  });
+  if (typeof value === 'string' && value) {
+    form.adbPath = value;
+  }
+};
+
 watch(
   () => [props.open, props.device] as const,
   ([open, device]) => {
@@ -398,22 +405,6 @@ watch(
   { immediate: true },
 );
 
-watch(
-  () => form.transportKind,
-  (transportKind) => {
-    if (transportKind === 'emulatorTcp') {
-      form.connectMethod = 'directTcp';
-      return;
-    }
-    if (transportKind === 'adbUsb') {
-      form.connectMethod = 'serverConnectByName';
-      return;
-    }
-    if (form.connectMethod === 'directTcp') {
-      form.connectMethod = 'serverConnectByName';
-    }
-  },
-);
 </script>
 
 <style scoped>

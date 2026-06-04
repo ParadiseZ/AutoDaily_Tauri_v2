@@ -4,7 +4,7 @@ import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { OcrResult } from '@/types/bindings/OcrResult';
 import type { DetResult } from '@/types/bindings/DetResult';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
-const resolveCaptureType = (device: DeviceTable) => (device.data.capMethod === 'adb' ? 'adb' : 'window');
+const resolveCaptureType = (device: DeviceTable) => (device.data.capMethod.type === 'adb' ? 'adb' : 'window');
 
 export const visionLabService = {
     listImageFiles: (dirPath: string) =>

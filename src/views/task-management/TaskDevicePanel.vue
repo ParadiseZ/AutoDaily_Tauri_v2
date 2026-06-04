@@ -5,7 +5,7 @@
         <div class="flex flex-wrap gap-2 text-sm text-(--app-text-soft)">
           <span>{{ formatPlatformLabel(device.data.platform) }}</span>
           <span>·</span>
-          <span>{{ formatConnectLabel(device.data.adbConnect, device.data.transportKind) }}</span>
+          <span>{{ formatConnectLabel(device.data) }}</span>
           <span>·</span>
           <span>{{ connectionStatusLabel }}</span>
           <span>·</span>

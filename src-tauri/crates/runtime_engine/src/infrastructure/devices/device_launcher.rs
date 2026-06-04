@@ -1,13 +1,15 @@
 // 设备启动器模块
 // 负责启动模拟器进程 + 延时/重试连接设备
 
-use crate::domain::devices::device_conf::DeviceConfig;
-use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
+use crate::domain::devices::device_conf::{DeviceConfig, DeviceTransportKind};
+use crate::infrastructure::adb_cli_local::adb_config::{
+    ADBConnectConfig, AdbServeByIdentifier, AdbServerConfig,
+};
 use crate::infrastructure::logging::log_trait::Log;
 
 use adb_client::server::ADBServer;
 use adb_client::tcp::ADBTcpDevice;
-use std::net::SocketAddr;
+use std::net::{SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::sleep;
@@ -24,18 +26,10 @@ const DIRECT_CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 /// 流程：
 /// 1. 如有 exe_path → 启动模拟器进程
 /// 2. 等待 startup_delay_secs
-/// 3. 根据 adb_connect 重试连接
-pub async fn launch_device(config: &DeviceConfig) -> Result<(), String> {
+/// 3. 根据 transportKind 生成运行时连接配置并重试连接
+pub async fn launch_device(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
     start_device_process(config).await?;
-
-    // 3. 重试连接设备
-    if let Some(adb_connect) = &config.adb_connect {
-        wait_for_connection_ready(adb_connect, POST_LAUNCH_CONNECT_TIMEOUT, PROBE_INTERVAL).await?;
-    } else {
-        Log::warn("[ launcher ] 无 adb_connect 配置，跳过连接验证");
-    }
-
-    Ok(())
+    wait_for_connection_ready(config, POST_LAUNCH_CONNECT_TIMEOUT, PROBE_INTERVAL).await
 }
 
 pub async fn start_device_process(config: &DeviceConfig) -> Result<(), String> {
@@ -74,31 +68,25 @@ pub async fn start_device_process(config: &DeviceConfig) -> Result<(), String> {
     Ok(())
 }
 
-pub async fn wait_for_device_connection(config: &DeviceConfig) -> Result<(), String> {
-    if let Some(adb_connect) = &config.adb_connect {
-        let timeout = if config.uses_emulator_transport() {
-            POST_LAUNCH_CONNECT_TIMEOUT
-        } else {
-            DIRECT_CONNECT_TIMEOUT
-        };
-        wait_for_connection_ready(adb_connect, timeout, PROBE_INTERVAL).await
+pub async fn wait_for_device_connection(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
+    let timeout = if config.uses_emulator_transport() {
+        POST_LAUNCH_CONNECT_TIMEOUT
     } else {
-        Err("未配置设备连接信息".to_string())
-    }
+        DIRECT_CONNECT_TIMEOUT
+    };
+    wait_for_connection_ready(config, timeout, PROBE_INTERVAL).await
 }
 
-pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<(), String> {
-    if let Some(adb_connect) = &config.adb_connect {
-        if probe_device_connection(adb_connect).is_ok() {
-            return Ok(());
-        }
+pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
+    if let Ok(runtime_connect) = probe_device_config_connection(config) {
+        return Ok(runtime_connect);
     }
 
     if config.uses_emulator_transport()
         && config
-        .exe_path
-        .as_deref()
-        .is_some_and(|path| !path.trim().is_empty())
+            .exe_path
+            .as_deref()
+            .is_some_and(|path| !path.trim().is_empty())
     {
         return launch_device(config).await;
     }
@@ -106,14 +94,33 @@ pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<(), Strin
     wait_for_device_connection(config).await
 }
 
+pub fn resolve_runtime_connect_config(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
+    build_connection_candidates(config)
+        .into_iter()
+        .next()
+        .ok_or_else(|| "未配置设备连接信息".to_string())
+}
+
+pub fn probe_device_config_connection(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
+    let mut last_error = "未配置设备连接信息".to_string();
+    for runtime_connect in build_connection_candidates(config) {
+        match probe_device_connection(&runtime_connect) {
+            Ok(()) => return Ok(runtime_connect),
+            Err(error) => last_error = error,
+        }
+    }
+    Err(last_error)
+}
+
 /// 在指定时间预算内循环探测连接就绪
 async fn wait_for_connection_ready(
-    adb_connect: &ADBConnectConfig,
+    config: &DeviceConfig,
     timeout: Duration,
     retry_interval: Duration,
-) -> Result<(), String> {
+) -> Result<ADBConnectConfig, String> {
     let started_at = tokio::time::Instant::now();
     let mut attempt = 0u32;
+    let mut last_error = "未配置设备连接信息".to_string();
 
     loop {
         attempt += 1;
@@ -123,36 +130,122 @@ async fn wait_for_connection_ready(
             started_at.elapsed().as_secs()
         ));
 
-        match probe_device_connection(adb_connect) {
-            Ok(_) => {
-                Log::info("[ launcher ] 设备连接成功！");
-                return Ok(());
-            }
-            Err(e) => {
-                Log::warn(&format!(
-                    "[ launcher ] 连接失败（第 {} 次）: {}",
-                    attempt, e
-                ));
-                if started_at.elapsed() >= timeout {
-                    return Err(format!(
-                        "设备连接失败：等待 {} 秒后仍未就绪，最后一次错误: {}",
-                        timeout.as_secs(),
-                        e
-                    ));
+        let candidates = build_connection_candidates(config);
+        if candidates.is_empty() {
+            return Err(last_error);
+        }
+
+        for runtime_connect in candidates {
+            match probe_device_connection(&runtime_connect) {
+                Ok(_) => {
+                    Log::info(&format!("[ launcher ] 设备连接成功：{}", runtime_connect));
+                    return Ok(runtime_connect);
                 }
-                sleep(retry_interval).await;
+                Err(e) => {
+                    last_error = e;
+                }
             }
+        }
+
+        Log::warn(&format!(
+            "[ launcher ] 连接失败（第 {} 次）: {}",
+            attempt, last_error
+        ));
+        if started_at.elapsed() >= timeout {
+            return Err(format!(
+                "设备连接失败：等待 {} 秒后仍未就绪，最后一次错误: {}",
+                timeout.as_secs(),
+                last_error
+            ));
+        }
+        sleep(retry_interval).await;
+    }
+}
+
+fn build_connection_candidates(config: &DeviceConfig) -> Vec<ADBConnectConfig> {
+    match config.transport_kind {
+        DeviceTransportKind::EmulatorTcp => {
+            vec![ADBConnectConfig::DirectTcp(config.connect_address)]
+        }
+        DeviceTransportKind::AdbUsb => vec![serve_by_identifier_config(config)],
+        DeviceTransportKind::AdbWireless => {
+            let mut configs = Vec::new();
+            match resolve_wireless_mdns_direct_tcp(config) {
+                Ok(Some(config)) => configs.push(config),
+                Ok(None) => Log::warn(
+                    "[ launcher ] mDNS 未找到匹配的无线调试设备，回退到 ServeByIdentifier",
+                ),
+                Err(error) => Log::warn(&format!(
+                    "[ launcher ] mDNS 查询失败，回退到 ServeByIdentifier: {}",
+                    error
+                )),
+            }
+            configs.push(serve_by_identifier_config(config));
+            configs
         }
     }
 }
 
+fn serve_by_identifier_config(config: &DeviceConfig) -> ADBConnectConfig {
+    ADBConnectConfig::ServeByIdentifier(AdbServeByIdentifier {
+        adb_config: AdbServerConfig {
+            adb_path: config.adb_path.clone(),
+            server_connect: config.adb_server_connect,
+        },
+        identifier: config.connect_identifier.clone(),
+    })
+}
+
+fn resolve_wireless_mdns_direct_tcp(
+    config: &DeviceConfig,
+) -> Result<Option<ADBConnectConfig>, String> {
+    let identifier = config
+        .connect_identifier
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "未设置无线调试设备标识".to_string())?;
+    let adb_path = config
+        .adb_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "未设置 adb 程序路径".to_string())?;
+    let server_connect = config
+        .adb_server_connect
+        .ok_or_else(|| "未设置 ADB server 地址".to_string())?;
+
+    let mut server = ADBServer::new_from_path(server_connect, Some(adb_path.to_string()));
+    let services = server
+        .mdns_services()
+        .map_err(|e| format!("读取 mDNS services 失败: {}", e))?;
+
+    let direct_addr = services
+        .iter()
+        .find(|service| {
+            service.reg_type.contains("_adb-tls-connect")
+                && mdns_service_matches(identifier, &service.service_name, service.socket_v4)
+        })
+        .map(|service| service.socket_v4);
+
+    Ok(direct_addr.map(|addr| ADBConnectConfig::DirectTcp(Some(addr))))
+}
+
+fn mdns_service_matches(identifier: &str, service_name: &str, socket_v4: SocketAddrV4) -> bool {
+    service_name.eq_ignore_ascii_case(identifier)
+        || service_name
+            .to_ascii_lowercase()
+            .contains(&identifier.to_ascii_lowercase())
+        || socket_v4.to_string() == identifier
+}
+
 /// 探测设备连接（同步，一次性尝试连接并验证）
-pub fn probe_device_connection(adb_connect: &ADBConnectConfig) -> Result<(), String> {
-    match adb_connect {
-        ADBConnectConfig::ServerConnectByName(dev) => {
+pub fn probe_device_connection(runtime_connect: &ADBConnectConfig) -> Result<(), String> {
+    match runtime_connect {
+        ADBConnectConfig::ServeByIdentifier(dev) => {
             if !dev.valid() {
                 return Err(
-                    "ServerConnectByName 配置无效（缺少 adb_path / server_connect / device_name）"
+                    "ServeByIdentifier 配置无效（缺少 adb_path / server_connect / identifier）"
                         .into(),
                 );
             }
@@ -161,27 +254,8 @@ pub fn probe_device_connection(adb_connect: &ADBConnectConfig) -> Result<(), Str
                 dev.adb_config.adb_path.clone(),
             );
             let _device = server
-                .get_device_by_name(dev.device_name.as_ref().unwrap().as_str())
-                .map_err(|e| format!("ServerConnectByName 获取设备失败: {}", e))?;
-            Ok(())
-        }
-        ADBConnectConfig::ServerConnectByIp(dev) => {
-            if !dev.valid() {
-                return Err(
-                    "ServerConnectByIp 配置无效（缺少 adb_path / server_connect / client_connect）"
-                        .into(),
-                );
-            }
-            let mut adb_server = ADBServer::new_from_path(
-                dev.adb_config.server_connect.unwrap(),
-                dev.adb_config.adb_path.clone(),
-            );
-            adb_server
-                .connect_device(dev.client_connect.unwrap())
-                .map_err(|e| format!("ServerConnectByIp connect_device 失败: {}", e))?;
-            let _device = adb_server
-                .get_device_by_name(&dev.client_connect.unwrap().to_string())
-                .map_err(|e| format!("ServerConnectByIp 获取设备失败: {}", e))?;
+                .get_device_by_name(dev.identifier.as_ref().unwrap().as_str())
+                .map_err(|e| format!("ServeByIdentifier 获取设备失败: {}", e))?;
             Ok(())
         }
         ADBConnectConfig::DirectTcp(addr) => {
@@ -190,6 +264,5 @@ pub fn probe_device_connection(adb_connect: &ADBConnectConfig) -> Result<(), Str
                 .map_err(|e| format!("DirectTcp 连接失败 ({}): {}", addr, e))?;
             Ok(())
         }
-        ADBConnectConfig::DirectUsb(_) => Err("DirectUsb 暂不支持".into()),
     }
 }

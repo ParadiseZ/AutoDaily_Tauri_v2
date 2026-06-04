@@ -1,9 +1,9 @@
-use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::core::{Deserialize, DeviceId, Serialize};
 use crate::infrastructure::image::compression::ImageCompression;
 use crate::infrastructure::logging::LogLevel;
 use sqlx::types::Json;
 use sqlx::FromRow;
+use std::net::SocketAddrV4;
 //
 #[derive(Clone, Debug, Serialize, Deserialize, FromRow, ts_rs::TS)]
 #[ts(export)]
@@ -34,9 +34,19 @@ pub struct DeviceConfig {
     #[serde(default)]
     pub platform: DevicePlatform,
     #[serde(default)]
-    pub transport_kind: Option<DeviceTransportKind>,
+    pub transport_kind: DeviceTransportKind,
     #[serde(default = "default_startup_delay_secs")]
     pub startup_delay_secs: u64,
+    #[serde(default)]
+    #[ts(as = "Option<String>")]
+    pub connect_address: Option<SocketAddrV4>,
+    #[serde(default)]
+    pub connect_identifier: Option<String>,
+    #[serde(default)]
+    pub adb_path: Option<String>,
+    #[serde(default = "default_adb_server_connect")]
+    #[ts(as = "Option<String>")]
+    pub adb_server_connect: Option<SocketAddrV4>,
 
     // 执行路径
     pub exe_path: Option<String>,
@@ -49,8 +59,6 @@ pub struct DeviceConfig {
     // 日志是否写入文件（禁用时仅输出到前端）
     pub log_to_file: bool,
 
-    // ADB 连接配置（adb_path 运行时从全局设置注入，不存储在此）
-    pub adb_connect: Option<ADBConnectConfig>,
     // 截图方式
     pub cap_method: CapMethod,
     // 图像压缩方式
@@ -113,9 +121,9 @@ pub enum TimeoutNotifyChannel {
 
 #[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "type", rename_all = "camelCase")]
 pub enum CapMethod {
-    Window(String),
+    Window { title: String },
     Adb,
 }
 
@@ -136,20 +144,31 @@ pub enum DeviceTransportKind {
     AdbWireless,
 }
 
+impl Default for DeviceTransportKind {
+    fn default() -> Self {
+        Self::EmulatorTcp
+    }
+}
+
 impl Default for DeviceConfig {
     fn default() -> Self {
         Self {
             device_name: "MuMu模拟器12".into(),
             platform: DevicePlatform::default(),
-            transport_kind: Some(DeviceTransportKind::EmulatorTcp),
+            transport_kind: DeviceTransportKind::EmulatorTcp,
             startup_delay_secs: default_startup_delay_secs(),
+            connect_address: None,
+            connect_identifier: None,
+            adb_path: None,
+            adb_server_connect: default_adb_server_connect(),
             exe_path: None,
             exe_args: None,
             cores: vec![0, 1],
             log_level: LogLevel::Off,
             log_to_file: true,
-            adb_connect: None,
-            cap_method: CapMethod::Window("AutoDaily".into()),
+            cap_method: CapMethod::Window {
+                title: "AutoDaily".into(),
+            },
             image_compression: ImageCompression::WindowOriginal,
             enable: false,
             auto_start: false,
@@ -180,23 +199,12 @@ fn default_startup_delay_secs() -> u64 {
     15
 }
 
+fn default_adb_server_connect() -> Option<SocketAddrV4> {
+    "127.0.0.1:5037".parse().ok()
+}
+
 impl DeviceConfig {
-    pub fn resolved_transport_kind(&self) -> DeviceTransportKind {
-        if let Some(kind) = &self.transport_kind {
-            return kind.clone();
-        }
-
-        if matches!(self.adb_connect, Some(ADBConnectConfig::DirectTcp(_))) {
-            DeviceTransportKind::EmulatorTcp
-        } else {
-            DeviceTransportKind::AdbWireless
-        }
-    }
-
     pub fn uses_emulator_transport(&self) -> bool {
-        matches!(
-            self.resolved_transport_kind(),
-            DeviceTransportKind::EmulatorTcp
-        )
+        matches!(self.transport_kind, DeviceTransportKind::EmulatorTcp)
     }
 }

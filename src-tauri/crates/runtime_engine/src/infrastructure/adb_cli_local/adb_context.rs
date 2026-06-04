@@ -43,15 +43,15 @@ pub struct ADBCtx {
 }
 
 impl ADBCtx {
-    pub async fn new(adb_connect_conf: ADBConnectConfig) {
+    pub async fn new(runtime_connect_conf: ADBConnectConfig) {
         if let Some(adb_ctx) = ADB_CONTEXT.get() {
-            adb_ctx.send_adb_cmd(&ADBCommand::ChangeConnectConfig(adb_connect_conf));
+            adb_ctx.send_adb_cmd(&ADBCommand::ChangeConnectConfig(runtime_connect_conf));
             return;
         }
         let (err_tx, err_rx) = crossbeam_channel::bounded(5);
         let (executor, cmd_sender,cmd_loop_sender) =
-            //ADBExecutor::new(Arc::new(Mutex::new(adb_connect_conf)),core_id, err_tx);
-            ADBExecutor::new(Arc::new(Mutex::new(adb_connect_conf)), err_tx);
+            //ADBExecutor::new(Arc::new(Mutex::new(runtime_connect_conf)),core_id, err_tx);
+            ADBExecutor::new(Arc::new(Mutex::new(runtime_connect_conf)), err_tx);
         tokio::spawn(async move {
             while let Ok(cmd) = err_rx.recv() {
                 Log::error(format!("ADB执行错误:{:?}", cmd).as_str())

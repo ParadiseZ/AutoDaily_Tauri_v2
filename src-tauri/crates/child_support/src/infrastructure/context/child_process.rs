@@ -1,6 +1,5 @@
 pub use runtime_engine::infrastructure::context::child_process::ChildProcessInitData;
 
-use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::context::child_process_sec::init_ipc_client;
@@ -14,6 +13,7 @@ use crate::infrastructure::logging::child_log::LogChild;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use runtime_engine::domain::devices::device_conf::CapMethod;
+use runtime_engine::infrastructure::devices::device_launcher::resolve_runtime_connect_config;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
@@ -34,12 +34,9 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
         }
     })?;
 
-    let adb_config = init_data
-        .device_config
-        .adb_connect
-        .clone()
-        .unwrap_or_else(|| ADBConnectConfig::DirectTcp(None));
-    ADBCtx::new(adb_config).await;
+    let runtime_connect = resolve_runtime_connect_config(&init_data.device_config)
+        .map_err(|e| InitError::InitChildAdbCtxFailed { e })?;
+    ADBCtx::new(runtime_connect).await;
 
     let img_det_service = Arc::new(Mutex::new(OcrService::new()));
     let ocr_service = Arc::new(Mutex::new(OcrService::new()));
@@ -53,7 +50,7 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
     init_runtime_ctx(runtime_ctx)?;
 
     let (cap_method, title) = match &init_data.device_config.cap_method {
-        CapMethod::Window(title) => (CaptureMethod::Window, Some(title.clone())),
+        CapMethod::Window { title } => (CaptureMethod::Window, Some(title.clone())),
         CapMethod::Adb => (CaptureMethod::Adb, None),
     };
 

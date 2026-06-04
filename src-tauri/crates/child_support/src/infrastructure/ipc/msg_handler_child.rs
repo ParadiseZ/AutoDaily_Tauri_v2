@@ -1,3 +1,4 @@
+use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::context::child_process_sec::{
     get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
@@ -19,7 +20,7 @@ use crate::infrastructure::session::runtime_session::{
 use image::DynamicImage;
 use runtime_engine::domain::devices::device_conf::DevicePlatform;
 use runtime_engine::infrastructure::devices::device_launcher::{
-    ensure_device_connection, probe_device_connection, wait_for_device_connection,
+    ensure_device_connection, probe_device_config_connection, wait_for_device_connection,
 };
 use std::sync::atomic::Ordering;
 use vision_core::infrastructure::image::load_image::dynamic_image_to_base64;
@@ -70,13 +71,11 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
                 return;
             }
 
-            let result = match device_config.adb_connect.as_ref() {
-                Some(adb_connect) => probe_device_connection(adb_connect),
-                None => Err("未配置设备连接信息".to_string()),
-            };
+            let result = probe_device_config_connection(&device_config);
 
             match result {
-                Ok(()) => {
+                Ok(runtime_connect) => {
+                    ADBCtx::new(runtime_connect).await;
                     emit_connection_event(
                         ConnectionStatusKind::Connected,
                         Some("设备连接可用".to_string()),
@@ -105,7 +104,8 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
             }
 
             match ensure_device_connection(&device_config).await {
-                Ok(()) => {
+                Ok(runtime_connect) => {
+                    ADBCtx::new(runtime_connect).await;
                     emit_connection_event(
                         ConnectionStatusKind::Connected,
                         Some("设备连接已就绪".to_string()),
@@ -134,7 +134,8 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
             }
 
             match wait_for_device_connection(&device_config).await {
-                Ok(()) => {
+                Ok(runtime_connect) => {
+                    ADBCtx::new(runtime_connect).await;
                     emit_connection_event(
                         ConnectionStatusKind::Connected,
                         Some("设备连接已就绪".to_string()),

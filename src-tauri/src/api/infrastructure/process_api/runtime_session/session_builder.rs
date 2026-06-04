@@ -12,7 +12,7 @@ use crate::domain::devices::device_conf::{
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::core::{AssignmentId, DeviceId, SessionId};
 use crate::infrastructure::db::DbRepo;
-use crate::infrastructure::devices::device_launcher::launch_device;
+use crate::infrastructure::devices::device_launcher::start_device_process;
 use crate::infrastructure::ipc::message::{
     DispatchKind, DispatchSource, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
     RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, TimeoutAction as RuntimeTimeoutAction,
@@ -183,7 +183,7 @@ async fn prepare_device_launch(
     force_prepare: bool,
 ) -> Result<(), String> {
     if force_prepare && device_config.uses_emulator_transport() {
-        launch_device(device_config).await.map_err(|error| {
+        start_device_process(device_config).await.map_err(|error| {
             if device_config
                 .exe_path
                 .as_deref()
