@@ -85,6 +85,7 @@
                 @update-point-field="updateActionPointField"
                 @update-number-field="updateActionNumberField"
                 @update-text-field="updateActionTextField"
+                @update-swipe-target-field="updateSwipeTargetField"
                 @create-variable="handleCreateActionVariable"
                 @jump-to-variable="handleJumpToDataVariable"
                 @create-policy-target="handleCreatePolicyTarget"
@@ -166,6 +167,7 @@
                 @update-get-var-text="updateGetVarText"
                 @update-get-var-bool="updateGetVarBool"
                 @update-filter-mode="updateFilterMode"
+                @update-region-point="updateDataRegionPoint"
                 @update-color-compare-channel="updateColorCompareChannel"
                 @update-color-compare-threshold="updateColorCompareThreshold"
                 @update-color-compare-method="updateColorCompareMethod"
@@ -475,6 +477,7 @@ const swipeModeOptions = [
   { label: '百分比', value: ACTION_MODE.percent, description: '相对坐标滑动。' },
   { label: '文字', value: ACTION_MODE.txt, description: '按 OCR 文本滑动。' },
   { label: '标签', value: ACTION_MODE.labelIdx, description: '按视觉标签滑动。' },
+  { label: '混合目标', value: ACTION_MODE.mixed, description: '起点和终点分别选择文字或标签。' },
 ];
 
 const flowTypeOptions = [
@@ -482,6 +485,7 @@ const flowTypeOptions = [
   { label: 'While', value: FLOW_TYPE.while, description: '满足条件时循环。' },
   { label: '遍历循环', value: FLOW_TYPE.forEach, description: '遍历输入集合，并向子步骤暴露元素变量。' },
   { label: '次数循环', value: FLOW_TYPE.repeat, description: '按绑定的数字变量循环 N 次，并暴露索引变量。' },
+  { label: '跳过脚本', value: FLOW_TYPE.stopScript, description: '立即结束当前脚本执行。' },
 ];
 
 const filterModeOptions = [
@@ -756,19 +760,25 @@ const updateActionExecMax = (value: string) => {
 };
 
 const createClickAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.percent | typeof ACTION_MODE.txt | typeof ACTION_MODE.labelIdx): Action => {
+  const offset = selectedAction.value?.ac === ACTION_TYPE.click
+    ? {
+        offset_x: selectedAction.value.offset_x ?? 0,
+        offset_y: selectedAction.value.offset_y ?? 0,
+      }
+    : { offset_x: 0, offset_y: 0 };
   switch (mode) {
     case ACTION_MODE.percent:
-      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
     case ACTION_MODE.txt:
-      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始', txt_expr: null };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始', txt_expr: null };
     case ACTION_MODE.labelIdx:
-      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0 };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0 };
     default:
-      return { ac: ACTION_TYPE.click, mode: ACTION_MODE.point, p: { x: 640, y: 360 } };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.point, p: { x: 640, y: 360 } };
   }
 };
 
-const createSwipeAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.percent | typeof ACTION_MODE.txt | typeof ACTION_MODE.labelIdx): Action => {
+const createSwipeAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.percent | typeof ACTION_MODE.txt | typeof ACTION_MODE.labelIdx | typeof ACTION_MODE.mixed): Action => {
   switch (mode) {
     case ACTION_MODE.percent:
       return {
@@ -798,6 +808,23 @@ const createSwipeAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.p
         from: 0,
         to: 1,
       };
+    case ACTION_MODE.mixed:
+      return {
+        ac: ACTION_TYPE.swipe,
+        mode: ACTION_MODE.mixed,
+        duration: 300 as never,
+        from: {
+          source: ACTION_MODE.labelIdx,
+          input_var: 'runtime.detResults',
+          idx: 0,
+        },
+        to: {
+          source: ACTION_MODE.txt,
+          input_var: 'runtime.ocrResults',
+          value: '结束',
+          value_expr: null,
+        },
+      };
     default:
       return {
         ac: ACTION_TYPE.swipe,
@@ -817,11 +844,12 @@ const updateActionModel = (value: Action) => {
 };
 
 const updateActionMode = (mode: string) => {
-  if (mode !== ACTION_MODE.point && mode !== ACTION_MODE.percent && mode !== ACTION_MODE.txt && mode !== ACTION_MODE.labelIdx) {
+  if (mode !== ACTION_MODE.point && mode !== ACTION_MODE.percent && mode !== ACTION_MODE.txt && mode !== ACTION_MODE.labelIdx && mode !== ACTION_MODE.mixed) {
     return;
   }
   if (!selectedAction.value) return;
   if (selectedAction.value.ac === ACTION_TYPE.click) {
+    if (mode === ACTION_MODE.mixed) return;
     updateActionModel(createClickAction(mode));
     return;
   }
@@ -885,6 +913,30 @@ const updateActionTextField = (field: string, value: string) => {
   });
 };
 
+const updateSwipeTargetField = (target: 'from' | 'to', field: string, value: string | number | null) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.action || step.a.ac !== ACTION_TYPE.swipe || step.a.mode !== ACTION_MODE.mixed) return;
+    const current = { ...(step.a[target] as Record<string, unknown>) };
+    if (field === 'source') {
+      step.a = {
+        ...step.a,
+        [target]:
+          value === ACTION_MODE.labelIdx
+            ? { source: ACTION_MODE.labelIdx, input_var: 'runtime.detResults', idx: 0 }
+            : { source: ACTION_MODE.txt, input_var: 'runtime.ocrResults', value: '', value_expr: null },
+      } as Action;
+      return;
+    }
+    step.a = {
+      ...step.a,
+      [target]: {
+        ...current,
+        [field]: field === 'idx' ? Math.max(0, toNumber(String(value))) : value,
+      },
+    } as Action;
+  });
+};
+
 const updateFlowField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.flowControl) return;
@@ -914,6 +966,25 @@ const updateDataNullableField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding) return;
     step.a = { ...(step.a ?? {}), [field]: value.trim() ? value : null } as DataHanding;
+  });
+};
+
+const updateDataRegionPoint = (field: 'region_top_left' | 'region_bottom_right', key: 'mode' | 'x' | 'y', value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || (step.a.type !== DATA_TYPE.filter && step.a.type !== DATA_TYPE.colorCompare)) return;
+    const current = (step.a[field] ?? { mode: ACTION_MODE.point, p: { x: 0, y: 0 } }) as { mode: 'point' | 'percent'; p: { x: number; y: number } };
+    const nextMode = key === 'mode' && value === ACTION_MODE.percent ? ACTION_MODE.percent : key === 'mode' ? ACTION_MODE.point : current.mode;
+    const nextPoint = {
+      ...current.p,
+      ...(key === 'x' || key === 'y' ? { [key]: toNumber(value) } : {}),
+    };
+    step.a = {
+      ...step.a,
+      [field]: {
+        mode: nextMode,
+        p: nextPoint,
+      },
+    } as DataHanding;
   });
 };
 

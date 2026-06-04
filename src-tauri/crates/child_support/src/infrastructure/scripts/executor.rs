@@ -1,7 +1,7 @@
 use crate::constant::table_name::SCRIPT_TIME_TEMPLATE_VALUES_TABLE;
-use crate::domain::scripts::nodes::action::{Action, ClickMode, SwipeMode};
+use crate::domain::scripts::nodes::action::{Action, ClickMode, SwipeMode, SwipeTarget};
 use crate::domain::scripts::nodes::data_handing::{
-    ColorCompareMethod, ColorRgb, DataHanding, FilterMode, VarValue,
+    ColorCompareMethod, ColorRgb, DataHanding, FilterMode, RegionPoint, VarValue,
 };
 use crate::domain::scripts::nodes::flow_control::{
     CompareOp, ConditionNode, FlowControl, PolicySetResultCompareOp, PolicySetResultField,
@@ -85,6 +85,7 @@ pub enum ControlFlow {
     Link(TaskId),
     Next,
     Return,
+    StopScript,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -119,6 +120,14 @@ struct ActivePolicyRoundTrace {
 struct ActivePolicyContext {
     policy_id: PolicyId,
     base_click_pos: u16,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RegionRect {
+    x1: i32,
+    y1: i32,
+    x2: i32,
+    y2: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -204,6 +213,7 @@ impl ScriptExecutor {
                 ControlFlow::Break => return Ok(ControlFlow::Break),
                 ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                 ControlFlow::Return => return Ok(ControlFlow::Return),
+                ControlFlow::StopScript => return Ok(ControlFlow::StopScript),
             }
         }
         Ok(ControlFlow::Next)

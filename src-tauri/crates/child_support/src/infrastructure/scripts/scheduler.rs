@@ -230,13 +230,14 @@ impl ScriptScheduler {
         };
         let script_id = queue_item.script_id;
         let assignment_id = queue_item.assignment_id;
+        let dispatch_id = queue_item.dispatch_id;
         let execution_id = ExecutionId::new_v7();
 
         // 标记当前脚本
         *self.current_script.write().await = Some(script_id);
         Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_id));
         emit_dispatch_event(
-            Some(queue_item.dispatch_id),
+            Some(dispatch_id),
             Some(assignment_id),
             Some(script_id),
             RuntimeDispatchPhase::Started,
@@ -270,7 +271,7 @@ impl ScriptScheduler {
             Ok(()) => {
                 Log::info(&format!("[ scheduler ] 脚本[{}]执行完成", script_id));
                 emit_dispatch_event(
-                    Some(queue_item.dispatch_id),
+                    Some(dispatch_id),
                     Some(assignment_id),
                     Some(script_id),
                     RuntimeDispatchPhase::Finished,
@@ -280,7 +281,7 @@ impl ScriptScheduler {
             Err(e) => {
                 Log::error(&format!("[ scheduler ] 脚本[{}]执行失败: {}", script_id, e));
                 emit_dispatch_event(
-                    Some(queue_item.dispatch_id),
+                    Some(dispatch_id),
                     Some(assignment_id),
                     Some(script_id),
                     RuntimeDispatchPhase::Failed,
@@ -492,9 +493,13 @@ impl ScriptScheduler {
                     if !task_skipped {
                         Self::mark_task_succeeded(&runtime_ctx, task.id).await;
                     }
-                    let linked_task = match flow {
+                    let stop_script = matches!(
+                        &flow,
+                        crate::infrastructure::scripts::executor::ControlFlow::StopScript
+                    );
+                    let linked_task = match &flow {
                         crate::infrastructure::scripts::executor::ControlFlow::Link(target) => {
-                            Some(linkable_tasks.get(&target).cloned().ok_or_else(|| {
+                            Some(linkable_tasks.get(target).cloned().ok_or_else(|| {
                                 format!("跳转目标任务[{}]不存在，或不允许通过 link 进入", target)
                             })?)
                         }
@@ -506,7 +511,9 @@ impl ScriptScheduler {
                     } else {
                         RuntimeScheduleStatus::Success
                     };
-                    let schedule_message = if task_skipped {
+                    let schedule_message = if stop_script {
+                        format!("脚本已跳过后续任务: {}", task.name)
+                    } else if task_skipped {
                         match link_target {
                             Some(target) => {
                                 format!("任务已跳过并跳转到任务[{}]: {}", target, task.name)
@@ -536,7 +543,9 @@ impl ScriptScheduler {
                         Some(script_id),
                         Some(task.id),
                         None,
-                        Some(if task_skipped {
+                        Some(if stop_script {
+                            format!("脚本已跳过后续任务: {}", task.name)
+                        } else if task_skipped {
                             match link_target {
                                 Some(target) => {
                                     format!("任务已跳过，下一步跳转到任务[{}]", target)
@@ -572,7 +581,11 @@ impl ScriptScheduler {
                             },
                             task_started_at.clone(),
                             Some(completion_at.clone()),
-                            task_skipped.then(|| "任务在执行过程中被标记为跳过".to_string()),
+                            if stop_script {
+                                Some("任务触发跳过脚本，后续任务不再执行".to_string())
+                            } else {
+                                task_skipped.then(|| "任务在执行过程中被标记为跳过".to_string())
+                            },
                         )
                         .await?;
                     }
@@ -582,7 +595,9 @@ impl ScriptScheduler {
                         ctx.execution.current_step_id = None;
                     }
 
-                    if let Some(linked_task) = linked_task {
+                    if stop_script {
+                        pending_tasks.clear();
+                    } else if let Some(linked_task) = linked_task {
                         let target = linked_task.task.id;
                         if let Some(position) = pending_tasks
                             .iter()

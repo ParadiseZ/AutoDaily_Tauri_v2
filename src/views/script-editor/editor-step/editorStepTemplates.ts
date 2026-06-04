@@ -6,6 +6,7 @@ import {
   CONDITION_TYPE,
   createColorCompareMethod,
   createFilterMode,
+  createRegionPoint,
   createSearchRuleList,
   createStateStatus,
   createStateTarget,
@@ -83,6 +84,7 @@ const SVG_ICONS = {
   repeat: '<path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
   continue: '<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>',
   break: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  stopScript: '<circle cx="12" cy="12" r="10"/><rect x="8" y="8" width="8" height="8" rx="1"/>',
   policySet: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
   policy: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
   setVar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
@@ -161,6 +163,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
+          offset_x: 0,
+          offset_y: 0,
           mode: ACTION_MODE.point,
           p: { x: 640, y: 360 },
         },
@@ -179,6 +183,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
+          offset_x: 0,
+          offset_y: 0,
           mode: ACTION_MODE.percent,
           p: { x: 0.5, y: 0.5 },
         },
@@ -197,6 +203,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
+          offset_x: 0,
+          offset_y: 0,
           mode: ACTION_MODE.txt,
           input_var: 'runtime.ocrResults',
           txt: '开始',
@@ -216,6 +224,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         exec_max: 0,
         a: {
           ac: ACTION_TYPE.click,
+          offset_x: 0,
+          offset_y: 0,
           mode: ACTION_MODE.labelIdx,
           input_var: 'runtime.detResults',
           idx: 0,
@@ -301,6 +311,35 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           input_var: 'runtime.detResults',
           from: 0,
           to: 1,
+        },
+      }),
+  },
+  {
+    id: 'swipe-label-to-text',
+    icon: genSvg(SVG_ICONS.swipe),
+    label: '标签滑到文字',
+    description: '以检测标签为起点、OCR 文字为终点执行滑动。',
+    group: '动作',
+    create: () =>
+      createBaseStep({
+        label: '标签滑到文字',
+        op: STEP_OP.action,
+        exec_max: 0,
+        a: {
+          ac: ACTION_TYPE.swipe,
+          mode: ACTION_MODE.mixed,
+          duration: 300,
+          from: {
+            source: ACTION_MODE.labelIdx,
+            input_var: 'runtime.detResults',
+            idx: 0,
+          },
+          to: {
+            source: ACTION_MODE.txt,
+            input_var: 'runtime.ocrResults',
+            value: '结束',
+            value_expr: null,
+          },
         },
       }),
   },
@@ -497,6 +536,21 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'stop-script',
+    icon: genSvg(SVG_ICONS.stopScript),
+    label: '跳过脚本',
+    description: '立即结束当前脚本执行，不继续后续任务迭代。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '跳过脚本',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.stopScript,
+        },
+      }),
+  },
+  {
     id: 'handle-policy-set',
     icon: genSvg(SVG_ICONS.policySet),
     label: '处理策略集',
@@ -587,8 +641,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           out_name: 'filtered_items',
           mode: createFilterMode(),
           logic_expr: 'true',
-          region_top_left: { x: 0, y: 0 },
-          region_bottom_right: { x: 0, y: 0 },
+          region_top_left: createRegionPoint(),
+          region_bottom_right: createRegionPoint(),
           then_steps: createStepList(),
         },
       }),
@@ -615,8 +669,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
             b: 255,
           },
           method: createColorCompareMethod(COLOR_COMPARE_METHOD_TYPE.oklabDistance, 0.05),
-          region_top_left: { x: 0, y: 0 },
-          region_bottom_right: { x: 0, y: 0 },
+          region_top_left: createRegionPoint(),
+          region_bottom_right: createRegionPoint(),
           then_steps: createStepList(),
         },
       }),
@@ -720,6 +774,7 @@ export const describeStepTitle = (step: Step) => {
       if (step.a.mode === ACTION_MODE.percent) return '滑动百分比';
       if (step.a.mode === ACTION_MODE.txt) return '滑动文字';
       if (step.a.mode === ACTION_MODE.labelIdx) return '滑动标签';
+      if (step.a.mode === ACTION_MODE.mixed) return '混合目标滑动';
       return '滑动坐标';
     }
     return '动作';
@@ -736,6 +791,7 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === FLOW_TYPE.repeat) return '次数循环';
     if (step.a.type === FLOW_TYPE.continue) return '继续循环';
     if (step.a.type === FLOW_TYPE.break) return '跳出循环';
+    if (step.a.type === FLOW_TYPE.stopScript) return '跳过脚本';
     return '流程控制';
   }
 
@@ -800,6 +856,8 @@ export const describeStepMeta = (step: Step) => {
         return '继续下一轮循环';
       case FLOW_TYPE.break:
         return '跳出当前循环';
+      case FLOW_TYPE.stopScript:
+        return '结束当前脚本执行';
       case FLOW_TYPE.handlePolicySet:
         return `处理 ${step.a.target.length} 个策略集 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
       case FLOW_TYPE.handlePolicy:

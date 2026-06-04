@@ -53,15 +53,16 @@ export const ACTION_TYPE = {
   stopApp: ACTION_TYPES[9],
 } as const;
 
-export const ACTION_MODES = ['point', 'percent', 'txt', 'labelIdx'] as const satisfies readonly ActionMode[];
+export const ACTION_MODES = ['point', 'percent', 'txt', 'labelIdx', 'mixed'] as const satisfies readonly ActionMode[];
 export const ACTION_MODE = {
   point: ACTION_MODES[0],
   percent: ACTION_MODES[1],
   txt: ACTION_MODES[2],
   labelIdx: ACTION_MODES[3],
+  mixed: ACTION_MODES[4],
 } as const;
 
-export const FLOW_TYPES = ['if', 'while', 'forEach', 'repeat', 'continue', 'break', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const satisfies readonly FlowControl['type'][];
+export const FLOW_TYPES = ['if', 'while', 'forEach', 'repeat', 'continue', 'break', 'stopScript', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const satisfies readonly FlowControl['type'][];
 export const FLOW_TYPE = {
   if: FLOW_TYPES[0],
   while: FLOW_TYPES[1],
@@ -69,11 +70,12 @@ export const FLOW_TYPE = {
   repeat: FLOW_TYPES[3],
   continue: FLOW_TYPES[4],
   break: FLOW_TYPES[5],
-  waitMs: FLOW_TYPES[6],
-  link: FLOW_TYPES[7],
-  addPolicies: FLOW_TYPES[8],
-  handlePolicySet: FLOW_TYPES[9],
-  handlePolicy: FLOW_TYPES[10],
+  stopScript: FLOW_TYPES[6],
+  waitMs: FLOW_TYPES[7],
+  link: FLOW_TYPES[8],
+  addPolicies: FLOW_TYPES[9],
+  handlePolicySet: FLOW_TYPES[10],
+  handlePolicy: FLOW_TYPES[11],
 } as const;
 
 export const DATA_TYPES = ['setVar', 'getVar', 'filter', 'colorCompare', 'relativeFilter'] as const satisfies readonly DataHanding['type'][];
@@ -273,6 +275,10 @@ export const createStateTargetList = (): StateTarget[] => [];
 export const createTaskCycleWeekDay = (weekDay = 1): TaskCycle => ({ weekDay });
 export const createTaskCycleMonthDay = (monthDay = 1): TaskCycle => ({ monthDay });
 export const createFilterMode = (type: FilterMode['type'] = FILTER_MODE_TYPE.filter): FilterMode => ({ type });
+export const createRegionPoint = (mode: 'point' | 'percent' = ACTION_MODE.point, x = 0, y = 0) => ({
+  mode,
+  p: { x, y },
+});
 export const createColorCompareMethod = (
   type: ColorCompareMethod['type'] = COLOR_COMPARE_METHOD_TYPE.oklabDistance,
   threshold = 0,

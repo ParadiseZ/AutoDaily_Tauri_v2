@@ -1,8 +1,25 @@
+use crate::domain::scripts::point::{PointF32, PointU16};
 use crate::domain::scripts::script_decision::Step;
 use crate::domain::vision::ocr_search::{
     RelativeAnchorType, RelativeDirection, RelativeTargetKind,
 };
 use crate::infrastructure::core::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase", tag = "mode")]
+pub enum RegionPoint {
+    Point { p: PointU16 },
+    Percent { p: PointF32 },
+}
+
+impl Default for RegionPoint {
+    fn default() -> Self {
+        Self::Point {
+            p: PointU16 { x: 0, y: 0 },
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
@@ -22,6 +39,10 @@ pub enum DataHanding {
         out_name: String,
         mode: FilterMode, // Filter 或是 Map 模式
         logic_expr: String,
+        #[serde(default)]
+        region_top_left: RegionPoint,
+        #[serde(default)]
+        region_bottom_right: RegionPoint,
         then_steps: Vec<Step>,
     },
     ColorCompare {
@@ -31,6 +52,10 @@ pub enum DataHanding {
         is_font: bool,
         target_color: ColorRgb,
         method: ColorCompareMethod,
+        #[serde(default)]
+        region_top_left: RegionPoint,
+        #[serde(default)]
+        region_bottom_right: RegionPoint,
         #[serde(default)]
         then_steps: Vec<Step>,
     },

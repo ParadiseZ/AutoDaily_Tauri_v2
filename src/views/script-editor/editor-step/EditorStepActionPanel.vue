@@ -175,6 +175,24 @@
             @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
           />
         </div>
+        <div class="editor-inline-label">偏移 X</div>
+        <div class="editor-inline-content">
+          <input
+            :value="String(selectedAction.offset_x ?? 0)"
+            class="app-input"
+            type="number"
+            @input="$emit('update-number-field', 'offset_x', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
+        <div class="editor-inline-label">偏移 Y</div>
+        <div class="editor-inline-content">
+          <input
+            :value="String(selectedAction.offset_y ?? 0)"
+            class="app-input"
+            type="number"
+            @input="$emit('update-number-field', 'offset_y', ($event.target as HTMLInputElement).value)"
+          />
+        </div>
       </div>
 
       <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-inline-grid">
@@ -427,12 +445,36 @@
         </label>
         <p v-if="labelSelectHint" class="md:col-span-2 text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
       </div>
+
+      <div v-else-if="selectedAction.mode === ACTION_MODE.mixed" class="grid gap-3 md:grid-cols-2">
+        <MixedSwipeTargetEditor
+          label="起点"
+          target-key="from"
+          :target="selectedAction.from"
+          :source-options="swipeTargetSourceOptions"
+          :variable-options="resolvedActionInputOptions"
+          :label-options="resolvedSwipeFromLabelOptions"
+          :label-placeholder="labelSelectPlaceholder"
+          @update-field="(field, value) => $emit('update-swipe-target-field', 'from', field, value)"
+        />
+        <MixedSwipeTargetEditor
+          label="终点"
+          target-key="to"
+          :target="selectedAction.to"
+          :source-options="swipeTargetSourceOptions"
+          :variable-options="resolvedActionInputOptions"
+          :label-options="resolvedSwipeToLabelOptions"
+          :label-placeholder="labelSelectPlaceholder"
+          @update-field="(field, value) => $emit('update-swipe-target-field', 'to', field, value)"
+        />
+        <p v-if="labelSelectHint" class="md:col-span-2 text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineComponent, h, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
@@ -479,6 +521,7 @@ const emit = defineEmits<{
   'update-point-field': [field: 'p' | 'from' | 'to', axis: 'x' | 'y', value: string];
   'update-number-field': [field: string, value: string];
   'update-text-field': [field: string, value: string];
+  'update-swipe-target-field': [target: 'from' | 'to', field: string, value: string | number | null];
   'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'swipeFromText' | 'swipeToText'];
   'jump-to-variable': [option: EditorVariableOption];
   'create-policy-target': [];
@@ -490,6 +533,63 @@ const emit = defineEmits<{
 
 type SelectOption = { label: string; value: string; description?: string; disabled?: boolean };
 type LabelSelectOption = { label: string; value: number; description?: string; disabled?: boolean };
+type MixedSwipeTarget = {
+  source: typeof ACTION_MODE.txt | typeof ACTION_MODE.labelIdx;
+  input_var: string;
+  value?: string | null;
+  value_expr?: string | null;
+  idx?: number;
+};
+
+const swipeTargetSourceOptions = [
+  { label: '文字', value: ACTION_MODE.txt, description: '从 OCR 结果中取目标中心点。' },
+  { label: '标签', value: ACTION_MODE.labelIdx, description: '从检测结果中取目标中心点。' },
+];
+
+const MixedSwipeTargetEditor = defineComponent({
+  name: 'MixedSwipeTargetEditor',
+  props: {
+    label: { type: String, required: true },
+    targetKey: { type: String as PropType<'from' | 'to'>, required: true },
+    target: { type: Object as PropType<MixedSwipeTarget>, required: true },
+    sourceOptions: { type: Array as PropType<SelectOption[]>, required: true },
+    variableOptions: { type: Array as PropType<SelectOption[]>, required: true },
+    labelOptions: { type: Array as PropType<LabelSelectOption[]>, required: true },
+    labelPlaceholder: { type: String, default: '选择标签' },
+  },
+  emits: ['update-field'],
+  setup(componentProps, { emit: componentEmit }) {
+    return () =>
+      h('div', { class: 'space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3' }, [
+        h('p', { class: 'text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)' }, componentProps.label),
+        h(EditorSelectField, {
+          modelValue: componentProps.target.source,
+          options: componentProps.sourceOptions,
+          placeholder: '目标来源',
+          'onUpdate:modelValue': (value: unknown) => componentEmit('update-field', 'source', String(value || ACTION_MODE.txt)),
+        }),
+        h(EditorSelectField, {
+          modelValue: componentProps.target.input_var || null,
+          options: componentProps.variableOptions,
+          placeholder: '结果变量',
+          'onUpdate:modelValue': (value: unknown) => componentEmit('update-field', 'input_var', String(value || '')),
+        }),
+        componentProps.target.source === ACTION_MODE.labelIdx
+          ? h(AppSelect, {
+              modelValue: componentProps.target.idx ?? null,
+              options: componentProps.labelOptions,
+              placeholder: componentProps.labelPlaceholder,
+              'onUpdate:modelValue': (value: unknown) => componentEmit('update-field', 'idx', Number(value ?? 0)),
+            })
+          : h('input', {
+              value: String(componentProps.target.value ?? ''),
+              class: 'app-input',
+              placeholder: '目标文字',
+              onInput: (event: Event) => componentEmit('update-field', 'value', (event.target as HTMLInputElement).value),
+            }),
+      ]);
+  },
+});
 
 const withCurrentVariableOption = (options: SelectOption[], value: string) => {
   const trimmedValue = value.trim();

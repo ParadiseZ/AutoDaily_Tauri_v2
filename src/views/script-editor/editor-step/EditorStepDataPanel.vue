@@ -307,6 +307,22 @@
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">逻辑表达式</span>
           <input :value="selectedData.logic_expr" class="app-input" @input="$emit('update-data-field', 'logic_expr', ($event.target as HTMLInputElement).value)" />
         </label>
+        <div class="md:col-span-2 grid gap-3 md:grid-cols-2">
+          <RegionPointEditor
+            label="区域左上"
+            :point="selectedData.region_top_left"
+            @update-mode="$emit('update-region-point', 'region_top_left', 'mode', $event)"
+            @update-x="$emit('update-region-point', 'region_top_left', 'x', $event)"
+            @update-y="$emit('update-region-point', 'region_top_left', 'y', $event)"
+          />
+          <RegionPointEditor
+            label="区域右下"
+            :point="selectedData.region_bottom_right"
+            @update-mode="$emit('update-region-point', 'region_bottom_right', 'mode', $event)"
+            @update-x="$emit('update-region-point', 'region_bottom_right', 'x', $event)"
+            @update-y="$emit('update-region-point', 'region_bottom_right', 'y', $event)"
+          />
+        </div>
       </div>
     </template>
 
@@ -409,6 +425,23 @@
           />
         </label>
 
+        <div class="md:col-span-2 grid gap-3 md:grid-cols-2">
+          <RegionPointEditor
+            label="区域左上"
+            :point="selectedData.region_top_left"
+            @update-mode="$emit('update-region-point', 'region_top_left', 'mode', $event)"
+            @update-x="$emit('update-region-point', 'region_top_left', 'x', $event)"
+            @update-y="$emit('update-region-point', 'region_top_left', 'y', $event)"
+          />
+          <RegionPointEditor
+            label="区域右下"
+            :point="selectedData.region_bottom_right"
+            @update-mode="$emit('update-region-point', 'region_bottom_right', 'mode', $event)"
+            @update-x="$emit('update-region-point', 'region_bottom_right', 'x', $event)"
+            @update-y="$emit('update-region-point', 'region_bottom_right', 'y', $event)"
+          />
+        </div>
+
         <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3 md:col-span-2">
           <input
             :checked="selectedData.is_font"
@@ -492,7 +525,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineComponent, h, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
@@ -543,6 +576,7 @@ const emit = defineEmits<{
   'update-set-var-bool': [value: boolean];
   'update-data-field': [field: string, value: string];
   'update-data-nullable-field': [field: string, value: string];
+  'update-region-point': [field: 'region_top_left' | 'region_bottom_right', key: 'mode' | 'x' | 'y', value: string];
   'toggle-get-var-default': [enabled: boolean];
   'update-get-var-type': [kind: string];
   'update-get-var-text': [value: string];
@@ -559,6 +593,49 @@ const emit = defineEmits<{
 }>();
 
 type SelectOption = { label: string; value: string; description: string; disabled?: boolean };
+type RegionPoint = { mode: 'point' | 'percent'; p: { x: number; y: number } };
+
+const regionModeOptions = [
+  { label: '坐标', value: 'point', description: '使用设备像素坐标。' },
+  { label: '百分比', value: 'percent', description: '按设备宽高换算百分比。' },
+];
+
+const RegionPointEditor = defineComponent({
+  name: 'RegionPointEditor',
+  props: {
+    label: { type: String, required: true },
+    point: { type: Object as PropType<RegionPoint>, required: true },
+  },
+  emits: ['update-mode', 'update-x', 'update-y'],
+  setup(componentProps, { emit: componentEmit }) {
+    return () =>
+      h('div', { class: 'space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3' }, [
+        h('p', { class: 'text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)' }, componentProps.label),
+        h(EditorSelectField, {
+          modelValue: componentProps.point.mode,
+          options: regionModeOptions,
+          placeholder: '坐标模式',
+          'onUpdate:modelValue': (value: unknown) => componentEmit('update-mode', String(value || 'point')),
+        }),
+        h('div', { class: 'grid grid-cols-2 gap-3' }, [
+          h('input', {
+            value: String(componentProps.point.p?.x ?? 0),
+            class: 'app-input',
+            type: 'number',
+            placeholder: 'x',
+            onInput: (event: Event) => componentEmit('update-x', (event.target as HTMLInputElement).value),
+          }),
+          h('input', {
+            value: String(componentProps.point.p?.y ?? 0),
+            class: 'app-input',
+            type: 'number',
+            placeholder: 'y',
+            onInput: (event: Event) => componentEmit('update-y', (event.target as HTMLInputElement).value),
+          }),
+        ]),
+      ]);
+  },
+});
 
 const withCurrentVariableOption = (options: SelectOption[], value: string) => {
   const trimmedValue = value.trim();

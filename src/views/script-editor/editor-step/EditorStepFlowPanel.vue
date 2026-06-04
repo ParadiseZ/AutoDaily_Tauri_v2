@@ -150,9 +150,15 @@
       </div>
     </template>
 
-    <template v-else-if="selectedFlow.type === FLOW_TYPE.continue || selectedFlow.type === FLOW_TYPE.break">
+    <template v-else-if="selectedFlow.type === FLOW_TYPE.continue || selectedFlow.type === FLOW_TYPE.break || selectedFlow.type === FLOW_TYPE.stopScript">
       <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)">
-        {{ selectedFlow.type === FLOW_TYPE.continue ? '该步骤会立即开始下一轮循环。' : '该步骤会立即跳出当前循环。' }}
+        {{
+          selectedFlow.type === FLOW_TYPE.continue
+            ? '该步骤会立即开始下一轮循环。'
+            : selectedFlow.type === FLOW_TYPE.break
+              ? '该步骤会立即跳出当前循环。'
+              : '该步骤会立即结束当前脚本执行。'
+        }}
       </div>
     </template>
 

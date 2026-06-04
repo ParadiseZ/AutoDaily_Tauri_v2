@@ -1,6 +1,26 @@
 use crate::domain::scripts::point::{PointF32, PointU16};
 use crate::infrastructure::core::{Deserialize, PolicyId, Serialize};
 
+fn default_click_offset() -> i32 {
+    0
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase", tag = "source")]
+pub enum SwipeTarget {
+    Txt {
+        input_var: String,
+        value: Option<String>,
+        #[serde(default)]
+        value_expr: Option<String>,
+    },
+    LabelIdx {
+        input_var: String,
+        idx: u16,
+    },
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "mode")]
@@ -26,6 +46,10 @@ pub enum SwipeMode {
         from_expr: Option<String>,
         #[serde(default)]
         to_expr: Option<String>,
+    },
+    Mixed {
+        from: SwipeTarget,
+        to: SwipeTarget,
     },
 }
 
@@ -56,6 +80,10 @@ pub enum ClickMode {
 #[serde(rename_all = "camelCase", tag = "ac")]
 pub enum Action {
     Click {
+        #[serde(default = "default_click_offset")]
+        offset_x: i32,
+        #[serde(default = "default_click_offset")]
+        offset_y: i32,
         #[serde(flatten)]
         mode: ClickMode,
     },

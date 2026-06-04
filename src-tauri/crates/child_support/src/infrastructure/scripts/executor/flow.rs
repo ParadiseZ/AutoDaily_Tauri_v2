@@ -54,6 +54,7 @@ impl ScriptExecutor {
                         ControlFlow::Break => break,
                         ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                         ControlFlow::Return => return Ok(ControlFlow::Return),
+                        ControlFlow::StopScript => return Ok(ControlFlow::StopScript),
                     }
                 }
                 Ok(ControlFlow::Next)
@@ -103,6 +104,7 @@ impl ScriptExecutor {
                         ControlFlow::Break => break,
                         ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                         ControlFlow::Return => return Ok(ControlFlow::Return),
+                        ControlFlow::StopScript => return Ok(ControlFlow::StopScript),
                     }
                 }
 
@@ -143,6 +145,7 @@ impl ScriptExecutor {
                         ControlFlow::Break => break,
                         ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                         ControlFlow::Return => return Ok(ControlFlow::Return),
+                        ControlFlow::StopScript => return Ok(ControlFlow::StopScript),
                     }
                 }
 
@@ -150,6 +153,7 @@ impl ScriptExecutor {
             }
             FlowControl::Continue => Ok(ControlFlow::Continue),
             FlowControl::Break => Ok(ControlFlow::Break),
+            FlowControl::StopScript => Ok(ControlFlow::StopScript),
             FlowControl::WaitMs { ms } => {
                 if let Some(timeout_flow) = self
                     .sleep_with_progress_timeout(
@@ -230,6 +234,8 @@ impl ScriptExecutor {
                 out_name,
                 mode,
                 logic_expr,
+                region_top_left,
+                region_bottom_right,
                 then_steps,
             } => {
                 if let Some(timeout_flow) = self
@@ -255,6 +261,9 @@ impl ScriptExecutor {
                 };
 
                 let mut output = Array::new();
+                let region = self
+                    .resolve_region_rect(region_top_left, region_bottom_right)
+                    .await?;
                 for (index, item) in items.into_iter().enumerate() {
                     if let Some(timeout_flow) = self
                         .record_progress_evidence(
@@ -280,6 +289,12 @@ impl ScriptExecutor {
                         continue;
                     }
 
+                    if let Some(region) = region.as_ref() {
+                        if !Self::dynamic_item_in_region(&item, region)? {
+                            continue;
+                        }
+                    }
+
                     if !then_steps.is_empty() {
                         match self.execute(then_steps).await? {
                             ControlFlow::Next => {}
@@ -287,6 +302,7 @@ impl ScriptExecutor {
                             ControlFlow::Break => break,
                             ControlFlow::Link(target) => return Ok(ControlFlow::Link(target)),
                             ControlFlow::Return => return Ok(ControlFlow::Return),
+                            ControlFlow::StopScript => return Ok(ControlFlow::StopScript),
                         }
                     }
 
@@ -313,8 +329,13 @@ impl ScriptExecutor {
                 is_font,
                 target_color,
                 method,
+                region_top_left,
+                region_bottom_right,
                 then_steps,
             } => {
+                let region = self
+                    .resolve_region_rect(region_top_left, region_bottom_right)
+                    .await?;
                 self.execute_color_compare_step(
                     input_var,
                     out_var,
@@ -322,6 +343,7 @@ impl ScriptExecutor {
                     *is_font,
                     target_color,
                     method,
+                    region.as_ref(),
                     then_steps,
                 )
                 .await
@@ -365,6 +387,7 @@ impl ScriptExecutor {
         is_font: bool,
         target_color: &ColorRgb,
         method: &ColorCompareMethod,
+        region: Option<&RegionRect>,
         then_steps: &[Step],
     ) -> ExecuteResult<ControlFlow> {
         if let Some(timeout_flow) = self
@@ -396,6 +419,11 @@ impl ScriptExecutor {
         let candidates = Self::filter_ocr_items_for_color_compare(&items, target_text);
         let matched: Vec<OcrResult> = candidates
             .into_iter()
+            .filter(|item| {
+                region
+                    .map(|region| Self::bounding_box_center_in_region(&item.bounding_box, region))
+                    .unwrap_or(true)
+            })
             .filter(|item| {
                 Self::ocr_item_matches_color(
                     capture.as_ref(),
@@ -724,6 +752,73 @@ impl ScriptExecutor {
         items.iter()
             .filter(|item| item.txt.contains(target_text))
             .collect()
+    }
+
+    async fn resolve_region_rect(
+        &self,
+        top_left: &RegionPoint,
+        bottom_right: &RegionPoint,
+    ) -> ExecuteResult<Option<RegionRect>> {
+        if Self::region_point_is_default(top_left) && Self::region_point_is_default(bottom_right) {
+            return Ok(None);
+        }
+
+        let screen_size = self.ensure_screen_size().await?;
+        let start = Self::region_point_to_absolute(top_left, screen_size)?;
+        let end = Self::region_point_to_absolute(bottom_right, screen_size)?;
+        let x1 = start.x.min(end.x);
+        let y1 = start.y.min(end.y);
+        let x2 = start.x.max(end.x);
+        let y2 = start.y.max(end.y);
+        Ok(Some(RegionRect { x1, y1, x2, y2 }))
+    }
+
+    fn region_point_is_default(point: &RegionPoint) -> bool {
+        match point {
+            RegionPoint::Point { p } => p.x == 0 && p.y == 0,
+            RegionPoint::Percent { p } => p.x == 0.0 && p.y == 0.0,
+        }
+    }
+
+    fn region_point_to_absolute(
+        point: &RegionPoint,
+        screen_size: (u32, u32),
+    ) -> ExecuteResult<Point<i32>> {
+        match point {
+            RegionPoint::Point { p } => Ok(Point::new(i32::from(p.x), i32::from(p.y))),
+            RegionPoint::Percent { p } => {
+                let absolute = Self::percent_point_to_absolute(p, screen_size)?;
+                Ok(Point::new(i32::from(absolute.x), i32::from(absolute.y)))
+            }
+        }
+    }
+
+    fn dynamic_item_in_region(item: &Dynamic, region: &RegionRect) -> ExecuteResult<bool> {
+        let value = from_dynamic::<Value>(item).map_err(|error| {
+            Self::execute_error(
+                "data.filter.region",
+                format!("Filter 区域筛选读取条目失败: {}", error),
+            )
+        })?;
+        let Some(bounding_box) = value
+            .get("bounding_box")
+            .or_else(|| value.get("boundingBox"))
+            .cloned()
+        else {
+            return Ok(false);
+        };
+        let bounding_box = serde_json::from_value::<BoundingBox>(bounding_box).map_err(|error| {
+            Self::execute_error(
+                "data.filter.region",
+                format!("Filter 区域筛选解析 bounding_box 失败: {}", error),
+            )
+        })?;
+        Ok(Self::bounding_box_center_in_region(&bounding_box, region))
+    }
+
+    fn bounding_box_center_in_region(bounding_box: &BoundingBox, region: &RegionRect) -> bool {
+        let center = bounding_box.center();
+        center.x >= region.x1 && center.x <= region.x2 && center.y >= region.y1 && center.y <= region.y2
     }
 
     fn ocr_item_matches_color(

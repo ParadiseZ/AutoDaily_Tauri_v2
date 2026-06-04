@@ -156,6 +156,13 @@ pub struct PointU16 {
 
 #[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
 #[ts(export)]
+pub struct PointI32 {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
 pub struct PointF32 {
     pub x: f32,
     pub y: f32,

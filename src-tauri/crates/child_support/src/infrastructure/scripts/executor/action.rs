@@ -163,7 +163,14 @@ impl ScriptExecutor {
         action: &Action,
     ) -> ExecuteResult<Option<ADBCommand>> {
         match action {
-            Action::Click { mode } => self.compile_action_sequence_click(mode).await,
+            Action::Click {
+                mode,
+                offset_x,
+                offset_y,
+            } => {
+                self.compile_action_sequence_click(mode, *offset_x, *offset_y)
+                    .await
+            }
             Action::Swipe { duration, mode } => {
                 self.compile_action_sequence_swipe(mode, *duration).await
             }
@@ -191,6 +198,8 @@ impl ScriptExecutor {
     async fn compile_action_sequence_click(
         &mut self,
         mode: &ClickMode,
+        offset_x: i32,
+        offset_y: i32,
     ) -> ExecuteResult<Option<ADBCommand>> {
         let point = match mode {
             ClickMode::Point { p } => Self::point_to_absolute(p),
@@ -200,6 +209,7 @@ impl ScriptExecutor {
             }
             ClickMode::Txt { .. } | ClickMode::LabelIdx { .. } => return Ok(None),
         };
+        let point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
         Ok(Some(ADBCommand::Click(
             self.apply_click_random_offset(point).await?,
         )))
@@ -221,7 +231,9 @@ impl ScriptExecutor {
                     Self::percent_point_to_absolute(to, screen_size)?,
                 )
             }
-            SwipeMode::Txt { .. } | SwipeMode::LabelIdx { .. } => return Ok(None),
+            SwipeMode::Txt { .. } | SwipeMode::LabelIdx { .. } | SwipeMode::Mixed { .. } => {
+                return Ok(None)
+            }
         };
         Ok(Some(ADBCommand::SwipeWithDuration(from, to, duration)))
     }
@@ -237,7 +249,11 @@ impl ScriptExecutor {
                     .await?;
                 Ok((ControlFlow::Next, None))
             }
-            Action::Click { mode } => self.execute_click(mode).await,
+            Action::Click {
+                mode,
+                offset_x,
+                offset_y,
+            } => self.execute_click(mode, *offset_x, *offset_y).await,
             Action::Swipe { duration, mode } => self.execute_swipe(mode, *duration).await,
             Action::Reboot => {
                 Err(Self::execute_error(
@@ -312,98 +328,76 @@ impl ScriptExecutor {
     async fn execute_click(
         &mut self,
         mode: &ClickMode,
+        offset_x: i32,
+        offset_y: i32,
     ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
-        let (point, trace) = match mode {
+        let (points, source, mut targets) = match mode {
             ClickMode::Point { p } => {
                 let point = Self::point_to_absolute(p);
-                let target = Self::build_point_target(PolicyActionTargetRole::Primary, point);
-                (
-                    point,
-                    Self::build_action_trace(
-                        PolicyActionKind::Click,
-                        PolicyActionSource::Fixed,
-                        vec![target],
-                    ),
-                )
+                (vec![point], PolicyActionSource::Fixed, vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)])
             }
             ClickMode::Percent { p } => {
                 let screen_size = self.ensure_screen_size().await?;
                 let point = Self::percent_point_to_absolute(p, screen_size)?;
-                let target = Self::build_point_target(PolicyActionTargetRole::Primary, point);
-                (
-                    point,
-                    Self::build_action_trace(
-                        PolicyActionKind::Click,
-                        PolicyActionSource::Fixed,
-                        vec![target],
-                    ),
-                )
+                (vec![point], PolicyActionSource::Fixed, vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)])
             }
             ClickMode::Txt {
                 input_var,
                 txt,
                 txt_expr,
             } => {
-                let click_pos = self.active_policy_click_pos().await;
                 let target_text = self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), "action.click")?;
-                let (point, item) = self
-                    .resolve_ocr_target_point(
-                        "action.click",
-                        input_var,
-                        target_text.as_deref(),
-                        click_pos,
-                        "点击目标",
-                    )
+                let items = self
+                    .resolve_ocr_target_items("action.click", input_var, target_text.as_deref())
                     .await?;
-                let target = Self::build_ocr_target(
-                    PolicyActionTargetRole::Primary,
-                    point,
-                    &item,
-                );
-                (
-                    point,
-                    Self::build_action_trace(
-                        PolicyActionKind::Click,
-                        PolicyActionSource::Ocr,
-                        vec![target],
-                    ),
-                )
+                let mut points = Vec::new();
+                let mut targets = Vec::new();
+                for item in items {
+                    let point = Self::bounding_box_center_to_point("action.click", "点击目标", &item.bounding_box)?;
+                    points.push(point);
+                    targets.push(Self::build_ocr_target(PolicyActionTargetRole::Primary, point, &item));
+                }
+                (points, PolicyActionSource::Ocr, targets)
             }
             ClickMode::LabelIdx { input_var, idx } => {
-                let click_pos = self.active_policy_click_pos().await;
-                let (point, item) = self
-                    .resolve_det_target_point(
-                        "action.click",
-                        input_var,
-                        *idx,
-                        click_pos,
-                        "点击目标",
-                    )
+                let items = self
+                    .resolve_det_target_items("action.click", input_var, *idx)
                     .await?;
-                let target = Self::build_det_target(
-                    PolicyActionTargetRole::Primary,
-                    point,
-                    &item,
-                );
-                (
-                    point,
-                    Self::build_action_trace(
-                        PolicyActionKind::Click,
-                        PolicyActionSource::Det,
-                        vec![target],
-                    ),
-                )
+                let mut points = Vec::new();
+                let mut targets = Vec::new();
+                for item in items {
+                    let point = Self::bounding_box_center_to_point("action.click", "点击目标", &item.bounding_box)?;
+                    points.push(point);
+                    targets.push(Self::build_det_target(PolicyActionTargetRole::Primary, point, &item));
+                }
+                (points, PolicyActionSource::Det, targets)
             }
         };
-        let point = self.apply_click_random_offset(point).await?;
-        Self::await_device_result_with_timeout(
-            "action.click",
-            "设备点击",
-            DEVICE_EXTERNAL_TIMEOUT_MS,
-            get_device_ctx().click(point),
-        )
-        .await?;
-        Ok((ControlFlow::Next, Some(trace)))
+        if points.is_empty() {
+            return Ok((ControlFlow::Next, None));
+        }
+
+        let mut clicked_points = Vec::with_capacity(points.len());
+        for point in points {
+            let fixed_point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
+            let click_point = self.apply_click_random_offset(fixed_point).await?;
+            Self::await_device_result_with_timeout(
+                "action.click",
+                "设备点击",
+                DEVICE_EXTERNAL_TIMEOUT_MS,
+                get_device_ctx().click(click_point),
+            )
+            .await?;
+            clicked_points.push(fixed_point);
+        }
+
+        for (target, point) in targets.iter_mut().zip(clicked_points) {
+            target.point = Some(PointU16 { x: point.x, y: point.y });
+        }
+        Ok((
+            ControlFlow::Next,
+            Some(Self::build_action_trace(PolicyActionKind::Click, source, targets)),
+        ))
     }
 
     async fn execute_swipe(
@@ -574,6 +568,23 @@ impl ScriptExecutor {
                     ),
                 )
             }
+            SwipeMode::Mixed { from, to } => {
+                let (from_point, from_target) = self
+                    .resolve_swipe_target("action.swipe", from, PolicyActionTargetRole::Start)
+                    .await?;
+                let (to_point, to_target) = self
+                    .resolve_swipe_target("action.swipe", to, PolicyActionTargetRole::End)
+                    .await?;
+                (
+                    from_point,
+                    to_point,
+                    Self::build_action_trace(
+                        PolicyActionKind::Swipe,
+                        PolicyActionSource::Custom,
+                        vec![from_target, to_target],
+                    ),
+                )
+            }
         };
         Self::await_device_result_with_timeout(
             "action.swipe",
@@ -585,70 +596,83 @@ impl ScriptExecutor {
         Ok((ControlFlow::Next, Some(trace)))
     }
 
-    async fn resolve_ocr_target_point(
+    async fn resolve_swipe_target(
+        &mut self,
+        step_type: &str,
+        target: &SwipeTarget,
+        role: PolicyActionTargetRole,
+    ) -> ExecuteResult<(Point<u16>, PolicyActionTarget)> {
+        match target {
+            SwipeTarget::Txt {
+                input_var,
+                value,
+                value_expr,
+            } => {
+                let target_text = self.resolve_optional_text(value.as_deref(), value_expr.as_deref(), step_type)?;
+                let item = self
+                    .resolve_ocr_target_items(step_type, input_var, target_text.as_deref())
+                    .await?
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| {
+                        Self::execute_error(
+                            step_type,
+                            format!(
+                                "输入变量[{}]里未找到滑动文字目标: {}",
+                                input_var,
+                                target_text.unwrap_or_default()
+                            ),
+                        )
+                    })?;
+                let point = Self::bounding_box_center_to_point(step_type, "滑动文字目标", &item.bounding_box)?;
+                Ok((point, Self::build_ocr_target(role, point, &item)))
+            }
+            SwipeTarget::LabelIdx { input_var, idx } => {
+                let item = self
+                    .resolve_det_target_items(step_type, input_var, Some(u32::from(*idx)))
+                    .await?
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| {
+                        Self::execute_error(
+                            step_type,
+                            format!("输入变量[{}]里未找到滑动标签目标: {}", input_var, idx),
+                        )
+                    })?;
+                let point = Self::bounding_box_center_to_point(step_type, "滑动标签目标", &item.bounding_box)?;
+                Ok((point, Self::build_det_target(role, point, &item)))
+            }
+        }
+    }
+
+    async fn resolve_ocr_target_items(
         &self,
         step_type: &str,
         input_var: &str,
         target_text: Option<&str>,
-        click_pos: Option<u16>,
-        target_label: &str,
-    ) -> ExecuteResult<(Point<u16>, OcrResult)> {
+    ) -> ExecuteResult<Vec<OcrResult>> {
         let items = self
             .read_runtime_result_vec::<OcrResult>(input_var, step_type, "OCR")
             .await?;
-        let item = Self::select_ocr_result_at(&items, target_text, click_pos).cloned().ok_or_else(|| {
-            Self::execute_error(
-                step_type,
-                format!(
-                    "输入变量[{}]里未找到{}: {}",
-                    input_var,
-                    target_label,
-                    target_text.unwrap_or_default()
-                ),
-            )
-        })?;
-        let point = Self::bounding_box_center_to_point(step_type, target_label, &item.bounding_box)?;
-        Ok((point, item))
+        Ok(Self::select_ocr_results(&items, target_text)
+            .into_iter()
+            .cloned()
+            .collect())
     }
 
-    async fn resolve_det_target_point(
+    async fn resolve_det_target_items(
         &self,
         step_type: &str,
         input_var: &str,
         target_idx: Option<u32>,
-        click_pos: Option<u16>,
-        target_label: &str,
-    ) -> ExecuteResult<(Point<u16>, DetResult)> {
+    ) -> ExecuteResult<Vec<DetResult>> {
         let items = self
             .read_runtime_result_vec::<DetResult>(input_var, step_type, "检测")
             .await?;
-        let item = Self::select_det_result_at(&items, target_idx, click_pos).cloned().ok_or_else(|| {
-            Self::execute_error(
-                step_type,
-                format!(
-                    "输入变量[{}]里未找到{}标签: {}",
-                    input_var,
-                    target_label,
-                    target_idx
-                        .map(|value| value.to_string())
-                        .unwrap_or_else(|| "<empty>".to_string())
-                ),
-            )
-        })?;
-        let point = Self::bounding_box_center_to_point(step_type, target_label, &item.bounding_box)?;
-        Ok((point, item))
-    }
-
-    async fn active_policy_click_pos(&self) -> Option<u16> {
-        let active = self.active_policy_context?;
-        let ctx = self.runtime_ctx.read().await;
-        Some(
-            ctx.execution
-                .policy_states
-                .get(&active.policy_id)
-                .and_then(|state| state.click_pos)
-                .unwrap_or(active.base_click_pos),
-        )
+        Ok(Self::select_det_results(&items, target_idx)
+            .into_iter()
+            .cloned()
+            .collect())
     }
 
     async fn adjust_policy_click_pos(&self, policy_id: PolicyId, delta: i16) -> ExecuteResult<()> {
@@ -1227,8 +1251,15 @@ impl ScriptExecutor {
         target_text: Option<&str>,
         position: Option<u16>,
     ) -> Option<&'a OcrResult> {
+        Self::select_positioned_match(Self::select_ocr_results(items, target_text), position)
+    }
+
+    fn select_ocr_results<'a>(
+        items: &'a [OcrResult],
+        target_text: Option<&str>,
+    ) -> Vec<&'a OcrResult> {
         let target_text = target_text.map(str::trim).filter(|value| !value.is_empty());
-        let matches: Vec<&OcrResult> = match target_text {
+        match target_text {
             Some(target) => {
                 let exact: Vec<&OcrResult> = items
                     .iter()
@@ -1241,8 +1272,7 @@ impl ScriptExecutor {
                 }
             }
             None => items.iter().collect(),
-        };
-        Self::select_positioned_match(matches, position)
+        }
     }
 
     fn select_det_result(items: &[DetResult], target_idx: Option<u32>) -> Option<&DetResult> {
@@ -1254,14 +1284,17 @@ impl ScriptExecutor {
         target_idx: Option<u32>,
         position: Option<u16>,
     ) -> Option<&DetResult> {
-        let matches: Vec<&DetResult> = match target_idx {
+        Self::select_positioned_match(Self::select_det_results(items, target_idx), position)
+    }
+
+    fn select_det_results(items: &[DetResult], target_idx: Option<u32>) -> Vec<&DetResult> {
+        match target_idx {
             Some(target) => items
                 .iter()
                 .filter(|item| item.index == target as i32)
                 .collect(),
             None => items.iter().collect(),
-        };
-        Self::select_positioned_match(matches, position)
+        }
     }
 
     fn select_positioned_match<T>(matches: Vec<&T>, position: Option<u16>) -> Option<&T> {
@@ -1321,6 +1354,24 @@ impl ScriptExecutor {
         let max_y = screen_size.1.saturating_sub(1) as i32;
         let x = (i32::from(point.x) + dx).clamp(0, max_x) as u16;
         let y = (i32::from(point.y) + dy).clamp(0, max_y) as u16;
+        Ok(Point::new(x, y))
+    }
+
+    async fn apply_click_fixed_offset(
+        &self,
+        point: Point<u16>,
+        offset_x: i32,
+        offset_y: i32,
+    ) -> ExecuteResult<Point<u16>> {
+        if offset_x == 0 && offset_y == 0 {
+            return Ok(point);
+        }
+
+        let screen_size = self.ensure_screen_size().await?;
+        let max_x = screen_size.0.saturating_sub(1) as i32;
+        let max_y = screen_size.1.saturating_sub(1) as i32;
+        let x = (i32::from(point.x) + offset_x).clamp(0, max_x) as u16;
+        let y = (i32::from(point.y) + offset_y).clamp(0, max_y) as u16;
         Ok(Point::new(x, y))
     }
 

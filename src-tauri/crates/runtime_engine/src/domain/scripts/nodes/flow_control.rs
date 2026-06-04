@@ -30,6 +30,7 @@ pub enum FlowControl {
     },
     Continue,
     Break,
+    StopScript,
     WaitMs {
         ms: u64,
     },
