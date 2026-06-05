@@ -20,11 +20,7 @@
       </div>
 
       <div v-if="deviceIds.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <button class="app-button app-button-ghost group text-(--app-text-strong)" type="button" :disabled="hasPendingDeviceAction" @click="deviceStore.pauseDevices(deviceIds)">
-          <AppIcon name="pause" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-text-strong) transition-colors" />
-          {{ bulkActionLabel.pause }}
-        </button>
-        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" :disabled="hasPendingDeviceAction" @click="deviceStore.stopDevices(deviceIds)">
+        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" :disabled="hasPendingDeviceAction" @click="handleStopAllDevices">
           <AppIcon name="square" :size="14" class="fill-current" />
           {{ bulkActionLabel.stop }}
         </button>
@@ -68,8 +64,7 @@
         @run-target="handleRunTarget"
         @clear-schedules="handleClearSchedules"
         @start="handleStartDevice"
-        @pause="deviceStore.pauseDevice"
-        @stop="deviceStore.stopDevice"
+        @stop="handleStopDevice"
       />
     </div>
 
@@ -125,15 +120,12 @@ const hasPendingDeviceAction = computed(() => deviceIds.value.some((deviceId) =>
 const bulkActionLabel = computed(() => {
   const phases = deviceIds.value.map((deviceId) => deviceStore.getDevicePendingAction(deviceId)).filter(Boolean);
   if (phases.some((phase) => phase === 'spawning' || phase === 'starting' || phase === 'restarting' || phase === 'syncing')) {
-    return { start: '批量启动中...', pause: '全部暂停', stop: '全部停止' };
-  }
-  if (phases.some((phase) => phase === 'pausing')) {
-    return { start: '全部启动', pause: '批量暂停中...', stop: '全部停止' };
+    return { start: '批量运行中...', stop: '全部停止' };
   }
   if (phases.some((phase) => phase === 'stopping' || phase === 'shuttingDown')) {
-    return { start: '全部启动', pause: '全部暂停', stop: '批量停止中...' };
+    return { start: '全部运行', stop: '批量停止中...' };
   }
-  return { start: '全部启动', pause: '全部暂停', stop: '全部停止' };
+  return { start: '全部运行', stop: '全部停止' };
 });
 const activeDevice = computed(() =>
   orderedDevices.value.find((device) => device.id === deviceStore.selectedDeviceId) ?? orderedDevices.value[0] ?? null,
@@ -370,6 +362,19 @@ const handleStartDevice = async (deviceId: string) => {
   }
 };
 
+const handleStopDevice = async (deviceId: string) => {
+  if (deviceStore.isDeviceBusy(deviceId)) {
+    return;
+  }
+
+  try {
+    await deviceStore.stopDevice(deviceId);
+    void taskStore.loadSchedules(deviceId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '停止失败', 'error');
+  }
+};
+
 const handleStartAllDevices = async () => {
   if (hasPendingDeviceAction.value) {
     return;
@@ -389,6 +394,21 @@ const handleStartAllDevices = async () => {
     }
   } catch (error) {
     showToast(error instanceof Error ? error.message : '批量启动失败', 'error');
+  }
+};
+
+const handleStopAllDevices = async () => {
+  if (hasPendingDeviceAction.value) {
+    return;
+  }
+
+  try {
+    await deviceStore.stopDevices(deviceIds.value);
+    for (const deviceId of deviceIds.value) {
+      void taskStore.loadSchedules(deviceId);
+    }
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '批量停止失败', 'error');
   }
 };
 

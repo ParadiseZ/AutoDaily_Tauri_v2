@@ -47,6 +47,7 @@ pub enum AssignmentScheduleStatus {
     Failed,
     Skipped,
     Cancelled,
+    Stopped,
 }
 
 /// assignment 级调度触发来源

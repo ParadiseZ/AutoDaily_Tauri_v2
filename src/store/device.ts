@@ -221,7 +221,7 @@ export const useDeviceStore = defineStore('device', () => {
         }
 
         if (!isRunning) {
-            return 'spawning';
+            return null;
         }
 
         if (previous && previous.data.cores.join(',') !== nextDevice.data.cores.join(',')) {
@@ -397,9 +397,6 @@ export const useDeviceStore = defineStore('device', () => {
 
     const stopDevice = async (deviceId: string) => {
         if (isDeviceBusy(deviceId)) {
-            return;
-        }
-        if (!onlineDeviceIds.value.includes(deviceId)) {
             return;
         }
         setDevicePendingAction(deviceId, 'stopping');

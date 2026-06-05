@@ -49,6 +49,5 @@ onMounted(async () => {
     scriptTransferStore.initListener(),
   ]);
   void checkForAppUpdateSilently();
-  void deviceStore.bootstrapEnabledDeviceProcesses();
 });
 </script>

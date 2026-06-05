@@ -8,6 +8,7 @@ use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::RuntimeEventMessage;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
+use crate::infrastructure::logging::LogLevel;
 use crate::infrastructure::mail::{
     load_email_config, send_timeout_email_in_background, EmailMessagePayload,
 };
@@ -173,6 +174,38 @@ fn handle_runtime_event(
                             message: connection.message.clone(),
                         },
                     );
+                }
+
+                if let (Some(message), Some(receiver)) =
+                    (connection.message.as_ref(), get_child_log_receiver())
+                {
+                    let level = match connection.status {
+                        crate::infrastructure::ipc::message::ConnectionStatusKind::Connected => {
+                            LogLevel::Info
+                        }
+                        crate::infrastructure::ipc::message::ConnectionStatusKind::Checking => {
+                            LogLevel::Info
+                        }
+                        crate::infrastructure::ipc::message::ConnectionStatusKind::Disconnected => {
+                            LogLevel::Warn
+                        }
+                        crate::infrastructure::ipc::message::ConnectionStatusKind::Unknown => {
+                            LogLevel::Debug
+                        }
+                    };
+                    let message = format!("[connection] {}", message);
+                    tauri::async_runtime::spawn(async move {
+                        receiver
+                            .handle_log(
+                                &device_id,
+                                &crate::infrastructure::ipc::message::LogMessage {
+                                    level,
+                                    message,
+                                    module: Some("connection".to_string()),
+                                },
+                            )
+                            .await;
+                    });
                 }
 
                 let emit_data = serde_json::json!({

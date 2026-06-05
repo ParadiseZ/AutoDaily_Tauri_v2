@@ -2,6 +2,7 @@ use super::bundle_loader::load_runtime_queue_for_current_window;
 use super::dispatch_planner::{
     has_complete_assignment_schedule_batch, insert_assignment_schedule,
     insert_assignment_schedule_batch, load_next_planned_assignment_schedule,
+    reactivate_stopped_planner_schedules_for_device, stop_active_assignment_schedules_by_device,
     update_assignment_schedule_status, update_assignment_schedule_status_by_dispatch_id,
     DispatchPlanner,
 };
@@ -342,10 +343,10 @@ fn queue_item_matches_schedule(item: &RuntimeQueueItem, record: &AssignmentSched
 }
 
 async fn ensure_planner_batch_for_device(
-    app_handle: &tauri::AppHandle,
+    _app_handle: &tauri::AppHandle,
     device_id: DeviceId,
+    preserve_stopped: bool,
 ) -> Result<usize, String> {
-    ensure_device_ready(app_handle, device_id).await?;
     let queue = load_runtime_queue_for_current_window(device_id)
         .await?
         .into_iter()
@@ -364,6 +365,7 @@ async fn ensure_planner_batch_for_device(
         AssignmentTriggerSource::Planner,
         &queue,
         Some("planner 生成当前批次".to_string()),
+        preserve_stopped,
     )
     .await?;
     Ok(queue.len())
@@ -466,7 +468,7 @@ async fn dispatch_next_scheduled_queue_item(
         let record = match load_next_planned_assignment_schedule(device_id).await? {
             Some(record) => Some(record),
             None => {
-                let _ = ensure_planner_batch_for_device(app_handle, device_id).await?;
+                let _ = ensure_planner_batch_for_device(app_handle, device_id, true).await?;
                 load_next_planned_assignment_schedule(device_id).await?
             }
         };
@@ -474,6 +476,7 @@ async fn dispatch_next_scheduled_queue_item(
             DispatchPlanner::init().mark_active_dispatch(device_id, None)?;
             return Ok(false);
         };
+        ensure_device_ready(app_handle, device_id).await?;
         match dispatch_schedule_to_child(app_handle, device_id, record).await {
             Ok(()) => return Ok(true),
             Err(error) if error == "调度记录已过期，已取消" => continue,
@@ -493,8 +496,6 @@ pub(crate) async fn reevaluate_device_auto_dispatch(
         return Ok(0);
     }
 
-    ensure_device_ready(app_handle, device_id).await?;
-
     let planner = DispatchPlanner::init();
     planner.ensure_device_state(device_id)?;
     let state = planner.snapshot_device_state(device_id)?;
@@ -502,7 +503,13 @@ pub(crate) async fn reevaluate_device_auto_dispatch(
         return Ok(0);
     }
 
-    let created = ensure_planner_batch_for_device(app_handle, device_id).await?;
+    let created = ensure_planner_batch_for_device(app_handle, device_id, true).await?;
+    if load_next_planned_assignment_schedule(device_id)
+        .await?
+        .is_none()
+    {
+        return Ok(created);
+    }
     let dispatched = dispatch_next_scheduled_queue_item(app_handle, device_id).await?;
     Ok(if dispatched { created.max(1) } else { created })
 }
@@ -555,14 +562,19 @@ async fn reconcile_saved_device_runtime(
         return Ok((None, "设备未启用且子进程未运行，无需协调".to_string()));
     }
 
-    if !is_running {
-        let message = cmd_spawn_device(app_handle.clone(), current.id).await?;
-        return Ok((Some("spawning"), message));
-    }
-
     let Some(previous) = previous else {
-        return Ok((None, "设备已运行且无旧配置快照，无需协调".to_string()));
+        return Ok((
+            None,
+            "新增设备配置已保存，等待调度或临时运行时启动运行时".to_string(),
+        ));
     };
+
+    if !is_running {
+        return Ok((
+            None,
+            "设备当前未运行，本次配置变更不自动拉起子进程，等待调度或临时运行".to_string(),
+        ));
+    }
 
     if previous.data.0.cores != current.data.0.cores {
         let message = cmd_restart_device_runtime(app_handle.clone(), current.id).await?;
@@ -673,7 +685,7 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                                 None
                             }
                         } else {
-                            Some("spawning")
+                            None
                         };
                         action
                     }
@@ -864,7 +876,7 @@ fn should_launch_emulator_in_main(
         .map_err(|_| "读取连接状态失败".to_string())?;
     Ok(!matches!(
         guard.get(&device_id).map(|item| &item.status),
-        Some(ConnectionStatusKind::Connected)
+        Some(ConnectionStatusKind::Connected | ConnectionStatusKind::Checking)
     ))
 }
 
@@ -1152,11 +1164,28 @@ pub async fn cmd_device_start(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    let created = ensure_planner_batch_for_device(&app_handle, device_id).await?;
-    let state = DispatchPlanner::init().snapshot_device_state(device_id)?;
+    let planner = DispatchPlanner::init();
+    planner.ensure_device_state(device_id)?;
+    let state = planner.snapshot_device_state(device_id)?;
     if state.active_dispatch.is_some() {
         return Ok(format!(
             "设备[{}]当前已有运行中的 dispatch，已唤醒 planner",
+            device_id
+        ));
+    }
+    let reactivated = reactivate_stopped_planner_schedules_for_device(
+        device_id,
+        Local::now().format("%Y-%m-%d").to_string(),
+        "用户重新开始设备调度".to_string(),
+    )
+    .await?;
+    let created = ensure_planner_batch_for_device(&app_handle, device_id, false).await?;
+    if load_next_planned_assignment_schedule(device_id)
+        .await?
+        .is_none()
+    {
+        return Ok(format!(
+            "设备[{}]当前时间窗口下没有可运行的 planner 记录",
             device_id
         ));
     }
@@ -1164,7 +1193,8 @@ pub async fn cmd_device_start(
     if dispatched {
         Ok(format!(
             "已唤醒设备[{}]调度，新增 {} 条 planner 记录并开始执行下一项",
-            device_id, created
+            device_id,
+            created + reactivated as usize
         ))
     } else {
         Ok(format!(
@@ -1177,8 +1207,17 @@ pub async fn cmd_device_start(
 #[command]
 pub async fn cmd_device_stop(device_id: DeviceId) -> Result<String, String> {
     send_process_control(device_id, ProcessAction::Stop);
+    let stopped = stop_active_assignment_schedules_by_device(
+        device_id,
+        Local::now().to_rfc3339(),
+        "用户停止设备调度".to_string(),
+    )
+    .await?;
     let _ = DispatchPlanner::init().clear_device_state(device_id);
-    Ok(format!("已向设备[{}]发送停止命令", device_id))
+    Ok(format!(
+        "已向设备[{}]发送停止命令，并持久化停止 {} 条调度记录",
+        device_id, stopped
+    ))
 }
 
 #[command]
@@ -1197,7 +1236,7 @@ pub async fn cmd_sync_device_runtime_session(
     let mut created = 0usize;
     let mut dispatched = false;
     if device.data.0.auto_start && state.active_dispatch.is_none() {
-        created = ensure_planner_batch_for_device(&app_handle, device_id).await?;
+        created = ensure_planner_batch_for_device(&app_handle, device_id, true).await?;
         dispatched = dispatch_next_scheduled_queue_item(&app_handle, device_id).await?;
     }
     Ok(format!(

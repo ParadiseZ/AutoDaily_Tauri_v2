@@ -148,6 +148,7 @@ pub fn assignment_schedule_status_value(status: &AssignmentScheduleStatus) -> &'
         AssignmentScheduleStatus::Failed => "failed",
         AssignmentScheduleStatus::Skipped => "skipped",
         AssignmentScheduleStatus::Cancelled => "cancelled",
+        AssignmentScheduleStatus::Stopped => "stopped",
     }
 }
 
@@ -179,6 +180,13 @@ fn queue_item_scope_key(item: &RuntimeQueueItem) -> String {
     )
 }
 
+fn queue_item_carryover_scope_key(item: &RuntimeQueueItem) -> String {
+    format!(
+        "{}|{}|{}",
+        item.assignment_id, item.dedup_scope_base_hash, item.order_index
+    )
+}
+
 fn schedule_scope_key(record: &AssignmentSchedule) -> Option<String> {
     record.assignment_id.map(|assignment_id| {
         format!(
@@ -191,11 +199,56 @@ fn schedule_scope_key(record: &AssignmentSchedule) -> Option<String> {
     })
 }
 
+fn schedule_carryover_scope_key(record: &AssignmentSchedule) -> Option<String> {
+    record.assignment_id.map(|assignment_id| {
+        format!(
+            "{}|{}|{}",
+            assignment_id, record.scope_hash, record.order_index
+        )
+    })
+}
+
 fn active_schedule_status(status: &str) -> bool {
     matches!(
         status,
-        "planned" | "dispatched" | "running" | "success" | "skipped"
+        "planned" | "dispatched" | "running" | "success" | "skipped" | "stopped"
     )
+}
+
+async fn load_latest_stopped_carryover_scopes(
+    device_id: DeviceId,
+    trigger_source: AssignmentTriggerSource,
+) -> Result<HashSet<String>, String> {
+    let query = format!(
+        "{}
+         WHERE device_id = ?
+           AND trigger_source = ?
+           AND assignment_id IS NOT NULL
+         ORDER BY created_at DESC, order_index ASC",
+        assignment_schedule_select_sql()
+    );
+    let rows = sqlx::query_as::<_, AssignmentSchedule>(&query)
+        .bind(device_id.to_string())
+        .bind(assignment_trigger_source_value(&trigger_source))
+        .fetch_all(get_pool())
+        .await
+        .map_err(|error| error.to_string())?;
+
+    let mut seen = HashSet::new();
+    let mut stopped = HashSet::new();
+    for row in rows {
+        let Some(key) = schedule_carryover_scope_key(&row) else {
+            continue;
+        };
+        if !seen.insert(key.clone()) {
+            continue;
+        }
+        if row.status == "stopped" {
+            stopped.insert(key);
+        }
+    }
+
+    Ok(stopped)
 }
 
 pub async fn load_assignment_schedules_by_device(
@@ -226,7 +279,7 @@ pub async fn find_assignment_schedule_scope(
            AND ((window_start_at IS NULL AND ?2 IS NULL) OR window_start_at = ?2)
            AND trigger_source = ?
            AND scope_hash = ?
-           AND status IN ('planned', 'dispatched', 'running', 'success', 'skipped')
+           AND status IN ('planned', 'dispatched', 'running', 'success', 'skipped', 'stopped')
          LIMIT 1",
         assignment_schedule_select_sql()
     );
@@ -258,7 +311,7 @@ pub async fn has_complete_assignment_schedule_batch(
         "{}
          WHERE device_id = ?
            AND trigger_source = ?
-           AND status IN ('planned', 'dispatched', 'running', 'success', 'skipped')",
+           AND status IN ('planned', 'dispatched', 'running', 'success', 'skipped', 'stopped')",
         assignment_schedule_select_sql()
     );
     let rows = sqlx::query_as::<_, AssignmentSchedule>(&query)
@@ -356,11 +409,29 @@ pub async fn insert_assignment_schedule_batch(
     trigger_source: AssignmentTriggerSource,
     items: &[RuntimeQueueItem],
     message: Option<String>,
+    preserve_stopped: bool,
 ) -> Result<Vec<AssignmentSchedule>, String> {
     let batch_id = BatchId::new_v7();
     let created_at = chrono::Local::now().to_rfc3339();
+    let stopped_scopes = if preserve_stopped {
+        load_latest_stopped_carryover_scopes(device_id, trigger_source.clone()).await?
+    } else {
+        HashSet::new()
+    };
     let mut records = Vec::with_capacity(items.len());
     for item in items {
+        let preserve_stopped_record =
+            stopped_scopes.contains(&queue_item_carryover_scope_key(item));
+        let status = if preserve_stopped_record {
+            AssignmentScheduleStatus::Stopped
+        } else {
+            AssignmentScheduleStatus::Planned
+        };
+        let record_message = if preserve_stopped_record {
+            Some("延续上次停止状态".to_string())
+        } else {
+            message.clone()
+        };
         records.push(
             insert_assignment_schedule(
                 batch_id,
@@ -374,14 +445,41 @@ pub async fn insert_assignment_schedule_batch(
                 item.order_index,
                 created_at.clone(),
                 None,
-                AssignmentScheduleStatus::Planned,
+                status,
                 trigger_source.clone(),
-                message.clone(),
+                record_message,
             )
             .await?,
         );
     }
     Ok(records)
+}
+
+pub async fn reactivate_stopped_planner_schedules_for_device(
+    device_id: DeviceId,
+    day_prefix: String,
+    message: String,
+) -> Result<u64, String> {
+    let result = sqlx::query(&format!(
+        "UPDATE {}
+         SET status = ?, completed_at = NULL, message = ?
+         WHERE device_id = ?
+           AND trigger_source = 'planner'
+           AND status = 'stopped'
+           AND created_at LIKE ?",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(assignment_schedule_status_value(
+        &AssignmentScheduleStatus::Planned,
+    ))
+    .bind(message)
+    .bind(device_id.to_string())
+    .bind(format!("{}%", day_prefix))
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(result.rows_affected())
 }
 
 pub async fn load_next_planned_assignment_schedule(
@@ -416,7 +514,7 @@ pub async fn update_assignment_schedule_status(
     sqlx::query(&format!(
         "UPDATE {}
          SET status = ?, started_at = COALESCE(?, started_at), completed_at = COALESCE(?, completed_at), message = ?
-         WHERE id = ?",
+         WHERE id = ? AND status NOT IN ('cancelled', 'stopped')",
         ASSIGNMENT_SCHEDULE_TABLE
     ))
     .bind(assignment_schedule_status_value(&status))
@@ -441,7 +539,7 @@ pub async fn update_assignment_schedule_status_by_dispatch_id(
     sqlx::query(&format!(
         "UPDATE {}
          SET status = ?, started_at = COALESCE(?, started_at), completed_at = COALESCE(?, completed_at), message = ?
-         WHERE dispatch_id = ?",
+         WHERE dispatch_id = ? AND status NOT IN ('cancelled', 'stopped')",
         ASSIGNMENT_SCHEDULE_TABLE
     ))
     .bind(assignment_schedule_status_value(&status))
@@ -454,4 +552,29 @@ pub async fn update_assignment_schedule_status_by_dispatch_id(
     .map_err(|error| error.to_string())?;
 
     Ok(())
+}
+
+pub async fn stop_active_assignment_schedules_by_device(
+    device_id: DeviceId,
+    completed_at: String,
+    message: String,
+) -> Result<u64, String> {
+    let result = sqlx::query(&format!(
+        "UPDATE {}
+         SET status = ?, completed_at = COALESCE(completed_at, ?), message = ?
+         WHERE device_id = ?
+           AND status IN ('planned', 'dispatched', 'running')",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(assignment_schedule_status_value(
+        &AssignmentScheduleStatus::Stopped,
+    ))
+    .bind(completed_at)
+    .bind(message)
+    .bind(device_id.to_string())
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(result.rows_affected())
 }

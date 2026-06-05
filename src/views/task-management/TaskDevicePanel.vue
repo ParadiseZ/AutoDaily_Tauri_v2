@@ -17,15 +17,11 @@
       </div>
 
       <div class="flex flex-wrap gap-2">
-        <button class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" :disabled="deviceBusy" @click="$emit('start', device.id)">
+        <button v-if="!hasActiveAssignmentSchedule" class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" :disabled="deviceBusy" @click="$emit('start', device.id)">
           <AppIcon name="play" :size="16" class="fill-current" />
           {{ startButtonLabel }}
         </button>
-        <button class="app-button app-button-ghost group" type="button" :disabled="deviceBusy" @click="$emit('pause', device.id)">
-          <AppIcon name="pause" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-text-strong) transition-colors" />
-          {{ pauseButtonLabel }}
-        </button>
-        <button class="app-button app-button-warning" type="button" :disabled="deviceBusy" @click="$emit('stop', device.id)">
+        <button v-else class="app-button app-button-warning" type="button" :disabled="deviceBusy" @click="$emit('stop', device.id)">
           <AppIcon name="square" :size="14" class="fill-current" />
           {{ stopButtonLabel }}
         </button>
@@ -397,7 +393,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   start: [deviceId: string];
-  pause: [deviceId: string];
   stop: [deviceId: string];
   addScript: [deviceId: string, scriptId: string, timeTemplateId: string | null];
   ensureScriptTasks: [scriptId: string];
@@ -424,6 +419,10 @@ const timer = window.setInterval(() => {
 }, 60_000);
 
 const devicePlatform = computed(() => props.device.data.platform ?? 'android');
+const activeAssignmentScheduleStatuses = new Set(['planned', 'dispatched', 'running']);
+const hasActiveAssignmentSchedule = computed(() =>
+  props.assignmentSchedules.some((record) => activeAssignmentScheduleStatuses.has(record.status)),
+);
 
 const scriptOptions = computed(() =>
   props.scripts
@@ -494,6 +493,7 @@ const assignmentScheduleStatusLabels: Record<string, string> = {
   failed: '失败',
   skipped: '已跳过',
   cancelled: '已取消',
+  stopped: '已停止',
 };
 
 const triggerSourceLabels: Record<string, string> = {
@@ -512,7 +512,7 @@ const scheduleTone = (status: string) => {
 const assignmentScheduleTone = (status: string) => {
   if (status === 'success') return 'success';
   if (status === 'planned' || status === 'dispatched' || status === 'running' || status === 'skipped') return 'warning';
-  if (status === 'failed' || status === 'cancelled') return 'danger';
+  if (status === 'failed' || status === 'cancelled' || status === 'stopped') return 'danger';
   return 'neutral';
 };
 
@@ -569,8 +569,6 @@ const startButtonLabel = computed(() => {
   if (props.devicePendingAction === 'starting') return '正在启动队列...';
   return '运行队列';
 });
-
-const pauseButtonLabel = computed(() => (props.devicePendingAction === 'pausing' ? '正在暂停...' : '暂停'));
 
 const stopButtonLabel = computed(() => {
   if (props.devicePendingAction === 'stopping') return '正在停止...';
