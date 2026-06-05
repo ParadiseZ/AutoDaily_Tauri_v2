@@ -11,7 +11,10 @@
           @click="deviceStore.selectedDeviceId = device.id"
         >
           <span class="min-w-0 flex-1 truncate font-semibold">{{ device.data.deviceName }}</span>
-          <StatusBadge :label="formatStatusLabel(deviceStore.getDeviceStatus(device.id))" :tone="formatStatusTone(deviceStore.getDeviceStatus(device.id).kind)" />
+          <StatusBadge
+            :label="formatConnectionStatusLabel(deviceStore.getDeviceConnectionStatus(device.id))"
+            :tone="formatConnectionStatusTone(deviceStore.getDeviceConnectionStatus(device.id).kind)"
+          />
           <span class="task-device-tab-count">{{ taskStore.assignmentsByDevice[device.id]?.length || 0 }}</span>
         </button>
       </div>
@@ -100,7 +103,7 @@ import { useDeviceStore } from '@/store/device';
 import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
-import { formatStatusLabel, formatStatusTone, formatTemplateWindow } from '@/utils/presenters';
+import { formatConnectionStatusLabel, formatConnectionStatusTone, formatTemplateWindow } from '@/utils/presenters';
 import { getRunTargetDetails } from '@/utils/runTarget';
 import { toErrorText } from '@/utils/api';
 import { showToast } from '@/utils/toast';
@@ -134,11 +137,6 @@ const bulkActionLabel = computed(() => {
 });
 const activeDevice = computed(() =>
   orderedDevices.value.find((device) => device.id === deviceStore.selectedDeviceId) ?? orderedDevices.value[0] ?? null,
-);
-const probeCandidateIds = computed(() =>
-  orderedDevices.value
-    .filter((device) => device.data.enable && deviceStore.onlineDeviceIds.includes(device.id))
-    .map((device) => device.id),
 );
 const assignmentSettingsOpen = ref(false);
 const assignmentSettingsScriptId = ref<string | null>(null);
@@ -397,17 +395,6 @@ const handleStartAllDevices = async () => {
 onMounted(async () => {
   await loadPageData();
 });
-
-watch(
-  () => probeCandidateIds.value.join(','),
-  (signature) => {
-    if (!signature) {
-      return;
-    }
-    void deviceStore.probeEnabledDeviceConnections(probeCandidateIds.value);
-  },
-  { immediate: true },
-);
 
 watch(
   () => {

@@ -1,13 +1,9 @@
-use crate::constant::project::{HEARTBEAT_INTERVAL, SOCKET_NAME};
-use crate::infrastructure::context::child_process_sec::{
-    process_need_stop, set_running_status, RunningStatus,
-};
+use crate::constant::project::SOCKET_NAME;
+use crate::infrastructure::context::child_process_sec::{set_running_status, RunningStatus};
 use crate::infrastructure::core::{decode_from_slice, encode_to_vec, serialize_config, DeviceId};
 use crate::infrastructure::ipc::chanel_trait::ChannelTrait;
 use crate::infrastructure::ipc::channel_error::{ChannelError, ChannelResult};
-use crate::infrastructure::ipc::message::{
-    HeartbeatMessage, IpcMessage, MessagePayload, MessageType,
-};
+use crate::infrastructure::ipc::message::{IpcMessage, MessagePayload, MessageType};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;
 use interprocess::local_socket::tokio::prelude::LocalSocketStream;
@@ -84,17 +80,13 @@ impl IpcClient {
         let send_task = Self::send_loop(log_rx, cmd_rx, writer);
         let recv_task = Self::recv_loop(reader);
 
-        // 4. 启动心跳任务
-        let heart_task = self.send_heart();
-
-        // 5. 等待任一任务结束（表示连接断开）
+        // 4. 等待任一任务结束（表示连接断开）
         tokio::select! {
             _ = send_task => {},
             _ = recv_task => {},
-            _ = heart_task => {},
         }
 
-        // 6. 清理发送端（触发后续重连时重建）
+        // 5. 清理发送端（触发后续重连时重建）
         *self.log_sender.lock().await = None;
         *self.ensure_sender.lock().await = None;
 
@@ -161,27 +153,6 @@ impl IpcClient {
                     }
                 },
                 else => break, // 两个通道都关闭
-            }
-        }
-    }
-
-    pub async fn send_heart(&self) {
-        // 简单协议：[len: u32][data...]
-        let dev_id = self.device_id.clone();
-        let msg = IpcMessage::new(
-            *dev_id,
-            MessageType::Heartbeat,
-            MessagePayload::Heartbeat(HeartbeatMessage {
-                cpu_usage: 0.5,
-                memory_usage: 0,
-            }),
-        );
-        loop {
-            time::sleep(HEARTBEAT_INTERVAL).await;
-            if let Err(_) = self.send_ensure(msg.clone()).await {
-                if process_need_stop() {
-                    break;
-                }
             }
         }
     }

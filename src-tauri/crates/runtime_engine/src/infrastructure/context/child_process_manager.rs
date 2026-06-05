@@ -1,11 +1,14 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
+use crate::infrastructure::context::main_process::{DeviceConnectionState, MainProcessCtx};
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
-    IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
+    ConnectionStatusKind, IpcMessage, LogMessage, MessagePayload, MessageType, ProcessAction,
+    ProcessControlMessage,
 };
+use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::LogLevel;
 use std::collections::HashMap;
@@ -14,14 +17,27 @@ use std::sync::Arc;
 use tauri::{Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
-use tokio::sync::RwLock;
+use tokio::sync::{mpsc, watch, RwLock};
+
+#[derive(Clone, Debug)]
+struct ChildProcessExit {
+    success: bool,
+    message: String,
+}
+
+#[derive(Clone, Debug)]
+enum ChildProcessCommand {
+    ForceKill,
+}
 
 /// 子进程句柄
+#[derive(Clone)]
 pub struct ChildProcessHandle {
     pub device_id: DeviceId,
     pub device_name: String,
-    pub process: Option<Child>,
     pub pid: Option<u32>,
+    control_tx: mpsc::UnboundedSender<ChildProcessCommand>,
+    exit_rx: watch::Receiver<Option<ChildProcessExit>>,
 }
 
 /// 子进程管理器（主进程端）
@@ -65,6 +81,7 @@ fn spawn_child_stderr_forwarder(
                         "[ process ] 设备[{}]子进程 stderr: {}",
                         device_name, message
                     ));
+                    write_child_log_line(device_id, LogLevel::Error, message).await;
 
                     if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
                         let emit_data = serde_json::json!({
@@ -89,6 +106,190 @@ fn spawn_child_stderr_forwarder(
     });
 }
 
+fn now_millis_string() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_millis().to_string())
+        .unwrap_or_else(|_| "0".to_string())
+}
+
+async fn write_child_log_line(device_id: DeviceId, level: LogLevel, message: &str) {
+    if let Some(receiver) = get_child_log_receiver() {
+        receiver
+            .handle_log(
+                &device_id,
+                &LogMessage {
+                    level,
+                    message: message.to_string(),
+                    module: Some("child-process".to_string()),
+                },
+            )
+            .await;
+    }
+}
+
+fn emit_device_status_event(device_id: DeviceId, status: &str, message: &str) {
+    if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
+        let payload = serde_json::json!({
+            "deviceId": device_id.to_string(),
+            "status": status,
+            "currentScript": serde_json::Value::Null,
+            "message": message,
+            "at": now_millis_string(),
+        });
+        let _ = main_window.emit("device-status", payload);
+    }
+}
+
+fn emit_device_connection_event(device_id: DeviceId, status: ConnectionStatusKind, message: &str) {
+    if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
+        let payload = serde_json::json!({
+            "deviceId": device_id.to_string(),
+            "status": format!("{:?}", status),
+            "message": message,
+            "at": now_millis_string(),
+        });
+        let _ = main_window.emit("device-connection-status", payload);
+    }
+}
+
+async fn finalize_child_exit(
+    device_id: DeviceId,
+    device_name: String,
+    pid: Option<u32>,
+    exit: ChildProcessExit,
+) {
+    if exit.success {
+        Log::info(&format!("[ process ] {}", exit.message));
+    } else {
+        Log::error(&format!("[ process ] {}", exit.message));
+    }
+    write_child_log_line(
+        device_id,
+        if exit.success {
+            LogLevel::Info
+        } else {
+            LogLevel::Error
+        },
+        &exit.message,
+    )
+    .await;
+
+    if let Some(manager) = get_process_manager() {
+        let mut processes = manager.processes.write().await;
+        if processes
+            .get(&device_id)
+            .is_some_and(|handle| handle.pid == pid)
+        {
+            processes.remove(&device_id);
+        }
+    }
+
+    let app_handle = get_app_handle();
+    if let Ok(mut guard) = app_handle.state::<MainProcessCtx>().ipc_servers.write() {
+        guard.retain(|registered_device_id, _| **registered_device_id != device_id);
+    }
+    if let Ok(mut guard) = app_handle.state::<MainProcessCtx>().device_connections.write() {
+        guard.insert(
+            device_id,
+            DeviceConnectionState {
+                status: ConnectionStatusKind::Disconnected,
+                message: Some(exit.message.clone()),
+            },
+        );
+    }
+
+    emit_device_connection_event(device_id, ConnectionStatusKind::Disconnected, &exit.message);
+    emit_device_status_event(
+        device_id,
+        if exit.success { "Stopped" } else { "Error" },
+        &exit.message,
+    );
+
+    if let Some(receiver) = get_child_log_receiver() {
+        receiver.unregister_device(&device_id).await;
+    }
+
+    Log::info(&format!(
+        "[ process ] 设备[{}]子进程退出清理完成, pid={:?}",
+        device_name, pid
+    ));
+}
+
+async fn watch_child_process(
+    device_id: DeviceId,
+    device_name: String,
+    pid: Option<u32>,
+    mut child: Child,
+    mut control_rx: mpsc::UnboundedReceiver<ChildProcessCommand>,
+    exit_tx: watch::Sender<Option<ChildProcessExit>>,
+) {
+    let exit = loop {
+        let mut wait_result = Box::pin(child.wait());
+
+        tokio::select! {
+            result = &mut wait_result => {
+                break match result {
+                    Ok(status) => {
+                        let success = status.success();
+                        let code = status.code();
+                        let message = if success {
+                            format!("设备[{}]子进程已退出，code={:?}", device_name, code)
+                        } else {
+                            format!("设备[{}]子进程异常退出，code={:?}", device_name, code)
+                        };
+                        ChildProcessExit { success, message }
+                    }
+                    Err(error) => ChildProcessExit {
+                        success: false,
+                        message: format!("设备[{}]子进程等待退出失败: {}", device_name, error),
+                    },
+                };
+            }
+            command = control_rx.recv() => {
+                match command {
+                    Some(ChildProcessCommand::ForceKill) => {
+                        drop(wait_result);
+                        if let Err(error) = child.kill().await {
+                            Log::warn(&format!(
+                                "[ process ] 设备[{}]子进程强制终止失败: {}",
+                                device_name, error
+                            ));
+                        }
+                    }
+                    None => {}
+                }
+            }
+        }
+    };
+
+    let _ = exit_tx.send(Some(exit.clone()));
+    finalize_child_exit(device_id, device_name, pid, exit).await;
+}
+
+async fn wait_for_child_exit(
+    exit_rx: &mut watch::Receiver<Option<ChildProcessExit>>,
+    timeout: std::time::Duration,
+) -> Result<ChildProcessExit, String> {
+    if let Some(exit) = exit_rx.borrow().clone() {
+        return Ok(exit);
+    }
+
+    tokio::time::timeout(timeout, async {
+        loop {
+            exit_rx
+                .changed()
+                .await
+                .map_err(|_| "子进程退出通知通道已关闭".to_string())?;
+            if let Some(exit) = exit_rx.borrow().clone() {
+                return Ok(exit);
+            }
+        }
+    })
+    .await
+    .map_err(|_| "等待子进程退出超时".to_string())?
+}
+
 impl ChildProcessManager {
     /// 启动一个子进程
     pub async fn spawn_child(&self, init_data: ChildProcessInitData) -> Result<(), String> {
@@ -98,10 +299,8 @@ impl ChildProcessManager {
         // 检查是否已在运行
         {
             let processes = self.processes.read().await;
-            if let Some(handle) = processes.get(&device_id) {
-                if handle.process.is_some() {
-                    return Err(format!("设备[{}]的子进程已在运行", device_name));
-                }
+            if processes.contains_key(&device_id) {
+                return Err(format!("设备[{}]的子进程已在运行", device_name));
             }
         }
 
@@ -113,30 +312,66 @@ impl ChildProcessManager {
         let exe_path =
             std::env::current_exe().map_err(|e| format!("获取可执行文件路径失败: {}", e))?;
 
+        if let Some(receiver) = get_child_log_receiver() {
+            receiver
+                .register_device(
+                    device_id,
+                    device_name.clone(),
+                    init_data.device_config.log_to_file,
+                )
+                .await;
+        }
+
         // 启动子进程
-        let mut child = Command::new(&exe_path)
+        let spawn_result = Command::new(&exe_path)
             .arg("--child")
             .env("CHILD_CONTEXT_DATA", &init_json)
             .stderr(Stdio::piped())
             .kill_on_drop(true)
-            .spawn()
-            .map_err(|e| format!("启动子进程失败: {}", e))?;
+            .spawn();
+        let mut child = match spawn_result {
+            Ok(child) => child,
+            Err(error) => {
+                if let Some(receiver) = get_child_log_receiver() {
+                    receiver.unregister_device(&device_id).await;
+                }
+                return Err(format!("启动子进程失败: {}", error));
+            }
+        };
 
         if let Some(stderr) = child.stderr.take() {
             spawn_child_stderr_forwarder(device_id, device_name.clone(), stderr);
         }
 
         let pid = child.id();
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
+        let (exit_tx, exit_rx) = watch::channel(None);
+        tokio::spawn(watch_child_process(
+            device_id,
+            device_name.clone(),
+            pid,
+            child,
+            control_rx,
+            exit_tx,
+        ));
+
         Log::info(&format!(
             "[ process ] 启动设备[{}]子进程成功, PID: {:?}",
             device_name, pid
         ));
+        write_child_log_line(
+            device_id,
+            LogLevel::Info,
+            &format!("子进程已启动，PID={:?}", pid),
+        )
+        .await;
 
         let handle = ChildProcessHandle {
             device_id,
             device_name: device_name.clone(),
-            process: Some(child),
             pid,
+            control_tx,
+            exit_rx,
         };
 
         self.processes.write().await.insert(device_id, handle);
@@ -145,43 +380,34 @@ impl ChildProcessManager {
 
     /// 停止一个子进程
     pub async fn stop_child(&self, device_id: &DeviceId) -> Result<(), String> {
-        let mut processes = self.processes.write().await;
-        if let Some(handle) = processes.get_mut(device_id) {
-            // 先通过 IPC 发送 Shutdown 命令
-            let shutdown_msg = IpcMessage::new(
-                *device_id,
-                MessageType::Command,
-                MessagePayload::ProcessControl(ProcessControlMessage {
-                    action: ProcessAction::Shutdown,
-                }),
-            );
-            IpcServer::send_to_client(device_id, shutdown_msg).await;
+        let Some(handle) = self.processes.read().await.get(device_id).cloned() else {
+            return Err(format!("设备[{}]没有运行中的子进程", device_id));
+        };
 
-            // 等待一段时间后，如果子进程还在运行，则强制 kill
-            if let Some(ref mut process) = handle.process {
-                let timeout = tokio::time::Duration::from_secs(5);
-                match tokio::time::timeout(timeout, process.wait()).await {
-                    Ok(Ok(status)) => {
-                        Log::info(&format!(
-                            "[ process ] 设备[{}]子进程正常退出: {}",
-                            handle.device_name, status
-                        ));
-                    }
-                    _ => {
-                        // 超时或错误，强制 kill
-                        let _ = process.kill().await;
-                        Log::warn(&format!(
-                            "[ process ] 设备[{}]子进程强制终止",
-                            handle.device_name
-                        ));
-                    }
-                }
+        let shutdown_msg = IpcMessage::new(
+            *device_id,
+            MessageType::Command,
+            MessagePayload::ProcessControl(ProcessControlMessage {
+                action: ProcessAction::Shutdown,
+            }),
+        );
+        IpcServer::send_to_client(device_id, shutdown_msg).await;
+
+        let mut exit_rx = handle.exit_rx.clone();
+        match wait_for_child_exit(&mut exit_rx, tokio::time::Duration::from_secs(5)).await {
+            Ok(_) => Ok(()),
+            Err(_) => {
+                Log::warn(&format!(
+                    "[ process ] 设备[{}]子进程未在超时内退出，准备强制终止",
+                    handle.device_name
+                ));
+                handle
+                    .control_tx
+                    .send(ChildProcessCommand::ForceKill)
+                    .map_err(|_| format!("设备[{}]子进程强制终止命令发送失败", handle.device_name))?;
+                wait_for_child_exit(&mut exit_rx, tokio::time::Duration::from_secs(5)).await?;
+                Ok(())
             }
-            handle.process = None;
-            handle.pid = None;
-            Ok(())
-        } else {
-            Err(format!("设备[{}]没有运行中的子进程", device_id))
         }
     }
 
@@ -198,19 +424,13 @@ impl ChildProcessManager {
     /// 检查子进程是否在运行
     pub async fn is_running(&self, device_id: &DeviceId) -> bool {
         let processes = self.processes.read().await;
-        processes
-            .get(device_id)
-            .map_or(false, |h| h.process.is_some())
+        processes.contains_key(device_id)
     }
 
     /// 获取所有运行中的子进程设备ID
     pub async fn get_running_device_ids(&self) -> Vec<DeviceId> {
         let processes = self.processes.read().await;
-        processes
-            .iter()
-            .filter(|(_, h)| h.process.is_some())
-            .map(|(id, _)| *id)
-            .collect()
+        processes.keys().cloned().collect()
     }
 
     /// 停止所有子进程

@@ -7,7 +7,7 @@ edition = "2021"
 default-run = "auto_daily"
 
 [features]
-default = []
+default = ["child-bin"]
 child-bin = ["dep:child_support"]
 
 [workspace]

@@ -43,8 +43,42 @@ fn emit_runtime_event(event: RuntimeEventMessage, log_label: &str) {
     }
 }
 
+pub async fn emit_runtime_event_now(event: RuntimeEventMessage, log_label: &str) -> bool {
+    if let Some(client) = get_ipc_client() {
+        let msg = IpcMessage::new(
+            *client.device_id,
+            MessageType::Status,
+            MessagePayload::RuntimeEvent(event),
+        );
+        if let Err(error) = client.send_ensure(msg).await {
+            Log::warn(&format!("[ child ] 发送{}失败: {}", log_label, error));
+            return false;
+        }
+        return true;
+    }
+
+    false
+}
+
 pub fn emit_lifecycle_event(phase: RuntimeLifecyclePhase, message: Option<String>) {
     emit_lifecycle_event_with(phase, current_session_id(), current_script_id(), message);
+}
+
+pub async fn emit_lifecycle_event_now(
+    phase: RuntimeLifecyclePhase,
+    message: Option<String>,
+) -> bool {
+    emit_runtime_event_now(
+        RuntimeEventMessage::Lifecycle(RuntimeLifecycleEvent {
+            session_id: current_session_id(),
+            phase,
+            current_script_id: current_script_id(),
+            message,
+            at: now_millis_string(),
+        }),
+        "生命周期事件",
+    )
+    .await
 }
 
 pub fn emit_lifecycle_event_with(
@@ -122,6 +156,21 @@ pub fn emit_connection_event(status: ConnectionStatusKind, message: Option<Strin
         }),
         "连接状态事件",
     );
+}
+
+pub async fn emit_connection_event_now(
+    status: ConnectionStatusKind,
+    message: Option<String>,
+) -> bool {
+    emit_runtime_event_now(
+        RuntimeEventMessage::Connection(ConnectionStatusEvent {
+            status,
+            message,
+            at: now_millis_string(),
+        }),
+        "连接状态事件",
+    )
+    .await
 }
 
 pub fn emit_capture_event(

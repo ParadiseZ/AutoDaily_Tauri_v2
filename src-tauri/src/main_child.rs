@@ -7,9 +7,10 @@ use child_support::infrastructure::context::child_process_sec::{
 use child_support::infrastructure::context::init_error::InitError;
 use child_support::infrastructure::core::{Deserialize, Error, Serialize};
 use child_support::infrastructure::ipc::message::RuntimeDispatchPhase;
+use child_support::infrastructure::ipc::message::ConnectionStatusKind;
 use child_support::infrastructure::ipc::message::RuntimeLifecyclePhase;
 use child_support::infrastructure::ipc::runtime_reporter::{
-    emit_dispatch_event, emit_lifecycle_event,
+    emit_connection_event_now, emit_dispatch_event, emit_lifecycle_event, emit_lifecycle_event_now,
 };
 use child_support::infrastructure::logging::log_trait::Log;
 use child_support::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
@@ -32,11 +33,36 @@ pub enum ChildProcessError {
 pub type ChildProcessResult<T> = Result<T, ChildProcessError>;
 
 /// 子进程的入口点
+#[allow(dead_code)]
 #[tokio::main]
 async fn main() {
+    run_child_process_or_exit().await;
+}
+
+#[allow(dead_code)]
+pub(crate) fn run_child_process_entry() {
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => {
+            eprintln!("Child process failed: 初始化 Tokio runtime 失败: {}", error);
+            std::process::exit(1);
+        }
+    };
+    runtime.block_on(run_child_process_or_exit());
+}
+
+async fn run_child_process_or_exit() {
     if let Err(e) = run_child_process().await {
         set_running_status(RunningStatus::Error);
-        eprintln!("Child process failed: {}", e);
+        let message = e.to_string();
+        let _ = emit_lifecycle_event_now(RuntimeLifecyclePhase::Error, Some(message.clone())).await;
+        let _ =
+            emit_connection_event_now(ConnectionStatusKind::Disconnected, Some(message.clone()))
+                .await;
+        eprintln!("Child process failed: {}", message);
         std::process::exit(1);
     }
 }
@@ -98,6 +124,11 @@ async fn run_child_process() -> ChildProcessResult<()> {
     // 8. 清理
     Log::info("[ child ] 子进程主循环结束，执行清理");
     set_running_status(RunningStatus::Stopped);
+    let _ = emit_connection_event_now(
+        ConnectionStatusKind::Disconnected,
+        Some("子进程已结束".to_string()),
+    )
+    .await;
 
     Ok(())
 }

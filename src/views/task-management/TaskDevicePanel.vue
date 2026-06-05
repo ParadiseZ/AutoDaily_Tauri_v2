@@ -13,7 +13,7 @@
           <span v-if="status.currentScript">· 正在执行 {{ status.currentScript }}</span>
         </div>
         <p v-if="devicePendingMessage" class="text-sm font-medium text-(--app-accent)">{{ devicePendingMessage }}</p>
-        <p v-if="status.message" class="text-sm text-(--app-text-faint)">{{ status.message }}</p>
+        <p v-else-if="connectionStatus.message" class="text-sm text-(--app-text-faint)">{{ connectionStatus.message }}</p>
       </div>
 
       <div class="flex flex-wrap gap-2">
@@ -39,7 +39,7 @@
           <StatusBadge :label="runtimeProgressLabel" :tone="runtimeProgressTone" />
         </div>
         <p class="mt-2 line-clamp-2 text-sm text-(--app-text-strong)">
-          {{ runtimeResult.latestProgress?.message || status.message || '暂无进度事件' }}
+          {{ runtimeResult.latestProgress?.message || connectionStatus.message || '暂无进度事件' }}
         </p>
       </div>
 

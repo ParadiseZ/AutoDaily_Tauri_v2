@@ -216,6 +216,22 @@ async fn send_connection_control(device_id: DeviceId, action: ConnectionAction) 
     IpcServer::send_to_client(&device_id, msg).await;
 }
 
+async fn probe_device_connection(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    message: &str,
+) -> Result<(), String> {
+    set_connection_status(
+        app_handle,
+        device_id,
+        ConnectionStatusKind::Checking,
+        Some(message.to_string()),
+    )
+    .await?;
+    send_connection_control(device_id, ConnectionAction::Probe).await;
+    Ok(())
+}
+
 async fn send_capture_control(device_id: DeviceId) -> crate::infrastructure::core::MessageId {
     let msg = IpcMessage::new(
         device_id,
@@ -829,6 +845,9 @@ async fn ensure_device_online(
     if !manager.is_running(&device_id).await {
         let init_data = build_child_init_data(app_handle, device_id, false).await?;
         manager.spawn_child(init_data).await?;
+        wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+        let _ = probe_device_connection(app_handle, device_id, "正在检查设备连接").await;
+        return Ok(());
     }
 
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await
@@ -1000,6 +1019,7 @@ async fn ensure_device_capture_ready(
         let init_data = build_child_init_data(app_handle, device_id, true).await?;
         manager.spawn_child(init_data).await?;
         wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+        let _ = probe_device_connection(app_handle, device_id, "正在检查设备连接").await;
     }
 
     ensure_device_connection_ready(app_handle, device_id, &device_table.data.0, false).await?;
@@ -1122,6 +1142,7 @@ async fn restart_device_runtime_internal(
     let init_data = build_child_init_data(app_handle, device_id, false).await?;
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+    let _ = probe_device_connection(app_handle, device_id, "正在检查设备连接").await;
 
     Ok(format!("设备[{}]子进程已重启", device_id))
 }
@@ -1316,6 +1337,7 @@ pub async fn cmd_spawn_device(
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
     manager.spawn_child(init_data).await?;
     wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+    let _ = probe_device_connection(&app_handle, device_id, "正在检查设备连接").await;
     notify_auto_dispatch_planner();
 
     Ok(format!("设备[{}]({})子进程已启动", device_name, device_id))

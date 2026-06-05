@@ -2,6 +2,7 @@ import type { CapMethod } from '@/types/bindings/CapMethod';
 import type { DeviceConfig } from '@/types/bindings/DeviceConfig';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 import type {
+    DeviceConnectionStatus,
     DeviceRuntimeStatus,
     ScriptTableRecord,
     ScriptTransferStatus,
@@ -149,6 +150,20 @@ export const formatStatusLabel = (status: DeviceRuntimeStatus) => {
         default:
             return status.rawStatus || '未知状态';
     }
+};
+
+export const formatConnectionStatusTone = (status: DeviceConnectionStatus['kind']) => {
+    if (status === 'connected') return 'success';
+    if (status === 'checking') return 'info';
+    if (status === 'disconnected') return 'danger';
+    return 'warning';
+};
+
+export const formatConnectionStatusLabel = (status: DeviceConnectionStatus) => {
+    if (status.kind === 'connected') return '在线';
+    if (status.kind === 'checking') return '检查中';
+    if (status.kind === 'disconnected') return '连接断开';
+    return '待检测';
 };
 
 export const formatTemplateWindow = (template: TimeTemplate | null | undefined) => {
