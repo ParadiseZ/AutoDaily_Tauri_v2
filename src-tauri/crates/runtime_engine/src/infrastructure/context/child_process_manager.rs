@@ -8,8 +8,8 @@ use crate::infrastructure::ipc::message::{
     ConnectionStatusKind, IpcMessage, LogMessage, MessagePayload, MessageType, ProcessAction,
     ProcessControlMessage,
 };
-use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use crate::infrastructure::logging::LogLevel;
 use std::collections::HashMap;
 use std::process::Stdio;
@@ -189,7 +189,11 @@ async fn finalize_child_exit(
     if let Ok(mut guard) = app_handle.state::<MainProcessCtx>().ipc_servers.write() {
         guard.retain(|registered_device_id, _| **registered_device_id != device_id);
     }
-    if let Ok(mut guard) = app_handle.state::<MainProcessCtx>().device_connections.write() {
+    if let Ok(mut guard) = app_handle
+        .state::<MainProcessCtx>()
+        .device_connections
+        .write()
+    {
         guard.insert(
             device_id,
             DeviceConnectionState {
@@ -404,7 +408,9 @@ impl ChildProcessManager {
                 handle
                     .control_tx
                     .send(ChildProcessCommand::ForceKill)
-                    .map_err(|_| format!("设备[{}]子进程强制终止命令发送失败", handle.device_name))?;
+                    .map_err(|_| {
+                        format!("设备[{}]子进程强制终止命令发送失败", handle.device_name)
+                    })?;
                 wait_for_child_exit(&mut exit_rx, tokio::time::Duration::from_secs(5)).await?;
                 Ok(())
             }

@@ -914,6 +914,7 @@ dependencies = [
  "chrono",
  "image",
  "interprocess",
+ "regex",
  "rhai",
  "runtime_common",
  "runtime_engine",

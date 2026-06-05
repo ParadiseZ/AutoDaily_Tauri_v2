@@ -33,6 +33,8 @@ pub enum FlowControl {
     StopScript,
     WaitMs {
         ms: u64,
+        input_var: Option<String>,
+        runtime_var: Option<String>,
     },
     Link {
         target: TaskId,

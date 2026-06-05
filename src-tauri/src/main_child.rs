@@ -6,8 +6,8 @@ use child_support::infrastructure::context::child_process_sec::{
 };
 use child_support::infrastructure::context::init_error::InitError;
 use child_support::infrastructure::core::{Deserialize, Error, Serialize};
-use child_support::infrastructure::ipc::message::RuntimeDispatchPhase;
 use child_support::infrastructure::ipc::message::ConnectionStatusKind;
+use child_support::infrastructure::ipc::message::RuntimeDispatchPhase;
 use child_support::infrastructure::ipc::message::RuntimeLifecyclePhase;
 use child_support::infrastructure::ipc::runtime_reporter::{
     emit_connection_event_now, emit_dispatch_event, emit_lifecycle_event, emit_lifecycle_event_now,

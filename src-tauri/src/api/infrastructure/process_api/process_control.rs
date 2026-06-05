@@ -31,7 +31,9 @@ use crate::infrastructure::ipc::message::{
 };
 use crate::infrastructure::logging::log_trait::Log;
 use chrono::{Days, Local, NaiveTime, TimeZone};
-use runtime_engine::infrastructure::devices::device_launcher::start_device_process;
+use runtime_engine::infrastructure::devices::device_launcher::{
+    probe_device_config_connection, start_device_process,
+};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tauri::{command, Emitter, Manager};
@@ -865,23 +867,7 @@ async fn ensure_device_online(
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await
 }
 
-fn should_launch_emulator_in_main(
-    app_handle: &tauri::AppHandle,
-    device_id: DeviceId,
-) -> Result<bool, String> {
-    let state = app_handle.state::<MainProcessCtx>();
-    let guard = state
-        .device_connections
-        .read()
-        .map_err(|_| "读取连接状态失败".to_string())?;
-    Ok(!matches!(
-        guard.get(&device_id).map(|item| &item.status),
-        Some(ConnectionStatusKind::Connected | ConnectionStatusKind::Checking)
-    ))
-}
-
 async fn ensure_emulator_launch_ready_in_main(
-    app_handle: &tauri::AppHandle,
     device_id: DeviceId,
     device_config: &DeviceConfig,
 ) -> Result<bool, String> {
@@ -889,7 +875,18 @@ async fn ensure_emulator_launch_ready_in_main(
         return Ok(false);
     }
 
-    if !should_launch_emulator_in_main(app_handle, device_id)? {
+    let preflight_result = tokio::task::spawn_blocking({
+        let device_config = device_config.clone();
+        move || probe_device_config_connection(&device_config).map(|_| ())
+    })
+    .await
+    .map_err(|error| format!("模拟器启动前连接预探测任务失败: {}", error))?;
+
+    if preflight_result.is_ok() {
+        Log::info(&format!(
+            "[ process ] 设备[{}]模拟器连接预探测成功，跳过主线程启动",
+            device_id
+        ));
         return Ok(false);
     }
 
@@ -898,10 +895,11 @@ async fn ensure_emulator_launch_ready_in_main(
         .as_deref()
         .is_none_or(|path| path.trim().is_empty())
     {
-        return Err(
-            "当前设备为模拟器 TCP连接，但未填写设备启动路径，无法在主线程自动启动模拟器"
-                .to_string(),
-        );
+        Log::info(&format!(
+            "[ process ] 设备[{}]未配置模拟器启动程序，尝试直接连接设备...",
+            device_id
+        ));
+        return Ok(false);
     }
 
     start_device_process(device_config).await?;
@@ -1012,7 +1010,7 @@ async fn ensure_device_ready(
     }
 
     let started_in_main =
-        ensure_emulator_launch_ready_in_main(app_handle, device_id, &device_table.data.0).await?;
+        ensure_emulator_launch_ready_in_main(device_id, &device_table.data.0).await?;
     ensure_device_online(app_handle, device_id).await?;
     ensure_device_connection_ready(app_handle, device_id, &device_table.data.0, started_in_main)
         .await

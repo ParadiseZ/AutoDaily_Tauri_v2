@@ -147,8 +147,22 @@ impl ScriptExecutor {
                     .map(|command| vec![command]))
             }
             StepKind::FlowControl {
-                a: FlowControl::WaitMs { ms },
+                a:
+                    FlowControl::WaitMs {
+                        ms,
+                        input_var,
+                        runtime_var,
+                    },
             } => {
+                if input_var
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                    || runtime_var
+                        .as_deref()
+                        .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Ok(None);
+                }
                 if *ms == 0 {
                     return Ok(Some(Vec::new()));
                 }

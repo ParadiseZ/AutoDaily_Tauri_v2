@@ -424,6 +424,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           type: FLOW_TYPE.waitMs,
           ms: 1000,
+          input_var: null,
+          runtime_var: null,
         },
       }),
   },
@@ -849,6 +851,12 @@ export const describeStepMeta = (step: Step) => {
       case FLOW_TYPE.repeat:
         return step.a.count_expr ? `按 ${step.a.count_expr} 循环` : '绑定次数变量';
       case FLOW_TYPE.waitMs:
+        if (step.a.runtime_var) {
+          return `等待 OCR 倒计时 · ${step.a.runtime_var} · 兜底 ${String(step.a.ms)} ms`;
+        }
+        if (step.a.input_var) {
+          return `等待输入变量 · ${step.a.input_var} · 兜底 ${String(step.a.ms)} ms`;
+        }
         return `等待 ${String(step.a.ms)} ms`;
       case FLOW_TYPE.link:
         return `跳转到 ${step.a.target || '未指定任务'}`;

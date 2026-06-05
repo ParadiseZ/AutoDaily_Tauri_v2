@@ -1,10 +1,51 @@
 <template>
   <div class="space-y-3">
     <template v-if="selectedFlow.type === FLOW_TYPE.waitMs">
-      <label class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">等待毫秒</span>
-        <input :value="String(selectedFlow.ms ?? 1000)" class="app-input" type="number" @input="$emit('update-number-field', 'ms', ($event.target as HTMLInputElement).value)" />
-      </label>
+      <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">等待来源</span>
+          <EditorSelectField
+            :model-value="waitBindingMode"
+            :options="waitBindingModeOptions"
+            placeholder="选择等待来源"
+            test-id="editor-flow-wait-binding-mode"
+            @update:model-value="updateWaitBindingMode(String($event || 'fixed'))"
+          />
+        </label>
+
+        <label v-if="waitBindingMode === 'input'" class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入变量</span>
+          <EditorSelectField
+            :model-value="selectedFlow.input_var || null"
+            :options="resolvedWaitInputOptions"
+            :show-description="true"
+            placeholder="绑定输入毫秒变量"
+            test-id="editor-flow-wait-input-var"
+            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          />
+        </label>
+
+        <label v-else-if="waitBindingMode === 'runtime'" class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">运行时变量</span>
+          <EditorSelectField
+            :model-value="selectedFlow.runtime_var || null"
+            :options="resolvedWaitRuntimeOptions"
+            :show-description="true"
+            placeholder="绑定 OCR 结果变量"
+            test-id="editor-flow-wait-runtime-var"
+            @update:model-value="$emit('update-field', 'runtime_var', String($event || ''))"
+          />
+        </label>
+
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">兜底等待毫秒</span>
+          <input :value="String(selectedFlow.ms ?? 1000)" class="app-input" type="number" @input="$emit('update-number-field', 'ms', ($event.target as HTMLInputElement).value)" />
+        </label>
+
+        <p class="text-xs leading-6 text-(--app-text-soft)">
+          绑定 `input` 时直接读取毫秒值；绑定 `runtime` 时会从 OCR 结果里提取 `00:00` 或 `00:00:00`，解析失败时回退到这里的毫秒值。
+        </p>
+      </div>
     </template>
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.link">
@@ -357,7 +398,7 @@ const jsonVariableOptions = computed(() =>
 );
 const numberVariableOptions = computed(() =>
   props.variableReferenceOptions
-    .filter((option) => ['int', 'float'].includes(option.valueType))
+    .filter((option) => ['int', 'float', 'string'].includes(option.valueType))
     .map((option) => ({ label: option.label, value: option.key, description: option.description })),
 );
 const imageVariableOptions = computed(() =>
@@ -365,6 +406,41 @@ const imageVariableOptions = computed(() =>
     .filter((option) => option.valueType === 'image')
     .map((option) => ({ label: option.label, value: option.key, description: option.description })),
 );
+const runtimeWaitVariableOptions = computed(() => {
+  const options = props.variableReferenceOptions
+    .filter((option) => option.namespace === 'runtime' && ['json', 'list', 'object'].includes(option.valueType))
+    .map((option) => ({ label: option.label, value: option.key, description: option.description }));
+
+  if (options.some((option) => option.value === 'runtime.ocrResults')) {
+    return options;
+  }
+
+  return [
+    {
+      label: 'OCR 结果',
+      value: 'runtime.ocrResults',
+      description: '默认 OCR 输出变量，WaitMs 会从其中提取 00:00 或 00:00:00。',
+    },
+    ...options,
+  ];
+});
+const waitBindingModeOptions = [
+  { label: '固定毫秒', value: 'fixed', description: '始终按下方毫秒值等待。' },
+  { label: '输入变量', value: 'input', description: '从 input 变量读取等待毫秒。' },
+  { label: 'OCR 结果', value: 'runtime', description: '从 runtime OCR 结果里提取倒计时文本。' },
+];
+const waitBindingMode = computed(() => {
+  if (props.selectedFlow.type !== FLOW_TYPE.waitMs) {
+    return 'fixed';
+  }
+  if (props.selectedFlow.runtime_var?.trim()) {
+    return 'runtime';
+  }
+  if (props.selectedFlow.input_var?.trim()) {
+    return 'input';
+  }
+  return 'fixed';
+});
 const selectedFlowInput = computed(() =>
   props.selectedFlow.type === FLOW_TYPE.handlePolicySet || props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.input_var : '',
 );
@@ -443,6 +519,44 @@ const resolvedRepeatCountOptions = computed(() => {
     ...numberVariableOptions.value,
   ];
 });
+const resolvedWaitInputOptions = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.waitMs) {
+    return numberVariableOptions.value;
+  }
+
+  if (!flow.input_var || numberVariableOptions.value.some((option) => option.value === flow.input_var)) {
+    return numberVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `当前绑定不存在：${flow.input_var}`,
+      value: flow.input_var,
+      description: '变量目录里找不到该输入绑定，保存时仍会保留当前值。',
+    },
+    ...numberVariableOptions.value,
+  ];
+});
+const resolvedWaitRuntimeOptions = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.waitMs) {
+    return runtimeWaitVariableOptions.value;
+  }
+
+  if (!flow.runtime_var || runtimeWaitVariableOptions.value.some((option) => option.value === flow.runtime_var)) {
+    return runtimeWaitVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `当前绑定不存在：${flow.runtime_var}`,
+      value: flow.runtime_var,
+      description: '变量目录里找不到该运行时绑定，保存时仍会保留当前值。',
+    },
+    ...runtimeWaitVariableOptions.value,
+  ];
+});
 const availableTargetReferenceOptions = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
     const selectedIds = new Set(props.selectedFlow.target);
@@ -516,6 +630,28 @@ const createRepeatCountVariable = async () => {
   if (key) {
     emit('update-field', 'count_expr', key);
   }
+};
+
+const updateWaitBindingMode = (mode: string) => {
+  if (props.selectedFlow.type !== FLOW_TYPE.waitMs) {
+    return;
+  }
+
+  if (mode === 'input') {
+    emit('update-field', 'runtime_var', '');
+    return;
+  }
+
+  if (mode === 'runtime') {
+    emit('update-field', 'input_var', '');
+    if (!props.selectedFlow.runtime_var?.trim()) {
+      emit('update-field', 'runtime_var', 'runtime.ocrResults');
+    }
+    return;
+  }
+
+  emit('update-field', 'input_var', '');
+  emit('update-field', 'runtime_var', '');
 };
 
 const removeTarget = (targetId: string) => {

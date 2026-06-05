@@ -20,8 +20,8 @@ use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::RuntimeContext;
 use crate::infrastructure::core::{PolicyId, TaskId, UuidV7};
 use crate::infrastructure::ipc::message::{
-    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, RuntimeSessionSnapshot,
-    RuntimeVisionTextCachePolicy, TimeoutAction,
+    DispatchKind, DispatchSource, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
+    RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, TimeoutAction,
 };
 use crate::infrastructure::session::runtime_session::{
     clear_runtime_session, replace_runtime_session,
@@ -29,6 +29,7 @@ use crate::infrastructure::session::runtime_session::{
 use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{Rgba, RgbaImage};
 use rhai::serde::to_dynamic;
+use rhai::Dynamic;
 use serde_json::{json, Value};
 use sqlx::types::Json;
 use std::sync::Arc;
@@ -156,6 +157,41 @@ fn result_vec_can_be_deserialized_from_dynamic() {
 
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].txt, "开始");
+}
+
+#[test]
+fn wait_ms_extracts_duration_from_ocr_runtime_items() {
+    let dynamic = to_dynamic(vec![
+        build_ocr_result("剩余 00:12", 0, 0, 20, 20),
+        build_ocr_result("00:00:08", 20, 0, 40, 20),
+    ])
+    .unwrap();
+
+    let wait_ms = ScriptExecutor::extract_wait_ms_from_runtime_ocr(&dynamic).unwrap();
+    assert_eq!(wait_ms, Some(12_000));
+}
+
+#[test]
+fn wait_ms_extracts_duration_from_json_runtime_payload() {
+    let dynamic = to_dynamic(json!([
+        { "text": "广告剩余 00:00:09" }
+    ]))
+    .unwrap();
+
+    let wait_ms = ScriptExecutor::extract_wait_ms_from_runtime_ocr(&dynamic).unwrap();
+    assert_eq!(wait_ms, Some(9_000));
+}
+
+#[test]
+fn wait_ms_parses_input_number_values() {
+    assert_eq!(
+        ScriptExecutor::parse_wait_ms_from_input(&Dynamic::from_int(1_500)),
+        Some(1_500)
+    );
+    assert_eq!(
+        ScriptExecutor::parse_wait_ms_from_input(&Dynamic::from("2000".to_string())),
+        Some(2_000)
+    );
 }
 
 #[test]
@@ -329,12 +365,16 @@ async fn install_runtime_policy_for_test(timeout_action: TimeoutAction) {
             timeout_notify_channels: Vec::new(),
         },
         queue: vec![RuntimeQueueItem {
+            dispatch_id: UuidV7(504),
+            dispatch_kind: DispatchKind::QueueAssignment,
+            dispatch_source: DispatchSource::Planner,
             assignment_id: UuidV7(503),
             script_id: UuidV7(1),
             time_template_id: None,
             account_id: None,
             account_data_json: None,
             order_index: 0,
+            window_start_at: None,
             template_values_json: None,
             dedup_scope_base_hash: String::new(),
         }],
@@ -698,6 +738,37 @@ async fn if_condition_path_triggers_timeout_detector() {
 
     assert!(matches!(flow, super::ControlFlow::Return));
     clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn wait_ms_prefers_runtime_binding_then_falls_back() {
+    let mut executor = build_executor();
+    executor
+        .set_runtime_var(
+            "runtime.ocrResults",
+            to_dynamic(vec![build_ocr_result("倒计时 00:00:07", 0, 0, 24, 12)]).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let resolved = executor
+        .resolve_wait_duration_ms(1_500, None, Some("runtime.ocrResults"))
+        .await;
+    assert_eq!(resolved, 7_000);
+
+    executor
+        .set_runtime_var("input.waitMs", Dynamic::from("2400".to_string()))
+        .await
+        .unwrap();
+    let fallback = executor
+        .resolve_wait_duration_ms(1_500, Some("input.waitMs"), Some("runtime.missing"))
+        .await;
+    assert_eq!(fallback, 2_400);
+
+    let defaulted = executor
+        .resolve_wait_duration_ms(0, Some("input.missing"), None)
+        .await;
+    assert_eq!(defaulted, 1_000);
 }
 
 #[tokio::test]
