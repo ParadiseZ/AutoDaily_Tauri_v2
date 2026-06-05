@@ -36,7 +36,7 @@ pub struct DeviceConfig {
     #[serde(default)]
     pub transport_kind: DeviceTransportKind,
     #[serde(default = "default_startup_delay_secs")]
-    pub startup_delay_secs: u64,
+    pub startup_delay_secs: u32,
     #[serde(default)]
     #[ts(as = "Option<String>")]
     pub connect_address: Option<SocketAddrV4>,
@@ -75,9 +75,9 @@ pub struct DeviceConfig {
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceExecutionPolicy {
-    pub action_wait_ms: u64,
+    pub action_wait_ms: u32,
     pub progress_timeout_enabled: bool,
-    pub progress_timeout_ms: u64,
+    pub progress_timeout_ms: u32,
     pub timeout_action: TimeoutAction,
     pub timeout_notify_channels: Vec<TimeoutNotifyChannel>,
 }
@@ -195,7 +195,7 @@ impl Default for DeviceExecutionPolicy {
     }
 }
 
-fn default_startup_delay_secs() -> u64 {
+fn default_startup_delay_secs() -> u32 {
     15
 }
 

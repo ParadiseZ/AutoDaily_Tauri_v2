@@ -52,9 +52,9 @@ fn to_runtime_policy(
                 .map(|path| path.to_string_lossy().to_string()),
             signature_grid_size: cache_config.signature_grid_size,
         },
-        action_wait_ms: execution_policy.action_wait_ms,
+        action_wait_ms: u64::from(execution_policy.action_wait_ms),
         progress_timeout_enabled: execution_policy.progress_timeout_enabled,
-        progress_timeout_ms: execution_policy.progress_timeout_ms,
+        progress_timeout_ms: u64::from(execution_policy.progress_timeout_ms),
         timeout_action: map_timeout_action(&execution_policy.timeout_action),
         timeout_notify_channels: execution_policy
             .timeout_notify_channels

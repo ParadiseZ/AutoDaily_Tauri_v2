@@ -21,6 +21,12 @@ export type StartMode = 'normal' | 'minimized' | 'tray';
 export type IdleAction = 'none' | 'shutdown' | 'sleep' | 'hibernate';
 export type DeviceStatusKind = 'idle' | 'running' | 'paused' | 'stopped' | 'error' | 'unknown';
 export type DeviceConnectionKind = 'unknown' | 'checking' | 'connected' | 'disconnected';
+export type DeviceRuntimeReconcileAction =
+    | 'spawning'
+    | 'shuttingDown'
+    | 'restarting'
+    | 'syncing'
+    | null;
 
 export interface ShortCutConfig {
     toggleWindow: string;
@@ -192,6 +198,16 @@ export interface DeviceStatusEvent {
 
 export interface DeviceConnectionStatus {
     kind: DeviceConnectionKind;
+    message?: string | null;
+    at?: string | null;
+}
+
+export interface DeviceRuntimeReconcileEvent {
+    jobId: string;
+    jobType: string;
+    deviceId: string;
+    phase: 'queued' | 'running' | 'succeeded' | 'failed';
+    action?: DeviceRuntimeReconcileAction;
     message?: string | null;
     at?: string | null;
 }

@@ -466,6 +466,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorWindowTitlebar from '@/views/script-editor/EditorWindowTitlebar.vue';
 import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
+import { validateDeviceForm } from '@/views/device-list/deviceFormValidation';
 import { useScriptStore } from '@/store/script';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
@@ -2263,37 +2264,41 @@ const loadTextDetLabels = async (path: string) => {
   }
 };
 
-const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => ({
-  id: form.id ?? (await taskService.requestUuid()),
-  data: {
-    deviceName: form.deviceName,
-    platform: form.platform,
-    transportKind: form.transportKind,
-    startupDelaySecs: BigInt(Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0))),
-    connectAddress: form.transportKind === 'emulatorTcp' ? form.connectAddress || null : null,
-    connectIdentifier: form.transportKind === 'emulatorTcp' ? null : form.connectIdentifier || null,
-    adbPath: form.transportKind === 'emulatorTcp' ? null : form.adbPath || settingsStore.preferences.adbPath || null,
-    adbServerConnect: form.transportKind === 'emulatorTcp'
-      ? null
-      : form.adbServerConnect || `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
-    exePath: form.exePath || null,
-    exeArgs: form.exeArgs || null,
-    cores: form.cores,
-    logLevel: form.logLevel,
-    logToFile: form.logToFile,
-    capMethod: form.capMethodType === 'adb' ? { type: 'adb' } : { type: 'window', title: form.capMethodValue || form.deviceName },
-    imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
-    enable: form.enable,
-    autoStart: form.autoStart,
-    executionPolicy: {
-      actionWaitMs: BigInt(Math.max(0, Number(form.actionWaitMs) || 0)),
-      progressTimeoutEnabled: form.progressTimeoutEnabled,
-      progressTimeoutMs: BigInt(Math.max(1000, Number(form.progressTimeoutMs) || 30000)),
-      timeoutAction: form.timeoutAction,
-      timeoutNotifyChannels: [...form.timeoutNotifyChannels],
+const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => {
+  const normalized = validateDeviceForm(form);
+
+  return {
+    id: form.id ?? (await taskService.requestUuid()),
+    data: {
+      deviceName: form.deviceName,
+      platform: form.platform,
+      transportKind: form.transportKind,
+      startupDelaySecs: Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0)),
+      connectAddress: form.transportKind === 'emulatorTcp' ? normalized.connectAddress : null,
+      connectIdentifier: form.transportKind === 'emulatorTcp' ? null : form.connectIdentifier || null,
+      adbPath: form.transportKind === 'emulatorTcp' ? null : normalized.adbPath || settingsStore.preferences.adbPath || null,
+      adbServerConnect: form.transportKind === 'emulatorTcp'
+        ? null
+        : normalized.adbServerConnect || `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
+      exePath: normalized.exePath || null,
+      exeArgs: normalized.exeArgs || null,
+      cores: form.cores,
+      logLevel: form.logLevel,
+      logToFile: form.logToFile,
+      capMethod: form.capMethodType === 'adb' ? { type: 'adb' } : { type: 'window', title: normalized.capMethodValue || form.deviceName },
+      imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
+      enable: form.enable,
+      autoStart: form.autoStart,
+      executionPolicy: {
+        actionWaitMs: Math.max(0, Math.floor(Number(form.actionWaitMs) || 0)),
+        progressTimeoutEnabled: form.progressTimeoutEnabled,
+        progressTimeoutMs: Math.max(1000, Math.floor(Number(form.progressTimeoutMs) || 30000)),
+        timeoutAction: form.timeoutAction,
+        timeoutNotifyChannels: [...form.timeoutNotifyChannels],
+      },
     },
-  },
-});
+  };
+};
 
 const openDeviceEditor = (deviceId: string | null) => {
   if (deviceId && deviceStore.isDeviceBusy(deviceId)) {
@@ -2312,8 +2317,10 @@ const savePreviewDevice = async (form: DeviceFormState) => {
     appendConsoleLine(`设备已保存：${device.data.deviceName}`);
     showToast('设备已保存', 'success');
   } catch (error) {
-    appendConsoleLine(`设备保存失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
-    showToast(error instanceof Error ? error.message : '设备保存失败', 'error');
+    const message = toErrorText(error).trim() || '设备保存失败';
+    console.error('[device save] 设备保存失败', error);
+    appendConsoleLine(`设备保存失败：${message}`, 'error');
+    showToast(message, 'error');
   }
 };
 

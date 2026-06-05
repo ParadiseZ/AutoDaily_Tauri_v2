@@ -6,7 +6,6 @@ pub mod frontend_debug;
 pub mod img;
 pub mod process_api;
 pub mod profile_cache;
-pub mod runtime_sync;
 pub mod script_version_preflight;
 pub mod vision_lab;
 

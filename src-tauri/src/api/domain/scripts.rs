@@ -1,9 +1,10 @@
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_cmd::local_scripts_dir;
-use crate::api::infrastructure::profile_cache::load_current_authenticated_user;
-use crate::api::infrastructure::runtime_sync::{
-    load_assigned_device_ids_by_script, sync_device_sessions_if_online,
+use crate::api::infrastructure::process_api::{
+    enqueue_device_runtime_session_refresh_jobs, load_assigned_device_ids_by_script,
+    notify_auto_dispatch_planner,
 };
+use crate::api::infrastructure::profile_cache::load_current_authenticated_user;
 use crate::constant::table_name::{SCRIPT_TABLE, SCRIPT_TASK_TABLE};
 use crate::domain::scripts::policy::*;
 use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
@@ -55,9 +56,17 @@ pub async fn save_script_cmd(
         ensure_script_is_editable(&existing)?;
     }
 
-    DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await?;
     let affected_device_ids = load_assigned_device_ids_by_script(script.id).await?;
-    sync_device_sessions_if_online(&app_handle, affected_device_ids).await
+    DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await?;
+    notify_auto_dispatch_planner();
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        affected_device_ids,
+        true,
+        false,
+        "save_script",
+    )?;
+    Ok(())
 }
 
 /// 删除脚本配置
@@ -73,7 +82,15 @@ pub async fn delete_script_cmd(
         std::fs::remove_dir_all(&script_dir)
             .map_err(|error| format!("删除脚本目录 {} 失败: {}", script_dir.display(), error))?;
     }
-    sync_device_sessions_if_online(&app_handle, affected_device_ids).await
+    notify_auto_dispatch_planner();
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        affected_device_ids,
+        true,
+        false,
+        "delete_script",
+    )?;
+    Ok(())
 }
 
 /// 获取脚本关联的所有任务逻辑
@@ -324,13 +341,12 @@ pub async fn clone_local_script_cmd(
 
     // 7. Push to Transaction
     let affected_device_ids = match target_delete_id {
-        Some(target_script_id) => {
-            match load_assigned_device_ids_by_script(target_script_id).await {
-                Ok(device_ids) => device_ids,
-                Err(error) => return ApiResponse::error(Some(error)),
-            }
-        }
-        None => Vec::new(),
+        Some(target_script_id) => load_assigned_device_ids_by_script(target_script_id).await,
+        None => Ok(Vec::new()),
+    };
+    let affected_device_ids = match affected_device_ids {
+        Ok(device_ids) => device_ids,
+        Err(error) => return ApiResponse::error(Some(error)),
     };
 
     let mut tx = match pool.begin().await {
@@ -367,7 +383,14 @@ pub async fn clone_local_script_cmd(
         return ApiResponse::error(Some(e.to_string()));
     }
 
-    if let Err(error) = sync_device_sessions_if_online(&app_handle, affected_device_ids).await {
+    notify_auto_dispatch_planner();
+    if let Err(error) = enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        affected_device_ids,
+        true,
+        false,
+        "clone_local_script",
+    ) {
         return ApiResponse::error(Some(error));
     }
 

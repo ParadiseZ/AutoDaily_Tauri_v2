@@ -131,7 +131,9 @@ import { useSettingsStore } from '@/store/settings';
 import { requestAppConfirm } from '@/services/appDialogService';
 import { taskService } from '@/services/taskService';
 import { showToast } from '@/utils/toast';
+import { toErrorText } from '@/utils/api';
 import { formatCaptureMethod, formatConnectLabel, formatPlatformLabel } from '@/utils/presenters';
+import { validateDeviceForm } from '@/views/device-list/deviceFormValidation';
 import type { DeviceFormState } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 
@@ -147,37 +149,41 @@ const editingDeviceBusy = computed(() =>
   currentDevice.value ? deviceStore.isDeviceBusy(currentDevice.value.id) : false,
 );
 
-const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => ({
-  id: form.id ?? (await taskService.requestUuid()),
-  data: {
-    deviceName: form.deviceName,
-    platform: form.platform,
-    transportKind: form.transportKind,
-    startupDelaySecs: BigInt(Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0))),
-    connectAddress: form.transportKind === 'emulatorTcp' ? form.connectAddress || null : null,
-    connectIdentifier: form.transportKind === 'emulatorTcp' ? null : form.connectIdentifier || null,
-    adbPath: form.transportKind === 'emulatorTcp' ? null : form.adbPath || settingsStore.preferences.adbPath || null,
-    adbServerConnect: form.transportKind === 'emulatorTcp'
-      ? null
-      : form.adbServerConnect || `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
-    exePath: form.exePath || null,
-    exeArgs: form.exeArgs || null,
-    cores: form.cores,
-    logLevel: form.logLevel,
-    logToFile: form.logToFile,
-    capMethod: form.capMethodType === 'adb' ? { type: 'adb' } : { type: 'window', title: form.capMethodValue || form.deviceName },
-    imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
-    enable: form.enable,
-    autoStart: form.autoStart,
-    executionPolicy: {
-      actionWaitMs: BigInt(Math.max(0, Number(form.actionWaitMs) || 0)),
-      progressTimeoutEnabled: form.progressTimeoutEnabled,
-      progressTimeoutMs: BigInt(Math.max(1000, Number(form.progressTimeoutMs) || 30000)),
-      timeoutAction: form.timeoutAction,
-      timeoutNotifyChannels: [...form.timeoutNotifyChannels],
+const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => {
+  const normalized = validateDeviceForm(form);
+
+  return {
+    id: form.id ?? (await taskService.requestUuid()),
+    data: {
+      deviceName: form.deviceName,
+      platform: form.platform,
+      transportKind: form.transportKind,
+      startupDelaySecs: Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0)),
+      connectAddress: form.transportKind === 'emulatorTcp' ? normalized.connectAddress : null,
+      connectIdentifier: form.transportKind === 'emulatorTcp' ? null : form.connectIdentifier || null,
+      adbPath: form.transportKind === 'emulatorTcp' ? null : normalized.adbPath || settingsStore.preferences.adbPath || null,
+      adbServerConnect: form.transportKind === 'emulatorTcp'
+        ? null
+        : normalized.adbServerConnect || `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
+      exePath: normalized.exePath || null,
+      exeArgs: normalized.exeArgs || null,
+      cores: form.cores,
+      logLevel: form.logLevel,
+      logToFile: form.logToFile,
+      capMethod: form.capMethodType === 'adb' ? { type: 'adb' } : { type: 'window', title: normalized.capMethodValue || form.deviceName },
+      imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
+      enable: form.enable,
+      autoStart: form.autoStart,
+      executionPolicy: {
+        actionWaitMs: Math.max(0, Math.floor(Number(form.actionWaitMs) || 0)),
+        progressTimeoutEnabled: form.progressTimeoutEnabled,
+        progressTimeoutMs: Math.max(1000, Math.floor(Number(form.progressTimeoutMs) || 30000)),
+        timeoutAction: form.timeoutAction,
+        timeoutNotifyChannels: [...form.timeoutNotifyChannels],
+      },
     },
-  },
-});
+  };
+};
 
 const openEditor = (deviceId: string | null) => {
   if (deviceId && deviceStore.isDeviceBusy(deviceId)) {
@@ -194,14 +200,16 @@ const saveDevice = async (form: DeviceFormState) => {
     editorOpen.value = false;
     showToast('设备已保存', 'success');
   } catch (error) {
-    showToast(error instanceof Error ? error.message : '设备保存失败', 'error');
+    const message = toErrorText(error).trim() || '设备保存失败';
+    console.error('[device save] 设备保存失败', error);
+    showToast(message, 'error');
   }
 };
 
 const removeDevice = async (deviceId: string) => {
   const approved = await requestAppConfirm({
     title: '删除设备',
-    message: '删除后不会保留当前设备的本地配置，是否继续？',
+    message: '删除仅允许在设备未运行、无活动任务时执行，并会一并移除该设备的脚本分配。是否继续？',
     confirmText: '删除',
     tone: 'danger',
   });
@@ -214,7 +222,9 @@ const removeDevice = async (deviceId: string) => {
     await deviceStore.deleteDevice(deviceId);
     showToast('设备已删除', 'success');
   } catch (error) {
-    showToast(error instanceof Error ? error.message : '删除失败', 'error');
+    const message = toErrorText(error).trim() || '删除失败';
+    console.error('[device delete] 删除设备失败', error);
+    showToast(message, 'error');
   }
 };
 

@@ -5,6 +5,8 @@ import { deviceService } from '@/services/deviceService';
 import type {
     DeviceConnectionKind,
     DeviceConnectionStatus,
+    DeviceRuntimeReconcileAction,
+    DeviceRuntimeReconcileEvent,
     DeviceRuntimeStatus,
     DeviceStatusEvent,
     DeviceSummary,
@@ -85,6 +87,48 @@ const toConnectionEvent = (payload: unknown): { deviceId: string; status: Device
     };
 };
 
+const toRuntimeReconcileAction = (value: unknown): DeviceRuntimeReconcileAction => {
+    switch (value) {
+        case 'spawning':
+        case 'shuttingDown':
+        case 'restarting':
+        case 'syncing':
+            return value;
+        default:
+            return null;
+    }
+};
+
+const toRuntimeReconcileEvent = (payload: unknown): DeviceRuntimeReconcileEvent | null => {
+    if (!payload || typeof payload !== 'object') {
+        return null;
+    }
+
+    const record = payload as Record<string, unknown>;
+    if (
+        typeof record.jobId !== 'string' ||
+        typeof record.jobType !== 'string' ||
+        typeof record.deviceId !== 'string' ||
+        typeof record.phase !== 'string'
+    ) {
+        return null;
+    }
+
+    if (!['queued', 'running', 'succeeded', 'failed'].includes(record.phase)) {
+        return null;
+    }
+
+    return {
+        jobId: record.jobId,
+        jobType: record.jobType,
+        deviceId: record.deviceId,
+        phase: record.phase as DeviceRuntimeReconcileEvent['phase'],
+        action: toRuntimeReconcileAction(record.action),
+        message: typeof record.message === 'string' ? record.message : null,
+        at: typeof record.at === 'string' ? record.at : null,
+    };
+};
+
 export const useDeviceStore = defineStore('device', () => {
     type DevicePendingAction =
         | 'spawning'
@@ -92,7 +136,8 @@ export const useDeviceStore = defineStore('device', () => {
         | 'pausing'
         | 'stopping'
         | 'shuttingDown'
-        | 'restarting';
+        | 'restarting'
+        | 'syncing';
 
     const devices = ref<DeviceTable[]>([]);
     const onlineDeviceIds = ref<string[]>([]);
@@ -183,6 +228,17 @@ export const useDeviceStore = defineStore('device', () => {
             return 'restarting';
         }
 
+        if (
+            previous &&
+            JSON.stringify(previous.data.executionPolicy) !== JSON.stringify(nextDevice.data.executionPolicy)
+        ) {
+            return 'syncing';
+        }
+
+        if (previous && !previous.data.autoStart && nextDevice.data.autoStart) {
+            return 'syncing';
+        }
+
         return null;
     };
 
@@ -194,10 +250,11 @@ export const useDeviceStore = defineStore('device', () => {
         try {
             await deviceService.save(device);
             await Promise.all([loadDevices(), refreshRunningDevices()]);
-        } finally {
+        } catch (error) {
             if (pendingAction) {
                 setDevicePendingAction(device.id, null);
             }
+            throw error;
         }
     };
 
@@ -498,6 +555,32 @@ export const useDeviceStore = defineStore('device', () => {
                 message: payload.message,
                 at: payload.at,
             });
+        });
+
+        await listen('device-runtime-reconcile', (event) => {
+            const payload = toRuntimeReconcileEvent(event.payload);
+            if (!payload) {
+                return;
+            }
+
+            if (payload.phase === 'running' && payload.action) {
+                setDevicePendingAction(payload.deviceId, payload.action);
+            }
+
+            if (payload.phase === 'succeeded' || payload.phase === 'failed') {
+                if (
+                    devicePendingActions.value[payload.deviceId] === 'syncing' ||
+                    devicePendingActions.value[payload.deviceId] === payload.action
+                ) {
+                    setDevicePendingAction(payload.deviceId, null);
+                }
+
+                if (payload.phase === 'failed' && payload.message) {
+                    console.error('[device runtime reconcile] 后台协调失败', payload);
+                }
+
+                void refreshRunningDevices();
+            }
         });
 
         ipcInitialized = true;

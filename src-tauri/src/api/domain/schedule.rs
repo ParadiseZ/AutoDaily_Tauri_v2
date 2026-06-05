@@ -1,11 +1,7 @@
 // 调度管理 API — 供前端调用
 use crate::api::infrastructure::process_api::{
+    enqueue_device_runtime_session_refresh_jobs, load_assigned_device_ids_by_time_template,
     load_assignment_schedules_by_device, notify_auto_dispatch_planner,
-    reevaluate_device_auto_dispatch,
-};
-use crate::api::infrastructure::runtime_sync::{
-    load_assigned_device_ids_by_time_template, sync_device_session_if_online,
-    sync_device_sessions_if_online,
 };
 use crate::constant::table_name::{
     ASSIGNMENT_SCHEDULE_TABLE, ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
@@ -105,9 +101,14 @@ pub async fn save_assignment_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    sync_device_session_if_online(&app_handle, assignment.device_id).await?;
     notify_auto_dispatch_planner();
-    let _ = reevaluate_device_auto_dispatch(&app_handle, assignment.device_id).await;
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        [assignment.device_id],
+        true,
+        true,
+        "save_assignment",
+    )?;
     Ok(())
 }
 
@@ -134,11 +135,16 @@ pub async fn delete_assignment_cmd(
         .map_err(|e| e.to_string())?;
 
     if let Some(device_id) = device_id {
-        let parsed = uuid::Uuid::parse_str(&device_id).map_err(|e| e.to_string())?;
-        let device_id = DeviceId::from(parsed);
-        sync_device_session_if_online(&app_handle, device_id).await?;
         notify_auto_dispatch_planner();
-        let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+        let device_id =
+            DeviceId::from(uuid::Uuid::parse_str(&device_id).map_err(|e| e.to_string())?);
+        enqueue_device_runtime_session_refresh_jobs(
+            &app_handle,
+            [device_id],
+            true,
+            true,
+            "delete_assignment",
+        )?;
     }
     Ok(())
 }
@@ -163,9 +169,14 @@ pub async fn reorder_assignments_cmd(
         .await
         .map_err(|e| e.to_string())?;
     }
-    sync_device_session_if_online(&app_handle, device_id).await?;
     notify_auto_dispatch_planner();
-    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        [device_id],
+        true,
+        true,
+        "reorder_assignments",
+    )?;
     Ok(())
 }
 
@@ -277,13 +288,16 @@ pub async fn save_time_template_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
+    notify_auto_dispatch_planner();
     let affected_device_ids =
         load_assigned_device_ids_by_time_template(&template.id.to_string()).await?;
-    notify_auto_dispatch_planner();
-    for device_id in affected_device_ids {
-        sync_device_session_if_online(&app_handle, device_id).await?;
-        let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
-    }
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        affected_device_ids,
+        true,
+        true,
+        "save_time_template",
+    )?;
     Ok(())
 }
 
@@ -300,11 +314,14 @@ pub async fn delete_time_template_cmd(
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    sync_device_sessions_if_online(&app_handle, affected_device_ids.clone()).await?;
     notify_auto_dispatch_planner();
-    for device_id in affected_device_ids {
-        let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
-    }
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        affected_device_ids,
+        true,
+        true,
+        "delete_time_template",
+    )?;
     Ok(())
 }
 
@@ -422,18 +439,16 @@ pub async fn save_script_time_template_values_cmd(
         }
     }
 
-    sync_device_session_if_online(
-        &app_handle,
-        record
-            .device_id
-            .ok_or_else(|| "device_id 不能为空".to_string())?,
-    )
-    .await?;
-    let device_id = record
-        .device_id
-        .ok_or_else(|| "device_id 不能为空".to_string())?;
     notify_auto_dispatch_planner();
-    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        [record
+            .device_id
+            .ok_or_else(|| "device_id 不能为空".to_string())?],
+        true,
+        true,
+        "save_script_time_template_values",
+    )?;
     Ok(())
 }
 
@@ -463,8 +478,13 @@ pub async fn delete_script_time_template_values_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    sync_device_session_if_online(&app_handle, device_id).await?;
     notify_auto_dispatch_planner();
-    let _ = reevaluate_device_auto_dispatch(&app_handle, device_id).await;
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        [device_id],
+        true,
+        true,
+        "delete_script_time_template_values",
+    )?;
     Ok(())
 }

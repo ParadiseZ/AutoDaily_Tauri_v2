@@ -55,7 +55,7 @@ pub async fn start_device_process(config: &DeviceConfig) -> Result<(), String> {
             }
         }
 
-        let startup_delay = Duration::from_secs(config.startup_delay_secs);
+        let startup_delay = Duration::from_secs(u64::from(config.startup_delay_secs));
         Log::info(&format!(
             "[ launcher ] 模拟器进程已启动，等待 {} 秒后开始探测连接...",
             config.startup_delay_secs

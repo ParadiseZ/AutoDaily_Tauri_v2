@@ -1,3 +1,4 @@
+use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{
     AssignmentId, DeviceId, DispatchId, HashMap, MessageId, ScriptId,
@@ -33,6 +34,46 @@ pub struct DeviceDispatchSignal {
     pub at: String,
 }
 
+#[derive(Clone, Debug)]
+pub enum RuntimeReconcileJob {
+    DeviceConfig {
+        job_id: String,
+        device_id: DeviceId,
+        previous: Option<DeviceTable>,
+        current: DeviceTable,
+    },
+    DeviceSessionRefresh {
+        job_id: String,
+        device_id: DeviceId,
+        sync_session: bool,
+        reevaluate_dispatch: bool,
+        reason: String,
+    },
+}
+
+impl RuntimeReconcileJob {
+    pub fn job_id(&self) -> &str {
+        match self {
+            Self::DeviceConfig { job_id, .. } | Self::DeviceSessionRefresh { job_id, .. } => job_id,
+        }
+    }
+
+    pub fn device_id(&self) -> DeviceId {
+        match self {
+            Self::DeviceConfig { device_id, .. } | Self::DeviceSessionRefresh { device_id, .. } => {
+                *device_id
+            }
+        }
+    }
+
+    pub fn job_type(&self) -> &'static str {
+        match self {
+            Self::DeviceConfig { .. } => "deviceConfig",
+            Self::DeviceSessionRefresh { .. } => "deviceSessionRefresh",
+        }
+    }
+}
+
 /// 主进程上下文 - 优化的数据存储策略
 pub struct MainProcessCtx {
     /// 脚本管理器（使用分页+缓存，不全量加载）
@@ -49,11 +90,19 @@ pub struct MainProcessCtx {
 
     /// dispatch 运行信号，供主进程调度器消费
     pub dispatch_signal_tx: mpsc::UnboundedSender<DeviceDispatchSignal>,
+
+    /// runtime 副作用异步任务，按 device_id 串行执行
+    pub runtime_reconcile_tx: mpsc::UnboundedSender<RuntimeReconcileJob>,
 }
 
 impl MainProcessCtx {
-    pub fn new() -> (Self, mpsc::UnboundedReceiver<DeviceDispatchSignal>) {
+    pub fn new() -> (
+        Self,
+        mpsc::UnboundedReceiver<DeviceDispatchSignal>,
+        mpsc::UnboundedReceiver<RuntimeReconcileJob>,
+    ) {
         let (dispatch_signal_tx, dispatch_signal_rx) = mpsc::unbounded_channel();
+        let (runtime_reconcile_tx, runtime_reconcile_rx) = mpsc::unbounded_channel();
         (
             Self {
                 script_manager: Arc::new(RwLock::new(ScriptManager::empty())),
@@ -61,8 +110,10 @@ impl MainProcessCtx {
                 device_connections: Arc::new(RwLock::new(HashMap::new())),
                 device_capture_results: Arc::new(RwLock::new(HashMap::new())),
                 dispatch_signal_tx,
+                runtime_reconcile_tx,
             },
             dispatch_signal_rx,
+            runtime_reconcile_rx,
         )
     }
 

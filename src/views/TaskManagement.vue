@@ -121,7 +121,7 @@ const orderedDevices = computed(() =>
 const hasPendingDeviceAction = computed(() => deviceIds.value.some((deviceId) => deviceStore.isDeviceBusy(deviceId)));
 const bulkActionLabel = computed(() => {
   const phases = deviceIds.value.map((deviceId) => deviceStore.getDevicePendingAction(deviceId)).filter(Boolean);
-  if (phases.some((phase) => phase === 'spawning' || phase === 'starting' || phase === 'restarting')) {
+  if (phases.some((phase) => phase === 'spawning' || phase === 'starting' || phase === 'restarting' || phase === 'syncing')) {
     return { start: '批量启动中...', pause: '全部暂停', stop: '全部停止' };
   }
   if (phases.some((phase) => phase === 'pausing')) {

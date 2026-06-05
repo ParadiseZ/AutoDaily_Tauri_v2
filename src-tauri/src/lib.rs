@@ -65,6 +65,7 @@ use crate::api::infrastructure::process_api::{
     cmd_prepare_device_capture, cmd_probe_device_connections, cmd_restart_device_runtime,
     cmd_run_script_target, cmd_run_user_script_target, cmd_spawn_device,
     cmd_sync_device_runtime_session, spawn_auto_dispatch_planner_loop, spawn_dispatch_signal_loop,
+    spawn_runtime_reconcile_loop,
 };
 use crate::api::infrastructure::vision_lab::{
     get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd, vision_list_image_files_cmd,
@@ -81,7 +82,7 @@ static APP_EXITING: AtomicBool = AtomicBool::new(false);
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let (main_process_ctx, dispatch_signal_rx) = MainProcessCtx::new();
+    let (main_process_ctx, dispatch_signal_rx, runtime_reconcile_rx) = MainProcessCtx::new();
     let app = tauri::Builder::default()
         .manage(main_process_ctx)
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
@@ -99,12 +100,13 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .setup(|app: &mut App| {
             let app_handle = app.app_handle().clone();
-            spawn_dispatch_signal_loop(app_handle.clone(), dispatch_signal_rx);
-            spawn_auto_dispatch_planner_loop(app_handle.clone());
-            tauri::async_runtime::spawn(async move {
+            tauri::async_runtime::block_on(async {
                 // 启动时初始化
                 init_at_start(&app_handle).await;
             });
+            spawn_dispatch_signal_loop(app_handle.clone(), dispatch_signal_rx);
+            spawn_auto_dispatch_planner_loop(app_handle.clone());
+            spawn_runtime_reconcile_loop(app_handle.clone(), runtime_reconcile_rx);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

@@ -64,7 +64,14 @@ impl IpcClient {
             e: e.to_string(),
         })?;
 
-        let (reader, writer) = stream.split();
+        let (reader, mut writer) = stream.split();
+
+        let registration = IpcMessage::new(
+            *self.device_id,
+            MessageType::Status,
+            MessagePayload::SocketRegistration(std::process::id()),
+        );
+        Self::send_message(&mut writer, &registration).await?;
 
         // 2. 创建新的通道（旧通道自动丢弃）
         let (log_tx, log_rx) = mpsc::channel(30);

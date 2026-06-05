@@ -391,7 +391,7 @@ const props = defineProps<{
   runtimeResult: RuntimeResultProjection;
   loadingAssignments: boolean;
   loadingSchedules: boolean;
-  devicePendingAction: 'spawning' | 'starting' | 'pausing' | 'stopping' | 'shuttingDown' | 'restarting' | null;
+  devicePendingAction: 'spawning' | 'starting' | 'pausing' | 'stopping' | 'shuttingDown' | 'restarting' | 'syncing' | null;
   deviceBusy: boolean;
 }>();
 
@@ -534,6 +534,8 @@ const devicePendingMessage = computed(() => {
       return '正在启动设备子进程...';
     case 'restarting':
       return '正在重启设备子进程...';
+    case 'syncing':
+      return '正在同步设备运行时...';
     case 'starting':
       return '正在启动设备队列...';
     case 'pausing':
@@ -563,6 +565,7 @@ const connectionStatusLabel = computed(() => {
 const startButtonLabel = computed(() => {
   if (props.devicePendingAction === 'spawning') return '正在启动子进程...';
   if (props.devicePendingAction === 'restarting') return '正在重启子进程...';
+  if (props.devicePendingAction === 'syncing') return '正在同步运行时...';
   if (props.devicePendingAction === 'starting') return '正在启动队列...';
   return '运行队列';
 });
