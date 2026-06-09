@@ -20,4 +20,4 @@ pub(crate) use reconcile::{
 };
 pub(crate) use runtime::{register_child_process_exit_handler, spawn_dispatch_signal_loop};
 pub(crate) use scheduler::spawn_auto_dispatch_planner_loop;
-pub(crate) use state::notify_auto_dispatch_planner;
+pub(crate) use state::{notify_auto_dispatch_planner, notify_auto_dispatch_reschedule};

@@ -196,49 +196,11 @@ export const useDeviceStore = defineStore('device', () => {
         }
     };
 
-    const resolveSavePendingAction = (nextDevice: DeviceTable): DevicePendingAction | null => {
-        const previous = devices.value.find((device) => device.id === nextDevice.id) ?? null;
-        const isRunning = onlineDeviceIds.value.includes(nextDevice.id);
-        const nextEnabled = nextDevice.data.enable;
-
-        if (!nextEnabled) {
-            return isRunning ? 'shuttingDown' : null;
-        }
-
-        if (!isRunning) {
-            return null;
-        }
-
-        if (previous && previous.data.cores.join(',') !== nextDevice.data.cores.join(',')) {
-            return 'restarting';
-        }
-
-        if (
-            previous &&
-            JSON.stringify(previous.data.executionPolicy) !== JSON.stringify(nextDevice.data.executionPolicy)
-        ) {
-            return 'syncing';
-        }
-
-        if (previous && !previous.data.autoStart && nextDevice.data.autoStart) {
-            return 'syncing';
-        }
-
-        return null;
-    };
-
     const saveDevice = async (device: DeviceTable) => {
-        const pendingAction = resolveSavePendingAction(device);
-        if (pendingAction) {
-            setDevicePendingAction(device.id, pendingAction);
-        }
         try {
             await deviceService.save(device);
             await Promise.all([loadDevices(), refreshRunningDevices()]);
         } catch (error) {
-            if (pendingAction) {
-                setDevicePendingAction(device.id, null);
-            }
             throw error;
         }
     };

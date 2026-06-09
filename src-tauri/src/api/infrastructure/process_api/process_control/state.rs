@@ -5,6 +5,7 @@ use std::sync::{Arc, OnceLock};
 use tauri::{AppHandle, Manager};
 
 static AUTO_DISPATCH_NOTIFY: OnceLock<Arc<tokio::sync::Notify>> = OnceLock::new();
+static AUTO_DISPATCH_RESCHEDULE_NOTIFY: OnceLock<Arc<tokio::sync::Notify>> = OnceLock::new();
 
 pub(super) fn ensure_device_dispatch_state(
     app_handle: &AppHandle,
@@ -78,8 +79,20 @@ pub(crate) fn notify_auto_dispatch_planner() {
     }
 }
 
+pub(crate) fn notify_auto_dispatch_reschedule() {
+    if let Some(notify) = AUTO_DISPATCH_RESCHEDULE_NOTIFY.get() {
+        notify.notify_one();
+    }
+}
+
 pub(super) fn auto_dispatch_notify() -> Arc<tokio::sync::Notify> {
     AUTO_DISPATCH_NOTIFY
+        .get_or_init(|| Arc::new(tokio::sync::Notify::new()))
+        .clone()
+}
+
+pub(super) fn auto_dispatch_reschedule_notify() -> Arc<tokio::sync::Notify> {
+    AUTO_DISPATCH_RESCHEDULE_NOTIFY
         .get_or_init(|| Arc::new(tokio::sync::Notify::new()))
         .clone()
 }

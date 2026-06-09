@@ -2,7 +2,7 @@
 use crate::api::infrastructure::process_api::{
     emit_assignment_schedule_changed, enqueue_device_runtime_session_refresh_jobs,
     load_assigned_device_ids_by_time_template, load_assignment_schedules_by_device,
-    load_runtime_queue_for_current_window, notify_auto_dispatch_planner,
+    load_runtime_queue_for_current_window, notify_auto_dispatch_reschedule,
     sync_active_planner_schedule_order_indices, sync_active_planner_schedules_from_queue,
 };
 use crate::constant::table_name::{
@@ -16,6 +16,7 @@ use crate::domain::schedule::time_template::TimeTemplate;
 use crate::domain::scripts::script_info::{ScriptPlatform, ScriptTable};
 use crate::infrastructure::core::{AccountId, AssignmentId, DeviceId, ScriptId, TemplateId};
 use crate::infrastructure::db::{get_pool, DbRepo};
+use crate::infrastructure::logging::log_trait::Log;
 use tauri::command;
 
 fn device_platform_label(platform: &DevicePlatform) -> &'static str {
@@ -65,12 +66,18 @@ async fn validate_assignment_platform(
 async fn validate_assignment_time_template(
     assignment: &DeviceScriptAssignment,
 ) -> Result<(), String> {
-    let existing_assignment =
-        DbRepo::get_by_id::<DeviceScriptAssignment>(ASSIGNMENT_TABLE, &assignment.id.to_string())
-            .await?;
+    let existing_assignment = sqlx::query_scalar::<_, i64>(&format!(
+        "SELECT 1 FROM {} WHERE id = ? LIMIT 1",
+        ASSIGNMENT_TABLE
+    ))
+    .bind(assignment.id.to_string())
+    .fetch_optional(get_pool())
+    .await
+    .map_err(|e| e.to_string())?
+    .is_some();
 
     let Some(time_template_id) = assignment.time_template_id else {
-        if existing_assignment.is_none() {
+        if !existing_assignment {
             return Err("追加队列任务必须选择真实时间模板。".to_string());
         }
         return Ok(());
@@ -91,6 +98,19 @@ async fn validate_assignment_time_template(
     } else {
         Err("所选时间模板不存在或已失效，请重新选择。".to_string())
     }
+}
+
+fn assignment_scope_label(assignment: &DeviceScriptAssignment) -> String {
+    format!(
+        "assignment={} device={} script={} template={}",
+        assignment.id,
+        assignment.device_id,
+        assignment.script_id,
+        assignment
+            .time_template_id
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "none".to_string())
+    )
 }
 
 // ========== 脚本分配（队列定义）==========
@@ -118,8 +138,26 @@ pub async fn save_assignment_cmd(
     app_handle: tauri::AppHandle,
     assignment: DeviceScriptAssignment,
 ) -> Result<(), String> {
-    validate_assignment_platform(assignment.device_id, assignment.script_id).await?;
-    validate_assignment_time_template(&assignment).await?;
+    let scope = assignment_scope_label(&assignment);
+
+    validate_assignment_platform(assignment.device_id, assignment.script_id)
+        .await
+        .map_err(|error| {
+            Log::error(&format!(
+                "[调度] 保存队列分配时平台校验失败 {}，错误={}",
+                scope, error
+            ));
+            error
+        })?;
+    validate_assignment_time_template(&assignment)
+        .await
+        .map_err(|error| {
+            Log::error(&format!(
+                "[调度] 保存队列分配时时间模板校验失败 {}，错误={}",
+                scope, error
+            ));
+            error
+        })?;
     let pool = get_pool();
     sqlx::query(&format!(
         "INSERT INTO {} (id, device_id, script_id, time_template_id, account_data, `index`) VALUES (?, ?, ?, ?, ?, ?)
@@ -134,25 +172,40 @@ pub async fn save_assignment_cmd(
     .bind(assignment.index)
     .execute(pool)
     .await
-    .map_err(|e| e.to_string())?;
-    let current_window_queue = load_runtime_queue_for_current_window(assignment.device_id).await?;
+    .map_err(|error| {
+        let error = error.to_string();
+        Log::error(&format!(
+            "[调度] 保存队列分配时写入数据库失败 {}，错误={}",
+            scope, error
+        ));
+        error
+    })?;
+    let current_window_queue = load_runtime_queue_for_current_window(assignment.device_id)
+        .await
+        .map_err(|error| {
+            Log::error(&format!(
+                "[调度] 保存队列分配后重载当前时间窗口队列失败 {}，错误={}",
+                scope, error
+            ));
+            error
+        })?;
     let synced = sync_active_planner_schedules_from_queue(
         assignment.device_id,
         current_window_queue.as_slice(),
         "队列定义变更，已同步当前批次",
     )
-    .await?;
+    .await
+    .map_err(|error| {
+        Log::error(&format!(
+            "[调度] 保存队列分配后同步当前批次调度账本失败 {}，错误={}",
+            scope, error
+        ));
+        error
+    })?;
     if synced > 0 {
         emit_assignment_schedule_changed(&app_handle, assignment.device_id);
     }
-    notify_auto_dispatch_planner();
-    enqueue_device_runtime_session_refresh_jobs(
-        &app_handle,
-        [assignment.device_id],
-        true,
-        true,
-        "save_assignment",
-    )?;
+    notify_auto_dispatch_reschedule();
     Ok(())
 }
 
@@ -179,7 +232,6 @@ pub async fn delete_assignment_cmd(
         .map_err(|e| e.to_string())?;
 
     if let Some(device_id) = device_id {
-        notify_auto_dispatch_planner();
         let device_id =
             DeviceId::from(uuid::Uuid::parse_str(&device_id).map_err(|e| e.to_string())?);
         let current_window_queue = load_runtime_queue_for_current_window(device_id).await?;
@@ -192,13 +244,7 @@ pub async fn delete_assignment_cmd(
         if synced > 0 {
             emit_assignment_schedule_changed(&app_handle, device_id);
         }
-        enqueue_device_runtime_session_refresh_jobs(
-            &app_handle,
-            [device_id],
-            true,
-            true,
-            "delete_assignment",
-        )?;
+        notify_auto_dispatch_reschedule();
     }
     Ok(())
 }
@@ -228,14 +274,7 @@ pub async fn reorder_assignments_cmd(
     if updated > 0 {
         emit_assignment_schedule_changed(&app_handle, device_id);
     }
-    notify_auto_dispatch_planner();
-    enqueue_device_runtime_session_refresh_jobs(
-        &app_handle,
-        [device_id],
-        true,
-        true,
-        "reorder_assignments",
-    )?;
+    notify_auto_dispatch_reschedule();
     Ok(())
 }
 
@@ -347,7 +386,7 @@ pub async fn save_time_template_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    notify_auto_dispatch_planner();
+    notify_auto_dispatch_reschedule();
     let affected_device_ids =
         load_assigned_device_ids_by_time_template(&template.id.to_string()).await?;
     enqueue_device_runtime_session_refresh_jobs(
@@ -373,7 +412,7 @@ pub async fn delete_time_template_cmd(
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
-    notify_auto_dispatch_planner();
+    notify_auto_dispatch_reschedule();
     enqueue_device_runtime_session_refresh_jobs(
         &app_handle,
         affected_device_ids,
@@ -442,7 +481,7 @@ pub async fn get_script_time_template_values_cmd(
 /// 保存（新增或更新）脚本时间模板变量值
 #[command]
 pub async fn save_script_time_template_values_cmd(
-    app_handle: tauri::AppHandle,
+    _app_handle: tauri::AppHandle,
     mut record: ScriptTimeTemplateValuesDto,
 ) -> Result<(), String> {
     let pool = get_pool();
@@ -498,23 +537,13 @@ pub async fn save_script_time_template_values_cmd(
         }
     }
 
-    notify_auto_dispatch_planner();
-    enqueue_device_runtime_session_refresh_jobs(
-        &app_handle,
-        [record
-            .device_id
-            .ok_or_else(|| "device_id 不能为空".to_string())?],
-        true,
-        true,
-        "save_script_time_template_values",
-    )?;
     Ok(())
 }
 
 /// 删除某设备某脚本在某时间模板和账号下的覆盖值
 #[command]
 pub async fn delete_script_time_template_values_cmd(
-    app_handle: tauri::AppHandle,
+    _app_handle: tauri::AppHandle,
     device_id: DeviceId,
     script_id: ScriptId,
     time_template_id: TemplateId,
@@ -537,13 +566,5 @@ pub async fn delete_script_time_template_values_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
-    notify_auto_dispatch_planner();
-    enqueue_device_runtime_session_refresh_jobs(
-        &app_handle,
-        [device_id],
-        true,
-        true,
-        "delete_script_time_template_values",
-    )?;
     Ok(())
 }

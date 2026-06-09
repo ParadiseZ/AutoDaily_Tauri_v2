@@ -111,8 +111,8 @@ export const connectionTones = {
 export const pendingActionMessages = {
     spawning: '正在启动设备子进程...',
     restarting: '正在重启设备子进程...',
-    syncing: '正在同步设备运行时...',
-    starting: '正在启动设备队列...',
+    syncing: '正在同步当前设备运行时...',
+    starting: '正在启动当前设备...',
     pausing: '正在暂停当前设备...',
     stopping: '正在停止当前设备...',
     shuttingDown: '正在关闭设备子进程...',
@@ -122,7 +122,7 @@ export const pendingActionStartLabels = {
     spawning: '正在启动子进程...',
     restarting: '正在重启子进程...',
     syncing: '正在同步运行时...',
-    starting: '正在启动队列...',
+    starting: '正在启动当前设备...',
 } as const satisfies Partial<Record<DeviceRuntimeReconcileAction, string>>;
 
 export const pendingActionStopLabels = {

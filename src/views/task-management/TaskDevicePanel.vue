@@ -1,5 +1,5 @@
 <template>
-  <SurfacePanel class="space-y-5">
+  <SurfacePanel class="flex h-full min-h-0 flex-col gap-5 overflow-hidden">
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div class="space-y-2">
         <div class="flex flex-wrap gap-2 text-sm text-(--app-text-soft)">
@@ -7,7 +7,7 @@
           <span>·</span>
           <span>{{ formatConnectLabel(device.data) }}</span>
           <span>·</span>
-          <span>{{ runtimeView.connectionLabel }}</span>
+          <span>{{ taskConnectionBadge.label }}</span>
           <span>·</span>
           <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
           <span v-if="runtimeView.status.currentScript">· 正在执行 {{ runtimeView.status.currentScript }}</span>
@@ -16,14 +16,14 @@
         <p v-else-if="runtimeView.connectionStatus.message" class="text-sm text-(--app-text-faint)">{{ runtimeView.connectionStatus.message }}</p>
       </div>
 
-      <div class="flex flex-wrap gap-2">
+      <div v-if="showRuntimeActionButton" class="flex flex-wrap gap-2">
         <button v-if="!runtimeView.controls.showStopButton" class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" :disabled="deviceBusy" @click="$emit('start', device.id)">
           <AppIcon name="play" :size="16" class="fill-current" />
-          {{ runtimeView.controls.startLabel }}
+          运行
         </button>
         <button v-else class="app-button app-button-warning" type="button" :disabled="deviceBusy" @click="$emit('stop', device.id)">
           <AppIcon name="square" :size="14" class="fill-current" />
-          {{ runtimeView.controls.stopLabel }}
+          停止
         </button>
       </div>
     </div>
@@ -60,8 +60,8 @@
       </div>
     </div>
 
-    <div class="grid gap-4 xl:grid-cols-[1.35fr_0.95fr]">
-      <SurfacePanel tone="muted" padding="sm" class="space-y-4">
+    <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1.35fr_0.95fr]">
+      <SurfacePanel tone="muted" padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
         <div class="editor-panel-tabs min-w-max">
           <button
             v-for="tab in modeTabs"
@@ -76,12 +76,12 @@
         </div>
 
         <template v-if="activeMode === 'queue'">
-          <div class="space-y-4">
+          <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
             <div class="flex items-center justify-between">
               <div>
-                <p class="text-sm font-semibold text-(--app-text-strong)">总队列</p>
+                <p class="text-sm font-semibold text-(--app-text-strong)">待运行队列</p>
               </div>
-              <StatusBadge :label="`${assignments.length} 条`" tone="neutral" />
+              <StatusBadge :label="`${queuedAssignments.length} 条`" tone="neutral" />
             </div>
 
             <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
@@ -99,90 +99,111 @@
               追加到总队列前，必须选择一个真实时间模板。
             </p>
 
-            <div class="space-y-3 rounded-[18px] border border-dashed border-(--app-border) px-4 py-4">
+            <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+              <div v-if="loadingAssignments" class="py-10 text-sm text-(--app-text-soft)">正在读取队列...</div>
+              <div v-else-if="queuedAssignments.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
+                当前没有待运行队列项。
+              </div>
+              <div v-else class="space-y-2">
+                <div
+                  v-for="assignment in queuedAssignments"
+                  :key="assignment.id"
+                  class="rounded-[18px] border bg-white/20 px-4 py-3"
+                  :class="assignmentWarning(assignment) ? 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-(--app-border)'"
+                >
+                  <div class="flex items-center gap-3">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-(--app-accent-soft) text-xs font-semibold text-(--app-accent)">
+                      {{ assignment.index + 1 }}
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-2">
+                        <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(assignment.scriptId) }}</p>
+                        <span
+                          v-if="assignmentWarning(assignment)"
+                          class="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                        >
+                          最近超时
+                        </span>
+                      </div>
+                      <p class="text-xs text-(--app-text-faint)">{{ getTemplateName(assignment.timeTemplateId) }}</p>
+                    </div>
+                    <button
+                      class="app-button app-button-ghost h-8 px-3 text-sm group"
+                      type="button"
+                      :disabled="!assignment.timeTemplateId"
+                      :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
+                      @click="$emit('openAssignmentSettings', assignment)"
+                    >
+                      <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
+                    </button>
+                    <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
+                      <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
+                    </button>
+                  </div>
+                  <p v-if="assignmentWarning(assignment)" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                    {{ assignmentWarning(assignment) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex max-h-60 min-h-0 flex-col space-y-3 rounded-[18px] border border-dashed border-(--app-border) px-4 py-4">
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <p class="text-sm font-semibold text-(--app-text-strong)">待运行队列</p>
+                  <p class="text-sm font-semibold text-(--app-text-strong)">本日已到期</p>
                 </div>
                 <span class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-faint)">
-                  {{ pendingAssignments.length }} 条
+                  {{ todayDueAssignments.length }} 条
                 </span>
               </div>
 
-              <div v-if="!pendingAssignments.length" class="text-sm text-(--app-text-soft)">
-                当前没有待运行队列项。
+              <div v-if="!todayDueAssignments.length" class="text-sm text-(--app-text-soft)">
+                当前没有已到期的队列项。
               </div>
 
-              <div v-else class="space-y-2">
+              <div v-else class="min-h-0 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
                 <div
-                  v-for="item in pendingAssignments"
-                  :key="item.assignment.id"
-                  class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3"
+                  v-for="assignment in todayDueAssignments"
+                  :key="assignment.id"
+                  class="rounded-[16px] border border-amber-300/70 bg-amber-50/70 px-4 py-3 dark:border-amber-500/30 dark:bg-amber-500/10"
                 >
                   <div class="flex items-center justify-between gap-3">
-                    <div class="min-w-0">
-                      <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(item.assignment.scriptId) }}</p>
-                      <p class="mt-1 text-xs text-(--app-text-faint)">{{ getTemplateName(item.assignment.timeTemplateId) }}</p>
+                    <div class="flex min-w-0 flex-1 items-center gap-3">
+                      <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/12 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                        {{ assignment.index + 1 }}
+                      </div>
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(assignment.scriptId) }}</p>
+                        <p class="mt-1 text-xs text-(--app-text-faint)">{{ getTemplateName(assignment.timeTemplateId) }}</p>
+                      </div>
                     </div>
-                    <span class="rounded-full px-3 py-1 text-xs" :class="item.waiting ? 'bg-sky-500/12 text-sky-700' : 'bg-emerald-500/12 text-emerald-700'">
-                      {{ item.waiting ? '未到时段' : '待执行' }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div v-if="loadingAssignments" class="py-10 text-sm text-(--app-text-soft)">正在读取队列...</div>
-            <div v-else-if="assignments.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
-              当前没有队列项。
-            </div>
-            <div v-else class="space-y-2">
-              <div
-                v-for="assignment in assignments"
-                :key="assignment.id"
-                class="rounded-[18px] border bg-white/20 px-4 py-3"
-                :class="assignmentWarning(assignment) ? 'border-amber-300/70 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10' : 'border-(--app-border)'"
-              >
-                <div class="flex items-center gap-3">
-                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-(--app-accent-soft) text-xs font-semibold text-(--app-accent)">
-                    {{ assignment.index + 1 }}
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-center gap-2">
-                      <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(assignment.scriptId) }}</p>
-                      <span
-                        v-if="assignmentWarning(assignment)"
-                        class="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                      >
-                        最近超时
+                    <div class="flex shrink-0 items-center gap-2">
+                      <span class="rounded-full bg-amber-500/12 px-3 py-1 text-xs text-amber-700 dark:text-amber-300">
+                        已到期
                       </span>
+                      <button
+                        class="app-button app-button-ghost h-8 px-3 text-sm group"
+                        type="button"
+                        :disabled="!assignment.timeTemplateId"
+                        :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
+                        @click="$emit('openAssignmentSettings', assignment)"
+                      >
+                        <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
+                      </button>
+                      <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
+                        <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
+                      </button>
                     </div>
-                    <p class="text-xs text-(--app-text-faint)">{{ getTemplateName(assignment.timeTemplateId) }}</p>
                   </div>
-                  <button
-                    class="app-button app-button-ghost h-8 px-3 text-sm group"
-                    type="button"
-                    :disabled="!assignment.timeTemplateId"
-                    :title="assignment.timeTemplateId ? '打开模板变量设置' : '请先为脚本选择时间模板'"
-                    @click="$emit('openAssignmentSettings', assignment)"
-                  >
-                    <AppIcon name="edit-3" :size="14" class="opacity-70 transition-opacity group-hover:opacity-100" />
-                  </button>
-                  <button class="app-button app-button-danger h-8 px-3 text-sm group" type="button" @click="$emit('removeAssignment', device.id, assignment)">
-                    <AppIcon name="trash-2" :size="14" class="opacity-60 transition-opacity group-hover:opacity-100" />
-                  </button>
                 </div>
-                <p v-if="assignmentWarning(assignment)" class="mt-2 text-xs text-amber-700 dark:text-amber-300">
-                  {{ assignmentWarning(assignment) }}
-                </p>
               </div>
             </div>
           </div>
         </template>
 
         <template v-else>
-          <div class="grid min-h-[420px] gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <div class="space-y-2">
+          <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <div class="min-h-0 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
               <div>
                 <p class="text-sm font-semibold text-(--app-text-strong)">临时运行</p>
               </div>
@@ -203,7 +224,7 @@
               </button>
             </div>
 
-            <div class="space-y-4 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <div class="flex min-h-0 flex-col space-y-4 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 overflow-hidden">
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p class="text-sm font-semibold text-(--app-text-strong)">
@@ -244,7 +265,7 @@
               <div v-else-if="!temporaryRows.length" class="rounded-[18px] border border-dashed border-(--app-border) px-4 py-6 text-sm text-(--app-text-soft)">
                 当前脚本没有任务。
               </div>
-              <div v-else class="space-y-2">
+              <div v-else class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
                 <template v-for="row in temporaryRows" :key="row.id">
                   <div v-if="row.rowType === 'title'" class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm font-semibold text-(--app-text-strong)">
                     {{ row.name }}
@@ -276,7 +297,7 @@
         </template>
       </SurfacePanel>
 
-      <SurfacePanel tone="muted" padding="sm" class="space-y-4">
+      <SurfacePanel tone="muted" padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm font-semibold text-(--app-text-strong)">最近运行记录</p>
@@ -286,11 +307,12 @@
           </button>
         </div>
 
-        <div v-if="loadingSchedules" class="py-10 text-sm text-(--app-text-soft)">正在读取记录...</div>
-        <div v-else-if="assignmentScheduleSections.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
-          暂无运行记录。
-        </div>
-        <div v-else class="space-y-4">
+        <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+          <div v-if="loadingSchedules" class="py-10 text-sm text-(--app-text-soft)">正在读取记录...</div>
+          <div v-else-if="assignmentScheduleSections.length === 0" class="rounded-[20px] border border-dashed border-(--app-border) p-6 text-sm text-(--app-text-soft)">
+            暂无运行记录。
+          </div>
+          <div v-else class="space-y-4">
           <section v-for="section in assignmentScheduleSections" :key="section.day" class="space-y-2">
             <div class="text-xs font-semibold uppercase tracking-[0.16em] text-(--app-text-faint)">
               {{ section.label }}
@@ -337,6 +359,7 @@
               </div>
             </div>
           </section>
+          </div>
         </div>
       </SurfacePanel>
     </div>
@@ -460,6 +483,20 @@ const templateMap = computed(() =>
 const selectedTemporaryScriptName = computed(() =>
   temporaryScriptItems.value.find((script) => script.id === selectedTemporaryScriptId.value)?.name ?? '',
 );
+
+const taskConnectionBadge = computed(() => {
+  if (!props.device.data.enable) {
+    return { label: '未启用', tone: 'neutral' as const };
+  }
+
+  if (props.runtimeView.connectionStatus.kind === 'connected') {
+    return { label: '已连接', tone: 'success' as const };
+  }
+
+  return { label: '未连接', tone: 'danger' as const };
+});
+
+const showRuntimeActionButton = computed(() => Boolean(props.device.data.enable));
 
 const temporaryRows = computed(() =>
   filterUserVisibleTaskRows(props.scriptTasksByScriptId[selectedTemporaryScriptId.value] ?? [])
@@ -696,6 +733,25 @@ const parseTimeToMinutes = (value: string | null | undefined) => {
   return hours * 60 + minutes;
 };
 
+const isOverdueByTemplateWindow = (startMinute: number | null, endMinute: number | null, currentMinute: number) => {
+  if (startMinute === null && endMinute === null) {
+    return false;
+  }
+
+  if (startMinute !== null && endMinute !== null) {
+    if (startMinute <= endMinute) {
+      return currentMinute > endMinute;
+    }
+    return currentMinute > endMinute && currentMinute < startMinute;
+  }
+
+  if (endMinute !== null) {
+    return currentMinute > endMinute;
+  }
+
+  return currentMinute >= (startMinute ?? 0);
+};
+
 const currentDayKey = computed(() => {
   const current = new Date(nowTick.value);
   return `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
@@ -750,30 +806,31 @@ const ranAssignmentIdsToday = computed(() =>
   ),
 );
 
-const pendingAssignments = computed(() =>
+const todayDueAssignments = computed(() =>
   props.assignments
-    .map((assignment) => {
+    .filter((assignment) => {
       if (!assignment.timeTemplateId || ranAssignmentIdsToday.value.has(assignment.id)) {
-        return null;
+        return false;
       }
 
       const template = templateMap.value[assignment.timeTemplateId];
       if (!template) {
-        return null;
+        return false;
       }
 
       const startMinute = parseTimeToMinutes(template.startTime);
       const endMinute = parseTimeToMinutes(template.endTime);
-      if (endMinute !== null && currentMinuteOfDay.value > endMinute) {
-        return null;
-      }
-
-      return {
-        assignment,
-        waiting: startMinute !== null && currentMinuteOfDay.value < startMinute,
-      };
+      return isOverdueByTemplateWindow(startMinute, endMinute, currentMinuteOfDay.value);
     })
-    .filter((item): item is { assignment: AssignmentRecord; waiting: boolean } => Boolean(item)),
+    .sort((left, right) => left.index - right.index),
+);
+
+const todayDueAssignmentIds = computed(() => new Set(todayDueAssignments.value.map((assignment) => assignment.id)));
+
+const queuedAssignments = computed(() =>
+  props.assignments
+    .filter((assignment) => !todayDueAssignmentIds.value.has(assignment.id))
+    .sort((left, right) => left.index - right.index),
 );
 
 const handleRunTemporaryScript = () => {

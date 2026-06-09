@@ -76,30 +76,6 @@ pub(super) fn send_process_control(device_id: DeviceId, action: ProcessAction) {
     );
 }
 
-pub(super) async fn send_connection_control(device_id: DeviceId, action: ConnectionAction) {
-    let _ = send_command_payload(
-        device_id,
-        MessagePayload::ConnectionControl(ConnectionControlMessage { action }),
-    )
-    .await;
-}
-
-pub(super) async fn probe_device_connection(
-    app_handle: &AppHandle,
-    device_id: DeviceId,
-    message: &str,
-) -> Result<(), String> {
-    set_connection_status(
-        app_handle,
-        device_id,
-        ConnectionStatusKind::DeviceChecking,
-        Some(message.to_string()),
-    )
-    .await?;
-    send_connection_control(device_id, ConnectionAction::Probe).await;
-    Ok(())
-}
-
 pub(super) async fn send_capture_control(device_id: DeviceId) -> MessageId {
     send_command_payload(
         device_id,
@@ -249,20 +225,38 @@ fn subscribe_device_connection_status(
         .subscribe_device_runtime_state(device_id)
 }
 
-async fn request_child_device_connection(
+pub(super) async fn request_child_connection_action(
     app_handle: &AppHandle,
     device_id: DeviceId,
-    timeout: std::time::Duration,
+    action: ConnectionAction,
+    status_message: &str,
+    timeout: Option<std::time::Duration>,
 ) -> Result<(), String> {
-    let mut connection_rx = subscribe_device_connection_status(app_handle, device_id)?;
+    let mut connection_rx = if timeout.is_some() {
+        Some(subscribe_device_connection_status(app_handle, device_id)?)
+    } else {
+        None
+    };
     set_connection_status(
         app_handle,
         device_id,
         ConnectionStatusKind::DeviceChecking,
-        Some("正在准备设备连接".to_string()),
+        Some(status_message.to_string()),
     )
     .await?;
-    send_connection_control(device_id, ConnectionAction::EnsureReady).await;
+    let _ = send_command_payload(
+        device_id,
+        MessagePayload::ConnectionControl(ConnectionControlMessage { action }),
+    )
+    .await;
+
+    let Some(timeout) = timeout else {
+        return Ok(());
+    };
+
+    let mut connection_rx = connection_rx
+        .take()
+        .ok_or_else(|| format!("设备[{}]连接状态订阅初始化失败", device_id))?;
 
     let wait_result = tokio::time::timeout(timeout, async {
         loop {
@@ -411,8 +405,14 @@ async fn prepare_device_connection(
         .await;
         return Err(error);
     }
-    request_child_device_connection(app_handle, device_id, device_connection_timeout(&device_table))
-        .await?;
+    request_child_connection_action(
+        app_handle,
+        device_id,
+        ConnectionAction::EnsureReady,
+        "正在准备设备连接",
+        Some(device_connection_timeout(&device_table)),
+    )
+    .await?;
     Ok(device_table)
 }
 
@@ -614,7 +614,14 @@ pub(super) async fn restart_device_runtime_internal(
     }
 
     spawn_device_runtime_internal(app_handle, device_id).await?;
-    let _ = probe_device_connection(app_handle, device_id, "正在检查设备连接").await;
+    let _ = request_child_connection_action(
+        app_handle,
+        device_id,
+        ConnectionAction::Probe,
+        "正在检查设备连接",
+        None,
+    )
+    .await;
 
     Ok(format!("设备[{}]子进程已重启", device_id))
 }

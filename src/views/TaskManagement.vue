@@ -12,8 +12,8 @@
         >
           <span class="min-w-0 flex-1 truncate font-semibold">{{ device.data.deviceName }}</span>
           <StatusBadge
-            :label="deviceStore.getDeviceRuntimeView(device.id).connectionLabel"
-            :tone="deviceStore.getDeviceRuntimeView(device.id).connectionTone"
+            :label="getTaskConnectionBadge(device.id).label"
+            :tone="getTaskConnectionBadge(device.id).tone"
           />
           <!-- <span class="task-device-tab-count">{{ taskStore.assignmentsByDevice[device.id]?.length || 0 }}</span> -->
         </button>
@@ -37,9 +37,10 @@
       icon="monitor-smartphone"
     />
 
-    <div v-else class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+    <div v-else class="min-h-0 flex-1 overflow-hidden">
       <TaskDevicePanel
         v-if="activeDevice"
+        class="h-full"
         :device="activeDevice"
         :runtime-view="deviceStore.getDeviceRuntimeView(activeDevice.id)"
         :scripts="scriptStore.sortedScripts"
@@ -70,7 +71,7 @@
     <AppDialog
       :open="assignmentSettingsOpen"
       title="脚本模板设置"
-      width-class="max-w-4xl"
+      width-class="max-w-4xl max-h-[calc(100vh-3rem)] flex flex-col"
       @close="assignmentSettingsOpen = false"
     >
       <ScriptTemplateValuePanel
@@ -117,13 +118,16 @@ let unlistenAssignmentScheduleChanged: UnlistenFn | null = null;
 const orderedDevices = computed(() =>
   [...deviceStore.devices].sort((left, right) => Number(right.data.enable) - Number(left.data.enable)),
 );
-const readyDevices = computed(() => deviceIds.value.filter((deviceId) => deviceStore.isDeviceBusy(deviceId)));
+const actionableDeviceIds = computed(() =>
+  deviceIds.value.filter((deviceId) => !deviceStore.isDeviceBusy(deviceId)),
+);
+const bulkStarting = ref(false);
+const bulkStopping = ref(false);
 const bulkActionLabel = computed(() => {
-  const phases = deviceIds.value.map((deviceId) => deviceStore.getDevicePendingAction(deviceId)).filter(Boolean);
-  if (phases.some((phase) => phase === 'spawning' || phase === 'starting' || phase === 'restarting' || phase === 'syncing')) {
+  if (bulkStarting.value) {
     return { start: '批量运行中...', stop: '全部停止' };
   }
-  if (phases.some((phase) => phase === 'stopping' || phase === 'shuttingDown')) {
+  if (bulkStopping.value) {
     return { start: '全部运行', stop: '批量停止中...' };
   }
   return { start: '全部运行', stop: '全部停止' };
@@ -147,6 +151,20 @@ const assignmentSettingsScript = computed(() =>
     ? scriptStore.sortedScripts.find((item) => item.id === assignmentSettingsScriptId.value) ?? null
     : null,
 );
+
+const getTaskConnectionBadge = (deviceId: string) => {
+  const device = deviceStore.devices.find((item) => item.id === deviceId);
+  if (!device?.data.enable) {
+    return { label: '未启用', tone: 'neutral' as const };
+  }
+
+  const connectionStatus = deviceStore.getDeviceConnectionStatus(deviceId);
+  if (connectionStatus.kind === 'connected') {
+    return { label: '已连接', tone: 'success' as const };
+  }
+
+  return { label: '未连接', tone: 'danger' as const };
+};
 
 const loadPageData = async () => {
   await Promise.all([deviceStore.refreshAll(), scriptStore.loadScripts()]);
@@ -359,7 +377,7 @@ const handleRunTarget = async (deviceId: string, target: RunTarget) => {
 
 const handleStartDevice = async (deviceId: string) => {
   if (deviceStore.isDeviceBusy(deviceId)) {
-    showToast('当前设备未连接', 'warning');
+    showToast('当前设备正在处理中，请稍后再试。', 'warning');
     return;
   }
   const error = validateDeviceQueueStart(deviceId);
@@ -391,7 +409,7 @@ const handleStopDevice = async (deviceId: string) => {
 };
 
 const handleStartAllDevices = async () => {
-  for (const deviceId of readyDevices.value) {
+  for (const deviceId of actionableDeviceIds.value) {
     const error = validateDeviceQueueStart(deviceId);
     if (error) {
       showToast(error, 'warning');
@@ -399,24 +417,30 @@ const handleStartAllDevices = async () => {
     }
   }
 
+  bulkStarting.value = true;
   try {
-    await deviceStore.startDevices(readyDevices.value);
-    for (const deviceId of readyDevices.value) {
+    await deviceStore.startDevices(actionableDeviceIds.value);
+    for (const deviceId of actionableDeviceIds.value) {
       void taskStore.loadSchedules(deviceId);
     }
   } catch (error) {
     showToast(error instanceof Error ? error.message : '批量启动失败', 'error');
+  } finally {
+    bulkStarting.value = false;
   }
 };
 
 const handleStopAllDevices = async () => {
+  bulkStopping.value = true;
   try {
-    await deviceStore.stopDevices(readyDevices.value);
-    for (const deviceId of readyDevices.value) {
+    await deviceStore.stopDevices(actionableDeviceIds.value);
+    for (const deviceId of actionableDeviceIds.value) {
       void taskStore.loadSchedules(deviceId);
     }
   } catch (error) {
     showToast(error instanceof Error ? error.message : '批量停止失败', 'error');
+  } finally {
+    bulkStopping.value = false;
   }
 };
 

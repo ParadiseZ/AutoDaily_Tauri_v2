@@ -417,6 +417,7 @@ async fn compute_next_auto_due_at() -> Result<Option<chrono::DateTime<Local>>, S
 
 pub(crate) fn spawn_auto_dispatch_planner_loop(app_handle: tauri::AppHandle) {
     let notify = super::state::auto_dispatch_notify();
+    let reschedule_notify = super::state::auto_dispatch_reschedule_notify();
     tauri::async_runtime::spawn(async move {
         loop {
             let sleep_duration = match compute_next_auto_due_at().await {
@@ -439,9 +440,16 @@ pub(crate) fn spawn_auto_dispatch_planner_loop(app_handle: tauri::AppHandle) {
                     std::time::Duration::from_secs(24 * 60 * 60)
                 }
             };
+            let mut should_dispatch = true;
             tokio::select! {
                 _ = tokio::time::sleep(sleep_duration) => {}
                 _ = notify.notified() => {}
+                _ = reschedule_notify.notified() => {
+                    should_dispatch = false;
+                }
+            }
+            if !should_dispatch {
+                continue;
             }
             match reevaluate_all_auto_dispatches(&app_handle).await {
                 Ok(count) if count > 0 => {

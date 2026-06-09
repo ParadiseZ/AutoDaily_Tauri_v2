@@ -12,7 +12,9 @@
               <AppIcon name="x" :size="18" />
             </button>
           </header>
-          <slot />
+          <div class="app-dialog-body">
+            <slot />
+          </div>
         </div>
       </div>
     </transition>
@@ -64,5 +66,13 @@ defineEmits<{
   border-color: rgba(220, 38, 38, 0.32);
   color: rgb(185, 28, 28);
   box-shadow: 0 10px 22px rgba(220, 38, 38, 0.12);
+}
+
+.app-dialog-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 </style>

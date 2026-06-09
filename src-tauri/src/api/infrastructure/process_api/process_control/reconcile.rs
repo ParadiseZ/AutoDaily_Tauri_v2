@@ -1,5 +1,8 @@
 use super::events::emit_runtime_reconcile_event;
-use super::runtime::{restart_device_runtime_internal, shutdown_device_runtime_internal};
+use super::runtime::{
+    request_child_connection_action, restart_device_runtime_internal,
+    shutdown_device_runtime_internal, spawn_device_runtime_internal,
+};
 use super::scheduler::{reevaluate_device_auto_dispatch, sync_device_runtime_session_internal};
 use crate::constant::table_name::ASSIGNMENT_TABLE;
 use crate::domain::devices::device_conf::DeviceTable;
@@ -155,6 +158,22 @@ async fn reconcile_saved_device_runtime(
     };
 
     if !is_running {
+        if is_enabled {
+            let device_name = spawn_device_runtime_internal(app_handle, current.id).await?;
+            let _ = request_child_connection_action(
+                app_handle,
+                current.id,
+                crate::infrastructure::ipc::message::ConnectionAction::Probe,
+                "正在检查设备连接",
+                None,
+            )
+            .await;
+            super::state::notify_auto_dispatch_planner();
+            return Ok((
+                Some(DeviceRuntimeReconcileAction::Spawning),
+                format!("设备[{}]({})子进程已自动启动", device_name, current.id),
+            ));
+        }
         return Ok((
             None,
             "设备当前未运行，本次配置变更不自动拉起子进程，等待调度或临时运行".to_string(),
@@ -259,7 +278,9 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                         if !enabled {
                             Some(DeviceRuntimeReconcileAction::ShuttingDown)
                         } else if let Some(previous) = previous {
-                            if previous.data.0.cores != current.data.0.cores {
+                            if !previous.data.0.enable && current.data.0.enable {
+                                Some(DeviceRuntimeReconcileAction::Spawning)
+                            } else if previous.data.0.cores != current.data.0.cores {
                                 Some(DeviceRuntimeReconcileAction::Restarting)
                             } else if previous.data.0.execution_policy
                                 != current.data.0.execution_policy

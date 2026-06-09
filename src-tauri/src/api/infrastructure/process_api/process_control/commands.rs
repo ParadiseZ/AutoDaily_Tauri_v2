@@ -1,7 +1,7 @@
 use super::events::{emit_assignment_schedule_changed, emit_device_progress_status};
 use super::runtime::{
     dispatch_session_to_child, ensure_device_capture_ready, ensure_device_ready_for_manual,
-    probe_device_connection, restart_device_runtime_internal, send_capture_control,
+    request_child_connection_action, restart_device_runtime_internal, send_capture_control,
     send_process_control, set_connection_status, shutdown_device_runtime_internal,
     spawn_device_runtime_internal, wait_for_capture_result, wait_for_ipc_client,
 };
@@ -272,7 +272,14 @@ pub async fn cmd_spawn_device(
     device_id: DeviceId,
 ) -> Result<String, String> {
     let device_name = spawn_device_runtime_internal(&app_handle, device_id).await?;
-    let _ = probe_device_connection(&app_handle, device_id, "正在检查设备连接").await;
+    let _ = request_child_connection_action(
+        &app_handle,
+        device_id,
+        ConnectionAction::Probe,
+        "正在检查设备连接",
+        None,
+    )
+    .await;
     super::state::notify_auto_dispatch_planner();
 
     Ok(format!("设备[{}]({})子进程已启动", device_name, device_id))
@@ -344,14 +351,14 @@ pub async fn cmd_probe_device_connections(
 
         match wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(2)).await {
             Ok(()) => {
-                let _ = set_connection_status(
+                let _ = request_child_connection_action(
                     &app_handle,
                     device_id,
-                    ConnectionStatusKind::DeviceChecking,
-                    Some("正在检查设备连接".to_string()),
+                    ConnectionAction::Probe,
+                    "正在检查设备连接",
+                    None,
                 )
                 .await;
-                super::runtime::send_connection_control(device_id, ConnectionAction::Probe).await;
                 queued += 1;
             }
             Err(error) => {

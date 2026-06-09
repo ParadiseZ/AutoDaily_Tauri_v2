@@ -19,6 +19,7 @@ pub(crate) use process_control::{
     emit_assignment_schedule_changed, enqueue_device_config_reconcile_job,
     enqueue_device_runtime_session_refresh_jobs, load_assigned_device_ids_by_script,
     load_assigned_device_ids_by_time_template, notify_auto_dispatch_planner,
+    notify_auto_dispatch_reschedule,
     register_child_process_exit_handler, spawn_auto_dispatch_planner_loop,
     spawn_dispatch_signal_loop, spawn_runtime_reconcile_loop,
 };
