@@ -19,6 +19,7 @@
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
     "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "autostart:default",
     "core:webview:allow-create-webview-window",
     "store:allow-load",

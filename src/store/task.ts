@@ -1,10 +1,8 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { taskService } from '@/services/taskService';
-import type { AssignmentRecord, JsonValue } from '@/types/app/domain';
-import type { AssignmentSchedule } from '@/types/bindings/AssignmentSchedule';
+import type { AssignmentRecord, AssignmentSchedule, DeviceScriptSchedule, JsonValue } from '@/types/app/domain';
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
-import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
 
 const normalizeAssignment = (assignment: DeviceScriptAssignment): AssignmentRecord => ({
@@ -21,6 +19,16 @@ export const useTaskStore = defineStore('task', () => {
     const loadingSchedules = ref<Record<string, boolean>>({});
 
     const hasTemplates = computed(() => timeTemplates.value.length > 0);
+
+    const assertRealTimeTemplate = (timeTemplateId: string | null) => {
+        if (!timeTemplateId) {
+            throw new Error('追加队列任务必须选择真实时间模板。');
+        }
+
+        if (!timeTemplates.value.some((template) => template.id === timeTemplateId)) {
+            throw new Error('所选时间模板不存在或已失效，请重新选择。');
+        }
+    };
 
     const setLoadingFlag = (
         target: typeof loadingAssignments | typeof loadingSchedules,
@@ -83,6 +91,7 @@ export const useTaskStore = defineStore('task', () => {
         timeTemplateId: string | null,
         accountData: JsonValue = null,
     ) => {
+        assertRealTimeTemplate(timeTemplateId);
         const currentAssignments = assignmentsByDevice.value[deviceId] ?? [];
         const assignment: DeviceScriptAssignment = {
             id: await taskService.requestUuid(),
@@ -100,6 +109,9 @@ export const useTaskStore = defineStore('task', () => {
     };
 
     const updateAssignment = async (assignment: DeviceScriptAssignment) => {
+        if (assignment.timeTemplateId) {
+            assertRealTimeTemplate(assignment.timeTemplateId);
+        }
         await taskService.saveAssignment(assignment);
         await loadAssignments(assignment.deviceId);
         return normalizeAssignment(assignment);

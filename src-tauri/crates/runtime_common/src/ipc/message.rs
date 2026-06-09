@@ -81,7 +81,6 @@ pub struct ConnectionControlMessage {
 pub enum ConnectionAction {
     Probe,
     EnsureReady,
-    EnsureReadyAfterLaunch,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
@@ -165,16 +164,18 @@ pub struct RuntimeVisionTextCachePolicy {
     pub signature_grid_size: u16,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum TimeoutAction {
     StopExecution,
     RunRecoveryTask,
     SkipCurrentTask,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum TimeoutNotifyChannel {
     SystemNotification,
     Email,
@@ -241,8 +242,9 @@ pub enum SessionControlMessage {
     ClearSession,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum RuntimeLifecyclePhase {
     Initializing,
     Loaded,
@@ -253,8 +255,9 @@ pub enum RuntimeLifecyclePhase {
     Error,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct RuntimeLifecycleEvent {
     pub session_id: Option<SessionId>,
     pub phase: RuntimeLifecyclePhase,
@@ -263,8 +266,9 @@ pub struct RuntimeLifecycleEvent {
     pub at: String,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum RuntimeProgressPhase {
     Idle,
     Loading,
@@ -275,8 +279,9 @@ pub enum RuntimeProgressPhase {
     Failed,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct RuntimeProgressEvent {
     pub session_id: Option<SessionId>,
     pub assignment_id: Option<AssignmentId>,
@@ -288,8 +293,9 @@ pub struct RuntimeProgressEvent {
     pub at: String,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum RuntimeScheduleStatus {
     Queued,
     Running,
@@ -299,8 +305,9 @@ pub enum RuntimeScheduleStatus {
     Cleared,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct RuntimeScheduleEvent {
     pub session_id: Option<SessionId>,
     pub execution_id: Option<ExecutionId>,
@@ -313,17 +320,22 @@ pub struct RuntimeScheduleEvent {
     pub at: String,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub enum ConnectionStatusKind {
-    Unknown,
-    Checking,
-    Connected,
-    Disconnected,
+    DeviceUnknown,
+    DeviceChecking,
+    ShellProbeChecking,
+    EmulatorStarting,
+    EmulatorWaiting,
+    DeviceConnected,
+    DeviceDisconnected,
 }
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export)]
 pub struct ConnectionStatusEvent {
     pub status: ConnectionStatusKind,
     pub message: Option<String>,

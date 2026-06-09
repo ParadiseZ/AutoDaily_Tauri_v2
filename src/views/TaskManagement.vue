@@ -12,19 +12,19 @@
         >
           <span class="min-w-0 flex-1 truncate font-semibold">{{ device.data.deviceName }}</span>
           <StatusBadge
-            :label="formatConnectionStatusLabel(deviceStore.getDeviceConnectionStatus(device.id))"
-            :tone="formatConnectionStatusTone(deviceStore.getDeviceConnectionStatus(device.id).kind)"
+            :label="deviceStore.getDeviceRuntimeView(device.id).connectionLabel"
+            :tone="deviceStore.getDeviceRuntimeView(device.id).connectionTone"
           />
-          <span class="task-device-tab-count">{{ taskStore.assignmentsByDevice[device.id]?.length || 0 }}</span>
+          <!-- <span class="task-device-tab-count">{{ taskStore.assignmentsByDevice[device.id]?.length || 0 }}</span> -->
         </button>
       </div>
 
       <div v-if="deviceIds.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" :disabled="hasPendingDeviceAction" @click="handleStopAllDevices">
+        <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" @click="handleStopAllDevices">
           <AppIcon name="square" :size="14" class="fill-current" />
           {{ bulkActionLabel.stop }}
         </button>
-        <button class="app-button app-button-primary shadow-lg shadow-(--app-vibrant-blue)/30 hover:shadow-(--app-vibrant-blue)/50 transition-shadow" type="button" :disabled="hasPendingDeviceAction" @click="handleStartAllDevices">
+        <button class="app-button app-button-primary shadow-lg shadow-(--app-vibrant-blue)/30 hover:shadow-(--app-vibrant-blue)/50 transition-shadow" type="button" @click="handleStartAllDevices">
           <AppIcon name="play" :size="16" class="fill-current" />
           {{ bulkActionLabel.start }}
         </button>
@@ -41,8 +41,7 @@
       <TaskDevicePanel
         v-if="activeDevice"
         :device="activeDevice"
-        :status="deviceStore.getDeviceStatus(activeDevice.id)"
-        :connection-status="deviceStore.getDeviceConnectionStatus(activeDevice.id)"
+        :runtime-view="deviceStore.getDeviceRuntimeView(activeDevice.id)"
         :scripts="scriptStore.sortedScripts"
         :time-templates="taskStore.timeTemplates"
         :assignments="taskStore.assignmentsByDevice[activeDevice.id] ?? []"
@@ -85,7 +84,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
@@ -98,7 +98,7 @@ import { useDeviceStore } from '@/store/device';
 import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
 import { useTaskStore } from '@/store/task';
-import { formatConnectionStatusLabel, formatConnectionStatusTone, formatTemplateWindow } from '@/utils/presenters';
+import { formatTemplateWindow } from '@/utils/presenters';
 import { getRunTargetDetails } from '@/utils/runTarget';
 import { toErrorText } from '@/utils/api';
 import { showToast } from '@/utils/toast';
@@ -113,10 +113,11 @@ const scriptStore = useScriptStore();
 const taskStore = useTaskStore();
 
 const deviceIds = computed(() => deviceStore.devices.map((device) => device.id));
+let unlistenAssignmentScheduleChanged: UnlistenFn | null = null;
 const orderedDevices = computed(() =>
   [...deviceStore.devices].sort((left, right) => Number(right.data.enable) - Number(left.data.enable)),
 );
-const hasPendingDeviceAction = computed(() => deviceIds.value.some((deviceId) => deviceStore.isDeviceBusy(deviceId)));
+const readyDevices = computed(() => deviceIds.value.filter((deviceId) => deviceStore.isDeviceBusy(deviceId)));
 const bulkActionLabel = computed(() => {
   const phases = deviceIds.value.map((deviceId) => deviceStore.getDevicePendingAction(deviceId)).filter(Boolean);
   if (phases.some((phase) => phase === 'spawning' || phase === 'starting' || phase === 'restarting' || phase === 'syncing')) {
@@ -156,6 +157,20 @@ const loadPageData = async () => {
 };
 
 const handleAddScript = async (deviceId: string, scriptId: string, timeTemplateId: string | null) => {
+  if (!scriptId) {
+    showToast('未选择脚本或时间模板', 'error');
+    return;
+  }
+  if (!timeTemplateId) {
+    showToast('未选择脚本或时间模板', 'error');
+    return;
+  }
+
+  if (!taskStore.timeTemplates.some((item) => item.id === timeTemplateId)) {
+    showToast('所选时间模板不存在或已失效，请重新选择。', 'error');
+    return;
+  }
+
   try {
     await taskStore.createAssignment(deviceId, scriptId, timeTemplateId);
     showToast('脚本已加入设备队列', 'success');
@@ -302,7 +317,7 @@ const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
   const device = deviceStore.devices.find((item) => item.id === deviceId);
   const approved = await requestAppConfirm({
     title: '确认切换运行目标',
-    message: '当前设备正在执行。暂停当前任务后继续临时运行？',
+    message: '当前设备正在执行。停止当前设备调度后继续临时运行？',
     confirmText: '继续',
     cancelText: '取消',
     tone: 'warning',
@@ -312,13 +327,11 @@ const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {
   }
 
   try {
-    if (status.kind === 'running') {
-      await deviceStore.pauseDevice(deviceId);
-    }
-    showToast(`设备「${device?.data.deviceName || deviceId}」已暂停，开始临时运行`, 'success');
+    await deviceStore.stopDevice(deviceId);
+    showToast(`设备「${device?.data.deviceName || deviceId}」已停止当前调度，开始临时运行`, 'success');
     return true;
   } catch (error) {
-    showToast(error instanceof Error ? error.message : '暂停当前运行失败', 'error');
+    showToast(error instanceof Error ? error.message : '停止当前调度失败', 'error');
     return false;
   }
 };
@@ -346,6 +359,7 @@ const handleRunTarget = async (deviceId: string, target: RunTarget) => {
 
 const handleStartDevice = async (deviceId: string) => {
   if (deviceStore.isDeviceBusy(deviceId)) {
+    showToast('当前设备未连接', 'warning');
     return;
   }
   const error = validateDeviceQueueStart(deviceId);
@@ -356,9 +370,10 @@ const handleStartDevice = async (deviceId: string) => {
 
   try {
     await deviceStore.startDevice(deviceId);
-    void taskStore.loadSchedules(deviceId);
   } catch (error) {
     showToast(error instanceof Error ? error.message : '启动失败', 'error');
+  } finally {
+    void taskStore.loadSchedules(deviceId);
   }
 };
 
@@ -376,10 +391,7 @@ const handleStopDevice = async (deviceId: string) => {
 };
 
 const handleStartAllDevices = async () => {
-  if (hasPendingDeviceAction.value) {
-    return;
-  }
-  for (const deviceId of deviceIds.value) {
+  for (const deviceId of readyDevices.value) {
     const error = validateDeviceQueueStart(deviceId);
     if (error) {
       showToast(error, 'warning');
@@ -388,8 +400,8 @@ const handleStartAllDevices = async () => {
   }
 
   try {
-    await deviceStore.startDevices(deviceIds.value);
-    for (const deviceId of deviceIds.value) {
+    await deviceStore.startDevices(readyDevices.value);
+    for (const deviceId of readyDevices.value) {
       void taskStore.loadSchedules(deviceId);
     }
   } catch (error) {
@@ -398,13 +410,9 @@ const handleStartAllDevices = async () => {
 };
 
 const handleStopAllDevices = async () => {
-  if (hasPendingDeviceAction.value) {
-    return;
-  }
-
   try {
-    await deviceStore.stopDevices(deviceIds.value);
-    for (const deviceId of deviceIds.value) {
+    await deviceStore.stopDevices(readyDevices.value);
+    for (const deviceId of readyDevices.value) {
       void taskStore.loadSchedules(deviceId);
     }
   } catch (error) {
@@ -414,6 +422,20 @@ const handleStopAllDevices = async () => {
 
 onMounted(async () => {
   await loadPageData();
+  unlistenAssignmentScheduleChanged = await listen('assignment-schedule-changed', (event) => {
+    if (!event.payload || typeof event.payload !== 'object') {
+      return;
+    }
+    const deviceId = (event.payload as Record<string, unknown>).deviceId;
+    if (typeof deviceId === 'string') {
+      void taskStore.loadSchedules(deviceId);
+    }
+  });
+});
+
+onBeforeUnmount(() => {
+  unlistenAssignmentScheduleChanged?.();
+  unlistenAssignmentScheduleChanged = null;
 });
 
 watch(

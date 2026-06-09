@@ -1,14 +1,15 @@
 use crate::api::infrastructure::process_api::{
-    enqueue_device_config_reconcile_job, notify_auto_dispatch_planner, DispatchPlanner,
+    enqueue_device_config_reconcile_job, notify_auto_dispatch_planner,
 };
 use crate::constant::table_name::{ASSIGNMENT_SCHEDULE_TABLE, ASSIGNMENT_TABLE, DEVICE_TABLE};
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
+use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::db::{get_pool, DbRepo};
 use crate::infrastructure::logging::log_trait::Log;
 use sqlx::Acquire;
-use tauri::command;
+use tauri::{command, Manager};
 
 /// 获取所有设备配置
 #[command]
@@ -50,19 +51,31 @@ pub async fn save_device_cmd(
     result
 }
 
-async fn ensure_device_deletable(device_id: DeviceId) -> Result<(), String> {
+fn ensure_device_deletable(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    let runtime_state = app_handle
+        .state::<MainProcessCtx>()
+        .snapshot_device_dispatch_state(device_id)?;
+    if runtime_state.active_dispatch.is_some()
+        || !runtime_state.pending_dispatches.is_empty()
+        || !runtime_state.pending_debug_sessions.is_empty()
+    {
+        return Err("设备仍有活动或待派发的运行任务，请停止并清空运行状态后再删除。".to_string());
+    }
+    Ok(())
+}
+
+async fn ensure_device_deletable_async(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    ensure_device_deletable(app_handle, device_id)?;
     if let Some(manager) = get_process_manager() {
         if manager.is_running(&device_id).await {
             return Err("设备子进程仍在运行，请先关闭设备后再删除。".to_string());
         }
-    }
-
-    let planner_state = DispatchPlanner::init().snapshot_device_state(device_id)?;
-    if planner_state.active_dispatch.is_some()
-        || !planner_state.pending_dispatches.is_empty()
-        || !planner_state.pending_debug_sessions.is_empty()
-    {
-        return Err("设备仍有活动或待派发的运行任务，请停止并清空运行状态后再删除。".to_string());
     }
 
     let active_schedule_count = sqlx::query_scalar::<_, i64>(&format!(
@@ -82,9 +95,12 @@ async fn ensure_device_deletable(device_id: DeviceId) -> Result<(), String> {
 
 /// 删除设备配置
 #[command]
-pub async fn delete_device_cmd(device_id: DeviceId) -> Result<(), String> {
+pub async fn delete_device_cmd(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
     let result = async {
-        ensure_device_deletable(device_id).await?;
+        ensure_device_deletable_async(&app_handle, device_id).await?;
 
         let mut tx = get_pool()
             .begin()
@@ -106,7 +122,9 @@ pub async fn delete_device_cmd(device_id: DeviceId) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         tx.commit().await.map_err(|error| error.to_string())?;
 
-        let _ = DispatchPlanner::init().clear_device_state(device_id);
+        let _ = app_handle
+            .state::<crate::infrastructure::context::main_process::MainProcessCtx>()
+            .clear_device_runtime_state(device_id);
         notify_auto_dispatch_planner();
         Ok(())
     }

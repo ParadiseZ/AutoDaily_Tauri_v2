@@ -20,7 +20,7 @@ use crate::infrastructure::session::runtime_session::{
 use image::DynamicImage;
 use runtime_engine::domain::devices::device_conf::DevicePlatform;
 use runtime_engine::infrastructure::devices::device_launcher::{
-    ensure_device_connection, probe_device_config_connection, wait_for_device_connection,
+    ensure_device_connection_with_progress, probe_device_config_connection,
 };
 use std::sync::atomic::Ordering;
 use vision_core::infrastructure::image::load_image::dynamic_image_to_base64;
@@ -58,14 +58,14 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
         ConnectionAction::Probe => {
             Log::info("[ child ] 收到连接探测命令");
             emit_connection_event(
-                ConnectionStatusKind::Checking,
+                ConnectionStatusKind::DeviceChecking,
                 Some("正在检查设备连接".to_string()),
             );
 
             let device_config = get_device_ctx().device_config.read().await.clone();
             if matches!(device_config.platform, DevicePlatform::Desktop) {
                 emit_connection_event(
-                    ConnectionStatusKind::Connected,
+                    ConnectionStatusKind::DeviceConnected,
                     Some("Desktop 平台无需 ADB 连接".to_string()),
                 );
                 return;
@@ -77,77 +77,56 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
                 Ok(runtime_connect) => {
                     ADBCtx::new(runtime_connect).await;
                     emit_connection_event(
-                        ConnectionStatusKind::Connected,
+                        ConnectionStatusKind::DeviceConnected,
                         Some("设备连接可用".to_string()),
                     );
                 }
                 Err(error) => {
                     Log::warn(&format!("[ child ] 设备连接探测失败: {}", error));
-                    emit_connection_event(ConnectionStatusKind::Disconnected, Some(error));
+                    emit_connection_event(ConnectionStatusKind::DeviceDisconnected, Some(error));
                 }
             }
         }
         ConnectionAction::EnsureReady => {
             Log::info("[ child ] 收到连接准备命令");
             emit_connection_event(
-                ConnectionStatusKind::Checking,
+                ConnectionStatusKind::DeviceChecking,
                 Some("正在准备设备连接".to_string()),
             );
 
             let device_config = get_device_ctx().device_config.read().await.clone();
             if matches!(device_config.platform, DevicePlatform::Desktop) {
                 emit_connection_event(
-                    ConnectionStatusKind::Connected,
+                    ConnectionStatusKind::DeviceConnected,
                     Some("Desktop 平台无需 ADB 连接".to_string()),
                 );
                 return;
             }
 
-            match ensure_device_connection(&device_config).await {
+            match ensure_device_connection_with_progress(
+                &device_config,
+                emit_device_connection_status,
+            )
+            .await
+            {
                 Ok(runtime_connect) => {
                     ADBCtx::new(runtime_connect).await;
                     emit_connection_event(
-                        ConnectionStatusKind::Connected,
+                        ConnectionStatusKind::DeviceConnected,
                         Some("设备连接已就绪".to_string()),
                     );
                 }
                 Err(error) => {
                     Log::warn(&format!("[ child ] 设备连接准备失败: {}", error));
-                    emit_connection_event(ConnectionStatusKind::Disconnected, Some(error));
-                }
-            }
-        }
-        ConnectionAction::EnsureReadyAfterLaunch => {
-            Log::info("[ child ] 收到连接准备命令（主线程已启动模拟器）");
-            emit_connection_event(
-                ConnectionStatusKind::Checking,
-                Some("正在等待设备连接就绪".to_string()),
-            );
-
-            let device_config = get_device_ctx().device_config.read().await.clone();
-            if matches!(device_config.platform, DevicePlatform::Desktop) {
-                emit_connection_event(
-                    ConnectionStatusKind::Connected,
-                    Some("Desktop 平台无需 ADB 连接".to_string()),
-                );
-                return;
-            }
-
-            match wait_for_device_connection(&device_config).await {
-                Ok(runtime_connect) => {
-                    ADBCtx::new(runtime_connect).await;
-                    emit_connection_event(
-                        ConnectionStatusKind::Connected,
-                        Some("设备连接已就绪".to_string()),
-                    );
-                }
-                Err(error) => {
-                    Log::warn(&format!("[ child ] 设备连接准备失败: {}", error));
-                    emit_connection_event(ConnectionStatusKind::Disconnected, Some(error));
+                    emit_connection_event(ConnectionStatusKind::DeviceDisconnected, Some(error));
                 }
             }
         }
     }
+}
+
+fn emit_device_connection_status(status: ConnectionStatusKind, message: String) {
+    emit_connection_event(status, Some(message));
 }
 
 async fn handle_capture_control(

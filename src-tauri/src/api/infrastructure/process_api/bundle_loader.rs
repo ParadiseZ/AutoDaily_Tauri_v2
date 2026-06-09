@@ -26,7 +26,7 @@ pub(super) async fn load_runtime_queue(
     queue_loader::load_runtime_queue(device_id).await
 }
 
-pub(super) async fn load_runtime_queue_for_current_window(
+pub(crate) async fn load_runtime_queue_for_current_window(
     device_id: crate::infrastructure::core::DeviceId,
 ) -> Result<Vec<RuntimeQueueItem>, String> {
     queue_loader::load_runtime_queue_for_current_window(device_id).await

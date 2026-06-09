@@ -38,37 +38,47 @@
             <td>{{ formatCaptureMethod(device.data.capMethod) }}</td>
             <td>{{ device.data.cores.length ? device.data.cores.join(', ') : '未绑定' }}</td>
             <td>
-              <div class="flex flex-wrap items-center gap-3">
-                <StatusBadge :label="device.data.enable ? '已启用' : '已停用'" :tone="device.data.enable ? 'success' : 'neutral'" />
-                <div class="flex items-center gap-1.5 rounded-full bg-(--app-panel-muted) px-2.5 py-1">
-                  <AppIcon
-                    type="custom"
-                    :name="deviceStore.getDevicePresence(device.id).icon"
-                    :size="16"
-                    :color="
-                      deviceStore.getDevicePresence(device.id).tone === 'success'
-                        ? 'var(--app-vibrant-emerald)'
-                        : deviceStore.getDevicePresence(device.id).tone === 'danger'
-                          ? 'var(--app-danger)'
-                          : deviceStore.getDevicePresence(device.id).tone === 'warning'
-                            ? 'var(--app-warning)'
-                            : 'var(--app-text-faint)'
-                    "
-                  />
-                  <span
-                    class="text-xs font-semibold tracking-wide"
-                    :class="
-                      deviceStore.getDevicePresence(device.id).tone === 'success'
-                        ? 'text-(--app-vibrant-emerald)'
-                        : deviceStore.getDevicePresence(device.id).tone === 'danger'
-                          ? 'text-(--app-danger)'
-                          : deviceStore.getDevicePresence(device.id).tone === 'warning'
-                            ? 'text-(--app-warning)'
-                            : 'text-(--app-text-faint)'
-                    "
-                  >
-                    {{ deviceStore.getDevicePresence(device.id).label }}
-                  </span>
+              <div class="space-y-2">
+                <div class="flex flex-wrap items-center gap-3">
+                  <StatusBadge :label="device.data.enable ? '已启用' : '已停用'" :tone="device.data.enable ? 'success' : 'neutral'" />
+                  <div class="flex items-center gap-1.5 rounded-full bg-(--app-panel-muted) px-2.5 py-1">
+                    <AppIcon
+                      type="custom"
+                      :name="deviceStore.getDeviceRuntimeView(device.id).presence.icon"
+                      :size="16"
+                      :color="
+                        deviceStore.getDeviceRuntimeView(device.id).presence.tone === 'success'
+                          ? 'var(--app-vibrant-emerald)'
+                          : deviceStore.getDeviceRuntimeView(device.id).presence.tone === 'danger'
+                            ? 'var(--app-danger)'
+                            : deviceStore.getDeviceRuntimeView(device.id).presence.tone === 'warning'
+                              ? 'var(--app-warning)'
+                              : 'var(--app-text-faint)'
+                      "
+                    />
+                    <span
+                      class="text-xs font-semibold tracking-wide"
+                      :class="
+                        deviceStore.getDeviceRuntimeView(device.id).presence.tone === 'success'
+                          ? 'text-(--app-vibrant-emerald)'
+                          : deviceStore.getDeviceRuntimeView(device.id).presence.tone === 'danger'
+                            ? 'text-(--app-danger)'
+                            : deviceStore.getDeviceRuntimeView(device.id).presence.tone === 'warning'
+                              ? 'text-(--app-warning)'
+                              : 'text-(--app-text-faint)'
+                      "
+                    >
+                      {{ deviceStore.getDeviceRuntimeView(device.id).presence.label }}
+                    </span>
+                  </div>
+                </div>
+                <div class="space-y-1 text-xs">
+                  <p class="font-medium text-(--app-text-strong)">
+                    {{ deviceStore.getDeviceRuntimeView(device.id).progress.label }} · {{ deviceStore.getDeviceRuntimeView(device.id).connectionLabel }}
+                  </p>
+                  <p class="max-w-[280px] truncate text-(--app-text-faint)">
+                    {{ deviceStore.getDeviceRuntimeView(device.id).progress.message || '暂无运行进度' }}
+                  </p>
                 </div>
               </div>
             </td>

@@ -1,10 +1,10 @@
 use super::bundle_loader::load_runtime_queue_for_current_window;
 use super::dispatch_planner::{
-    has_complete_assignment_schedule_batch, insert_assignment_schedule,
-    insert_assignment_schedule_batch, load_next_planned_assignment_schedule,
-    reactivate_stopped_planner_schedules_for_device, stop_active_assignment_schedules_by_device,
+    fail_active_assignment_schedules_by_device, has_complete_assignment_schedule_batch,
+    insert_assignment_schedule, insert_assignment_schedule_batch,
+    load_next_planned_assignment_schedule, reactivate_stopped_planner_schedules_for_device,
+    stop_active_assignment_schedules_by_device, stop_planned_planner_schedules_by_device,
     update_assignment_schedule_status, update_assignment_schedule_status_by_dispatch_id,
-    DispatchPlanner,
 };
 use super::runtime_session::{
     build_child_init_data, load_device_table, load_runtime_session_for_queue_item,
@@ -12,14 +12,21 @@ use super::runtime_session::{
 };
 use crate::constant::project::MAIN_WINDOW;
 use crate::constant::table_name::{ASSIGNMENT_TABLE, DEVICE_TABLE};
-use crate::domain::devices::device_conf::{DeviceConfig, DeviceTable};
+use crate::domain::devices::device_conf::DeviceTable;
+use crate::domain::devices::device_runtime_event::{
+    DeviceAssignmentScheduleChangedEventPayload, DeviceConnectionEventPayload,
+    DeviceProgressEventPayload, DeviceRuntimeProgressPhase, DeviceRuntimeReconcileAction,
+    DeviceRuntimeReconcileEventPayload, DeviceRuntimeReconcileJobType, DeviceRuntimeReconcilePhase,
+};
 use crate::domain::devices::device_schedule::{
     AssignmentSchedule, AssignmentScheduleStatus, AssignmentTriggerSource,
 };
 use crate::domain::schedule::time_template::TimeTemplate;
-use crate::infrastructure::context::child_process_manager::get_process_manager;
+use crate::infrastructure::context::child_process_manager::{
+    get_process_manager, set_child_process_exit_handler,
+};
 use crate::infrastructure::context::main_process::{
-    DeviceDispatchSignal, MainProcessCtx, RuntimeReconcileJob,
+    ChildRuntimeStatus, DeviceDispatchSignal, MainProcessCtx, RuntimeReconcileJob,
 };
 use crate::infrastructure::core::{BatchId, DeviceId, ScriptId};
 use crate::infrastructure::db::{get_pool, DbRepo};
@@ -31,9 +38,6 @@ use crate::infrastructure::ipc::message::{
 };
 use crate::infrastructure::logging::log_trait::Log;
 use chrono::{Days, Local, NaiveTime, TimeZone};
-use runtime_engine::infrastructure::devices::device_launcher::{
-    probe_device_config_connection, start_device_process,
-};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tauri::{command, Emitter, Manager};
@@ -42,6 +46,7 @@ static AUTO_DISPATCH_NOTIFY: OnceLock<Arc<tokio::sync::Notify>> = OnceLock::new(
 const EMULATOR_CONNECTION_READY_GRACE_SECS: u64 = 65;
 const DEVICE_CONNECTION_READY_TIMEOUT_SECS: u64 = 25;
 const DEVICE_RUNTIME_RECONCILE_EVENT: &str = "device-runtime-reconcile";
+const ASSIGNMENT_SCHEDULE_CHANGED_EVENT: &str = "assignment-schedule-changed";
 
 fn now_millis_string() -> String {
     std::time::SystemTime::now()
@@ -57,14 +62,121 @@ fn emit_device_connection_status(
     message: Option<&str>,
 ) {
     if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
-        let payload = serde_json::json!({
-            "deviceId": device_id.to_string(),
-            "status": format!("{:?}", status),
-            "message": message,
-            "at": now_millis_string(),
-        });
+        let payload = DeviceConnectionEventPayload {
+            device_id,
+            status: status.clone(),
+            message: message.map(str::to_string),
+            at: now_millis_string(),
+        };
         let _ = main_window.emit("device-connection-status", payload);
     }
+}
+
+fn emit_device_progress_status(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    phase: DeviceRuntimeProgressPhase,
+    message: impl Into<String>,
+) {
+    let message = message.into();
+    let at = Local::now().to_rfc3339();
+    let _ = app_handle.state::<MainProcessCtx>().set_device_progress(
+        device_id,
+        serde_json::to_value(&phase)
+            .ok()
+            .and_then(|value| value.as_str().map(str::to_string))
+            .unwrap_or_default(),
+        message.clone(),
+        Some(at.clone()),
+    );
+    if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
+        let payload = DeviceProgressEventPayload {
+            device_id,
+            session_id: None,
+            assignment_id: None,
+            script_id: None,
+            task_id: None,
+            step_id: None,
+            phase,
+            message: Some(message),
+            at,
+        };
+        let _ = main_window.emit("device-progress", payload);
+    }
+}
+
+pub(crate) fn emit_assignment_schedule_changed(app_handle: &tauri::AppHandle, device_id: DeviceId) {
+    let payload = DeviceAssignmentScheduleChangedEventPayload {
+        device_id,
+        at: Local::now().to_rfc3339(),
+    };
+    let _ = app_handle.emit(ASSIGNMENT_SCHEDULE_CHANGED_EVENT, payload);
+}
+
+fn ensure_device_dispatch_state(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .ensure_device_runtime_state(device_id)
+}
+
+fn snapshot_device_dispatch_state(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<crate::infrastructure::context::main_process::DeviceDispatchState, String> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .snapshot_device_dispatch_state(device_id)
+}
+
+fn mark_active_dispatch(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    dispatch_id: Option<crate::infrastructure::core::DispatchId>,
+) -> Result<(), String> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .mark_active_dispatch(device_id, dispatch_id)
+}
+
+fn set_auto_dispatch_blocked(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    blocked: bool,
+) -> Result<(), String> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .set_auto_dispatch_blocked(device_id, blocked)
+}
+
+fn push_debug_session(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    session: crate::infrastructure::ipc::message::RuntimeSessionSnapshot,
+) -> Result<(), String> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .push_debug_session(device_id, session)
+}
+
+fn pop_debug_session(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<Option<crate::infrastructure::ipc::message::RuntimeSessionSnapshot>, String> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .pop_debug_session(device_id)
+}
+
+fn reset_device_dispatch_state(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .reset_device_dispatch_state(device_id)
 }
 
 pub(crate) fn notify_auto_dispatch_planner() {
@@ -76,19 +188,23 @@ pub(crate) fn notify_auto_dispatch_planner() {
 fn emit_runtime_reconcile_event(
     app_handle: &tauri::AppHandle,
     job: &RuntimeReconcileJob,
-    phase: &str,
-    action: Option<&str>,
+    phase: DeviceRuntimeReconcilePhase,
+    action: Option<DeviceRuntimeReconcileAction>,
     message: Option<String>,
 ) {
-    let payload = serde_json::json!({
-        "jobId": job.job_id(),
-        "jobType": job.job_type(),
-        "deviceId": job.device_id().to_string(),
-        "phase": phase,
-        "action": action,
-        "message": message,
-        "at": Local::now().to_rfc3339(),
-    });
+    let payload = DeviceRuntimeReconcileEventPayload {
+        job_id: job.job_id().to_string(),
+        job_type: match job.job_type() {
+            "deviceConfig" => DeviceRuntimeReconcileJobType::DeviceConfig,
+            "deviceSessionRefresh" => DeviceRuntimeReconcileJobType::DeviceSessionRefresh,
+            _ => DeviceRuntimeReconcileJobType::DeviceSessionRefresh,
+        },
+        device_id: job.device_id(),
+        phase,
+        action,
+        message,
+        at: Local::now().to_rfc3339(),
+    };
     let _ = app_handle.emit(DEVICE_RUNTIME_RECONCILE_EVENT, payload);
 }
 
@@ -156,7 +272,13 @@ pub(crate) fn enqueue_device_config_reconcile_job(
         .runtime_reconcile_tx
         .send(job.clone())
         .map_err(|error| error.to_string())?;
-    emit_runtime_reconcile_event(app_handle, &job, "queued", None, None);
+    emit_runtime_reconcile_event(
+        app_handle,
+        &job,
+        DeviceRuntimeReconcilePhase::Queued,
+        None,
+        None,
+    );
     Ok(())
 }
 
@@ -185,7 +307,13 @@ pub(crate) fn enqueue_device_runtime_session_refresh_jobs(
             .runtime_reconcile_tx
             .send(job.clone())
             .map_err(|error| error.to_string())?;
-        emit_runtime_reconcile_event(app_handle, &job, "queued", None, None);
+        emit_runtime_reconcile_event(
+            app_handle,
+            &job,
+            DeviceRuntimeReconcilePhase::Queued,
+            None,
+            None,
+        );
     }
     Ok(())
 }
@@ -227,7 +355,7 @@ async fn probe_device_connection(
     set_connection_status(
         app_handle,
         device_id,
-        ConnectionStatusKind::Checking,
+        ConnectionStatusKind::DeviceChecking,
         Some(message.to_string()),
     )
     .await?;
@@ -253,17 +381,18 @@ async fn dispatch_queue_item_to_child(
 ) -> Result<(), String> {
     let session =
         load_runtime_session_for_queue_item(app_handle, device_id, queue_item.clone()).await?;
-    dispatch_session_to_child(device_id, session, queue_item.dispatch_id).await
+    dispatch_session_to_child(app_handle, device_id, session, queue_item.dispatch_id).await
 }
 
 async fn dispatch_session_to_child(
+    app_handle: &tauri::AppHandle,
     device_id: DeviceId,
     session: crate::infrastructure::ipc::message::RuntimeSessionSnapshot,
     dispatch_id: crate::infrastructure::core::DispatchId,
 ) -> Result<(), String> {
     send_session_control(device_id, SessionControlMessage::LoadSession { session }).await;
     send_process_control(device_id, ProcessAction::Start);
-    DispatchPlanner::init().mark_active_dispatch(device_id, Some(dispatch_id))?;
+    mark_active_dispatch(app_handle, device_id, Some(dispatch_id))?;
     Ok(())
 }
 
@@ -344,22 +473,55 @@ fn queue_item_matches_schedule(item: &RuntimeQueueItem, record: &AssignmentSched
         && record.scope_hash == item.dedup_scope_base_hash
 }
 
+async fn block_device_auto_dispatch(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    message: String,
+) -> Result<(), String> {
+    set_auto_dispatch_blocked(app_handle, device_id, true)?;
+    let stopped =
+        stop_planned_planner_schedules_by_device(device_id, Local::now().to_rfc3339(), message)
+            .await?;
+    if stopped > 0 {
+        emit_assignment_schedule_changed(app_handle, device_id);
+    }
+    Ok(())
+}
+
 async fn ensure_planner_batch_for_device(
-    _app_handle: &tauri::AppHandle,
+    app_handle: &tauri::AppHandle,
     device_id: DeviceId,
     preserve_stopped: bool,
 ) -> Result<usize, String> {
+    emit_device_progress_status(
+        app_handle,
+        device_id,
+        DeviceRuntimeProgressPhase::Planning,
+        "正在生成当前窗口调度记录",
+    );
     let queue = load_runtime_queue_for_current_window(device_id)
         .await?
         .into_iter()
         .map(to_planner_queue_item)
         .collect::<Vec<_>>();
     if queue.is_empty() {
+        emit_device_progress_status(
+            app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::Idle,
+            "当前设备无可运行队列",
+        );
         return Ok(0);
     }
     if has_complete_assignment_schedule_batch(device_id, AssignmentTriggerSource::Planner, &queue)
         .await?
     {
+        emit_device_progress_status(
+            app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::Planning,
+            "已生成/已补齐当前窗口调度记录",
+        );
         return Ok(0);
     }
     insert_assignment_schedule_batch(
@@ -370,6 +532,13 @@ async fn ensure_planner_batch_for_device(
         preserve_stopped,
     )
     .await?;
+    emit_assignment_schedule_changed(app_handle, device_id);
+    emit_device_progress_status(
+        app_handle,
+        device_id,
+        DeviceRuntimeProgressPhase::Planning,
+        "已生成/已补齐当前窗口调度记录",
+    );
     Ok(queue.len())
 }
 
@@ -433,7 +602,7 @@ async fn dispatch_user_schedule_to_child(
         Some("user dispatch 已派发到子进程".to_string()),
     )
     .await?;
-    dispatch_session_to_child(device_id, session, record.dispatch_id).await
+    dispatch_session_to_child(app_handle, device_id, session, record.dispatch_id).await
 }
 
 async fn dispatch_schedule_to_child(
@@ -456,13 +625,13 @@ async fn dispatch_next_scheduled_queue_item(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<bool, String> {
-    if let Some(session) = DispatchPlanner::init().pop_debug_session(device_id)? {
+    if let Some(session) = pop_debug_session(app_handle, device_id)? {
         let dispatch_id = session
             .queue
             .first()
             .map(|queue_item| queue_item.dispatch_id)
             .ok_or_else(|| "debug session 缺少 dispatch 队列项".to_string())?;
-        dispatch_session_to_child(device_id, session, dispatch_id).await?;
+        dispatch_session_to_child(app_handle, device_id, session, dispatch_id).await?;
         return Ok(true);
     }
 
@@ -475,17 +644,41 @@ async fn dispatch_next_scheduled_queue_item(
             }
         };
         let Some(record) = record else {
-            DispatchPlanner::init().mark_active_dispatch(device_id, None)?;
+            mark_active_dispatch(app_handle, device_id, None)?;
             return Ok(false);
         };
-        ensure_device_ready(app_handle, device_id).await?;
+        if let Err(error) = ensure_device_ready(app_handle, device_id).await {
+            update_assignment_schedule_status(
+                record.id,
+                AssignmentScheduleStatus::Failed,
+                None,
+                Some(Local::now().to_rfc3339()),
+                Some(error.clone()),
+            )
+            .await?;
+            emit_assignment_schedule_changed(app_handle, device_id);
+            mark_active_dispatch(app_handle, device_id, None)?;
+            block_device_auto_dispatch(
+                app_handle,
+                device_id,
+                "设备连接失败，停止该设备后续自动派发".to_string(),
+            )
+            .await?;
+            emit_device_progress_status(
+                app_handle,
+                device_id,
+                DeviceRuntimeProgressPhase::Failed,
+                "设备连接失败，已停止该设备后续自动派发，可手动重试；其它设备继续运行",
+            );
+            return Err(error);
+        }
         match dispatch_schedule_to_child(app_handle, device_id, record).await {
             Ok(()) => return Ok(true),
             Err(error) if error == "调度记录已过期，已取消" => continue,
             Err(error) => return Err(error),
         }
     }
-    DispatchPlanner::init().mark_active_dispatch(device_id, None)?;
+    mark_active_dispatch(app_handle, device_id, None)?;
     Ok(false)
 }
 
@@ -498,9 +691,17 @@ pub(crate) async fn reevaluate_device_auto_dispatch(
         return Ok(0);
     }
 
-    let planner = DispatchPlanner::init();
-    planner.ensure_device_state(device_id)?;
-    let state = planner.snapshot_device_state(device_id)?;
+    ensure_device_dispatch_state(app_handle, device_id)?;
+    let state = snapshot_device_dispatch_state(app_handle, device_id)?;
+    if state.auto_dispatch_blocked {
+        emit_device_progress_status(
+            app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::Failed,
+            "该设备自动派发已因设备连接失败暂停，等待手动运行重新尝试",
+        );
+        return Ok(0);
+    }
     if state.active_dispatch.is_some() {
         return Ok(0);
     }
@@ -522,7 +723,15 @@ pub(crate) async fn reevaluate_all_auto_dispatches(
     let devices = DbRepo::get_all::<DeviceTable>(DEVICE_TABLE).await?;
     let mut total = 0usize;
     for device in devices {
-        total += reevaluate_device_auto_dispatch(app_handle, device.id).await?;
+        match reevaluate_device_auto_dispatch(app_handle, device.id).await {
+            Ok(count) => total += count,
+            Err(error) => {
+                Log::error(&format!(
+                    "[ process ] 设备[{}]自动派发失败，继续处理其它设备: {}",
+                    device.id, error
+                ));
+            }
+        }
     }
     Ok(total)
 }
@@ -548,7 +757,7 @@ async fn reconcile_saved_device_runtime(
     app_handle: &tauri::AppHandle,
     previous: Option<DeviceTable>,
     current: DeviceTable,
-) -> Result<(Option<&'static str>, String), String> {
+) -> Result<(Option<DeviceRuntimeReconcileAction>, String), String> {
     let Some(manager) = get_process_manager() else {
         return Ok((None, "进程管理器未初始化，跳过设备运行时协调".to_string()));
     };
@@ -558,8 +767,8 @@ async fn reconcile_saved_device_runtime(
 
     if !is_enabled {
         if is_running {
-            let message = cmd_device_shutdown(current.id).await?;
-            return Ok((Some("shuttingDown"), message));
+            let message = cmd_device_shutdown(app_handle.clone(), current.id).await?;
+            return Ok((Some(DeviceRuntimeReconcileAction::ShuttingDown), message));
         }
         return Ok((None, "设备未启用且子进程未运行，无需协调".to_string()));
     }
@@ -580,18 +789,18 @@ async fn reconcile_saved_device_runtime(
 
     if previous.data.0.cores != current.data.0.cores {
         let message = cmd_restart_device_runtime(app_handle.clone(), current.id).await?;
-        return Ok((Some("restarting"), message));
+        return Ok((Some(DeviceRuntimeReconcileAction::Restarting), message));
     }
 
     if previous.data.0.execution_policy != current.data.0.execution_policy {
         let message = cmd_sync_device_runtime_session(app_handle.clone(), current.id).await?;
-        return Ok((Some("syncing"), message));
+        return Ok((Some(DeviceRuntimeReconcileAction::Syncing), message));
     }
 
     if !previous.data.0.auto_start && current.data.0.auto_start {
         let created = reevaluate_device_auto_dispatch(app_handle, current.id).await?;
         return Ok((
-            Some("syncing"),
+            Some(DeviceRuntimeReconcileAction::Syncing),
             format!(
                 "设备[{}]已重新评估自动调度，新增/唤醒 {} 项",
                 current.id, created
@@ -605,7 +814,7 @@ async fn reconcile_saved_device_runtime(
 async fn run_runtime_reconcile_job(
     app_handle: &tauri::AppHandle,
     job: RuntimeReconcileJob,
-) -> Result<(Option<&'static str>, String), String> {
+) -> Result<(Option<DeviceRuntimeReconcileAction>, String), String> {
     match job {
         RuntimeReconcileJob::DeviceConfig {
             previous, current, ..
@@ -621,7 +830,7 @@ async fn run_runtime_reconcile_job(
             let mut action = None;
 
             if sync_session {
-                action = Some("syncing");
+                action = Some(DeviceRuntimeReconcileAction::Syncing);
                 if let Some(message) =
                     sync_device_runtime_session_if_online(app_handle, device_id).await?
                 {
@@ -632,7 +841,7 @@ async fn run_runtime_reconcile_job(
             }
 
             if reevaluate_dispatch {
-                action = Some("syncing");
+                action = Some(DeviceRuntimeReconcileAction::Syncing);
                 let created = reevaluate_device_auto_dispatch(app_handle, device_id).await?;
                 messages.push(format!(
                     "设备[{}]已重新评估自动调度，新增/唤醒 {} 项",
@@ -674,15 +883,15 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                     } => {
                         let enabled = current.data.0.enable;
                         let action = if !enabled {
-                            Some("shuttingDown")
+                            Some(DeviceRuntimeReconcileAction::ShuttingDown)
                         } else if let Some(previous) = previous {
                             if previous.data.0.cores != current.data.0.cores {
-                                Some("restarting")
+                                Some(DeviceRuntimeReconcileAction::Restarting)
                             } else if previous.data.0.execution_policy
                                 != current.data.0.execution_policy
                                 || (!previous.data.0.auto_start && current.data.0.auto_start)
                             {
-                                Some("syncing")
+                                Some(DeviceRuntimeReconcileAction::Syncing)
                             } else {
                                 None
                             }
@@ -697,7 +906,7 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                         ..
                     } => {
                         if *sync_session || *reevaluate_dispatch {
-                            Some("syncing")
+                            Some(DeviceRuntimeReconcileAction::Syncing)
                         } else {
                             None
                         }
@@ -706,8 +915,8 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                 emit_runtime_reconcile_event(
                     &app_handle,
                     &job_for_event,
-                    "running",
-                    action_hint,
+                    DeviceRuntimeReconcilePhase::Running,
+                    action_hint.clone(),
                     None,
                 );
 
@@ -716,7 +925,7 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                         emit_runtime_reconcile_event(
                             &app_handle,
                             &job_for_event,
-                            "succeeded",
+                            DeviceRuntimeReconcilePhase::Succeeded,
                             action,
                             Some(message),
                         );
@@ -731,7 +940,7 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                         emit_runtime_reconcile_event(
                             &app_handle,
                             &job_for_event,
-                            "failed",
+                            DeviceRuntimeReconcilePhase::Failed,
                             action_hint,
                             Some(error),
                         );
@@ -789,18 +998,22 @@ pub(crate) fn spawn_auto_dispatch_planner_loop(app_handle: tauri::AppHandle) {
         loop {
             let sleep_duration = match compute_next_auto_due_at().await {
                 Ok(Some(next_due)) => {
+                    Log::info(&format!("[ process ] 下一次设备任务调度时间：{}", next_due));
                     let now = Local::now();
                     (next_due - now)
                         .to_std()
                         .unwrap_or_else(|_| std::time::Duration::from_secs(1))
                 }
-                Ok(None) => std::time::Duration::from_secs(300),
+                Ok(None) => {
+                    Log::info(&format!("[ process ] 暂无自动调度任务,将于24小时后再次检查"));
+                    std::time::Duration::from_days(1)
+                },
                 Err(error) => {
                     Log::error(&format!(
                         "[ process ] 计算下一次自动调度时间失败: {}",
                         error
                     ));
-                    std::time::Duration::from_secs(60)
+                    std::time::Duration::from_days(1)
                 }
             };
             tokio::select! {
@@ -809,11 +1022,11 @@ pub(crate) fn spawn_auto_dispatch_planner_loop(app_handle: tauri::AppHandle) {
             }
             match reevaluate_all_auto_dispatches(&app_handle).await {
                 Ok(count) if count > 0 => {
-                    Log::info(&format!("[ process ] 自动调度派发了 {} 个队列项", count));
+                    Log::info(&format!("[ process ] 派发了 {} 个设备的任务队列", count));
                 }
                 Ok(_) => {}
                 Err(error) => {
-                    Log::error(&format!("[ process ] 自动调度 reevaluate 失败: {}", error));
+                    Log::error(&format!("[ process ] 自动调度派发任务失败: {}", error));
                 }
             }
         }
@@ -848,7 +1061,7 @@ async fn wait_for_ipc_client(
     }
 }
 
-async fn ensure_device_online(
+async fn ensure_child_runtime_ipc_ready(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<(), String> {
@@ -857,53 +1070,59 @@ async fn ensure_device_online(
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
 
     if !manager.is_running(&device_id).await {
-        let init_data = build_child_init_data(app_handle, device_id, false).await?;
+        let _ = app_handle
+            .state::<MainProcessCtx>()
+            .set_child_runtime_status(device_id, ChildRuntimeStatus::Starting);
+        emit_device_progress_status(
+            app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::ChildRuntimeStarting,
+            "正在启动设备运行时",
+        );
+        let init_data = build_child_init_data(app_handle, device_id).await?;
         manager.spawn_child(init_data).await?;
+        let _ = app_handle
+            .state::<MainProcessCtx>()
+            .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcWaiting);
+        emit_device_progress_status(
+            app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::ChildIpcWaiting,
+            "正在等待设备运行时 IPC 连接",
+        );
         wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
-        let _ = probe_device_connection(app_handle, device_id, "正在检查设备连接").await;
+        let _ = app_handle
+            .state::<MainProcessCtx>()
+            .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcReady);
+        emit_device_progress_status(
+            app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::ChildIpcReady,
+            "设备运行时 IPC 已连接，准备设备连接",
+        );
         return Ok(());
     }
 
-    wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await
-}
-
-async fn ensure_emulator_launch_ready_in_main(
-    device_id: DeviceId,
-    device_config: &DeviceConfig,
-) -> Result<bool, String> {
-    if !device_config.uses_emulator_transport() {
-        return Ok(false);
-    }
-
-    let preflight_result = tokio::task::spawn_blocking({
-        let device_config = device_config.clone();
-        move || probe_device_config_connection(&device_config).map(|_| ())
-    })
-    .await
-    .map_err(|error| format!("模拟器启动前连接预探测任务失败: {}", error))?;
-
-    if preflight_result.is_ok() {
-        Log::info(&format!(
-            "[ process ] 设备[{}]模拟器连接预探测成功，跳过主线程启动",
-            device_id
-        ));
-        return Ok(false);
-    }
-
-    if device_config
-        .exe_path
-        .as_deref()
-        .is_none_or(|path| path.trim().is_empty())
-    {
-        Log::info(&format!(
-            "[ process ] 设备[{}]未配置模拟器启动程序，尝试直接连接设备...",
-            device_id
-        ));
-        return Ok(false);
-    }
-
-    start_device_process(device_config).await?;
-    Ok(true)
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcWaiting);
+    emit_device_progress_status(
+        app_handle,
+        device_id,
+        DeviceRuntimeProgressPhase::ChildIpcWaiting,
+        "正在确认设备运行时 IPC 连接",
+    );
+    wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcReady);
+    emit_device_progress_status(
+        app_handle,
+        device_id,
+        DeviceRuntimeProgressPhase::ChildIpcReady,
+        "设备运行时 IPC 已连接，准备设备连接",
+    );
+    Ok(())
 }
 
 async fn set_connection_status(
@@ -913,88 +1132,117 @@ async fn set_connection_status(
     message: Option<String>,
 ) -> Result<(), String> {
     let state = app_handle.state::<MainProcessCtx>();
-    let mut guard = state
-        .device_connections
-        .write()
-        .map_err(|_| "写入连接状态失败".to_string())?;
-    guard.insert(
-        device_id,
-        crate::infrastructure::context::main_process::DeviceConnectionState {
-            status: status.clone(),
-            message: message.clone(),
-        },
-    );
-    drop(guard);
+    state.set_device_connection_state(device_id, status.clone(), message.clone())?;
     emit_device_connection_status(app_handle, device_id, &status, message.as_deref());
+    if let Some(message) = message {
+        emit_device_progress_status(app_handle, device_id, status.into(), message);
+    }
     Ok(())
 }
 
-async fn wait_for_connection_status(
+fn subscribe_device_connection_status(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<
+    tokio::sync::watch::Receiver<crate::infrastructure::context::main_process::DeviceRuntimeState>,
+    String,
+> {
+    app_handle
+        .state::<MainProcessCtx>()
+        .subscribe_device_runtime_state(device_id)
+}
+
+async fn request_child_device_connection(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
     timeout: std::time::Duration,
-) -> Result<(ConnectionStatusKind, Option<String>), String> {
-    let started_at = tokio::time::Instant::now();
-    loop {
-        {
-            let state = app_handle.state::<MainProcessCtx>();
-            let guard = state
-                .device_connections
-                .read()
-                .map_err(|_| "读取连接状态失败".to_string())?;
-            if let Some(status) = guard.get(&device_id) {
-                match status.status {
-                    ConnectionStatusKind::Connected | ConnectionStatusKind::Disconnected => {
-                        return Ok((status.status.clone(), status.message.clone()));
-                    }
-                    ConnectionStatusKind::Unknown | ConnectionStatusKind::Checking => {}
-                }
-            }
-        }
-
-        if started_at.elapsed() >= timeout {
-            return Err(format!("设备[{}]连接准备超时", device_id));
-        }
-
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
-}
-
-async fn ensure_device_connection_ready(
-    app_handle: &tauri::AppHandle,
-    device_id: DeviceId,
-    device_config: &DeviceConfig,
-    started_in_main: bool,
 ) -> Result<(), String> {
+    let mut connection_rx = subscribe_device_connection_status(app_handle, device_id)?;
     set_connection_status(
         app_handle,
         device_id,
-        ConnectionStatusKind::Checking,
+        ConnectionStatusKind::DeviceChecking,
         Some("正在准备设备连接".to_string()),
     )
     .await?;
-    let action = if started_in_main {
-        ConnectionAction::EnsureReadyAfterLaunch
-    } else {
-        ConnectionAction::EnsureReady
-    };
-    send_connection_control(device_id, action).await;
+    send_connection_control(device_id, ConnectionAction::EnsureReady).await;
 
-    let timeout = if device_config.uses_emulator_transport() {
-        std::time::Duration::from_secs(
-            u64::from(device_config.startup_delay_secs) + EMULATOR_CONNECTION_READY_GRACE_SECS,
-        )
-    } else {
-        std::time::Duration::from_secs(DEVICE_CONNECTION_READY_TIMEOUT_SECS)
-    };
-
-    match wait_for_connection_status(app_handle, device_id, timeout).await? {
-        (ConnectionStatusKind::Connected, _) => Ok(()),
-        (ConnectionStatusKind::Disconnected, message) => {
-            Err(message.unwrap_or_else(|| format!("设备[{}]连接准备失败", device_id)))
+    let wait_result = tokio::time::timeout(timeout, async {
+        loop {
+            connection_rx
+                .changed()
+                .await
+                .map_err(|_| format!("设备[{}]连接状态通知已关闭", device_id))?;
+            let state = connection_rx.borrow().clone();
+            match state.connection.status {
+                ConnectionStatusKind::DeviceConnected
+                | ConnectionStatusKind::DeviceDisconnected => {
+                    return Ok::<(ConnectionStatusKind, Option<String>), String>((
+                        state.connection.status,
+                        state.connection.message,
+                    ));
+                }
+                ConnectionStatusKind::DeviceUnknown
+                | ConnectionStatusKind::DeviceChecking
+                | ConnectionStatusKind::ShellProbeChecking
+                | ConnectionStatusKind::EmulatorStarting
+                | ConnectionStatusKind::EmulatorWaiting => {}
+            }
         }
-        (ConnectionStatusKind::Unknown, _) | (ConnectionStatusKind::Checking, _) => {
-            Err(format!("设备[{}]连接状态未知", device_id))
+    })
+    .await;
+    let (status, message) = match wait_result {
+        Ok(Ok(result)) => result,
+        Ok(Err(error)) => {
+            let _ = set_connection_status(
+                app_handle,
+                device_id,
+                ConnectionStatusKind::DeviceDisconnected,
+                Some(error.clone()),
+            )
+            .await;
+            return Err(error);
+        }
+        Err(_) => {
+            let error = format!("设备[{}]连接准备超时", device_id);
+            let _ = set_connection_status(
+                app_handle,
+                device_id,
+                ConnectionStatusKind::DeviceDisconnected,
+                Some(error.clone()),
+            )
+            .await;
+            return Err(error);
+        }
+    };
+
+    match status {
+        ConnectionStatusKind::DeviceConnected => Ok(()),
+        ConnectionStatusKind::DeviceDisconnected => {
+            let message = message.unwrap_or_else(|| format!("设备[{}]连接准备失败", device_id));
+            let _ = set_connection_status(
+                app_handle,
+                device_id,
+                ConnectionStatusKind::DeviceDisconnected,
+                Some(message.clone()),
+            )
+            .await;
+            Err(message)
+        }
+        ConnectionStatusKind::DeviceUnknown
+        | ConnectionStatusKind::DeviceChecking
+        | ConnectionStatusKind::ShellProbeChecking
+        | ConnectionStatusKind::EmulatorStarting
+        | ConnectionStatusKind::EmulatorWaiting => {
+            let message = format!("设备[{}]连接状态未知", device_id);
+            let _ = set_connection_status(
+                app_handle,
+                device_id,
+                ConnectionStatusKind::DeviceDisconnected,
+                Some(message.clone()),
+            )
+            .await;
+            Err(message)
         }
     }
 }
@@ -1009,11 +1257,54 @@ async fn ensure_device_ready(
         return Err(format!("设备[{}]未启用", device_table.data.0.device_name));
     }
 
-    let started_in_main =
-        ensure_emulator_launch_ready_in_main(device_id, &device_table.data.0).await?;
-    ensure_device_online(app_handle, device_id).await?;
-    ensure_device_connection_ready(app_handle, device_id, &device_table.data.0, started_in_main)
+    if let Err(error) = ensure_child_runtime_ipc_ready(app_handle, device_id).await {
+        let _ = set_connection_status(
+            app_handle,
+            device_id,
+            ConnectionStatusKind::DeviceDisconnected,
+            Some(error.clone()),
+        )
+        .await;
+        return Err(error);
+    }
+    let timeout = if device_table.data.0.uses_emulator_transport() {
+        std::time::Duration::from_secs(
+            u64::from(device_table.data.0.startup_delay_secs)
+                + EMULATOR_CONNECTION_READY_GRACE_SECS,
+        )
+    } else {
+        std::time::Duration::from_secs(DEVICE_CONNECTION_READY_TIMEOUT_SECS)
+    };
+    request_child_device_connection(app_handle, device_id, timeout).await
+}
+
+async fn ensure_device_ready_for_manual(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    set_auto_dispatch_blocked(app_handle, device_id, false)?;
+    if let Err(error) = ensure_device_ready(app_handle, device_id).await {
+        if let Err(block_error) = block_device_auto_dispatch(
+            app_handle,
+            device_id,
+            "手动派发连接失败，停止该设备后续自动派发".to_string(),
+        )
         .await
+        {
+            Log::error(&format!(
+                "[ process ] 设备[{}]持久化自动派发停止状态失败: {}",
+                device_id, block_error
+            ));
+        }
+        emit_device_progress_status(
+            app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::Failed,
+            "手动派发中该设备连接失败，该设备自动派发保持暂停，可再次手动重试",
+        );
+        return Err(error);
+    }
+    Ok(())
 }
 
 async fn ensure_device_capture_ready(
@@ -1023,16 +1314,26 @@ async fn ensure_device_capture_ready(
     let device_table = load_device_table(device_id).await?;
     validate_runtime_platform_supported(&device_table)?;
     let device_name = device_table.data.0.device_name.clone();
-    let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
-
-    if !manager.is_running(&device_id).await {
-        let init_data = build_child_init_data(app_handle, device_id, true).await?;
-        manager.spawn_child(init_data).await?;
-        wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
-        let _ = probe_device_connection(app_handle, device_id, "正在检查设备连接").await;
+    if let Err(error) = ensure_child_runtime_ipc_ready(app_handle, device_id).await {
+        let _ = set_connection_status(
+            app_handle,
+            device_id,
+            ConnectionStatusKind::DeviceDisconnected,
+            Some(error.clone()),
+        )
+        .await;
+        return Err(error);
     }
 
-    ensure_device_connection_ready(app_handle, device_id, &device_table.data.0, false).await?;
+    let timeout = if device_table.data.0.uses_emulator_transport() {
+        std::time::Duration::from_secs(
+            u64::from(device_table.data.0.startup_delay_secs)
+                + EMULATOR_CONNECTION_READY_GRACE_SECS,
+        )
+    } else {
+        std::time::Duration::from_secs(DEVICE_CONNECTION_READY_TIMEOUT_SECS)
+    };
+    request_child_device_connection(app_handle, device_id, timeout).await?;
     Ok(device_name)
 }
 
@@ -1075,6 +1376,13 @@ pub(crate) fn spawn_dispatch_signal_loop(
 ) {
     tauri::async_runtime::spawn(async move {
         while let Some(signal) = rx.recv().await {
+            let assignment_schedule_changed = signal.dispatch_id.is_some()
+                && matches!(
+                    &signal.phase,
+                    RuntimeDispatchPhase::Started
+                        | RuntimeDispatchPhase::Finished
+                        | RuntimeDispatchPhase::Failed
+                );
             let result = match signal.phase {
                 RuntimeDispatchPhase::Started => {
                     if let Some(dispatch_id) = signal.dispatch_id {
@@ -1119,7 +1427,7 @@ pub(crate) fn spawn_dispatch_signal_loop(
                     }
                 }
                 RuntimeDispatchPhase::RequestNext => {
-                    match DispatchPlanner::init().mark_active_dispatch(signal.device_id, None) {
+                    match mark_active_dispatch(&app_handle, signal.device_id, None) {
                         Ok(()) => dispatch_next_scheduled_queue_item(&app_handle, signal.device_id)
                             .await
                             .map(|_| ()),
@@ -1133,9 +1441,65 @@ pub(crate) fn spawn_dispatch_signal_loop(
                     "[ process ] 处理设备[{}] dispatch 信号失败: {}",
                     signal.device_id, error
                 ));
+            } else if assignment_schedule_changed {
+                emit_assignment_schedule_changed(&app_handle, signal.device_id);
             }
         }
     });
+}
+
+pub(crate) fn register_child_process_exit_handler(app_handle: tauri::AppHandle) {
+    let result = set_child_process_exit_handler(Arc::new(move |device_id, success, message| {
+        let app_handle = app_handle.clone();
+        tauri::async_runtime::spawn(async move {
+            let had_active = snapshot_device_dispatch_state(&app_handle, device_id)
+                .map(|state| state.active_dispatch.is_some())
+                .unwrap_or(false);
+            let _ = mark_active_dispatch(&app_handle, device_id, None);
+            if let Err(error) = block_device_auto_dispatch(
+                &app_handle,
+                device_id,
+                "设备运行时已退出，停止该设备后续自动派发".to_string(),
+            )
+            .await
+            {
+                Log::error(&format!(
+                    "[ process ] 设备[{}]子进程退出后持久化自动派发停止状态失败: {}",
+                    device_id, error
+                ));
+            }
+
+            let completed_at = Local::now().to_rfc3339();
+            let failed = fail_active_assignment_schedules_by_device(
+                device_id,
+                completed_at,
+                message.clone(),
+            )
+            .await;
+            match failed {
+                Ok(count) => {
+                    if count > 0 || had_active {
+                        emit_assignment_schedule_changed(&app_handle, device_id);
+                    }
+                    let phase = if success {
+                        DeviceRuntimeProgressPhase::ChildProcessExited
+                    } else {
+                        DeviceRuntimeProgressPhase::ChildProcessCrashed
+                    };
+                    emit_device_progress_status(&app_handle, device_id, phase, message);
+                }
+                Err(error) => {
+                    Log::error(&format!(
+                        "[ process ] 设备[{}]子进程退出后更新 assignment_schedules 失败: {}",
+                        device_id, error
+                    ));
+                }
+            }
+        });
+    }));
+    if let Err(error) = result {
+        Log::warn(&format!("[ process ] 注册子进程退出处理器失败: {}", error));
+    }
 }
 
 async fn restart_device_runtime_internal(
@@ -1149,9 +1513,18 @@ async fn restart_device_runtime_internal(
         manager.stop_child(&device_id).await?;
     }
 
-    let init_data = build_child_init_data(app_handle, device_id, false).await?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::Starting);
+    let init_data = build_child_init_data(app_handle, device_id).await?;
     manager.spawn_child(init_data).await?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcWaiting);
     wait_for_ipc_client(app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcReady);
     let _ = probe_device_connection(app_handle, device_id, "正在检查设备连接").await;
 
     Ok(format!("设备[{}]子进程已重启", device_id))
@@ -1162,9 +1535,9 @@ pub async fn cmd_device_start(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    let planner = DispatchPlanner::init();
-    planner.ensure_device_state(device_id)?;
-    let state = planner.snapshot_device_state(device_id)?;
+    ensure_device_dispatch_state(&app_handle, device_id)?;
+    set_auto_dispatch_blocked(&app_handle, device_id, false)?;
+    let state = snapshot_device_dispatch_state(&app_handle, device_id)?;
     if state.active_dispatch.is_some() {
         return Ok(format!(
             "设备[{}]当前已有运行中的 dispatch，已唤醒 planner",
@@ -1177,11 +1550,20 @@ pub async fn cmd_device_start(
         "用户重新开始设备调度".to_string(),
     )
     .await?;
+    if reactivated > 0 {
+        emit_assignment_schedule_changed(&app_handle, device_id);
+    }
     let created = ensure_planner_batch_for_device(&app_handle, device_id, false).await?;
     if load_next_planned_assignment_schedule(device_id)
         .await?
         .is_none()
     {
+        emit_device_progress_status(
+            &app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::Idle,
+            "当前设备无可运行队列",
+        );
         return Ok(format!(
             "设备[{}]当前时间窗口下没有可运行的 planner 记录",
             device_id
@@ -1195,6 +1577,12 @@ pub async fn cmd_device_start(
             created + reactivated as usize
         ))
     } else {
+        emit_device_progress_status(
+            &app_handle,
+            device_id,
+            DeviceRuntimeProgressPhase::Idle,
+            "当前设备无可运行队列",
+        );
         Ok(format!(
             "设备[{}]当前时间窗口下没有可运行的 planner 记录",
             device_id
@@ -1203,7 +1591,10 @@ pub async fn cmd_device_start(
 }
 
 #[command]
-pub async fn cmd_device_stop(device_id: DeviceId) -> Result<String, String> {
+pub async fn cmd_device_stop(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<String, String> {
     send_process_control(device_id, ProcessAction::Stop);
     let stopped = stop_active_assignment_schedules_by_device(
         device_id,
@@ -1211,7 +1602,7 @@ pub async fn cmd_device_stop(device_id: DeviceId) -> Result<String, String> {
         "用户停止设备调度".to_string(),
     )
     .await?;
-    let _ = DispatchPlanner::init().clear_device_state(device_id);
+    let _ = reset_device_dispatch_state(&app_handle, device_id);
     Ok(format!(
         "已向设备[{}]发送停止命令，并持久化停止 {} 条调度记录",
         device_id, stopped
@@ -1230,10 +1621,10 @@ pub async fn cmd_sync_device_runtime_session(
     device_id: DeviceId,
 ) -> Result<String, String> {
     let device = load_device_table(device_id).await?;
-    let state = DispatchPlanner::init().snapshot_device_state(device_id)?;
+    let state = snapshot_device_dispatch_state(&app_handle, device_id)?;
     let mut created = 0usize;
     let mut dispatched = false;
-    if device.data.0.auto_start && state.active_dispatch.is_none() {
+    if device.data.0.auto_start && state.active_dispatch.is_none() && !state.auto_dispatch_blocked {
         created = ensure_planner_batch_for_device(&app_handle, device_id, true).await?;
         dispatched = dispatch_next_scheduled_queue_item(&app_handle, device_id).await?;
     }
@@ -1249,10 +1640,8 @@ pub async fn cmd_run_script_target(
     device_id: DeviceId,
     target: RunTarget,
 ) -> Result<String, String> {
-    ensure_device_ready(&app_handle, device_id).await?;
-    let planner = DispatchPlanner::init();
-    planner.ensure_device_state(device_id)?;
-    let state = planner.snapshot_device_state(device_id)?;
+    ensure_device_dispatch_state(&app_handle, device_id)?;
+    let state = snapshot_device_dispatch_state(&app_handle, device_id)?;
     let mut session =
         load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
     for queue_item in &mut session.queue {
@@ -1260,7 +1649,7 @@ pub async fn cmd_run_script_target(
     }
 
     if state.active_dispatch.is_some() {
-        planner.push_debug_session(device_id, session)?;
+        push_debug_session(&app_handle, device_id, session)?;
         Log::info(&format!(
             "[ process ] 设备[{}]调试运行已加入内存队列，request-next 优先级={}",
             device_id,
@@ -1272,12 +1661,13 @@ pub async fn cmd_run_script_target(
         ));
     }
 
+    ensure_device_ready_for_manual(&app_handle, device_id).await?;
     let dispatch_id = session
         .queue
         .first()
         .map(|queue_item| queue_item.dispatch_id)
         .ok_or_else(|| "调试运行目标未生成可派发队列项".to_string())?;
-    dispatch_session_to_child(device_id, session, dispatch_id).await?;
+    dispatch_session_to_child(&app_handle, device_id, session, dispatch_id).await?;
     Ok(format!("已向设备[{}]发送运行目标: {:?}", device_id, target))
 }
 
@@ -1287,7 +1677,17 @@ pub async fn cmd_run_user_script_target(
     device_id: DeviceId,
     target: RunTarget,
 ) -> Result<String, String> {
-    ensure_device_ready(&app_handle, device_id).await?;
+    ensure_device_dispatch_state(&app_handle, device_id)?;
+    if snapshot_device_dispatch_state(&app_handle, device_id)?
+        .active_dispatch
+        .is_some()
+    {
+        return Err(format!(
+            "设备[{}]仍有运行中的 dispatch，请先停止当前设备调度",
+            device_id
+        ));
+    }
+
     let mut session =
         load_runtime_session_for_target(&app_handle, device_id, target.clone()).await?;
     let Some(first_item) = session.queue.first_mut() else {
@@ -1317,6 +1717,19 @@ pub async fn cmd_run_user_script_target(
     )
     .await?;
 
+    if let Err(error) = ensure_device_ready_for_manual(&app_handle, device_id).await {
+        update_assignment_schedule_status(
+            record.id,
+            AssignmentScheduleStatus::Failed,
+            None,
+            Some(Local::now().to_rfc3339()),
+            Some(error.clone()),
+        )
+        .await?;
+        emit_assignment_schedule_changed(&app_handle, device_id);
+        return Err(error);
+    }
+
     update_assignment_schedule_status(
         record.id,
         AssignmentScheduleStatus::Dispatched,
@@ -1325,8 +1738,8 @@ pub async fn cmd_run_user_script_target(
         Some("user dispatch 已派发到子进程".to_string()),
     )
     .await?;
-    DispatchPlanner::init().clear_device_state(device_id)?;
-    dispatch_session_to_child(device_id, session, dispatch_id).await?;
+    emit_assignment_schedule_changed(&app_handle, device_id);
+    dispatch_session_to_child(&app_handle, device_id, session, dispatch_id).await?;
     Ok(format!(
         "已向设备[{}]发送临时运行目标: {:?}",
         device_id, target
@@ -1344,10 +1757,13 @@ pub async fn cmd_restart_device_runtime(
 }
 
 #[command]
-pub async fn cmd_device_shutdown(device_id: DeviceId) -> Result<String, String> {
+pub async fn cmd_device_shutdown(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<String, String> {
     if let Some(manager) = get_process_manager() {
         manager.stop_child(&device_id).await?;
-        let _ = DispatchPlanner::init().clear_device_state(device_id);
+        let _ = reset_device_dispatch_state(&app_handle, device_id);
         Ok(format!("设备[{}]子进程已关闭", device_id))
     } else {
         Err("进程管理器未初始化".to_string())
@@ -1369,11 +1785,20 @@ pub async fn cmd_spawn_device(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    let init_data = build_child_init_data(&app_handle, device_id, false).await?;
+    let init_data = build_child_init_data(&app_handle, device_id).await?;
     let device_name = init_data.device_config.device_name.clone();
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::Starting);
     manager.spawn_child(init_data).await?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcWaiting);
     wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(5)).await?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_child_runtime_status(device_id, ChildRuntimeStatus::IpcReady);
     let _ = probe_device_connection(&app_handle, device_id, "正在检查设备连接").await;
     notify_auto_dispatch_planner();
 
@@ -1437,7 +1862,7 @@ pub async fn cmd_probe_device_connections(
             let _ = set_connection_status(
                 &app_handle,
                 device_id,
-                ConnectionStatusKind::Disconnected,
+                ConnectionStatusKind::DeviceDisconnected,
                 Some("设备运行时未启动，跳过连接探测".to_string()),
             )
             .await;
@@ -1449,7 +1874,7 @@ pub async fn cmd_probe_device_connections(
                 let _ = set_connection_status(
                     &app_handle,
                     device_id,
-                    ConnectionStatusKind::Checking,
+                    ConnectionStatusKind::DeviceChecking,
                     Some("正在检查设备连接".to_string()),
                 )
                 .await;
@@ -1461,7 +1886,7 @@ pub async fn cmd_probe_device_connections(
                 let _ = set_connection_status(
                     &app_handle,
                     device_id,
-                    ConnectionStatusKind::Disconnected,
+                    ConnectionStatusKind::DeviceDisconnected,
                     Some(error.clone()),
                 )
                 .await;

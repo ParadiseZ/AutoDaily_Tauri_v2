@@ -1,7 +1,10 @@
 use crate::constant::project::MAIN_WINDOW;
+use crate::domain::devices::device_runtime_event::{
+    DeviceConnectionEventPayload, DeviceLifecycleStatus, DeviceStatusEventPayload,
+};
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
-use crate::infrastructure::context::main_process::{DeviceConnectionState, MainProcessCtx};
+use crate::infrastructure::context::main_process::{ChildRuntimeStatus, MainProcessCtx};
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
@@ -14,6 +17,7 @@ use crate::infrastructure::logging::LogLevel;
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use tauri::{Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
@@ -49,6 +53,8 @@ pub struct ChildProcessManager {
 
 /// 全局子进程管理器
 static PROCESS_MANAGER: std::sync::OnceLock<Arc<ChildProcessManager>> = std::sync::OnceLock::new();
+type ChildProcessExitHandler = Arc<dyn Fn(DeviceId, bool, String) + Send + Sync>;
+static CHILD_PROCESS_EXIT_HANDLER: OnceLock<ChildProcessExitHandler> = OnceLock::new();
 
 pub fn init_process_manager() -> Arc<ChildProcessManager> {
     let manager = Arc::new(ChildProcessManager {
@@ -60,6 +66,12 @@ pub fn init_process_manager() -> Arc<ChildProcessManager> {
 
 pub fn get_process_manager() -> Option<Arc<ChildProcessManager>> {
     PROCESS_MANAGER.get().cloned()
+}
+
+pub fn set_child_process_exit_handler(handler: ChildProcessExitHandler) -> Result<(), String> {
+    CHILD_PROCESS_EXIT_HANDLER
+        .set(handler)
+        .map_err(|_| "子进程退出处理器已注册".to_string())
 }
 
 fn spawn_child_stderr_forwarder(
@@ -130,25 +142,30 @@ async fn write_child_log_line(device_id: DeviceId, level: LogLevel, message: &st
 
 fn emit_device_status_event(device_id: DeviceId, status: &str, message: &str) {
     if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
-        let payload = serde_json::json!({
-            "deviceId": device_id.to_string(),
-            "status": status,
-            "currentScript": serde_json::Value::Null,
-            "message": message,
-            "at": now_millis_string(),
-        });
+        let payload = DeviceStatusEventPayload {
+            device_id,
+            session_id: None,
+            status: match status {
+                "Stopped" => DeviceLifecycleStatus::Stopped,
+                "Error" => DeviceLifecycleStatus::Error,
+                _ => DeviceLifecycleStatus::Error,
+            },
+            current_script_id: None,
+            message: Some(message.to_string()),
+            at: now_millis_string(),
+        };
         let _ = main_window.emit("device-status", payload);
     }
 }
 
 fn emit_device_connection_event(device_id: DeviceId, status: ConnectionStatusKind, message: &str) {
     if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
-        let payload = serde_json::json!({
-            "deviceId": device_id.to_string(),
-            "status": format!("{:?}", status),
-            "message": message,
-            "at": now_millis_string(),
-        });
+        let payload = DeviceConnectionEventPayload {
+            device_id,
+            status,
+            message: Some(message.to_string()),
+            at: now_millis_string(),
+        };
         let _ = main_window.emit("device-connection-status", payload);
     }
 }
@@ -189,26 +206,34 @@ async fn finalize_child_exit(
     if let Ok(mut guard) = app_handle.state::<MainProcessCtx>().ipc_servers.write() {
         guard.retain(|registered_device_id, _| **registered_device_id != device_id);
     }
-    if let Ok(mut guard) = app_handle
-        .state::<MainProcessCtx>()
-        .device_connections
-        .write()
-    {
-        guard.insert(
-            device_id,
-            DeviceConnectionState {
-                status: ConnectionStatusKind::Disconnected,
-                message: Some(exit.message.clone()),
-            },
-        );
-    }
+    let runtime_state = app_handle.state::<MainProcessCtx>();
+    let _ = runtime_state.set_child_runtime_status(
+        device_id,
+        if exit.success {
+            ChildRuntimeStatus::Exited
+        } else {
+            ChildRuntimeStatus::Crashed
+        },
+    );
+    let _ = runtime_state.set_device_connection_state(
+        device_id,
+        ConnectionStatusKind::DeviceDisconnected,
+        Some(exit.message.clone()),
+    );
 
-    emit_device_connection_event(device_id, ConnectionStatusKind::Disconnected, &exit.message);
+    emit_device_connection_event(
+        device_id,
+        ConnectionStatusKind::DeviceDisconnected,
+        &exit.message,
+    );
     emit_device_status_event(
         device_id,
         if exit.success { "Stopped" } else { "Error" },
         &exit.message,
     );
+    if let Some(handler) = CHILD_PROCESS_EXIT_HANDLER.get() {
+        handler(device_id, exit.success, exit.message.clone());
+    }
 
     if let Some(receiver) = get_child_log_receiver() {
         receiver.unregister_device(&device_id).await;

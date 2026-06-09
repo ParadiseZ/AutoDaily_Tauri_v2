@@ -64,8 +64,8 @@ use crate::api::infrastructure::process_api::{
     cmd_device_start, cmd_device_stop, cmd_get_running_devices, cmd_is_device_running,
     cmd_prepare_device_capture, cmd_probe_device_connections, cmd_restart_device_runtime,
     cmd_run_script_target, cmd_run_user_script_target, cmd_spawn_device,
-    cmd_sync_device_runtime_session, spawn_auto_dispatch_planner_loop, spawn_dispatch_signal_loop,
-    spawn_runtime_reconcile_loop,
+    cmd_sync_device_runtime_session, register_child_process_exit_handler,
+    spawn_auto_dispatch_planner_loop, spawn_dispatch_signal_loop, spawn_runtime_reconcile_loop,
 };
 use crate::api::infrastructure::vision_lab::{
     get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd, vision_list_image_files_cmd,
@@ -104,7 +104,9 @@ pub fn run() {
                 // 启动时初始化
                 init_at_start(&app_handle).await;
             });
+            register_child_process_exit_handler(app_handle.clone());
             spawn_dispatch_signal_loop(app_handle.clone(), dispatch_signal_rx);
+            //自动调度
             spawn_auto_dispatch_planner_loop(app_handle.clone());
             spawn_runtime_reconcile_loop(app_handle.clone(), runtime_reconcile_rx);
             Ok(())

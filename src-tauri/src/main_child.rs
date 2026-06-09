@@ -59,9 +59,11 @@ async fn run_child_process_or_exit() {
         set_running_status(RunningStatus::Error);
         let message = e.to_string();
         let _ = emit_lifecycle_event_now(RuntimeLifecyclePhase::Error, Some(message.clone())).await;
-        let _ =
-            emit_connection_event_now(ConnectionStatusKind::Disconnected, Some(message.clone()))
-                .await;
+        let _ = emit_connection_event_now(
+            ConnectionStatusKind::DeviceDisconnected,
+            Some(message.clone()),
+        )
+        .await;
         eprintln!("Child process failed: {}", message);
         std::process::exit(1);
     }
@@ -125,7 +127,7 @@ async fn run_child_process() -> ChildProcessResult<()> {
     Log::info("[ child ] 子进程主循环结束，执行清理");
     set_running_status(RunningStatus::Stopped);
     let _ = emit_connection_event_now(
-        ConnectionStatusKind::Disconnected,
+        ConnectionStatusKind::DeviceDisconnected,
         Some("子进程已结束".to_string()),
     )
     .await;

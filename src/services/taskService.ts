@@ -1,6 +1,5 @@
 import { invoke } from '@/utils/api';
-import type { AssignmentSchedule } from '@/types/bindings/AssignmentSchedule';
-import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
+import type { AssignmentSchedule, DeviceScriptSchedule } from '@/types/app/domain';
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
 

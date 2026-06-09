@@ -35,7 +35,6 @@ pub(super) async fn load_runtime_session_for_queue_item(
 pub(super) async fn build_child_init_data(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
-    force_prepare_device: bool,
 ) -> Result<ChildProcessInitData, String> {
-    session_builder::build_child_init_data(app_handle, device_id, force_prepare_device).await
+    session_builder::build_child_init_data(app_handle, device_id).await
 }

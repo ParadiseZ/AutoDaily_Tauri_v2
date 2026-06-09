@@ -12,7 +12,6 @@ use crate::domain::devices::device_conf::{
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::core::{AssignmentId, DeviceId, SessionId};
 use crate::infrastructure::db::DbRepo;
-use crate::infrastructure::devices::device_launcher::start_device_process;
 use crate::infrastructure::ipc::message::{
     DispatchKind, DispatchSource, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
     RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, TimeoutAction as RuntimeTimeoutAction,
@@ -178,31 +177,6 @@ pub(super) async fn build_runtime_session_snapshot(
     })
 }
 
-async fn prepare_device_launch(
-    device_config: &crate::domain::devices::device_conf::DeviceConfig,
-    force_prepare: bool,
-) -> Result<(), String> {
-    if force_prepare && device_config.uses_emulator_transport() {
-        start_device_process(device_config).await.map_err(|error| {
-            if device_config
-                .exe_path
-                .as_deref()
-                .is_none_or(|path| path.trim().is_empty())
-            {
-                format!(
-                    "启动设备失败: {}。当前未填写模拟器程序路径；如需自动启动，请先在设备编辑中补全路径。",
-                    error
-                )
-            } else {
-                format!("启动设备失败: {}", error)
-            }
-        })?;
-        return Ok(());
-    }
-
-    Ok(())
-}
-
 fn dispatch_kind_for_run_target(run_target: &RunTarget) -> DispatchKind {
     match run_target {
         RunTarget::DeviceQueue => DispatchKind::QueueAssignment,
@@ -226,13 +200,11 @@ fn dispatch_source_for_run_target(run_target: &RunTarget) -> DispatchSource {
 pub(super) async fn build_child_init_data(
     app_handle: &tauri::AppHandle,
     device_id: DeviceId,
-    force_prepare_device: bool,
 ) -> Result<ChildProcessInitData, String> {
     let device_table = load_device_table(device_id).await?;
     validate_runtime_platform_supported(&device_table)?;
 
     let device_config = device_table.data.0;
-    prepare_device_launch(&device_config, force_prepare_device).await?;
 
     let db_path = app_handle
         .path()

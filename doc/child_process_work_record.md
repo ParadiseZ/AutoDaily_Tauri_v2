@@ -606,3 +606,559 @@
 - 如果要继续做命令、DB、主进程事件转发，优先看 `runtime_engine`。
 - 旧文档里“前端未接入”的说法已经不成立，任务页和日志页都已接主链路。
 - 现在最值得继续投入的点，不是再整理框架，而是把 `scheduler -> script_tasks -> executor` 真正打通。
+
+---
+
+## 9. 暂不实现方案：模拟器状态与关闭策略
+
+更新时间：2026-06-05
+
+以下内容目前只作为讨论记录，不进入本轮实现。
+
+### 9.1 目标边界
+
+- 目标不是只管理 AutoDaily 自己拉起的模拟器。
+- 未来需要支持“外部已经运行的模拟器”也能被识别，并允许执行关闭程序等操作。
+- 但当前设备模型和主进程状态模型还不足以直接安全实现。
+
+### 9.2 当前限制
+
+- 当前主进程运行态只持有“设备子进程是否在线”的状态，不持有模拟器进程 PID。
+- 设备配置里只有：
+  - `exe_path`
+  - `exe_args`
+  - 连接配置
+- 因此当前无法可靠回答：
+  - 某个外部已运行的模拟器对应哪个 OS 进程
+  - 这个进程是否就是当前设备配置对应的那个实例
+  - 应该结束单个实例，还是会误伤同类其他实例
+
+### 9.3 启动前的判断口径
+
+本节旧口径里“主线程预探测/启动模拟器”的表述已经被后续讨论修正。以第 10 节的目标流程为准：
+
+- 主进程不直接做 ADB/shell 探测。
+- 主进程不直接承担模拟器启动细节。
+- 主进程只负责调度、子进程生命周期、IPC 命令发送、IPC 状态接收与前端事件转发。
+- 模拟器启动、连接探测、shell 探测都应在设备子进程内完成，并由子进程主动报告状态。
+
+仍然保留的判断原则：
+
+- “端口占用”只能作为定位/辅助判断，不能等同于设备可用。
+- 是否连接成功，最终应以子进程执行 ADB shell 探测的结果为准。
+- 如果 shell 探测失败且没有配置模拟器启动程序，子进程应上报 `DeviceDisconnected`，消息写明未配置启动程序，前端显示未连接。
+
+### 9.4 未来的模拟器关闭策略模型
+
+后续设备模型计划预留“模拟器关闭定位策略”，但本轮不实现实际逻辑。
+
+计划中的策略枚举：
+
+- `byPort`
+- `byWindowTitle`
+- `byCommandLine`
+- `byExecutable`
+
+本轮讨论确认的实现优先级：
+
+- 第一批只实际实现：
+  - `byPort`
+  - `byWindowTitle`
+- 其余两项：
+  - `byCommandLine`
+  - `byExecutable`
+  先只做占位，不落真实逻辑
+
+### 9.5 各策略的预期语义
+
+#### byPort
+
+- 适用于 `EmulatorTcp` 设备。
+- 根据设备配置中的连接端口，反查监听该端口的进程。
+- 这是识别“外部已运行模拟器”的首选策略。
+- 但它仍然只是进程定位手段，不应替代连接可用性判断。
+
+#### byWindowTitle
+
+- 适用于有稳定窗口标题的模拟器。
+- 通过窗口标题匹配实例，再关联到进程。
+- 适合作为 `byPort` 失效时的补充方案。
+
+#### byCommandLine
+
+- 先预留为占位。
+- 后续如某些模拟器实例可通过命令行参数区分，再补实现。
+
+#### byExecutable
+
+- 先预留为占位。
+- 这是风险最高的方案，因为只按可执行路径可能误杀同类全部实例。
+
+### 9.6 模拟器状态的前端口径
+
+模拟器状态未来需要单独建模，但要注意几个限制：
+
+- 只更新“设备信息里已启用的设备”的模拟器状态。
+- 状态时机不能做成全局高频轮询。
+- 需要合并两类来源：
+  - 内部启动的模拟器
+  - 外部已经运行的模拟器
+
+这里的“合并”指的是：
+
+- 前端看到的是统一的“模拟器状态”
+- 不能要求用户区分它是被 AutoDaily 启动的，还是外部先启动的
+
+但当前先不实现这套状态流，因为还缺少：
+
+- 明确的状态字段定义
+- 刷新时机定义
+- 主进程对模拟器实例身份的稳定识别
+
+### 9.7 未来实现时需要先确认的事项
+
+- 模拟器状态是否单独入 `deviceStore`，还是挂到现有设备连接状态旁路字段
+- 状态刷新时机是否限定为：
+  - 应用启动后
+  - 设备启用状态变化后
+  - 手动运行/自动调度前
+  - 设备编辑保存后
+- `byPort` 在不同模拟器上的可用性
+- `byWindowTitle` 是否需要允许用户自定义匹配文本
+- 关闭模拟器时是否要求二次确认，以及是否展示“匹配依据”
+
+### 9.8 当前结论
+
+当前阶段先接受以下结论：
+
+- “外部已运行模拟器”未来是支持目标，不是排除项。
+- 要安全结束外部模拟器，不能只靠 `exe_path`，也不能只靠“这个模拟器是我启动的”。
+- 启动前是否跳过拉起，应以子进程内真实连接探测为准。
+- 模拟器关闭策略与模拟器状态流都已形成方向，但本轮不实现。
+
+---
+
+## 10. 目标流程：任务管理页点击运行队列
+
+更新时间：2026-06-05
+
+本节记录后续应实现的目标流程，不代表当前代码已经完全符合。核心原则：
+
+- 主进程只管调度、子进程 IPC、状态账本和前端事件转发。
+- 子进程负责设备侧动作：模拟器启动、连接探测、ADB shell 探测、每个阶段的结果上报。
+- 前端只根据主进程转发的状态事件更新 UI，不由主进程本地猜测设备连接结果。
+- 子进程 IPC 连接和设备连接必须分开建模，不能用“IPC connected”表达“设备已连接”。
+
+### 10.1 总览流程
+
+```mermaid
+flowchart TD
+  A["任务管理页点击运行队列"] --> B["TaskDevicePanel emit start(deviceId)"]
+  B --> C["TaskManagement.handleStartDevice"]
+  C --> D["deviceStore.startDevice(deviceId)"]
+  D --> E["deviceService.start -> cmd_device_start"]
+
+  E --> F["主进程 cmd_device_start"]
+  F --> G["恢复 stopped planner 记录"]
+  G --> H["生成/补齐当前窗口 AssignmentSchedule 批次"]
+  H --> H0["主进程更新调度准备状态，并 emit 当前进度"]
+  H0 --> I{"是否有 planned 调度记录"}
+
+  I -- "否" --> I1["主进程返回无可运行 planner 信息"]
+  I1 --> I2["写入当前设备进度 UI/状态提示"]
+  I2 --> I3["前端展示：当前设备无可运行队列"]
+
+  I -- "是" --> J["主进程准备派发下一条 dispatch"]
+  J --> K["确保设备子进程 IPC 通道就绪"]
+  K --> K0["主进程更新 IPC 准备状态，并 emit 当前进度"]
+
+  K0 --> L{"子进程是否已运行并 IPC ready"}
+  L -- "否" --> L1["主进程 spawn 子进程"]
+  L1 --> L2["等待子进程 IPC ready"]
+  L2 --> L3["主进程更新 IPC 已就绪状态，并 emit 当前进度"]
+  L -- "是" --> L3
+
+  L3 --> M["主进程通过 IPC 发送 DeviceEnsureReady"]
+  M --> N["子进程进入设备准备流程"]
+  N --> N0["子进程上报 DeviceChecking，主进程更新内部状态/当前进度/连接状态"]
+
+  N0 --> O{"设备是否 EmulatorTcp"}
+  O -- "否" --> P["子进程执行对应连接探测"]
+  O -- "是" --> Q["子进程执行 ADB shell 预探测"]
+  Q --> Q0["子进程上报 ShellProbeChecking"]
+  Q0 --> R{"shell 是否可执行"}
+
+  R -- "是" --> S["子进程上报 DeviceConnected"]
+  R -- "否" --> T{"是否配置模拟器启动程序"}
+  T -- "否" --> U["子进程上报 DeviceDisconnected: 连接设备失败"]
+  T -- "是" --> V["子进程启动模拟器"]
+  V --> V0["子进程上报 EmulatorStarting"]
+  V0 --> W["等待启动延迟/就绪窗口"]
+  W --> W0["子进程上报 EmulatorWaiting"]
+  W0 --> X["子进程按间隔执行 ADB shell 探测"]
+  X --> X0["子进程每次探测前上报 ShellProbeChecking(attempt, elapsed)"]
+  X0 --> Y{"shell 是否可执行"}
+  Y -- "是" --> S
+  Y -- "否且未超时" --> W0
+  Y -- "否且已超时" --> U
+
+  P --> Z{"连接是否可用"}
+  Z -- "是" --> S
+  Z -- "否" --> U
+
+  S --> AA["主进程接收设备连接成功事件"]
+  U --> AB["主进程接收设备连接失败事件"]
+
+  AA --> AC["主进程更新内部设备连接状态/当前进度/连接状态，并 emit 前端事件"]
+  AB --> AD["主进程更新内部设备连接状态/当前进度/连接状态，并 emit 前端事件"]
+
+  AC --> AE["主进程 LoadSession + Start dispatch"]
+  AD --> AF["主进程将当前 AssignmentSchedule 标记 failed，并清该 deviceId 的 active dispatch"]
+
+  AE --> AG["子进程执行脚本"]
+  AF --> AF1["自动派发流程中停止该设备后续派发，其它设备不受影响"]
+  AF1 --> AH["前端显示连接失败/未连接"]
+```
+
+### 10.2 主进程职责
+
+主进程负责：
+
+- `cmd_device_start` 接收前端运行请求。
+- 检查并恢复 `stopped` planner 记录。
+- 生成当前窗口的 `AssignmentSchedule` 批次。
+- 判断是否有可派发的 `planned` 记录。
+- 确保设备子进程存在并已经通过 IPC 连接。
+- 通过 IPC 请求子进程准备设备连接。
+- 接收子进程主动上报的设备准备阶段状态：
+  - `DeviceChecking`
+  - `ShellProbeChecking`
+  - `EmulatorStarting`
+  - `EmulatorWaiting`
+  - `DeviceConnected`
+  - `DeviceDisconnected`
+- 更新主进程内存状态，并转发 `device-connection-status` 给前端。
+- 更新当前设备进度 UI 所需的运行提示。
+- 连接成功后再派发 `RuntimeSessionSnapshot` 和 `ProcessAction::Start`。
+- 设备准备失败时，必须更新已选中的 `AssignmentSchedule` 为 `failed`，写入失败原因和结束时间，并清理该 `deviceId` 的 active dispatch。
+- 设备准备失败后，将该设备剩余 planner `planned` 持久化为 `stopped`，不继续为该设备派发；手动运行队列时再恢复。
+- 某个设备连接失败不能阻塞其它设备的自动派发；调度器应继续处理其它 `deviceId` 的可运行队列。
+
+主进程不负责：
+
+- 不直接创建 `ADBClient` 去连接设备。
+- 不直接执行 ADB shell 探测。
+- 不直接根据端口占用判断设备在线（当前阶段）。
+- 不直接决定模拟器是否已真正可用。
+- 不直接启动模拟器。
+- 不把子进程 IPC connected 当作设备 connected。
+
+### 10.3 子进程职责
+
+子进程负责：
+
+- 接收主进程的设备准备 IPC 命令。
+- 根据 `DeviceConfig` 判断连接类型。
+- 对 `EmulatorTcp` 执行 ADB shell 探测。
+- shell 探测开始时主动上报状态。
+- 如果 shell 探测成功，上报 `DeviceConnected`。
+- 如果 shell 探测失败且配置了启动程序，启动模拟器后继续探测。
+- 启动模拟器后等待启动延迟/就绪窗口时，主动上报 `EmulatorStarting / EmulatorWaiting`。
+- 启动模拟器后，应按间隔多次执行 ADB shell 探测；每次探测前都上报 `ShellProbeChecking(attempt, elapsed)`，主进程每次都要刷新内部状态、当前进度和连接状态 UI。
+- 如果 shell 探测失败且没有配置启动程序，上报 `DeviceDisconnected`，消息应包含“连接设备失败/未配置启动程序”等明确原因。
+- 所有设备连接状态都通过 IPC 主动报告给主进程。
+
+### 10.4 UI 状态口径
+
+任务管理页 UI 需要区分两类状态：
+
+- 调度状态：是否有当前窗口可派发的 planner 记录。
+- 连接状态：子进程是否报告设备连接成功。
+- 子进程 IPC 状态：主进程是否已经和设备子进程建立 IPC 通道。
+
+这三类状态不能混用：
+
+- 子进程 IPC ready 只表示 AutoDaily 运行时通道可用。
+- 设备 connected 只表示子进程报告设备连接可用。
+- 调度 planned/running 只表示 `AssignmentSchedule` 的运行账本状态。
+
+当主进程生成/补齐当前窗口 `AssignmentSchedule` 批次时：
+
+- 应更新当前设备进度 UI，例如“正在生成当前窗口调度记录”。
+- 成功后应更新为“已生成/已补齐当前窗口调度记录”。
+- 这类状态属于调度准备进度，不属于设备连接状态。
+
+当主进程等待子进程 IPC 连接时：
+
+- 应更新当前设备进度 UI，例如“正在等待设备运行时 IPC 连接”。
+- IPC ready 后更新为“设备运行时 IPC 已连接，准备设备连接”。
+- 不得把这一步显示为“设备已连接”。
+
+当主进程返回“当前设备无可运行队列”时：
+
+- 不能只是刷新 UI。
+- 应把这条信息写入当前设备的进度/提示区域。
+- 前端体感应是“看到为什么没有运行”，而不是“按钮点了以后页面闪了一下”。
+
+当子进程报告连接失败时：
+
+- 主进程内部连接状态应落 `DeviceDisconnected`。
+- 前端连接状态显示未连接/连接失败。
+- 当前进度区域显示失败原因。
+- 如果已经选中本次要派发的 `AssignmentSchedule`，应把这条记录标记为 `failed`，写入失败原因并清理该 `deviceId` 的 active dispatch。
+- 该设备在自动派发流程中的本轮派发到此终止，不继续派发该设备的下一条 `planned`，避免连接故障导致下一次派发冲突。
+- 这个终止范围只作用于当前 `deviceId`，不能影响其它设备继续派发。
+- 用户手动触发的派发不受这条自动派发停用规则限制；运行队列、临时运行里的运行脚本/任务都可以再次显式触发该设备准备和派发。
+
+当子进程上报 `ShellProbeChecking` 时：
+
+- 主进程内部设备连接状态应为 `ShellProbeChecking`。
+- 前端连接状态显示检查中。
+- 当前进度区域显示“正在执行 ADB shell 探测”；如果事件带有 `attempt/elapsed`，应同步展示当前探测轮次或等待进度。
+
+当子进程上报 `EmulatorStarting` 时：
+
+- 主进程内部设备连接状态应为 `EmulatorStarting`。
+- 前端连接状态显示启动中/检查中。
+- 当前进度区域显示“正在启动模拟器”。
+
+当子进程上报 `EmulatorWaiting` 时：
+
+- 主进程内部设备连接状态应为 `EmulatorWaiting`。
+- 前端连接状态显示启动中/检查中。
+- 当前进度区域显示“模拟器启动中，等待连接就绪”。
+- 这不是最终状态；后续每一次启动后探测都要继续上报 `ShellProbeChecking` 或最终 `DeviceConnected / DeviceDisconnected`，前端不能卡在“正在准备模拟器连接”。
+
+当子进程最终上报 `DeviceConnected` 时：
+
+- 主进程内部设备连接状态落 `DeviceConnected`。
+- 前端连接状态显示已连接。
+- 当前进度区域显示“设备连接已就绪，开始派发队列”。
+
+### 10.5 命名修正
+
+当前类似 `ensure_device_connection_ready`、`wait_child_device_ready_report` 的命名容易误导。目标语义应该拆开理解，并尽量用事件驱动状态机表达：
+
+- `ChildIpcReady`：只表示主进程与设备子进程 IPC 通道已连接。
+- `DeviceEnsureReadyRequested`：主进程通过 IPC 请求子进程准备设备连接。
+- `DeviceChecking / ShellProbeChecking / EmulatorStarting / EmulatorWaiting / DeviceConnected / DeviceDisconnected`：子进程通过 IPC 主动上报的统一设备连接状态。
+
+不要把 `wait_child_device_ready_report` 设计成核心判断函数名。设备是否已连接应由子进程的设备连接事件推动主进程状态变化；主进程可以有超时保护，但超时只是兜底失败事件，不是设备连接真相来源。
+
+不要把“子进程 IPC 已连接”和“设备/模拟器连接已就绪”混成一个概念。
+
+### 10.6 状态事件要求
+
+| 阶段 | 发起方 | Main internal state | AssignmentSchedule | 当前进度 UI | 连接状态 UI |
+| --- | --- | --- | --- | --- | --- |
+| 生成/补齐 AssignmentSchedule | 主进程 | `ScheduleBatchPreparing` | 生成/补齐 planned/stopped 记录 | 正在生成当前窗口调度记录 | 不改变 |
+| 批次生成完成 | 主进程 | `ScheduleBatchReady` | 保持各记录原状态 | 已生成/已补齐当前窗口调度记录 | 不改变 |
+| 无 planned 记录 | 主进程 | `NoRunnablePlanner` | 不改变 | 当前设备无可运行队列 | 不改变 |
+| spawn 子进程 | 主进程 | `ChildRuntimeStarting` | 保持 selected planned | 正在启动设备运行时 | 不改变 |
+| 等待子进程 IPC | 主进程 | `ChildIpcWaiting` | 保持 selected planned | 正在等待设备运行时 IPC 连接 | 不改变 |
+| 子进程 IPC ready | 主进程 | `ChildIpcReady` | 保持 selected planned | 设备运行时 IPC 已连接，准备设备连接 | 不改变 |
+| 设备准备开始 | 子进程 -> 主进程 | `DeviceChecking` | 保持 selected planned | 正在准备设备连接 | 检查中 |
+| ADB shell 预探测开始 | 子进程 -> 主进程 | `ShellProbeChecking` | 保持 selected planned | 正在执行 ADB shell 探测 | 检查中 |
+| 模拟器启动开始 | 子进程 -> 主进程 | `EmulatorStarting` | 保持 selected planned | 正在启动模拟器 | 启动中 |
+| 模拟器启动等待 | 子进程 -> 主进程 | `EmulatorWaiting` | 保持 selected planned | 模拟器启动中，等待连接就绪 | 启动中 |
+| 启动后每轮 ADB shell 探测 | 子进程 -> 主进程 | `ShellProbeChecking` | 保持 selected planned | 正在执行 ADB shell 探测 | 检查中 |
+| 设备连接成功 | 子进程 -> 主进程 | `DeviceConnected` | 准备进入 running/dispatch | 设备连接已就绪，开始派发队列 | 已连接 |
+| 设备连接失败 | 子进程 -> 主进程 | `DeviceDisconnected` | selected planned -> failed；其余 planner planned -> stopped；清该 deviceId active dispatch | 展示失败原因 | 未连接 |
+| 子进程超时未报告 | 主进程 | `DeviceDisconnected` | selected planned -> failed；其余 planner planned -> stopped；清该 deviceId active dispatch | 设备连接准备超时 | 未连接 |
+| 子进程正常退出但非用户停止 | 子进程 -> 主进程 | `ChildProcessExited` | active assignment -> failed；清该 deviceId active dispatch | 设备运行时已退出，终止该设备调度 | 已断开 |
+| OS 检测子进程异常退出 | 主进程 | `ChildProcessCrashed` | active assignment -> failed；清该 deviceId active dispatch | 设备运行时异常退出，终止该设备调度 | 已断开 |
+| 用户停止设备调度 | 前端 -> 主进程 | `DispatchStopped` | active/planned -> stopped | 已停止该设备调度 | 已断开或保持实际连接状态 |
+
+### 10.7 失败路径要求
+
+以下情况必须进入明确失败状态：
+
+- 没有可运行 planner：写入当前进度 UI，说明当前设备无可运行队列。
+- 子进程 IPC 未连上：设备运行时未就绪。
+- `EmulatorTcp` shell 探测失败且未配置启动程序：连接设备失败，状态 `DeviceDisconnected`，已选中的 `AssignmentSchedule` 标记 `failed`，其余 planner `planned` 标记 `stopped`。
+- 启动模拟器后多轮 shell 探测仍失败：连接设备失败，状态 `DeviceDisconnected`，已选中的 `AssignmentSchedule` 标记 `failed`，其余 planner `planned` 标记 `stopped`。
+- 子进程在超时时间内没有主动报告结果：主进程兜底落 `DeviceDisconnected`，消息写明连接准备超时；已选中的 `AssignmentSchedule` 标记 `failed`，其余 planner `planned` 标记 `stopped`，不能让 UI 卡在检查中。
+- 子进程正常退出但不是用户主动停止：主进程落 `ChildProcessExited`，连接状态改为已断开，active assignment 标记 `failed`，并在自动派发流程中终止该设备后续调度。
+- 主进程通过 OS 检测到子进程异常退出：主进程落 `ChildProcessCrashed`，连接状态改为已断开，active assignment 标记 `failed`，并在自动派发流程中终止该设备后续调度。
+- 用户明确停止设备调度：使用 `stopped`，保留下次启动仍不派发的持久化语义。
+- 上述设备级失败只影响对应 `deviceId`；其它设备的自动派发不能被连带停止。
+- 手动触发的派发可以绕过“自动派发中该设备本轮不再派发”的限制，重新尝试设备准备。
+
+这里的账本语义：
+
+- `failed`：本次派发因设备准备、连接、运行时退出等错误失败；清理该 `deviceId` 的 active dispatch，避免同一条记录继续占用本轮调度。
+- `stopped`：该设备后续自动派发已停止；来源可以是用户明确停止，也可以是设备连接失败/运行时退出，后续生成/补齐批次时仍保持 stopped，手动运行队列时恢复。
+- `cancelled`：仅用于任务/窗口失效、记录不再应运行等取消场景，不用于设备连接失败。
+
+自动派发与手动派发边界：
+
+- 自动派发：设备准备失败、连接失败、子进程退出后，只停止该 `deviceId` 在本轮自动派发中的后续派发；其它设备继续派发。
+- 手动派发：运行队列、临时运行里的运行脚本/任务属于用户显式触发，应允许再次尝试该设备，不被自动派发的设备级失败标记拦住。
+
+### 10.8 每设备状态归属模型
+
+上面的流程如果要长期可维护，主进程必须按 `deviceId` 保存单一运行态，而不是把连接状态、派发状态、IPC 状态拆成几套并列 owner。
+
+目标收口：
+
+- `MainProcessCtx` 持有 `device_runtime_states: HashMap<DeviceId, DeviceRuntimeState>`
+- `DeviceRuntimeState` 是主进程关于该设备运行事实的唯一内存 owner
+- 子进程 IPC 消息、子进程退出事件、主进程调度决策，都只更新这一个设备运行态
+- 前端事件也从这一个运行态派生
+
+建议结构：
+
+| 字段 | 含义 | owner | 更新方 |
+| --- | --- | --- | --- |
+| `child_runtime_status` | 子进程未启动/启动中/等待 IPC/IPC ready/已退出 | `DeviceRuntimeState` | 主进程 |
+| `device_connection_status` | `DeviceChecking` / `ShellProbeChecking` / `EmulatorStarting` / `EmulatorWaiting` / `DeviceConnected` / `DeviceDisconnected` | `DeviceRuntimeState` | 子进程上报，主进程落库/转发 |
+| `dispatch_state` | 当前 active dispatch、pending planner/user/debug、auto dispatch blocked | `DeviceRuntimeState` | 主进程 |
+| `current_progress` | 当前进度展示所需阶段和文案 | `DeviceRuntimeState` | 主进程/子进程事件共同驱动 |
+| `last_error` | 最近失败原因 | `DeviceRuntimeState` | 主进程 |
+
+因此，`DispatchPlanner` 不应继续作为脱离 `MainProcessCtx` 的主状态 owner。它可以保留为实现层 helper，但最终运行事实必须汇总到每设备运行态里。
+
+### 10.9 MainProcessCtx 与 DispatchPlanner 的目标关系
+
+当前代码把这些信息拆散了：
+
+- `ipc_servers`
+- `device_connections`
+- `device_connection_signals`
+- `DispatchPlanner.device_states`
+
+这会导致维护者必须横跨多个 map 才能还原某台设备的真实情况。
+
+目标关系应调整为：
+
+1. `MainProcessCtx` 是主进程运行态容器。
+2. `DeviceRuntimeState` 是每台设备的唯一状态 owner。
+3. `DispatchPlanner` 若继续保留，只能作为 `MainProcessCtx` 内部的调度辅助访问层，不能再成为平级单例真相源。
+4. `ConnectionStatusKind` 属于 `DeviceRuntimeState.device_connection_status` 的值域，而不是游离在外的另一套记录。
+
+也就是说，主进程收到子进程 IPC 消息后，不是“只通知 UI”，而是：
+
+1. 更新该 `deviceId` 的 `DeviceRuntimeState`
+2. 根据新状态决定是否继续派发、失败收口、终止自动调度或允许手动重试
+3. 再把同一份状态翻译成前端事件
+
+### 10.10 推荐事件驱动时序
+
+```mermaid
+sequenceDiagram
+  participant UI as 任务管理页
+  participant MP as 主进程
+  participant CTX as MainProcessCtx.deviceRuntimeStates[deviceId]
+  participant CP as 子进程
+  participant DB as AssignmentSchedule
+
+  UI->>MP: cmd_device_start(deviceId)
+  MP->>CTX: 初始化/读取 DeviceRuntimeState
+  MP->>DB: 恢复 stopped + 生成/补齐当前窗口批次
+  MP->>CTX: current_progress = ScheduleBatchPreparing/Ready
+
+  alt 无 planned
+    MP->>CTX: current_progress = NoRunnablePlanner
+    MP-->>UI: 当前设备无可运行队列
+  else 有 planned
+    MP->>CTX: child_runtime_status = ChildRuntimeStarting/ChildIpcWaiting
+    MP->>CP: spawn child if needed
+    CP-->>MP: IPC connected
+    MP->>CTX: child_runtime_status = ChildIpcReady
+    MP->>CP: DeviceEnsureReady
+
+    CP-->>MP: DeviceChecking / ShellProbeChecking / EmulatorStarting / EmulatorWaiting
+    MP->>CTX: 更新 device_connection_status + current_progress
+    MP-->>UI: 更新连接状态/当前进度
+
+    alt DeviceConnected
+      CP-->>MP: DeviceConnected
+      MP->>CTX: device_connection_status = DeviceConnected
+      MP->>DB: selected planned -> dispatched/running
+      MP->>CTX: dispatch_state.active_dispatch = Some(...)
+      MP-->>UI: 已连接，开始派发
+    else DeviceDisconnected
+      CP-->>MP: DeviceDisconnected
+      MP->>CTX: device_connection_status = DeviceDisconnected
+      MP->>DB: selected planned -> failed
+      MP->>DB: 其余 planner planned -> stopped
+      MP->>CTX: clear active dispatch + auto dispatch blocked
+      MP-->>UI: 未连接/失败原因
+    end
+  end
+
+  CP-->>MP: child exited
+  MP->>CTX: child_runtime_status = ChildProcessExited/ChildProcessCrashed
+  MP->>CTX: device_connection_status = DeviceDisconnected
+  MP->>DB: active assignment -> failed
+  MP-->>UI: 设备运行时已退出
+```
+
+### 10.11 状态分层口径
+
+内部状态、账本状态、UI 文案必须分层：
+
+#### 内部英文状态
+
+这些用于主进程状态流转和事件判断：
+
+- `ScheduleBatchPreparing`
+- `ScheduleBatchReady`
+- `NoRunnablePlanner`
+- `ChildRuntimeStarting`
+- `ChildIpcWaiting`
+- `ChildIpcReady`
+- `DeviceChecking`
+- `ShellProbeChecking`
+- `EmulatorStarting`
+- `EmulatorWaiting`
+- `DeviceConnected`
+- `DeviceDisconnected`
+- `ChildProcessExited`
+- `ChildProcessCrashed`
+- `DispatchStopped`
+
+#### 账本状态
+
+这些只用于 `AssignmentSchedule.status`：
+
+- `planned`
+- `dispatched`
+- `running`
+- `success`
+- `failed`
+- `skipped`
+- `cancelled`
+- `stopped`
+
+#### UI 中文口径
+
+这些用于用户可见的当前进度和连接状态：
+
+| 内部状态 | 当前进度 UI | 连接状态 UI |
+| --- | --- | --- |
+| `ScheduleBatchPreparing` | 正在生成当前窗口调度记录 | 不改变 |
+| `ScheduleBatchReady` | 已生成/已补齐当前窗口调度记录 | 不改变 |
+| `NoRunnablePlanner` | 当前设备无可运行队列 | 不改变 |
+| `ChildRuntimeStarting` | 正在启动设备运行时 | 不改变 |
+| `ChildIpcWaiting` | 正在等待设备运行时 IPC 连接 | 不改变 |
+| `ChildIpcReady` | 设备运行时 IPC 已连接，准备设备连接 | 不改变 |
+| `DeviceChecking` | 正在准备设备连接 | 检查中 |
+| `ShellProbeChecking` | 正在执行 ADB shell 探测 | 检查中 |
+| `EmulatorStarting` | 正在启动模拟器 | 启动中 |
+| `EmulatorWaiting` | 模拟器启动中，等待连接就绪 | 启动中 |
+| `DeviceConnected` | 设备连接已就绪，开始派发队列 | 已连接 |
+| `DeviceDisconnected` | 展示失败原因 | 未连接 |
+| `ChildProcessExited` | 设备运行时已退出，终止该设备调度 | 已断开 |
+| `ChildProcessCrashed` | 设备运行时异常退出，终止该设备调度 | 已断开 |
+| `DispatchStopped` | 已停止该设备调度 | 已断开或保持实际连接状态 |
+
+### 10.12 代码改造入口建议
+
+后续代码改造应按下面顺序进行，不再继续堆局部补丁：
+
+1. 先在 `MainProcessCtx` 收口每设备运行态。
+2. 把 `DispatchPlanner` 的每设备运行事实并入 `DeviceRuntimeState`。
+3. 子进程 IPC、子进程退出、手动运行、自动派发都只改这一份状态。
+4. 前端只消费由这一份状态派生出来的事件和账本。
+5. 最后再删掉分散的辅助 map / signal / 单例状态源。

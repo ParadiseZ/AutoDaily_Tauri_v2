@@ -1,9 +1,22 @@
+import type { AssignmentScheduleStatus } from '@/types/bindings/AssignmentScheduleStatus';
+import type { AssignmentTriggerSource } from '@/types/bindings/AssignmentTriggerSource';
+import type { ConnectionStatusKind } from '@/types/bindings/ConnectionStatusKind';
+import type { DeviceConnectionEventPayload } from '@/types/bindings/DeviceConnectionEventPayload';
+import type { DeviceLifecycleStatus } from '@/types/bindings/DeviceLifecycleStatus';
+import type { DeviceProgressEventPayload } from '@/types/bindings/DeviceProgressEventPayload';
+import type { DeviceRuntimeProgressPhase } from '@/types/bindings/DeviceRuntimeProgressPhase';
+import type { DeviceRuntimeReconcileAction as BindingDeviceRuntimeReconcileAction } from '@/types/bindings/DeviceRuntimeReconcileAction';
+import type { DeviceRuntimeReconcileEventPayload } from '@/types/bindings/DeviceRuntimeReconcileEventPayload';
+import type { DeviceScheduleEventPayload } from '@/types/bindings/DeviceScheduleEventPayload';
+import type { DeviceStatusEventPayload } from '@/types/bindings/DeviceStatusEventPayload';
+import type { DeviceTimeoutEventPayload } from '@/types/bindings/DeviceTimeoutEventPayload';
 import type { DeviceScriptAssignment } from '@/types/bindings/DeviceScriptAssignment';
 import type { DevicePlatform } from '@/types/bindings/DevicePlatform';
 import type { DeviceTransportKind } from '@/types/bindings/DeviceTransportKind';
 import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
+import type { RunStatus } from '@/types/bindings/RunStatus';
 import type { RuntimeType } from '@/types/bindings/RuntimeType';
 import type { ScriptVariableCatalog } from '@/types/bindings/ScriptVariableCatalog';
 import type { ScriptPlatform } from '@/types/bindings/ScriptPlatform';
@@ -21,12 +34,8 @@ export type StartMode = 'normal' | 'minimized' | 'tray';
 export type IdleAction = 'none' | 'shutdown' | 'sleep' | 'hibernate';
 export type DeviceStatusKind = 'idle' | 'running' | 'paused' | 'stopped' | 'error' | 'unknown';
 export type DeviceConnectionKind = 'unknown' | 'checking' | 'connected' | 'disconnected';
-export type DeviceRuntimeReconcileAction =
-    | 'spawning'
-    | 'shuttingDown'
-    | 'restarting'
-    | 'syncing'
-    | null;
+export type DeviceRuntimeReconcileAction = BindingDeviceRuntimeReconcileAction | null;
+export type DeviceRuntimeRawStatus = DeviceLifecycleStatus | ConnectionStatusKind | null;
 
 export interface ShortCutConfig {
     toggleWindow: string;
@@ -181,8 +190,43 @@ export interface AssignmentRecord extends Omit<DeviceScriptAssignment, 'accountD
     accountData: JsonValue;
 }
 
+export interface DeviceScriptSchedule {
+    id: string;
+    deviceId: string;
+    executionId: string | null;
+    assignmentId: string | null;
+    scriptId: string;
+    taskId: string;
+    dedupScopeHash: string;
+    taskCycle: string;
+    status: RunStatus;
+    startedAt: string;
+    completedAt: string | null;
+    message: string | null;
+}
+
+export interface AssignmentSchedule {
+    id: string;
+    batchId: string;
+    deviceId: string;
+    assignmentId: string | null;
+    scriptId: string | null;
+    timeTemplateId: string | null;
+    windowStartAt: string | null;
+    scopeHash: string;
+    dispatchId: string;
+    orderIndex: number;
+    createdAt: string;
+    runTargetJson: string | null;
+    status: AssignmentScheduleStatus;
+    triggerSource: AssignmentTriggerSource;
+    startedAt: string | null;
+    completedAt: string | null;
+    message: string | null;
+}
+
 export interface DeviceRuntimeStatus {
-    rawStatus: string;
+    rawStatus: DeviceRuntimeRawStatus;
     kind: DeviceStatusKind;
     currentScript?: string | null;
     message?: string | null;
@@ -191,75 +235,54 @@ export interface DeviceRuntimeStatus {
 export interface DeviceStatusEvent {
     deviceId: string;
     sessionId?: string | null;
-    status: string;
+    status: DeviceLifecycleStatus;
     currentScript?: string | null;
     message?: string | null;
 }
 
 export interface DeviceConnectionStatus {
     kind: DeviceConnectionKind;
+    rawStatus?: ConnectionStatusKind | null;
     message?: string | null;
     at?: string | null;
 }
 
-export interface DeviceRuntimeReconcileEvent {
-    jobId: string;
-    jobType: string;
-    deviceId: string;
-    phase: 'queued' | 'running' | 'succeeded' | 'failed';
-    action?: DeviceRuntimeReconcileAction;
-    message?: string | null;
-    at?: string | null;
+export interface DeviceRuntimePresence {
+    label: string;
+    tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+    icon: string;
 }
 
-export interface RuntimeLifecycleEvent {
-    deviceId: string;
-    sessionId?: string | null;
-    status: string;
-    currentScript?: string | null;
-    message?: string | null;
-    at?: string | null;
+export interface DeviceRuntimeProgressView {
+    phase: DeviceRuntimeProgressPhase | null;
+    label: string;
+    tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+    message: string | null;
+    at: string | null;
 }
 
-export interface RuntimeProgressEvent {
-    deviceId: string;
-    sessionId?: string | null;
-    assignmentId?: string | null;
-    scriptId?: string | null;
-    taskId?: string | null;
-    stepId?: string | null;
-    phase: string;
-    message?: string | null;
-    at: string;
+export interface DeviceRuntimeControlView {
+    showStopButton: boolean;
+    startLabel: string;
+    stopLabel: string;
 }
 
-export interface RuntimeScheduleEvent {
-    deviceId: string;
-    sessionId?: string | null;
-    executionId?: string | null;
-    assignmentId?: string | null;
-    scriptId?: string | null;
-    taskId?: string | null;
-    stepId?: string | null;
-    status: string;
-    message?: string | null;
-    at: string;
+export interface DeviceRuntimeView {
+    status: DeviceRuntimeStatus;
+    connectionStatus: DeviceConnectionStatus;
+    connectionLabel: string;
+    connectionTone: 'neutral' | 'info' | 'success' | 'warning' | 'danger';
+    presence: DeviceRuntimePresence;
+    progress: DeviceRuntimeProgressView;
+    pendingMessage: string | null;
+    controls: DeviceRuntimeControlView;
 }
 
-export interface RuntimeTimeoutEvent {
-    deviceId: string;
-    sessionId?: string | null;
-    assignmentId?: string | null;
-    scriptId?: string | null;
-    taskId?: string | null;
-    stepId?: string | null;
-    timeoutAction?: string | null;
-    pageFingerprint?: string | null;
-    actionSignature?: string | null;
-    detail?: string | null;
-    message: string;
-    at: string;
-}
+export type DeviceRuntimeReconcileEvent = DeviceRuntimeReconcileEventPayload;
+export type RuntimeLifecycleEvent = DeviceStatusEventPayload;
+export type RuntimeProgressEvent = DeviceProgressEventPayload;
+export type RuntimeScheduleEvent = DeviceScheduleEventPayload;
+export type RuntimeTimeoutEvent = DeviceTimeoutEventPayload;
 
 export interface RuntimeResultProjection {
     deviceId: string;

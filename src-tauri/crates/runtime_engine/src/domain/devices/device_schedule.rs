@@ -106,7 +106,7 @@ pub struct DeviceScriptSchedule {
     #[ts(type = "string")]
     pub task_cycle: String,
     /// 运行状态
-    #[ts(type = "string")]
+    #[ts(type = "import(\"./RunStatus\").RunStatus")]
     pub status: String,
     /// 开始时间
     #[ts(type = "string")]
@@ -137,9 +137,9 @@ pub struct AssignmentSchedule {
     #[ts(type = "string")]
     pub created_at: String,
     pub run_target_json: Option<String>,
-    #[ts(type = "string")]
+    #[ts(type = "import(\"./AssignmentScheduleStatus\").AssignmentScheduleStatus")]
     pub status: String,
-    #[ts(type = "string")]
+    #[ts(type = "import(\"./AssignmentTriggerSource\").AssignmentTriggerSource")]
     pub trigger_source: String,
     #[ts(type = "string | null")]
     pub started_at: Option<String>,

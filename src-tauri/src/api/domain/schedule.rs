@@ -1,7 +1,9 @@
 // 调度管理 API — 供前端调用
 use crate::api::infrastructure::process_api::{
-    enqueue_device_runtime_session_refresh_jobs, load_assigned_device_ids_by_time_template,
-    load_assignment_schedules_by_device, notify_auto_dispatch_planner,
+    emit_assignment_schedule_changed, enqueue_device_runtime_session_refresh_jobs,
+    load_assigned_device_ids_by_time_template, load_assignment_schedules_by_device,
+    load_runtime_queue_for_current_window, notify_auto_dispatch_planner,
+    sync_active_planner_schedule_order_indices, sync_active_planner_schedules_from_queue,
 };
 use crate::constant::table_name::{
     ASSIGNMENT_SCHEDULE_TABLE, ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
@@ -60,6 +62,37 @@ async fn validate_assignment_platform(
     ))
 }
 
+async fn validate_assignment_time_template(
+    assignment: &DeviceScriptAssignment,
+) -> Result<(), String> {
+    let existing_assignment =
+        DbRepo::get_by_id::<DeviceScriptAssignment>(ASSIGNMENT_TABLE, &assignment.id.to_string())
+            .await?;
+
+    let Some(time_template_id) = assignment.time_template_id else {
+        if existing_assignment.is_none() {
+            return Err("追加队列任务必须选择真实时间模板。".to_string());
+        }
+        return Ok(());
+    };
+
+    let exists = sqlx::query_scalar::<_, i64>(&format!(
+        "SELECT 1 FROM {} WHERE id = ? LIMIT 1",
+        TIME_TEMPLATE_TABLE
+    ))
+    .bind(time_template_id.to_string())
+    .fetch_optional(get_pool())
+    .await
+    .map_err(|e| e.to_string())?
+    .is_some();
+
+    if exists {
+        Ok(())
+    } else {
+        Err("所选时间模板不存在或已失效，请重新选择。".to_string())
+    }
+}
+
 // ========== 脚本分配（队列定义）==========
 
 /// 获取指定设备的所有脚本分配（按 index 排序）
@@ -86,6 +119,7 @@ pub async fn save_assignment_cmd(
     assignment: DeviceScriptAssignment,
 ) -> Result<(), String> {
     validate_assignment_platform(assignment.device_id, assignment.script_id).await?;
+    validate_assignment_time_template(&assignment).await?;
     let pool = get_pool();
     sqlx::query(&format!(
         "INSERT INTO {} (id, device_id, script_id, time_template_id, account_data, `index`) VALUES (?, ?, ?, ?, ?, ?)
@@ -101,6 +135,16 @@ pub async fn save_assignment_cmd(
     .execute(pool)
     .await
     .map_err(|e| e.to_string())?;
+    let current_window_queue = load_runtime_queue_for_current_window(assignment.device_id).await?;
+    let synced = sync_active_planner_schedules_from_queue(
+        assignment.device_id,
+        current_window_queue.as_slice(),
+        "队列定义变更，已同步当前批次",
+    )
+    .await?;
+    if synced > 0 {
+        emit_assignment_schedule_changed(&app_handle, assignment.device_id);
+    }
     notify_auto_dispatch_planner();
     enqueue_device_runtime_session_refresh_jobs(
         &app_handle,
@@ -138,6 +182,16 @@ pub async fn delete_assignment_cmd(
         notify_auto_dispatch_planner();
         let device_id =
             DeviceId::from(uuid::Uuid::parse_str(&device_id).map_err(|e| e.to_string())?);
+        let current_window_queue = load_runtime_queue_for_current_window(device_id).await?;
+        let synced = sync_active_planner_schedules_from_queue(
+            device_id,
+            current_window_queue.as_slice(),
+            "队列定义变更，已同步当前批次",
+        )
+        .await?;
+        if synced > 0 {
+            emit_assignment_schedule_changed(&app_handle, device_id);
+        }
         enqueue_device_runtime_session_refresh_jobs(
             &app_handle,
             [device_id],
@@ -168,6 +222,11 @@ pub async fn reorder_assignments_cmd(
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
+    }
+    let updated =
+        sync_active_planner_schedule_order_indices(device_id, assignment_ids.as_slice()).await?;
+    if updated > 0 {
+        emit_assignment_schedule_changed(&app_handle, device_id);
     }
     notify_auto_dispatch_planner();
     enqueue_device_runtime_session_refresh_jobs(

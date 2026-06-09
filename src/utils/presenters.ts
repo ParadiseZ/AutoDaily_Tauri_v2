@@ -148,7 +148,40 @@ export const formatStatusLabel = (status: DeviceRuntimeStatus) => {
         case 'stopped':
             return '离线';
         default:
-            return status.rawStatus || '未知状态';
+            switch (status.rawStatus) {
+                case 'initializing':
+                    return '初始化中';
+                case 'loaded':
+                    return '已加载';
+                case 'idle':
+                    return '空闲';
+                case 'running':
+                    return '运行中';
+                case 'paused':
+                    return '已暂停';
+                case 'stopping':
+                    return '停止中';
+                case 'stopped':
+                    return '离线';
+                case 'error':
+                    return '异常';
+                case 'deviceChecking':
+                    return '连接准备中';
+                case 'shellProbeChecking':
+                    return '连接探测中';
+                case 'emulatorStarting':
+                    return '模拟器启动中';
+                case 'emulatorWaiting':
+                    return '等待模拟器';
+                case 'deviceConnected':
+                    return '已连接';
+                case 'deviceDisconnected':
+                    return '未连接';
+                case 'deviceUnknown':
+                    return '待检测';
+                default:
+                    return '未知状态';
+            }
     }
 };
 

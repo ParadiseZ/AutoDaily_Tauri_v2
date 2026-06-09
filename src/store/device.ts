@@ -2,19 +2,41 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { listen } from '@tauri-apps/api/event';
 import { deviceService } from '@/services/deviceService';
+import { useRuntimeStore } from '@/store/runtime';
+import {
+    activeRuntimeProgressPhases,
+    connectionLabels,
+    connectionTones,
+    getPendingActionStartLabel,
+    getPendingActionStopLabel,
+    isConnectionStatusKind,
+    isDeviceLifecycleStatus,
+    isDeviceRuntimeReconcileAction,
+    isDeviceRuntimeReconcileJobType,
+    isDeviceRuntimeReconcilePhase,
+    pendingActionMessages,
+    progressPhaseLabels,
+    stopButtonPendingActions,
+    toDeviceConnectionKind,
+    toDeviceStatusKind,
+} from '@/utils/deviceRuntime';
 import type {
     DeviceConnectionKind,
     DeviceConnectionStatus,
+    DeviceRuntimeControlView,
+    DeviceRuntimePresence,
+    DeviceRuntimeProgressView,
     DeviceRuntimeReconcileAction,
     DeviceRuntimeReconcileEvent,
-    DeviceRuntimeStatus,
     DeviceStatusEvent,
+    DeviceRuntimeStatus,
+    DeviceRuntimeView,
     DeviceSummary,
 } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 
 const emptyStatus: DeviceRuntimeStatus = {
-    rawStatus: 'Stopped',
+    rawStatus: 'stopped',
     kind: 'stopped',
     currentScript: null,
     message: null,
@@ -22,19 +44,9 @@ const emptyStatus: DeviceRuntimeStatus = {
 
 const emptyConnectionStatus: DeviceConnectionStatus = {
     kind: 'unknown',
+    rawStatus: null,
     message: null,
     at: null,
-};
-
-const toStatusKind = (status: string): DeviceRuntimeStatus['kind'] => {
-    const normalized = status.toLowerCase();
-    if (normalized.includes('run') || normalized.includes('work') || normalized.includes('busy')) return 'running';
-    if (normalized.includes('pause')) return 'paused';
-    if (normalized.includes('stop') || normalized.includes('shutdown')) return 'stopped';
-    if (normalized.includes('error') || normalized.includes('fail')) return 'error';
-    if (normalized.includes('load')) return 'idle';
-    if (normalized.includes('idle') || normalized.includes('wait')) return 'idle';
-    return 'unknown';
 };
 
 const toStatusEvent = (payload: unknown): DeviceStatusEvent | null => {
@@ -43,7 +55,7 @@ const toStatusEvent = (payload: unknown): DeviceStatusEvent | null => {
     }
 
     const record = payload as Record<string, unknown>;
-    if (typeof record.deviceId !== 'string' || typeof record.status !== 'string') {
+    if (typeof record.deviceId !== 'string' || !isDeviceLifecycleStatus(record.status)) {
         return null;
     }
 
@@ -51,52 +63,34 @@ const toStatusEvent = (payload: unknown): DeviceStatusEvent | null => {
         deviceId: record.deviceId,
         sessionId: typeof record.sessionId === 'string' ? record.sessionId : null,
         status: record.status,
-        currentScript: typeof record.currentScript === 'string' ? record.currentScript : null,
+        currentScript: typeof record.currentScriptId === 'string' ? record.currentScriptId : null,
         message: typeof record.message === 'string' ? record.message : null,
     };
 };
 
-const toConnectionKind = (status: string): DeviceConnectionKind => {
-    switch (status.toLowerCase()) {
-        case 'checking':
-            return 'checking';
-        case 'connected':
-            return 'connected';
-        case 'disconnected':
-            return 'disconnected';
-        default:
-            return 'unknown';
-    }
-};
-
-const toConnectionEvent = (payload: unknown): { deviceId: string; status: DeviceConnectionKind; message: string | null; at: string | null } | null => {
+const toConnectionEvent = (
+    payload: unknown,
+): { deviceId: string; status: DeviceConnectionKind; rawStatus: DeviceConnectionStatus['rawStatus']; message: string | null; at: string | null } | null => {
     if (!payload || typeof payload !== 'object') {
         return null;
     }
 
     const record = payload as Record<string, unknown>;
-    if (typeof record.deviceId !== 'string' || typeof record.status !== 'string') {
+    if (typeof record.deviceId !== 'string' || !isConnectionStatusKind(record.status)) {
         return null;
     }
 
     return {
         deviceId: record.deviceId,
-        status: toConnectionKind(record.status),
+        status: toDeviceConnectionKind(record.status),
+        rawStatus: record.status,
         message: typeof record.message === 'string' ? record.message : null,
         at: typeof record.at === 'string' ? record.at : null,
     };
 };
 
 const toRuntimeReconcileAction = (value: unknown): DeviceRuntimeReconcileAction => {
-    switch (value) {
-        case 'spawning':
-        case 'shuttingDown':
-        case 'restarting':
-        case 'syncing':
-            return value;
-        default:
-            return null;
-    }
+    return isDeviceRuntimeReconcileAction(value) ? value : null;
 };
 
 const toRuntimeReconcileEvent = (payload: unknown): DeviceRuntimeReconcileEvent | null => {
@@ -107,14 +101,11 @@ const toRuntimeReconcileEvent = (payload: unknown): DeviceRuntimeReconcileEvent 
     const record = payload as Record<string, unknown>;
     if (
         typeof record.jobId !== 'string' ||
-        typeof record.jobType !== 'string' ||
+        !isDeviceRuntimeReconcileJobType(record.jobType) ||
         typeof record.deviceId !== 'string' ||
-        typeof record.phase !== 'string'
+        !isDeviceRuntimeReconcilePhase(record.phase) ||
+        typeof record.at !== 'string'
     ) {
-        return null;
-    }
-
-    if (!['queued', 'running', 'succeeded', 'failed'].includes(record.phase)) {
         return null;
     }
 
@@ -122,22 +113,15 @@ const toRuntimeReconcileEvent = (payload: unknown): DeviceRuntimeReconcileEvent 
         jobId: record.jobId,
         jobType: record.jobType,
         deviceId: record.deviceId,
-        phase: record.phase as DeviceRuntimeReconcileEvent['phase'],
+        phase: record.phase,
         action: toRuntimeReconcileAction(record.action),
         message: typeof record.message === 'string' ? record.message : null,
-        at: typeof record.at === 'string' ? record.at : null,
+        at: record.at,
     };
 };
 
 export const useDeviceStore = defineStore('device', () => {
-    type DevicePendingAction =
-        | 'spawning'
-        | 'starting'
-        | 'pausing'
-        | 'stopping'
-        | 'shuttingDown'
-        | 'restarting'
-        | 'syncing';
+    type DevicePendingAction = Exclude<DeviceRuntimeReconcileAction, null>;
 
     const devices = ref<DeviceTable[]>([]);
     const onlineDeviceIds = ref<string[]>([]);
@@ -147,6 +131,7 @@ export const useDeviceStore = defineStore('device', () => {
     const selectedDeviceId = ref<string | null>(null);
     const loading = ref(false);
     const cpuCount = ref(0);
+    const runtimeStore = useRuntimeStore();
 
     const deviceSummary = computed<DeviceSummary>(() => ({
         total: devices.value.length,
@@ -336,6 +321,7 @@ export const useDeviceStore = defineStore('device', () => {
         targetIds.forEach((deviceId) =>
             setDeviceConnectionStatus(deviceId, {
                 kind: 'checking',
+                rawStatus: 'deviceChecking',
                 message: '正在检查设备连接',
                 at: null,
             }),
@@ -348,6 +334,7 @@ export const useDeviceStore = defineStore('device', () => {
             targetIds.forEach((deviceId) =>
                 setDeviceConnectionStatus(deviceId, {
                     kind: 'disconnected',
+                    rawStatus: 'deviceDisconnected',
                     message: error instanceof Error ? error.message : '发起连接探测失败',
                     at: null,
                 }),
@@ -435,7 +422,7 @@ export const useDeviceStore = defineStore('device', () => {
 
         if (connectionStatus.kind === 'disconnected') {
             return {
-                rawStatus: 'Disconnected',
+                rawStatus: 'deviceDisconnected',
                 kind: 'error',
                 currentScript: status?.currentScript ?? null,
                 message: connectionStatus.message ?? status?.message ?? '设备连接不可用',
@@ -444,7 +431,7 @@ export const useDeviceStore = defineStore('device', () => {
 
         if (connectionStatus.kind === 'checking') {
             return {
-                rawStatus: 'CheckingConnection',
+                rawStatus: 'deviceChecking',
                 kind: 'unknown',
                 currentScript: status?.currentScript ?? null,
                 message: connectionStatus.message ?? status?.message ?? '正在检查设备连接',
@@ -457,7 +444,7 @@ export const useDeviceStore = defineStore('device', () => {
 
         if (connectionStatus.kind === 'connected') {
             return {
-                rawStatus: 'Idle',
+                rawStatus: 'idle',
                 kind: 'idle',
                 currentScript: null,
                 message: connectionStatus.message ?? null,
@@ -465,7 +452,7 @@ export const useDeviceStore = defineStore('device', () => {
         }
 
         return {
-            rawStatus: 'ConnectionUnknown',
+            rawStatus: 'deviceUnknown',
             kind: 'unknown',
             currentScript: null,
             message: '等待连接状态检测',
@@ -475,11 +462,54 @@ export const useDeviceStore = defineStore('device', () => {
     const getDeviceConnectionStatus = (deviceId: string): DeviceConnectionStatus =>
         deviceConnectionStatuses.value[deviceId] ?? emptyConnectionStatus;
 
+    const getConnectionLabel = (status: DeviceConnectionStatus) => {
+        return connectionLabels[status.kind];
+    };
+
+    const getConnectionTone = (
+        status: DeviceConnectionStatus,
+    ): DeviceRuntimeView['connectionTone'] => connectionTones[status.kind];
+
+    const getPendingMessage = (deviceId: string) => {
+        const action = getDevicePendingAction(deviceId);
+        return action ? pendingActionMessages[action] : null;
+    };
+
+    const getProgressView = (deviceId: string): DeviceRuntimeProgressView => {
+        const runtimeResult = runtimeStore.getRuntimeResult(deviceId);
+        const connectionStatus = getDeviceConnectionStatus(deviceId);
+        const latest = runtimeResult.latestProgress;
+        const phase = latest?.phase ?? null;
+        const fallbackMessage = getPendingMessage(deviceId) ?? connectionStatus.message ?? null;
+        const message = latest?.message ?? fallbackMessage;
+
+        let tone: DeviceRuntimeProgressView['tone'] = 'neutral';
+        if (phase === 'failed' || phase === 'deviceDisconnected') tone = 'danger';
+        else if (phase === 'childProcessExited' || phase === 'childProcessCrashed') tone = 'danger';
+        else if (phase === 'completed' || phase === 'deviceConnected') tone = 'success';
+        else if (phase === 'paused') tone = 'warning';
+        else if (
+            phase &&
+            activeRuntimeProgressPhases.has(phase)
+        ) tone = 'info';
+        else if (connectionStatus.kind === 'checking') tone = 'info';
+
+        return {
+            phase,
+            label:
+                (phase ? progressPhaseLabels[phase] ?? phase : null) ??
+                (connectionStatus.kind === 'checking' ? '连接准备中' : '暂无'),
+            tone,
+            message,
+            at: latest?.at ?? connectionStatus.at ?? null,
+        };
+    };
+
     const isDeviceOnline = (deviceId: string) =>
         onlineDeviceIds.value.includes(deviceId) &&
         getDeviceConnectionStatus(deviceId).kind === 'connected';
 
-    const getDevicePresence = (deviceId: string) => {
+    const getDevicePresence = (deviceId: string): DeviceRuntimePresence => {
         if (!onlineDeviceIds.value.includes(deviceId)) {
             return { label: '离线', tone: 'neutral' as const, icon: 'status-offline' };
         }
@@ -496,6 +526,40 @@ export const useDeviceStore = defineStore('device', () => {
         }
 
         return { label: '待检测', tone: 'warning' as const, icon: 'status-offline' };
+    };
+
+    const getControlView = (deviceId: string): DeviceRuntimeControlView => {
+        const status = getDeviceStatus(deviceId);
+        const connectionStatus = getDeviceConnectionStatus(deviceId);
+        const progress = getProgressView(deviceId);
+        const pendingAction = getDevicePendingAction(deviceId);
+        const showStopButton =
+            status.kind === 'running' ||
+            status.kind === 'paused' ||
+            Boolean(pendingAction && stopButtonPendingActions.has(pendingAction)) ||
+            Boolean(progress.phase && activeRuntimeProgressPhases.has(progress.phase)) ||
+            connectionStatus.kind === 'checking';
+
+        return {
+            showStopButton,
+            startLabel: getPendingActionStartLabel(pendingAction),
+            stopLabel: getPendingActionStopLabel(pendingAction),
+        };
+    };
+
+    const getDeviceRuntimeView = (deviceId: string): DeviceRuntimeView => {
+        const status = getDeviceStatus(deviceId);
+        const connectionStatus = getDeviceConnectionStatus(deviceId);
+        return {
+            status,
+            connectionStatus,
+            connectionLabel: getConnectionLabel(connectionStatus),
+            connectionTone: getConnectionTone(connectionStatus),
+            presence: getDevicePresence(deviceId),
+            progress: getProgressView(deviceId),
+            pendingMessage: getPendingMessage(deviceId),
+            controls: getControlView(deviceId),
+        };
     };
 
     const getDevicePendingAction = (deviceId: string) => devicePendingActions.value[deviceId] ?? null;
@@ -517,7 +581,7 @@ export const useDeviceStore = defineStore('device', () => {
                 ...deviceStatuses.value,
                 [payload.deviceId]: {
                     rawStatus: payload.status,
-                    kind: toStatusKind(payload.status),
+                    kind: toDeviceStatusKind(payload.status),
                     currentScript: payload.currentScript,
                     message: payload.message,
                 },
@@ -533,7 +597,7 @@ export const useDeviceStore = defineStore('device', () => {
             deviceStatuses.value = {
                 ...deviceStatuses.value,
                 [payload.deviceId]: {
-                    rawStatus: payload.status || 'Error',
+                    rawStatus: payload.status,
                     kind: 'error',
                     currentScript: payload.currentScript,
                     message: payload.message,
@@ -549,6 +613,7 @@ export const useDeviceStore = defineStore('device', () => {
 
             setDeviceConnectionStatus(payload.deviceId, {
                 kind: payload.status,
+                rawStatus: payload.rawStatus,
                 message: payload.message,
                 at: payload.at,
             });
@@ -595,6 +660,7 @@ export const useDeviceStore = defineStore('device', () => {
         getDeviceConnectionStatus,
         getDevicePendingAction,
         getDevicePresence,
+        getDeviceRuntimeView,
         getDeviceStatus,
         initIpcListeners,
         isDeviceBusy,

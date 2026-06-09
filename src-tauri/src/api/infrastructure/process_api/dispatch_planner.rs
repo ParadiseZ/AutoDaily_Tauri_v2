@@ -9,135 +9,8 @@ use crate::infrastructure::core::{
     TemplateId,
 };
 use crate::infrastructure::db::get_pool;
-use crate::infrastructure::ipc::message::{RuntimeQueueItem, RuntimeSessionSnapshot};
-use std::collections::{HashSet, VecDeque};
-use std::sync::{Arc, OnceLock, RwLock};
-
-#[derive(Clone, Debug, Default)]
-pub struct DeviceDispatchState {
-    pub active_dispatch: Option<DispatchId>,
-    pub pending_dispatches: VecDeque<RuntimeQueueItem>,
-    pub pending_debug_sessions: VecDeque<RuntimeSessionSnapshot>,
-}
-
-pub struct DispatchPlanner {
-    device_states: Arc<RwLock<HashMap<DeviceId, DeviceDispatchState>>>,
-}
-
-static DISPATCH_PLANNER: OnceLock<Arc<DispatchPlanner>> = OnceLock::new();
-
-impl DispatchPlanner {
-    pub fn new() -> Self {
-        Self {
-            device_states: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
-
-    pub fn init() -> Arc<Self> {
-        DISPATCH_PLANNER
-            .get_or_init(|| Arc::new(Self::new()))
-            .clone()
-    }
-
-    pub fn get() -> Option<Arc<Self>> {
-        DISPATCH_PLANNER.get().cloned()
-    }
-
-    pub fn ensure_device_state(&self, device_id: DeviceId) -> Result<(), String> {
-        let mut guard = self
-            .device_states
-            .write()
-            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
-        guard.entry(device_id).or_default();
-        Ok(())
-    }
-
-    pub fn replace_pending_dispatches(
-        &self,
-        device_id: DeviceId,
-        queue: Vec<RuntimeQueueItem>,
-    ) -> Result<(), String> {
-        let mut guard = self
-            .device_states
-            .write()
-            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
-        let state = guard.entry(device_id).or_default();
-        state.pending_dispatches = queue.into_iter().collect();
-        Ok(())
-    }
-
-    pub fn push_debug_session(
-        &self,
-        device_id: DeviceId,
-        session: RuntimeSessionSnapshot,
-    ) -> Result<(), String> {
-        let mut guard = self
-            .device_states
-            .write()
-            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
-        let state = guard.entry(device_id).or_default();
-        state.pending_debug_sessions.push_back(session);
-        Ok(())
-    }
-
-    pub fn pop_debug_session(
-        &self,
-        device_id: DeviceId,
-    ) -> Result<Option<RuntimeSessionSnapshot>, String> {
-        let mut guard = self
-            .device_states
-            .write()
-            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
-        let state = guard.entry(device_id).or_default();
-        Ok(state.pending_debug_sessions.pop_front())
-    }
-
-    pub fn mark_active_dispatch(
-        &self,
-        device_id: DeviceId,
-        dispatch_id: Option<DispatchId>,
-    ) -> Result<(), String> {
-        let mut guard = self
-            .device_states
-            .write()
-            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
-        let state = guard.entry(device_id).or_default();
-        state.active_dispatch = dispatch_id;
-        Ok(())
-    }
-
-    pub fn pop_next_dispatch(
-        &self,
-        device_id: DeviceId,
-    ) -> Result<Option<RuntimeQueueItem>, String> {
-        let mut guard = self
-            .device_states
-            .write()
-            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
-        let state = guard.entry(device_id).or_default();
-        Ok(state.pending_dispatches.pop_front())
-    }
-
-    pub fn snapshot_device_state(
-        &self,
-        device_id: DeviceId,
-    ) -> Result<DeviceDispatchState, String> {
-        let guard = self
-            .device_states
-            .read()
-            .map_err(|_| "读取 dispatch planner 状态失败".to_string())?;
-        Ok(guard.get(&device_id).cloned().unwrap_or_default())
-    }
-
-    pub fn clear_device_state(&self, device_id: DeviceId) -> Result<(), String> {
-        let mut guard = self
-            .device_states
-            .write()
-            .map_err(|_| "写入 dispatch planner 状态失败".to_string())?;
-        guard.remove(&device_id);
-        Ok(())
-    }
-}
+use crate::infrastructure::ipc::message::RuntimeQueueItem;
+use std::collections::HashSet;
 
 pub fn assignment_schedule_status_value(status: &AssignmentScheduleStatus) -> &'static str {
     match status {
@@ -504,6 +377,264 @@ pub async fn load_next_planned_assignment_schedule(
         .map_err(|error| error.to_string())
 }
 
+pub async fn sync_active_planner_schedule_order_indices(
+    device_id: DeviceId,
+    assignment_ids: &[AssignmentId],
+) -> Result<u64, String> {
+    if assignment_ids.is_empty() {
+        return Ok(0);
+    }
+
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let batch_ids = sqlx::query_scalar::<_, String>(&format!(
+        "SELECT DISTINCT batch_id
+         FROM {}
+         WHERE device_id = ?
+           AND trigger_source = 'planner'
+           AND created_at LIKE ?
+           AND status IN ('planned', 'dispatched', 'running', 'stopped')",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(device_id.to_string())
+    .bind(format!("{}%", today))
+    .fetch_all(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    if batch_ids.is_empty() {
+        return Ok(0);
+    }
+
+    let desired_order = assignment_ids
+        .iter()
+        .enumerate()
+        .map(|(index, assignment_id)| (*assignment_id, index))
+        .collect::<HashMap<_, _>>();
+    let mut updated = 0u64;
+
+    for batch_id in batch_ids {
+        let query = format!(
+            "{}
+             WHERE device_id = ?
+               AND trigger_source = 'planner'
+               AND batch_id = ?
+             ORDER BY order_index ASC, created_at ASC",
+            assignment_schedule_select_sql()
+        );
+        let rows = sqlx::query_as::<_, AssignmentSchedule>(&query)
+            .bind(device_id.to_string())
+            .bind(batch_id)
+            .fetch_all(get_pool())
+            .await
+            .map_err(|error| error.to_string())?;
+        if rows.is_empty() {
+            continue;
+        }
+
+        let mut ordered_rows = rows
+            .into_iter()
+            .enumerate()
+            .map(|(stable_index, row)| {
+                let desired_rank = row
+                    .assignment_id
+                    .and_then(|assignment_id| desired_order.get(&assignment_id).copied());
+                (desired_rank, row.order_index, stable_index, row)
+            })
+            .collect::<Vec<_>>();
+        ordered_rows.sort_by_key(|(desired_rank, old_order, stable_index, _)| {
+            (
+                desired_rank.is_none(),
+                desired_rank.unwrap_or(usize::MAX),
+                *old_order,
+                *stable_index,
+            )
+        });
+
+        for (new_index, (_, _, _, row)) in ordered_rows.into_iter().enumerate() {
+            let new_index = new_index as u32;
+            if row.order_index == new_index {
+                continue;
+            }
+            sqlx::query(&format!(
+                "UPDATE {}
+                 SET order_index = ?
+                 WHERE id = ?",
+                ASSIGNMENT_SCHEDULE_TABLE
+            ))
+            .bind(new_index)
+            .bind(row.id.to_string())
+            .execute(get_pool())
+            .await
+            .map_err(|error| error.to_string())?;
+            updated += 1;
+        }
+    }
+
+    Ok(updated)
+}
+
+fn planner_batch_mutable_status(status: &str) -> bool {
+    matches!(status, "planned" | "stopped" | "cancelled")
+}
+
+pub async fn sync_active_planner_schedules_from_queue(
+    device_id: DeviceId,
+    items: &[RuntimeQueueItem],
+    reason: &str,
+) -> Result<u64, String> {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let batch_ids = sqlx::query_scalar::<_, String>(&format!(
+        "SELECT DISTINCT batch_id
+         FROM {}
+         WHERE device_id = ?
+           AND trigger_source = 'planner'
+           AND created_at LIKE ?
+           AND status IN ('planned', 'dispatched', 'running', 'stopped')",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(device_id.to_string())
+    .bind(format!("{}%", today))
+    .fetch_all(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    if batch_ids.is_empty() {
+        return Ok(0);
+    }
+
+    let now = chrono::Local::now().to_rfc3339();
+    let queue_by_assignment = items
+        .iter()
+        .map(|item| (item.assignment_id, item))
+        .collect::<HashMap<_, _>>();
+    let assignment_ids = items
+        .iter()
+        .map(|item| item.assignment_id)
+        .collect::<Vec<_>>();
+    let mut updated = 0u64;
+
+    for batch_id in batch_ids {
+        let query = format!(
+            "{}
+             WHERE device_id = ?
+               AND trigger_source = 'planner'
+               AND batch_id = ?
+             ORDER BY order_index ASC, created_at ASC",
+            assignment_schedule_select_sql()
+        );
+        let rows = sqlx::query_as::<_, AssignmentSchedule>(&query)
+            .bind(device_id.to_string())
+            .bind(&batch_id)
+            .fetch_all(get_pool())
+            .await
+            .map_err(|error| error.to_string())?;
+        if rows.is_empty() {
+            continue;
+        }
+
+        let batch_id_value = rows[0].batch_id;
+        let batch_created_at = rows[0].created_at.clone();
+        let mut seen_assignments = HashSet::new();
+
+        for row in &rows {
+            let Some(assignment_id) = row.assignment_id else {
+                continue;
+            };
+            seen_assignments.insert(assignment_id);
+            let Some(item) = queue_by_assignment.get(&assignment_id) else {
+                if !planner_batch_mutable_status(&row.status) {
+                    continue;
+                }
+                let result = sqlx::query(&format!(
+                    "UPDATE {}
+                     SET status = ?, completed_at = COALESCE(completed_at, ?), message = ?
+                     WHERE id = ?",
+                    ASSIGNMENT_SCHEDULE_TABLE
+                ))
+                .bind(assignment_schedule_status_value(
+                    &AssignmentScheduleStatus::Cancelled,
+                ))
+                .bind(&now)
+                .bind("队列定义已删除或已移出当前窗口，取消当前批次未执行记录")
+                .bind(row.id.to_string())
+                .execute(get_pool())
+                .await
+                .map_err(|error| error.to_string())?;
+                updated += result.rows_affected();
+                continue;
+            };
+
+            if !planner_batch_mutable_status(&row.status) {
+                continue;
+            }
+
+            let next_status = if row.status == "stopped" {
+                AssignmentScheduleStatus::Stopped
+            } else {
+                AssignmentScheduleStatus::Planned
+            };
+            let next_message = if row.status == "stopped" {
+                "队列定义变更，当前批次保持停止状态"
+            } else {
+                reason
+            };
+            let result = sqlx::query(&format!(
+                "UPDATE {}
+                 SET script_id = ?,
+                     time_template_id = ?,
+                     window_start_at = ?,
+                     scope_hash = ?,
+                     run_target_json = NULL,
+                     status = ?,
+                     completed_at = CASE WHEN ? = 'planned' THEN NULL ELSE completed_at END,
+                     message = ?
+                 WHERE id = ?",
+                ASSIGNMENT_SCHEDULE_TABLE
+            ))
+            .bind(item.script_id.to_string())
+            .bind(item.time_template_id.map(|value| value.to_string()))
+            .bind(item.window_start_at.clone())
+            .bind(&item.dedup_scope_base_hash)
+            .bind(assignment_schedule_status_value(&next_status))
+            .bind(assignment_schedule_status_value(&next_status))
+            .bind(next_message)
+            .bind(row.id.to_string())
+            .execute(get_pool())
+            .await
+            .map_err(|error| error.to_string())?;
+            updated += result.rows_affected();
+        }
+
+        for item in items {
+            if seen_assignments.contains(&item.assignment_id) {
+                continue;
+            }
+            insert_assignment_schedule(
+                batch_id_value,
+                device_id,
+                Some(item.assignment_id),
+                Some(item.script_id),
+                item.time_template_id,
+                item.window_start_at.clone(),
+                item.dedup_scope_base_hash.clone(),
+                item.dispatch_id,
+                item.order_index,
+                batch_created_at.clone(),
+                None,
+                AssignmentScheduleStatus::Planned,
+                AssignmentTriggerSource::Planner,
+                Some(reason.to_string()),
+            )
+            .await?;
+            updated += 1;
+        }
+    }
+
+    updated +=
+        sync_active_planner_schedule_order_indices(device_id, assignment_ids.as_slice()).await?;
+    Ok(updated)
+}
+
 pub async fn update_assignment_schedule_status(
     schedule_id: AssignmentScheduleId,
     status: AssignmentScheduleStatus,
@@ -564,6 +695,57 @@ pub async fn stop_active_assignment_schedules_by_device(
          SET status = ?, completed_at = COALESCE(completed_at, ?), message = ?
          WHERE device_id = ?
            AND status IN ('planned', 'dispatched', 'running')",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(assignment_schedule_status_value(
+        &AssignmentScheduleStatus::Stopped,
+    ))
+    .bind(completed_at)
+    .bind(message)
+    .bind(device_id.to_string())
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(result.rows_affected())
+}
+
+pub async fn fail_active_assignment_schedules_by_device(
+    device_id: DeviceId,
+    completed_at: String,
+    message: String,
+) -> Result<u64, String> {
+    let result = sqlx::query(&format!(
+        "UPDATE {}
+         SET status = ?, completed_at = COALESCE(completed_at, ?), message = ?
+         WHERE device_id = ?
+           AND status IN ('dispatched', 'running')",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(assignment_schedule_status_value(
+        &AssignmentScheduleStatus::Failed,
+    ))
+    .bind(completed_at)
+    .bind(message)
+    .bind(device_id.to_string())
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok(result.rows_affected())
+}
+
+pub async fn stop_planned_planner_schedules_by_device(
+    device_id: DeviceId,
+    completed_at: String,
+    message: String,
+) -> Result<u64, String> {
+    let result = sqlx::query(&format!(
+        "UPDATE {}
+         SET status = ?, completed_at = COALESCE(completed_at, ?), message = ?
+         WHERE device_id = ?
+           AND trigger_source = 'planner'
+           AND status = 'planned'",
         ASSIGNMENT_SCHEDULE_TABLE
     ))
     .bind(assignment_schedule_status_value(

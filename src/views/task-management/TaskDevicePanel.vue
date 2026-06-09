@@ -7,23 +7,23 @@
           <span>·</span>
           <span>{{ formatConnectLabel(device.data) }}</span>
           <span>·</span>
-          <span>{{ connectionStatusLabel }}</span>
+          <span>{{ runtimeView.connectionLabel }}</span>
           <span>·</span>
           <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
-          <span v-if="status.currentScript">· 正在执行 {{ status.currentScript }}</span>
+          <span v-if="runtimeView.status.currentScript">· 正在执行 {{ runtimeView.status.currentScript }}</span>
         </div>
-        <p v-if="devicePendingMessage" class="text-sm font-medium text-(--app-accent)">{{ devicePendingMessage }}</p>
-        <p v-else-if="connectionStatus.message" class="text-sm text-(--app-text-faint)">{{ connectionStatus.message }}</p>
+        <p v-if="runtimeView.pendingMessage" class="text-sm font-medium text-(--app-accent)">{{ runtimeView.pendingMessage }}</p>
+        <p v-else-if="runtimeView.connectionStatus.message" class="text-sm text-(--app-text-faint)">{{ runtimeView.connectionStatus.message }}</p>
       </div>
 
       <div class="flex flex-wrap gap-2">
-        <button v-if="!hasActiveAssignmentSchedule" class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" :disabled="deviceBusy" @click="$emit('start', device.id)">
+        <button v-if="!runtimeView.controls.showStopButton" class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" :disabled="deviceBusy" @click="$emit('start', device.id)">
           <AppIcon name="play" :size="16" class="fill-current" />
-          {{ startButtonLabel }}
+          {{ runtimeView.controls.startLabel }}
         </button>
         <button v-else class="app-button app-button-warning" type="button" :disabled="deviceBusy" @click="$emit('stop', device.id)">
           <AppIcon name="square" :size="14" class="fill-current" />
-          {{ stopButtonLabel }}
+          {{ runtimeView.controls.stopLabel }}
         </button>
       </div>
     </div>
@@ -32,10 +32,10 @@
       <div class="runtime-result-block">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs font-semibold text-(--app-text-faint)">当前进度</p>
-          <StatusBadge :label="runtimeProgressLabel" :tone="runtimeProgressTone" />
+          <StatusBadge :label="runtimeView.progress.label" :tone="runtimeView.progress.tone" />
         </div>
         <p class="mt-2 line-clamp-2 text-sm text-(--app-text-strong)">
-          {{ runtimeResult.latestProgress?.message || connectionStatus.message || '暂无进度事件' }}
+          {{ runtimeView.progress.message || '暂无进度事件' }}
         </p>
       </div>
 
@@ -87,13 +87,16 @@
             <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
               <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择要追加的脚本" />
               <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
-              <button class="app-button app-button-ghost group" type="button" :disabled="deviceBusy" @click="handleAddScript">
+              <button class="app-button app-button-ghost group" type="button" @click="handleAddScript">
                 <AppIcon name="list-plus" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
                 追加
               </button>
             </div>
             <p v-if="!scriptOptions.length" class="text-xs text-(--app-text-faint)">
               没有匹配脚本：{{ formatPlatformLabel(device.data.platform) }}
+            </p>
+            <p v-else-if="selectedScriptId && !selectedTemplateId" class="text-xs text-(--app-text-faint)">
+              追加到总队列前，必须选择一个真实时间模板。
             </p>
 
             <div class="space-y-3 rounded-[18px] border border-dashed border-(--app-border) px-4 py-4">
@@ -325,7 +328,7 @@
                 >
                   <div class="flex items-center justify-between gap-3">
                     <p class="truncate text-xs font-medium text-(--app-text-strong)">{{ getTaskName(schedule.scriptId, schedule.taskId) }}</p>
-                    <StatusBadge :label="scheduleStatusLabels[schedule.status] ?? schedule.status" :tone="scheduleTone(schedule.status)" />
+                    <StatusBadge :label="historyScheduleStatusLabels[schedule.status] ?? schedule.status" :tone="historyScheduleTone(schedule.status)" />
                   </div>
                   <p class="mt-1 text-xs text-(--app-text-faint)">
                     {{ formatDateTime(schedule.startedAt) }} · {{ schedule.message || schedule.taskCycle }}
@@ -348,19 +351,23 @@ import StatusBadge from '@/components/shared/StatusBadge.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import type {
   AssignmentRecord,
-  DeviceConnectionStatus,
-  DeviceRuntimeStatus,
+  AssignmentSchedule,
+  DeviceRuntimeView,
+  DeviceScriptSchedule,
   RuntimeProgressEvent,
   RuntimeResultProjection,
   RuntimeTimeoutEvent,
   ScriptTableRecord,
 } from '@/types/app/domain';
+import type { AssignmentScheduleStatus } from '@/types/bindings/AssignmentScheduleStatus';
 import type { RunTarget } from '@/types/bindings/RunTarget';
-import type { AssignmentSchedule } from '@/types/bindings/AssignmentSchedule';
+import type { AssignmentTriggerSource } from '@/types/bindings/AssignmentTriggerSource';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
-import type { DeviceScriptSchedule } from '@/types/bindings/DeviceScriptSchedule';
+import type { RunStatus } from '@/types/bindings/RunStatus';
+import type { RuntimeScheduleStatus } from '@/types/bindings/RuntimeScheduleStatus';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { TimeTemplate } from '@/types/bindings/TimeTemplate';
+import type { TimeoutAction } from '@/types/bindings/TimeoutAction';
 import { filterUserVisibleTaskRows } from '@/utils/scriptTaskVisibility';
 import { createFullScriptRunTarget, createTaskRunTarget } from '@/utils/runTarget';
 import {
@@ -373,8 +380,7 @@ import {
 
 const props = defineProps<{
   device: DeviceTable;
-  status: DeviceRuntimeStatus;
-  connectionStatus: DeviceConnectionStatus;
+  runtimeView: DeviceRuntimeView;
   scripts: ScriptTableRecord[];
   timeTemplates: TimeTemplate[];
   assignments: AssignmentRecord[];
@@ -419,10 +425,6 @@ const timer = window.setInterval(() => {
 }, 60_000);
 
 const devicePlatform = computed(() => props.device.data.platform ?? 'android');
-const activeAssignmentScheduleStatuses = new Set(['planned', 'dispatched', 'running']);
-const hasActiveAssignmentSchedule = computed(() =>
-  props.assignmentSchedules.some((record) => activeAssignmentScheduleStatuses.has(record.status)),
-);
 
 const scriptOptions = computed(() =>
   props.scripts
@@ -443,14 +445,13 @@ const temporaryScriptItems = computed(() =>
     })),
 );
 
-const templateOptions = computed(() => [
-  { label: '每次', value: '' },
-  ...props.timeTemplates.map((template) => ({
+const templateOptions = computed(() =>
+  props.timeTemplates.map((template) => ({
     label: template.name,
     value: template.id,
     description: formatTemplateWindow(template),
   })),
-]);
+);
 
 const templateMap = computed(() =>
   Object.fromEntries(props.timeTemplates.map((template) => [template.id, template])),
@@ -467,25 +468,28 @@ const temporaryRows = computed(() =>
 
 const normalizeWarningMessage = (message?: string | null) => message?.trim() || null;
 
-const timeoutActionLabels: Record<string, string> = {
-  SkipCurrentTask: '跳过任务',
-  RunRecoveryTask: '恢复任务',
-  StopExecution: '停止执行',
+const timeoutActionLabels: Record<TimeoutAction, string> = {
   skipCurrentTask: '跳过任务',
   runRecoveryTask: '恢复任务',
   stopExecution: '停止执行',
 };
 
-const scheduleStatusLabels: Record<string, string> = {
-  Queued: '已排队',
-  Running: '运行中',
-  Success: '成功',
-  Failed: '失败',
-  Skipped: '已跳过',
-  Cleared: '已清空',
+const runtimeScheduleStatusLabels: Record<RuntimeScheduleStatus, string> = {
+  queued: '已排队',
+  running: '运行中',
+  success: '成功',
+  failed: '失败',
+  skipped: '已跳过',
+  cleared: '已清空',
 };
 
-const assignmentScheduleStatusLabels: Record<string, string> = {
+const historyScheduleStatusLabels: Record<RunStatus, string> = {
+  success: '成功',
+  failed: '失败',
+  skipped: '已跳过',
+};
+
+const assignmentScheduleStatusLabels: Record<AssignmentScheduleStatus, string> = {
   planned: '已计划',
   dispatched: '已派发',
   running: '运行中',
@@ -496,109 +500,44 @@ const assignmentScheduleStatusLabels: Record<string, string> = {
   stopped: '已停止',
 };
 
-const triggerSourceLabels: Record<string, string> = {
+const triggerSourceLabels: Record<AssignmentTriggerSource, string> = {
   planner: '自动调度',
   user: '临时运行',
   debug: '调试',
 };
 
-const scheduleTone = (status: string) => {
-  if (status === 'Success') return 'success';
-  if (status === 'Skipped' || status === 'Queued' || status === 'Running') return 'warning';
-  if (status === 'Failed') return 'danger';
+const historyScheduleTone = (status: RunStatus) => {
+  if (status === 'success') return 'success';
+  if (status === 'skipped') return 'warning';
+  if (status === 'failed') return 'danger';
   return 'neutral';
 };
 
-const assignmentScheduleTone = (status: string) => {
+const runtimeScheduleToneFromStatus = (status: RuntimeScheduleStatus) => {
+  if (status === 'success') return 'success';
+  if (status === 'skipped' || status === 'queued' || status === 'running') return 'warning';
+  if (status === 'failed') return 'danger';
+  return 'neutral';
+};
+
+const assignmentScheduleTone = (status: AssignmentScheduleStatus) => {
   if (status === 'success') return 'success';
   if (status === 'planned' || status === 'dispatched' || status === 'running' || status === 'skipped') return 'warning';
   if (status === 'failed' || status === 'cancelled' || status === 'stopped') return 'danger';
   return 'neutral';
 };
 
-const formatAssignmentScheduleStatus = (status: string) => assignmentScheduleStatusLabels[status] ?? status;
-
-const progressPhaseLabels: Record<string, string> = {
-  Idle: '空闲',
-  Loading: '加载中',
-  Planning: '规划中',
-  Executing: '执行中',
-  Paused: '已暂停',
-  Completed: '已完成',
-  Failed: '失败',
-};
-
-const devicePendingMessage = computed(() => {
-  switch (props.devicePendingAction) {
-    case 'spawning':
-      return '正在启动设备子进程...';
-    case 'restarting':
-      return '正在重启设备子进程...';
-    case 'syncing':
-      return '正在同步设备运行时...';
-    case 'starting':
-      return '正在启动设备队列...';
-    case 'pausing':
-      return '正在暂停当前设备...';
-    case 'stopping':
-      return '正在停止当前设备...';
-    case 'shuttingDown':
-      return '正在关闭设备子进程...';
-    default:
-      return null;
-  }
-});
-
-const connectionStatusLabel = computed(() => {
-  switch (props.connectionStatus.kind) {
-    case 'connected':
-      return '连接正常';
-    case 'checking':
-      return '连接检查中';
-    case 'disconnected':
-      return '连接断开';
-    default:
-      return '待检测连接';
-  }
-});
-
-const startButtonLabel = computed(() => {
-  if (props.devicePendingAction === 'spawning') return '正在启动子进程...';
-  if (props.devicePendingAction === 'restarting') return '正在重启子进程...';
-  if (props.devicePendingAction === 'syncing') return '正在同步运行时...';
-  if (props.devicePendingAction === 'starting') return '正在启动队列...';
-  return '运行队列';
-});
-
-const stopButtonLabel = computed(() => {
-  if (props.devicePendingAction === 'stopping') return '正在停止...';
-  if (props.devicePendingAction === 'shuttingDown') return '正在关闭子进程...';
-  return '停止';
-});
-
-const runtimeProgressLabel = computed(() =>
-  progressPhaseLabels[props.runtimeResult.latestProgress?.phase ?? ''] ?? props.runtimeResult.latestProgress?.phase ?? '暂无',
-);
-
-const runtimeProgressTone = computed(() => {
-  const phase = props.runtimeResult.latestProgress?.phase;
-  if (phase === 'Failed') return 'danger';
-  if (phase === 'Completed') return 'success';
-  if (phase === 'Paused') return 'warning';
-  if (phase === 'Executing' || phase === 'Loading' || phase === 'Planning') return 'info';
-  return 'neutral';
-});
+const formatAssignmentScheduleStatus = (status: AssignmentScheduleStatus) => assignmentScheduleStatusLabels[status];
 
 const runtimeScheduleLabel = computed(() =>
-  scheduleStatusLabels[props.runtimeResult.latestSchedule?.status ?? ''] ?? props.runtimeResult.latestSchedule?.status ?? '暂无',
+  (props.runtimeResult.latestSchedule
+    ? runtimeScheduleStatusLabels[props.runtimeResult.latestSchedule.status]
+    : null) ?? '暂无',
 );
 
 const runtimeScheduleTone = computed(() => {
   const status = props.runtimeResult.latestSchedule?.status;
-  if (status === 'Success') return 'success';
-  if (status === 'Skipped' || status === 'Queued' || status === 'Running') return 'warning';
-  if (status === 'Failed') return 'danger';
-  return 'neutral';
+  return status ? runtimeScheduleToneFromStatus(status) : 'neutral';
 });
 
 const runtimeTimeoutLabel = computed(() => {
@@ -859,11 +798,7 @@ const runSpecificTemporaryTask = (taskId: string) => {
 };
 
 const handleAddScript = () => {
-  if (!selectedScriptId.value) {
-    return;
-  }
-
-  emit('addScript', props.device.id, selectedScriptId.value, selectedTemplateId.value || null);
+  emit('addScript', props.device.id, selectedScriptId.value, selectedTemplateId.value);
   selectedScriptId.value = '';
   selectedTemplateId.value = '';
 };

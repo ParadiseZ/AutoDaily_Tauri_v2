@@ -1,12 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { listen } from '@tauri-apps/api/event';
-import type {
-    RuntimeProgressEvent,
-    RuntimeResultProjection,
-    RuntimeScheduleEvent,
-    RuntimeTimeoutEvent,
-} from '@/types/app/domain';
+import type { RuntimeProgressEvent, RuntimeResultProjection, RuntimeScheduleEvent, RuntimeTimeoutEvent } from '@/types/app/domain';
 
 const MAX_SCHEDULE_EVENTS = 50;
 
@@ -18,7 +13,24 @@ const normalizeProgressEvent = (payload: unknown): RuntimeProgressEvent | null =
     const record = payload as Record<string, unknown>;
     if (
         typeof record.deviceId !== 'string' ||
-        typeof record.phase !== 'string' ||
+        (record.phase !== 'idle' &&
+            record.phase !== 'loading' &&
+            record.phase !== 'planning' &&
+            record.phase !== 'childRuntimeStarting' &&
+            record.phase !== 'childIpcWaiting' &&
+            record.phase !== 'childIpcReady' &&
+            record.phase !== 'deviceChecking' &&
+            record.phase !== 'shellProbeChecking' &&
+            record.phase !== 'emulatorStarting' &&
+            record.phase !== 'emulatorWaiting' &&
+            record.phase !== 'deviceConnected' &&
+            record.phase !== 'deviceDisconnected' &&
+            record.phase !== 'executing' &&
+            record.phase !== 'paused' &&
+            record.phase !== 'completed' &&
+            record.phase !== 'failed' &&
+            record.phase !== 'childProcessExited' &&
+            record.phase !== 'childProcessCrashed') ||
         typeof record.at !== 'string'
     ) {
         return null;
@@ -45,7 +57,12 @@ const normalizeScheduleEvent = (payload: unknown): RuntimeScheduleEvent | null =
     const record = payload as Record<string, unknown>;
     if (
         typeof record.deviceId !== 'string' ||
-        typeof record.status !== 'string' ||
+        (record.status !== 'queued' &&
+            record.status !== 'running' &&
+            record.status !== 'success' &&
+            record.status !== 'failed' &&
+            record.status !== 'skipped' &&
+            record.status !== 'cleared') ||
         typeof record.at !== 'string'
     ) {
         return null;
@@ -65,32 +82,6 @@ const normalizeScheduleEvent = (payload: unknown): RuntimeScheduleEvent | null =
     };
 };
 
-const normalizeTimeoutMetaValue = (value: string | undefined) => {
-    if (!value || value === '<none>') {
-        return null;
-    }
-    return value;
-};
-
-const parseTimeoutMessage = (message: string) => {
-    const match = message.match(/^action=([^;]+);\s*page=([^;]+);\s*signature=([^;]+);\s*(.*)$/);
-    if (!match) {
-        return {
-            timeoutAction: null,
-            pageFingerprint: null,
-            actionSignature: null,
-            detail: message,
-        };
-    }
-
-    return {
-        timeoutAction: normalizeTimeoutMetaValue(match[1]?.trim()),
-        pageFingerprint: normalizeTimeoutMetaValue(match[2]?.trim()),
-        actionSignature: normalizeTimeoutMetaValue(match[3]?.trim()),
-        detail: match[4]?.trim() || message,
-    };
-};
-
 const normalizeTimeoutEvent = (payload: unknown): RuntimeTimeoutEvent | null => {
     if (!payload || typeof payload !== 'object') {
         return null;
@@ -101,8 +92,6 @@ const normalizeTimeoutEvent = (payload: unknown): RuntimeTimeoutEvent | null => 
         return null;
     }
 
-    const parsedMessage = parseTimeoutMessage(record.message);
-
     return {
         deviceId: record.deviceId,
         sessionId: typeof record.sessionId === 'string' ? record.sessionId : null,
@@ -110,7 +99,15 @@ const normalizeTimeoutEvent = (payload: unknown): RuntimeTimeoutEvent | null => 
         scriptId: typeof record.scriptId === 'string' ? record.scriptId : null,
         taskId: typeof record.taskId === 'string' ? record.taskId : null,
         stepId: typeof record.stepId === 'string' ? record.stepId : null,
-        ...parsedMessage,
+        timeoutAction:
+            record.timeoutAction === 'stopExecution' ||
+            record.timeoutAction === 'runRecoveryTask' ||
+            record.timeoutAction === 'skipCurrentTask'
+                ? record.timeoutAction
+                : null,
+        pageFingerprint: typeof record.pageFingerprint === 'string' ? record.pageFingerprint : null,
+        actionSignature: typeof record.actionSignature === 'string' ? record.actionSignature : null,
+        detail: typeof record.detail === 'string' ? record.detail : null,
         message: record.message,
         at: record.at,
     };
@@ -155,16 +152,16 @@ const resolveTimeoutActionResult = (
         .reverse()
         .find((event) => parseRuntimeTime(event.at) >= timeoutAt && eventMatchesTimeoutScope(event, timeout));
 
-    if (followUp?.status === 'Skipped') {
+    if (followUp?.status === 'skipped') {
         return 'skipped';
     }
-    if (followUp?.status === 'Success') {
-        return timeout.timeoutAction === 'RunRecoveryTask' ? 'recovered' : 'skipped';
+    if (followUp?.status === 'success') {
+        return timeout.timeoutAction === 'runRecoveryTask' ? 'recovered' : 'skipped';
     }
-    if (followUp?.status === 'Failed') {
+    if (followUp?.status === 'failed') {
         return 'failed';
     }
-    if (timeout.timeoutAction === 'StopExecution' && (progress?.phase === 'Idle' || progress?.phase === 'Failed')) {
+    if (timeout.timeoutAction === 'stopExecution' && (progress?.phase === 'idle' || progress?.phase === 'failed')) {
         return 'stopped';
     }
 

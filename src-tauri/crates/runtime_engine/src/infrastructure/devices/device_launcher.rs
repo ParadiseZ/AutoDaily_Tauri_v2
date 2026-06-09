@@ -5,10 +5,12 @@ use crate::domain::devices::device_conf::{DeviceConfig, DeviceTransportKind};
 use crate::infrastructure::adb_cli_local::adb_config::{
     ADBConnectConfig, AdbServeByIdentifier, AdbServerConfig,
 };
+use crate::infrastructure::ipc::message::ConnectionStatusKind;
 use crate::infrastructure::logging::log_trait::Log;
 
 use adb_client::server::ADBServer;
 use adb_client::tcp::ADBTcpDevice;
+use adb_client::ADBDeviceExt;
 use std::net::{SocketAddr, SocketAddrV4};
 use std::time::Duration;
 use tokio::process::Command;
@@ -28,13 +30,37 @@ const DIRECT_CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 /// 2. 等待 startup_delay_secs
 /// 3. 根据 transportKind 生成运行时连接配置并重试连接
 pub async fn launch_device(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
-    start_device_process(config).await?;
-    wait_for_connection_ready(config, POST_LAUNCH_CONNECT_TIMEOUT, PROBE_INTERVAL).await
+    launch_device_with_progress(config, |_, _| {}).await
+}
+
+pub async fn launch_device_with_progress(
+    config: &DeviceConfig,
+    on_status: impl Fn(ConnectionStatusKind, String),
+) -> Result<ADBConnectConfig, String> {
+    start_device_process_with_progress(config, &on_status).await?;
+    wait_for_connection_ready_with_progress(
+        config,
+        POST_LAUNCH_CONNECT_TIMEOUT,
+        PROBE_INTERVAL,
+        on_status,
+    )
+    .await
 }
 
 pub async fn start_device_process(config: &DeviceConfig) -> Result<(), String> {
+    start_device_process_with_progress(config, |_, _| {}).await
+}
+
+async fn start_device_process_with_progress(
+    config: &DeviceConfig,
+    on_status: impl Fn(ConnectionStatusKind, String),
+) -> Result<(), String> {
     if let Some(exe_path) = &config.exe_path {
         Log::info(&format!("[ launcher ] 正在启动模拟器: {}", exe_path));
+        on_status(
+            ConnectionStatusKind::EmulatorStarting,
+            "正在启动模拟器".to_string(),
+        );
 
         let mut cmd = Command::new(exe_path);
 
@@ -60,6 +86,13 @@ pub async fn start_device_process(config: &DeviceConfig) -> Result<(), String> {
             "[ launcher ] 模拟器进程已启动，等待 {} 秒后开始探测连接...",
             config.startup_delay_secs
         ));
+        on_status(
+            ConnectionStatusKind::EmulatorWaiting,
+            format!(
+                "模拟器启动中，等待 {} 秒后连接探测",
+                config.startup_delay_secs
+            ),
+        );
         sleep(startup_delay).await;
     } else {
         Log::info("[ launcher ] 无 exe_path 配置，跳过模拟器启动，直接尝试连接...");
@@ -69,29 +102,60 @@ pub async fn start_device_process(config: &DeviceConfig) -> Result<(), String> {
 }
 
 pub async fn wait_for_device_connection(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
+    wait_for_device_connection_with_progress(config, |_, _| {}).await
+}
+
+pub async fn wait_for_device_connection_with_progress(
+    config: &DeviceConfig,
+    on_status: impl Fn(ConnectionStatusKind, String),
+) -> Result<ADBConnectConfig, String> {
     let timeout = if config.uses_emulator_transport() {
         POST_LAUNCH_CONNECT_TIMEOUT
     } else {
         DIRECT_CONNECT_TIMEOUT
     };
-    wait_for_connection_ready(config, timeout, PROBE_INTERVAL).await
+    wait_for_connection_ready_with_progress(config, timeout, PROBE_INTERVAL, on_status).await
 }
 
 pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
-    if let Ok(runtime_connect) = probe_device_config_connection(config) {
-        return Ok(runtime_connect);
-    }
+    ensure_device_connection_with_progress(config, |_, _| {}).await
+}
 
-    if config.uses_emulator_transport()
-        && config
+pub async fn ensure_device_connection_with_progress(
+    config: &DeviceConfig,
+    on_status: impl Fn(ConnectionStatusKind, String),
+) -> Result<ADBConnectConfig, String> {
+    on_status(
+        ConnectionStatusKind::ShellProbeChecking,
+        "正在执行 ADB shell 探测（第 1 次，已等待 0 秒）".to_string(),
+    );
+    let initial_error = match probe_device_config_connection(config) {
+        Ok(runtime_connect) => return Ok(runtime_connect),
+        Err(error) => error,
+    };
+    on_status(
+        ConnectionStatusKind::ShellProbeChecking,
+        format!(
+            "ADB shell 探测未就绪（第 1 次，已等待 0 秒）：{}",
+            initial_error
+        ),
+    );
+
+    if config.uses_emulator_transport() {
+        if config
             .exe_path
             .as_deref()
             .is_some_and(|path| !path.trim().is_empty())
-    {
-        return launch_device(config).await;
+        {
+            return launch_device_with_progress(config, on_status).await;
+        }
+        return Err(format!(
+            "连接设备失败，且未配置模拟器启动程序: {}",
+            initial_error
+        ));
     }
 
-    wait_for_device_connection(config).await
+    wait_for_device_connection_with_progress(config, on_status).await
 }
 
 pub fn resolve_runtime_connect_config(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
@@ -112,11 +176,11 @@ pub fn probe_device_config_connection(config: &DeviceConfig) -> Result<ADBConnec
     Err(last_error)
 }
 
-/// 在指定时间预算内循环探测连接就绪
-async fn wait_for_connection_ready(
+async fn wait_for_connection_ready_with_progress(
     config: &DeviceConfig,
     timeout: Duration,
     retry_interval: Duration,
+    on_status: impl Fn(ConnectionStatusKind, String),
 ) -> Result<ADBConnectConfig, String> {
     let started_at = tokio::time::Instant::now();
     let mut attempt = 0u32;
@@ -124,11 +188,18 @@ async fn wait_for_connection_ready(
 
     loop {
         attempt += 1;
+        let elapsed_secs = started_at.elapsed().as_secs();
         Log::info(&format!(
             "[ launcher ] 连接尝试第 {} 次，已等待 {} 秒...",
-            attempt,
-            started_at.elapsed().as_secs()
+            attempt, elapsed_secs
         ));
+        on_status(
+            ConnectionStatusKind::ShellProbeChecking,
+            format!(
+                "正在执行 ADB shell 探测（第 {} 次，已等待 {} 秒）",
+                attempt, elapsed_secs
+            ),
+        );
 
         let candidates = build_connection_candidates(config);
         if candidates.is_empty() {
@@ -151,6 +222,13 @@ async fn wait_for_connection_ready(
             "[ launcher ] 连接失败（第 {} 次）: {}",
             attempt, last_error
         ));
+        on_status(
+            ConnectionStatusKind::ShellProbeChecking,
+            format!(
+                "ADB shell 探测未就绪（第 {} 次，已等待 {} 秒）：{}",
+                attempt, elapsed_secs, last_error
+            ),
+        );
         if started_at.elapsed() >= timeout {
             return Err(format!(
                 "设备连接失败：等待 {} 秒后仍未就绪，最后一次错误: {}",
@@ -260,9 +338,50 @@ pub fn probe_device_connection(runtime_connect: &ADBConnectConfig) -> Result<(),
         }
         ADBConnectConfig::DirectTcp(addr) => {
             let addr = addr.ok_or("DirectTcp 配置无效：未设置连接地址")?;
-            let _device = ADBTcpDevice::new(SocketAddr::V4(addr))
+            let mut device = ADBTcpDevice::new(SocketAddr::V4(addr))
                 .map_err(|e| format!("DirectTcp 连接失败 ({}): {}", addr, e))?;
+            let mut stdout = Vec::new();
+            device
+                .shell_command(&"echo autodaily-probe", Some(&mut stdout), None)
+                .map_err(|e| format!("DirectTcp shell 探测失败 ({}): {}", addr, e))?;
+            let output = String::from_utf8_lossy(&stdout);
+            if !output.contains("autodaily-probe") {
+                return Err(format!(
+                    "DirectTcp shell 探测响应异常 ({}): {}",
+                    addr,
+                    output.trim()
+                ));
+            }
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    #[tokio::test]
+    async fn emulator_without_exe_fails_after_initial_shell_probe() {
+        let config = DeviceConfig::default();
+        let statuses = Mutex::new(Vec::new());
+
+        let result = ensure_device_connection_with_progress(&config, |status, message| {
+            statuses.lock().unwrap().push((status, message));
+        })
+        .await;
+
+        let error = result.expect_err("missing emulator executable must fail");
+        assert!(error.contains("未配置模拟器启动程序"));
+
+        let statuses = statuses.into_inner().unwrap();
+        assert!(statuses
+            .iter()
+            .all(|(status, _)| *status == ConnectionStatusKind::ShellProbeChecking));
+        assert!(!statuses.iter().any(|(status, _)| matches!(
+            status,
+            ConnectionStatusKind::EmulatorStarting | ConnectionStatusKind::EmulatorWaiting
+        )));
     }
 }
