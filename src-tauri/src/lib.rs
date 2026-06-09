@@ -108,6 +108,7 @@ pub fn run() {
             spawn_dispatch_signal_loop(app_handle.clone(), dispatch_signal_rx);
             //自动调度
             spawn_auto_dispatch_planner_loop(app_handle.clone());
+            //运行时工作job协调
             spawn_runtime_reconcile_loop(app_handle.clone(), runtime_reconcile_rx);
             Ok(())
         })
