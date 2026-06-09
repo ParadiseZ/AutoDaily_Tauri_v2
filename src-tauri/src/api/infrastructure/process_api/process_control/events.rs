@@ -5,20 +5,13 @@ use crate::domain::devices::device_runtime_event::{
     DeviceRuntimeReconcileEventPayload, DeviceRuntimeReconcileJobType, DeviceRuntimeReconcilePhase,
 };
 use crate::infrastructure::context::main_process::{MainProcessCtx, RuntimeReconcileJob};
-use crate::infrastructure::core::DeviceId;
+use crate::infrastructure::core::{now_millis_string, DeviceId};
 use crate::infrastructure::ipc::message::ConnectionStatusKind;
 use chrono::Local;
 use tauri::{Emitter, Manager};
 
 const DEVICE_RUNTIME_RECONCILE_EVENT: &str = "device-runtime-reconcile";
 const ASSIGNMENT_SCHEDULE_CHANGED_EVENT: &str = "assignment-schedule-changed";
-
-fn now_millis_string() -> String {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|value| value.as_millis().to_string())
-        .unwrap_or_else(|_| "0".to_string())
-}
 
 pub(super) fn emit_device_connection_status(
     app_handle: &tauri::AppHandle,

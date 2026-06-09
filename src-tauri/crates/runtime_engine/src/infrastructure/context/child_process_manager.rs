@@ -5,7 +5,7 @@ use crate::domain::devices::device_runtime_event::{
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::child_process::ChildProcessInitData;
 use crate::infrastructure::context::main_process::{ChildRuntimeStatus, MainProcessCtx};
-use crate::infrastructure::core::DeviceId;
+use crate::infrastructure::core::{now_millis_string, DeviceId};
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
     ConnectionStatusKind, IpcMessage, LogMessage, MessagePayload, MessageType, ProcessAction,
@@ -116,13 +116,6 @@ fn spawn_child_stderr_forwarder(
             }
         }
     });
-}
-
-fn now_millis_string() -> String {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|value| value.as_millis().to_string())
-        .unwrap_or_else(|_| "0".to_string())
 }
 
 async fn write_child_log_line(device_id: DeviceId, level: LogLevel, message: &str) {

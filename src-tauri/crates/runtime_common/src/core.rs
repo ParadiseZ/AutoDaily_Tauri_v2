@@ -27,6 +27,7 @@ pub type MessageId = UuidV7;
 pub type SessionId = UuidV7;
 pub type ExecutionId = UuidV7;
 pub type DispatchId = UuidV7;
+pub type JobId = UuidV7;
 pub type BatchId = UuidV7;
 pub type AssignmentId = UuidV7;
 pub type ScheduleId = UuidV7;
@@ -86,6 +87,14 @@ impl UuidV7 {
     pub fn as_uuid(&self) -> Uuid {
         Uuid::from_bytes(self.0.to_be_bytes())
     }
+}
+
+#[inline(always)]
+pub fn now_millis_string() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_millis().to_string())
+        .unwrap_or_else(|_| "0".to_string())
 }
 
 impl std::fmt::Display for UuidV7 {

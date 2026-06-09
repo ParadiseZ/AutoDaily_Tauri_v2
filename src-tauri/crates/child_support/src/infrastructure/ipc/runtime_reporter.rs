@@ -1,6 +1,7 @@
 use crate::infrastructure::context::child_process_sec::get_ipc_client;
 use crate::infrastructure::core::{
-    AssignmentId, DispatchId, ExecutionId, MessageId, ScriptId, SessionId, StepId, TaskId,
+    now_millis_string, AssignmentId, DispatchId, ExecutionId, MessageId, ScriptId, SessionId,
+    StepId, TaskId,
 };
 use crate::infrastructure::ipc::message::{
     CaptureResultEvent, ConnectionStatusEvent, ConnectionStatusKind, IpcMessage, MessagePayload,
@@ -11,13 +12,6 @@ use crate::infrastructure::ipc::message::{
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::scheduler::get_scheduler;
 use crate::infrastructure::session::runtime_session::try_current_session_summary;
-
-fn now_millis_string() -> String {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|value| value.as_millis().to_string())
-        .unwrap_or_else(|_| "0".to_string())
-}
 
 fn current_session_id() -> Option<SessionId> {
     try_current_session_summary().map(|summary| summary.session_id)

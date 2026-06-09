@@ -8,26 +8,23 @@ use crate::domain::devices::device_runtime_event::{
 };
 use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::context::main_process::{MainProcessCtx, RuntimeReconcileJob};
-use crate::infrastructure::core::{DeviceId, ScriptId};
+use crate::infrastructure::core::{DeviceId, JobId, ScriptId};
 use crate::infrastructure::db::get_pool;
 use crate::infrastructure::logging::log_trait::Log;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-fn runtime_job_id() -> String {
-    uuid::Uuid::now_v7().to_string()
-}
-
-pub(crate) async fn load_assigned_device_ids_by_script(
-    script_id: ScriptId,
+async fn load_assigned_device_ids_by_field(
+    field_name: &str,
+    field_value: &str,
 ) -> Result<Vec<DeviceId>, String> {
     let query = format!(
-        "SELECT DISTINCT device_id FROM {} WHERE script_id = ? ORDER BY device_id ASC",
-        ASSIGNMENT_TABLE
+        "SELECT DISTINCT device_id FROM {} WHERE {} = ? ORDER BY device_id ASC",
+        ASSIGNMENT_TABLE, field_name
     );
     let rows = sqlx::query_scalar::<_, String>(&query)
-        .bind(script_id.to_string())
+        .bind(field_value)
         .fetch_all(get_pool())
         .await
         .map_err(|error| error.to_string())?;
@@ -41,39 +38,10 @@ pub(crate) async fn load_assigned_device_ids_by_script(
         .collect()
 }
 
-pub(crate) async fn load_assigned_device_ids_by_time_template(
-    template_id: &str,
-) -> Result<Vec<DeviceId>, String> {
-    let query = format!(
-        "SELECT DISTINCT device_id FROM {} WHERE time_template_id = ? ORDER BY device_id ASC",
-        ASSIGNMENT_TABLE
-    );
-    let rows = sqlx::query_scalar::<_, String>(&query)
-        .bind(template_id)
-        .fetch_all(get_pool())
-        .await
-        .map_err(|error| error.to_string())?;
-
-    rows.into_iter()
-        .map(|value| {
-            uuid::Uuid::parse_str(&value)
-                .map(DeviceId::from)
-                .map_err(|error| error.to_string())
-        })
-        .collect()
-}
-
-pub(crate) fn enqueue_device_config_reconcile_job(
+fn enqueue_runtime_reconcile_job(
     app_handle: &AppHandle,
-    previous: Option<DeviceTable>,
-    current: DeviceTable,
+    job: RuntimeReconcileJob,
 ) -> Result<(), String> {
-    let job = RuntimeReconcileJob::DeviceConfig {
-        job_id: runtime_job_id(),
-        device_id: current.id,
-        previous,
-        current,
-    };
     app_handle
         .state::<MainProcessCtx>()
         .runtime_reconcile_tx
@@ -87,6 +55,33 @@ pub(crate) fn enqueue_device_config_reconcile_job(
         None,
     );
     Ok(())
+}
+
+pub(crate) async fn load_assigned_device_ids_by_script(
+    script_id: ScriptId,
+) -> Result<Vec<DeviceId>, String> {
+    let script_id = script_id.to_string();
+    load_assigned_device_ids_by_field("script_id", &script_id).await
+}
+
+pub(crate) async fn load_assigned_device_ids_by_time_template(
+    template_id: &str,
+) -> Result<Vec<DeviceId>, String> {
+    load_assigned_device_ids_by_field("time_template_id", template_id).await
+}
+
+pub(crate) fn enqueue_device_config_reconcile_job(
+    app_handle: &AppHandle,
+    previous: Option<DeviceTable>,
+    current: DeviceTable,
+) -> Result<(), String> {
+    let job = RuntimeReconcileJob::DeviceConfig {
+        job_id: JobId::new_v7(),
+        device_id: current.id,
+        previous,
+        current,
+    };
+    enqueue_runtime_reconcile_job(app_handle, job)
 }
 
 pub(crate) fn enqueue_device_runtime_session_refresh_jobs(
@@ -103,24 +98,13 @@ pub(crate) fn enqueue_device_runtime_session_refresh_jobs(
             continue;
         }
         let job = RuntimeReconcileJob::DeviceSessionRefresh {
-            job_id: runtime_job_id(),
+            job_id: JobId::new_v7(),
             device_id,
             sync_session,
             reevaluate_dispatch,
             reason: reason.clone(),
         };
-        app_handle
-            .state::<MainProcessCtx>()
-            .runtime_reconcile_tx
-            .send(job.clone())
-            .map_err(|error| error.to_string())?;
-        emit_runtime_reconcile_event(
-            app_handle,
-            &job,
-            DeviceRuntimeReconcilePhase::Queued,
-            None,
-            None,
-        );
+        enqueue_runtime_reconcile_job(app_handle, job)?;
     }
     Ok(())
 }

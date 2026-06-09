@@ -9,6 +9,7 @@ use super::super::runtime_session::{
     validate_runtime_platform_supported,
 };
 use crate::domain::devices::device_runtime_event::DeviceRuntimeProgressPhase;
+use crate::domain::devices::device_conf::DeviceTable;
 use crate::domain::devices::device_schedule::AssignmentScheduleStatus;
 use crate::infrastructure::context::child_process_manager::{
     get_process_manager, set_child_process_exit_handler,
@@ -31,33 +32,56 @@ use tauri::{AppHandle, Manager};
 const EMULATOR_CONNECTION_READY_GRACE_SECS: u64 = 65;
 const DEVICE_CONNECTION_READY_TIMEOUT_SECS: u64 = 25;
 
-pub(super) async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
-    let msg = IpcMessage::new(
-        device_id,
-        MessageType::Command,
-        MessagePayload::SessionControl(control),
-    );
-    IpcServer::send_to_client(&device_id, msg).await;
+fn device_connection_timeout(device_table: &DeviceTable) -> std::time::Duration {
+    if device_table.data.0.uses_emulator_transport() {
+        std::time::Duration::from_secs(
+            u64::from(device_table.data.0.startup_delay_secs)
+                + EMULATOR_CONNECTION_READY_GRACE_SECS,
+        )
+    } else {
+        std::time::Duration::from_secs(DEVICE_CONNECTION_READY_TIMEOUT_SECS)
+    }
 }
 
-pub(super) fn send_process_control(device_id: DeviceId, action: ProcessAction) {
-    let msg = IpcMessage::new(
-        device_id,
-        MessageType::Command,
-        MessagePayload::ProcessControl(ProcessControlMessage { action }),
-    );
+fn build_command_message(device_id: DeviceId, payload: MessagePayload) -> IpcMessage {
+    IpcMessage::new(device_id, MessageType::Command, payload)
+}
+
+async fn send_command_payload(device_id: DeviceId, payload: MessagePayload) -> MessageId {
+    let msg = build_command_message(device_id, payload);
+    let request_id = msg.id;
+    IpcServer::send_to_client(&device_id, msg).await;
+    request_id
+}
+
+fn spawn_command_payload(device_id: DeviceId, payload: MessagePayload) {
+    let msg = build_command_message(device_id, payload);
     tauri::async_runtime::spawn(async move {
         IpcServer::send_to_client(&device_id, msg).await;
     });
 }
 
-pub(super) async fn send_connection_control(device_id: DeviceId, action: ConnectionAction) {
-    let msg = IpcMessage::new(
+pub(super) async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
+    let _ = send_command_payload(
         device_id,
-        MessageType::Command,
-        MessagePayload::ConnectionControl(ConnectionControlMessage { action }),
+        MessagePayload::SessionControl(control),
+    )
+    .await;
+}
+
+pub(super) fn send_process_control(device_id: DeviceId, action: ProcessAction) {
+    spawn_command_payload(
+        device_id,
+        MessagePayload::ProcessControl(ProcessControlMessage { action }),
     );
-    IpcServer::send_to_client(&device_id, msg).await;
+}
+
+pub(super) async fn send_connection_control(device_id: DeviceId, action: ConnectionAction) {
+    let _ = send_command_payload(
+        device_id,
+        MessagePayload::ConnectionControl(ConnectionControlMessage { action }),
+    )
+    .await;
 }
 
 pub(super) async fn probe_device_connection(
@@ -77,14 +101,11 @@ pub(super) async fn probe_device_connection(
 }
 
 pub(super) async fn send_capture_control(device_id: DeviceId) -> MessageId {
-    let msg = IpcMessage::new(
+    send_command_payload(
         device_id,
-        MessageType::Command,
         MessagePayload::CaptureControl(CaptureControlMessage),
-    );
-    let request_id = msg.id;
-    IpcServer::send_to_client(&device_id, msg).await;
-    request_id
+    )
+    .await
 }
 
 pub(super) async fn dispatch_queue_item_to_child(
@@ -327,31 +348,9 @@ pub(super) async fn ensure_device_ready(
     app_handle: &AppHandle,
     device_id: DeviceId,
 ) -> Result<(), String> {
-    let device_table = load_device_table(device_id).await?;
-    validate_runtime_platform_supported(&device_table)?;
-    if !device_table.data.0.enable {
-        return Err(format!("设备[{}]未启用", device_table.data.0.device_name));
-    }
-
-    if let Err(error) = ensure_child_runtime_ipc_ready(app_handle, device_id).await {
-        let _ = set_connection_status(
-            app_handle,
-            device_id,
-            ConnectionStatusKind::DeviceDisconnected,
-            Some(error.clone()),
-        )
-        .await;
-        return Err(error);
-    }
-    let timeout = if device_table.data.0.uses_emulator_transport() {
-        std::time::Duration::from_secs(
-            u64::from(device_table.data.0.startup_delay_secs)
-                + EMULATOR_CONNECTION_READY_GRACE_SECS,
-        )
-    } else {
-        std::time::Duration::from_secs(DEVICE_CONNECTION_READY_TIMEOUT_SECS)
-    };
-    request_child_device_connection(app_handle, device_id, timeout).await
+    prepare_device_connection(app_handle, device_id, true)
+        .await
+        .map(|_| ())
 }
 
 pub(super) async fn ensure_device_ready_for_manual(
@@ -387,9 +386,21 @@ pub(super) async fn ensure_device_capture_ready(
     app_handle: &AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
+    prepare_device_connection(app_handle, device_id, false)
+        .await
+        .map(|device_table| device_table.data.0.device_name.clone())
+}
+
+async fn prepare_device_connection(
+    app_handle: &AppHandle,
+    device_id: DeviceId,
+    require_enabled: bool,
+) -> Result<DeviceTable, String> {
     let device_table = load_device_table(device_id).await?;
     validate_runtime_platform_supported(&device_table)?;
-    let device_name = device_table.data.0.device_name.clone();
+    if require_enabled && !device_table.data.0.enable {
+        return Err(format!("设备[{}]未启用", device_table.data.0.device_name));
+    }
     if let Err(error) = ensure_child_runtime_ipc_ready(app_handle, device_id).await {
         let _ = set_connection_status(
             app_handle,
@@ -400,17 +411,9 @@ pub(super) async fn ensure_device_capture_ready(
         .await;
         return Err(error);
     }
-
-    let timeout = if device_table.data.0.uses_emulator_transport() {
-        std::time::Duration::from_secs(
-            u64::from(device_table.data.0.startup_delay_secs)
-                + EMULATOR_CONNECTION_READY_GRACE_SECS,
-        )
-    } else {
-        std::time::Duration::from_secs(DEVICE_CONNECTION_READY_TIMEOUT_SECS)
-    };
-    request_child_device_connection(app_handle, device_id, timeout).await?;
-    Ok(device_name)
+    request_child_device_connection(app_handle, device_id, device_connection_timeout(&device_table))
+        .await?;
+    Ok(device_table)
 }
 
 pub(super) async fn wait_for_capture_result(

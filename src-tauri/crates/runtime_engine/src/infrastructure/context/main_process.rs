@@ -1,7 +1,7 @@
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{
-    AssignmentId, DeviceId, DispatchId, HashMap, MessageId, ScriptId,
+    AssignmentId, DeviceId, DispatchId, HashMap, JobId, MessageId, ScriptId,
 };
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
 use crate::infrastructure::ipc::message::{
@@ -84,13 +84,13 @@ pub struct DeviceDispatchSignal {
 #[derive(Clone, Debug)]
 pub enum RuntimeReconcileJob {
     DeviceConfig {
-        job_id: String,
+        job_id: JobId,
         device_id: DeviceId,
         previous: Option<DeviceTable>,
         current: DeviceTable,
     },
     DeviceSessionRefresh {
-        job_id: String,
+        job_id: JobId,
         device_id: DeviceId,
         sync_session: bool,
         reevaluate_dispatch: bool,
@@ -99,9 +99,11 @@ pub enum RuntimeReconcileJob {
 }
 
 impl RuntimeReconcileJob {
-    pub fn job_id(&self) -> &str {
+    pub fn job_id(&self) -> JobId {
         match self {
-            Self::DeviceConfig { job_id, .. } | Self::DeviceSessionRefresh { job_id, .. } => job_id,
+            Self::DeviceConfig { job_id, .. } | Self::DeviceSessionRefresh { job_id, .. } => {
+                *job_id
+            }
         }
     }
 
