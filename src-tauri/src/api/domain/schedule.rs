@@ -1,8 +1,8 @@
 // 调度管理 API — 供前端调用
 use crate::api::infrastructure::process_api::{
-    emit_assignment_schedule_changed, enqueue_device_runtime_session_refresh_jobs,
-    load_assigned_device_ids_by_time_template, load_assignment_schedules_by_device,
-    load_runtime_queue_for_current_window, notify_auto_dispatch_reschedule,
+    emit_assignment_schedule_changed, load_assigned_device_ids_by_time_template,
+    load_assignment_schedules_by_device, load_runtime_queue_for_current_window,
+    notify_auto_dispatch_reschedule,
     sync_active_planner_schedule_order_indices, sync_active_planner_schedules_from_queue,
 };
 use crate::constant::table_name::{
@@ -370,7 +370,7 @@ pub async fn get_all_time_templates_cmd() -> Result<Vec<TimeTemplate>, String> {
 /// 保存（新增或更新）时间模板
 #[command]
 pub async fn save_time_template_cmd(
-    app_handle: tauri::AppHandle,
+    _app_handle: tauri::AppHandle,
     template: TimeTemplate,
 ) -> Result<(), String> {
     let pool = get_pool();
@@ -387,39 +387,23 @@ pub async fn save_time_template_cmd(
     .await
     .map_err(|e| e.to_string())?;
     notify_auto_dispatch_reschedule();
-    let affected_device_ids =
-        load_assigned_device_ids_by_time_template(&template.id.to_string()).await?;
-    enqueue_device_runtime_session_refresh_jobs(
-        &app_handle,
-        affected_device_ids,
-        true,
-        true,
-        "save_time_template",
-    )?;
     Ok(())
 }
 
 /// 删除时间模板
 #[command]
 pub async fn delete_time_template_cmd(
-    app_handle: tauri::AppHandle,
+    _app_handle: tauri::AppHandle,
     template_id: String,
 ) -> Result<(), String> {
     let pool = get_pool();
-    let affected_device_ids = load_assigned_device_ids_by_time_template(&template_id).await?;
+    let _affected_device_ids = load_assigned_device_ids_by_time_template(&template_id).await?;
     sqlx::query(&format!("DELETE FROM {} WHERE id = ?", TIME_TEMPLATE_TABLE))
         .bind(&template_id)
         .execute(pool)
         .await
         .map_err(|e| e.to_string())?;
     notify_auto_dispatch_reschedule();
-    enqueue_device_runtime_session_refresh_jobs(
-        &app_handle,
-        affected_device_ids,
-        true,
-        true,
-        "delete_time_template",
-    )?;
     Ok(())
 }
 

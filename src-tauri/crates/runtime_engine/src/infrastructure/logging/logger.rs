@@ -113,14 +113,14 @@ impl LogMain {
             .with_writer(file_appender)
             .with_timer(LocalTimer::DayStamp)
             .with_ansi(false)
-            .with_target(true);
+            .with_target(false);
 
         // 控制台日志 layer
         let stdout_layer = fmt::Layer::new()
             .with_writer(std::io::stdout)
             .with_timer(LocalTimer::DayStamp)
             .with_ansi(true)
-            .with_target(true);
+            .with_target(false);
 
         // 组合 subscriber
         let subscriber = Registry::default()

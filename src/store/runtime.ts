@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { listen } from '@tauri-apps/api/event';
-import type { RuntimeProgressEvent, RuntimeResultProjection, RuntimeScheduleEvent, RuntimeTimeoutEvent } from '@/types/app/domain';
+import type { DeviceRuntimeSnapshot, RuntimeProgressEvent, RuntimeResultProjection, RuntimeScheduleEvent, RuntimeTimeoutEvent } from '@/types/app/domain';
 
 const MAX_SCHEDULE_EVENTS = 50;
 
@@ -238,6 +238,17 @@ export const useRuntimeStore = defineStore('runtime', () => {
     const getLatestProgress = (deviceId: string) => latestProgressByDevice.value[deviceId] ?? null;
     const getScheduleEvents = (deviceId: string) => scheduleEventsByDevice.value[deviceId] ?? [];
     const getLatestTimeout = (deviceId: string) => latestTimeoutByDevice.value[deviceId] ?? null;
+    const hydrateRuntimeSnapshots = (snapshots: DeviceRuntimeSnapshot[]) => {
+        const nextProgress = { ...latestProgressByDevice.value };
+
+        for (const snapshot of snapshots) {
+            if (snapshot.progress) {
+                nextProgress[snapshot.deviceId] = snapshot.progress;
+            }
+        }
+
+        latestProgressByDevice.value = nextProgress;
+    };
     const getRuntimeResult = (deviceId: string): RuntimeResultProjection => {
         const latestProgress = getLatestProgress(deviceId);
         const schedules = getScheduleEvents(deviceId);
@@ -292,6 +303,7 @@ export const useRuntimeStore = defineStore('runtime', () => {
         getRuntimeResult,
         getScheduleEvents,
         getLatestTimeout,
+        hydrateRuntimeSnapshots,
         initIpcListeners,
         initialized,
         latestProgressByDevice,

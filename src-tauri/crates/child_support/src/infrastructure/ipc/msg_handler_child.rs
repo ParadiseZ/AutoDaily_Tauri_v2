@@ -10,8 +10,8 @@ use crate::infrastructure::ipc::message::{
     SessionControlMessage,
 };
 use crate::infrastructure::ipc::runtime_reporter::{
-    emit_capture_event, emit_connection_event, emit_lifecycle_event, emit_lifecycle_event_with,
-    emit_progress_event, emit_schedule_event,
+    emit_capture_event, emit_connection_event, emit_lifecycle_event_now,
+    emit_lifecycle_event_with_now, emit_progress_event, emit_schedule_event,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::session::runtime_session::{
@@ -20,7 +20,7 @@ use crate::infrastructure::session::runtime_session::{
 use image::DynamicImage;
 use runtime_engine::domain::devices::device_conf::DevicePlatform;
 use runtime_engine::infrastructure::devices::device_launcher::{
-    ensure_device_connection_with_progress, probe_device_config_connection,
+    ensure_device_connection_with_progress, probe_device_config_connection_with_timeout,
 };
 use std::sync::atomic::Ordering;
 use vision_core::infrastructure::image::load_image::dynamic_image_to_base64;
@@ -30,7 +30,7 @@ use vision_core::infrastructure::image::load_image::dynamic_image_to_base64;
 pub async fn handle_main_message(msg: IpcMessage) {
     match msg.payload {
         MessagePayload::ProcessControl(ctrl) => {
-            handle_process_control(ctrl);
+            handle_process_control(ctrl).await;
         }
         MessagePayload::SessionControl(control) => {
             handle_session_control(control).await;
@@ -59,7 +59,7 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
             Log::info("[ child ] 收到连接探测命令");
             emit_connection_event(
                 ConnectionStatusKind::DeviceChecking,
-                Some("正在检查设备连接".to_string()),
+                Some("正在预探测设备连接".to_string()),
             );
 
             let device_config = get_device_ctx().device_config.read().await.clone();
@@ -71,14 +71,18 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
                 return;
             }
 
-            let result = probe_device_config_connection(&device_config);
+            let result = probe_device_config_connection_with_timeout(
+                &device_config,
+                std::time::Duration::from_secs(3),
+            )
+            .await;
 
             match result {
                 Ok(runtime_connect) => {
                     ADBCtx::new(runtime_connect).await;
                     emit_connection_event(
                         ConnectionStatusKind::DeviceConnected,
-                        Some("设备连接可用".to_string()),
+                        Some("预探测到现有设备连接可用".to_string()),
                     );
                 }
                 Err(error) => {
@@ -91,7 +95,7 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
             Log::info("[ child ] 收到连接准备命令");
             emit_connection_event(
                 ConnectionStatusKind::DeviceChecking,
-                Some("正在准备设备连接".to_string()),
+                Some("正在准备设备连接（如需会启动模拟器）".to_string()),
             );
 
             let device_config = get_device_ctx().device_config.read().await.clone();
@@ -113,7 +117,7 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
                     ADBCtx::new(runtime_connect).await;
                     emit_connection_event(
                         ConnectionStatusKind::DeviceConnected,
-                        Some("设备连接已就绪".to_string()),
+                        Some("模拟器启动后设备连接已就绪".to_string()),
                     );
                 }
                 Err(error) => {
@@ -158,12 +162,12 @@ async fn handle_capture_control(
     }
 }
 
-fn handle_process_control(ctrl: ProcessControlMessage) {
+async fn handle_process_control(ctrl: ProcessControlMessage) {
     match ctrl.action {
         ProcessAction::Start => {
             Log::info("[ child ] 收到启动命令");
             set_running_status(RunningStatus::Running);
-            emit_lifecycle_event(RuntimeLifecyclePhase::Running, None);
+            let _ = emit_lifecycle_event_now(RuntimeLifecyclePhase::Running, None).await;
             // TODO: 第二阶段后续 - 通知调度器开始执行
         }
         ProcessAction::Stop => {
@@ -177,10 +181,11 @@ fn handle_process_control(ctrl: ProcessControlMessage) {
                 None,
                 Some("收到停止命令".to_string()),
             );
-            emit_lifecycle_event(
+            let _ = emit_lifecycle_event_now(
                 RuntimeLifecyclePhase::Idle,
                 Some("收到停止命令".to_string()),
-            );
+            )
+            .await;
             // 停止当前脚本执行但不退出进程，回到 Idle 状态
             // TODO: 持久化运行时数据
         }
@@ -195,12 +200,12 @@ fn handle_process_control(ctrl: ProcessControlMessage) {
                 None,
                 Some("执行已暂停".to_string()),
             );
-            emit_lifecycle_event(RuntimeLifecyclePhase::Paused, None);
+            let _ = emit_lifecycle_event_now(RuntimeLifecyclePhase::Paused, None).await;
         }
         ProcessAction::Shutdown => {
             Log::info("[ child ] 收到关闭命令，准备退出");
             set_running_status(RunningStatus::Stopping);
-            emit_lifecycle_event(RuntimeLifecyclePhase::Stopping, None);
+            let _ = emit_lifecycle_event_now(RuntimeLifecyclePhase::Stopping, None).await;
             trigger_cancel(); // 取消 CancellationToken，主循环立即退出
                               // TODO: 持久化运行时数据
         }
@@ -229,18 +234,20 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 Some(format!("运行会话已加载，队列 {} 项", summary.queue_len)),
             );
-            emit_lifecycle_event_with(
+            let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,
                 Some(summary.session_id),
                 None,
                 Some("运行会话已加载".to_string()),
-            );
-            emit_lifecycle_event_with(
+            )
+            .await;
+            let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Idle,
                 Some(summary.session_id),
                 None,
                 Some("设备待命，等待执行命令".to_string()),
-            );
+            )
+            .await;
         }
         SessionControlMessage::ReloadSession { session } => {
             let summary = replace_runtime_session(session.clone()).await;
@@ -259,12 +266,13 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 Some(format!("运行会话已热更新，队列 {} 项", summary.queue_len)),
             );
-            emit_lifecycle_event_with(
+            let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,
                 Some(summary.session_id),
                 None,
                 Some("运行会话已热更新".to_string()),
-            );
+            )
+            .await;
         }
         SessionControlMessage::ClearSession => {
             let cleared = clear_runtime_session().await;
@@ -290,12 +298,13 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 Some("运行会话已清空".to_string()),
             );
-            emit_lifecycle_event_with(
+            let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Idle,
                 cleared.map(|summary| summary.session_id),
                 None,
                 Some("运行会话已清空".to_string()),
-            );
+            )
+            .await;
         }
     }
 }

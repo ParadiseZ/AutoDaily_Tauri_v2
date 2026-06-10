@@ -10,7 +10,7 @@
           <span>{{ taskConnectionBadge.label }}</span>
           <span>·</span>
           <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
-          <span v-if="runtimeView.status.currentScript">· 正在执行 {{ runtimeView.status.currentScript }}</span>
+          <span v-if="currentScriptName">· 正在执行 {{ currentScriptName }}</span>
         </div>
         <p v-if="runtimeView.pendingMessage" class="text-sm font-medium text-(--app-accent)">{{ runtimeView.pendingMessage }}</p>
         <p v-else-if="runtimeView.connectionStatus.message" class="text-sm text-(--app-text-faint)">{{ runtimeView.connectionStatus.message }}</p>
@@ -35,7 +35,7 @@
           <StatusBadge :label="runtimeView.progress.label" :tone="runtimeView.progress.tone" />
         </div>
         <p class="mt-2 line-clamp-2 text-sm text-(--app-text-strong)">
-          {{ runtimeView.progress.message || '暂无进度事件' }}
+          {{ runtimeProgressSummary }}
         </p>
       </div>
 
@@ -484,6 +484,11 @@ const selectedTemporaryScriptName = computed(() =>
   temporaryScriptItems.value.find((script) => script.id === selectedTemporaryScriptId.value)?.name ?? '',
 );
 
+const currentScriptName = computed(() => {
+  const scriptId = props.runtimeView.status.currentScript;
+  return scriptId ? getScriptName(scriptId) : '';
+});
+
 const taskConnectionBadge = computed(() => {
   if (!props.device.data.enable) {
     return { label: '未启用', tone: 'neutral' as const };
@@ -671,6 +676,20 @@ const getScriptName = (scriptId: string) => {
 const getTaskName = (scriptId: string, taskId: string) => {
   return props.scriptTasksByScriptId[scriptId]?.find((task) => task.id === taskId)?.name || '未知任务';
 };
+
+const runtimeProgressSummary = computed(() => {
+  const progress = props.progressEvent;
+  if (progress?.phase === 'executing') {
+    if (progress.scriptId && progress.taskId) {
+      return getTaskName(progress.scriptId, progress.taskId);
+    }
+    if (progress.scriptId) {
+      return getScriptName(progress.scriptId);
+    }
+  }
+
+  return props.runtimeView.progress.message || '暂无进度事件';
+});
 
 const getTemplateName = (templateId: string | null) => {
   return formatTemplateWindow(templateId ? templateMap.value[templateId] : null);

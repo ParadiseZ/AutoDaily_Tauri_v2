@@ -92,6 +92,7 @@ import AppDialog from '@/components/shared/AppDialog.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import { requestAppConfirm } from '@/services/appDialogService';
+import { deviceService } from '@/services/deviceService';
 import { runtimeService } from '@/services/runtimeService';
 import TaskDevicePanel from '@/views/task-management/TaskDevicePanel.vue';
 import ScriptTemplateValuePanel from '@/views/script-template-values/ScriptTemplateValuePanel.vue';
@@ -103,7 +104,12 @@ import { formatTemplateWindow } from '@/utils/presenters';
 import { getRunTargetDetails } from '@/utils/runTarget';
 import { toErrorText } from '@/utils/api';
 import { showToast } from '@/utils/toast';
-import { validateDeviceQueueRecoveryForDevice, validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
+import {
+  validateDeviceConnectionBootstrapConfig,
+  validateDeviceQueueRecoveryForDevice,
+  validateDeviceRuntimePlatform,
+  validateRunTargetRecoveryForDevice,
+} from '@/utils/runtimePolicy';
 import type { AssignmentRecord } from '@/types/app/domain';
 import type { RunTarget } from '@/types/bindings/RunTarget';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
@@ -115,6 +121,9 @@ const taskStore = useTaskStore();
 
 const deviceIds = computed(() => deviceStore.devices.map((device) => device.id));
 let unlistenAssignmentScheduleChanged: UnlistenFn | null = null;
+const AUTO_PROBE_COOLDOWN_MS = 5_000;
+let autoProbeInFlight = false;
+let lastAutoProbeAt = 0;
 const orderedDevices = computed(() =>
   [...deviceStore.devices].sort((left, right) => Number(right.data.enable) - Number(left.data.enable)),
 );
@@ -169,9 +178,43 @@ const getTaskConnectionBadge = (deviceId: string) => {
 const loadPageData = async () => {
   await Promise.all([deviceStore.refreshAll(), scriptStore.loadScripts()]);
   await taskStore.hydrateForDevices(deviceIds.value);
+  const runtimeSnapshots = await deviceService.getRuntimeSnapshots(deviceIds.value);
+  deviceStore.hydrateRuntimeSnapshots(runtimeSnapshots);
+  runtimeStore.hydrateRuntimeSnapshots(runtimeSnapshots);
   if (!deviceStore.selectedDeviceId && orderedDevices.value.length) {
     deviceStore.selectedDeviceId = orderedDevices.value[0].id;
   }
+  void deviceStore.probeEnabledDeviceConnections(deviceIds.value);
+};
+
+const autoProbeActiveDevice = async () => {
+  const deviceId = activeDevice.value?.id;
+  if (!deviceId || document.visibilityState === 'hidden') {
+    return;
+  }
+  if (deviceStore.isDeviceBusy(deviceId)) {
+    return;
+  }
+  if (deviceStore.getDeviceConnectionStatus(deviceId).kind === 'checking') {
+    return;
+  }
+
+  const now = Date.now();
+  if (autoProbeInFlight || now - lastAutoProbeAt < AUTO_PROBE_COOLDOWN_MS) {
+    return;
+  }
+
+  autoProbeInFlight = true;
+  lastAutoProbeAt = now;
+  try {
+    await deviceStore.probeEnabledDeviceConnections([deviceId]);
+  } finally {
+    autoProbeInFlight = false;
+  }
+};
+
+const handlePageVisibleProbe = () => {
+  void autoProbeActiveDevice();
 };
 
 const handleAddScript = async (deviceId: string, scriptId: string, timeTemplateId: string | null) => {
@@ -278,6 +321,14 @@ const validateDeviceQueueStart = (deviceId: string) => {
   const platformError = validateDeviceRuntimePlatform(device);
   if (platformError) {
     return platformError;
+  }
+
+  const bootstrapError = validateDeviceConnectionBootstrapConfig(
+    device,
+    deviceStore.getDeviceConnectionStatus(deviceId).kind === 'connected',
+  );
+  if (bootstrapError) {
+    return bootstrapError;
   }
 
   return validateDeviceQueueRecoveryForDevice(
@@ -446,6 +497,8 @@ const handleStopAllDevices = async () => {
 
 onMounted(async () => {
   await loadPageData();
+  document.addEventListener('visibilitychange', handlePageVisibleProbe);
+  window.addEventListener('focus', handlePageVisibleProbe);
   unlistenAssignmentScheduleChanged = await listen('assignment-schedule-changed', (event) => {
     if (!event.payload || typeof event.payload !== 'object') {
       return;
@@ -458,9 +511,21 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', handlePageVisibleProbe);
+  window.removeEventListener('focus', handlePageVisibleProbe);
   unlistenAssignmentScheduleChanged?.();
   unlistenAssignmentScheduleChanged = null;
 });
+
+watch(
+  () => activeDevice.value?.id ?? '',
+  (deviceId, previousDeviceId) => {
+    if (!deviceId || deviceId === previousDeviceId) {
+      return;
+    }
+    void autoProbeActiveDevice();
+  },
+);
 
 watch(
   () => {

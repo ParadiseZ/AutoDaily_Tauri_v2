@@ -278,6 +278,13 @@ export interface DeviceRuntimeView {
     controls: DeviceRuntimeControlView;
 }
 
+export interface DeviceRuntimeSnapshot {
+    deviceId: string;
+    status: DeviceStatusEventPayload | null;
+    connection: DeviceConnectionEventPayload | null;
+    progress: DeviceProgressEventPayload | null;
+}
+
 export type DeviceRuntimeReconcileEvent = DeviceRuntimeReconcileEventPayload;
 export type RuntimeLifecycleEvent = DeviceStatusEventPayload;
 export type RuntimeProgressEvent = DeviceProgressEventPayload;

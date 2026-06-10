@@ -368,14 +368,12 @@ pub(super) async fn sync_device_runtime_session_internal(
     let device = load_device_table(device_id).await?;
     let state = snapshot_device_dispatch_state(app_handle, device_id)?;
     let mut created = 0usize;
-    let mut dispatched = false;
-    if device.data.0.auto_start && state.active_dispatch.is_none() && !state.auto_dispatch_blocked {
+    if device.data.0.auto_start && !state.auto_dispatch_blocked {
         created = ensure_planner_batch_for_device(app_handle, device_id, true).await?;
-        dispatched = dispatch_next_scheduled_queue_item(app_handle, device_id).await?;
     }
     Ok(format!(
-        "已同步设备[{}]运行会话，新增 planner 记录 {} 条，派发下一项={}",
-        device_id, created, dispatched
+        "已同步设备[{}]运行会话，新增/补齐 planner 记录 {} 条，不触发自动派发",
+        device_id, created
     ))
 }
 

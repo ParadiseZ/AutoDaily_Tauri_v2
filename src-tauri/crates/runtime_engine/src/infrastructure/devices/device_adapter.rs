@@ -7,6 +7,7 @@ use crate::infrastructure::capture::window_cap::WindowInfo;
 use crate::infrastructure::logging::log_trait::Log;
 use async_trait::async_trait;
 use image::RgbaImage;
+use std::time::Duration;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 
@@ -48,6 +49,22 @@ impl AndroidDeviceAdapter {
             cap_tx: tx,
             cap_rx: rx,
             window_info: Arc::new(WindowInfo::init(window_title)),
+        }
+    }
+
+    async fn send_await_result_command(&self, command: ADBCommand) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        get_adb_ctx().send_adb_cmd(&ADBCommand::AwaitResult(Box::new(command), tx));
+        loop {
+            match rx.try_recv() {
+                Ok(result) => return result,
+                Err(crossbeam_channel::TryRecvError::Disconnected) => {
+                    return Err("设备命令执行通道已关闭".to_string())
+                }
+                Err(crossbeam_channel::TryRecvError::Empty) => {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            }
         }
     }
 }
@@ -116,36 +133,33 @@ impl DeviceAdapter for AndroidDeviceAdapter {
     }
 
     async fn click(&self, point: Point<u16>) -> Result<(), String> {
-        get_adb_ctx().send_adb_cmd(&ADBCommand::Click(point));
-        Ok(())
+        self.send_await_result_command(ADBCommand::Click(point)).await
     }
 
     async fn swipe(&self, from: Point<u16>, to: Point<u16>, duration: u64) -> Result<(), String> {
-        get_adb_ctx().send_adb_cmd(&ADBCommand::SwipeWithDuration(from, to, duration));
-        Ok(())
+        self.send_await_result_command(ADBCommand::SwipeWithDuration(from, to, duration))
+            .await
     }
 
     async fn reboot(&self) -> Result<(), String> {
-        get_adb_ctx().send_adb_cmd(&ADBCommand::Reboot);
-        Ok(())
+        self.send_await_result_command(ADBCommand::Reboot).await
     }
 
     async fn launch_app(&self, pkg_name: &str, activity_name: &str) -> Result<(), String> {
-        get_adb_ctx().send_adb_cmd(&ADBCommand::StartActivity(
+        self.send_await_result_command(ADBCommand::StartActivity(
             pkg_name.to_string(),
             activity_name.to_string(),
-        ));
-        Ok(())
+        ))
+        .await
     }
 
     async fn stop_app(&self, pkg_name: &str) -> Result<(), String> {
-        get_adb_ctx().send_adb_cmd(&ADBCommand::StopApp(pkg_name.to_string()));
-        Ok(())
+        self.send_await_result_command(ADBCommand::StopApp(pkg_name.to_string()))
+            .await
     }
 
     async fn back(&self) -> Result<(), String> {
-        get_adb_ctx().send_adb_cmd(&ADBCommand::Back);
-        Ok(())
+        self.send_await_result_command(ADBCommand::Back).await
     }
 
     async fn change_cap_method(&self, method: CaptureMethod) -> bool {

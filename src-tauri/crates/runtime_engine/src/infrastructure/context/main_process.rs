@@ -1,7 +1,8 @@
+use crate::domain::devices::device_runtime_event::DeviceLifecycleStatus;
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{
-    AssignmentId, DeviceId, DispatchId, HashMap, JobId, MessageId, ScriptId,
+    now_millis_string, AssignmentId, DeviceId, DispatchId, HashMap, JobId, MessageId, ScriptId,
 };
 use crate::infrastructure::ipc::chanel_server::IpcClientState;
 use crate::infrastructure::ipc::message::{
@@ -17,6 +18,7 @@ use tokio::sync::{mpsc, watch};
 pub struct DeviceConnectionState {
     pub status: ConnectionStatusKind,
     pub message: Option<String>,
+    pub at: Option<String>,
 }
 
 impl Default for DeviceConnectionState {
@@ -24,8 +26,17 @@ impl Default for DeviceConnectionState {
         Self {
             status: ConnectionStatusKind::DeviceUnknown,
             message: None,
+            at: None,
         }
     }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct DeviceLifecycleState {
+    pub status: Option<DeviceLifecycleStatus>,
+    pub current_script_id: Option<ScriptId>,
+    pub message: Option<String>,
+    pub at: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -56,7 +67,9 @@ pub enum ChildRuntimeStatus {
 
 #[derive(Clone, Debug, Default)]
 pub struct DeviceRuntimeState {
+    pub device_name: Option<String>,
     pub child_runtime_status: ChildRuntimeStatus,
+    pub lifecycle: DeviceLifecycleState,
     pub connection: DeviceConnectionState,
     pub dispatch: DeviceDispatchState,
     pub progress: DeviceProgressState,
@@ -279,6 +292,17 @@ impl MainProcessCtx {
         })
     }
 
+    pub fn set_device_name(
+        &self,
+        device_id: DeviceId,
+        device_name: impl Into<String>,
+    ) -> Result<DeviceRuntimeState, String> {
+        let device_name = device_name.into();
+        self.mutate_device_runtime_state(device_id, move |state| {
+            state.device_name = Some(device_name);
+        })
+    }
+
     pub fn set_device_connection_state(
         &self,
         device_id: DeviceId,
@@ -288,6 +312,7 @@ impl MainProcessCtx {
         self.mutate_device_runtime_state(device_id, move |state| {
             state.connection.status = status.clone();
             state.connection.message = message.clone();
+            state.connection.at = Some(now_millis_string());
             match status {
                 ConnectionStatusKind::DeviceConnected => {
                     state.last_error = None;
@@ -297,6 +322,22 @@ impl MainProcessCtx {
                 }
                 _ => {}
             }
+        })
+    }
+
+    pub fn set_device_lifecycle(
+        &self,
+        device_id: DeviceId,
+        status: DeviceLifecycleStatus,
+        current_script_id: Option<ScriptId>,
+        message: Option<String>,
+        at: Option<String>,
+    ) -> Result<DeviceRuntimeState, String> {
+        self.mutate_device_runtime_state(device_id, move |state| {
+            state.lifecycle.status = Some(status.clone());
+            state.lifecycle.current_script_id = current_script_id;
+            state.lifecycle.message = message.clone();
+            state.lifecycle.at = at.or_else(|| Some(now_millis_string()));
         })
     }
 

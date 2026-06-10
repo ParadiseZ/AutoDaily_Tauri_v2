@@ -471,6 +471,7 @@ import { useScriptStore } from '@/store/script';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
 import { deviceKey, getFromStore, setToStore } from '@/store/store';
+import { deviceService } from '@/services/deviceService';
 import { runtimeService } from '@/services/runtimeService';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
 import { requestAppConfirm } from '@/services/appDialogService';
@@ -681,6 +682,7 @@ const stopResize = () => {
 };
 const MAX_CONSOLE_LINES = 300;
 let detachChildLogListener: null | (() => void) = null;
+let detachDeviceProgressListener: null | (() => void) = null;
 
 type EditorConsoleLevel = 'info' | 'warning' | 'error' | 'debug';
 
@@ -739,6 +741,95 @@ const appendConsoleLine = (
   time = buildConsoleTimestamp(),
 ) => {
   consoleEntries.value = [...consoleEntries.value, { time, message, level }].slice(-MAX_CONSOLE_LINES);
+};
+
+const visitStepTree = (steps: Step[], visitor: (step: Step) => string | null): string | null => {
+  for (const step of steps) {
+    const matched = visitor(step);
+    if (matched) {
+      return matched;
+    }
+
+    if (step.op === 'sequence') {
+      const nested = visitStepTree(step.steps, visitor);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return null;
+};
+
+const resolveTaskNameForConsole = (taskId: string | null | undefined) => {
+  if (!taskId) {
+    return null;
+  }
+  return draftTasks.value.find((task) => task.id === taskId)?.name ?? null;
+};
+
+const resolveStepNameForConsole = (stepId: string | null | undefined) => {
+  if (!stepId) {
+    return null;
+  }
+
+  for (const task of draftTasks.value) {
+    const matched = visitStepTree(task.data.steps as Step[], (step) =>
+      step.id === stepId ? step.label?.trim() || '未命名步骤' : null,
+    );
+    if (matched) {
+      return matched;
+    }
+  }
+
+  for (const policy of draftPolicies.value) {
+    const beforeMatched = visitStepTree(policy.data.beforeAction as Step[], (step) =>
+      step.id === stepId ? step.label?.trim() || '未命名步骤' : null,
+    );
+    if (beforeMatched) {
+      return beforeMatched;
+    }
+
+    const afterMatched = visitStepTree(policy.data.afterAction as Step[], (step) =>
+      step.id === stepId ? step.label?.trim() || '未命名步骤' : null,
+    );
+    if (afterMatched) {
+      return afterMatched;
+    }
+  }
+
+  return null;
+};
+
+const buildProgressConsoleMessage = (payload: Record<string, unknown>) => {
+  if (payload.phase !== 'executing') {
+    return null;
+  }
+
+  const payloadScriptId = typeof payload.scriptId === 'string' ? payload.scriptId : null;
+  if (!payloadScriptId || payloadScriptId !== scriptId.value) {
+    return null;
+  }
+
+  const rawMessage = typeof payload.message === 'string' ? payload.message.trim() : '';
+  if (rawMessage.startsWith('开始执行步骤:')) {
+    return `步骤：${rawMessage.slice('开始执行步骤:'.length).trim()}`;
+  }
+  if (rawMessage.startsWith('开始执行任务:')) {
+    return `任务：${rawMessage.slice('开始执行任务:'.length).trim()}`;
+  }
+
+  const stepName = resolveStepNameForConsole(typeof payload.stepId === 'string' ? payload.stepId : null);
+  if (stepName) {
+    return `步骤：${stepName}`;
+  }
+
+  const taskName = resolveTaskNameForConsole(typeof payload.taskId === 'string' ? payload.taskId : null);
+  if (taskName) {
+    return `任务：${taskName}`;
+  }
+
+  return null;
 };
 
 const clearConsole = () => {
@@ -2404,6 +2495,7 @@ const handleRunSelection = async () => {
   );
 
   try {
+    await deviceService.updateChildLogLevel(selectedPreviewDeviceId.value, 'Debug');
     const result = await runtimeService.runScriptTarget(selectedPreviewDeviceId.value, runTarget);
     await deviceStore.refreshRunningDevices();
     appendConsoleLine(result);
@@ -3593,6 +3685,25 @@ onMounted(() => {
   }).then((unlisten) => {
     detachChildLogListener = unlisten;
   });
+  void listen('device-progress', (event) => {
+    const payload = event.payload as Record<string, unknown> | null;
+    if (!payload || typeof payload.deviceId !== 'string') {
+      return;
+    }
+    if (!selectedPreviewDeviceId.value || payload.deviceId !== selectedPreviewDeviceId.value) {
+      return;
+    }
+
+    const message = buildProgressConsoleMessage(payload);
+    if (!message) {
+      return;
+    }
+
+    const time = typeof payload.at === 'string' ? buildConsoleTimestamp() : buildConsoleTimestamp();
+    appendConsoleLine(message, 'debug', time);
+  }).then((unlisten) => {
+    detachDeviceProgressListener = unlisten;
+  });
 });
 
 onBeforeUnmount(() => {
@@ -3601,6 +3712,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('mouseup', stopResize);
   detachChildLogListener?.();
   detachChildLogListener = null;
+  detachDeviceProgressListener?.();
+  detachDeviceProgressListener = null;
 });
 </script>
 

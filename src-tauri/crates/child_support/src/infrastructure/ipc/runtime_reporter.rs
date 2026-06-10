@@ -62,11 +62,20 @@ pub async fn emit_lifecycle_event_now(
     phase: RuntimeLifecyclePhase,
     message: Option<String>,
 ) -> bool {
+    emit_lifecycle_event_with_now(phase, current_session_id(), current_script_id(), message).await
+}
+
+pub async fn emit_lifecycle_event_with_now(
+    phase: RuntimeLifecyclePhase,
+    session_id: Option<SessionId>,
+    current_script_id: Option<ScriptId>,
+    message: Option<String>,
+) -> bool {
     emit_runtime_event_now(
         RuntimeEventMessage::Lifecycle(RuntimeLifecycleEvent {
-            session_id: current_session_id(),
+            session_id,
             phase,
-            current_script_id: current_script_id(),
+            current_script_id,
             message,
             at: now_millis_string(),
         }),

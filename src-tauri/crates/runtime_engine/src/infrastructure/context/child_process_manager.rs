@@ -134,15 +134,26 @@ async fn write_child_log_line(device_id: DeviceId, level: LogLevel, message: &st
 }
 
 fn emit_device_status_event(device_id: DeviceId, status: &str, message: &str) {
-    if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
+    let app_handle = get_app_handle();
+    let lifecycle_status = match status {
+        "Stopped" => DeviceLifecycleStatus::Stopped,
+        "Error" => DeviceLifecycleStatus::Error,
+        _ => DeviceLifecycleStatus::Error,
+    };
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_device_lifecycle(
+            device_id,
+            lifecycle_status.clone(),
+            None,
+            Some(message.to_string()),
+            Some(now_millis_string()),
+        );
+    if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
         let payload = DeviceStatusEventPayload {
             device_id,
             session_id: None,
-            status: match status {
-                "Stopped" => DeviceLifecycleStatus::Stopped,
-                "Error" => DeviceLifecycleStatus::Error,
-                _ => DeviceLifecycleStatus::Error,
-            },
+            status: lifecycle_status,
             current_script_id: None,
             message: Some(message.to_string()),
             at: now_millis_string(),

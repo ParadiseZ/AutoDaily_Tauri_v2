@@ -31,6 +31,7 @@ use tauri::{AppHandle, Manager};
 
 const EMULATOR_CONNECTION_READY_GRACE_SECS: u64 = 65;
 const DEVICE_CONNECTION_READY_TIMEOUT_SECS: u64 = 25;
+const DEVICE_CONNECTION_REUSE_WINDOW_MS: u128 = 5_000;
 
 fn device_connection_timeout(device_table: &DeviceTable) -> std::time::Duration {
     if device_table.data.0.uses_emulator_transport() {
@@ -45,6 +46,32 @@ fn device_connection_timeout(device_table: &DeviceTable) -> std::time::Duration 
 
 fn build_command_message(device_id: DeviceId, payload: MessagePayload) -> IpcMessage {
     IpcMessage::new(device_id, MessageType::Command, payload)
+}
+
+fn can_reuse_recent_connected_state(
+    app_handle: &AppHandle,
+    device_id: DeviceId,
+) -> Result<bool, String> {
+    let runtime_state = app_handle
+        .state::<MainProcessCtx>()
+        .snapshot_device_runtime_state(device_id)?;
+    if runtime_state.connection.status != ConnectionStatusKind::DeviceConnected {
+        return Ok(false);
+    }
+
+    let Some(at) = runtime_state.connection.at.as_deref() else {
+        return Ok(false);
+    };
+
+    let Ok(connected_at_ms) = at.parse::<u128>() else {
+        return Ok(false);
+    };
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_millis())
+        .unwrap_or_default();
+    Ok(now_ms.saturating_sub(connected_at_ms) <= DEVICE_CONNECTION_REUSE_WINDOW_MS)
 }
 
 async fn send_command_payload(device_id: DeviceId, payload: MessagePayload) -> MessageId {
@@ -391,6 +418,9 @@ async fn prepare_device_connection(
     require_enabled: bool,
 ) -> Result<DeviceTable, String> {
     let device_table = load_device_table(device_id).await?;
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_device_name(device_id, device_table.data.0.device_name.clone());
     validate_runtime_platform_supported(&device_table)?;
     if require_enabled && !device_table.data.0.enable {
         return Err(format!("设备[{}]未启用", device_table.data.0.device_name));
@@ -404,6 +434,13 @@ async fn prepare_device_connection(
         )
         .await;
         return Err(error);
+    }
+    if can_reuse_recent_connected_state(app_handle, device_id)? {
+        Log::debug(&format!(
+            "[ process ] 设备[{}]复用最近已确认的连接状态，跳过重复连接准备",
+            device_id
+        ));
+        return Ok(device_table);
     }
     request_child_connection_action(
         app_handle,
@@ -587,6 +624,9 @@ pub(super) async fn spawn_device_runtime_internal(
 ) -> Result<String, String> {
     let init_data = build_child_init_data(app_handle, device_id).await?;
     let device_name = init_data.device_config.device_name.clone();
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_device_name(device_id, device_name.clone());
     let manager = get_process_manager().ok_or_else(|| "进程管理器未初始化".to_string())?;
     let _ = app_handle
         .state::<MainProcessCtx>()

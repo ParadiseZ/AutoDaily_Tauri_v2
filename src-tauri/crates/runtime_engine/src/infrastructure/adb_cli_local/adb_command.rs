@@ -84,6 +84,10 @@ pub enum ADBCommand {
     Loop(Vec<ADBCommand>),
     StopLoop(bool),
     ChangeConnectConfig(ADBConnectConfig),
+    AwaitResult(
+        Box<ADBCommand>,
+        crossbeam_channel::Sender<Result<(), String>>,
+    ),
 
     Pause,
     Resume,
@@ -121,6 +125,7 @@ impl std::fmt::Display for ADBCommand {
             ADBCommand::ChangeConnectConfig(config) => {
                 write!(f, "change_connect_config:{}", config)
             }
+            ADBCommand::AwaitResult(command, _) => write!(f, "await:{}", command),
             ADBCommand::Pause => write!(f, "pause"),
             ADBCommand::Resume => write!(f, "resume"),
         }

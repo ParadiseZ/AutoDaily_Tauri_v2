@@ -21,6 +21,7 @@ import {
     toDeviceStatusKind,
 } from '@/utils/deviceRuntime';
 import type {
+    DeviceRuntimeSnapshot,
     DeviceConnectionKind,
     DeviceConnectionStatus,
     DeviceRuntimeControlView,
@@ -424,6 +425,34 @@ export const useDeviceStore = defineStore('device', () => {
     const getDeviceConnectionStatus = (deviceId: string): DeviceConnectionStatus =>
         deviceConnectionStatuses.value[deviceId] ?? emptyConnectionStatus;
 
+    const hydrateRuntimeSnapshots = (snapshots: DeviceRuntimeSnapshot[]) => {
+        const nextStatuses = { ...deviceStatuses.value };
+        const nextConnections = { ...deviceConnectionStatuses.value };
+
+        for (const snapshot of snapshots) {
+            if (snapshot.status) {
+                nextStatuses[snapshot.deviceId] = {
+                    rawStatus: snapshot.status.status,
+                    kind: toDeviceStatusKind(snapshot.status.status),
+                    currentScript: snapshot.status.currentScriptId ?? null,
+                    message: snapshot.status.message ?? null,
+                };
+            }
+
+            if (snapshot.connection) {
+                nextConnections[snapshot.deviceId] = {
+                    kind: toDeviceConnectionKind(snapshot.connection.status),
+                    rawStatus: snapshot.connection.status,
+                    message: snapshot.connection.message ?? null,
+                    at: snapshot.connection.at ?? null,
+                };
+            }
+        }
+
+        deviceStatuses.value = nextStatuses;
+        deviceConnectionStatuses.value = nextConnections;
+    };
+
     const getConnectionLabel = (status: DeviceConnectionStatus) => {
         return connectionLabels[status.kind];
     };
@@ -624,6 +653,7 @@ export const useDeviceStore = defineStore('device', () => {
         getDevicePresence,
         getDeviceRuntimeView,
         getDeviceStatus,
+        hydrateRuntimeSnapshots,
         initIpcListeners,
         isDeviceBusy,
         isDeviceOnline,

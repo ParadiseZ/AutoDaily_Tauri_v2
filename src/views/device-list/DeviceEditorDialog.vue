@@ -2,11 +2,11 @@
   <AppDialog
     :open="open"
     :title="device ? '编辑设备' : '添加设备'"
-    width-class="max-w-4xl"
+    width-class="max-w-4xl max-h-[calc(100vh-3rem)] flex flex-col"
     @close="$emit('close')"
   >
-    <form class="grid gap-5" @submit.prevent="$emit('save', form)">
-      <fieldset :disabled="busy" class="grid gap-5">
+    <form class="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden" @submit.prevent="$emit('save', form)">
+      <fieldset :disabled="busy" class="flex min-h-0 flex-1 flex-col gap-5 overflow-hidden">
         <div class="overflow-x-auto">
           <div class="editor-panel-tabs min-w-max">
             <button
@@ -22,6 +22,8 @@
           </div>
         </div>
 
+        <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+          <div class="flex min-h-0 flex-1 flex-col">
         <template v-if="activeTab === 'basic'">
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
@@ -206,6 +208,8 @@
             </div>
           </div>
         </template>
+          </div>
+        </div>
 
         <p v-if="busy" class="text-sm text-(--app-text-soft)">正在处理设备子进程，请稍候。</p>
 

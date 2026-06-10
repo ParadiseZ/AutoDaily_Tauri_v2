@@ -1,4 +1,42 @@
 impl ScriptExecutor {
+    async fn resolve_step_display_name(&self, step: &Step) -> String {
+        let base_name = step
+            .label
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("未命名步骤");
+
+        let StepKind::FlowControl {
+            a: FlowControl::HandlePolicySet { target, .. },
+        } = &step.kind
+        else {
+            return base_name.to_string();
+        };
+
+        let Ok(bundle) = self.load_policy_bundle("executor.stepDisplay").await else {
+            return base_name.to_string();
+        };
+
+        let set_names = target
+            .iter()
+            .filter_map(|set_id| {
+                bundle
+                    .policy_sets
+                    .iter()
+                    .find(|set| set.id == *set_id)
+                    .map(|set| set.data.0.name.trim().to_string())
+                    .filter(|name| !name.is_empty())
+            })
+            .collect::<Vec<_>>();
+
+        if set_names.is_empty() {
+            return base_name.to_string();
+        }
+
+        format!("{}-{}", base_name, set_names.join("/"))
+    }
+
     pub async fn debug_execute_policy(
         &mut self,
         policy_id: PolicyId,
@@ -65,10 +103,10 @@ impl ScriptExecutor {
         ));
         for (index, candidate) in candidates.iter().enumerate() {
             Log::info(&format!(
-                "[ policy_debug ] 候选[{}] set={:?} group={:?} policy={}({})",
+                "[ policy_debug ] 候选[{}] set={} group={} policy={}({})",
                 index,
-                candidate.policy_set_id,
-                candidate.policy_group_id,
+                candidate.policy_set_name.as_deref().unwrap_or("<none>"),
+                candidate.policy_group_name.as_deref().unwrap_or("<none>"),
                 candidate.policy.data.0.name,
                 candidate.policy.id
             ));
@@ -201,10 +239,17 @@ impl ScriptExecutor {
             }
 
             let policy_name = candidate.policy.data.0.name.clone();
+            Log::debug(&format!(
+                "[ policy_debug ] 命中策略: 策略集={}，策略组={}，策略={}",
+                candidate.policy_set_name.as_deref().unwrap_or("<none>"),
+                candidate.policy_group_name.as_deref().unwrap_or("<none>"),
+                policy_name
+            ));
             let before_action = candidate.policy.data.0.before_action.clone();
             let after_action = candidate.policy.data.0.after_action.clone();
             self.begin_active_policy_round_trace(
                 candidate.policy.id,
+                policy_name.clone(),
                 candidate.policy.data.0.cur_pos,
             )
             .await;
@@ -447,7 +492,11 @@ impl ScriptExecutor {
 
                     candidates.push(PolicyCandidate {
                         policy_set_id: Some(*set_id),
+                        policy_set_name: set_map.get(set_id).map(|set| set.data.0.name.clone()),
                         policy_group_id: Some(group_relation.group_id),
+                        policy_group_name: group_map
+                            .get(&group_relation.group_id)
+                            .map(|group| group.data.0.name.clone()),
                         policy: policy.clone(),
                     });
                 }
@@ -518,7 +567,9 @@ impl ScriptExecutor {
 
             candidates.push(PolicyCandidate {
                 policy_set_id: None,
+                policy_set_name: None,
                 policy_group_id: None,
+                policy_group_name: None,
                 policy: policy.clone(),
             });
         }
@@ -566,7 +617,13 @@ impl ScriptExecutor {
 
             candidates.push(PolicyCandidate {
                 policy_set_id: None,
+                policy_set_name: None,
                 policy_group_id: Some(group_id),
+                policy_group_name: bundle
+                    .policy_groups
+                    .iter()
+                    .find(|group| group.id == group_id)
+                    .map(|group| group.data.0.name.clone()),
                 policy: policy.clone(),
             });
         }
@@ -702,10 +759,16 @@ impl ScriptExecutor {
             .join(", ")
     }
 
-    async fn begin_active_policy_round_trace(&mut self, policy_id: PolicyId, base_click_pos: u16) {
+    async fn begin_active_policy_round_trace(
+        &mut self,
+        policy_id: PolicyId,
+        policy_name: String,
+        base_click_pos: u16,
+    ) {
         self.active_policy_round = Some(ActivePolicyRoundTrace::default());
         self.active_policy_context = Some(ActivePolicyContext {
             policy_id,
+            policy_name,
             base_click_pos,
         });
         if let Some(fingerprint) = self.current_page_fingerprint().await {

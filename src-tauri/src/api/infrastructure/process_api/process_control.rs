@@ -7,7 +7,7 @@ mod state;
 
 pub use commands::{
     cmd_bootstrap_enabled_devices, cmd_capture_device_image, cmd_device_pause, cmd_device_shutdown,
-    cmd_device_start, cmd_device_stop, cmd_get_running_devices, cmd_is_device_running,
+    cmd_device_start, cmd_device_stop, cmd_get_device_runtime_snapshots, cmd_get_running_devices, cmd_is_device_running,
     cmd_prepare_device_capture, cmd_probe_device_connections, cmd_restart_device_runtime,
     cmd_run_script_target, cmd_run_user_script_target, cmd_spawn_device,
     cmd_sync_device_runtime_session,

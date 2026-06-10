@@ -21,17 +21,117 @@ use super::super::dispatch_planner::{
 use super::super::runtime_session::{load_runtime_session_for_target};
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_conf::DeviceTable;
-use crate::domain::devices::device_runtime_event::DeviceRuntimeProgressPhase;
+use crate::domain::devices::device_runtime_event::{
+    DeviceConnectionEventPayload, DeviceProgressEventPayload, DeviceRuntimeProgressPhase,
+    DeviceStatusEventPayload,
+};
 use crate::domain::devices::device_schedule::{AssignmentScheduleStatus, AssignmentTriggerSource};
+use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
-use crate::infrastructure::core::{BatchId, DeviceId};
+use crate::infrastructure::core::{now_millis_string, BatchId, DeviceId};
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::message::{
     ConnectionAction, ConnectionStatusKind, DispatchSource, ProcessAction, RunTarget,
 };
 use crate::infrastructure::logging::log_trait::Log;
 use chrono::Local;
-use tauri::command;
+use tauri::{command, Manager};
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceRuntimeSnapshotPayload {
+    pub device_id: DeviceId,
+    pub status: Option<DeviceStatusEventPayload>,
+    pub connection: Option<DeviceConnectionEventPayload>,
+    pub progress: Option<DeviceProgressEventPayload>,
+}
+
+fn parse_progress_phase(value: &str) -> Option<DeviceRuntimeProgressPhase> {
+    serde_json::from_value::<DeviceRuntimeProgressPhase>(serde_json::Value::String(
+        value.to_string(),
+    ))
+    .ok()
+}
+
+#[command]
+pub async fn cmd_get_device_runtime_snapshots(
+    app_handle: tauri::AppHandle,
+    device_ids: Option<Vec<DeviceId>>,
+) -> Result<Vec<DeviceRuntimeSnapshotPayload>, String> {
+    let state = app_handle.state::<MainProcessCtx>();
+    let target_ids = if let Some(device_ids) = device_ids {
+        device_ids
+    } else {
+        let guard = state
+            .device_runtime_states
+            .read()
+            .map_err(|_| "读取设备运行态失败".to_string())?;
+        guard.keys().copied().collect()
+    };
+
+    target_ids
+        .into_iter()
+        .map(|device_id| {
+            let runtime_state = state.snapshot_device_runtime_state(device_id)?;
+            let status =
+                runtime_state
+                    .lifecycle
+                    .status
+                    .clone()
+                    .map(|status| DeviceStatusEventPayload {
+                        device_id,
+                        session_id: None,
+                        status,
+                        current_script_id: runtime_state.lifecycle.current_script_id,
+                        message: runtime_state.lifecycle.message.clone(),
+                        at: runtime_state
+                            .lifecycle
+                            .at
+                            .clone()
+                            .unwrap_or_else(now_millis_string),
+                    });
+            let connection = if runtime_state.connection.message.is_some()
+                || !matches!(runtime_state.connection.status, ConnectionStatusKind::DeviceUnknown)
+            {
+                Some(DeviceConnectionEventPayload {
+                    device_id,
+                    status: runtime_state.connection.status.clone(),
+                    message: runtime_state.connection.message.clone(),
+                    at: runtime_state
+                        .connection
+                        .at
+                        .clone()
+                        .unwrap_or_else(now_millis_string),
+                })
+            } else {
+                None
+            };
+            let progress = runtime_state
+                .progress
+                .phase
+                .as_deref()
+                .and_then(parse_progress_phase)
+                .map(|phase| DeviceProgressEventPayload {
+                    device_id,
+                    session_id: None,
+                    assignment_id: None,
+                    script_id: None,
+                    task_id: None,
+                    step_id: None,
+                    phase,
+                    message: runtime_state.progress.message.clone(),
+                    at: runtime_state.progress.at.clone().unwrap_or_else(now_millis_string),
+                });
+
+            Ok(DeviceRuntimeSnapshotPayload {
+                device_id,
+                status,
+                connection,
+                progress,
+            })
+        })
+        .collect()
+}
 
 #[command]
 pub async fn cmd_device_start(

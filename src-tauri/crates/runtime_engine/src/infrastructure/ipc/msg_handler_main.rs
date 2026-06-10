@@ -76,10 +76,49 @@ fn parse_timeout_message(
     (timeout_action, page_fingerprint, action_signature, detail)
 }
 
+fn device_log_label(device_id: crate::infrastructure::core::DeviceId) -> String {
+    get_app_handle()
+        .state::<MainProcessCtx>()
+        .snapshot_device_runtime_state(device_id)
+        .ok()
+        .and_then(|state| {
+            state
+                .device_name
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| device_id.to_string())
+}
+
+fn format_progress_log_detail(message: Option<&str>) -> String {
+    let Some(message) = message.map(str::trim).filter(|value| !value.is_empty()) else {
+        return String::new();
+    };
+
+    if let Some(task_name) = message.strip_prefix("开始执行任务:") {
+        return format!(", 任务:{}", task_name.trim());
+    }
+    if let Some(step_name) = message.strip_prefix("开始执行步骤:") {
+        return format!(", 步骤:{}", step_name.trim());
+    }
+    if let Some(task_name) = message.strip_prefix("任务执行完成:") {
+        return format!(", 任务完成:{}", task_name.trim());
+    }
+    if let Some(task_name) = message.strip_prefix("任务执行完成并跳转到任务") {
+        return format!(", {}", format!("任务执行完成并跳转到任务{}", task_name).trim());
+    }
+    if let Some(task_name) = message.strip_prefix("任务执行完成，下一步跳转到任务") {
+        return format!(", {}", format!("任务执行完成，下一步跳转到任务{}", task_name).trim());
+    }
+
+    format!(", 消息:{}", message)
+}
+
 /// 主进程消息处理器
 /// 处理来自子进程的消息
 pub async fn handle_child_message(msg: IpcMessage) {
     let device_id = msg.source_or_target;
+    let device_label = device_log_label(device_id);
 
     match msg.payload {
         MessagePayload::Logger(ref log_msg) => {
@@ -108,7 +147,7 @@ pub async fn handle_child_message(msg: IpcMessage) {
         MessagePayload::Error(ref error) => {
             Log::error(&format!(
                 "[ ipc ] 设备[{}]错误: [{}] {}",
-                device_id, error.code, error.message
+                device_label, error.code, error.message
             ));
             if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
                 let emit_data = serde_json::json!({
@@ -129,16 +168,41 @@ fn handle_runtime_event(
     event: &RuntimeEventMessage,
 ) {
     if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
+        let device_label = device_log_label(device_id);
         match event {
             RuntimeEventMessage::Lifecycle(lifecycle) => {
                 Log::info(&format!(
-                    "[ ipc ] 设备[{}]生命周期: {:?}",
-                    device_id, lifecycle.phase
+                    "[ ipc ] 设备[{}]生命周期: {:?}{}{}{}",
+                    device_label,
+                    lifecycle.phase,
+                    lifecycle
+                        .session_id
+                        .map(|value| format!("，session={}", value))
+                        .unwrap_or_default(),
+                    lifecycle
+                        .current_script_id
+                        .map(|value| format!("，current_script={}", value))
+                        .unwrap_or_default(),
+                    lifecycle
+                        .message
+                        .as_deref()
+                        .map(|value| format!("，消息={}", value))
+                        .unwrap_or_default()
                 ));
+                let status = DeviceLifecycleStatus::from(lifecycle.phase.clone());
+                let _ = get_app_handle()
+                    .state::<MainProcessCtx>()
+                    .set_device_lifecycle(
+                        device_id,
+                        status.clone(),
+                        lifecycle.current_script_id,
+                        lifecycle.message.clone(),
+                        Some(lifecycle.at.clone()),
+                    );
                 let emit_data = DeviceStatusEventPayload {
                     device_id,
                     session_id: lifecycle.session_id,
-                    status: DeviceLifecycleStatus::from(lifecycle.phase.clone()),
+                    status,
                     current_script_id: lifecycle.current_script_id,
                     message: lifecycle.message.clone(),
                     at: lifecycle.at.clone(),
@@ -146,6 +210,12 @@ fn handle_runtime_event(
                 let _ = main_window.emit("device-status", emit_data);
             }
             RuntimeEventMessage::Progress(progress) => {
+                Log::info(&format!(
+                    "[ ipc ] 设备[{}]进度: {:?}{}",
+                    device_label,
+                    progress.phase,
+                    format_progress_log_detail(progress.message.as_deref())
+                ));
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()
                     .set_device_progress(
@@ -242,6 +312,16 @@ fn handle_runtime_event(
                 let _ = main_window.emit("device-schedule", emit_data);
             }
             RuntimeEventMessage::Connection(connection) => {
+                Log::info(&format!(
+                    "[ ipc ] 设备[{}]连接状态: {:?}{}",
+                    device_label,
+                    connection.status,
+                    connection
+                        .message
+                        .as_deref()
+                        .map(|value| format!("，消息={}", value))
+                        .unwrap_or_default()
+                ));
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()
                     .set_device_connection_state(

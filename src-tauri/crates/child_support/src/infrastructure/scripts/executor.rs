@@ -105,7 +105,9 @@ struct PolicyBundle {
 #[derive(Debug, Clone)]
 struct PolicyCandidate {
     policy_set_id: Option<PolicySetId>,
+    policy_set_name: Option<String>,
     policy_group_id: Option<PolicyGroupId>,
+    policy_group_name: Option<String>,
     policy: PolicyTable,
 }
 
@@ -116,9 +118,10 @@ struct ActivePolicyRoundTrace {
     actions: Vec<PolicyActionTrace>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ActivePolicyContext {
     policy_id: PolicyId,
+    policy_name: String,
     base_click_pos: u16,
 }
 
@@ -247,6 +250,7 @@ impl ScriptExecutor {
                 ctx.execution.current_task.as_ref().map(|task| task.id),
             )
         };
+        let step_name = self.resolve_step_display_name(step).await;
 
         emit_progress_event(
             RuntimeProgressPhase::Executing,
@@ -254,10 +258,7 @@ impl ScriptExecutor {
             script_id,
             task_id,
             step.id,
-            Some(format!(
-                "执行步骤{}",
-                step.id.map(|id| format!("[{}]", id)).unwrap_or_default()
-            )),
+            Some(format!("开始执行步骤: {}", step_name)),
         );
 
         if let Some(id) = step.id {
@@ -277,7 +278,8 @@ impl ScriptExecutor {
         match &step.kind {
             StepKind::Sequence { steps } => self.execute_sequence(steps).await,
             StepKind::Action { exec_max, a } => {
-                self.execute_action_step(step.id, *exec_max, a).await
+                self.execute_action_step(step.id, step.label.as_deref(), *exec_max, a)
+                    .await
             }
             StepKind::DataHanding { a } => self.execute_data_handling_step(a).await,
             StepKind::FlowControl { a } => self.execute_flow_control_step(a).await,

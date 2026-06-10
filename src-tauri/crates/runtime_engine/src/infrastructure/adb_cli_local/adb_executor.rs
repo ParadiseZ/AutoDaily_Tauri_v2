@@ -224,6 +224,16 @@ impl ADBExecutor {
             }
             ADBCommand::Pause => {}
             ADBCommand::Resume => {}
+            ADBCommand::AwaitResult(command, sender) => {
+                let result = match self.execute_adb_command(command.as_ref()).await {
+                    Ok(ADBCommandResult::Success)
+                    | Ok(ADBCommandResult::Output(_))
+                    | Ok(ADBCommandResult::Image(_)) => Ok(()),
+                    Ok(ADBCommandResult::Failed(message)) => Err(message),
+                    Err(error) => Err(error.to_string()),
+                };
+                let _ = sender.send(result);
+            }
             _ => {
                 if let Err(e) = self.execute_adb_command(cmd_low).await {
                     let _ = self.error_tx.send(ADBCommandResult::Failed(format!(
@@ -480,6 +490,9 @@ impl ADBExecutor {
                 self.reconnect().await;
                 Ok(ADBCommandResult::Success)
             }
+            ADBCommand::AwaitResult(_, _) => Err(AdbError::ConfigErr {
+                detail: "AwaitResult 不应直接进入 execute_adb_command".to_string(),
+            }),
         }
     }
 

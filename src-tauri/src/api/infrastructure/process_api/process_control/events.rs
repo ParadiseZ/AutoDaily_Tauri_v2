@@ -7,11 +7,45 @@ use crate::domain::devices::device_runtime_event::{
 use crate::infrastructure::context::main_process::{MainProcessCtx, RuntimeReconcileJob};
 use crate::infrastructure::core::{now_millis_string, DeviceId};
 use crate::infrastructure::ipc::message::ConnectionStatusKind;
+use crate::infrastructure::logging::log_trait::Log;
 use chrono::Local;
 use tauri::{Emitter, Manager};
 
 const DEVICE_RUNTIME_RECONCILE_EVENT: &str = "device-runtime-reconcile";
 const ASSIGNMENT_SCHEDULE_CHANGED_EVENT: &str = "assignment-schedule-changed";
+
+fn device_log_label(app_handle: &tauri::AppHandle, device_id: DeviceId) -> String {
+    app_handle
+        .state::<MainProcessCtx>()
+        .snapshot_device_runtime_state(device_id)
+        .ok()
+        .and_then(|state| {
+            state
+                .device_name
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| device_id.to_string())
+}
+
+fn format_progress_log_detail(message: &str) -> String {
+    let trimmed = message.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+
+    if let Some(task_name) = trimmed.strip_prefix("开始执行任务:") {
+        return format!(", 任务:{}", task_name.trim());
+    }
+    if let Some(step_name) = trimmed.strip_prefix("开始执行步骤:") {
+        return format!(", 步骤:{}", step_name.trim());
+    }
+    if let Some(task_name) = trimmed.strip_prefix("任务执行完成:") {
+        return format!(", 任务完成:{}", task_name.trim());
+    }
+
+    format!(", 消息:{}", trimmed)
+}
 
 pub(super) fn emit_device_connection_status(
     app_handle: &tauri::AppHandle,
@@ -19,6 +53,15 @@ pub(super) fn emit_device_connection_status(
     status: &ConnectionStatusKind,
     message: Option<&str>,
 ) {
+    let device_label = device_log_label(app_handle, device_id);
+    Log::info(&format!(
+        "[ process ] 设备[{}]连接状态: {:?}{}",
+        device_label,
+        status,
+        message
+            .map(|value| format!("，消息={}", value))
+            .unwrap_or_default()
+    ));
     if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
         let payload = DeviceConnectionEventPayload {
             device_id,
@@ -38,6 +81,13 @@ pub(super) fn emit_device_progress_status(
 ) {
     let message = message.into();
     let at = Local::now().to_rfc3339();
+    let device_label = device_log_label(app_handle, device_id);
+    Log::info(&format!(
+        "[ process ] 设备[{}]进度: {:?}{}",
+        device_label,
+        phase,
+        format_progress_log_detail(&message)
+    ));
     let _ = app_handle.state::<MainProcessCtx>().set_device_progress(
         device_id,
         serde_json::to_value(&phase)

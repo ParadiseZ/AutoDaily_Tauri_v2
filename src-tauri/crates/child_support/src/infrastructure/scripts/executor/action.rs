@@ -5,6 +5,7 @@ impl ScriptExecutor {
     async fn execute_action_step(
         &mut self,
         step_id: Option<StepId>,
+        step_label: Option<&str>,
         exec_max: u32,
         action: &Action,
     ) -> ExecuteResult<ControlFlow> {
@@ -20,6 +21,7 @@ impl ScriptExecutor {
         }
 
         self.before_action(action).await?;
+        self.log_active_policy_action(step_label, action);
         let (flow, action_trace) = self.dispatch_action(action).await?;
         if let Some(action_trace) = action_trace.as_ref() {
             self.record_action_trace(action_trace.clone());
@@ -60,6 +62,123 @@ impl ScriptExecutor {
         let mut ctx = self.runtime_ctx.write().await;
         let state = ctx.execution.action_states.entry(step_id).or_default();
         state.exec_cur = state.exec_cur.saturating_add(1);
+    }
+
+    fn log_active_policy_action(&self, step_label: Option<&str>, action: &Action) {
+        let Some(context) = self.active_policy_context.as_ref() else {
+            return;
+        };
+
+        let step_label = step_label
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("未命名步骤");
+        Log::debug(&format!(
+            "[ policy_debug ] 策略[{}] 步骤[{}] 动作: {}",
+            context.policy_name,
+            step_label,
+            Self::describe_action(action)
+        ));
+    }
+
+    fn describe_action(action: &Action) -> String {
+        match action {
+            Action::Capture { output_var } => format!("截图 -> {}", output_var),
+            Action::Click {
+                mode,
+                offset_x,
+                offset_y,
+            } => format!(
+                "点击({}, offset_x={}, offset_y={})",
+                Self::describe_click_mode(mode),
+                offset_x,
+                offset_y
+            ),
+            Action::Swipe { duration, mode } => {
+                format!("滑动(duration={}ms, {})", duration, Self::describe_swipe_mode(mode))
+            }
+            Action::Reboot => "重启".to_string(),
+            Action::Back => "返回".to_string(),
+            Action::PosAdd { target } => format!("策略点击位置+1(target={})", target),
+            Action::PosMinus { target } => format!("策略点击位置-1(target={})", target),
+            Action::DropSetNext { task, variable_id } => {
+                format!("写入追加策略集(task={}, variable={})", task, variable_id)
+            }
+            Action::LaunchApp {
+                pkg_name,
+                activity_name,
+            } => format!("启动应用(pkg={}, activity={})", pkg_name, activity_name),
+            Action::StopApp { pkg_name } => format!("停止应用(pkg={})", pkg_name),
+        }
+    }
+
+    fn describe_click_mode(mode: &ClickMode) -> String {
+        match mode {
+            ClickMode::Point { p } => format!("point=({}, {})", p.x, p.y),
+            ClickMode::Percent { p } => format!("percent=({:.3}, {:.3})", p.x, p.y),
+            ClickMode::Txt {
+                input_var,
+                txt,
+                txt_expr,
+            } => format!(
+                "txt(input_var={}, txt={:?}, txt_expr={:?})",
+                input_var, txt, txt_expr
+            ),
+            ClickMode::LabelIdx { input_var, idx } => {
+                format!("labelIdx(input_var={}, idx={:?})", input_var, idx)
+            }
+        }
+    }
+
+    fn describe_swipe_target(target: &SwipeTarget) -> String {
+        match target {
+            SwipeTarget::Txt {
+                input_var,
+                value,
+                value_expr,
+            } => format!(
+                "txt(input_var={}, value={:?}, value_expr={:?})",
+                input_var, value, value_expr
+            ),
+            SwipeTarget::LabelIdx { input_var, idx } => {
+                format!("labelIdx(input_var={}, idx={})", input_var, idx)
+            }
+        }
+    }
+
+    fn describe_swipe_mode(mode: &SwipeMode) -> String {
+        match mode {
+            SwipeMode::Point { from, to } => {
+                format!("point from=({}, {}) to=({}, {})", from.x, from.y, to.x, to.y)
+            }
+            SwipeMode::Percent { from, to } => format!(
+                "percent from=({:.3}, {:.3}) to=({:.3}, {:.3})",
+                from.x, from.y, to.x, to.y
+            ),
+            SwipeMode::LabelIdx {
+                input_var,
+                from,
+                to,
+            } => format!(
+                "labelIdx(input_var={}, from={}, to={})",
+                input_var, from, to
+            ),
+            SwipeMode::Txt {
+                input_var,
+                from,
+                to,
+                from_expr,
+                to_expr,
+            } => format!(
+                "txt(input_var={}, from={:?}, to={:?}, from_expr={:?}, to_expr={:?})",
+                input_var, from, to, from_expr, to_expr
+            ),
+            SwipeMode::Mixed { from, to } => format!(
+                "mixed from={} to={}",
+                Self::describe_swipe_target(from),
+                Self::describe_swipe_target(to)
+            ),
+        }
     }
 
     async fn before_action(&mut self, _action: &Action) -> ExecuteResult<()> {
@@ -705,6 +824,7 @@ impl ScriptExecutor {
     async fn resolve_policy_base_click_pos(&self, policy_id: PolicyId) -> ExecuteResult<u16> {
         if let Some(active) = self
             .active_policy_context
+            .as_ref()
             .filter(|context| context.policy_id == policy_id)
         {
             return Ok(active.base_click_pos);

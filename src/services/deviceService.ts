@@ -1,4 +1,5 @@
 import { invoke } from '@/utils/api';
+import type { DeviceRuntimeSnapshot } from '@/types/app/domain';
 import type { DeviceTable } from '@/types/bindings/DeviceTable';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 
@@ -7,6 +8,8 @@ export const deviceService = {
     save: (device: DeviceTable) => invoke('save_device_cmd', { device }) as Promise<void>,
     remove: (deviceId: string) => invoke('delete_device_cmd', { deviceId }) as Promise<void>,
     getCpuCount: () => invoke('get_cpu_count_cmd') as Promise<number>,
+    getRuntimeSnapshots: (deviceIds?: string[]) =>
+        invoke('cmd_get_device_runtime_snapshots', { deviceIds: deviceIds ?? null }) as Promise<DeviceRuntimeSnapshot[]>,
     getRunningDeviceIds: () => invoke('cmd_get_running_devices') as Promise<string[]>,
     isRunning: (deviceId: string) => invoke('cmd_is_device_running', { deviceId }) as Promise<boolean>,
     bootstrapEnabledProcesses: () => invoke('cmd_bootstrap_enabled_devices') as Promise<string>,
