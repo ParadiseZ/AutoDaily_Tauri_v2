@@ -59,7 +59,7 @@ pub(super) fn emit_device_connection_status(
         device_label,
         status,
         message
-            .map(|value| format!("，消息={}", value))
+            .map(|value| format!("，{}", value))
             .unwrap_or_default()
     ));
     if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {

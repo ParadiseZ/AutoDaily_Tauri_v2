@@ -195,6 +195,10 @@ const autoProbeActiveDevice = async () => {
   if (deviceStore.isDeviceBusy(deviceId)) {
     return;
   }
+  const runtimeStatus = deviceStore.getDeviceStatus(deviceId);
+  if (runtimeStatus.kind !== 'running' && runtimeStatus.kind !== 'paused' && runtimeStatus.kind !== 'unknown') {
+    return;
+  }
   if (deviceStore.getDeviceConnectionStatus(deviceId).kind === 'checking') {
     return;
   }

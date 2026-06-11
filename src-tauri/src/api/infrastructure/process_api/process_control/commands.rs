@@ -376,7 +376,7 @@ pub async fn cmd_spawn_device(
         &app_handle,
         device_id,
         ConnectionAction::Probe,
-        "正在检查设备连接",
+        "检查设备连接",
         None,
     )
     .await;
@@ -455,7 +455,7 @@ pub async fn cmd_probe_device_connections(
                     &app_handle,
                     device_id,
                     ConnectionAction::Probe,
-                    "正在检查设备连接",
+                    "检查设备连接...",
                     None,
                 )
                 .await;

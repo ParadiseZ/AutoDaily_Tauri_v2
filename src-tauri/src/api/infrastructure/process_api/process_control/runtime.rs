@@ -78,6 +78,19 @@ fn can_reuse_recent_connected_state(
     Ok(now_ms.saturating_sub(connected_at_ms) <= DEVICE_CONNECTION_REUSE_WINDOW_MS)
 }
 
+fn can_reuse_connected_runtime_state(
+    app_handle: &AppHandle,
+    device_id: DeviceId,
+) -> Result<bool, String> {
+    let runtime_state = app_handle
+        .state::<MainProcessCtx>()
+        .snapshot_device_runtime_state(device_id)?;
+
+    Ok(runtime_state.child_runtime_status == ChildRuntimeStatus::IpcReady
+        && runtime_state.connection.status == ConnectionStatusKind::DeviceConnected
+        && runtime_state.last_error.is_none())
+}
+
 fn parse_runtime_timestamp_ms(value: &str) -> Option<u128> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -553,6 +566,13 @@ async fn prepare_device_connection(
             }
         }
     }
+    if !allow_manual_connected_reuse && can_reuse_connected_runtime_state(app_handle, device_id)? {
+        Log::debug(&format!(
+            "[ process ] 设备[{}]运行时连接仍然可用，直接复用，跳过重复连接准备",
+            device_id
+        ));
+        return Ok(device_table);
+    }
     if can_reuse_recent_connected_state(app_handle, device_id)? {
         Log::debug(&format!(
             "[ process ] 设备[{}]复用最近已确认的连接状态，跳过重复连接准备",
@@ -662,9 +682,25 @@ pub(crate) fn spawn_dispatch_signal_loop(
                 }
                 RuntimeDispatchPhase::RequestNext => {
                     match mark_active_dispatch(&app_handle, signal.device_id, None) {
-                        Ok(()) => dispatch_next_scheduled_queue_item(&app_handle, signal.device_id)
+                        Ok(()) => match dispatch_next_scheduled_queue_item(&app_handle, signal.device_id)
                             .await
-                            .map(|_| ()),
+                        {
+                            Ok(true) => {
+                                Log::info(&format!(
+                                    "[ process ] 设备[{}]收到 RequestNext，继续派发下一条",
+                                    signal.device_id
+                                ));
+                                Ok(())
+                            }
+                            Ok(false) => {
+                                Log::info(&format!(
+                                    "[ process ] 设备[{}]收到 RequestNext，但当前没有可派发任务，等待下一次被动唤醒",
+                                    signal.device_id
+                                ));
+                                Ok(())
+                            }
+                            Err(error) => Err(error),
+                        },
                         Err(error) => Err(error),
                     }
                 }

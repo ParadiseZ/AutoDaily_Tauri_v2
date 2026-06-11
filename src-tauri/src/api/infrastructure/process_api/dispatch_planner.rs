@@ -84,7 +84,7 @@ fn schedule_carryover_scope_key(record: &AssignmentSchedule) -> Option<String> {
 fn active_schedule_status(status: &str) -> bool {
     matches!(
         status,
-        "planned" | "dispatched" | "running" | "success" | "skipped" | "stopped"
+        "planned" | "dispatched" | "running" | "success" | "failed" | "skipped" | "stopped"
     )
 }
 
@@ -152,7 +152,7 @@ pub async fn find_assignment_schedule_scope(
            AND ((window_start_at IS NULL AND ?2 IS NULL) OR window_start_at = ?2)
            AND trigger_source = ?
            AND scope_hash = ?
-           AND status IN ('planned', 'dispatched', 'running', 'success', 'skipped', 'stopped')
+           AND status IN ('planned', 'dispatched', 'running', 'success', 'failed', 'skipped', 'stopped')
          LIMIT 1",
         assignment_schedule_select_sql()
     );
@@ -184,7 +184,7 @@ pub async fn has_complete_assignment_schedule_batch(
         "{}
          WHERE device_id = ?
            AND trigger_source = ?
-           AND status IN ('planned', 'dispatched', 'running', 'success', 'skipped', 'stopped')",
+           AND status IN ('planned', 'dispatched', 'running', 'success', 'failed', 'skipped', 'stopped')",
         assignment_schedule_select_sql()
     );
     let rows = sqlx::query_as::<_, AssignmentSchedule>(&query)

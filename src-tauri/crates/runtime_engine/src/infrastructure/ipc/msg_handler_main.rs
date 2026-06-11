@@ -105,13 +105,30 @@ fn format_progress_log_detail(message: Option<&str>) -> String {
         return format!(", 任务完成:{}", task_name.trim());
     }
     if let Some(task_name) = message.strip_prefix("任务执行完成并跳转到任务") {
-        return format!(", {}", format!("任务执行完成并跳转到任务{}", task_name).trim());
+        return format!(", 任务执行完成并跳转到任务{}", task_name.trim());
     }
     if let Some(task_name) = message.strip_prefix("任务执行完成，下一步跳转到任务") {
-        return format!(", {}", format!("任务执行完成，下一步跳转到任务{}", task_name).trim());
+        return format!(", 任务执行完成，下一步跳转到任务{}", task_name.trim());
     }
 
-    format!(", 消息:{}", message)
+    format!(", {}", message)
+}
+
+fn forward_child_runtime_log(device_id: crate::infrastructure::core::DeviceId, level: LogLevel, message: String) {
+    if let Some(receiver) = get_child_log_receiver() {
+        tauri::async_runtime::spawn(async move {
+            receiver
+                .handle_log(
+                    &device_id,
+                    &crate::infrastructure::ipc::message::LogMessage {
+                        level,
+                        message,
+                        module: Some("ipc".to_string()),
+                    },
+                )
+                .await;
+        });
+    }
 }
 
 /// 主进程消息处理器
@@ -171,7 +188,7 @@ fn handle_runtime_event(
         let device_label = device_log_label(device_id);
         match event {
             RuntimeEventMessage::Lifecycle(lifecycle) => {
-                Log::info(&format!(
+                let log_line = format!(
                     "[ ipc ] 设备[{}]生命周期: {:?}{}{}{}",
                     device_label,
                     lifecycle.phase,
@@ -186,9 +203,11 @@ fn handle_runtime_event(
                     lifecycle
                         .message
                         .as_deref()
-                        .map(|value| format!("，消息={}", value))
+                        .map(|value| format!(",{}", value))
                         .unwrap_or_default()
-                ));
+                );
+                Log::info(&log_line);
+                forward_child_runtime_log(device_id, LogLevel::Info, log_line);
                 let status = DeviceLifecycleStatus::from(lifecycle.phase.clone());
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()
@@ -210,12 +229,14 @@ fn handle_runtime_event(
                 let _ = main_window.emit("device-status", emit_data);
             }
             RuntimeEventMessage::Progress(progress) => {
-                Log::info(&format!(
+                let log_line = format!(
                     "[ ipc ] 设备[{}]进度: {:?}{}",
                     device_label,
                     progress.phase,
                     format_progress_log_detail(progress.message.as_deref())
-                ));
+                );
+                Log::info(&log_line);
+                forward_child_runtime_log(device_id, LogLevel::Info, log_line);
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()
                     .set_device_progress(
@@ -319,7 +340,7 @@ fn handle_runtime_event(
                     connection
                         .message
                         .as_deref()
-                        .map(|value| format!("，消息={}", value))
+                        .map(|value| format!(", {}", value))
                         .unwrap_or_default()
                 ));
                 let _ = get_app_handle()
@@ -417,6 +438,18 @@ fn handle_runtime_event(
                 }
             }
             RuntimeEventMessage::Dispatch(dispatch) => {
+                let log_line = format!(
+                    "[ ipc ] 设备[{}]dispatch: {:?}{}",
+                    device_label,
+                    dispatch.phase,
+                    dispatch
+                        .message
+                        .as_deref()
+                        .map(|value| format!(", {}", value))
+                        .unwrap_or_default()
+                );
+                Log::info(&log_line);
+                forward_child_runtime_log(device_id, LogLevel::Info, log_line);
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()
                     .dispatch_signal_tx

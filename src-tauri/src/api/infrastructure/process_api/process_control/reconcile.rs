@@ -176,7 +176,7 @@ async fn reconcile_saved_device_runtime(
                 app_handle,
                 current.id,
                 crate::infrastructure::ipc::message::ConnectionAction::Probe,
-                "正在检查设备连接",
+                "检查设备连接...",
                 None,
             )
             .await;
