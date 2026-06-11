@@ -382,6 +382,7 @@ export const useDeviceStore = defineStore('device', () => {
 
         const status = deviceStatuses.value[deviceId];
         const connectionStatus = deviceConnectionStatuses.value[deviceId] ?? emptyConnectionStatus;
+        const latestProgress = runtimeStore.getLatestProgress(deviceId);
 
         if (connectionStatus.kind === 'disconnected') {
             return {
@@ -398,6 +399,18 @@ export const useDeviceStore = defineStore('device', () => {
                 kind: 'unknown',
                 currentScript: status?.currentScript ?? null,
                 message: connectionStatus.message ?? status?.message ?? '正在检查设备连接',
+            };
+        }
+
+        if (
+            latestProgress?.phase === 'failed' ||
+            latestProgress?.phase === 'childProcessCrashed'
+        ) {
+            return {
+                rawStatus: 'error',
+                kind: 'error',
+                currentScript: status?.currentScript ?? latestProgress.scriptId ?? null,
+                message: latestProgress.message ?? status?.message ?? '当前执行失败',
             };
         }
 

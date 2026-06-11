@@ -15,7 +15,7 @@ use super::state::{
 };
 use super::super::dispatch_planner::{
     insert_assignment_schedule, load_next_planned_assignment_schedule,
-    reactivate_stopped_planner_schedules_for_device, stop_active_assignment_schedules_by_device,
+    reactivate_retryable_planner_schedules_for_device, stop_active_assignment_schedules_by_device,
     update_assignment_schedule_status,
 };
 use super::super::runtime_session::{load_runtime_session_for_target};
@@ -147,10 +147,10 @@ pub async fn cmd_device_start(
             device_id
         ));
     }
-    let reactivated = reactivate_stopped_planner_schedules_for_device(
+    let reactivated = reactivate_retryable_planner_schedules_for_device(
         device_id,
         Local::now().format("%Y-%m-%d").to_string(),
-        "用户重新开始设备调度".to_string(),
+        "用户重新开始设备调度，已恢复当天失败/停止的 planner 记录".to_string(),
     )
     .await?;
     if reactivated > 0 {

@@ -295,7 +295,7 @@ pub(super) async fn dispatch_next_scheduled_queue_item(
                 app_handle,
                 device_id,
                 DeviceRuntimeProgressPhase::Failed,
-                "设备连接失败，已停止该设备后续自动派发，可手动重试；其它设备继续运行",
+                "设备连接失败，已停止该设备后续自动派发，可手动重试",
             );
             return Err(error);
         }

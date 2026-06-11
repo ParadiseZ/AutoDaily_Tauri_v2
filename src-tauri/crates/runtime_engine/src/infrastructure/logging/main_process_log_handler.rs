@@ -98,6 +98,19 @@ impl DeviceLogWriter {
         self.log_to_file = enabled;
         if !enabled {
             self.file = None; // 关闭文件
+        } else {
+            self.ensure_file();
+        }
+    }
+
+    fn set_device_name(&mut self, device_name: String) {
+        if self.device_name == device_name {
+            return;
+        }
+        self.device_name = device_name;
+        self.file = None;
+        if self.log_to_file {
+            self.ensure_file();
         }
     }
 }
@@ -154,6 +167,19 @@ impl ChildLogReceiver {
                 writer.device_name,
                 enabled
             );
+        }
+    }
+
+    pub async fn update_device_metadata(
+        &self,
+        device_id: &DeviceId,
+        device_name: String,
+        log_to_file: bool,
+    ) {
+        let mut writers = self.writers.write().await;
+        if let Some(writer) = writers.get_mut(device_id) {
+            writer.set_device_name(device_name);
+            writer.set_log_to_file(log_to_file);
         }
     }
 

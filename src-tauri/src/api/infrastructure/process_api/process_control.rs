@@ -18,6 +18,8 @@ pub(crate) use reconcile::{
     load_assigned_device_ids_by_script, load_assigned_device_ids_by_time_template,
     spawn_runtime_reconcile_loop,
 };
-pub(crate) use runtime::{register_child_process_exit_handler, spawn_dispatch_signal_loop};
+pub(crate) use runtime::{
+    register_child_process_exit_handler, send_device_config_update, spawn_dispatch_signal_loop,
+};
 pub(crate) use scheduler::spawn_auto_dispatch_planner_loop;
 pub(crate) use state::{notify_auto_dispatch_planner, notify_auto_dispatch_reschedule};

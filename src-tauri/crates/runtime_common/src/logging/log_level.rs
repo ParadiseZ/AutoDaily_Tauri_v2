@@ -1,7 +1,7 @@
 use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, ts_rs::TS)]
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[ts(export)]
 #[repr(u8)]
 pub enum LogLevel {

@@ -1,7 +1,7 @@
 use super::events::emit_runtime_reconcile_event;
 use super::runtime::{
     request_child_connection_action, restart_device_runtime_internal,
-    shutdown_device_runtime_internal, spawn_device_runtime_internal,
+    send_device_config_update, shutdown_device_runtime_internal, spawn_device_runtime_internal,
 };
 use super::scheduler::{reevaluate_device_auto_dispatch, sync_device_runtime_session_internal};
 use crate::constant::table_name::ASSIGNMENT_TABLE;
@@ -157,6 +157,18 @@ async fn reconcile_saved_device_runtime(
         ));
     };
 
+    let previous_config = previous.data.0.clone();
+    let current_config = current.data.0.clone();
+    let should_probe_connection = previous_config.platform != current_config.platform
+        || previous_config.transport_kind != current_config.transport_kind
+        || previous_config.startup_delay_secs != current_config.startup_delay_secs
+        || previous_config.connect_address != current_config.connect_address
+        || previous_config.connect_identifier != current_config.connect_identifier
+        || previous_config.adb_path != current_config.adb_path
+        || previous_config.adb_server_connect != current_config.adb_server_connect
+        || previous_config.exe_path != current_config.exe_path
+        || previous_config.exe_args != current_config.exe_args;
+
     if !is_running {
         if is_enabled {
             let device_name = spawn_device_runtime_internal(app_handle, current.id).await?;
@@ -180,28 +192,49 @@ async fn reconcile_saved_device_runtime(
         ));
     }
 
-    if previous.data.0.cores != current.data.0.cores {
+    if previous_config.cores != current_config.cores {
         let message = restart_device_runtime_internal(app_handle, current.id).await?;
         return Ok((Some(DeviceRuntimeReconcileAction::Restarting), message));
     }
 
-    if previous.data.0.execution_policy != current.data.0.execution_policy {
-        let message = sync_device_runtime_session_internal(app_handle, current.id).await?;
-        return Ok((Some(DeviceRuntimeReconcileAction::Syncing), message));
+    let mut messages = Vec::new();
+    let mut action = None;
+
+    if previous_config != current_config {
+        send_device_config_update(app_handle, current.id, &current_config).await?;
+        if should_probe_connection {
+            let _ = request_child_connection_action(
+                app_handle,
+                current.id,
+                crate::infrastructure::ipc::message::ConnectionAction::Probe,
+                "设备配置已更新，正在重新检查设备连接",
+                None,
+            )
+            .await;
+        }
+        action = Some(DeviceRuntimeReconcileAction::Syncing);
+        messages.push("设备配置已热更新到子进程".to_string());
     }
 
-    if !previous.data.0.auto_start && current.data.0.auto_start {
+    if previous_config.execution_policy != current_config.execution_policy {
+        messages.push(sync_device_runtime_session_internal(app_handle, current.id).await?);
+        action = Some(DeviceRuntimeReconcileAction::Syncing);
+    }
+
+    if !previous_config.auto_start && current_config.auto_start {
         let created = reevaluate_device_auto_dispatch(app_handle, current.id).await?;
-        return Ok((
-            Some(DeviceRuntimeReconcileAction::Syncing),
-            format!(
-                "设备[{}]已重新评估自动调度，新增/唤醒 {} 项",
-                current.id, created
-            ),
+        messages.push(format!(
+            "设备[{}]已重新评估自动调度，新增/唤醒 {} 项",
+            current.id, created
         ));
+        action = Some(DeviceRuntimeReconcileAction::Syncing);
     }
 
-    Ok((None, "设备配置未触发运行时协调".to_string()))
+    if messages.is_empty() {
+        Ok((None, "设备配置未触发运行时协调".to_string()))
+    } else {
+        Ok((action, messages.join("；")))
+    }
 }
 
 async fn run_runtime_reconcile_job(

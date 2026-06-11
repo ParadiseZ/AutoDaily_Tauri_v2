@@ -8,8 +8,8 @@ use super::super::runtime_session::{
     build_child_init_data, load_device_table, load_runtime_session_for_queue_item,
     validate_runtime_platform_supported,
 };
+use crate::domain::devices::device_conf::{DeviceConfig, DeviceTable};
 use crate::domain::devices::device_runtime_event::DeviceRuntimeProgressPhase;
-use crate::domain::devices::device_conf::DeviceTable;
 use crate::domain::devices::device_schedule::AssignmentScheduleStatus;
 use crate::infrastructure::context::child_process_manager::{
     get_process_manager, set_child_process_exit_handler,
@@ -20,10 +20,12 @@ use crate::infrastructure::context::main_process::{
 use crate::infrastructure::core::{DeviceId, DispatchId, MessageId};
 use crate::infrastructure::ipc::chanel_server::IpcServer;
 use crate::infrastructure::ipc::message::{
-    CaptureControlMessage, ConnectionAction, ConnectionControlMessage, ConnectionStatusKind,
-    IpcMessage, MessagePayload, MessageType, ProcessAction, ProcessControlMessage,
-    RuntimeDispatchPhase, RuntimeQueueItem, RuntimeSessionSnapshot, SessionControlMessage,
+    CaptureControlMessage, ConfigUpdateMessage, ConnectionAction, ConnectionControlMessage,
+    ConnectionStatusKind, IpcMessage, MessagePayload, MessageType, ProcessAction,
+    ProcessControlMessage, RuntimeDispatchPhase, RuntimeQueueItem, RuntimeSessionSnapshot,
+    SessionControlMessage,
 };
+use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use crate::infrastructure::logging::log_trait::Log;
 use chrono::Local;
 use std::sync::Arc;
@@ -32,6 +34,8 @@ use tauri::{AppHandle, Manager};
 const EMULATOR_CONNECTION_READY_GRACE_SECS: u64 = 65;
 const DEVICE_CONNECTION_READY_TIMEOUT_SECS: u64 = 25;
 const DEVICE_CONNECTION_REUSE_WINDOW_MS: u128 = 5_000;
+const MANUAL_CONNECTED_REUSE_WINDOW_MS: u128 = 120_000;
+const MANUAL_CONNECTION_PROBE_TIMEOUT_SECS: u64 = 4;
 
 fn device_connection_timeout(device_table: &DeviceTable) -> std::time::Duration {
     if device_table.data.0.uses_emulator_transport() {
@@ -74,6 +78,59 @@ fn can_reuse_recent_connected_state(
     Ok(now_ms.saturating_sub(connected_at_ms) <= DEVICE_CONNECTION_REUSE_WINDOW_MS)
 }
 
+fn parse_runtime_timestamp_ms(value: &str) -> Option<u128> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(numeric) = trimmed.parse::<u128>() {
+        return Some(numeric);
+    }
+
+    chrono::DateTime::parse_from_rfc3339(trimmed)
+        .ok()
+        .and_then(|value| u128::try_from(value.timestamp_millis()).ok())
+}
+
+fn can_reuse_manual_connected_state(
+    app_handle: &AppHandle,
+    device_id: DeviceId,
+) -> Result<bool, String> {
+    let runtime_state = app_handle
+        .state::<MainProcessCtx>()
+        .snapshot_device_runtime_state(device_id)?;
+    if runtime_state.connection.status != ConnectionStatusKind::DeviceConnected {
+        return Ok(false);
+    }
+    if runtime_state.child_runtime_status != ChildRuntimeStatus::IpcReady {
+        return Ok(false);
+    }
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|value| value.as_millis())
+        .unwrap_or_default();
+
+    let progress_recent = runtime_state
+        .progress
+        .at
+        .as_deref()
+        .and_then(parse_runtime_timestamp_ms)
+        .map(|at| now_ms.saturating_sub(at) <= MANUAL_CONNECTED_REUSE_WINDOW_MS)
+        .unwrap_or(false);
+
+    let connection_recent = runtime_state
+        .connection
+        .at
+        .as_deref()
+        .and_then(parse_runtime_timestamp_ms)
+        .map(|at| now_ms.saturating_sub(at) <= MANUAL_CONNECTED_REUSE_WINDOW_MS)
+        .unwrap_or(false);
+
+    Ok(progress_recent || connection_recent)
+}
+
 async fn send_command_payload(device_id: DeviceId, payload: MessagePayload) -> MessageId {
     let msg = build_command_message(device_id, payload);
     let request_id = msg.id;
@@ -109,6 +166,36 @@ pub(super) async fn send_capture_control(device_id: DeviceId) -> MessageId {
         MessagePayload::CaptureControl(CaptureControlMessage),
     )
     .await
+}
+
+pub(crate) async fn send_device_config_update(
+    app_handle: &AppHandle,
+    device_id: DeviceId,
+    device_config: &DeviceConfig,
+) -> Result<(), String> {
+    let device_config_json =
+        serde_json::to_string(device_config).map_err(|error| error.to_string())?;
+
+    let _ = app_handle
+        .state::<MainProcessCtx>()
+        .set_device_name(device_id, device_config.device_name.clone());
+
+    if let Some(receiver) = get_child_log_receiver() {
+        receiver
+            .update_device_metadata(
+                &device_id,
+                device_config.device_name.clone(),
+                device_config.log_to_file,
+            )
+            .await;
+    }
+
+    let _ = send_command_payload(
+        device_id,
+        MessagePayload::ConfigUpdate(ConfigUpdateMessage { device_config_json }),
+    )
+    .await;
+    Ok(())
 }
 
 pub(super) async fn dispatch_queue_item_to_child(
@@ -369,7 +456,7 @@ pub(super) async fn ensure_device_ready(
     app_handle: &AppHandle,
     device_id: DeviceId,
 ) -> Result<(), String> {
-    prepare_device_connection(app_handle, device_id, true)
+    prepare_device_connection(app_handle, device_id, true, false)
         .await
         .map(|_| ())
 }
@@ -379,7 +466,10 @@ pub(super) async fn ensure_device_ready_for_manual(
     device_id: DeviceId,
 ) -> Result<(), String> {
     set_auto_dispatch_blocked(app_handle, device_id, false)?;
-    if let Err(error) = ensure_device_ready(app_handle, device_id).await {
+    if let Err(error) = prepare_device_connection(app_handle, device_id, true, true)
+        .await
+        .map(|_| ())
+    {
         if let Err(block_error) = block_device_auto_dispatch(
             app_handle,
             device_id,
@@ -407,7 +497,7 @@ pub(super) async fn ensure_device_capture_ready(
     app_handle: &AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
-    prepare_device_connection(app_handle, device_id, false)
+    prepare_device_connection(app_handle, device_id, false, false)
         .await
         .map(|device_table| device_table.data.0.device_name.clone())
 }
@@ -416,6 +506,7 @@ async fn prepare_device_connection(
     app_handle: &AppHandle,
     device_id: DeviceId,
     require_enabled: bool,
+    allow_manual_connected_reuse: bool,
 ) -> Result<DeviceTable, String> {
     let device_table = load_device_table(device_id).await?;
     let _ = app_handle
@@ -434,6 +525,33 @@ async fn prepare_device_connection(
         )
         .await;
         return Err(error);
+    }
+    if allow_manual_connected_reuse && can_reuse_manual_connected_state(app_handle, device_id)? {
+        match request_child_connection_action(
+            app_handle,
+            device_id,
+            ConnectionAction::Probe,
+            "正在快速检查设备连接",
+            Some(std::time::Duration::from_secs(
+                MANUAL_CONNECTION_PROBE_TIMEOUT_SECS,
+            )),
+        )
+        .await
+        {
+            Ok(()) => {
+                Log::info(&format!(
+                    "[ process ] 设备[{}]快速探测通过，复用现有连接",
+                    device_id
+                ));
+                return Ok(device_table);
+            }
+            Err(error) => {
+                Log::warn(&format!(
+                    "[ process ] 设备[{}]快速探测失败，将继续完整连接准备: {}",
+                    device_id, error
+                ));
+            }
+        }
     }
     if can_reuse_recent_connected_state(app_handle, device_id)? {
         Log::debug(&format!(

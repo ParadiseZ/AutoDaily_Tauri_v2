@@ -375,15 +375,7 @@ pub enum RuntimeEventMessage {
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
 pub struct ConfigUpdateMessage {
-    pub update: ConfigUpdateType,
-}
-
-#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
-pub enum ConfigUpdateType {
-    LogLevel(LogLevel),
-    LogToFile(bool),
-    AdbPath(Option<String>),
-    AdbServerAddr(Option<String>),
+    pub device_config_json: String,
 }
 
 #[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]

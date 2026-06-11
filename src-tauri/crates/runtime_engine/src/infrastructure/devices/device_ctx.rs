@@ -28,43 +28,63 @@ pub fn init_device_ctx(ctx: Arc<DeviceCtx>) -> InitResult<()> {
 pub struct DeviceCtx {
     //设备配置
     pub device_config: Arc<RwLock<DeviceConfig>>,
-    pub adapter: Arc<dyn DeviceAdapter>,
+    pub adapter: Arc<RwLock<Arc<dyn DeviceAdapter>>>,
 }
 
 impl DeviceCtx {
-    pub async fn new(
-        device_config: Arc<RwLock<DeviceConfig>>,
-        capture_method: CaptureMethod,
-        window_title: Option<String>,
-    ) -> DeviceCtx {
-        Log::debug("初始化设备上下文数据...");
-        let platform = device_config.read().await.platform.clone();
-        let adapter: Arc<dyn DeviceAdapter> = match platform {
+    fn build_adapter(config: &DeviceConfig) -> Arc<dyn DeviceAdapter> {
+        let (capture_method, window_title) = match &config.cap_method {
+            crate::domain::devices::device_conf::CapMethod::Window { title } => {
+                (CaptureMethod::Window, Some(title.clone()))
+            }
+            crate::domain::devices::device_conf::CapMethod::Adb => (CaptureMethod::Adb, None),
+        };
+        match config.platform {
             DevicePlatform::Android => {
                 Arc::new(AndroidDeviceAdapter::new(capture_method, window_title))
             }
             DevicePlatform::Desktop => Arc::new(DesktopDeviceAdapter::new()),
-        };
+        }
+    }
+
+    pub async fn new(
+        device_config: Arc<RwLock<DeviceConfig>>,
+        _capture_method: CaptureMethod,
+        _window_title: Option<String>,
+    ) -> DeviceCtx {
+        Log::debug("初始化设备上下文数据...");
+        let config = device_config.read().await.clone();
+        let adapter = Self::build_adapter(&config);
         DeviceCtx {
             device_config,
-            adapter,
+            adapter: Arc::new(RwLock::new(adapter)),
         }
     }
 
     pub async fn valid_capture(&self) -> bool {
-        self.adapter.valid_capture().await
+        let adapter = self.adapter.read().await.clone();
+        adapter.valid_capture().await
     }
 
     pub async fn get_screenshot(&self) -> Option<RgbaImage> {
-        self.adapter.capture_screen().await
+        let adapter = self.adapter.read().await.clone();
+        adapter.capture_screen().await
     }
 
     pub async fn change_cap_method(&self, method: CaptureMethod) -> bool {
-        self.adapter.change_cap_method(method).await
+        let adapter = self.adapter.read().await.clone();
+        adapter.change_cap_method(method).await
+    }
+
+    pub async fn apply_device_config(&self, next_config: DeviceConfig) {
+        let adapter = Self::build_adapter(&next_config);
+        *self.device_config.write().await = next_config;
+        *self.adapter.write().await = adapter;
     }
 
     pub async fn click(&self, point: Point<u16>) -> Result<(), String> {
-        self.adapter.click(point).await
+        let adapter = self.adapter.read().await.clone();
+        adapter.click(point).await
     }
 
     pub async fn swipe(
@@ -73,22 +93,27 @@ impl DeviceCtx {
         to: Point<u16>,
         duration: u64,
     ) -> Result<(), String> {
-        self.adapter.swipe(from, to, duration).await
+        let adapter = self.adapter.read().await.clone();
+        adapter.swipe(from, to, duration).await
     }
 
     pub async fn reboot(&self) -> Result<(), String> {
-        self.adapter.reboot().await
+        let adapter = self.adapter.read().await.clone();
+        adapter.reboot().await
     }
 
     pub async fn launch_app(&self, pkg_name: &str, activity_name: &str) -> Result<(), String> {
-        self.adapter.launch_app(pkg_name, activity_name).await
+        let adapter = self.adapter.read().await.clone();
+        adapter.launch_app(pkg_name, activity_name).await
     }
 
     pub async fn stop_app(&self, pkg_name: &str) -> Result<(), String> {
-        self.adapter.stop_app(pkg_name).await
+        let adapter = self.adapter.read().await.clone();
+        adapter.stop_app(pkg_name).await
     }
 
     pub async fn back(&self) -> Result<(), String> {
-        self.adapter.back().await
+        let adapter = self.adapter.read().await.clone();
+        adapter.back().await
     }
 }

@@ -304,6 +304,8 @@ impl ScriptScheduler {
                     None,
                     Some(e),
                 );
+                Log::warn("[ scheduler ] 当前脚本执行失败，保留剩余队列继续调度");
+                return self.queue.read().await.len() > 0;
             }
         }
 

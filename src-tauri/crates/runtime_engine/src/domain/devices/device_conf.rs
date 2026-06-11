@@ -25,7 +25,7 @@ impl Default for DeviceTable {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceConfig {
@@ -55,8 +55,10 @@ pub struct DeviceConfig {
     // 核心
     pub cores: Vec<u8>,
     // 日志级别
+    #[serde(default = "default_log_level")]
     pub log_level: LogLevel,
     // 日志是否写入文件（禁用时仅输出到前端）
+    #[serde(default = "default_log_to_file")]
     pub log_to_file: bool,
 
     // 截图方式
@@ -119,7 +121,7 @@ pub enum TimeoutNotifyChannel {
     Email,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, ts_rs::TS)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
 #[ts(export)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum CapMethod {
@@ -201,6 +203,14 @@ fn default_startup_delay_secs() -> u32 {
 
 fn default_adb_server_connect() -> Option<SocketAddrV4> {
     "127.0.0.1:5037".parse().ok()
+}
+
+fn default_log_level() -> LogLevel {
+    LogLevel::Off
+}
+
+fn default_log_to_file() -> bool {
+    true
 }
 
 impl DeviceConfig {

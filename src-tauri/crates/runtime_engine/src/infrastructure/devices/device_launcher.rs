@@ -144,7 +144,7 @@ pub async fn ensure_device_connection_with_progress(
     ));
     on_status(
         ConnectionStatusKind::ShellProbeChecking,
-        "正在预探测现有 ADB 连接（第 1 次，已等待 0 秒）".to_string(),
+        "尝试连接设备...）".to_string(),
     );
     let initial_error = match probe_device_config_connection_with_timeout(
         config,
@@ -168,7 +168,7 @@ pub async fn ensure_device_connection_with_progress(
     on_status(
         ConnectionStatusKind::ShellProbeChecking,
         format!(
-            "现有 ADB 连接未就绪（第 1 次，已等待 0 秒）：{}",
+            "连接设备失败：{}",
             initial_error
         ),
     );
@@ -265,7 +265,7 @@ async fn wait_for_connection_ready_with_progress(
         on_status(
             ConnectionStatusKind::ShellProbeChecking,
             format!(
-                "正在执行 ADB shell 探测（{}，第 {} 次，已等待 {} 秒）",
+                "正在尝试连接设备（{}，第 {} 次，已等待 {} 秒）",
                 probe_context, attempt, elapsed_secs
             ),
         );
@@ -296,7 +296,7 @@ async fn wait_for_connection_ready_with_progress(
         on_status(
             ConnectionStatusKind::ShellProbeChecking,
             format!(
-                "ADB shell 探测未就绪（{}，第 {} 次，已等待 {} 秒）：{}",
+                "连接设备失败（{}，第 {} 次，已等待 {} 秒）：{}",
                 probe_context, attempt, elapsed_secs, last_error
             ),
         );

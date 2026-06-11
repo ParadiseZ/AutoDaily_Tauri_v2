@@ -328,17 +328,17 @@ pub async fn insert_assignment_schedule_batch(
     Ok(records)
 }
 
-pub async fn reactivate_stopped_planner_schedules_for_device(
+pub async fn reactivate_retryable_planner_schedules_for_device(
     device_id: DeviceId,
     day_prefix: String,
     message: String,
 ) -> Result<u64, String> {
     let result = sqlx::query(&format!(
         "UPDATE {}
-         SET status = ?, completed_at = NULL, message = ?
+         SET status = ?, started_at = NULL, completed_at = NULL, message = ?
          WHERE device_id = ?
            AND trigger_source = 'planner'
-           AND status = 'stopped'
+           AND status IN ('stopped', 'failed')
            AND created_at LIKE ?",
         ASSIGNMENT_SCHEDULE_TABLE
     ))

@@ -1,5 +1,8 @@
 use crate::app::app_error::AppResult;
+use crate::constant::table_name::DEVICE_TABLE;
 use crate::constant::sys_conf_path::{APP_STORE, LOG_CONFIG_KEY};
+use crate::domain::devices::device_conf::DeviceTable;
+use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::core::DeviceId;
 use crate::infrastructure::logging::config::LogMain;
@@ -7,6 +10,8 @@ use crate::infrastructure::logging::log_cleaner::LogCleaner;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::logger::LOG_DIR;
 use crate::infrastructure::logging::LogLevel;
+use crate::api::infrastructure::process_api::send_device_config_update;
+use crate::infrastructure::context::child_process_manager::get_process_manager;
 use tauri_plugin_store::StoreExt;
 
 /// 持久化日志配置到 store
@@ -88,11 +93,37 @@ pub async fn update_child_log_level_app(
     device_id: DeviceId,
     log_level: &LogLevel,
 ) -> AppResult<()> {
-    // TODO: 第二阶段 - 通过 IPC 发送 ConfigUpdate 消息到子进程
-    // 当前先记录日志，IPC 实现将在子进程功能完成时补充
-    Log::info(&format!(
-        "[ log ] 子进程[{}]日志级别更新为: {} (IPC发送待第二阶段实现)",
-        device_id, log_level
-    ));
+    let app_handle = get_app_handle();
+    let Some(mut current) =
+        DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string())
+            .await
+            .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
+                detail: "读取设备日志级别配置".to_string(),
+                e: error,
+            })?
+    else {
+        return Err(crate::app::app_error::AppError::SetConfigFailed {
+            detail: "读取设备日志级别配置".to_string(),
+            e: format!("设备[{}]不存在", device_id),
+        });
+    };
+    current.data.0.log_level = log_level.clone();
+    DbRepo::upsert_id_data(DEVICE_TABLE, &device_id.to_string(), &current.data)
+        .await
+        .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
+            detail: "写入设备日志级别配置".to_string(),
+            e: error,
+        })?;
+    if let Some(manager) = get_process_manager() {
+        if manager.is_running(&device_id).await {
+            send_device_config_update(&app_handle, device_id, &current.data.0)
+                .await
+                .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
+                    detail: "同步设备日志级别到子进程".to_string(),
+                    e: error,
+                })?;
+        }
+    }
+    Log::info(&format!("[ log ] 子进程[{}]日志级别已更新为: {}", device_id, log_level));
     Ok(())
 }

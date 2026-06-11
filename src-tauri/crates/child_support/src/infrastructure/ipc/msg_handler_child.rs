@@ -4,10 +4,9 @@ use crate::infrastructure::context::child_process_sec::{
 };
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::ipc::message::{
-    CaptureControlMessage, ConfigUpdateMessage, ConfigUpdateType, ConnectionAction,
-    ConnectionControlMessage, ConnectionStatusKind, IpcMessage, MessagePayload, ProcessAction,
-    ProcessControlMessage, RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus,
-    SessionControlMessage,
+    CaptureControlMessage, ConfigUpdateMessage, ConnectionAction, ConnectionControlMessage,
+    ConnectionStatusKind, IpcMessage, MessagePayload, ProcessAction, ProcessControlMessage,
+    RuntimeLifecyclePhase, RuntimeProgressPhase, RuntimeScheduleStatus, SessionControlMessage,
 };
 use crate::infrastructure::ipc::runtime_reporter::{
     emit_capture_event, emit_connection_event, emit_lifecycle_event_now,
@@ -18,9 +17,10 @@ use crate::infrastructure::session::runtime_session::{
     clear_runtime_session, replace_runtime_session,
 };
 use image::DynamicImage;
-use runtime_engine::domain::devices::device_conf::DevicePlatform;
+use runtime_engine::domain::devices::device_conf::{DeviceConfig, DevicePlatform};
 use runtime_engine::infrastructure::devices::device_launcher::{
     ensure_device_connection_with_progress, probe_device_config_connection_with_timeout,
+    resolve_runtime_connect_config,
 };
 use std::sync::atomic::Ordering;
 use vision_core::infrastructure::image::load_image::dynamic_image_to_base64;
@@ -42,7 +42,7 @@ pub async fn handle_main_message(msg: IpcMessage) {
             handle_capture_control(msg.id, control).await;
         }
         MessagePayload::ConfigUpdate(config) => {
-            handle_config_update(config);
+            handle_config_update(config).await;
         }
         _ => {
             Log::warn(&format!(
@@ -309,34 +309,40 @@ async fn handle_session_control(control: SessionControlMessage) {
     }
 }
 
-fn handle_config_update(config: ConfigUpdateMessage) {
-    match config.update {
-        ConfigUpdateType::LogLevel(level) => {
-            if let Some(client) = get_ipc_client() {
-                let level_u8 = level.clone() as u8;
-                client.log_level.store(level_u8, Ordering::Relaxed);
-                Log::info(&format!("[ child ] 日志级别已更新为: {}", level));
+async fn handle_config_update(config: ConfigUpdateMessage) {
+    let next_config = match serde_json::from_str::<DeviceConfig>(&config.device_config_json) {
+        Ok(config) => config,
+        Err(error) => {
+            Log::error(&format!("[ child ] 设备配置热更新反序列化失败: {}", error));
+            return;
+        }
+    };
+
+    if let Some(client) = get_ipc_client() {
+        client
+            .log_level
+            .store(next_config.log_level.clone() as u8, Ordering::Relaxed);
+    }
+
+    get_device_ctx().apply_device_config(next_config.clone()).await;
+
+    if matches!(next_config.platform, DevicePlatform::Android) {
+        match resolve_runtime_connect_config(&next_config) {
+            Ok(runtime_connect) => {
+                ADBCtx::new(runtime_connect).await;
+            }
+            Err(error) => {
+                Log::warn(&format!("[ child ] 设备配置已更新，但 ADB 连接配置未生效: {}", error));
             }
         }
-        ConfigUpdateType::LogToFile(enabled) => {
-            Log::info(&format!("[ child ] 日志写入文件: {}", enabled));
-            // log_to_file 由主进程的 ChildLogReceiver 控制，不需要子进程处理
-        }
-        ConfigUpdateType::AdbPath(path) => {
-            Log::info(&format!("[ child ] ADB路径已更新: {:?}", path));
-            tokio::spawn(async move {
-                let adb_ctx = crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx();
-                let mut config = adb_ctx.adb_executor.adb_config.lock().await;
-                config.update_adb_path(path);
-            });
-        }
-        ConfigUpdateType::AdbServerAddr(addr) => {
-            Log::info(&format!("[ child ] ADB服务地址已更新: {:?}", addr));
-            tokio::spawn(async move {
-                let adb_ctx = crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx();
-                let mut config = adb_ctx.adb_executor.adb_config.lock().await;
-                config.update_server_addr(addr);
-            });
-        }
     }
+
+    Log::info(&format!(
+        "[ child ] 设备配置已热更新: name={}, transport={:?}, capture={:?}, log_level={}, log_to_file={}",
+        next_config.device_name,
+        next_config.transport_kind,
+        next_config.cap_method,
+        next_config.log_level,
+        next_config.log_to_file
+    ));
 }
