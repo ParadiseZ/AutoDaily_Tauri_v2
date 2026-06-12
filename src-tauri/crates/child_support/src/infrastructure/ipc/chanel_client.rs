@@ -77,7 +77,7 @@ impl IpcClient {
         *self.ensure_sender.lock().await = Some(cmd_tx);
 
         // 3. 启动读写任务
-        let send_task = Self::send_loop(log_rx, cmd_rx, writer);
+        let send_task = Self::send_loop(cmd_rx, log_rx, writer);
         let recv_task = Self::recv_loop(reader);
 
         // 4. 等待任一任务结束（表示连接断开）
@@ -191,7 +191,7 @@ impl IpcClient {
     pub fn send_uncertain(&self, log: IpcMessage) {
         if let Ok(tx) = self.log_sender.try_lock() {
             if let Some(sender) = tx.as_ref() {
-                let _ = sender.send(log); // 失败就丢弃
+                let _ = sender.try_send(log);
             }
         }
     }

@@ -440,22 +440,27 @@ impl ADBExecutor {
 
             ADBCommand::Capture(sender) => {
                 if let Some(device) = self.device.as_mut() {
-                    if let Ok(data) = device.framebuffer_inner() {
-                        if let Ok(_) = sender.send(data) {
-                            Ok(ADBCommandResult::Success)
-                        } else {
-                            Err(AdbError::SendPictureFailed)
+                    match device.framebuffer_inner() {
+                        Ok(data) => {
+                            if sender.send(Ok(data)).is_ok() {
+                                Ok(ADBCommandResult::Success)
+                            } else {
+                                Err(AdbError::SendPictureFailed)
+                            }
                         }
-                    } else {
-                        Err(AdbError::ExecuteShellFailed {
-                            cmd: "framebuffer_inner".to_string(),
-                            e: "".to_string(),
-                        })
+                        Err(error) => {
+                            let message = format!("framebuffer_inner执行失败: {}", error);
+                            let _ = sender.send(Err(message.clone()));
+                            Err(AdbError::ExecuteShellFailed {
+                                cmd: "framebuffer_inner".to_string(),
+                                e: error.to_string(),
+                            })
+                        }
                     }
                 } else {
-                    Err(AdbError::ConfigErr {
-                        detail: "Device not connected".to_string(),
-                    })
+                    let message = "Device not connected".to_string();
+                    let _ = sender.send(Err(message.clone()));
+                    Err(AdbError::ConfigErr { detail: message })
                 }
             }
 

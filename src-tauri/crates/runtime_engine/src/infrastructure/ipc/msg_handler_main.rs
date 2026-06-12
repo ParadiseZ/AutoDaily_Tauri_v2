@@ -8,6 +8,7 @@ use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::main_process::{
     DeviceCaptureResult, DeviceDispatchSignal, MainProcessCtx,
 };
+use crate::infrastructure::db::get_pool;
 use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::{RuntimeEventMessage, TimeoutAction};

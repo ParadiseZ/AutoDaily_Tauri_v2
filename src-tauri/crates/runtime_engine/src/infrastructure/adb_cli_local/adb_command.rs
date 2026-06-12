@@ -69,7 +69,7 @@ pub enum ADBCommand {
     SwipeWithDuration(Point<u16>, Point<u16>, u64),
     Reboot,
     StartActivity(String, String),
-    Capture(crossbeam_channel::Sender<RgbaImage>),
+    Capture(crossbeam_channel::Sender<Result<RgbaImage, String>>),
     StopApp(String),
     InputText(String),
     Back,

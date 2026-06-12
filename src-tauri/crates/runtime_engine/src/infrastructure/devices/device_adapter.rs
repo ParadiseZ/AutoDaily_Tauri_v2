@@ -1,7 +1,7 @@
 use crate::domain::devices::device_conf::DevicePlatform;
 use crate::domain::scripts::point::Point;
 use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
-use crate::infrastructure::adb_cli_local::adb_context::get_adb_ctx;
+use crate::infrastructure::adb_cli_local::adb_context::try_get_adb_ctx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::capture::window_cap::WindowInfo;
 use crate::infrastructure::logging::log_trait::Log;
@@ -36,8 +36,8 @@ pub trait DeviceAdapter: Send + Sync {
 
 pub struct AndroidDeviceAdapter {
     capture_method: Arc<AtomicU8>,
-    cap_tx: crossbeam_channel::Sender<RgbaImage>,
-    cap_rx: crossbeam_channel::Receiver<RgbaImage>,
+    cap_tx: crossbeam_channel::Sender<Result<RgbaImage, String>>,
+    cap_rx: crossbeam_channel::Receiver<Result<RgbaImage, String>>,
     window_info: Arc<WindowInfo>,
 }
 
@@ -53,19 +53,8 @@ impl AndroidDeviceAdapter {
     }
 
     async fn send_await_result_command(&self, command: ADBCommand) -> Result<(), String> {
-        let (tx, rx) = crossbeam_channel::bounded(1);
-        get_adb_ctx().send_adb_cmd(&ADBCommand::AwaitResult(Box::new(command), tx))?;
-        loop {
-            match rx.try_recv() {
-                Ok(result) => return result,
-                Err(crossbeam_channel::TryRecvError::Disconnected) => {
-                    return Err("设备命令执行通道已关闭".to_string())
-                }
-                Err(crossbeam_channel::TryRecvError::Empty) => {
-                    tokio::time::sleep(Duration::from_millis(20)).await;
-                }
-            }
-        }
+        let adb_ctx = try_get_adb_ctx()?;
+        adb_ctx.send_adb_cmd_await(command).await
     }
 }
 
@@ -88,7 +77,13 @@ impl DeviceAdapter for AndroidDeviceAdapter {
             }
             2 => {
                 Log::debug("验证adb截图设置...");
-                get_adb_ctx().adb_executor.validate_config()
+                match try_get_adb_ctx() {
+                    Ok(adb_ctx) => adb_ctx.adb_executor.validate_config(),
+                    Err(error) => {
+                        Log::error(&format!("验证ADB截图设置失败：{}", error));
+                        false
+                    }
+                }
             }
             _ => {
                 Log::error("不支持的截图设置！");
@@ -116,16 +111,39 @@ impl DeviceAdapter for AndroidDeviceAdapter {
             }
             2 => {
                 Log::debug("ADB方式截图...");
-                if let Err(error) = get_adb_ctx().send_adb_cmd(&ADBCommand::Capture(self.cap_tx.clone())) {
+                let adb_ctx = match try_get_adb_ctx() {
+                    Ok(adb_ctx) => adb_ctx,
+                    Err(error) => {
+                        Log::error(&format!("截图失败：{}", error));
+                        return None;
+                    }
+                };
+                if let Err(error) = adb_ctx.send_adb_cmd(&ADBCommand::Capture(self.cap_tx.clone())) {
                     Log::error(&format!("截图失败：{}", error));
                     return None;
                 }
                 Log::debug("等待获取图像数据...");
-                if let Ok(img) = self.cap_rx.recv() {
-                    Some(img)
-                } else {
-                    Log::error("截图失败：截图数据接收错误！");
-                    None
+                let cap_rx = self.cap_rx.clone();
+                match tokio::task::spawn_blocking(move || cap_rx.recv_timeout(Duration::from_secs(5)))
+                    .await
+                {
+                    Ok(Ok(Ok(img))) => Some(img),
+                    Ok(Ok(Err(error))) => {
+                        Log::error(&format!("截图失败：{}", error));
+                        None
+                    }
+                    Ok(Err(crossbeam_channel::RecvTimeoutError::Timeout)) => {
+                        Log::error("截图失败：等待截图结果超时！");
+                        None
+                    }
+                    Ok(Err(crossbeam_channel::RecvTimeoutError::Disconnected)) => {
+                        Log::error("截图失败：截图数据通道已关闭！");
+                        None
+                    }
+                    Err(error) => {
+                        Log::error(&format!("截图失败：等待截图任务异常：{}", error));
+                        None
+                    }
                 }
             }
             _ => {

@@ -9,10 +9,17 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 
 static ADB_CONTEXT: OnceLock<ADBCtx> = OnceLock::new();
-const ADB_COMMAND_SEND_TIMEOUT_MS: u64 = 100;
+const ADB_COMMAND_SEND_TIMEOUT_MS: u64 = 5000;
+const ADB_COMMAND_RESULT_TIMEOUT_MS: u64 = 5000;
 
 pub fn get_adb_ctx() -> &'static ADBCtx {
-    ADB_CONTEXT.get().unwrap()
+    try_get_adb_ctx().expect("ADB context not initialized")
+}
+
+pub fn try_get_adb_ctx() -> Result<&'static ADBCtx, String> {
+    ADB_CONTEXT
+        .get()
+        .ok_or_else(|| "ADB上下文未初始化，请先完成设备连接准备".to_string())
 }
 
 impl std::fmt::Display for ADBCtx {
@@ -75,8 +82,9 @@ impl ADBCtx {
             .map_err(|error| {
                 let message = match error {
                     crossbeam_channel::SendTimeoutError::Timeout(_) => format!(
-                        "ADB命令队列繁忙，发送命令[{}]超时，可能存在卡住的设备操作",
-                        adb_command
+                        "ADB命令队列繁忙，发送命令[{}]超时{}ms，可能存在卡住的设备操作",
+                        adb_command,
+                        ADB_COMMAND_SEND_TIMEOUT_MS
                     ),
                     crossbeam_channel::SendTimeoutError::Disconnected(_) => {
                         format!("ADB命令通道已关闭，无法发送命令[{}]", adb_command)
@@ -85,6 +93,23 @@ impl ADBCtx {
                 Log::error(&message);
                 message
             })
+    }
+
+    pub async fn send_adb_cmd_await(&self, adb_command: ADBCommand) -> Result<(), String> {
+        let (tx, rx) = crossbeam_channel::bounded(1);
+        self.send_adb_cmd(&ADBCommand::AwaitResult(Box::new(adb_command), tx))?;
+
+        tokio::task::spawn_blocking(move || {
+            rx.recv_timeout(Duration::from_millis(ADB_COMMAND_RESULT_TIMEOUT_MS))
+        })
+        .await
+        .map_err(|error| format!("等待ADB命令执行结果任务异常: {}", error))?
+        .map_err(|_| {
+            format!(
+                "等待ADB命令执行结果超时{}ms，可能存在卡住的设备操作",
+                ADB_COMMAND_RESULT_TIMEOUT_MS
+            )
+        })?
     }
 
     pub fn send_adb_loop_cmd(&self, adb_command: &ADBCommand) -> Result<(), String> {

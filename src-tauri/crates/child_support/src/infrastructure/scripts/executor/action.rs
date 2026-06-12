@@ -229,7 +229,10 @@ impl ScriptExecutor {
             return Ok(Some(timeout_flow));
         }
 
-        get_adb_ctx()
+        try_get_adb_ctx()
+            .map_err(|error| {
+                Self::execute_error("sequence.prepare", format!("获取ADB上下文失败: {}", error))
+            })?
             .send_adb_cmd(&ADBCommand::Sequence(commands))
             .map_err(|error| {
                 Self::execute_error(
