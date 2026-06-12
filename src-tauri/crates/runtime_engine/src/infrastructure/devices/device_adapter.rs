@@ -54,7 +54,7 @@ impl AndroidDeviceAdapter {
 
     async fn send_await_result_command(&self, command: ADBCommand) -> Result<(), String> {
         let (tx, rx) = crossbeam_channel::bounded(1);
-        get_adb_ctx().send_adb_cmd(&ADBCommand::AwaitResult(Box::new(command), tx));
+        get_adb_ctx().send_adb_cmd(&ADBCommand::AwaitResult(Box::new(command), tx))?;
         loop {
             match rx.try_recv() {
                 Ok(result) => return result,
@@ -116,7 +116,10 @@ impl DeviceAdapter for AndroidDeviceAdapter {
             }
             2 => {
                 Log::debug("ADB方式截图...");
-                get_adb_ctx().send_adb_cmd(&ADBCommand::Capture(self.cap_tx.clone()));
+                if let Err(error) = get_adb_ctx().send_adb_cmd(&ADBCommand::Capture(self.cap_tx.clone())) {
+                    Log::error(&format!("截图失败：{}", error));
+                    return None;
+                }
                 Log::debug("等待获取图像数据...");
                 if let Ok(img) = self.cap_rx.recv() {
                     Some(img)

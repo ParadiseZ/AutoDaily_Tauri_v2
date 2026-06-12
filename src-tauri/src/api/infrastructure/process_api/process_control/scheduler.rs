@@ -1,4 +1,4 @@
-use super::events::{emit_assignment_schedule_changed, emit_device_progress_status};
+use super::events::{device_log_label, emit_assignment_schedule_changed, emit_device_progress_status};
 use super::runtime::{dispatch_queue_item_to_child, dispatch_session_to_child, ensure_device_ready};
 use super::state::{
     ensure_device_dispatch_state, mark_active_dispatch, pop_debug_session, set_auto_dispatch_blocked,
@@ -351,9 +351,10 @@ async fn reevaluate_all_auto_dispatches(app_handle: &AppHandle) -> Result<usize,
         match reevaluate_device_auto_dispatch(app_handle, device.id).await {
             Ok(count) => total += count,
             Err(error) => {
+                let device_label = device_log_label(app_handle, device.id);
                 Log::error(&format!(
                     "[ process ] 设备[{}]自动派发失败，继续处理其它设备: {}",
-                    device.id, error
+                    device_label, error
                 ));
             }
         }
@@ -371,9 +372,10 @@ pub(super) async fn sync_device_runtime_session_internal(
     if device.data.0.auto_start && !state.auto_dispatch_blocked {
         created = ensure_planner_batch_for_device(app_handle, device_id, true).await?;
     }
+    let device_label = device_log_label(app_handle, device_id);
     Ok(format!(
         "已同步设备[{}]运行会话，新增/补齐 planner 记录 {} 条，不触发自动派发",
-        device_id, created
+        device_label, created
     ))
 }
 

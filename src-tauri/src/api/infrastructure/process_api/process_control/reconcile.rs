@@ -1,4 +1,4 @@
-use super::events::emit_runtime_reconcile_event;
+use super::events::{device_log_label, emit_runtime_reconcile_event};
 use super::runtime::{
     request_child_connection_action, restart_device_runtime_internal,
     send_device_config_update, shutdown_device_runtime_internal, spawn_device_runtime_internal,
@@ -223,9 +223,10 @@ async fn reconcile_saved_device_runtime(
 
     if !previous_config.auto_start && current_config.auto_start {
         let created = reevaluate_device_auto_dispatch(app_handle, current.id).await?;
+        let device_label = device_log_label(app_handle, current.id);
         messages.push(format!(
             "设备[{}]已重新评估自动调度，新增/唤醒 {} 项",
-            current.id, created
+            device_label, created
         ));
         action = Some(DeviceRuntimeReconcileAction::Syncing);
     }
@@ -262,16 +263,18 @@ async fn run_runtime_reconcile_job(
                 {
                     messages.push(message);
                 } else {
-                    messages.push(format!("设备[{}]当前未在线，跳过运行会话同步", device_id));
+                    let device_label = device_log_label(app_handle, device_id);
+                    messages.push(format!("设备[{}]当前未在线，跳过运行会话同步", device_label));
                 }
             }
 
             if reevaluate_dispatch {
                 action = Some(DeviceRuntimeReconcileAction::Syncing);
                 let created = reevaluate_device_auto_dispatch(app_handle, device_id).await?;
+                let device_label = device_log_label(app_handle, device_id);
                 messages.push(format!(
                     "设备[{}]已重新评估自动调度，新增/唤醒 {} 项",
-                    device_id, created
+                    device_label, created
                 ));
             }
 
@@ -358,9 +361,10 @@ pub(crate) fn spawn_runtime_reconcile_loop(
                         );
                     }
                     Err(error) => {
+                        let device_label = device_log_label(&app_handle, device_id);
                         Log::error(&format!(
                             "[ process ] 设备[{}] runtime 协调任务失败 type={} error={}",
-                            device_id,
+                            device_label,
                             job_for_event.job_type(),
                             error
                         ));

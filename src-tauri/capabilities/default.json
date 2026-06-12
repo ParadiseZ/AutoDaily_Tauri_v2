@@ -16,7 +16,7 @@
     "core:window:create",
     "core:window:show",
     "core:window:hide",
-    "core:window:close"
+    "core:window:allow-close"
   ],
   "capabilities": []
 }

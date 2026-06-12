@@ -61,6 +61,7 @@
         @ensure-script-tasks="handleEnsureScriptTasks"
         @open-assignment-settings="handleOpenAssignmentSettings"
         @remove-assignment="handleRemoveAssignment"
+        @move-assignment="handleMoveAssignment"
         @run-target="handleRunTarget"
         @clear-schedules="handleClearSchedules"
         @start="handleStartDevice"
@@ -104,6 +105,7 @@ import { formatTemplateWindow } from '@/utils/presenters';
 import { getRunTargetDetails } from '@/utils/runTarget';
 import { toErrorText } from '@/utils/api';
 import { showToast } from '@/utils/toast';
+import { activeRuntimeProgressPhases } from '@/utils/deviceRuntime';
 import {
   validateDeviceConnectionBootstrapConfig,
   validateDeviceQueueRecoveryForDevice,
@@ -175,6 +177,28 @@ const getTaskConnectionBadge = (deviceId: string) => {
   return { label: '未连接', tone: 'danger' as const };
 };
 
+const canAutoProbeDevice = (deviceId: string) => {
+  if (deviceStore.isDeviceBusy(deviceId)) {
+    return false;
+  }
+
+  const status = deviceStore.getDeviceStatus(deviceId);
+  if (status.kind !== 'idle' && status.kind !== 'unknown') {
+    return false;
+  }
+
+  if (deviceStore.getDeviceConnectionStatus(deviceId).kind === 'checking') {
+    return false;
+  }
+
+  const latestPhase = runtimeStore.getLatestProgress(deviceId)?.phase ?? null;
+  if (latestPhase && activeRuntimeProgressPhases.has(latestPhase)) {
+    return false;
+  }
+
+  return true;
+};
+
 const loadPageData = async () => {
   await Promise.all([deviceStore.refreshAll(), scriptStore.loadScripts()]);
   await taskStore.hydrateForDevices(deviceIds.value);
@@ -184,7 +208,10 @@ const loadPageData = async () => {
   if (!deviceStore.selectedDeviceId && orderedDevices.value.length) {
     deviceStore.selectedDeviceId = orderedDevices.value[0].id;
   }
-  void deviceStore.probeEnabledDeviceConnections(deviceIds.value);
+  const probeTargets = deviceIds.value.filter((deviceId) => canAutoProbeDevice(deviceId));
+  if (probeTargets.length) {
+    void deviceStore.probeEnabledDeviceConnections(probeTargets);
+  }
 };
 
 const autoProbeActiveDevice = async () => {
@@ -192,14 +219,7 @@ const autoProbeActiveDevice = async () => {
   if (!deviceId || document.visibilityState === 'hidden') {
     return;
   }
-  if (deviceStore.isDeviceBusy(deviceId)) {
-    return;
-  }
-  const runtimeStatus = deviceStore.getDeviceStatus(deviceId);
-  if (runtimeStatus.kind !== 'running' && runtimeStatus.kind !== 'paused' && runtimeStatus.kind !== 'unknown') {
-    return;
-  }
-  if (deviceStore.getDeviceConnectionStatus(deviceId).kind === 'checking') {
+  if (!canAutoProbeDevice(deviceId)) {
     return;
   }
 
@@ -273,6 +293,32 @@ const handleRemoveAssignment = async (deviceId: string, assignment: AssignmentRe
     showToast('脚本已从队列移除', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '移除失败', 'error');
+  }
+};
+
+const handleMoveAssignment = async (deviceId: string, assignmentId: string, direction: 'up' | 'down') => {
+  const currentAssignments = [...(taskStore.assignmentsByDevice[deviceId] ?? [])].sort(
+    (left, right) => left.index - right.index || left.id.localeCompare(right.id),
+  );
+  const currentIndex = currentAssignments.findIndex((assignment) => assignment.id === assignmentId);
+  if (currentIndex < 0) {
+    return;
+  }
+
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= currentAssignments.length) {
+    return;
+  }
+
+  const reordered = [...currentAssignments];
+  const [moved] = reordered.splice(currentIndex, 1);
+  reordered.splice(targetIndex, 0, moved);
+
+  try {
+    await taskStore.reorderAssignments(deviceId, reordered.map((assignment) => assignment.id));
+    void taskStore.loadSchedules(deviceId);
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '排序失败', 'error');
   }
 };
 

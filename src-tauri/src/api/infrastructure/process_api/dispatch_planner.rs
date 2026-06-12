@@ -88,6 +88,42 @@ fn active_schedule_status(status: &str) -> bool {
     )
 }
 
+async fn load_sync_target_planner_batch_ids(device_id: DeviceId) -> Result<Vec<String>, String> {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let rows = sqlx::query_as::<_, (String, String, i64)>(&format!(
+        "SELECT batch_id,
+                MAX(created_at) AS latest_created_at,
+                SUM(CASE WHEN status IN ('planned', 'dispatched', 'running', 'stopped') THEN 1 ELSE 0 END) AS live_count
+         FROM {}
+         WHERE device_id = ?
+           AND trigger_source = 'planner'
+           AND created_at LIKE ?
+         GROUP BY batch_id
+         ORDER BY latest_created_at DESC",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(device_id.to_string())
+    .bind(format!("{}%", today))
+    .fetch_all(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    if rows.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let active_batches = rows
+        .iter()
+        .filter(|(_, _, live_count)| *live_count > 0)
+        .map(|(batch_id, _, _)| batch_id.clone())
+        .collect::<Vec<_>>();
+    if !active_batches.is_empty() {
+        return Ok(active_batches);
+    }
+
+    Ok(vec![rows[0].0.clone()])
+}
+
 async fn load_latest_stopped_carryover_scopes(
     device_id: DeviceId,
     trigger_source: AssignmentTriggerSource,
@@ -205,7 +241,7 @@ pub async fn has_complete_assignment_schedule_batch(
         batches.entry(row.batch_id).or_default().insert(key);
     }
 
-    Ok(batches.values().any(|batch| *batch == expected))
+    Ok(batches.values().any(|batch| expected.is_subset(batch)))
 }
 
 pub async fn insert_assignment_schedule(
@@ -385,21 +421,7 @@ pub async fn sync_active_planner_schedule_order_indices(
         return Ok(0);
     }
 
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let batch_ids = sqlx::query_scalar::<_, String>(&format!(
-        "SELECT DISTINCT batch_id
-         FROM {}
-         WHERE device_id = ?
-           AND trigger_source = 'planner'
-           AND created_at LIKE ?
-           AND status IN ('planned', 'dispatched', 'running', 'stopped')",
-        ASSIGNMENT_SCHEDULE_TABLE
-    ))
-    .bind(device_id.to_string())
-    .bind(format!("{}%", today))
-    .fetch_all(get_pool())
-    .await
-    .map_err(|error| error.to_string())?;
+    let batch_ids = load_sync_target_planner_batch_ids(device_id).await?;
 
     if batch_ids.is_empty() {
         return Ok(0);
@@ -482,21 +504,7 @@ pub async fn sync_active_planner_schedules_from_queue(
     items: &[RuntimeQueueItem],
     reason: &str,
 ) -> Result<u64, String> {
-    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let batch_ids = sqlx::query_scalar::<_, String>(&format!(
-        "SELECT DISTINCT batch_id
-         FROM {}
-         WHERE device_id = ?
-           AND trigger_source = 'planner'
-           AND created_at LIKE ?
-           AND status IN ('planned', 'dispatched', 'running', 'stopped')",
-        ASSIGNMENT_SCHEDULE_TABLE
-    ))
-    .bind(device_id.to_string())
-    .bind(format!("{}%", today))
-    .fetch_all(get_pool())
-    .await
-    .map_err(|error| error.to_string())?;
+    let batch_ids = load_sync_target_planner_batch_ids(device_id).await?;
 
     if batch_ids.is_empty() {
         return Ok(0);

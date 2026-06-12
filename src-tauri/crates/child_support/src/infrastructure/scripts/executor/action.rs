@@ -229,7 +229,14 @@ impl ScriptExecutor {
             return Ok(Some(timeout_flow));
         }
 
-        get_adb_ctx().send_adb_cmd(&ADBCommand::Sequence(commands));
+        get_adb_ctx()
+            .send_adb_cmd(&ADBCommand::Sequence(commands))
+            .map_err(|error| {
+                Self::execute_error(
+                    "sequence.prepare",
+                    format!("发送动作序列到设备失败: {}", error),
+                )
+            })?;
         Ok(Some(ControlFlow::Next))
     }
 

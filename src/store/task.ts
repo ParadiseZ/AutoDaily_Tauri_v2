@@ -122,6 +122,11 @@ export const useTaskStore = defineStore('task', () => {
         await loadAssignments(deviceId);
     };
 
+    const reorderAssignments = async (deviceId: string, assignmentIds: string[]) => {
+        await taskService.reorderAssignments(deviceId, assignmentIds);
+        await loadAssignments(deviceId);
+    };
+
     const detachAssignmentTemplate = async (assignment: AssignmentRecord) => {
         await updateAssignment({
             id: assignment.id,
@@ -177,6 +182,7 @@ export const useTaskStore = defineStore('task', () => {
         loadSchedules,
         loadTimeTemplates,
         removeAssignment,
+        reorderAssignments,
         saveTimeTemplate,
         schedulesByDevice,
         timeTemplates,

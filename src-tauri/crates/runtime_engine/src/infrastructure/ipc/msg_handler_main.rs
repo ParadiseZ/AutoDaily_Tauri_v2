@@ -11,7 +11,6 @@ use crate::infrastructure::context::main_process::{
 use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::{RuntimeEventMessage, TimeoutAction};
-use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use crate::infrastructure::logging::LogLevel;
 use crate::infrastructure::mail::{
@@ -162,10 +161,11 @@ pub async fn handle_child_message(msg: IpcMessage) {
             handle_runtime_event(device_id, event);
         }
         MessagePayload::Error(ref error) => {
-            Log::error(&format!(
-                "[ ipc ] 设备[{}]错误: [{}] {}",
-                device_label, error.code, error.message
-            ));
+            forward_child_runtime_log(
+                device_id,
+                LogLevel::Error,
+                format!("[ ipc ] 设备[{}]错误: [{}] {}", device_label, error.code, error.message),
+            );
             if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
                 let emit_data = serde_json::json!({
                     "deviceId": device_id.to_string(),
@@ -206,7 +206,6 @@ fn handle_runtime_event(
                         .map(|value| format!(",{}", value))
                         .unwrap_or_default()
                 );
-                Log::info(&log_line);
                 forward_child_runtime_log(device_id, LogLevel::Info, log_line);
                 let status = DeviceLifecycleStatus::from(lifecycle.phase.clone());
                 let _ = get_app_handle()
@@ -235,7 +234,6 @@ fn handle_runtime_event(
                     progress.phase,
                     format_progress_log_detail(progress.message.as_deref())
                 );
-                Log::info(&log_line);
                 forward_child_runtime_log(device_id, LogLevel::Info, log_line);
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()
@@ -333,16 +331,6 @@ fn handle_runtime_event(
                 let _ = main_window.emit("device-schedule", emit_data);
             }
             RuntimeEventMessage::Connection(connection) => {
-                Log::info(&format!(
-                    "[ ipc ] 设备[{}]连接状态: {:?}{}",
-                    device_label,
-                    connection.status,
-                    connection
-                        .message
-                        .as_deref()
-                        .map(|value| format!(", {}", value))
-                        .unwrap_or_default()
-                ));
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()
                     .set_device_connection_state(
@@ -448,7 +436,6 @@ fn handle_runtime_event(
                         .map(|value| format!(", {}", value))
                         .unwrap_or_default()
                 );
-                Log::info(&log_line);
                 forward_child_runtime_log(device_id, LogLevel::Info, log_line);
                 let _ = get_app_handle()
                     .state::<MainProcessCtx>()

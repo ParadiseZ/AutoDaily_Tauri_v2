@@ -113,6 +113,64 @@ fn assignment_scope_label(assignment: &DeviceScriptAssignment) -> String {
     )
 }
 
+async fn assignment_exists(assignment_id: AssignmentId) -> Result<bool, String> {
+    sqlx::query_scalar::<_, i64>(&format!(
+        "SELECT 1 FROM {} WHERE id = ? LIMIT 1",
+        ASSIGNMENT_TABLE
+    ))
+    .bind(assignment_id.to_string())
+    .fetch_optional(get_pool())
+    .await
+    .map_err(|e| e.to_string())
+    .map(|value| value.is_some())
+}
+
+async fn next_assignment_index(device_id: DeviceId) -> Result<u32, String> {
+    let next = sqlx::query_scalar::<_, i64>(&format!(
+        "SELECT COALESCE(MAX(`index`), -1) + 1 FROM {} WHERE device_id = ?",
+        ASSIGNMENT_TABLE
+    ))
+    .bind(device_id.to_string())
+    .fetch_one(get_pool())
+    .await
+    .map_err(|e| e.to_string())?;
+    Ok(next.max(0) as u32)
+}
+
+async fn compact_assignment_indices(device_id: DeviceId) -> Result<Vec<AssignmentId>, String> {
+    let rows = sqlx::query_as::<_, DeviceScriptAssignment>(&format!(
+        "SELECT id, device_id, script_id, time_template_id, account_data, `index`
+         FROM {}
+         WHERE device_id = ?
+         ORDER BY `index` ASC, id ASC",
+        ASSIGNMENT_TABLE
+    ))
+    .bind(device_id.to_string())
+    .fetch_all(get_pool())
+    .await
+    .map_err(|e| e.to_string())?;
+
+    let mut ordered_ids = Vec::with_capacity(rows.len());
+    for (next_index, row) in rows.into_iter().enumerate() {
+        ordered_ids.push(row.id);
+        let next_index = next_index as u32;
+        if row.index == next_index {
+            continue;
+        }
+        sqlx::query(&format!(
+            "UPDATE {} SET `index` = ? WHERE id = ?",
+            ASSIGNMENT_TABLE
+        ))
+        .bind(next_index)
+        .bind(row.id.to_string())
+        .execute(get_pool())
+        .await
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(ordered_ids)
+}
+
 // ========== 脚本分配（队列定义）==========
 
 /// 获取指定设备的所有脚本分配（按 index 排序）
@@ -120,6 +178,8 @@ fn assignment_scope_label(assignment: &DeviceScriptAssignment) -> String {
 pub async fn get_assignments_by_device_cmd(
     device_id: DeviceId,
 ) -> Result<Vec<DeviceScriptAssignment>, String> {
+    // 兼容历史脏数据：读取队列前先压缩重复/断裂索引，避免前端看到 5,5,5,6,7,8 这类序号。
+    compact_assignment_indices(device_id).await?;
     let pool = get_pool();
     let query = format!(
         "SELECT id, device_id, script_id, time_template_id, account_data, `index` FROM {} WHERE device_id = ? ORDER BY `index` ASC",
@@ -139,6 +199,12 @@ pub async fn save_assignment_cmd(
     assignment: DeviceScriptAssignment,
 ) -> Result<(), String> {
     let scope = assignment_scope_label(&assignment);
+    let is_existing = assignment_exists(assignment.id).await?;
+    let next_index = if is_existing {
+        assignment.index
+    } else {
+        next_assignment_index(assignment.device_id).await?
+    };
 
     validate_assignment_platform(assignment.device_id, assignment.script_id)
         .await
@@ -169,7 +235,7 @@ pub async fn save_assignment_cmd(
     .bind(assignment.script_id.to_string())
     .bind(assignment.time_template_id.map(|t| t.to_string()))
     .bind(&assignment.account_data)
-    .bind(assignment.index)
+    .bind(next_index)
     .execute(pool)
     .await
     .map_err(|error| {
@@ -180,6 +246,15 @@ pub async fn save_assignment_cmd(
         ));
         error
     })?;
+    let compacted_ids = compact_assignment_indices(assignment.device_id)
+        .await
+        .map_err(|error| {
+            Log::error(&format!(
+                "[调度] 保存队列分配后压缩索引失败 {}，错误={}",
+                scope, error
+            ));
+            error
+        })?;
     let current_window_queue = load_runtime_queue_for_current_window(assignment.device_id)
         .await
         .map_err(|error| {
@@ -202,7 +277,19 @@ pub async fn save_assignment_cmd(
         ));
         error
     })?;
-    if synced > 0 {
+    let updated = sync_active_planner_schedule_order_indices(
+        assignment.device_id,
+        compacted_ids.as_slice(),
+    )
+    .await
+    .map_err(|error| {
+        Log::error(&format!(
+            "[调度] 保存队列分配后同步索引失败 {}，错误={}",
+            scope, error
+        ));
+        error
+    })?;
+    if synced > 0 || updated > 0 {
         emit_assignment_schedule_changed(&app_handle, assignment.device_id);
     }
     notify_auto_dispatch_reschedule();
@@ -234,6 +321,7 @@ pub async fn delete_assignment_cmd(
     if let Some(device_id) = device_id {
         let device_id =
             DeviceId::from(uuid::Uuid::parse_str(&device_id).map_err(|e| e.to_string())?);
+        let compacted_ids = compact_assignment_indices(device_id).await?;
         let current_window_queue = load_runtime_queue_for_current_window(device_id).await?;
         let synced = sync_active_planner_schedules_from_queue(
             device_id,
@@ -241,7 +329,9 @@ pub async fn delete_assignment_cmd(
             "队列定义变更，已同步当前批次",
         )
         .await?;
-        if synced > 0 {
+        let updated =
+            sync_active_planner_schedule_order_indices(device_id, compacted_ids.as_slice()).await?;
+        if synced > 0 || updated > 0 {
             emit_assignment_schedule_changed(&app_handle, device_id);
         }
         notify_auto_dispatch_reschedule();

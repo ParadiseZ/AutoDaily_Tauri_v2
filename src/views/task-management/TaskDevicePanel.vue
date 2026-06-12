@@ -45,7 +45,7 @@
           <StatusBadge :label="runtimeScheduleLabel" :tone="runtimeScheduleTone" />
         </div>
         <p class="mt-2 line-clamp-2 text-sm text-(--app-text-strong)">
-          {{ runtimeResult.latestSchedule?.message || runtimeResult.latestSchedule?.status || '暂无调度结果' }}
+          {{ runtimeScheduleSummary }}
         </p>
       </div>
 
@@ -96,7 +96,7 @@
               没有匹配脚本：{{ formatPlatformLabel(device.data.platform) }}
             </p>
             <p v-else-if="selectedScriptId && !selectedTemplateId" class="text-xs text-(--app-text-faint)">
-              追加到总队列前，必须选择一个真实时间模板。
+              追加到总队列末尾，必须选择一个真实时间模板。
             </p>
 
             <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
@@ -113,7 +113,7 @@
                 >
                   <div class="flex items-center gap-3">
                     <div class="flex h-8 w-8 items-center justify-center rounded-full bg-(--app-accent-soft) text-xs font-semibold text-(--app-accent)">
-                      {{ assignment.index + 1 }}
+                      {{ getAssignmentDisplayOrder(assignment.id) }}
                     </div>
                     <div class="min-w-0 flex-1">
                       <div class="flex items-center gap-2">
@@ -126,6 +126,26 @@
                         </span>
                       </div>
                       <p class="text-xs text-(--app-text-faint)">{{ getTemplateName(assignment.timeTemplateId) }}</p>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-1">
+                      <button
+                        class="app-button app-button-ghost h-8 w-8 px-0"
+                        type="button"
+                        :disabled="!canMoveAssignment(assignment.id, 'up')"
+                        title="上移"
+                        @click="$emit('moveAssignment', device.id, assignment.id, 'up')"
+                      >
+                        <AppIcon name="chevron-up" :size="14" />
+                      </button>
+                      <button
+                        class="app-button app-button-ghost h-8 w-8 px-0"
+                        type="button"
+                        :disabled="!canMoveAssignment(assignment.id, 'down')"
+                        title="下移"
+                        @click="$emit('moveAssignment', device.id, assignment.id, 'down')"
+                      >
+                        <AppIcon name="chevron-down" :size="14" />
+                      </button>
                     </div>
                     <button
                       class="app-button app-button-ghost h-8 px-3 text-sm group"
@@ -170,7 +190,7 @@
                   <div class="flex items-center justify-between gap-3">
                     <div class="flex min-w-0 flex-1 items-center gap-3">
                       <div class="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/12 text-xs font-semibold text-amber-700 dark:text-amber-300">
-                        {{ assignment.index + 1 }}
+                        {{ getAssignmentDisplayOrder(assignment.id) }}
                       </div>
                       <div class="min-w-0">
                         <p class="truncate text-sm font-medium text-(--app-text-strong)">{{ getScriptName(assignment.scriptId) }}</p>
@@ -181,6 +201,24 @@
                       <span class="rounded-full bg-amber-500/12 px-3 py-1 text-xs text-amber-700 dark:text-amber-300">
                         已到期
                       </span>
+                      <button
+                        class="app-button app-button-ghost h-8 w-8 px-0"
+                        type="button"
+                        :disabled="!canMoveAssignment(assignment.id, 'up')"
+                        title="上移"
+                        @click="$emit('moveAssignment', device.id, assignment.id, 'up')"
+                      >
+                        <AppIcon name="chevron-up" :size="14" />
+                      </button>
+                      <button
+                        class="app-button app-button-ghost h-8 w-8 px-0"
+                        type="button"
+                        :disabled="!canMoveAssignment(assignment.id, 'down')"
+                        title="下移"
+                        @click="$emit('moveAssignment', device.id, assignment.id, 'down')"
+                      >
+                        <AppIcon name="chevron-down" :size="14" />
+                      </button>
                       <button
                         class="app-button app-button-ghost h-8 px-3 text-sm group"
                         type="button"
@@ -428,6 +466,7 @@ const emit = defineEmits<{
   runTarget: [deviceId: string, target: RunTarget];
   openAssignmentSettings: [assignment: AssignmentRecord];
   removeAssignment: [deviceId: string, assignment: AssignmentRecord];
+  moveAssignment: [deviceId: string, assignmentId: string, direction: 'up' | 'down'];
   clearSchedules: [deviceId: string];
 }>();
 
@@ -582,6 +621,22 @@ const runtimeScheduleTone = computed(() => {
   return status ? runtimeScheduleToneFromStatus(status) : 'neutral';
 });
 
+const runtimeScheduleSummary = computed(() => {
+  const latestSchedule = props.runtimeResult.latestSchedule;
+  if (!latestSchedule) {
+    return '暂无调度结果';
+  }
+
+  if (
+    latestSchedule.scriptId &&
+    ['success', 'failed', 'skipped', 'cleared'].includes(latestSchedule.status)
+  ) {
+    return `【${getScriptName(latestSchedule.scriptId)}】运行结束`;
+  }
+
+  return latestSchedule.message || runtimeScheduleStatusLabels[latestSchedule.status] || '暂无调度结果';
+});
+
 const runtimeTimeoutLabel = computed(() => {
   if (!props.runtimeResult.latestTimeout) {
     return '未发生';
@@ -690,6 +745,30 @@ const runtimeProgressSummary = computed(() => {
 
   return props.runtimeView.progress.message || '暂无进度事件';
 });
+
+const orderedAssignments = computed(() =>
+  [...props.assignments].sort((left, right) => left.index - right.index || left.id.localeCompare(right.id)),
+);
+
+const assignmentOrderMap = computed(() =>
+  new Map(orderedAssignments.value.map((assignment, index) => [assignment.id, index])),
+);
+
+const getAssignmentDisplayOrder = (assignmentId: string) => {
+  const order = assignmentOrderMap.value.get(assignmentId);
+  return typeof order === 'number' ? order + 1 : '-';
+};
+
+const canMoveAssignment = (assignmentId: string, direction: 'up' | 'down') => {
+  const order = assignmentOrderMap.value.get(assignmentId);
+  if (typeof order !== 'number') {
+    return false;
+  }
+  if (direction === 'up') {
+    return order > 0;
+  }
+  return order < orderedAssignments.value.length - 1;
+};
 
 const getTemplateName = (templateId: string | null) => {
   return formatTemplateWindow(templateId ? templateMap.value[templateId] : null);
@@ -814,7 +893,7 @@ const childSchedulesForAssignmentSchedule = (record: AssignmentSchedule) => {
       }
       return true;
     })
-    .sort((left, right) => (Date.parse(left.startedAt) || 0) - (Date.parse(right.startedAt) || 0));
+    .sort((left, right) => (Date.parse(right.startedAt) || 0) - (Date.parse(left.startedAt) || 0));
 };
 
 const ranAssignmentIdsToday = computed(() =>
@@ -826,7 +905,7 @@ const ranAssignmentIdsToday = computed(() =>
 );
 
 const todayDueAssignments = computed(() =>
-  props.assignments
+  orderedAssignments.value
     .filter((assignment) => {
       if (!assignment.timeTemplateId || ranAssignmentIdsToday.value.has(assignment.id)) {
         return false;
@@ -840,16 +919,14 @@ const todayDueAssignments = computed(() =>
       const startMinute = parseTimeToMinutes(template.startTime);
       const endMinute = parseTimeToMinutes(template.endTime);
       return isOverdueByTemplateWindow(startMinute, endMinute, currentMinuteOfDay.value);
-    })
-    .sort((left, right) => left.index - right.index),
+    }),
 );
 
 const todayDueAssignmentIds = computed(() => new Set(todayDueAssignments.value.map((assignment) => assignment.id)));
 
 const queuedAssignments = computed(() =>
-  props.assignments
+  orderedAssignments.value
     .filter((assignment) => !todayDueAssignmentIds.value.has(assignment.id))
-    .sort((left, right) => left.index - right.index),
 );
 
 const handleRunTemporaryScript = () => {

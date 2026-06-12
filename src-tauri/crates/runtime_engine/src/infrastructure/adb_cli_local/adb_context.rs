@@ -5,9 +5,11 @@ use crate::infrastructure::logging::log_trait::Log;
 //use core_affinity::CoreId;
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::time::Duration;
 use tokio::sync::Mutex;
 
 static ADB_CONTEXT: OnceLock<ADBCtx> = OnceLock::new();
+const ADB_COMMAND_SEND_TIMEOUT_MS: u64 = 100;
 
 pub fn get_adb_ctx() -> &'static ADBCtx {
     ADB_CONTEXT.get().unwrap()
@@ -45,7 +47,7 @@ pub struct ADBCtx {
 impl ADBCtx {
     pub async fn new(runtime_connect_conf: ADBConnectConfig) {
         if let Some(adb_ctx) = ADB_CONTEXT.get() {
-            adb_ctx.send_adb_cmd(&ADBCommand::ChangeConnectConfig(runtime_connect_conf));
+            let _ = adb_ctx.send_adb_cmd(&ADBCommand::ChangeConnectConfig(runtime_connect_conf));
             return;
         }
         let (err_tx, err_rx) = crossbeam_channel::bounded(5);
@@ -64,15 +66,45 @@ impl ADBCtx {
         });
     }
 
-    pub fn send_adb_cmd(&self, adb_command: &ADBCommand) {
-        if let Err(e) = self.cmd_sender.send(adb_command.clone()) {
-            Log::error(format!("发送ADB命令[{}]失败:{:?}", adb_command, e).as_str());
-        };
+    pub fn send_adb_cmd(&self, adb_command: &ADBCommand) -> Result<(), String> {
+        self.cmd_sender
+            .send_timeout(
+                adb_command.clone(),
+                Duration::from_millis(ADB_COMMAND_SEND_TIMEOUT_MS),
+            )
+            .map_err(|error| {
+                let message = match error {
+                    crossbeam_channel::SendTimeoutError::Timeout(_) => format!(
+                        "ADB命令队列繁忙，发送命令[{}]超时，可能存在卡住的设备操作",
+                        adb_command
+                    ),
+                    crossbeam_channel::SendTimeoutError::Disconnected(_) => {
+                        format!("ADB命令通道已关闭，无法发送命令[{}]", adb_command)
+                    }
+                };
+                Log::error(&message);
+                message
+            })
     }
 
-    pub fn send_adb_loop_cmd(&self, adb_command: &ADBCommand) {
-        if let Err(e) = self.cmd_loop_sender.send(adb_command.clone()) {
-            Log::error(format!("发送ADB循环命令[{}]失败:{:?}", adb_command, e).as_str());
-        };
+    pub fn send_adb_loop_cmd(&self, adb_command: &ADBCommand) -> Result<(), String> {
+        self.cmd_loop_sender
+            .send_timeout(
+                adb_command.clone(),
+                Duration::from_millis(ADB_COMMAND_SEND_TIMEOUT_MS),
+            )
+            .map_err(|error| {
+                let message = match error {
+                    crossbeam_channel::SendTimeoutError::Timeout(_) => format!(
+                        "ADB循环命令队列繁忙，发送命令[{}]超时，可能存在卡住的设备操作",
+                        adb_command
+                    ),
+                    crossbeam_channel::SendTimeoutError::Disconnected(_) => {
+                        format!("ADB循环命令通道已关闭，无法发送命令[{}]", adb_command)
+                    }
+                };
+                Log::error(&message);
+                message
+            })
     }
 }

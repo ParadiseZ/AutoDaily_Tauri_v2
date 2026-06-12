@@ -1,9 +1,10 @@
-use super::events::{emit_assignment_schedule_changed, emit_device_progress_status};
+use super::events::{device_log_label, emit_assignment_schedule_changed};
 use super::runtime::{
-    dispatch_session_to_child, ensure_device_capture_ready, ensure_device_ready_for_manual,
-    request_child_connection_action, restart_device_runtime_internal, send_capture_control,
-    send_process_control, set_connection_status, shutdown_device_runtime_internal,
-    spawn_device_runtime_internal, wait_for_capture_result, wait_for_ipc_client,
+    dispatch_session_to_child, emit_queue_finished_progress, ensure_device_capture_ready,
+    ensure_device_ready_for_manual, request_child_connection_action,
+    restart_device_runtime_internal, send_capture_control, send_process_control,
+    set_connection_status, shutdown_device_runtime_internal, spawn_device_runtime_internal,
+    wait_for_capture_result, wait_for_ipc_client,
 };
 use super::scheduler::{
     dispatch_next_scheduled_queue_item, dispatch_priority, ensure_planner_batch_for_device,
@@ -140,11 +141,12 @@ pub async fn cmd_device_start(
 ) -> Result<String, String> {
     ensure_device_dispatch_state(&app_handle, device_id)?;
     set_auto_dispatch_blocked(&app_handle, device_id, false)?;
+    let device_label = device_log_label(&app_handle, device_id);
     let state = snapshot_device_dispatch_state(&app_handle, device_id)?;
     if state.active_dispatch.is_some() {
         return Ok(format!(
             "设备[{}]当前已有运行中的 dispatch，已唤醒 planner",
-            device_id
+            device_label
         ));
     }
     let reactivated = reactivate_retryable_planner_schedules_for_device(
@@ -161,34 +163,24 @@ pub async fn cmd_device_start(
         .await?
         .is_none()
     {
-        emit_device_progress_status(
-            &app_handle,
-            device_id,
-            DeviceRuntimeProgressPhase::Idle,
-            "当前设备无可运行队列",
-        );
+        let _ = emit_queue_finished_progress(&app_handle, device_id).await;
         return Ok(format!(
             "设备[{}]当前时间窗口下没有可运行的 planner 记录",
-            device_id
+            device_label
         ));
     }
     let dispatched = dispatch_next_scheduled_queue_item(&app_handle, device_id).await?;
     if dispatched {
         Ok(format!(
             "已唤醒设备[{}]调度，新增 {} 条 planner 记录并开始执行下一项",
-            device_id,
+            device_label,
             created + reactivated as usize
         ))
     } else {
-        emit_device_progress_status(
-            &app_handle,
-            device_id,
-            DeviceRuntimeProgressPhase::Idle,
-            "当前设备无可运行队列",
-        );
+        let _ = emit_queue_finished_progress(&app_handle, device_id).await;
         Ok(format!(
             "设备[{}]当前时间窗口下没有可运行的 planner 记录",
-            device_id
+            device_label
         ))
     }
 }
@@ -206,9 +198,10 @@ pub async fn cmd_device_stop(
     )
     .await?;
     let _ = reset_device_dispatch_state(&app_handle, device_id);
+    let device_label = device_log_label(&app_handle, device_id);
     Ok(format!(
         "已向设备[{}]发送停止命令，并持久化停止 {} 条调度记录",
-        device_id, stopped
+        device_label, stopped
     ))
 }
 
@@ -242,14 +235,15 @@ pub async fn cmd_run_script_target(
 
     if state.active_dispatch.is_some() {
         push_debug_session(&app_handle, device_id, session)?;
+        let device_label = device_log_label(&app_handle, device_id);
         Log::info(&format!(
             "[ process ] 设备[{}]调试运行已加入内存队列，request-next 优先级={}",
-            device_id,
+            device_label,
             dispatch_priority(&DispatchSource::Debug)
         ));
         return Ok(format!(
             "设备[{}]正在运行，已加入调试队列并将在当前 dispatch 后优先执行: {:?}",
-            device_id, target
+            device_label, target
         ));
     }
 
@@ -260,7 +254,7 @@ pub async fn cmd_run_script_target(
         .map(|queue_item| queue_item.dispatch_id)
         .ok_or_else(|| "调试运行目标未生成可派发队列项".to_string())?;
     dispatch_session_to_child(&app_handle, device_id, session, dispatch_id).await?;
-    Ok(format!("已向设备[{}]发送运行目标: {:?}", device_id, target))
+    Ok(format!("已向设备[{}]发送运行目标: {:?}", device_log_label(&app_handle, device_id), target))
 }
 
 #[command]
@@ -276,7 +270,7 @@ pub async fn cmd_run_user_script_target(
     {
         return Err(format!(
             "设备[{}]仍有运行中的 dispatch，请先停止当前设备调度",
-            device_id
+            device_log_label(&app_handle, device_id)
         ));
     }
 
@@ -334,7 +328,7 @@ pub async fn cmd_run_user_script_target(
     dispatch_session_to_child(&app_handle, device_id, session, dispatch_id).await?;
     Ok(format!(
         "已向设备[{}]发送临时运行目标: {:?}",
-        device_id, target
+        device_log_label(&app_handle, device_id), target
     ))
 }
 
@@ -449,6 +443,34 @@ pub async fn cmd_probe_device_connections(
             continue;
         }
 
+        match snapshot_device_dispatch_state(&app_handle, device_id) {
+            Ok(state) if state.active_dispatch.is_some() => {
+                skipped += 1;
+                Log::info(&format!(
+                    "[ process ] 跳过设备[{}]连接探测：当前仍有运行中的 dispatch",
+                    device_log_label(&app_handle, device_id)
+                ));
+                continue;
+            }
+            Ok(_) => {}
+            Err(error) => {
+                skipped += 1;
+                let _ = set_connection_status(
+                    &app_handle,
+                    device_id,
+                    ConnectionStatusKind::DeviceDisconnected,
+                    Some(error.clone()),
+                )
+                .await;
+                Log::warn(&format!(
+                    "[ process ] 跳过设备[{}]连接探测：{}",
+                    device_log_label(&app_handle, device_id),
+                    error
+                ));
+                continue;
+            }
+        }
+
         match wait_for_ipc_client(&app_handle, device_id, std::time::Duration::from_secs(2)).await {
             Ok(()) => {
                 let _ = request_child_connection_action(
@@ -472,7 +494,7 @@ pub async fn cmd_probe_device_connections(
                 .await;
                 Log::warn(&format!(
                     "[ process ] 跳过设备[{}]连接探测：{}",
-                    device_id, error
+                    device_log_label(&app_handle, device_id), error
                 ));
             }
         }

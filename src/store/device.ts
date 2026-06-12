@@ -486,6 +486,10 @@ export const useDeviceStore = defineStore('device', () => {
         const phase = latest?.phase ?? null;
         const fallbackMessage = getPendingMessage(deviceId) ?? connectionStatus.message ?? null;
         const message = latest?.message ?? fallbackMessage;
+        const completedEndLabel =
+            phase === 'completed' && (message === '本日调度已结束' || message === '已结束')
+                ? message
+                : null;
 
         let tone: DeviceRuntimeProgressView['tone'] = 'neutral';
         if (phase === 'failed' || phase === 'deviceDisconnected') tone = 'danger';
@@ -497,10 +501,10 @@ export const useDeviceStore = defineStore('device', () => {
             activeRuntimeProgressPhases.has(phase)
         ) tone = 'info';
         else if (connectionStatus.kind === 'checking') tone = 'info';
-
         return {
             phase,
             label:
+                completedEndLabel ??
                 (phase ? progressPhaseLabels[phase] ?? phase : null) ??
                 (connectionStatus.kind === 'checking' ? '连接准备中' : '暂无'),
             tone,
@@ -534,15 +538,13 @@ export const useDeviceStore = defineStore('device', () => {
 
     const getControlView = (deviceId: string): DeviceRuntimeControlView => {
         const status = getDeviceStatus(deviceId);
-        const connectionStatus = getDeviceConnectionStatus(deviceId);
         const progress = getProgressView(deviceId);
         const pendingAction = getDevicePendingAction(deviceId);
         const showStopButton =
             status.kind === 'running' ||
             status.kind === 'paused' ||
             Boolean(pendingAction && stopButtonPendingActions.has(pendingAction)) ||
-            Boolean(progress.phase && activeRuntimeProgressPhases.has(progress.phase)) ||
-            connectionStatus.kind === 'checking';
+            Boolean(progress.phase && activeRuntimeProgressPhases.has(progress.phase));
 
         return {
             showStopButton,

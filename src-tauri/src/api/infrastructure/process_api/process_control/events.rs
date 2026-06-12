@@ -14,7 +14,7 @@ use tauri::{Emitter, Manager};
 const DEVICE_RUNTIME_RECONCILE_EVENT: &str = "device-runtime-reconcile";
 const ASSIGNMENT_SCHEDULE_CHANGED_EVENT: &str = "assignment-schedule-changed";
 
-fn device_log_label(app_handle: &tauri::AppHandle, device_id: DeviceId) -> String {
+pub(crate) fn device_log_label(app_handle: &tauri::AppHandle, device_id: DeviceId) -> String {
     app_handle
         .state::<MainProcessCtx>()
         .snapshot_device_runtime_state(device_id)

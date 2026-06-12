@@ -1,4 +1,7 @@
-use super::events::{emit_assignment_schedule_changed, emit_device_connection_status, emit_device_progress_status};
+use super::events::{
+    device_log_label, emit_assignment_schedule_changed, emit_device_connection_status,
+    emit_device_progress_status,
+};
 use super::scheduler::{block_device_auto_dispatch, dispatch_next_scheduled_queue_item};
 use super::state::{
     mark_active_dispatch, reset_device_dispatch_state, set_auto_dispatch_blocked,
@@ -36,6 +39,28 @@ const DEVICE_CONNECTION_READY_TIMEOUT_SECS: u64 = 25;
 const DEVICE_CONNECTION_REUSE_WINDOW_MS: u128 = 5_000;
 const MANUAL_CONNECTED_REUSE_WINDOW_MS: u128 = 120_000;
 const MANUAL_CONNECTION_PROBE_TIMEOUT_SECS: u64 = 4;
+
+fn queue_finished_message(auto_start: bool) -> &'static str {
+    if auto_start {
+        "本日调度已结束"
+    } else {
+        "已结束"
+    }
+}
+
+pub(super) async fn emit_queue_finished_progress(
+    app_handle: &AppHandle,
+    device_id: DeviceId,
+) -> Result<(), String> {
+    let device = load_device_table(device_id).await?;
+    emit_device_progress_status(
+        app_handle,
+        device_id,
+        DeviceRuntimeProgressPhase::Completed,
+        queue_finished_message(device.data.0.auto_start),
+    );
+    Ok(())
+}
 
 fn device_connection_timeout(device_table: &DeviceTable) -> std::time::Duration {
     if device_table.data.0.uses_emulator_transport() {
@@ -334,9 +359,6 @@ pub(super) async fn set_connection_status(
     let state = app_handle.state::<MainProcessCtx>();
     state.set_device_connection_state(device_id, status.clone(), message.clone())?;
     emit_device_connection_status(app_handle, device_id, &status, message.as_deref());
-    if let Some(message) = message {
-        emit_device_progress_status(app_handle, device_id, status.into(), message);
-    }
     Ok(())
 }
 
@@ -552,31 +574,35 @@ async fn prepare_device_connection(
         .await
         {
             Ok(()) => {
+                let device_label = device_log_label(app_handle, device_id);
                 Log::info(&format!(
                     "[ process ] 设备[{}]快速探测通过，复用现有连接",
-                    device_id
+                    device_label
                 ));
                 return Ok(device_table);
             }
             Err(error) => {
+                let device_label = device_log_label(app_handle, device_id);
                 Log::warn(&format!(
                     "[ process ] 设备[{}]快速探测失败，将继续完整连接准备: {}",
-                    device_id, error
+                    device_label, error
                 ));
             }
         }
     }
     if !allow_manual_connected_reuse && can_reuse_connected_runtime_state(app_handle, device_id)? {
+        let device_label = device_log_label(app_handle, device_id);
         Log::debug(&format!(
             "[ process ] 设备[{}]运行时连接仍然可用，直接复用，跳过重复连接准备",
-            device_id
+            device_label
         ));
         return Ok(device_table);
     }
     if can_reuse_recent_connected_state(app_handle, device_id)? {
+        let device_label = device_log_label(app_handle, device_id);
         Log::debug(&format!(
             "[ process ] 设备[{}]复用最近已确认的连接状态，跳过重复连接准备",
-            device_id
+            device_label
         ));
         return Ok(device_table);
     }
@@ -686,17 +712,20 @@ pub(crate) fn spawn_dispatch_signal_loop(
                             .await
                         {
                             Ok(true) => {
+                                let device_label = device_log_label(&app_handle, signal.device_id);
                                 Log::info(&format!(
                                     "[ process ] 设备[{}]收到 RequestNext，继续派发下一条",
-                                    signal.device_id
+                                    device_label
                                 ));
                                 Ok(())
                             }
                             Ok(false) => {
+                                let device_label = device_log_label(&app_handle, signal.device_id);
                                 Log::info(&format!(
                                     "[ process ] 设备[{}]收到 RequestNext，但当前没有可派发任务，等待下一次被动唤醒",
-                                    signal.device_id
+                                    device_label
                                 ));
+                                let _ = emit_queue_finished_progress(&app_handle, signal.device_id).await;
                                 Ok(())
                             }
                             Err(error) => Err(error),
@@ -707,9 +736,10 @@ pub(crate) fn spawn_dispatch_signal_loop(
             };
 
             if let Err(error) = result {
+                let device_label = device_log_label(&app_handle, signal.device_id);
                 Log::error(&format!(
                     "[ process ] 处理设备[{}] dispatch 信号失败: {}",
-                    signal.device_id, error
+                    device_label, error
                 ));
             } else if assignment_schedule_changed {
                 emit_assignment_schedule_changed(&app_handle, signal.device_id);
@@ -733,9 +763,10 @@ pub(crate) fn register_child_process_exit_handler(app_handle: tauri::AppHandle) 
             )
             .await
             {
+                let device_label = device_log_label(&app_handle, device_id);
                 Log::error(&format!(
                     "[ process ] 设备[{}]子进程退出后持久化自动派发停止状态失败: {}",
-                    device_id, error
+                    device_label, error
                 ));
             }
 
@@ -759,9 +790,10 @@ pub(crate) fn register_child_process_exit_handler(app_handle: tauri::AppHandle) 
                     emit_device_progress_status(&app_handle, device_id, phase, message);
                 }
                 Err(error) => {
+                    let device_label = device_log_label(&app_handle, device_id);
                     Log::error(&format!(
                         "[ process ] 设备[{}]子进程退出后更新 assignment_schedules 失败: {}",
-                        device_id, error
+                        device_label, error
                     ));
                 }
             }
