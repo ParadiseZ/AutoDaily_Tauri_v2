@@ -92,11 +92,23 @@ pub enum Action {
         #[serde(flatten)]
         mode: SwipeMode,
     },
+    LongClick {
+        #[serde(default = "default_click_offset")]
+        offset_x: i32,
+        #[serde(default = "default_click_offset")]
+        offset_y: i32,
+        #[serde(flatten)]
+        mode: ClickMode,
+    },
     Capture {
         output_var: String,
     },
     Reboot,
     Back,
+    Home,
+    InputText {
+        text: String,
+    },
     PosAdd {
         target: PolicyId,
     },

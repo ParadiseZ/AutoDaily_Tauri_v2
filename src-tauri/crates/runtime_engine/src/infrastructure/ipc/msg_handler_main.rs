@@ -8,7 +8,6 @@ use crate::infrastructure::app_handle::get_app_handle;
 use crate::infrastructure::context::main_process::{
     DeviceCaptureResult, DeviceDispatchSignal, MainProcessCtx,
 };
-use crate::infrastructure::db::get_pool;
 use crate::infrastructure::ipc::message::IpcMessage;
 use crate::infrastructure::ipc::message::MessagePayload;
 use crate::infrastructure::ipc::message::{RuntimeEventMessage, TimeoutAction};
@@ -114,7 +113,11 @@ fn format_progress_log_detail(message: Option<&str>) -> String {
     format!(", {}", message)
 }
 
-fn forward_child_runtime_log(device_id: crate::infrastructure::core::DeviceId, level: LogLevel, message: String) {
+fn forward_child_runtime_log(
+    device_id: crate::infrastructure::core::DeviceId,
+    level: LogLevel,
+    message: String,
+) {
     if let Some(receiver) = get_child_log_receiver() {
         tauri::async_runtime::spawn(async move {
             receiver
@@ -165,7 +168,10 @@ pub async fn handle_child_message(msg: IpcMessage) {
             forward_child_runtime_log(
                 device_id,
                 LogLevel::Error,
-                format!("[ ipc ] 设备[{}]错误: [{}] {}", device_label, error.code, error.message),
+                format!(
+                    "[ ipc ] 设备[{}]错误: [{}] {}",
+                    device_label, error.code, error.message
+                ),
             );
             if let Some(main_window) = get_app_handle().get_webview_window(MAIN_WINDOW) {
                 let emit_data = serde_json::json!({
@@ -411,6 +417,17 @@ fn handle_runtime_event(
                 let _ = main_window.emit("device-progress", progress_data);
             }
             RuntimeEventMessage::Capture(capture) => {
+                let log_level = if capture.image_data.is_some() {
+                    LogLevel::Info
+                } else {
+                    LogLevel::Warn
+                };
+                let log_line = format!(
+                    "[ ipc ] 设备[{}]截图: {}",
+                    device_label,
+                    capture.message.as_deref().unwrap_or("截图结果已返回")
+                );
+                forward_child_runtime_log(device_id, log_level, log_line);
                 if let Ok(mut guard) = get_app_handle()
                     .state::<MainProcessCtx>()
                     .device_capture_results

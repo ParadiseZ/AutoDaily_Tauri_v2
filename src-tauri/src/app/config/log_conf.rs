@@ -1,17 +1,17 @@
+use crate::api::infrastructure::process_api::send_device_config_update;
 use crate::app::app_error::AppResult;
-use crate::constant::table_name::DEVICE_TABLE;
 use crate::constant::sys_conf_path::{APP_STORE, LOG_CONFIG_KEY};
+use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_conf::DeviceTable;
-use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::app_handle::get_app_handle;
+use crate::infrastructure::context::child_process_manager::get_process_manager;
 use crate::infrastructure::core::DeviceId;
+use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::logging::config::LogMain;
 use crate::infrastructure::logging::log_cleaner::LogCleaner;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::logging::logger::LOG_DIR;
 use crate::infrastructure::logging::LogLevel;
-use crate::api::infrastructure::process_api::send_device_config_update;
-use crate::infrastructure::context::child_process_manager::get_process_manager;
 use tauri_plugin_store::StoreExt;
 
 /// 持久化日志配置到 store
@@ -94,13 +94,12 @@ pub async fn update_child_log_level_app(
     log_level: &LogLevel,
 ) -> AppResult<()> {
     let app_handle = get_app_handle();
-    let Some(mut current) =
-        DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string())
-            .await
-            .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
-                detail: "读取设备日志级别配置".to_string(),
-                e: error,
-            })?
+    let Some(mut current) = DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string())
+        .await
+        .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
+            detail: "读取设备日志级别配置".to_string(),
+            e: error,
+        })?
     else {
         return Err(crate::app::app_error::AppError::SetConfigFailed {
             detail: "读取设备日志级别配置".to_string(),
@@ -124,6 +123,9 @@ pub async fn update_child_log_level_app(
                 })?;
         }
     }
-    Log::info(&format!("[ log ] 子进程[{}]日志级别已更新为: {}", device_id, log_level));
+    Log::info(&format!(
+        "[ log ] 子进程[{}]日志级别已更新为: {}",
+        device_id, log_level
+    ));
     Ok(())
 }

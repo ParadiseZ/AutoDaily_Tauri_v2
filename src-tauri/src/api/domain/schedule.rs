@@ -2,8 +2,8 @@
 use crate::api::infrastructure::process_api::{
     emit_assignment_schedule_changed, load_assigned_device_ids_by_time_template,
     load_assignment_schedules_by_device, load_runtime_queue_for_current_window,
-    notify_auto_dispatch_reschedule,
-    sync_active_planner_schedule_order_indices, sync_active_planner_schedules_from_queue,
+    notify_auto_dispatch_reschedule, sync_active_planner_schedule_order_indices,
+    sync_active_planner_schedules_from_queue,
 };
 use crate::constant::table_name::{
     ASSIGNMENT_SCHEDULE_TABLE, ASSIGNMENT_TABLE, DEVICE_TABLE, SCHEDULE_TABLE, SCRIPT_TABLE,
@@ -277,18 +277,16 @@ pub async fn save_assignment_cmd(
         ));
         error
     })?;
-    let updated = sync_active_planner_schedule_order_indices(
-        assignment.device_id,
-        compacted_ids.as_slice(),
-    )
-    .await
-    .map_err(|error| {
-        Log::error(&format!(
-            "[调度] 保存队列分配后同步索引失败 {}，错误={}",
-            scope, error
-        ));
-        error
-    })?;
+    let updated =
+        sync_active_planner_schedule_order_indices(assignment.device_id, compacted_ids.as_slice())
+            .await
+            .map_err(|error| {
+                Log::error(&format!(
+                    "[调度] 保存队列分配后同步索引失败 {}，错误={}",
+                    scope, error
+                ));
+                error
+            })?;
     if synced > 0 || updated > 0 {
         emit_assignment_schedule_changed(&app_handle, assignment.device_id);
     }

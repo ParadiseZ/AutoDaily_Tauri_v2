@@ -36,7 +36,9 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
 
     let runtime_connect = resolve_runtime_connect_config(&init_data.device_config)
         .map_err(|e| InitError::InitChildAdbCtxFailed { e })?;
-    ADBCtx::new(runtime_connect).await;
+    ADBCtx::new(runtime_connect)
+        .await
+        .map_err(|e| InitError::InitChildAdbCtxFailed { e })?;
 
     let img_det_service = Arc::new(Mutex::new(OcrService::new()));
     let ocr_service = Arc::new(Mutex::new(OcrService::new()));

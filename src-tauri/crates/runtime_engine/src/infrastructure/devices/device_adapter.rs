@@ -7,9 +7,9 @@ use crate::infrastructure::capture::window_cap::WindowInfo;
 use crate::infrastructure::logging::log_trait::Log;
 use async_trait::async_trait;
 use image::RgbaImage;
-use std::time::Duration;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 #[async_trait]
 pub trait DeviceAdapter: Send + Sync {
@@ -21,6 +21,8 @@ pub trait DeviceAdapter: Send + Sync {
 
     async fn click(&self, point: Point<u16>) -> Result<(), String>;
 
+    async fn long_click(&self, point: Point<u16>) -> Result<(), String>;
+
     async fn swipe(&self, from: Point<u16>, to: Point<u16>, duration: u64) -> Result<(), String>;
 
     async fn reboot(&self) -> Result<(), String>;
@@ -30,6 +32,10 @@ pub trait DeviceAdapter: Send + Sync {
     async fn stop_app(&self, pkg_name: &str) -> Result<(), String>;
 
     async fn back(&self) -> Result<(), String>;
+
+    async fn home(&self) -> Result<(), String>;
+
+    async fn input_text(&self, text: &str) -> Result<(), String>;
 
     async fn change_cap_method(&self, method: CaptureMethod) -> bool;
 }
@@ -50,6 +56,12 @@ impl AndroidDeviceAdapter {
             cap_rx: rx,
             window_info: Arc::new(WindowInfo::init(window_title)),
         }
+    }
+
+    ///ADB命令发送不等待结果，直接发出后续命令，ADBExecutor内部会处理命令队列和结果回传
+    fn send_command(&self, command: ADBCommand) -> Result<(), String> {
+        let adb_ctx = try_get_adb_ctx()?;
+        adb_ctx.send_adb_cmd(&command)
     }
 
     async fn send_await_result_command(&self, command: ADBCommand) -> Result<(), String> {
@@ -78,7 +90,7 @@ impl DeviceAdapter for AndroidDeviceAdapter {
             2 => {
                 Log::debug("验证adb截图设置...");
                 match try_get_adb_ctx() {
-                    Ok(adb_ctx) => adb_ctx.adb_executor.validate_config(),
+                    Ok(adb_ctx) => adb_ctx.validate_config(),
                     Err(error) => {
                         Log::error(&format!("验证ADB截图设置失败：{}", error));
                         false
@@ -118,14 +130,18 @@ impl DeviceAdapter for AndroidDeviceAdapter {
                         return None;
                     }
                 };
-                if let Err(error) = adb_ctx.send_adb_cmd(&ADBCommand::Capture(self.cap_tx.clone())) {
+                if let Err(error) =
+                    adb_ctx.send_capture_cmd(&ADBCommand::Capture(self.cap_tx.clone()))
+                {
                     Log::error(&format!("截图失败：{}", error));
                     return None;
                 }
                 Log::debug("等待获取图像数据...");
                 let cap_rx = self.cap_rx.clone();
-                match tokio::task::spawn_blocking(move || cap_rx.recv_timeout(Duration::from_secs(5)))
-                    .await
+                match tokio::task::spawn_blocking(move || {
+                    cap_rx.recv_timeout(Duration::from_secs(10))
+                })
+                .await
                 {
                     Ok(Ok(Ok(img))) => Some(img),
                     Ok(Ok(Err(error))) => {
@@ -133,7 +149,7 @@ impl DeviceAdapter for AndroidDeviceAdapter {
                         None
                     }
                     Ok(Err(crossbeam_channel::RecvTimeoutError::Timeout)) => {
-                        Log::error("截图失败：等待截图结果超时！");
+                        Log::error("截图失败：等待截图结果已超过10秒！");
                         None
                     }
                     Ok(Err(crossbeam_channel::RecvTimeoutError::Disconnected)) => {
@@ -147,19 +163,22 @@ impl DeviceAdapter for AndroidDeviceAdapter {
                 }
             }
             _ => {
-                Log::error("截图失败：不支持的截图方式！");
+                Log::warn("截图失败：不支持的截图方式！");
                 None
             }
         }
     }
 
     async fn click(&self, point: Point<u16>) -> Result<(), String> {
-        self.send_await_result_command(ADBCommand::Click(point)).await
+        self.send_command(ADBCommand::Click(point))
+    }
+
+    async fn long_click(&self, point: Point<u16>) -> Result<(), String> {
+        self.send_command(ADBCommand::LongClick(point))
     }
 
     async fn swipe(&self, from: Point<u16>, to: Point<u16>, duration: u64) -> Result<(), String> {
-        self.send_await_result_command(ADBCommand::SwipeWithDuration(from, to, duration))
-            .await
+        self.send_command(ADBCommand::SwipeWithDuration(from, to, duration))
     }
 
     async fn reboot(&self) -> Result<(), String> {
@@ -180,7 +199,15 @@ impl DeviceAdapter for AndroidDeviceAdapter {
     }
 
     async fn back(&self) -> Result<(), String> {
-        self.send_await_result_command(ADBCommand::Back).await
+        self.send_command(ADBCommand::Back)
+    }
+
+    async fn home(&self) -> Result<(), String> {
+        self.send_command(ADBCommand::Home)
+    }
+
+    async fn input_text(&self, text: &str) -> Result<(), String> {
+        self.send_command(ADBCommand::InputText(text.to_string()))
     }
 
     async fn change_cap_method(&self, method: CaptureMethod) -> bool {
@@ -222,6 +249,10 @@ impl DeviceAdapter for DesktopDeviceAdapter {
         Err(Self::unsupported("click"))
     }
 
+    async fn long_click(&self, _point: Point<u16>) -> Result<(), String> {
+        Err(Self::unsupported("long_click"))
+    }
+
     async fn swipe(
         &self,
         _from: Point<u16>,
@@ -245,6 +276,14 @@ impl DeviceAdapter for DesktopDeviceAdapter {
 
     async fn back(&self) -> Result<(), String> {
         Err(Self::unsupported("back"))
+    }
+
+    async fn home(&self) -> Result<(), String> {
+        Err(Self::unsupported("home"))
+    }
+
+    async fn input_text(&self, _text: &str) -> Result<(), String> {
+        Err(Self::unsupported("input_text"))
     }
 
     async fn change_cap_method(&self, method: CaptureMethod) -> bool {

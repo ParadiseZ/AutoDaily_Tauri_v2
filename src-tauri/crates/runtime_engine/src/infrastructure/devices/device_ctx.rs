@@ -87,6 +87,11 @@ impl DeviceCtx {
         adapter.click(point).await
     }
 
+    pub async fn long_click(&self, point: Point<u16>) -> Result<(), String> {
+        let adapter = self.adapter.read().await.clone();
+        adapter.long_click(point).await
+    }
+
     pub async fn swipe(
         &self,
         from: Point<u16>,
@@ -115,5 +120,15 @@ impl DeviceCtx {
     pub async fn back(&self) -> Result<(), String> {
         let adapter = self.adapter.read().await.clone();
         adapter.back().await
+    }
+
+    pub async fn home(&self) -> Result<(), String> {
+        let adapter = self.adapter.read().await.clone();
+        adapter.home().await
+    }
+
+    pub async fn input_text(&self, text: &str) -> Result<(), String> {
+        let adapter = self.adapter.read().await.clone();
+        adapter.input_text(text).await
     }
 }

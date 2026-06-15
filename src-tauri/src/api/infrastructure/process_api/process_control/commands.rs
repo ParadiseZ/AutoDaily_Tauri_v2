@@ -1,3 +1,9 @@
+use super::super::dispatch_planner::{
+    insert_assignment_schedule, load_next_planned_assignment_schedule,
+    reactivate_retryable_planner_schedules_for_device, stop_active_assignment_schedules_by_device,
+    update_assignment_schedule_status,
+};
+use super::super::runtime_session::load_runtime_session_for_target;
 use super::events::{device_log_label, emit_assignment_schedule_changed};
 use super::runtime::{
     dispatch_session_to_child, emit_queue_finished_progress, ensure_device_capture_ready,
@@ -14,12 +20,6 @@ use super::state::{
     ensure_device_dispatch_state, push_debug_session, reset_device_dispatch_state,
     set_auto_dispatch_blocked, snapshot_device_dispatch_state,
 };
-use super::super::dispatch_planner::{
-    insert_assignment_schedule, load_next_planned_assignment_schedule,
-    reactivate_retryable_planner_schedules_for_device, stop_active_assignment_schedules_by_device,
-    update_assignment_schedule_status,
-};
-use super::super::runtime_session::{load_runtime_session_for_target};
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::domain::devices::device_runtime_event::{
@@ -27,8 +27,8 @@ use crate::domain::devices::device_runtime_event::{
     DeviceStatusEventPayload,
 };
 use crate::domain::devices::device_schedule::{AssignmentScheduleStatus, AssignmentTriggerSource};
-use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::context::child_process_manager::get_process_manager;
+use crate::infrastructure::context::main_process::MainProcessCtx;
 use crate::infrastructure::core::{now_millis_string, BatchId, DeviceId};
 use crate::infrastructure::db::DbRepo;
 use crate::infrastructure::ipc::message::{
@@ -92,8 +92,10 @@ pub async fn cmd_get_device_runtime_snapshots(
                             .unwrap_or_else(now_millis_string),
                     });
             let connection = if runtime_state.connection.message.is_some()
-                || !matches!(runtime_state.connection.status, ConnectionStatusKind::DeviceUnknown)
-            {
+                || !matches!(
+                    runtime_state.connection.status,
+                    ConnectionStatusKind::DeviceUnknown
+                ) {
                 Some(DeviceConnectionEventPayload {
                     device_id,
                     status: runtime_state.connection.status.clone(),
@@ -121,7 +123,11 @@ pub async fn cmd_get_device_runtime_snapshots(
                     step_id: None,
                     phase,
                     message: runtime_state.progress.message.clone(),
-                    at: runtime_state.progress.at.clone().unwrap_or_else(now_millis_string),
+                    at: runtime_state
+                        .progress
+                        .at
+                        .clone()
+                        .unwrap_or_else(now_millis_string),
                 });
 
             Ok(DeviceRuntimeSnapshotPayload {
@@ -254,7 +260,11 @@ pub async fn cmd_run_script_target(
         .map(|queue_item| queue_item.dispatch_id)
         .ok_or_else(|| "调试运行目标未生成可派发队列项".to_string())?;
     dispatch_session_to_child(&app_handle, device_id, session, dispatch_id).await?;
-    Ok(format!("已向设备[{}]发送运行目标: {:?}", device_log_label(&app_handle, device_id), target))
+    Ok(format!(
+        "已向设备[{}]发送运行目标: {:?}",
+        device_log_label(&app_handle, device_id),
+        target
+    ))
 }
 
 #[command]
@@ -328,7 +338,8 @@ pub async fn cmd_run_user_script_target(
     dispatch_session_to_child(&app_handle, device_id, session, dispatch_id).await?;
     Ok(format!(
         "已向设备[{}]发送临时运行目标: {:?}",
-        device_log_label(&app_handle, device_id), target
+        device_log_label(&app_handle, device_id),
+        target
     ))
 }
 
@@ -494,7 +505,8 @@ pub async fn cmd_probe_device_connections(
                 .await;
                 Log::warn(&format!(
                     "[ process ] 跳过设备[{}]连接探测：{}",
-                    device_log_label(&app_handle, device_id), error
+                    device_log_label(&app_handle, device_id),
+                    error
                 ));
             }
         }

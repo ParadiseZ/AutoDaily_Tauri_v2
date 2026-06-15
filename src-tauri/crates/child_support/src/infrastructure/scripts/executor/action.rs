@@ -83,7 +83,7 @@ impl ScriptExecutor {
 
     fn describe_action(action: &Action) -> String {
         match action {
-            Action::Capture { output_var } => format!("截图 -> {}", output_var),
+            Action::Capture { output_var } => format!("截图输出变量 -> {}", output_var),
             Action::Click {
                 mode,
                 offset_x,
@@ -97,8 +97,20 @@ impl ScriptExecutor {
             Action::Swipe { duration, mode } => {
                 format!("滑动(duration={}ms, {})", duration, Self::describe_swipe_mode(mode))
             }
+            Action::LongClick {
+                mode,
+                offset_x,
+                offset_y,
+            } => format!(
+                "长按({}, offset_x={}, offset_y={})",
+                Self::describe_click_mode(mode),
+                offset_x,
+                offset_y
+            ),
             Action::Reboot => "重启".to_string(),
             Action::Back => "返回".to_string(),
+            Action::Home => "主页".to_string(),
+            Action::InputText { text } => format!("输入文本({})", text),
             Action::PosAdd { target } => format!("策略点击位置+1(target={})", target),
             Action::PosMinus { target } => format!("策略点击位置-1(target={})", target),
             Action::DropSetNext { task, variable_id } => {
@@ -233,14 +245,36 @@ impl ScriptExecutor {
             .map_err(|error| {
                 Self::execute_error("sequence.prepare", format!("获取ADB上下文失败: {}", error))
             })?
-            .send_adb_cmd(&ADBCommand::Sequence(commands))
+            .send_adb_cmd_await_timeout(
+                ADBCommand::ReliableSequence(commands.clone()),
+                Self::estimate_reliable_sequence_timeout_ms(&commands),
+            )
+            .await
             .map_err(|error| {
                 Self::execute_error(
                     "sequence.prepare",
-                    format!("发送动作序列到设备失败: {}", error),
+                    format!("执行动作序列失败: {}", error),
                 )
             })?;
         Ok(Some(ControlFlow::Next))
+    }
+
+    fn estimate_reliable_sequence_timeout_ms(commands: &[ADBCommand]) -> u64 {
+        let duration_sum_ms: u64 = commands
+            .iter()
+            .filter_map(|command| match command {
+                ADBCommand::Duration(ms) => Some(*ms),
+                _ => None,
+            })
+            .sum();
+
+        let command_overhead_ms = commands
+            .iter()
+            .filter(|command| !matches!(command, ADBCommand::Duration(_)))
+            .count() as u64
+            * 1_000;
+
+        5_000 + duration_sum_ms + command_overhead_ms
     }
 
     async fn compile_action_sequence(
@@ -317,7 +351,18 @@ impl ScriptExecutor {
             Action::Swipe { duration, mode } => {
                 self.compile_action_sequence_swipe(mode, *duration).await
             }
+            Action::LongClick {
+                mode,
+                offset_x,
+                offset_y,
+            } => {
+                self.compile_action_sequence_long_click(mode, *offset_x, *offset_y)
+                    .await
+            }
+            Action::Reboot => Ok(Some(ADBCommand::Reboot)),
             Action::Back => Ok(Some(ADBCommand::Back)),
+            Action::Home => Ok(Some(ADBCommand::Home)),
+            Action::InputText { text } => Ok(Some(ADBCommand::InputText(text.clone()))),
             Action::LaunchApp {
                 pkg_name,
                 activity_name,
@@ -354,6 +399,26 @@ impl ScriptExecutor {
         };
         let point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
         Ok(Some(ADBCommand::Click(
+            self.apply_click_random_offset(point).await?,
+        )))
+    }
+
+    async fn compile_action_sequence_long_click(
+        &mut self,
+        mode: &ClickMode,
+        offset_x: i32,
+        offset_y: i32,
+    ) -> ExecuteResult<Option<ADBCommand>> {
+        let point = match mode {
+            ClickMode::Point { p } => Self::point_to_absolute(p),
+            ClickMode::Percent { p } => {
+                let screen_size = self.ensure_screen_size().await?;
+                Self::percent_point_to_absolute(p, screen_size)?
+            }
+            ClickMode::Txt { .. } | ClickMode::LabelIdx { .. } => return Ok(None),
+        };
+        let point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
+        Ok(Some(ADBCommand::LongClick(
             self.apply_click_random_offset(point).await?,
         )))
     }
@@ -398,11 +463,22 @@ impl ScriptExecutor {
                 offset_y,
             } => self.execute_click(mode, *offset_x, *offset_y).await,
             Action::Swipe { duration, mode } => self.execute_swipe(mode, *duration).await,
+            Action::LongClick {
+                mode,
+                offset_x,
+                offset_y,
+            } => self.execute_long_click(mode, *offset_x, *offset_y).await,
             Action::Reboot => {
-                Err(Self::execute_error(
+                Self::await_device_result_with_timeout(
                     "action.reboot",
-                    "脚本级 pkg_name/activity_name 已移除，重启应用请改用显式 StopApp + LaunchApp 动作"
-                        .to_string(),
+                    "设备重启",
+                    20_000,
+                    get_device_ctx().reboot(),
+                )
+                .await?;
+                Ok((
+                    ControlFlow::Next,
+                    Some(Self::build_simple_action_trace(PolicyActionKind::Reboot)),
                 ))
             }
             Action::Back => {
@@ -416,6 +492,32 @@ impl ScriptExecutor {
                 Ok((
                     ControlFlow::Next,
                     Some(Self::build_simple_action_trace(PolicyActionKind::Back)),
+                ))
+            }
+            Action::Home => {
+                Self::await_device_result_with_timeout(
+                    "action.home",
+                    "主页键",
+                    DEVICE_EXTERNAL_TIMEOUT_MS,
+                    get_device_ctx().home(),
+                )
+                .await?;
+                Ok((
+                    ControlFlow::Next,
+                    Some(Self::build_simple_action_trace(PolicyActionKind::Home)),
+                ))
+            }
+            Action::InputText { text } => {
+                Self::await_device_result_with_timeout(
+                    "action.inputText",
+                    "输入文本",
+                    DEVICE_EXTERNAL_TIMEOUT_MS,
+                    get_device_ctx().input_text(text),
+                )
+                .await?;
+                Ok((
+                    ControlFlow::Next,
+                    Some(Self::build_simple_action_trace(PolicyActionKind::Input)),
                 ))
             }
             Action::PosAdd { target } => {
@@ -466,6 +568,105 @@ impl ScriptExecutor {
                 ))
             }
         }
+    }
+
+    async fn execute_long_click(
+        &mut self,
+        mode: &ClickMode,
+        offset_x: i32,
+        offset_y: i32,
+    ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
+        let (points, source, targets) = match mode {
+            ClickMode::Point { p } => {
+                let point = Self::point_to_absolute(p);
+                (
+                    vec![point],
+                    PolicyActionSource::Fixed,
+                    vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)],
+                )
+            }
+            ClickMode::Percent { p } => {
+                let screen_size = self.ensure_screen_size().await?;
+                let point = Self::percent_point_to_absolute(p, screen_size)?;
+                (
+                    vec![point],
+                    PolicyActionSource::Fixed,
+                    vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)],
+                )
+            }
+            ClickMode::Txt {
+                input_var,
+                txt,
+                txt_expr,
+            } => {
+                let target_text =
+                    self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), "action.longClick")?;
+                let items = self
+                    .resolve_ocr_target_items("action.longClick", input_var, target_text.as_deref())
+                    .await?;
+                let mut points = Vec::new();
+                let mut targets = Vec::new();
+                for item in items {
+                    let point = Self::bounding_box_center_to_point(
+                        "action.longClick",
+                        "长按目标",
+                        &item.bounding_box,
+                    )?;
+                    points.push(point);
+                    targets.push(Self::build_ocr_target(
+                        PolicyActionTargetRole::Primary,
+                        point,
+                        &item,
+                    ));
+                }
+                (points, PolicyActionSource::Ocr, targets)
+            }
+            ClickMode::LabelIdx { input_var, idx } => {
+                let items = self
+                    .resolve_det_target_items("action.longClick", input_var, *idx)
+                    .await?;
+                let mut points = Vec::new();
+                let mut targets = Vec::new();
+                for item in items {
+                    let point = Self::bounding_box_center_to_point(
+                        "action.longClick",
+                        "长按目标",
+                        &item.bounding_box,
+                    )?;
+                    points.push(point);
+                    targets.push(Self::build_det_target(
+                        PolicyActionTargetRole::Primary,
+                        point,
+                        &item,
+                    ));
+                }
+                (points, PolicyActionSource::Det, targets)
+            }
+        };
+        if points.is_empty() {
+            return Ok((ControlFlow::Next, None));
+        }
+
+        for point in points {
+            let fixed_point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
+            let click_point = self.apply_click_random_offset(fixed_point).await?;
+            Self::await_device_result_with_timeout(
+                "action.longClick",
+                "长按",
+                DEVICE_EXTERNAL_TIMEOUT_MS,
+                get_device_ctx().long_click(click_point),
+            )
+            .await?;
+        }
+
+        Ok((
+            ControlFlow::Next,
+            Some(Self::build_action_trace(
+                PolicyActionKind::Press,
+                source,
+                targets,
+            )),
+        ))
     }
 
     async fn execute_click(
@@ -2189,8 +2390,11 @@ impl ScriptExecutor {
             action,
             Action::Click { .. }
                 | Action::Swipe { .. }
+                | Action::LongClick { .. }
                 | Action::Reboot
                 | Action::Back
+                | Action::Home
+                | Action::InputText { .. }
                 | Action::LaunchApp { .. }
                 | Action::StopApp { .. }
         )

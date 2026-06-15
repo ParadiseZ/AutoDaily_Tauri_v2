@@ -1,5 +1,5 @@
-use crate::domain::devices::device_runtime_event::DeviceLifecycleStatus;
 use crate::domain::devices::device_conf::DeviceTable;
+use crate::domain::devices::device_runtime_event::DeviceLifecycleStatus;
 use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{
     now_millis_string, AssignmentId, DeviceId, DispatchId, HashMap, JobId, MessageId, ScriptId,

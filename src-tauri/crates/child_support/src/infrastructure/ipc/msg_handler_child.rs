@@ -78,13 +78,19 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
             .await;
 
             match result {
-                Ok(runtime_connect) => {
-                    ADBCtx::new(runtime_connect).await;
-                    emit_connection_event(
+                Ok(runtime_connect) => match ADBCtx::new(runtime_connect).await {
+                    Ok(()) => emit_connection_event(
                         ConnectionStatusKind::DeviceConnected,
-                        Some("预探测到现有设备连接可用".to_string()),
-                    );
-                }
+                        Some("[ child ] 设备已连接".to_string()),
+                    ),
+                    Err(error) => {
+                        Log::warn(&format!("[ child ] ADB上下文连接初始化失败: {}", error));
+                        emit_connection_event(
+                            ConnectionStatusKind::DeviceDisconnected,
+                            Some(error),
+                        );
+                    }
+                },
                 Err(error) => {
                     Log::warn(&format!("[ child ] 设备连接探测失败: {}", error));
                     emit_connection_event(ConnectionStatusKind::DeviceDisconnected, Some(error));
@@ -113,13 +119,19 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
             )
             .await
             {
-                Ok(runtime_connect) => {
-                    ADBCtx::new(runtime_connect).await;
-                    emit_connection_event(
+                Ok(runtime_connect) => match ADBCtx::new(runtime_connect).await {
+                    Ok(()) => emit_connection_event(
                         ConnectionStatusKind::DeviceConnected,
-                        Some("模拟器启动后设备连接已就绪".to_string()),
-                    );
-                }
+                        Some("[ child ] 模拟器启动后再次尝试连接成功".to_string()),
+                    ),
+                    Err(error) => {
+                        Log::warn(&format!("[ child ] ADB上下文连接初始化失败: {}", error));
+                        emit_connection_event(
+                            ConnectionStatusKind::DeviceDisconnected,
+                            Some(error),
+                        );
+                    }
+                },
                 Err(error) => {
                     Log::warn(&format!("[ child ] 设备连接准备失败: {}", error));
                     emit_connection_event(ConnectionStatusKind::DeviceDisconnected, Some(error));
@@ -144,7 +156,7 @@ async fn handle_capture_control(
         emit_capture_event(
             request_id,
             None,
-            Some("设备截图校验失败：请检查截图方式、窗口状态或设备连接".to_string()),
+            Some("[ child ] 设备截图校验失败：请检查截图方式、窗口状态或设备连接".to_string()),
         );
         return;
     }
@@ -155,10 +167,10 @@ async fn handle_capture_control(
             Err(error) => emit_capture_event(
                 request_id,
                 None,
-                Some(format!("设备截图编码失败：{}", error)),
+                Some(format!("[ child ] 设备截图编码失败：{}", error)),
             ),
         },
-        None => emit_capture_event(request_id, None, Some("设备截图失败".to_string())),
+        None => emit_capture_event(request_id, None, Some("[ child ] 设备截图失败".to_string())),
     }
 }
 
@@ -198,7 +210,7 @@ async fn handle_process_control(ctrl: ProcessControlMessage) {
                 None,
                 None,
                 None,
-                Some("执行已暂停".to_string()),
+                Some("[ child ] 执行已暂停".to_string()),
             );
             let _ = emit_lifecycle_event_now(RuntimeLifecyclePhase::Paused, None).await;
         }
@@ -232,13 +244,13 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 None,
-                Some(format!("运行会话已加载，队列 {} 项", summary.queue_len)),
+                Some(format!("[ child ] 运行会话已加载，队列 {} 项", summary.queue_len)),
             );
             let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,
                 Some(summary.session_id),
                 None,
-                Some("运行会话已加载".to_string()),
+                Some("[ child ]   运行会话已加载".to_string()),
             )
             .await;
             let _ = emit_lifecycle_event_with_now(
@@ -264,13 +276,13 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 None,
-                Some(format!("运行会话已热更新，队列 {} 项", summary.queue_len)),
+                Some(format!("[ child ] 运行会话已热更新，队列 {} 项", summary.queue_len)),
             );
             let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,
                 Some(summary.session_id),
                 None,
-                Some("运行会话已热更新".to_string()),
+                Some("[ child ] 运行会话已热更新".to_string()),
             )
             .await;
         }
@@ -324,25 +336,33 @@ async fn handle_config_update(config: ConfigUpdateMessage) {
             .store(next_config.log_level.clone() as u8, Ordering::Relaxed);
     }
 
-    get_device_ctx().apply_device_config(next_config.clone()).await;
+    get_device_ctx()
+        .apply_device_config(next_config.clone())
+        .await;
 
     if matches!(next_config.platform, DevicePlatform::Android) {
         match resolve_runtime_connect_config(&next_config) {
             Ok(runtime_connect) => {
-                ADBCtx::new(runtime_connect).await;
+                if let Err(error) = ADBCtx::new(runtime_connect).await {
+                    let message = format!(
+                        "[ child ] 设备配置已更新，但 ADB 连接配置生效失败: {}",
+                        error
+                    );
+                    Log::warn(&message);
+                    emit_connection_event(ConnectionStatusKind::DeviceDisconnected, Some(message));
+                }
             }
             Err(error) => {
-                Log::warn(&format!("[ child ] 设备配置已更新，但 ADB 连接配置未生效: {}", error));
+                Log::warn(&format!(
+                    "[ child ] 设备配置已更新，但 ADB 连接配置未生效: {}",
+                    error
+                ));
             }
         }
     }
 
     Log::info(&format!(
-        "[ child ] 设备配置已热更新: name={}, transport={:?}, capture={:?}, log_level={}, log_to_file={}",
-        next_config.device_name,
-        next_config.transport_kind,
-        next_config.cap_method,
-        next_config.log_level,
-        next_config.log_to_file
+        "[ child ] 设备配置已热更新: {}",
+        next_config
     ));
 }

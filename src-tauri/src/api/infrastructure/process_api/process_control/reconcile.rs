@@ -1,7 +1,7 @@
 use super::events::{device_log_label, emit_runtime_reconcile_event};
 use super::runtime::{
-    request_child_connection_action, restart_device_runtime_internal,
-    send_device_config_update, shutdown_device_runtime_internal, spawn_device_runtime_internal,
+    request_child_connection_action, restart_device_runtime_internal, send_device_config_update,
+    shutdown_device_runtime_internal, spawn_device_runtime_internal,
 };
 use super::scheduler::{reevaluate_device_auto_dispatch, sync_device_runtime_session_internal};
 use crate::constant::table_name::ASSIGNMENT_TABLE;
@@ -264,7 +264,10 @@ async fn run_runtime_reconcile_job(
                     messages.push(message);
                 } else {
                     let device_label = device_log_label(app_handle, device_id);
-                    messages.push(format!("设备[{}]当前未在线，跳过运行会话同步", device_label));
+                    messages.push(format!(
+                        "设备[{}]当前未在线，跳过运行会话同步",
+                        device_label
+                    ));
                 }
             }
 

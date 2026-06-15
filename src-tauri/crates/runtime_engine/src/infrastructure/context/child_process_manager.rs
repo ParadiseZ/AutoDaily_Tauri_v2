@@ -140,15 +140,13 @@ fn emit_device_status_event(device_id: DeviceId, status: &str, message: &str) {
         "Error" => DeviceLifecycleStatus::Error,
         _ => DeviceLifecycleStatus::Error,
     };
-    let _ = app_handle
-        .state::<MainProcessCtx>()
-        .set_device_lifecycle(
-            device_id,
-            lifecycle_status.clone(),
-            None,
-            Some(message.to_string()),
-            Some(now_millis_string()),
-        );
+    let _ = app_handle.state::<MainProcessCtx>().set_device_lifecycle(
+        device_id,
+        lifecycle_status.clone(),
+        None,
+        Some(message.to_string()),
+        Some(now_millis_string()),
+    );
     if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
         let payload = DeviceStatusEventPayload {
             device_id,

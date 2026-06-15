@@ -10,6 +10,7 @@ use crate::infrastructure::ipc::message::{
     RuntimeScheduleEvent, RuntimeScheduleStatus,
 };
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::logging::LogLevel;
 use crate::infrastructure::scripts::scheduler::get_scheduler;
 use crate::infrastructure::session::runtime_session::try_current_session_summary;
 
@@ -21,8 +22,45 @@ fn current_script_id() -> Option<ScriptId> {
     get_scheduler().and_then(|scheduler| scheduler.current_script_snapshot())
 }
 
+fn runtime_event_level(event: &RuntimeEventMessage) -> LogLevel {
+    match event {
+        RuntimeEventMessage::Lifecycle(lifecycle) => match lifecycle.phase {
+            RuntimeLifecyclePhase::Error => LogLevel::Error,
+            _ => LogLevel::Info,
+        },
+        RuntimeEventMessage::Progress(progress) => match progress.phase {
+            RuntimeProgressPhase::Failed => LogLevel::Warn,
+            _ => LogLevel::Info,
+        },
+        RuntimeEventMessage::Schedule(schedule) => match schedule.status {
+            RuntimeScheduleStatus::Failed => LogLevel::Warn,
+            _ => LogLevel::Info,
+        },
+        RuntimeEventMessage::Connection(connection) => match connection.status {
+            ConnectionStatusKind::DeviceDisconnected => LogLevel::Warn,
+            ConnectionStatusKind::DeviceUnknown => LogLevel::Debug,
+            _ => LogLevel::Info,
+        },
+        RuntimeEventMessage::Capture(capture) => {
+            if capture.image_data.is_some() {
+                LogLevel::Info
+            } else {
+                LogLevel::Warn
+            }
+        }
+        RuntimeEventMessage::Dispatch(dispatch) => match dispatch.phase {
+            RuntimeDispatchPhase::Failed => LogLevel::Warn,
+            _ => LogLevel::Info,
+        },
+    }
+}
+
 fn emit_runtime_event(event: RuntimeEventMessage, log_label: &str) {
     if let Some(client) = get_ipc_client() {
+        let event_level = runtime_event_level(&event);
+        if !client.should_log(event_level) {
+            return;
+        }
         let log_label = log_label.to_string();
         tokio::spawn(async move {
             let msg = IpcMessage::new(
@@ -39,6 +77,10 @@ fn emit_runtime_event(event: RuntimeEventMessage, log_label: &str) {
 
 pub async fn emit_runtime_event_now(event: RuntimeEventMessage, log_label: &str) -> bool {
     if let Some(client) = get_ipc_client() {
+        let event_level = runtime_event_level(&event);
+        if !client.should_log(event_level) {
+            return false;
+        }
         let msg = IpcMessage::new(
             *client.device_id,
             MessageType::Status,

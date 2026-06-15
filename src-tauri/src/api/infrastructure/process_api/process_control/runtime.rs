@@ -1,3 +1,7 @@
+use super::super::runtime_session::{
+    build_child_init_data, load_device_table, load_runtime_session_for_queue_item,
+    validate_runtime_platform_supported,
+};
 use super::events::{
     device_log_label, emit_assignment_schedule_changed, emit_device_connection_status,
     emit_device_progress_status,
@@ -6,10 +10,6 @@ use super::scheduler::{block_device_auto_dispatch, dispatch_next_scheduled_queue
 use super::state::{
     mark_active_dispatch, reset_device_dispatch_state, set_auto_dispatch_blocked,
     snapshot_device_dispatch_state,
-};
-use super::super::runtime_session::{
-    build_child_init_data, load_device_table, load_runtime_session_for_queue_item,
-    validate_runtime_platform_supported,
 };
 use crate::domain::devices::device_conf::{DeviceConfig, DeviceTable};
 use crate::domain::devices::device_runtime_event::DeviceRuntimeProgressPhase;
@@ -28,8 +28,8 @@ use crate::infrastructure::ipc::message::{
     ProcessControlMessage, RuntimeDispatchPhase, RuntimeQueueItem, RuntimeSessionSnapshot,
     SessionControlMessage,
 };
-use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use crate::infrastructure::logging::log_trait::Log;
+use crate::infrastructure::logging::main_process_log_handler::get_child_log_receiver;
 use chrono::Local;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -111,9 +111,11 @@ fn can_reuse_connected_runtime_state(
         .state::<MainProcessCtx>()
         .snapshot_device_runtime_state(device_id)?;
 
-    Ok(runtime_state.child_runtime_status == ChildRuntimeStatus::IpcReady
-        && runtime_state.connection.status == ConnectionStatusKind::DeviceConnected
-        && runtime_state.last_error.is_none())
+    Ok(
+        runtime_state.child_runtime_status == ChildRuntimeStatus::IpcReady
+            && runtime_state.connection.status == ConnectionStatusKind::DeviceConnected
+            && runtime_state.last_error.is_none(),
+    )
 }
 
 fn parse_runtime_timestamp_ms(value: &str) -> Option<u128> {
@@ -184,11 +186,7 @@ fn spawn_command_payload(device_id: DeviceId, payload: MessagePayload) {
 }
 
 pub(super) async fn send_session_control(device_id: DeviceId, control: SessionControlMessage) {
-    let _ = send_command_payload(
-        device_id,
-        MessagePayload::SessionControl(control),
-    )
-    .await;
+    let _ = send_command_payload(device_id, MessagePayload::SessionControl(control)).await;
 }
 
 pub(super) fn send_process_control(device_id: DeviceId, action: ProcessAction) {
@@ -708,28 +706,34 @@ pub(crate) fn spawn_dispatch_signal_loop(
                 }
                 RuntimeDispatchPhase::RequestNext => {
                     match mark_active_dispatch(&app_handle, signal.device_id, None) {
-                        Ok(()) => match dispatch_next_scheduled_queue_item(&app_handle, signal.device_id)
-                            .await
-                        {
-                            Ok(true) => {
-                                let device_label = device_log_label(&app_handle, signal.device_id);
-                                Log::info(&format!(
-                                    "[ process ] 设备[{}]收到 RequestNext，继续派发下一条",
-                                    device_label
-                                ));
-                                Ok(())
-                            }
-                            Ok(false) => {
-                                let device_label = device_log_label(&app_handle, signal.device_id);
-                                Log::info(&format!(
+                        Ok(()) => {
+                            match dispatch_next_scheduled_queue_item(&app_handle, signal.device_id)
+                                .await
+                            {
+                                Ok(true) => {
+                                    let device_label =
+                                        device_log_label(&app_handle, signal.device_id);
+                                    Log::info(&format!(
+                                        "[ process ] 设备[{}]收到 RequestNext，继续派发下一条",
+                                        device_label
+                                    ));
+                                    Ok(())
+                                }
+                                Ok(false) => {
+                                    let device_label =
+                                        device_log_label(&app_handle, signal.device_id);
+                                    Log::info(&format!(
                                     "[ process ] 设备[{}]收到 RequestNext，但当前没有可派发任务，等待下一次被动唤醒",
                                     device_label
                                 ));
-                                let _ = emit_queue_finished_progress(&app_handle, signal.device_id).await;
-                                Ok(())
+                                    let _ =
+                                        emit_queue_finished_progress(&app_handle, signal.device_id)
+                                            .await;
+                                    Ok(())
+                                }
+                                Err(error) => Err(error),
                             }
-                            Err(error) => Err(error),
-                        },
+                        }
                         Err(error) => Err(error),
                     }
                 }
@@ -771,12 +775,13 @@ pub(crate) fn register_child_process_exit_handler(app_handle: tauri::AppHandle) 
             }
 
             let completed_at = Local::now().to_rfc3339();
-            let failed = super::super::dispatch_planner::fail_active_assignment_schedules_by_device(
-                device_id,
-                completed_at,
-                message.clone(),
-            )
-            .await;
+            let failed =
+                super::super::dispatch_planner::fail_active_assignment_schedules_by_device(
+                    device_id,
+                    completed_at,
+                    message.clone(),
+                )
+                .await;
             match failed {
                 Ok(count) => {
                     if count > 0 || had_active {

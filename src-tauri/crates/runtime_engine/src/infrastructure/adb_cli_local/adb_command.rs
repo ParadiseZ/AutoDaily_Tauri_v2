@@ -77,6 +77,8 @@ pub enum ADBCommand {
 
     //合并为单条指令
     Sequence(Vec<ADBCommand>),
+    // 合并为单条命令并等待执行结果，适合低频但希望确认成功的一组操作
+    ReliableSequence(Vec<ADBCommand>),
     //Sequence则合并，其他则睡眠
     Duration(u64),
 
@@ -116,6 +118,13 @@ impl std::fmt::Display for ADBCommand {
             ADBCommand::Home => write!(f, "home:{}", HOME),
             ADBCommand::Sequence(commands) => {
                 write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str())
+            }
+            ADBCommand::ReliableSequence(commands) => {
+                write!(
+                    f,
+                    "reliable_sequence:{}",
+                    adb_cmd_vec_to_string(commands).as_str()
+                )
             }
             ADBCommand::Duration(duration) => write!(f, "{}", duration),
             ADBCommand::Loop(commands) => {

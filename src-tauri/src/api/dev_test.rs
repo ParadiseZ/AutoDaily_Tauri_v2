@@ -168,7 +168,7 @@ pub async fn dev_capture_test(
     let device_conf_for_error = device_conf.clone();
     let adb_conf_for_error = adb_conf.clone();
     if matches!(capture_method, CaptureMethod::Adb) {
-        ADBCtx::new(adb_conf).await;
+        ADBCtx::new(adb_conf).await?;
     }
     let title = match device_conf.cap_method.clone() {
         CapMethod::Window { title } => Some(title),
