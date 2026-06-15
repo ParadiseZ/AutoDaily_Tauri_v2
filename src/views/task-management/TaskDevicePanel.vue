@@ -1,19 +1,33 @@
 <template>
   <SurfacePanel class="flex h-full min-h-0 flex-col gap-5 overflow-hidden">
     <div class="flex flex-wrap items-start justify-between gap-4">
-      <div class="space-y-2">
-        <div class="flex flex-wrap gap-2 text-sm text-(--app-text-soft)">
-          <span>{{ formatPlatformLabel(device.data.platform) }}</span>
-          <span>·</span>
-          <span>{{ formatConnectLabel(device.data) }}</span>
-          <span>·</span>
-          <span>{{ taskConnectionBadge.label }}</span>
-          <span>·</span>
-          <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
-          <span v-if="currentScriptName">· 正在执行 {{ currentScriptName }}</span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-start gap-3">
+          <div class="min-w-0 flex-1 space-y-2">
+            <div class="flex flex-wrap gap-2 text-sm text-(--app-text-soft)">
+              <span>{{ formatPlatformLabel(device.data.platform) }}</span>
+              <span>·</span>
+              <span>{{ formatConnectLabel(device.data) }}</span>
+              <span>·</span>
+              <span>{{ taskConnectionBadge.label }}</span>
+              <span>·</span>
+              <span>{{ formatCaptureMethod(device.data.capMethod) }}</span>
+              <span v-if="currentScriptName">· 正在执行 {{ currentScriptName }}</span>
+            </div>
+            <p v-if="runtimeView.pendingMessage" class="text-sm font-medium text-(--app-accent)">{{ runtimeView.pendingMessage }}</p>
+            <p v-else-if="runtimeView.connectionStatus.message" class="text-sm text-(--app-text-faint)">{{ runtimeView.connectionStatus.message }}</p>
+          </div>
+          <button
+            class="app-icon-button group shrink-0"
+            type="button"
+            title="编辑设备"
+            aria-label="编辑设备"
+            :disabled="deviceBusy"
+            @click="$emit('editDevice', device.id)"
+          >
+            <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) transition-colors group-hover:text-(--app-accent)" />
+          </button>
         </div>
-        <p v-if="runtimeView.pendingMessage" class="text-sm font-medium text-(--app-accent)">{{ runtimeView.pendingMessage }}</p>
-        <p v-else-if="runtimeView.connectionStatus.message" class="text-sm text-(--app-text-faint)">{{ runtimeView.connectionStatus.message }}</p>
       </div>
 
       <div v-if="showRuntimeActionButton" class="flex flex-wrap gap-2">
@@ -461,6 +475,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   start: [deviceId: string];
   stop: [deviceId: string];
+  editDevice: [deviceId: string];
   addScript: [deviceId: string, scriptId: string, timeTemplateId: string | null];
   ensureScriptTasks: [scriptId: string];
   runTarget: [deviceId: string, target: RunTarget];

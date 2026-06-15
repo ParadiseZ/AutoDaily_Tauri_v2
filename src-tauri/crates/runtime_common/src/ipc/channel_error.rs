@@ -8,10 +8,10 @@ pub enum ChannelError {
     #[error("消息长度过长：{detail}")]
     MessageTooLong { detail: String },
 
-    #[error("ipc通道已关闭，设备id: {device_id}")]
+    #[error("目标设备的 ipc 通道已关闭")]
     ChannelClosed { device_id: String },
 
-    #[error("ipc通道建立失败, 设备id:{device_id}, {e}")]
+    #[error("目标设备的 ipc 通道建立失败: {e}")]
     ConnectErr { device_id: String, e: String },
 
     #[error("编码消息失败:{e}")]
@@ -29,7 +29,7 @@ pub enum ChannelError {
     #[error("发送消息失败:{e}")]
     SendErr { e: String },
 
-    #[error("向设备[{device_id}]发送消息失败: {e}")]
+    #[error("向目标设备发送消息失败: {e}")]
     SendToChildErr { device_id: String, e: String },
 }
 

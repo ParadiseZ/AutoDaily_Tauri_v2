@@ -11,6 +11,28 @@ use crate::infrastructure::logging::log_trait::Log;
 use sqlx::Acquire;
 use tauri::{command, Manager};
 
+async fn resolve_device_log_label(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+) -> String {
+    if let Ok(Some(device)) = DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string()).await
+    {
+        let name = device.data.0.device_name.trim().to_string();
+        if !name.is_empty() {
+            return name;
+        }
+    }
+
+    app_handle
+        .state::<MainProcessCtx>()
+        .snapshot_device_runtime_state(device_id)
+        .ok()
+        .and_then(|state| state.device_name)
+        .map(|name| name.trim().to_string())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "未知设备".to_string())
+}
+
 /// 获取所有设备配置
 #[command]
 pub async fn get_all_devices_cmd() -> Result<Vec<DeviceTable>, String> {
@@ -43,8 +65,8 @@ pub async fn save_device_cmd(
 
     if let Err(error) = &result {
         Log::error(&format!(
-            "[ device ] 保存设备失败 device_id={} device_name={} error={}",
-            device_id, device_name, error
+            "[ device ] 保存设备失败 device_name={} error={}",
+            device_name, error
         ));
     }
 
@@ -99,6 +121,7 @@ pub async fn delete_device_cmd(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<(), String> {
+    let device_label = resolve_device_log_label(&app_handle, device_id).await;
     let result = async {
         ensure_device_deletable_async(&app_handle, device_id).await?;
 
@@ -132,8 +155,8 @@ pub async fn delete_device_cmd(
 
     if let Err(error) = &result {
         Log::error(&format!(
-            "[ device ] 删除设备失败 device_id={} error={}",
-            device_id, error
+            "[ device ] 删除设备失败 device_name={} error={}",
+            device_label, error
         ));
     }
 
@@ -143,5 +166,10 @@ pub async fn delete_device_cmd(
 /// 获取当前 CPU 核心数
 #[command]
 pub fn get_cpu_count_cmd() -> usize {
-    num_cpus::get()
+    let physical = num_cpus::get_physical();
+    if physical > 0 {
+        physical
+    } else {
+        num_cpus::get().max(1)
+    }
 }

@@ -139,13 +139,11 @@ import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
 import { requestAppConfirm } from '@/services/appDialogService';
-import { taskService } from '@/services/taskService';
 import { showToast } from '@/utils/toast';
 import { toErrorText } from '@/utils/api';
 import { formatCaptureMethod, formatConnectLabel, formatPlatformLabel } from '@/utils/presenters';
-import { validateDeviceForm } from '@/views/device-list/deviceFormValidation';
+import { buildDeviceTableFromForm } from '@/views/device-list/deviceEditorShared';
 import type { DeviceFormState } from '@/types/app/domain';
-import type { DeviceTable } from '@/types/bindings/DeviceTable';
 
 const deviceStore = useDeviceStore();
 const settingsStore = useSettingsStore();
@@ -159,53 +157,6 @@ const editingDeviceBusy = computed(() =>
   currentDevice.value ? deviceStore.isDeviceBusy(currentDevice.value.id) : false,
 );
 
-const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => {
-  const normalized = validateDeviceForm(form);
-
-  return {
-    id: form.id ?? (await taskService.requestUuid()),
-    data: {
-      deviceName: form.deviceName,
-      platform: form.platform,
-      transportKind: form.transportKind,
-      emulatorConnectMode: form.emulatorConnectMode,
-      startupDelaySecs: Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0)),
-      connectAddress:
-        form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'tcpAddress'
-          ? normalized.connectAddress
-          : null,
-      connectIdentifier:
-        form.transportKind !== 'emulatorTcp' || form.emulatorConnectMode === 'identifier'
-          ? normalized.connectIdentifier || null
-          : null,
-      adbPath:
-        form.transportKind !== 'emulatorTcp' || form.emulatorConnectMode === 'identifier'
-          ? normalized.adbPath || settingsStore.preferences.adbPath || null
-          : null,
-      adbServerConnect:
-        form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'tcpAddress'
-        ? null
-        : normalized.adbServerConnect || `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
-      exePath: normalized.exePath || null,
-      exeArgs: normalized.exeArgs || null,
-      cores: form.cores,
-      logLevel: form.logLevel,
-      logToFile: form.logToFile,
-      capMethod: form.capMethodType === 'adb' ? { type: 'adb' } : { type: 'window', title: normalized.capMethodValue || form.deviceName },
-      imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
-      enable: form.enable,
-      autoStart: form.autoStart,
-      executionPolicy: {
-        actionWaitMs: Math.max(0, Math.floor(Number(form.actionWaitMs) || 0)),
-        progressTimeoutEnabled: form.progressTimeoutEnabled,
-        progressTimeoutMs: Math.max(1000, Math.floor(Number(form.progressTimeoutMs) || 30000)),
-        timeoutAction: form.timeoutAction,
-        timeoutNotifyChannels: [...form.timeoutNotifyChannels],
-      },
-    },
-  };
-};
-
 const openEditor = (deviceId: string | null) => {
   if (deviceId && deviceStore.isDeviceBusy(deviceId)) {
     return;
@@ -216,7 +167,7 @@ const openEditor = (deviceId: string | null) => {
 
 const saveDevice = async (form: DeviceFormState) => {
   try {
-    const device = await buildDeviceTable(form);
+    const device = await buildDeviceTableFromForm(form, settingsStore.preferences);
     await deviceStore.saveDevice(device);
     editorOpen.value = false;
     showToast('设备已保存', 'success');

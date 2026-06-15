@@ -259,7 +259,7 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 Some(format!(
-                    "[ child ] 运行会话已加载，队列 {} 项",
+                    "运行会话已加载，队列 {} 项",
                     summary.queue_len
                 )),
             );
@@ -267,7 +267,7 @@ async fn handle_session_control(control: SessionControlMessage) {
                 RuntimeLifecyclePhase::Loaded,
                 Some(summary.session_id),
                 None,
-                Some("[ child ]   运行会话已加载".to_string()),
+                Some("运行会话已加载".to_string()),
             )
             .await;
             let _ = emit_lifecycle_event_with_now(
@@ -294,7 +294,7 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 Some(format!(
-                    "[ child ] 运行会话已热更新，队列 {} 项",
+                    "运行会话已热更新，队列 {} 项",
                     summary.queue_len
                 )),
             );
@@ -302,7 +302,7 @@ async fn handle_session_control(control: SessionControlMessage) {
                 RuntimeLifecyclePhase::Loaded,
                 Some(summary.session_id),
                 None,
-                Some("[ child ] 运行会话已热更新".to_string()),
+                Some("运行会话已热更新".to_string()),
             )
             .await;
         }

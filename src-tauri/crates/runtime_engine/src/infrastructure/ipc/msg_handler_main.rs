@@ -288,14 +288,14 @@ fn handle_runtime_event(
                     if let Some(body) = message.strip_prefix("[timeout_email]") {
                         let email_body = format!(
                             "设备: {}\n时间: {}\n\n{}",
-                            device_id,
+                            device_label,
                             progress.at,
                             body.trim()
                         );
                         send_timeout_email_in_background(
                             get_app_handle().clone(),
                             EmailMessagePayload {
-                                subject: format!("AutoDaily 执行超时通知 - 设备 {}", device_id),
+                                subject: format!("AutoDaily 执行超时通知 - 设备 {}", device_label),
                                 body: email_body,
                             },
                         );

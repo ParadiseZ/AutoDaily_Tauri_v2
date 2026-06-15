@@ -412,7 +412,7 @@ impl ChildProcessManager {
     /// 停止一个子进程
     pub async fn stop_child(&self, device_id: &DeviceId) -> Result<(), String> {
         let Some(handle) = self.processes.read().await.get(device_id).cloned() else {
-            return Err(format!("设备[{}]没有运行中的子进程", device_id));
+            return Err("目标设备没有运行中的子进程".to_string());
         };
 
         let shutdown_msg = IpcMessage::new(

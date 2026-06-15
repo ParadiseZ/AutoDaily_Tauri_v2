@@ -183,7 +183,7 @@ async fn reconcile_saved_device_runtime(
             super::state::notify_auto_dispatch_planner();
             return Ok((
                 Some(DeviceRuntimeReconcileAction::Spawning),
-                format!("设备[{}]({})子进程已自动启动", device_name, current.id),
+                format!("设备[{}]子进程已自动启动", device_name),
             ));
         }
         return Ok((

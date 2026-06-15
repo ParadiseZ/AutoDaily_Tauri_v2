@@ -277,7 +277,10 @@ pub(super) async fn wait_for_ipc_client(
         }
 
         if started_at.elapsed() >= timeout {
-            return Err(format!("设备[{}]子进程启动后未及时连上 IPC", device_id));
+            return Err(format!(
+                "设备[{}]子进程启动后未及时连上 IPC",
+                device_log_label(app_handle, device_id)
+            ));
         }
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -403,14 +406,24 @@ pub(super) async fn request_child_connection_action(
 
     let mut connection_rx = connection_rx
         .take()
-        .ok_or_else(|| format!("设备[{}]连接状态订阅初始化失败", device_id))?;
+        .ok_or_else(|| {
+            format!(
+                "设备[{}]连接状态订阅初始化失败",
+                device_log_label(app_handle, device_id)
+            )
+        })?;
 
     let wait_result = tokio::time::timeout(timeout, async {
         loop {
             connection_rx
                 .changed()
                 .await
-                .map_err(|_| format!("设备[{}]连接状态通知已关闭", device_id))?;
+                .map_err(|_| {
+                    format!(
+                        "设备[{}]连接状态通知已关闭",
+                        device_log_label(app_handle, device_id)
+                    )
+                })?;
             let state = connection_rx.borrow().clone();
             match state.connection.status {
                 ConnectionStatusKind::DeviceConnected
@@ -442,7 +455,7 @@ pub(super) async fn request_child_connection_action(
             return Err(error);
         }
         Err(_) => {
-            let error = format!("设备[{}]连接准备超时", device_id);
+            let error = format!("设备[{}]连接准备超时", device_log_label(app_handle, device_id));
             let _ = set_connection_status(
                 app_handle,
                 device_id,
@@ -457,7 +470,9 @@ pub(super) async fn request_child_connection_action(
     match status {
         ConnectionStatusKind::DeviceConnected => Ok(()),
         ConnectionStatusKind::DeviceDisconnected => {
-            let message = message.unwrap_or_else(|| format!("设备[{}]连接准备失败", device_id));
+            let message = message.unwrap_or_else(|| {
+                format!("设备[{}]连接准备失败", device_log_label(app_handle, device_id))
+            });
             let _ = set_connection_status(
                 app_handle,
                 device_id,
@@ -472,7 +487,7 @@ pub(super) async fn request_child_connection_action(
         | ConnectionStatusKind::ShellProbeChecking
         | ConnectionStatusKind::EmulatorStarting
         | ConnectionStatusKind::EmulatorWaiting => {
-            let message = format!("设备[{}]连接状态未知", device_id);
+            let message = format!("设备[{}]连接状态未知", device_log_label(app_handle, device_id));
             let _ = set_connection_status(
                 app_handle,
                 device_id,
@@ -512,7 +527,8 @@ pub(super) async fn ensure_device_ready_for_manual(
         {
             Log::error(&format!(
                 "[ process ] 设备[{}]持久化自动派发停止状态失败: {}",
-                device_id, block_error
+                device_log_label(app_handle, device_id),
+                block_error
             ));
         }
         emit_device_progress_status(
@@ -635,7 +651,9 @@ pub(super) async fn wait_for_capture_result(
                     message,
                 } = result;
                 return image_data.ok_or_else(|| {
-                    message.unwrap_or_else(|| format!("设备[{}]截图失败", device_id))
+                    message.unwrap_or_else(|| {
+                        format!("设备[{}]截图失败", device_log_label(app_handle, device_id))
+                    })
                 });
             }
         }
@@ -854,7 +872,10 @@ pub(super) async fn restart_device_runtime_internal(
     )
     .await;
 
-    Ok(format!("设备[{}]子进程已重启", device_id))
+    Ok(format!(
+        "设备[{}]子进程已重启",
+        device_log_label(app_handle, device_id)
+    ))
 }
 
 pub(super) async fn shutdown_device_runtime_internal(
@@ -864,7 +885,10 @@ pub(super) async fn shutdown_device_runtime_internal(
     if let Some(manager) = get_process_manager() {
         manager.stop_child(&device_id).await?;
         let _ = reset_device_dispatch_state(app_handle, device_id);
-        Ok(format!("设备[{}]子进程已关闭", device_id))
+        Ok(format!(
+            "设备[{}]子进程已关闭",
+            device_log_label(app_handle, device_id)
+        ))
     } else {
         Err("进程管理器未初始化".to_string())
     }

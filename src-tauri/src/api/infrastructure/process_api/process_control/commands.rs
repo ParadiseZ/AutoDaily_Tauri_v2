@@ -212,9 +212,15 @@ pub async fn cmd_device_stop(
 }
 
 #[command]
-pub async fn cmd_device_pause(device_id: DeviceId) -> Result<String, String> {
+pub async fn cmd_device_pause(
+    app_handle: tauri::AppHandle,
+    device_id: DeviceId,
+) -> Result<String, String> {
     send_process_control(device_id, ProcessAction::Pause);
-    Ok(format!("已向设备[{}]发送暂停命令", device_id))
+    Ok(format!(
+        "已向设备[{}]发送暂停命令",
+        device_log_label(&app_handle, device_id)
+    ))
 }
 
 #[command]
@@ -387,7 +393,7 @@ pub async fn cmd_spawn_device(
     .await;
     super::state::notify_auto_dispatch_planner();
 
-    Ok(format!("设备[{}]({})子进程已启动", device_name, device_id))
+    Ok(format!("设备[{}]子进程已启动", device_name))
 }
 
 #[command]
@@ -524,10 +530,7 @@ pub async fn cmd_prepare_device_capture(
     device_id: DeviceId,
 ) -> Result<String, String> {
     let device_name = ensure_device_capture_ready(&app_handle, device_id).await?;
-    Ok(format!(
-        "设备[{}]({})已启动并完成连接准备",
-        device_name, device_id
-    ))
+    Ok(format!("设备[{}]已启动并完成连接准备", device_name))
 }
 
 #[command]

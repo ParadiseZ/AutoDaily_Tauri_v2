@@ -22,7 +22,7 @@ use tauri::Manager;
 pub(super) async fn load_device_table(device_id: DeviceId) -> Result<DeviceTable, String> {
     DbRepo::get_by_id(DEVICE_TABLE, &device_id.to_string())
         .await?
-        .ok_or_else(|| format!("设备[{}]不存在", device_id))
+        .ok_or_else(|| "目标设备不存在".to_string())
 }
 
 pub(super) fn validate_runtime_platform_supported(

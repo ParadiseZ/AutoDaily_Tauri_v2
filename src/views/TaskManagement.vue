@@ -57,6 +57,7 @@
         :loading-schedules="Boolean(taskStore.loadingSchedules[activeDevice.id])"
         :device-pending-action="deviceStore.getDevicePendingAction(activeDevice.id)"
         :device-busy="deviceStore.isDeviceBusy(activeDevice.id)"
+        @edit-device="openEditor"
         @add-script="handleAddScript"
         @ensure-script-tasks="handleEnsureScriptTasks"
         @open-assignment-settings="handleOpenAssignmentSettings"
@@ -82,6 +83,15 @@
         :scope="assignmentSettingsScope"
       />
     </AppDialog>
+
+    <DeviceEditorDialog
+      :open="editorOpen"
+      :device="currentDevice"
+      :cpu-count="deviceStore.cpuCount"
+      :busy="editingDeviceBusy"
+      @close="editorOpen = false"
+      @save="saveDevice"
+    />
   </div>
 </template>
 
@@ -92,6 +102,8 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
+import DeviceEditorDialog from '@/views/device-list/DeviceEditorDialog.vue';
+import { buildDeviceTableFromForm } from '@/views/device-list/deviceEditorShared';
 import { requestAppConfirm } from '@/services/appDialogService';
 import { deviceService } from '@/services/deviceService';
 import { runtimeService } from '@/services/runtimeService';
@@ -100,6 +112,7 @@ import ScriptTemplateValuePanel from '@/views/script-template-values/ScriptTempl
 import { useDeviceStore } from '@/store/device';
 import { useRuntimeStore } from '@/store/runtime';
 import { useScriptStore } from '@/store/script';
+import { useSettingsStore } from '@/store/settings';
 import { useTaskStore } from '@/store/task';
 import { formatTemplateWindow } from '@/utils/presenters';
 import { getRunTargetDetails } from '@/utils/runTarget';
@@ -112,13 +125,14 @@ import {
   validateDeviceRuntimePlatform,
   validateRunTargetRecoveryForDevice,
 } from '@/utils/runtimePolicy';
-import type { AssignmentRecord } from '@/types/app/domain';
+import type { AssignmentRecord, DeviceFormState } from '@/types/app/domain';
 import type { RunTarget } from '@/types/bindings/RunTarget';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 
 const deviceStore = useDeviceStore();
 const runtimeStore = useRuntimeStore();
 const scriptStore = useScriptStore();
+const settingsStore = useSettingsStore();
 const taskStore = useTaskStore();
 
 const deviceIds = computed(() => deviceStore.devices.map((device) => device.id));
@@ -134,6 +148,8 @@ const actionableDeviceIds = computed(() =>
 );
 const bulkStarting = ref(false);
 const bulkStopping = ref(false);
+const editorOpen = ref(false);
+const editingDeviceId = ref<string | null>(null);
 const bulkActionLabel = computed(() => {
   if (bulkStarting.value) {
     return { start: '批量运行中...', stop: '全部停止' };
@@ -145,6 +161,12 @@ const bulkActionLabel = computed(() => {
 });
 const activeDevice = computed(() =>
   orderedDevices.value.find((device) => device.id === deviceStore.selectedDeviceId) ?? orderedDevices.value[0] ?? null,
+);
+const currentDevice = computed(
+  () => deviceStore.devices.find((device) => device.id === editingDeviceId.value) ?? null,
+);
+const editingDeviceBusy = computed(() =>
+  currentDevice.value ? deviceStore.isDeviceBusy(currentDevice.value.id) : false,
 );
 const assignmentSettingsOpen = ref(false);
 const assignmentSettingsScriptId = ref<string | null>(null);
@@ -239,6 +261,27 @@ const autoProbeActiveDevice = async () => {
 
 const handlePageVisibleProbe = () => {
   void autoProbeActiveDevice();
+};
+
+const openEditor = (deviceId: string) => {
+  if (deviceStore.isDeviceBusy(deviceId)) {
+    return;
+  }
+  editingDeviceId.value = deviceId;
+  editorOpen.value = true;
+};
+
+const saveDevice = async (form: DeviceFormState) => {
+  try {
+    const device = await buildDeviceTableFromForm(form, settingsStore.preferences);
+    await deviceStore.saveDevice(device);
+    editorOpen.value = false;
+    showToast('设备已保存', 'success');
+  } catch (error) {
+    const message = toErrorText(error).trim() || '设备保存失败';
+    console.error('[task management] 设备保存失败', error);
+    showToast(message, 'error');
+  }
 };
 
 const handleAddScript = async (deviceId: string, scriptId: string, timeTemplateId: string | null) => {
@@ -546,7 +589,7 @@ const handleStopAllDevices = async () => {
 };
 
 onMounted(async () => {
-  await loadPageData();
+  await Promise.all([loadPageData(), settingsStore.loadPreferences()]);
   document.addEventListener('visibilitychange', handlePageVisibleProbe);
   window.addEventListener('focus', handlePageVisibleProbe);
   unlistenAssignmentScheduleChanged = await listen('assignment-schedule-changed', (event) => {

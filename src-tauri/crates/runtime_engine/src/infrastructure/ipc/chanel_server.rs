@@ -30,6 +30,20 @@ pub struct IpcClientState {
 }
 pub struct IpcServer;
 
+fn device_log_label(device_id: DeviceId) -> String {
+    get_app_handle()
+        .state::<MainProcessCtx>()
+        .snapshot_device_runtime_state(device_id)
+        .ok()
+        .and_then(|state| {
+            state
+                .device_name
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| device_id.to_string())
+}
+
 impl IpcServer {
     pub fn start() -> ChannelResult<()> {
         let name = SOCKET_NAME.to_ns_name::<GenericNamespaced>().map_err(|e| {
@@ -76,9 +90,10 @@ impl IpcServer {
                                         MessagePayload::SocketRegistration(pid) => {
                                             let pid = *pid;
                                             let device_id = Arc::new(msg.source_or_target);
+                                            let device_label = device_log_label(*device_id);
                                             Log::info(&format!(
-                                                "[ socket ] [{}]ipc加入连接...",
-                                                *device_id
+                                                "[ socket ] 设备[{}] IPC 加入连接...",
+                                                device_label.as_str()
                                             ));
                                             let childrens = get_app_handle()
                                                 .state::<MainProcessCtx>()
@@ -101,14 +116,17 @@ impl IpcServer {
                                                         }),
                                                     );
                                                     let msg = format!(
-                                                        "[ socket ] [{}]加入ipc连接成功！",
-                                                        device_id
+                                                        "[ socket ] 设备[{}]加入 IPC 连接成功！",
+                                                        device_label.as_str()
                                                     );
                                                     Log::info(&msg);
                                                     Self::success_to_ui(None, Some(msg));
                                                 }
                                                 Err(_) => {
-                                                    let msg = format!("[ socket ] [{}]加入ipc连接失败:获取锁失败！", device_id);
+                                                    let msg = format!(
+                                                        "[ socket ] 设备[{}]加入 IPC 连接失败：获取锁失败！",
+                                                        device_label.as_str()
+                                                    );
                                                     Log::error(&msg);
                                                     Self::error_to_ui(None, Some(msg));
                                                 }
@@ -134,6 +152,7 @@ impl IpcServer {
     }
     pub async fn send_to_client(device_id: &DeviceId, msg: IpcMessage) {
         let device_id = *device_id;
+        let device_label = device_log_label(device_id);
         let ipc_client_state_opt = {
             match get_app_handle()
                 .state::<MainProcessCtx>()
@@ -144,7 +163,7 @@ impl IpcServer {
                 Err(_) => {
                     let msg = format!(
                         "[ socket ] ️向设备[{}]发送消息失败：获取ipc通道数据锁失败！",
-                        device_id
+                        device_label.as_str()
                     );
                     Log::warn(&msg);
                     Self::error_to_ui(None, Some(msg));
@@ -162,7 +181,7 @@ impl IpcServer {
                     Err(_) => {
                         let msg = format!(
                             "[ socket ] ️向设备[{}]发送消息失败：编码消息失败！",
-                            device_id
+                            device_label.as_str()
                         );
                         Log::error(&msg);
                         Self::error_to_ui(None, Some(msg));
@@ -175,7 +194,7 @@ impl IpcServer {
                     Err(_) => {
                         let msg = format!(
                             "[ socket ] ️向设备[{}]发送消息失败：计算消息长度失败！",
-                            device_id
+                            device_label.as_str()
                         );
                         Log::error(&msg);
                         Self::error_to_ui(None, Some(msg));
@@ -185,7 +204,7 @@ impl IpcServer {
                 if let Err(_) = sender.write_all(&len.to_le_bytes()).await {
                     let msg = format!(
                         "[ socket ] ️向设备[{}]发送消息失败：写入消息长度失败！",
-                        device_id
+                        device_label.as_str()
                     );
                     Log::error(&msg);
                     Self::error_to_ui(None, Some(msg));
@@ -194,7 +213,7 @@ impl IpcServer {
                 if let Err(_) = sender.write_all(&buffer).await {
                     let msg = format!(
                         "[ socket ] ️向设备[{}]发送消息失败：写入消息失败！",
-                        device_id
+                        device_label.as_str()
                     );
                     Log::error(&msg);
                     Self::error_to_ui(None, Some(msg));
@@ -203,7 +222,7 @@ impl IpcServer {
                 if let Err(_) = sender.flush().await {
                     let msg = format!(
                         "[ socket ] ️向设备[{}]发送消息失败：刷新缓存失败！",
-                        device_id
+                        device_label.as_str()
                     );
                     Log::error(&msg);
                     Self::error_to_ui(None, Some(msg));
@@ -211,7 +230,7 @@ impl IpcServer {
             } else {
                 let msg = format!(
                     "[ socket ] ️向设备[{}]发送消息失败：Writer不可用！",
-                    device_id
+                    device_label.as_str()
                 );
                 Log::error(&msg);
                 Self::error_to_ui(None, Some(msg));
@@ -219,7 +238,7 @@ impl IpcServer {
         } else {
             let msg = format!(
                 "[ socket ] ️向设备[{}]发送消息失败：获取该设备状态信息失败！",
-                device_id
+                device_label.as_str()
             );
             Log::error(&msg);
             Self::error_to_ui(None, Some(msg));

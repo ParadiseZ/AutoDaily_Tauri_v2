@@ -103,9 +103,10 @@ pub async fn update_child_log_level_app(
     else {
         return Err(crate::app::app_error::AppError::SetConfigFailed {
             detail: "读取设备日志级别配置".to_string(),
-            e: format!("设备[{}]不存在", device_id),
+            e: "目标设备不存在".to_string(),
         });
     };
+    let device_name = current.data.0.device_name.clone();
     current.data.0.log_level = log_level.clone();
     DbRepo::upsert_id_data(DEVICE_TABLE, &device_id.to_string(), &current.data)
         .await
@@ -124,8 +125,8 @@ pub async fn update_child_log_level_app(
         }
     }
     Log::info(&format!(
-        "[ log ] 子进程[{}]日志级别已更新为: {}",
-        device_id, log_level
+        "[ log ] 设备[{}]日志级别已更新为: {}",
+        device_name, log_level
     ));
     Ok(())
 }

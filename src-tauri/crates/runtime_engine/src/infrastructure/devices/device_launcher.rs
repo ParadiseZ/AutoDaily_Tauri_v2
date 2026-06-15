@@ -397,7 +397,7 @@ pub fn probe_device_connection(runtime_connect: &ADBConnectConfig) -> Result<(),
         ADBConnectConfig::ServeByIdentifier(dev) => {
             if !dev.valid() {
                 return Err(
-                    "[ launcher ] ServeByIdentifier 配置无效（缺少 adb_path / server_connect / identifier）"
+                    "ServeByIdentifier 配置无效（缺少 adb_path / server_connect / identifier）"
                         .into(),
                 );
             }
@@ -407,13 +407,13 @@ pub fn probe_device_connection(runtime_connect: &ADBConnectConfig) -> Result<(),
             );
             let mut device = server
                 .get_device_by_name(dev.identifier.as_ref().unwrap().as_str())
-                .map_err(|e| format!("[ launcher ] ServeByIdentifier 获取设备失败: {}", e))?;
+                .map_err(|e| format!("ServeByIdentifier 获取设备失败: {}", e))?;
             let mut stdout = Vec::new();
             device
                 .shell_command(&"echo autodaily-probe", Some(&mut stdout), None)
                 .map_err(|e| {
                     format!(
-                        "[ launcher ] ServeByIdentifier shell 探测失败 ({}): {}",
+                        "ServeByIdentifier shell 探测失败 ({}): {}",
                         dev.identifier.as_deref().unwrap_or_default(),
                         e
                     )
@@ -421,7 +421,7 @@ pub fn probe_device_connection(runtime_connect: &ADBConnectConfig) -> Result<(),
             let output = String::from_utf8_lossy(&stdout);
             if !output.contains("autodaily-probe") {
                 return Err(format!(
-                    "[ launcher ] ServeByIdentifier shell 探测响应异常 ({}): {}",
+                    "ServeByIdentifier shell 探测响应异常 ({}): {}",
                     dev.identifier.as_deref().unwrap_or_default(),
                     output.trim()
                 ));
@@ -429,17 +429,17 @@ pub fn probe_device_connection(runtime_connect: &ADBConnectConfig) -> Result<(),
             Ok(())
         }
         ADBConnectConfig::DirectTcp(addr) => {
-            let addr = addr.ok_or("[ launcher ] DirectTcp 配置无效：未设置连接地址")?;
+            let addr = addr.ok_or("DirectTcp 配置无效：未设置连接地址")?;
             let mut device = ADBTcpDevice::new(SocketAddr::V4(addr))
-                .map_err(|e| format!("[ launcher ] DirectTcp 连接失败 ({}): {}", addr, e))?;
+                .map_err(|e| format!("DirectTcp 连接失败 ({}): {}", addr, e))?;
             let mut stdout = Vec::new();
             device
                 .shell_command(&"echo autodaily-probe", Some(&mut stdout), None)
-                .map_err(|e| format!("[ launcher ] DirectTcp shell 连接失败 ({}): {}", addr, e))?;
+                .map_err(|e| format!("DirectTcp shell 连接失败 ({}): {}", addr, e))?;
             let output = String::from_utf8_lossy(&stdout);
             if !output.contains("autodaily-probe") {
                 return Err(format!(
-                    "[ launcher ] DirectTcp shell 连接异常 ({}): {}",
+                    "DirectTcp shell 连接异常 ({}): {}",
                     addr,
                     output.trim()
                 ));
