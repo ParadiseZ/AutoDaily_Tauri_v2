@@ -35,6 +35,8 @@ pub struct DeviceConfig {
     pub platform: DevicePlatform,
     #[serde(default)]
     pub transport_kind: DeviceTransportKind,
+    #[serde(default)]
+    pub emulator_connect_mode: EmulatorConnectMode,
     #[serde(default = "default_startup_delay_secs")]
     pub startup_delay_secs: u32,
     #[serde(default)]
@@ -146,9 +148,23 @@ pub enum DeviceTransportKind {
     AdbWireless,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum EmulatorConnectMode {
+    TcpAddress,
+    Identifier,
+}
+
 impl Default for DeviceTransportKind {
     fn default() -> Self {
         Self::EmulatorTcp
+    }
+}
+
+impl Default for EmulatorConnectMode {
+    fn default() -> Self {
+        Self::TcpAddress
     }
 }
 
@@ -158,6 +174,7 @@ impl Default for DeviceConfig {
             device_name: "MuMu模拟器12".into(),
             platform: DevicePlatform::default(),
             transport_kind: DeviceTransportKind::EmulatorTcp,
+            emulator_connect_mode: EmulatorConnectMode::default(),
             startup_delay_secs: default_startup_delay_secs(),
             connect_address: None,
             connect_identifier: None,
@@ -216,5 +233,10 @@ fn default_log_to_file() -> bool {
 impl DeviceConfig {
     pub fn uses_emulator_transport(&self) -> bool {
         matches!(self.transport_kind, DeviceTransportKind::EmulatorTcp)
+    }
+
+    pub fn uses_emulator_identifier_connect(&self) -> bool {
+        self.uses_emulator_transport()
+            && matches!(self.emulator_connect_mode, EmulatorConnectMode::Identifier)
     }
 }

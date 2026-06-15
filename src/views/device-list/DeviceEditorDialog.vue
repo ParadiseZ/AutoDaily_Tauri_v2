@@ -57,16 +57,13 @@
                   <span class="text-sm text-(--app-text-soft)">连接通道</span>
                   <AppSelect v-model="form.transportKind" :options="transportOptions" />
                 </label>
-                <label class="grid gap-2">
+                <label v-if="form.transportKind === 'emulatorTcp'" class="grid gap-2">
+                  <span class="text-sm text-(--app-text-soft)">模拟器连接方式</span>
+                  <AppSelect v-model="form.emulatorConnectMode" :options="emulatorConnectModeOptions" />
+                </label>
+                <label v-else class="grid gap-2">
                   <span class="text-sm text-(--app-text-soft)">{{ transportFieldLabel }}</span>
                   <input
-                    v-if="usesAddressInput"
-                    v-model.trim="form.connectAddress"
-                    class="app-input"
-                    :placeholder="transportFieldPlaceholder"
-                  />
-                  <input
-                    v-else
                     v-model.trim="form.connectIdentifier"
                     class="app-input"
                     :placeholder="transportFieldPlaceholder"
@@ -74,7 +71,23 @@
                 </label>
               </div>
 
-              <div v-if="form.transportKind !== 'emulatorTcp'" class="grid gap-4 md:grid-cols-2">
+              <label v-if="form.transportKind === 'emulatorTcp'" class="grid gap-2">
+                <span class="text-sm text-(--app-text-soft)">{{ transportFieldLabel }}</span>
+                <input
+                  v-if="usesAddressInput"
+                  v-model.trim="form.connectAddress"
+                  class="app-input"
+                  :placeholder="transportFieldPlaceholder"
+                />
+                <input
+                  v-else
+                  v-model.trim="form.connectIdentifier"
+                  class="app-input"
+                  :placeholder="transportFieldPlaceholder"
+                />
+              </label>
+
+              <div v-if="needsAdbServerConfig" class="grid gap-4 md:grid-cols-2">
                 <label class="grid gap-2">
                   <span class="text-sm text-(--app-text-soft)">ADB 程序路径</span>
                   <div class="path-input-row">
@@ -118,7 +131,7 @@
                     placeholder="15"
                   />
                 </label>
-                <p class="text-xs text-(--app-text-faint)">仅模拟器 TCP 生效。启动模拟器后会先等待这段时间，再开始连接探测。</p>
+                <p class="text-xs text-(--app-text-faint)">仅模拟器连接生效。启动模拟器后会先等待这段时间，再开始 shell 探测。</p>
               </div>
 
               <div class="grid gap-3">
@@ -262,6 +275,7 @@ const createEmptyForm = (): DeviceFormState => ({
   deviceName: '',
   platform: 'android',
   transportKind: 'emulatorTcp',
+  emulatorConnectMode: 'tcpAddress',
   startupDelaySecs: 15,
   exePath: '',
   exeArgs: '',
@@ -292,15 +306,18 @@ const tabs = [
 ];
 
 const cpuIndexes = computed(() => Array.from({ length: props.cpuCount }, (_, index) => index));
-const usesAddressInput = computed(() => form.transportKind === 'emulatorTcp');
+const usesAddressInput = computed(() => form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'tcpAddress');
+const needsAdbServerConfig = computed(
+  () => form.transportKind !== 'emulatorTcp' || form.emulatorConnectMode === 'identifier',
+);
 const transportFieldLabel = computed(() => {
-  if (form.transportKind === 'emulatorTcp') {
+  if (usesAddressInput.value) {
     return 'TCP 地址';
   }
   return '设备标识';
 });
 const transportFieldPlaceholder = computed(() => {
-  if (form.transportKind === 'emulatorTcp') {
+  if (usesAddressInput.value) {
     return '127.0.0.1:5555';
   }
   return '例如 emulator-5554 / 设备序列号';
@@ -320,9 +337,14 @@ const captureOptions = [
 ];
 
 const transportOptions = [
-  { label: '模拟器 TCP', value: 'emulatorTcp' },
+  { label: '模拟器', value: 'emulatorTcp' },
   { label: 'ADB USB', value: 'adbUsb' },
   { label: 'ADB 无线', value: 'adbWireless' },
+];
+
+const emulatorConnectModeOptions = [
+  { label: 'TCP 地址', value: 'tcpAddress', description: '直接连接固定的模拟器 ADB 地址。' },
+  { label: '设备标识', value: 'identifier', description: '通过 ADB Server 按设备标识连接模拟器。' },
 ];
 
 /*const platformOptions = [
@@ -353,6 +375,7 @@ const syncForm = (device: DeviceTable | null) => {
   form.deviceName = device.data.deviceName;
   form.platform = device.data.platform ?? 'android';
   form.transportKind = device.data.transportKind;
+  form.emulatorConnectMode = device.data.emulatorConnectMode ?? 'tcpAddress';
   form.startupDelaySecs = Number(device.data.startupDelaySecs ?? 15);
   form.connectAddress = device.data.connectAddress ?? '';
   form.connectIdentifier = device.data.connectIdentifier ?? '';

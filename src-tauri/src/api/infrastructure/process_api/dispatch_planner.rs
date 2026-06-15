@@ -393,8 +393,8 @@ pub async fn reactivate_retryable_planner_schedules_for_device(
 
 pub async fn cleanup_expired_schedule_records(retention_days: u16) -> Result<(u64, u64), String> {
     let retention_days = retention_days.max(1);
-    let cutoff = (chrono::Local::now() - chrono::Duration::days(i64::from(retention_days)))
-        .to_rfc3339();
+    let cutoff =
+        (chrono::Local::now() - chrono::Duration::days(i64::from(retention_days))).to_rfc3339();
 
     let assignment_result = sqlx::query(&format!(
         "DELETE FROM {}
@@ -416,7 +416,10 @@ pub async fn cleanup_expired_schedule_records(retention_days: u16) -> Result<(u6
     .await
     .map_err(|error| error.to_string())?;
 
-    Ok((assignment_result.rows_affected(), child_result.rows_affected()))
+    Ok((
+        assignment_result.rows_affected(),
+        child_result.rows_affected(),
+    ))
 }
 
 pub async fn load_next_planned_assignment_schedule(

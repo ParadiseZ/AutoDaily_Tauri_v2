@@ -2,6 +2,7 @@ import type { AssignmentScheduleStatus } from '@/types/bindings/AssignmentSchedu
 import type { AssignmentTriggerSource } from '@/types/bindings/AssignmentTriggerSource';
 import type { ConnectionStatusKind } from '@/types/bindings/ConnectionStatusKind';
 import type { DeviceConnectionEventPayload } from '@/types/bindings/DeviceConnectionEventPayload';
+import type { EmulatorConnectMode } from '@/types/bindings/EmulatorConnectMode';
 import type { DeviceLifecycleStatus } from '@/types/bindings/DeviceLifecycleStatus';
 import type { DeviceProgressEventPayload } from '@/types/bindings/DeviceProgressEventPayload';
 import type { DeviceRuntimeProgressPhase } from '@/types/bindings/DeviceRuntimeProgressPhase';
@@ -470,6 +471,7 @@ export interface DeviceFormState {
     deviceName: string;
     platform: DevicePlatform;
     transportKind: DeviceTransportKind;
+    emulatorConnectMode: EmulatorConnectMode;
     startupDelaySecs: number;
     exePath: string;
     exeArgs: string;

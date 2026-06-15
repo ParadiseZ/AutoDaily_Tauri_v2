@@ -29,7 +29,19 @@ export const validateDeviceConnectionBootstrapConfig = (
         return null;
     }
 
-    if (!device.data.connectAddress) {
+    if (device.data.emulatorConnectMode === 'identifier') {
+        if (!device.data.connectIdentifier) {
+            return `设备「${device.data.deviceName}」未配置模拟器设备标识，无法执行连接探测。`;
+        }
+
+        if (!device.data.adbPath?.trim()) {
+            return `设备「${device.data.deviceName}」当前使用模拟器标识连接，但未配置 ADB 程序路径。`;
+        }
+
+        if (!device.data.adbServerConnect?.trim()) {
+            return `设备「${device.data.deviceName}」当前使用模拟器标识连接，但未配置 ADB Server 地址。`;
+        }
+    } else if (!device.data.connectAddress) {
         return `设备「${device.data.deviceName}」未配置模拟器连接地址，无法执行连接探测。`;
     }
 

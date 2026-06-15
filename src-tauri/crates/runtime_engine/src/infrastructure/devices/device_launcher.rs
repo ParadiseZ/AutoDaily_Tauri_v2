@@ -117,8 +117,14 @@ pub async fn wait_for_device_connection_with_progress(
     } else {
         DIRECT_CONNECT_TIMEOUT
     };
-    wait_for_connection_ready_with_progress(config, timeout, PROBE_INTERVAL, "[ launcher ] 直接连接", on_status)
-        .await
+    wait_for_connection_ready_with_progress(
+        config,
+        timeout,
+        PROBE_INTERVAL,
+        "[ launcher ] 直接连接",
+        on_status,
+    )
+    .await
 }
 
 pub async fn ensure_device_connection(config: &DeviceConfig) -> Result<ADBConnectConfig, String> {
@@ -228,7 +234,10 @@ async fn probe_device_connection_with_timeout(
     {
         Ok(Ok(result)) => result,
         Ok(Err(error)) => Err(format!("[ launcher ] 设备连接任务异常退出: {}", error)),
-        Err(_) => Err(format!("[ launcher ] 设备连接任务超时（{} 秒）", timeout.as_secs())),
+        Err(_) => Err(format!(
+            "[ launcher ] 设备连接任务超时（{} 秒）",
+            timeout.as_secs()
+        )),
     }
 }
 
@@ -304,6 +313,9 @@ async fn wait_for_connection_ready_with_progress(
 
 fn build_connection_candidates(config: &DeviceConfig) -> Vec<ADBConnectConfig> {
     match config.transport_kind {
+        DeviceTransportKind::EmulatorTcp if config.uses_emulator_identifier_connect() => {
+            vec![serve_by_identifier_config(config)]
+        }
         DeviceTransportKind::EmulatorTcp => {
             vec![ADBConnectConfig::DirectTcp(config.connect_address)]
         }
@@ -441,6 +453,35 @@ pub fn probe_device_connection(runtime_connect: &ADBConnectConfig) -> Result<(),
 mod tests {
     use super::*;
     use std::sync::Mutex;
+
+    #[test]
+    fn emulator_tcp_mode_builds_direct_tcp_candidate() {
+        let mut config = DeviceConfig::default();
+        config.connect_address = "127.0.0.1:5555".parse().ok();
+
+        let candidates = build_connection_candidates(&config);
+        assert!(matches!(
+            candidates.as_slice(),
+            [ADBConnectConfig::DirectTcp(Some(addr))] if addr.to_string() == "127.0.0.1:5555"
+        ));
+    }
+
+    #[test]
+    fn emulator_identifier_mode_reuses_serve_by_identifier_candidate() {
+        let mut config = DeviceConfig::default();
+        config.emulator_connect_mode =
+            crate::domain::devices::device_conf::EmulatorConnectMode::Identifier;
+        config.connect_identifier = Some("emulator-5554".to_string());
+        config.adb_path = Some("C:/platform-tools/adb.exe".to_string());
+
+        let candidates = build_connection_candidates(&config);
+        assert!(matches!(
+            candidates.as_slice(),
+            [ADBConnectConfig::ServeByIdentifier(dev)]
+                if dev.identifier.as_deref() == Some("emulator-5554")
+                    && dev.adb_config.adb_path.as_deref() == Some("C:/platform-tools/adb.exe")
+        ));
+    }
 
     #[tokio::test]
     async fn emulator_without_exe_fails_after_initial_shell_probe() {

@@ -44,6 +44,7 @@ export type { DeviceStatusEventPayload } from './DeviceStatusEventPayload';
 export type { DeviceTable } from './DeviceTable';
 export type { DeviceTimeoutEventPayload } from './DeviceTimeoutEventPayload';
 export type { DeviceTransportKind } from './DeviceTransportKind';
+export type { EmulatorConnectMode } from './EmulatorConnectMode';
 export type { DispatchKind } from './DispatchKind';
 export type { DispatchSource } from './DispatchSource';
 export type { FilterMode } from './FilterMode';

@@ -258,7 +258,10 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 None,
-                Some(format!("[ child ] 运行会话已加载，队列 {} 项", summary.queue_len)),
+                Some(format!(
+                    "[ child ] 运行会话已加载，队列 {} 项",
+                    summary.queue_len
+                )),
             );
             let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,
@@ -290,7 +293,10 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 None,
-                Some(format!("[ child ] 运行会话已热更新，队列 {} 项", summary.queue_len)),
+                Some(format!(
+                    "[ child ] 运行会话已热更新，队列 {} 项",
+                    summary.queue_len
+                )),
             );
             let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,
@@ -378,8 +384,5 @@ async fn handle_config_update(config: ConfigUpdateMessage) {
         }
     }
 
-    Log::info(&format!(
-        "[ child ] 设备配置已热更新: {:?}",
-        next_config
-    ));
+    Log::info(&format!("[ child ] 设备配置已热更新: {:?}", next_config));
 }

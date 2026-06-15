@@ -2364,11 +2364,22 @@ const buildDeviceTable = async (form: DeviceFormState): Promise<DeviceTable> => 
       deviceName: form.deviceName,
       platform: form.platform,
       transportKind: form.transportKind,
+      emulatorConnectMode: form.emulatorConnectMode,
       startupDelaySecs: Math.max(0, Math.floor(Number(form.startupDelaySecs) || 0)),
-      connectAddress: form.transportKind === 'emulatorTcp' ? normalized.connectAddress : null,
-      connectIdentifier: form.transportKind === 'emulatorTcp' ? null : form.connectIdentifier || null,
-      adbPath: form.transportKind === 'emulatorTcp' ? null : normalized.adbPath || settingsStore.preferences.adbPath || null,
-      adbServerConnect: form.transportKind === 'emulatorTcp'
+      connectAddress:
+        form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'tcpAddress'
+          ? normalized.connectAddress
+          : null,
+      connectIdentifier:
+        form.transportKind !== 'emulatorTcp' || form.emulatorConnectMode === 'identifier'
+          ? normalized.connectIdentifier || null
+          : null,
+      adbPath:
+        form.transportKind !== 'emulatorTcp' || form.emulatorConnectMode === 'identifier'
+          ? normalized.adbPath || settingsStore.preferences.adbPath || null
+          : null,
+      adbServerConnect:
+        form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'tcpAddress'
         ? null
         : normalized.adbServerConnect || `${settingsStore.preferences.adbServerHost}:${settingsStore.preferences.adbServerPort}`,
       exePath: normalized.exePath || null,

@@ -2,6 +2,7 @@ import type { DeviceFormState } from '@/types/app/domain';
 
 export interface NormalizedDeviceFormValues {
   connectAddress: string;
+  connectIdentifier: string;
   adbServerConnect: string;
   adbPath: string;
   exePath: string;
@@ -36,6 +37,7 @@ export const isValidIpv4Port = (value: string) => {
 export const validateDeviceForm = (form: DeviceFormState): NormalizedDeviceFormValues => {
   const normalized: NormalizedDeviceFormValues = {
     connectAddress: form.connectAddress.trim(),
+    connectIdentifier: form.connectIdentifier.trim(),
     adbServerConnect: form.adbServerConnect.trim(),
     adbPath: form.adbPath.trim(),
     exePath: form.exePath.trim(),
@@ -43,11 +45,29 @@ export const validateDeviceForm = (form: DeviceFormState): NormalizedDeviceFormV
     capMethodValue: form.capMethodValue.trim(),
   };
 
-  if (form.transportKind === 'emulatorTcp' && !isValidIpv4Port(normalized.connectAddress)) {
+  const emulatorUsesTcpAddress =
+    form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'tcpAddress';
+  const needsIdentifier =
+    form.transportKind !== 'emulatorTcp' ||
+    (form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'identifier');
+
+  if (emulatorUsesTcpAddress && !isValidIpv4Port(normalized.connectAddress)) {
     throw new Error('TCP 地址格式应为 IP:端口，例如 127.0.0.1:5555');
   }
 
-  if (form.transportKind !== 'emulatorTcp' && normalized.adbServerConnect && !isValidIpv4Port(normalized.adbServerConnect)) {
+  if (needsIdentifier && !normalized.connectIdentifier) {
+    throw new Error('当前连接方式需要填写设备标识。');
+  }
+
+  if (needsIdentifier && !normalized.adbPath) {
+    throw new Error('当前连接方式需要填写 ADB 程序路径。');
+  }
+
+  if (needsIdentifier && !normalized.adbServerConnect) {
+    throw new Error('当前连接方式需要填写 ADB Server 地址。');
+  }
+
+  if (needsIdentifier && !isValidIpv4Port(normalized.adbServerConnect)) {
     throw new Error('ADB Server 格式应为 IP:端口，例如 127.0.0.1:5037');
   }
 

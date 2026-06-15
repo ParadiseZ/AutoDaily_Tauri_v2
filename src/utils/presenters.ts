@@ -116,6 +116,10 @@ export const formatScriptTransferStatusTone = (status: ScriptTransferStatus) => 
 
 export const formatConnectLabel = (config: DeviceConfig) => {
     if (config.transportKind === 'emulatorTcp') {
+        if (config.emulatorConnectMode === 'identifier') {
+            return `模拟器标识 · ${config.connectIdentifier || '未设置设备标识'}`;
+        }
+
         return `模拟器 TCP · ${config.connectAddress || '未设置地址'}`;
     }
 
