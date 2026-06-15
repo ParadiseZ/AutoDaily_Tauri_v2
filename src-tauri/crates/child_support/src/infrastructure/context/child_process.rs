@@ -1,8 +1,7 @@
 pub use runtime_engine::infrastructure::context::child_process::ChildProcessInitData;
 
-use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
-use crate::infrastructure::context::child_process_sec::init_ipc_client;
+use crate::infrastructure::context::child_process_sec::{init_ipc_client, start_ipc_client};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::context::runtime_context::{init_runtime_ctx, RuntimeContext};
 use crate::infrastructure::core::cores_affinity::set_process_affinity;
@@ -13,7 +12,6 @@ use crate::infrastructure::logging::child_log::LogChild;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_service::OcrService;
 use runtime_engine::domain::devices::device_conf::CapMethod;
-use runtime_engine::infrastructure::devices::device_launcher::resolve_runtime_connect_config;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
@@ -33,12 +31,6 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
             e: "初始化ipc客户端失败".to_string(),
         }
     })?;
-
-    let runtime_connect = resolve_runtime_connect_config(&init_data.device_config)
-        .map_err(|e| InitError::InitChildAdbCtxFailed { e })?;
-    ADBCtx::new(runtime_connect)
-        .await
-        .map_err(|e| InitError::InitChildAdbCtxFailed { e })?;
 
     let img_det_service = Arc::new(Mutex::new(OcrService::new()));
     let ocr_service = Arc::new(Mutex::new(OcrService::new()));
@@ -65,6 +57,7 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
         .await,
     );
     init_device_ctx(device_ctx)?;
+    start_ipc_client()?;
 
     Ok(())
 }

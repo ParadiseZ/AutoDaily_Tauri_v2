@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::constant::table_name::ASSIGNMENT_SCHEDULE_TABLE;
+use crate::constant::table_name::{ASSIGNMENT_SCHEDULE_TABLE, SCHEDULE_TABLE};
 use crate::domain::devices::device_schedule::{
     AssignmentSchedule, AssignmentScheduleStatus, AssignmentTriggerSource,
 };
@@ -391,14 +391,44 @@ pub async fn reactivate_retryable_planner_schedules_for_device(
     Ok(result.rows_affected())
 }
 
+pub async fn cleanup_expired_schedule_records(retention_days: u16) -> Result<(u64, u64), String> {
+    let retention_days = retention_days.max(1);
+    let cutoff = (chrono::Local::now() - chrono::Duration::days(i64::from(retention_days)))
+        .to_rfc3339();
+
+    let assignment_result = sqlx::query(&format!(
+        "DELETE FROM {}
+         WHERE julianday(created_at) <= julianday(?)",
+        ASSIGNMENT_SCHEDULE_TABLE
+    ))
+    .bind(&cutoff)
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let child_result = sqlx::query(&format!(
+        "DELETE FROM {}
+         WHERE julianday(started_at) <= julianday(?)",
+        SCHEDULE_TABLE
+    ))
+    .bind(&cutoff)
+    .execute(get_pool())
+    .await
+    .map_err(|error| error.to_string())?;
+
+    Ok((assignment_result.rows_affected(), child_result.rows_affected()))
+}
+
 pub async fn load_next_planned_assignment_schedule(
     device_id: DeviceId,
 ) -> Result<Option<AssignmentSchedule>, String> {
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
     let query = format!(
         "{}
          WHERE device_id = ?
            AND status = 'planned'
-           AND trigger_source IN ('user', 'planner')
+           AND trigger_source = 'planner' 
+           AND created_at LIKE ?
          ORDER BY
            CASE trigger_source WHEN 'user' THEN 0 WHEN 'planner' THEN 1 ELSE 2 END ASC,
            created_at ASC,
@@ -408,6 +438,7 @@ pub async fn load_next_planned_assignment_schedule(
     );
     sqlx::query_as::<_, AssignmentSchedule>(&query)
         .bind(device_id.to_string())
+        .bind(format!("{}%", today))
         .fetch_optional(get_pool())
         .await
         .map_err(|error| error.to_string())

@@ -5,8 +5,8 @@ mod runtime_session;
 
 pub(crate) use bundle_loader::load_runtime_queue_for_current_window;
 pub(crate) use dispatch_planner::{
-    load_assignment_schedules_by_device, sync_active_planner_schedule_order_indices,
-    sync_active_planner_schedules_from_queue,
+    cleanup_expired_schedule_records, load_assignment_schedules_by_device,
+    sync_active_planner_schedule_order_indices, sync_active_planner_schedules_from_queue,
 };
 pub use process_control::{
     cmd_bootstrap_enabled_devices, cmd_capture_device_image, cmd_device_pause, cmd_device_shutdown,

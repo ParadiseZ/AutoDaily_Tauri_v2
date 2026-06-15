@@ -18,8 +18,12 @@ pub enum IdleAction {
     Hibernate,
 }
 
+fn default_dispatch_schedule_retention_days() -> u16 {
+    7
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct SystemConfig {
     pub start_mode: StartMode,
     pub close_exit: bool,
@@ -27,6 +31,7 @@ pub struct SystemConfig {
     pub idle_action: IdleAction,
     pub max_idle_retry_num: u8,
     pub auto_start: bool,
+    pub dispatch_schedule_retention_days: u16,
     pub shortcut: ShortCut,
 }
 
@@ -40,6 +45,7 @@ impl Default for SystemConfig {
             idle_action: IdleAction::None,
             max_idle_retry_num: 3, // 默认最大重试3次
             auto_start: false,
+            dispatch_schedule_retention_days: default_dispatch_schedule_retention_days(),
             shortcut: ShortCut::default(),
         }
     }

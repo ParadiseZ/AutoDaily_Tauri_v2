@@ -1,9 +1,11 @@
 use crate::app::app_error::{AppError, AppResult};
+use crate::constant::sys_conf_path::{APP_STORE, SYSTEM_SETTINGS_KEY};
 use crate::app::config::short_cut::{register_short_cut_by_config, unregister_all};
 use crate::constant::project::MAIN_WINDOW;
 use crate::domain::config::sys_conf::SystemConfig;
 use crate::infrastructure::logging::log_trait::Log;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_store::StoreExt;
 
 pub async fn set_system_settings_app(
     app_handle: &AppHandle,
@@ -22,6 +24,22 @@ pub async fn set_system_settings_app(
 
     // 自启动设置处理
     handle_auto_start_setting(app_handle, system_settings.auto_start)?;
+
+    let store = app_handle
+        .store(APP_STORE)
+        .map_err(|e| AppError::SetConfigFailed {
+            detail: "读取系统设置存储失败".to_string(),
+            e: e.to_string(),
+        })?;
+    let value = serde_json::to_value(&system_settings).map_err(|e| AppError::SerializeConfErr {
+        detail: "系统设置".to_string(),
+        e: e.to_string(),
+    })?;
+    store.set(SYSTEM_SETTINGS_KEY, value);
+    store.save().map_err(|e| AppError::SetConfigFailed {
+        detail: "持久化系统设置失败".to_string(),
+        e: e.to_string(),
+    })?;
 
     Ok(())
 }

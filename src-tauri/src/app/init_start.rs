@@ -52,6 +52,9 @@ pub async fn init_at_start(app_handle: &AppHandle) {
     crate::infrastructure::context::child_process_manager::init_process_manager();
     // 初始化系统设置
     let sys_conf: SystemConfig = get_or_init_config(store.clone(), SYSTEM_SETTINGS_KEY);
+    if let Err(error) = cleanup_expired_schedule_records(&sys_conf).await {
+        Log::error(&format!("启动时清理过期调度记录失败: {}", error));
+    }
     // 处理开机自启动
     init_autostart(app_handle, &sys_conf);
     // 初始化快捷键设置
@@ -67,6 +70,19 @@ pub async fn init_at_start(app_handle: &AppHandle) {
 
     // 异步初始化配置，设备设置、脚本设置
     init_conf_async(store)
+}
+
+async fn cleanup_expired_schedule_records(sys_conf: &SystemConfig) -> Result<(), String> {
+    let (assignment_deleted, child_deleted) =
+        crate::api::infrastructure::process_api::cleanup_expired_schedule_records(
+            sys_conf.dispatch_schedule_retention_days,
+        )
+        .await?;
+    Log::info(&format!(
+        "启动清理过期调度记录完成: 保留 {} 天, 清理 assignment {} 条, child {} 条",
+        sys_conf.dispatch_schedule_retention_days, assignment_deleted, child_deleted
+    ));
+    Ok(())
 }
 
 pub fn init_autostart(app_handle: &AppHandle, sys_conf: &SystemConfig) {

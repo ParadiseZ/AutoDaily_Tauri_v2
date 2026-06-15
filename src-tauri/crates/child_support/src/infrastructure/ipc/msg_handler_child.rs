@@ -2,7 +2,7 @@ use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::context::child_process_sec::{
     get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
 };
-use crate::infrastructure::devices::device_ctx::get_device_ctx;
+use crate::infrastructure::devices::device_ctx::try_get_device_ctx;
 use crate::infrastructure::ipc::message::{
     CaptureControlMessage, ConfigUpdateMessage, ConnectionAction, ConnectionControlMessage,
     ConnectionStatusKind, IpcMessage, MessagePayload, ProcessAction, ProcessControlMessage,
@@ -54,6 +54,13 @@ pub async fn handle_main_message(msg: IpcMessage) {
 }
 
 async fn handle_connection_control(control: ConnectionControlMessage) {
+    let Some(device_ctx) = try_get_device_ctx() else {
+        let message = "[ child ] 设备上下文尚未初始化，请稍后重试".to_string();
+        Log::warn(&message);
+        emit_connection_event(ConnectionStatusKind::DeviceDisconnected, Some(message));
+        return;
+    };
+
     match control.action {
         ConnectionAction::Probe => {
             Log::info("[ child ] 收到连接探测命令");
@@ -62,7 +69,7 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
                 Some("正在预探测设备连接".to_string()),
             );
 
-            let device_config = get_device_ctx().device_config.read().await.clone();
+            let device_config = device_ctx.device_config.read().await.clone();
             if matches!(device_config.platform, DevicePlatform::Desktop) {
                 emit_connection_event(
                     ConnectionStatusKind::DeviceConnected,
@@ -104,7 +111,7 @@ async fn handle_connection_control(control: ConnectionControlMessage) {
                 Some("正在准备设备连接（如需会启动模拟器）".to_string()),
             );
 
-            let device_config = get_device_ctx().device_config.read().await.clone();
+            let device_config = device_ctx.device_config.read().await.clone();
             if matches!(device_config.platform, DevicePlatform::Desktop) {
                 emit_connection_event(
                     ConnectionStatusKind::DeviceConnected,
@@ -150,7 +157,14 @@ async fn handle_capture_control(
     _control: CaptureControlMessage,
 ) {
     Log::info("[ child ] 收到设备截图命令");
-    let device_ctx = get_device_ctx();
+    let Some(device_ctx) = try_get_device_ctx() else {
+        emit_capture_event(
+            request_id,
+            None,
+            Some("[ child ] 设备上下文尚未初始化，请稍后重试".to_string()),
+        );
+        return;
+    };
 
     if !device_ctx.valid_capture().await {
         emit_capture_event(
@@ -336,9 +350,12 @@ async fn handle_config_update(config: ConfigUpdateMessage) {
             .store(next_config.log_level.clone() as u8, Ordering::Relaxed);
     }
 
-    get_device_ctx()
-        .apply_device_config(next_config.clone())
-        .await;
+    let Some(device_ctx) = try_get_device_ctx() else {
+        Log::warn("[ child ] 设备上下文尚未初始化，忽略本次设备配置热更新");
+        return;
+    };
+
+    device_ctx.apply_device_config(next_config.clone()).await;
 
     if matches!(next_config.platform, DevicePlatform::Android) {
         match resolve_runtime_connect_config(&next_config) {
@@ -362,7 +379,7 @@ async fn handle_config_update(config: ConfigUpdateMessage) {
     }
 
     Log::info(&format!(
-        "[ child ] 设备配置已热更新: {}",
+        "[ child ] 设备配置已热更新: {:?}",
         next_config
     ));
 }

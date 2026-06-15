@@ -9,7 +9,7 @@ pub enum AdbError {
     #[error("未找到adb路径")]
     AdbNotFound,
 
-    #[error("adb配置失败")]
+    #[error("adb配置失败: {detail}")]
     ConfigErr { detail: String },
 
     #[error("通过设备标识连接设备失败{detail}")]

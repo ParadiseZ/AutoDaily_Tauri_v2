@@ -12,6 +12,10 @@ use tokio::sync::RwLock;
 
 static DEVICE_CTX: OnceLock<Arc<DeviceCtx>> = OnceLock::new();
 
+pub fn try_get_device_ctx() -> Option<Arc<DeviceCtx>> {
+    DEVICE_CTX.get().cloned()
+}
+
 pub fn get_device_ctx() -> Arc<DeviceCtx> {
     DEVICE_CTX.get().expect("DeviceCtx not initialized").clone()
 }

@@ -115,6 +115,7 @@ export const useSettingsStore = defineStore('settings', () => {
             idleAction: preferences.value.idleAction,
             maxIdleRetryNum: preferences.value.maxIdleRetryNum,
             autoStart: preferences.value.autoStart,
+            dispatchScheduleRetentionDays: Math.max(1, Number(preferences.value.dispatchScheduleRetentionDays) || 7),
             shortcut: preferences.value.shortcut,
         };
         await settingsService.applySystemConfig(payload);

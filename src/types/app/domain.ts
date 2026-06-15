@@ -58,6 +58,7 @@ export interface SystemPreferences {
     ocrTextCacheEnabled: boolean;
     ocrTextCacheDir: string;
     visionSignatureGridSize: number;
+    dispatchScheduleRetentionDays: number;
     shortcut: ShortCutConfig;
 }
 
@@ -68,6 +69,7 @@ export interface SystemConfigPayload {
     idleAction: IdleAction;
     maxIdleRetryNum: number;
     autoStart: boolean;
+    dispatchScheduleRetentionDays: number;
     shortcut: ShortCutConfig;
 }
 
@@ -517,6 +519,7 @@ export const DEFAULT_SYSTEM_PREFERENCES: SystemPreferences = {
     ocrTextCacheEnabled: false,
     ocrTextCacheDir: '',
     visionSignatureGridSize: 8,
+    dispatchScheduleRetentionDays: 7,
     shortcut: DEFAULT_SHORTCUTS,
 };
 

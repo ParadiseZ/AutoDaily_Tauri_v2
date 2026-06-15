@@ -103,6 +103,23 @@
               <input v-model="settingsStore.preferences.closeExit" type="checkbox" class="toggle toggle-sm" @change="saveSystemPreferences" />
             </label>
           </div>
+
+          <div class="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+            <label class="grid gap-2">
+              <span class="text-sm text-(--app-text-soft)">调度记录保留天数</span>
+              <input
+                v-model.number="settingsStore.preferences.dispatchScheduleRetentionDays"
+                class="app-input"
+                type="number"
+                min="1"
+                max="3650"
+                @change="saveSystemPreferences"
+              />
+            </label>
+            <div class="rounded-[20px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
+              每次应用启动时，会清除距今时长大于等于该天数的调度记录。默认保留 7 天。
+            </div>
+          </div>
         </SettingsSection>
 
         <SettingsSection icon="terminal-square" title="ADB 与环境" description="没有现成后端命令的字段保存在本地 Store，给设备编辑器和运行环境统一复用。">
@@ -421,6 +438,7 @@ const saveSystemPreferences = async () => {
       alwaysOnTop: settingsStore.preferences.alwaysOnTop,
       idleAction: settingsStore.preferences.idleAction,
       autoStart: settingsStore.preferences.autoStart,
+      dispatchScheduleRetentionDays: Math.max(1, Number(settingsStore.preferences.dispatchScheduleRetentionDays) || 7),
     });
     showToast('桌面行为已更新', 'success');
   } catch (error) {
