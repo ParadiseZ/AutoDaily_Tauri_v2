@@ -8,6 +8,7 @@ export const buildDeviceTableFromForm = async (
   preferences: SystemPreferences,
 ): Promise<DeviceTable> => {
   const normalized = validateDeviceForm(form);
+  const captureMethodType = form.transportKind === 'emulatorTcp' ? form.capMethodType : 'adb';
 
   return {
     id: form.id ?? (await taskService.requestUuid()),
@@ -39,10 +40,10 @@ export const buildDeviceTableFromForm = async (
       logLevel: form.logLevel,
       logToFile: form.logToFile,
       capMethod:
-        form.capMethodType === 'adb'
+        captureMethodType === 'adb'
           ? { type: 'adb' }
           : { type: 'window', title: normalized.capMethodValue || form.deviceName },
-      imageCompression: form.capMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
+      imageCompression: captureMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
       enable: form.enable,
       autoStart: form.autoStart,
       executionPolicy: {

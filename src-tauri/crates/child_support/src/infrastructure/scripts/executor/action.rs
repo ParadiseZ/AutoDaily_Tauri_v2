@@ -1,7 +1,25 @@
-const DEVICE_EXTERNAL_TIMEOUT_MS: u64 = 5_000;
-const VISION_INFERENCE_TIMEOUT_MS: u64 = 10_000;
-
 impl ScriptExecutor {
+    async fn execute_simple_device_operation(
+        &self,
+        step_type: &str,
+        label: &str,
+        operation: DeviceOperation,
+        action_kind: PolicyActionKind,
+        timeout_ms: u64,
+    ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
+        Self::await_device_result_with_timeout(
+            step_type,
+            label,
+            timeout_ms,
+            get_device_ctx().execute_operation(operation),
+        )
+        .await?;
+        Ok((
+            ControlFlow::Next,
+            Some(Self::build_simple_action_trace(action_kind)),
+        ))
+    }
+
     async fn execute_action_step(
         &mut self,
         step_id: Option<StepId>,
@@ -207,6 +225,7 @@ impl ScriptExecutor {
         }
 
         let Some(runtime_policy) = get_runtime_execution_policy().await else {
+            Log::warn("[ afterAction ] 当前运行时缺少 RuntimeExecutionPolicy，无法执行后续步骤");
             return Ok(None);
         };
 
@@ -223,32 +242,31 @@ impl ScriptExecutor {
         &mut self,
         steps: &[Step],
     ) -> ExecuteResult<Option<ControlFlow>> {
-        let Some(commands) = self.compile_action_sequence(steps).await? else {
+        let Some(compiled_steps) = self.compile_sequence_operations(steps).await? else {
             return Ok(None);
         };
 
-        if commands.is_empty() {
+        if compiled_steps.is_empty() {
             return Ok(Some(ControlFlow::Next));
         }
 
         if let Some(timeout_flow) = self
             .record_progress_evidence(
                 "sequence.prepare",
-                format!("准备执行动作序列，共 {} 条设备命令", commands.len()),
+                format!("准备执行动作序列，共 {} 条设备动作", compiled_steps.len()),
             )
             .await?
         {
             return Ok(Some(timeout_flow));
         }
 
-        try_get_adb_ctx()
-            .map_err(|error| {
-                Self::execute_error("sequence.prepare", format!("获取ADB上下文失败: {}", error))
-            })?
-            .send_adb_cmd_await_timeout(
-                ADBCommand::ReliableSequence(commands.clone()),
-                Self::estimate_reliable_sequence_timeout_ms(&commands),
-            )
+        let operations = compiled_steps
+            .iter()
+            .map(|step| step.operation.clone())
+            .collect::<Vec<_>>();
+
+        get_device_ctx()
+            .execute_sequence(&operations)
             .await
             .map_err(|error| {
                 Self::execute_error(
@@ -256,194 +274,17 @@ impl ScriptExecutor {
                     format!("执行动作序列失败: {}", error),
                 )
             })?;
+
+        for compiled_step in compiled_steps {
+            Log::debug(&format!(
+                "[ executor ] Sequence 快路径已执行: {}",
+                compiled_step.debug_label
+            ));
+            if let Some(action_trace) = compiled_step.trace {
+                self.record_action_trace(action_trace);
+            }
+        }
         Ok(Some(ControlFlow::Next))
-    }
-
-    fn estimate_reliable_sequence_timeout_ms(commands: &[ADBCommand]) -> u64 {
-        let duration_sum_ms: u64 = commands
-            .iter()
-            .filter_map(|command| match command {
-                ADBCommand::Duration(ms) => Some(*ms),
-                _ => None,
-            })
-            .sum();
-
-        let command_overhead_ms = commands
-            .iter()
-            .filter(|command| !matches!(command, ADBCommand::Duration(_)))
-            .count() as u64
-            * 1_000;
-
-        5_000 + duration_sum_ms + command_overhead_ms
-    }
-
-    async fn compile_action_sequence(
-        &mut self,
-        steps: &[Step],
-    ) -> ExecuteResult<Option<Vec<ADBCommand>>> {
-        let mut commands = Vec::new();
-        for step in steps {
-            if step.skip_flag {
-                continue;
-            }
-
-            let Some(mut next_commands) = self.compile_action_sequence_step(step).await? else {
-                return Ok(None);
-            };
-            commands.append(&mut next_commands);
-        }
-        Ok(Some(commands))
-    }
-
-    async fn compile_action_sequence_step(
-        &mut self,
-        step: &Step,
-    ) -> ExecuteResult<Option<Vec<ADBCommand>>> {
-        match &step.kind {
-            StepKind::Action { exec_max, a } => {
-                if *exec_max > 0 {
-                    return Ok(None);
-                }
-                Ok(self
-                    .compile_action_sequence_action(a)
-                    .await?
-                    .map(|command| vec![command]))
-            }
-            StepKind::FlowControl {
-                a:
-                    FlowControl::WaitMs {
-                        ms,
-                        input_var,
-                        runtime_var,
-                    },
-            } => {
-                if input_var
-                    .as_deref()
-                    .is_some_and(|value| !value.trim().is_empty())
-                    || runtime_var
-                        .as_deref()
-                        .is_some_and(|value| !value.trim().is_empty())
-                {
-                    return Ok(None);
-                }
-                if *ms == 0 {
-                    return Ok(Some(Vec::new()));
-                }
-                Ok(Some(vec![ADBCommand::Duration(*ms)]))
-            }
-            _ => Ok(None),
-        }
-    }
-
-    async fn compile_action_sequence_action(
-        &mut self,
-        action: &Action,
-    ) -> ExecuteResult<Option<ADBCommand>> {
-        match action {
-            Action::Click {
-                mode,
-                offset_x,
-                offset_y,
-            } => {
-                self.compile_action_sequence_click(mode, *offset_x, *offset_y)
-                    .await
-            }
-            Action::Swipe { duration, mode } => {
-                self.compile_action_sequence_swipe(mode, *duration).await
-            }
-            Action::LongClick {
-                mode,
-                offset_x,
-                offset_y,
-            } => {
-                self.compile_action_sequence_long_click(mode, *offset_x, *offset_y)
-                    .await
-            }
-            Action::Reboot => Ok(Some(ADBCommand::Reboot)),
-            Action::Back => Ok(Some(ADBCommand::Back)),
-            Action::Home => Ok(Some(ADBCommand::Home)),
-            Action::InputText { text } => Ok(Some(ADBCommand::InputText(text.clone()))),
-            Action::LaunchApp {
-                pkg_name,
-                activity_name,
-            } => {
-                if pkg_name.trim().is_empty() || activity_name.trim().is_empty() {
-                    return Err(Self::execute_error(
-                        "sequence.launchApp",
-                        "LaunchApp 需要同时提供 pkg_name 和 activity_name".to_string(),
-                    ));
-                }
-                Ok(Some(ADBCommand::StartActivity(
-                    pkg_name.clone(),
-                    activity_name.clone(),
-                )))
-            }
-            Action::StopApp { pkg_name } => Ok(Some(ADBCommand::StopApp(pkg_name.clone()))),
-            _ => Ok(None),
-        }
-    }
-
-    async fn compile_action_sequence_click(
-        &mut self,
-        mode: &ClickMode,
-        offset_x: i32,
-        offset_y: i32,
-    ) -> ExecuteResult<Option<ADBCommand>> {
-        let point = match mode {
-            ClickMode::Point { p } => Self::point_to_absolute(p),
-            ClickMode::Percent { p } => {
-                let screen_size = self.ensure_screen_size().await?;
-                Self::percent_point_to_absolute(p, screen_size)?
-            }
-            ClickMode::Txt { .. } | ClickMode::LabelIdx { .. } => return Ok(None),
-        };
-        let point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
-        Ok(Some(ADBCommand::Click(
-            self.apply_click_random_offset(point).await?,
-        )))
-    }
-
-    async fn compile_action_sequence_long_click(
-        &mut self,
-        mode: &ClickMode,
-        offset_x: i32,
-        offset_y: i32,
-    ) -> ExecuteResult<Option<ADBCommand>> {
-        let point = match mode {
-            ClickMode::Point { p } => Self::point_to_absolute(p),
-            ClickMode::Percent { p } => {
-                let screen_size = self.ensure_screen_size().await?;
-                Self::percent_point_to_absolute(p, screen_size)?
-            }
-            ClickMode::Txt { .. } | ClickMode::LabelIdx { .. } => return Ok(None),
-        };
-        let point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
-        Ok(Some(ADBCommand::LongClick(
-            self.apply_click_random_offset(point).await?,
-        )))
-    }
-
-    async fn compile_action_sequence_swipe(
-        &mut self,
-        mode: &SwipeMode,
-        duration: u64,
-    ) -> ExecuteResult<Option<ADBCommand>> {
-        let (from, to) = match mode {
-            SwipeMode::Point { from, to } => {
-                (Self::point_to_absolute(from), Self::point_to_absolute(to))
-            }
-            SwipeMode::Percent { from, to } => {
-                let screen_size = self.ensure_screen_size().await?;
-                (
-                    Self::percent_point_to_absolute(from, screen_size)?,
-                    Self::percent_point_to_absolute(to, screen_size)?,
-                )
-            }
-            SwipeMode::Txt { .. } | SwipeMode::LabelIdx { .. } | SwipeMode::Mixed { .. } => {
-                return Ok(None)
-            }
-        };
-        Ok(Some(ADBCommand::SwipeWithDuration(from, to, duration)))
     }
 
     async fn dispatch_action(
@@ -468,58 +309,42 @@ impl ScriptExecutor {
                 offset_x,
                 offset_y,
             } => self.execute_long_click(mode, *offset_x, *offset_y).await,
-            Action::Reboot => {
-                Self::await_device_result_with_timeout(
+            Action::Reboot => self
+                .execute_simple_device_operation(
                     "action.reboot",
                     "设备重启",
+                    DeviceOperation::Reboot,
+                    PolicyActionKind::Reboot,
                     20_000,
-                    get_device_ctx().reboot(),
                 )
-                .await?;
-                Ok((
-                    ControlFlow::Next,
-                    Some(Self::build_simple_action_trace(PolicyActionKind::Reboot)),
-                ))
-            }
-            Action::Back => {
-                Self::await_device_result_with_timeout(
+                .await,
+            Action::Back => self
+                .execute_simple_device_operation(
                     "action.back",
                     "返回键",
+                    DeviceOperation::Back,
+                    PolicyActionKind::Back,
                     DEVICE_EXTERNAL_TIMEOUT_MS,
-                    get_device_ctx().back(),
                 )
-                .await?;
-                Ok((
-                    ControlFlow::Next,
-                    Some(Self::build_simple_action_trace(PolicyActionKind::Back)),
-                ))
-            }
-            Action::Home => {
-                Self::await_device_result_with_timeout(
+                .await,
+            Action::Home => self
+                .execute_simple_device_operation(
                     "action.home",
                     "主页键",
+                    DeviceOperation::Home,
+                    PolicyActionKind::Home,
                     DEVICE_EXTERNAL_TIMEOUT_MS,
-                    get_device_ctx().home(),
                 )
-                .await?;
-                Ok((
-                    ControlFlow::Next,
-                    Some(Self::build_simple_action_trace(PolicyActionKind::Home)),
-                ))
-            }
-            Action::InputText { text } => {
-                Self::await_device_result_with_timeout(
+                .await,
+            Action::InputText { text } => self
+                .execute_simple_device_operation(
                     "action.inputText",
                     "输入文本",
+                    DeviceOperation::InputText(text.clone()),
+                    PolicyActionKind::Input,
                     DEVICE_EXTERNAL_TIMEOUT_MS,
-                    get_device_ctx().input_text(text),
                 )
-                .await?;
-                Ok((
-                    ControlFlow::Next,
-                    Some(Self::build_simple_action_trace(PolicyActionKind::Input)),
-                ))
-            }
+                .await,
             Action::PosAdd { target } => {
                 self.adjust_policy_click_pos(*target, 1).await?;
                 Ok((ControlFlow::Next, None))
@@ -542,31 +367,29 @@ impl ScriptExecutor {
                         "LaunchApp 需要同时提供 pkg_name 和 activity_name".to_string(),
                     ));
                 }
-                Self::await_device_result_with_timeout(
+                self.execute_simple_device_operation(
                     "action.launchApp",
                     "启动应用",
+                    DeviceOperation::LaunchApp {
+                        pkg_name: pkg_name.clone(),
+                        activity_name: activity_name.clone(),
+                    },
+                    PolicyActionKind::StartApp,
                     DEVICE_EXTERNAL_TIMEOUT_MS,
-                    get_device_ctx().launch_app(pkg_name, activity_name),
                 )
-                .await?;
-                Ok((
-                    ControlFlow::Next,
-                    Some(Self::build_simple_action_trace(PolicyActionKind::StartApp)),
-                ))
+                .await
             }
-            Action::StopApp { pkg_name } => {
-                Self::await_device_result_with_timeout(
+            Action::StopApp { pkg_name } => self
+                .execute_simple_device_operation(
                     "action.stopApp",
                     "停止应用",
+                    DeviceOperation::StopApp {
+                        pkg_name: pkg_name.clone(),
+                    },
+                    PolicyActionKind::StopApp,
                     DEVICE_EXTERNAL_TIMEOUT_MS,
-                    get_device_ctx().stop_app(pkg_name),
                 )
-                .await?;
-                Ok((
-                    ControlFlow::Next,
-                    Some(Self::build_simple_action_trace(PolicyActionKind::StopApp)),
-                ))
-            }
+                .await,
         }
     }
 
@@ -576,97 +399,9 @@ impl ScriptExecutor {
         offset_x: i32,
         offset_y: i32,
     ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
-        let (points, source, targets) = match mode {
-            ClickMode::Point { p } => {
-                let point = Self::point_to_absolute(p);
-                (
-                    vec![point],
-                    PolicyActionSource::Fixed,
-                    vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)],
-                )
-            }
-            ClickMode::Percent { p } => {
-                let screen_size = self.ensure_screen_size().await?;
-                let point = Self::percent_point_to_absolute(p, screen_size)?;
-                (
-                    vec![point],
-                    PolicyActionSource::Fixed,
-                    vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)],
-                )
-            }
-            ClickMode::Txt {
-                input_var,
-                txt,
-                txt_expr,
-            } => {
-                let target_text =
-                    self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), "action.longClick")?;
-                let items = self
-                    .resolve_ocr_target_items("action.longClick", input_var, target_text.as_deref())
-                    .await?;
-                let mut points = Vec::new();
-                let mut targets = Vec::new();
-                for item in items {
-                    let point = Self::bounding_box_center_to_point(
-                        "action.longClick",
-                        "长按目标",
-                        &item.bounding_box,
-                    )?;
-                    points.push(point);
-                    targets.push(Self::build_ocr_target(
-                        PolicyActionTargetRole::Primary,
-                        point,
-                        &item,
-                    ));
-                }
-                (points, PolicyActionSource::Ocr, targets)
-            }
-            ClickMode::LabelIdx { input_var, idx } => {
-                let items = self
-                    .resolve_det_target_items("action.longClick", input_var, *idx)
-                    .await?;
-                let mut points = Vec::new();
-                let mut targets = Vec::new();
-                for item in items {
-                    let point = Self::bounding_box_center_to_point(
-                        "action.longClick",
-                        "长按目标",
-                        &item.bounding_box,
-                    )?;
-                    points.push(point);
-                    targets.push(Self::build_det_target(
-                        PolicyActionTargetRole::Primary,
-                        point,
-                        &item,
-                    ));
-                }
-                (points, PolicyActionSource::Det, targets)
-            }
-        };
-        if points.is_empty() {
-            return Ok((ControlFlow::Next, None));
-        }
-
-        for point in points {
-            let fixed_point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
-            let click_point = self.apply_click_random_offset(fixed_point).await?;
-            Self::await_device_result_with_timeout(
-                "action.longClick",
-                "长按",
-                DEVICE_EXTERNAL_TIMEOUT_MS,
-                get_device_ctx().long_click(click_point),
-            )
-            .await?;
-        }
-
-        Ok((
-            ControlFlow::Next,
-            Some(Self::build_action_trace(
-                PolicyActionKind::Press,
-                source,
-                targets,
-            )),
-        ))
+        let plan = self.plan_long_click_action(mode, offset_x, offset_y).await?;
+        self.execute_planned_device_action("action.longClick", "长按", plan)
+            .await
     }
 
     async fn execute_click(
@@ -675,73 +410,9 @@ impl ScriptExecutor {
         offset_x: i32,
         offset_y: i32,
     ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
-        let (points, source, mut targets) = match mode {
-            ClickMode::Point { p } => {
-                let point = Self::point_to_absolute(p);
-                (vec![point], PolicyActionSource::Fixed, vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)])
-            }
-            ClickMode::Percent { p } => {
-                let screen_size = self.ensure_screen_size().await?;
-                let point = Self::percent_point_to_absolute(p, screen_size)?;
-                (vec![point], PolicyActionSource::Fixed, vec![Self::build_point_target(PolicyActionTargetRole::Primary, point)])
-            }
-            ClickMode::Txt {
-                input_var,
-                txt,
-                txt_expr,
-            } => {
-                let target_text = self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), "action.click")?;
-                let items = self
-                    .resolve_ocr_target_items("action.click", input_var, target_text.as_deref())
-                    .await?;
-                let mut points = Vec::new();
-                let mut targets = Vec::new();
-                for item in items {
-                    let point = Self::bounding_box_center_to_point("action.click", "点击目标", &item.bounding_box)?;
-                    points.push(point);
-                    targets.push(Self::build_ocr_target(PolicyActionTargetRole::Primary, point, &item));
-                }
-                (points, PolicyActionSource::Ocr, targets)
-            }
-            ClickMode::LabelIdx { input_var, idx } => {
-                let items = self
-                    .resolve_det_target_items("action.click", input_var, *idx)
-                    .await?;
-                let mut points = Vec::new();
-                let mut targets = Vec::new();
-                for item in items {
-                    let point = Self::bounding_box_center_to_point("action.click", "点击目标", &item.bounding_box)?;
-                    points.push(point);
-                    targets.push(Self::build_det_target(PolicyActionTargetRole::Primary, point, &item));
-                }
-                (points, PolicyActionSource::Det, targets)
-            }
-        };
-        if points.is_empty() {
-            return Ok((ControlFlow::Next, None));
-        }
-
-        let mut clicked_points = Vec::with_capacity(points.len());
-        for point in points {
-            let fixed_point = self.apply_click_fixed_offset(point, offset_x, offset_y).await?;
-            let click_point = self.apply_click_random_offset(fixed_point).await?;
-            Self::await_device_result_with_timeout(
-                "action.click",
-                "设备点击",
-                DEVICE_EXTERNAL_TIMEOUT_MS,
-                get_device_ctx().click(click_point),
-            )
-            .await?;
-            clicked_points.push(fixed_point);
-        }
-
-        for (target, point) in targets.iter_mut().zip(clicked_points) {
-            target.point = Some(PointU16 { x: point.x, y: point.y });
-        }
-        Ok((
-            ControlFlow::Next,
-            Some(Self::build_action_trace(PolicyActionKind::Click, source, targets)),
-        ))
+        let plan = self.plan_click_action(mode, offset_x, offset_y).await?;
+        self.execute_planned_device_action("action.click", "设备点击", plan)
+            .await
     }
 
     async fn execute_swipe(
@@ -749,274 +420,9 @@ impl ScriptExecutor {
         mode: &SwipeMode,
         duration: u64,
     ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
-        let (from, to, trace) = match mode {
-            SwipeMode::Point { from, to } => {
-                let from_point = Self::point_to_absolute(from);
-                let to_point = Self::point_to_absolute(to);
-                (
-                    from_point,
-                    to_point,
-                    Self::build_action_trace(
-                        PolicyActionKind::Swipe,
-                        PolicyActionSource::Fixed,
-                        vec![
-                            Self::build_point_target(PolicyActionTargetRole::Start, from_point),
-                            Self::build_point_target(PolicyActionTargetRole::End, to_point),
-                        ],
-                    ),
-                )
-            }
-            SwipeMode::Percent { from, to } => {
-                let screen_size = self.ensure_screen_size().await?;
-                let from_point = Self::percent_point_to_absolute(from, screen_size)?;
-                let to_point = Self::percent_point_to_absolute(to, screen_size)?;
-                (
-                    from_point,
-                    to_point,
-                    Self::build_action_trace(
-                        PolicyActionKind::Swipe,
-                        PolicyActionSource::Fixed,
-                        vec![
-                            Self::build_point_target(PolicyActionTargetRole::Start, from_point),
-                            Self::build_point_target(PolicyActionTargetRole::End, to_point),
-                        ],
-                    ),
-                )
-            }
-            SwipeMode::Txt {
-                input_var,
-                from,
-                to,
-                from_expr,
-                to_expr,
-            } => {
-                let items = self
-                    .read_runtime_result_vec::<OcrResult>(input_var, "action.swipe", "OCR")
-                    .await?;
-                let from_text = self.resolve_optional_text(from.as_deref(), from_expr.as_deref(), "action.swipe")?;
-                let to_text = self.resolve_optional_text(to.as_deref(), to_expr.as_deref(), "action.swipe")?;
-                let from_item =
-                    Self::select_ocr_result(&items, from_text.as_deref()).ok_or_else(|| {
-                        Self::execute_error(
-                            "action.swipe",
-                            format!(
-                                "输入变量[{}]里未找到文字滑动起点: {}",
-                                input_var,
-                                from_text.clone().unwrap_or_default()
-                            ),
-                        )
-                    })?;
-                let to_item = Self::select_ocr_result(&items, to_text.as_deref()).ok_or_else(|| {
-                    Self::execute_error(
-                        "action.swipe",
-                        format!(
-                            "输入变量[{}]里未找到文字滑动终点: {}",
-                            input_var,
-                            to_text.clone().unwrap_or_default()
-                        ),
-                    )
-                })?;
-                (
-                    Self::bounding_box_center_to_point(
-                        "action.swipe",
-                        "文字滑动起点",
-                        &from_item.bounding_box,
-                    )?,
-                    Self::bounding_box_center_to_point(
-                        "action.swipe",
-                        "文字滑动终点",
-                        &to_item.bounding_box,
-                    )?,
-                    Self::build_action_trace(
-                        PolicyActionKind::Swipe,
-                        PolicyActionSource::Ocr,
-                        vec![
-                            Self::build_ocr_target(
-                                PolicyActionTargetRole::Start,
-                                Self::bounding_box_center_to_point(
-                                    "action.swipe",
-                                    "文字滑动起点",
-                                    &from_item.bounding_box,
-                                )?,
-                                from_item,
-                            ),
-                            Self::build_ocr_target(
-                                PolicyActionTargetRole::End,
-                                Self::bounding_box_center_to_point(
-                                    "action.swipe",
-                                    "文字滑动终点",
-                                    &to_item.bounding_box,
-                                )?,
-                                to_item,
-                            ),
-                        ],
-                    ),
-                )
-            }
-            SwipeMode::LabelIdx {
-                input_var,
-                from,
-                to,
-            } => {
-                let items = self
-                    .read_runtime_result_vec::<DetResult>(input_var, "action.swipe", "检测")
-                    .await?;
-                let from_item = Self::select_det_result(&items, Some(u32::from(*from)))
-                    .ok_or_else(|| {
-                        Self::execute_error(
-                            "action.swipe",
-                            format!("输入变量[{}]里未找到标签滑动起点: {}", input_var, from),
-                        )
-                    })?;
-                let to_item =
-                    Self::select_det_result(&items, Some(u32::from(*to))).ok_or_else(|| {
-                        Self::execute_error(
-                            "action.swipe",
-                            format!("输入变量[{}]里未找到标签滑动终点: {}", input_var, to),
-                        )
-                    })?;
-                (
-                    Self::bounding_box_center_to_point(
-                        "action.swipe",
-                        "标签滑动起点",
-                        &from_item.bounding_box,
-                    )?,
-                    Self::bounding_box_center_to_point(
-                        "action.swipe",
-                        "标签滑动终点",
-                        &to_item.bounding_box,
-                    )?,
-                    Self::build_action_trace(
-                        PolicyActionKind::Swipe,
-                        PolicyActionSource::Det,
-                        vec![
-                            Self::build_det_target(
-                                PolicyActionTargetRole::Start,
-                                Self::bounding_box_center_to_point(
-                                    "action.swipe",
-                                    "标签滑动起点",
-                                    &from_item.bounding_box,
-                                )?,
-                                from_item,
-                            ),
-                            Self::build_det_target(
-                                PolicyActionTargetRole::End,
-                                Self::bounding_box_center_to_point(
-                                    "action.swipe",
-                                    "标签滑动终点",
-                                    &to_item.bounding_box,
-                                )?,
-                                to_item,
-                            ),
-                        ],
-                    ),
-                )
-            }
-            SwipeMode::Mixed { from, to } => {
-                let (from_point, from_target) = self
-                    .resolve_swipe_target("action.swipe", from, PolicyActionTargetRole::Start)
-                    .await?;
-                let (to_point, to_target) = self
-                    .resolve_swipe_target("action.swipe", to, PolicyActionTargetRole::End)
-                    .await?;
-                (
-                    from_point,
-                    to_point,
-                    Self::build_action_trace(
-                        PolicyActionKind::Swipe,
-                        PolicyActionSource::Custom,
-                        vec![from_target, to_target],
-                    ),
-                )
-            }
-        };
-        Self::await_device_result_with_timeout(
-            "action.swipe",
-            "设备滑动",
-            DEVICE_EXTERNAL_TIMEOUT_MS,
-            get_device_ctx().swipe(from, to, duration),
-        )
-        .await?;
-        Ok((ControlFlow::Next, Some(trace)))
-    }
-
-    async fn resolve_swipe_target(
-        &mut self,
-        step_type: &str,
-        target: &SwipeTarget,
-        role: PolicyActionTargetRole,
-    ) -> ExecuteResult<(Point<u16>, PolicyActionTarget)> {
-        match target {
-            SwipeTarget::Txt {
-                input_var,
-                value,
-                value_expr,
-            } => {
-                let target_text = self.resolve_optional_text(value.as_deref(), value_expr.as_deref(), step_type)?;
-                let item = self
-                    .resolve_ocr_target_items(step_type, input_var, target_text.as_deref())
-                    .await?
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| {
-                        Self::execute_error(
-                            step_type,
-                            format!(
-                                "输入变量[{}]里未找到滑动文字目标: {}",
-                                input_var,
-                                target_text.unwrap_or_default()
-                            ),
-                        )
-                    })?;
-                let point = Self::bounding_box_center_to_point(step_type, "滑动文字目标", &item.bounding_box)?;
-                Ok((point, Self::build_ocr_target(role, point, &item)))
-            }
-            SwipeTarget::LabelIdx { input_var, idx } => {
-                let item = self
-                    .resolve_det_target_items(step_type, input_var, Some(u32::from(*idx)))
-                    .await?
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| {
-                        Self::execute_error(
-                            step_type,
-                            format!("输入变量[{}]里未找到滑动标签目标: {}", input_var, idx),
-                        )
-                    })?;
-                let point = Self::bounding_box_center_to_point(step_type, "滑动标签目标", &item.bounding_box)?;
-                Ok((point, Self::build_det_target(role, point, &item)))
-            }
-        }
-    }
-
-    async fn resolve_ocr_target_items(
-        &self,
-        step_type: &str,
-        input_var: &str,
-        target_text: Option<&str>,
-    ) -> ExecuteResult<Vec<OcrResult>> {
-        let items = self
-            .read_runtime_result_vec::<OcrResult>(input_var, step_type, "OCR")
-            .await?;
-        Ok(Self::select_ocr_results(&items, target_text)
-            .into_iter()
-            .cloned()
-            .collect())
-    }
-
-    async fn resolve_det_target_items(
-        &self,
-        step_type: &str,
-        input_var: &str,
-        target_idx: Option<u32>,
-    ) -> ExecuteResult<Vec<DetResult>> {
-        let items = self
-            .read_runtime_result_vec::<DetResult>(input_var, step_type, "检测")
-            .await?;
-        Ok(Self::select_det_results(&items, target_idx)
-            .into_iter()
-            .cloned()
-            .collect())
+        let plan = self.plan_swipe_action(mode, duration).await?;
+        self.execute_planned_device_action("action.swipe", "设备滑动", plan)
+            .await
     }
 
     async fn adjust_policy_click_pos(&self, policy_id: PolicyId, delta: i16) -> ExecuteResult<()> {

@@ -50,6 +50,11 @@ export const validateDeviceForm = (form: DeviceFormState): NormalizedDeviceFormV
   const needsIdentifier =
     form.transportKind !== 'emulatorTcp' ||
     (form.transportKind === 'emulatorTcp' && form.emulatorConnectMode === 'identifier');
+  const supportsWindowCapture = form.transportKind === 'emulatorTcp';
+
+  if (!supportsWindowCapture && form.capMethodType === 'window') {
+    throw new Error('当前连接通道不支持窗口截图，只有模拟器连接可使用窗口截图。');
+  }
 
   if (emulatorUsesTcpAddress && !isValidIpv4Port(normalized.connectAddress)) {
     throw new Error('TCP 地址格式应为 IP:端口，例如 127.0.0.1:5555');

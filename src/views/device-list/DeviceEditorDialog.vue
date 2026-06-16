@@ -323,6 +323,8 @@ const transportFieldPlaceholder = computed(() => {
   return '例如 emulator-5554 / 设备序列号';
 });
 
+const supportsWindowCapture = computed(() => form.transportKind === 'emulatorTcp');
+
 const logLevelOptions = [
   { label: 'Off', value: 'Off' },
   { label: 'Error', value: 'Error' },
@@ -331,10 +333,15 @@ const logLevelOptions = [
   { label: 'Debug', value: 'Debug' },
 ];
 
-const captureOptions = [
-  { label: '窗口截取', value: 'window' },
-  { label: 'ADB 截图', value: 'adb' },
-];
+const captureOptions = computed(() => {
+  if (supportsWindowCapture.value) {
+    return [
+      { label: '窗口截取', value: 'window' },
+      { label: 'ADB 截图', value: 'adb' },
+    ];
+  }
+  return [{ label: 'ADB 截图', value: 'adb', description: '当前通道不是模拟器，窗口截图不可用。' }];
+});
 
 const transportOptions = [
   { label: '模拟器', value: 'emulatorTcp' },
@@ -438,6 +445,16 @@ watch(
     }
   },
   { immediate: true },
+);
+
+watch(
+  () => [form.transportKind, form.capMethodType] as const,
+  ([transportKind, capMethodType]) => {
+    if (transportKind !== 'emulatorTcp' && capMethodType === 'window') {
+      form.capMethodType = 'adb';
+      form.capMethodValue = '';
+    }
+  },
 );
 
 </script>

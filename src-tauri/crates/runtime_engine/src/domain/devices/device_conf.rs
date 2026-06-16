@@ -239,4 +239,11 @@ impl DeviceConfig {
         self.uses_emulator_transport()
             && matches!(self.emulator_connect_mode, EmulatorConnectMode::Identifier)
     }
+
+    pub fn supports_window_capture(&self) -> bool {
+        match self.platform {
+            DevicePlatform::Android => self.uses_emulator_transport(),
+            DevicePlatform::Desktop => true,
+        }
+    }
 }

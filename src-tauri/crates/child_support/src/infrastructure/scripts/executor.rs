@@ -27,8 +27,6 @@ use crate::domain::vision::ocr_search::{
     VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
-use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
-use crate::infrastructure::adb_cli_local::adb_context::try_get_adb_ctx;
 use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
 use crate::infrastructure::core::{
     AccountId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScriptId,
@@ -36,6 +34,7 @@ use crate::infrastructure::core::{
 };
 use crate::infrastructure::db::get_pool;
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
+use crate::infrastructure::devices::device_runtime::DeviceOperation;
 use crate::infrastructure::ipc::message::{
     RunTarget, RuntimeLifecyclePhase, RuntimeProgressPhase, TimeoutAction,
 };
@@ -63,6 +62,14 @@ use tokio::sync::Mutex;
 use tokio::time::Duration;
 use twox_hash::XxHash3_64;
 
+const DEVICE_EXTERNAL_TIMEOUT_MS: u64 = 5_000;
+const VISION_INFERENCE_TIMEOUT_MS: u64 = 10_000;
+
+include!("executor/action_target_resolver.rs");
+include!("executor/action_planner.rs");
+include!("executor/sequence_operation_compiler.rs");
+include!("executor/action_trace.rs");
+include!("executor/action_dispatcher.rs");
 include!("executor/action.rs");
 include!("executor/policy.rs");
 include!("executor/flow.rs");
@@ -228,12 +235,25 @@ impl ScriptExecutor {
     ) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
         Box::pin(async move {
             if step.skip_flag {
+                let step_name = self.resolve_step_display_name(step).await;
+                self.log_step_debug("skip", step, &step_name, Some("skip_flag=true"));
                 return Ok(ControlFlow::Next);
             }
 
+            let step_name = self.resolve_step_display_name(step).await;
+            self.log_step_debug("enter", step, &step_name, None);
             let frame = self.enter_step(step).await;
             let result = self.execute_step_inner(step).await;
             self.leave_step(frame).await;
+            match &result {
+                Ok(flow) => self.log_step_debug(
+                    "leave",
+                    step,
+                    &step_name,
+                    Some(Self::describe_control_flow(flow)),
+                ),
+                Err(error) => self.log_step_debug("error", step, &step_name, Some(&error.to_string())),
+            }
             result
         })
     }
@@ -301,5 +321,41 @@ impl ScriptExecutor {
         }
 
         Ok(ControlFlow::Next)
+    }
+
+    fn describe_step_kind(step: &Step) -> &'static str {
+        match &step.kind {
+            StepKind::Sequence { .. } => "sequence",
+            StepKind::Action { .. } => "action",
+            StepKind::DataHanding { .. } => "dataHanding",
+            StepKind::FlowControl { .. } => "flowControl",
+            StepKind::TaskControl { .. } => "taskControl",
+            StepKind::Vision { .. } => "vision",
+        }
+    }
+
+    fn describe_control_flow(flow: &ControlFlow) -> &'static str {
+        match flow {
+            ControlFlow::Continue => "continue",
+            ControlFlow::Break => "break",
+            ControlFlow::Link(_) => "link",
+            ControlFlow::Next => "next",
+            ControlFlow::Return => "return",
+            ControlFlow::StopScript => "stopScript",
+        }
+    }
+
+    fn log_step_debug(&self, stage: &str, step: &Step, step_name: &str, detail: Option<&str>) {
+        let detail = detail
+            .map(|value| format!(", detail={}", value))
+            .unwrap_or_default();
+        Log::debug(&format!(
+            "[ executor ] step.{}: id={:?}, kind={}, label={}{}",
+            stage,
+            step.id,
+            Self::describe_step_kind(step),
+            step_name,
+            detail
+        ));
     }
 }

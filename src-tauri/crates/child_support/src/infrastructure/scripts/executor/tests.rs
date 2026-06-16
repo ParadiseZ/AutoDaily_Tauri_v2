@@ -19,6 +19,7 @@ use crate::domain::vision::ocr_search::{SearchRule, VisionSnapshot};
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::RuntimeContext;
 use crate::infrastructure::core::{PolicyId, TaskId, UuidV7};
+use crate::infrastructure::devices::device_runtime::DeviceOperation;
 use crate::infrastructure::ipc::message::{
     DispatchKind, DispatchSource, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
     RuntimeSessionSnapshot, RuntimeVisionTextCachePolicy, TimeoutAction,
@@ -600,7 +601,9 @@ async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration
 
     let candidate = super::PolicyCandidate {
         policy_set_id: Some(policy_set_id),
+        policy_set_name: None,
         policy_group_id: Some(policy_group_id),
+        policy_group_name: None,
         policy: build_policy_table(
             policy_id,
             script_id,
@@ -860,6 +863,7 @@ async fn action_prepare_path_triggers_timeout_detector() {
     let flow = executor
         .execute_action_step(
             None,
+            None,
             0,
             &Action::LaunchApp {
                 pkg_name: String::new(),
@@ -871,6 +875,34 @@ async fn action_prepare_path_triggers_timeout_detector() {
 
     assert!(matches!(flow, super::ControlFlow::Return));
     clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn compile_action_sequence_includes_launch_app() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("启动应用".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::LaunchApp {
+                pkg_name: "com.demo.app".to_string(),
+                activity_name: "com.demo.app.MainActivity".to_string(),
+            },
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let compiled = compiled.expect("launch app should be compiled into sequence fast path");
+    assert_eq!(compiled.len(), 1);
+    assert!(matches!(
+        compiled[0].operation,
+        DeviceOperation::LaunchApp { .. }
+    ));
 }
 
 #[tokio::test]

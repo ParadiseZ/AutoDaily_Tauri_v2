@@ -2825,7 +2825,7 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
   return nextStep;
 };
 
-const actionSequenceTemplateBlockedMessage = '动作序列里只允许固定设备动作和显式等待。';
+const actionSequenceTemplateBlockedMessage = '动作序列里只允许可直接下发的设备动作和显式等待。';
 
 const appendTemplateStep = async (templateId: string) => {
   if (activeBranchPath.value.branch === 'sequence' && !isActionSequenceTemplateId(templateId)) {
