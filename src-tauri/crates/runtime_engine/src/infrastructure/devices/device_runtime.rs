@@ -187,28 +187,30 @@ impl AndroidDeviceRuntime {
         5_000 + duration_sum_ms + command_overhead_ms
     }
 
-    fn to_sequence_command(operation: &DeviceOperation) -> Option<ADBCommand> {
+    fn to_sequence_command(operation: &DeviceOperation) -> Result<ADBCommand, String> {
         match operation {
-            DeviceOperation::Click(point) => Some(ADBCommand::Click(*point)),
-            DeviceOperation::LongClick(point) => Some(ADBCommand::LongClick(*point)),
+            DeviceOperation::Click(point) => Ok(ADBCommand::Click(*point)),
+            DeviceOperation::LongClick(point) => Ok(ADBCommand::LongClick(*point)),
             DeviceOperation::Swipe { from, to, duration } => {
-                Some(ADBCommand::SwipeWithDuration(*from, *to, *duration))
+                Ok(ADBCommand::SwipeWithDuration(*from, *to, *duration))
             }
             DeviceOperation::LaunchApp {
                 pkg_name,
                 activity_name,
-            } => Some(ADBCommand::StartActivity(
+            } => Ok(ADBCommand::StartActivity(
                 pkg_name.clone(),
                 activity_name.clone(),
             )),
             DeviceOperation::StopApp { pkg_name } => {
-                Some(ADBCommand::StopApp(pkg_name.clone()))
+                Ok(ADBCommand::StopApp(pkg_name.clone()))
             }
-            DeviceOperation::InputText(text) => Some(ADBCommand::InputText(text.clone())),
-            DeviceOperation::Back => Some(ADBCommand::Back),
-            DeviceOperation::Home => Some(ADBCommand::Home),
-            DeviceOperation::Delay(ms) => Some(ADBCommand::Duration(*ms)),
-            DeviceOperation::Reboot => None,
+            DeviceOperation::InputText(text) => Ok(ADBCommand::InputText(text.clone())),
+            DeviceOperation::Back => Ok(ADBCommand::Back),
+            DeviceOperation::Home => Ok(ADBCommand::Home),
+            DeviceOperation::Delay(ms) => Ok(ADBCommand::Duration(*ms)),
+            DeviceOperation::Reboot => Err(
+                "设备重启依赖独立 ADB 指令通道，不能合并进 ADBCommand::Sequence".to_string(),
+            ),
         }
     }
 
@@ -219,8 +221,7 @@ impl AndroidDeviceRuntime {
         let commands = operations
             .iter()
             .map(Self::to_sequence_command)
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| "存在无法合并执行的 Android 操作".to_string())?;
+            .collect::<Result<Vec<_>, _>>()?;
         self.send_reliable_sequence(commands).await
     }
 
@@ -362,7 +363,7 @@ impl AndroidDeviceRuntime {
 
         if operations
             .iter()
-            .all(|operation| Self::to_sequence_command(operation).is_some())
+            .all(|operation| Self::to_sequence_command(operation).is_ok())
         {
             return self.execute_batchable_operations(operations).await;
         }
@@ -381,8 +382,8 @@ impl AndroidDeviceRuntime {
         let commands = operations
             .iter()
             .map(Self::to_sequence_command)
-            .collect::<Option<Vec<_>>>()
-            .ok_or_else(|| "Sequence 中存在无法转换为 ADBCommand::Sequence 的设备动作".to_string())?;
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("Sequence 中存在无法转换为 ADBCommand::Sequence 的设备动作: {}", error))?;
         self.send_sequence(commands).await
     }
 

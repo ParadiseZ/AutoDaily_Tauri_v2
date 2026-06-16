@@ -22,7 +22,7 @@ impl ScriptExecutor {
             )
         })?;
         let point = Self::bounding_box_center_to_point(step_type, target_label, &item.bounding_box)?;
-        Ok((point, Self::build_ocr_target(role, point, item)))
+        Ok((point, ActionTraceBuilder::build_ocr_target(role, point, item)))
     }
 
     async fn resolve_swipe_det_endpoint(
@@ -43,7 +43,7 @@ impl ScriptExecutor {
             )
         })?;
         let point = Self::bounding_box_center_to_point(step_type, target_label, &item.bounding_box)?;
-        Ok((point, Self::build_det_target(role, point, item)))
+        Ok((point, ActionTraceBuilder::build_det_target(role, point, item)))
     }
 
     async fn resolve_swipe_target(
@@ -80,7 +80,7 @@ impl ScriptExecutor {
                     "滑动文字目标",
                     &item.bounding_box,
                 )?;
-                Ok((point, Self::build_ocr_target(role, point, &item)))
+                Ok((point, ActionTraceBuilder::build_ocr_target(role, point, &item)))
             }
             SwipeTarget::LabelIdx { input_var, idx } => {
                 let item = self
@@ -99,7 +99,7 @@ impl ScriptExecutor {
                     "滑动标签目标",
                     &item.bounding_box,
                 )?;
-                Ok((point, Self::build_det_target(role, point, &item)))
+                Ok((point, ActionTraceBuilder::build_det_target(role, point, &item)))
             }
         }
     }

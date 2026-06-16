@@ -224,7 +224,7 @@
                   </p>
                 </div>
                 <div class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
-                  允许的子步骤：启动应用、停止应用、固定坐标点击/滑动、百分比点击/滑动、返回、等待。
+                  允许的子步骤：固定设备动作与固定等待。当前编辑器提供：启动应用、停止应用、固定坐标点击/滑动、百分比点击/滑动、返回、等待；不支持截图、重启、文字/标签定位，以及依赖变量的等待。
                 </div>
                 <button
                   class="app-button app-button-primary app-toolbar-button"

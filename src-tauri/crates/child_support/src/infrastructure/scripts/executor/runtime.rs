@@ -422,7 +422,7 @@ impl ScriptExecutor {
     fn execute_error(step_type: &str, e: String) -> ScriptError {
         ScriptError::ExecuteErr {
             step_type: step_type.to_string(),
-            e,
+            e: format!("[ runtime ] {}", e),
         }
     }
 }

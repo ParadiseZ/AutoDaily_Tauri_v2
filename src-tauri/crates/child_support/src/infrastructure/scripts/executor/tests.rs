@@ -897,12 +897,64 @@ async fn compile_action_sequence_includes_launch_app() {
 
     let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
 
-    let compiled = compiled.expect("launch app should be compiled into sequence fast path");
+    let super::SequenceCompileOutcome::Supported(compiled) = compiled else {
+        panic!("launch app should be compiled into sequence fast path");
+    };
     assert_eq!(compiled.len(), 1);
     assert!(matches!(
         compiled[0].operation,
         DeviceOperation::LaunchApp { .. }
     ));
+}
+
+#[tokio::test]
+async fn compile_action_sequence_rejects_capture_with_reason() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("截图".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::Capture {
+                output_var: "runtime.latestCapture".to_string(),
+            },
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Unsupported(blocker) = compiled else {
+        panic!("capture should be rejected from sequence fast path");
+    };
+    assert_eq!(blocker.step_label, "截图");
+    assert!(blocker.reason.contains("结果通道"));
+}
+
+#[tokio::test]
+async fn compile_action_sequence_rejects_reboot_with_reason() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("重启".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::Reboot,
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Unsupported(blocker) = compiled else {
+        panic!("reboot should be rejected from sequence fast path");
+    };
+    assert_eq!(blocker.step_label, "重启");
+    assert!(blocker.reason.contains("独立 ADB 指令通道"));
 }
 
 #[tokio::test]
