@@ -90,6 +90,13 @@ pub enum ModelType {
     PaddleCrnn5,
 }
 impl BaseModel {
+    pub fn resolve_model_path(&self) -> VisionResult<PathBuf> {
+        match self.model_source {
+            ModelSource::BuiltIn => self.resolve_builtin_model_path(),
+            ModelSource::Custom => Ok(self.model_path.clone()),
+        }
+    }
+
     fn resolve_builtin_model_path(&self) -> VisionResult<PathBuf> {
         let relative = match self.model_type {
             ModelType::PaddleDet5 => PathBuf::from("ppocr").join("ch_mobile_v5_det.onnx"),
@@ -160,10 +167,7 @@ impl BaseModel {
     /// - ORT 线程与图优化配置
     pub fn load_model_base<T: ModelHandler>(&mut self, model_type_name: &str) -> VisionResult<()> {
         // 1. 解析模型路径
-        let final_path = match self.model_source {
-            ModelSource::BuiltIn => self.resolve_builtin_model_path()?,
-            ModelSource::Custom => self.model_path.clone(),
-        };
+        let final_path = self.resolve_model_path()?;
 
         Log::debug(&format!(
             "加载{}模型, 路径: {:?}",

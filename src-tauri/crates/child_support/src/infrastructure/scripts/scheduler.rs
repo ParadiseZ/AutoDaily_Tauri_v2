@@ -334,6 +334,7 @@ impl ScriptScheduler {
         let runtime_ctx = get_runtime_ctx();
         let script_info = Self::clone_model_config("script_info", &bundle.script.data.0)?;
         let script_name = script_info.name.clone();
+        let capture_asset_signature = ScriptExecutor::build_capture_asset_signature(&script_info);
         Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
         let execution_plan =
@@ -364,6 +365,7 @@ impl ScriptScheduler {
             ctx.observation.last_capture_image = None;
             ctx.observation.last_snapshot = None;
             ctx.observation.last_hits.clear();
+            ctx.observation.capture_asset_signature = capture_asset_signature;
             if let Err(error) = ctx
                 .observation
                 .vision_text_cache

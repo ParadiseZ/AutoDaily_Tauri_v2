@@ -138,6 +138,9 @@ pub struct ObservationState {
 
     /// 视觉签名网格大小，用于稳定坐标和排序分桶。
     pub vision_signature_grid_size: u16,
+
+    /// 当前脚本视觉资源（模型/字典/标签等）的内容签名。
+    pub capture_asset_signature: String,
 }
 
 impl ObservationState {
@@ -150,6 +153,7 @@ impl ObservationState {
             screen_size: (0, 0),
             vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
             vision_signature_grid_size,
+            capture_asset_signature: String::new(),
         }
     }
 }

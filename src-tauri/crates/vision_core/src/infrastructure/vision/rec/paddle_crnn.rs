@@ -149,6 +149,10 @@ impl PaddleRecCrnn {
         })
     }
 
+    pub fn resolved_dict_path(&self) -> VisionResult<PathBuf> {
+        self.resolve_dict_path()
+    }
+
     fn fill_image_tensor(
         &self,
         img: &DynamicImage,

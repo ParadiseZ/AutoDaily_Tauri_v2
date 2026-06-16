@@ -10,6 +10,7 @@ impl ScriptExecutor {
             img_det_model_json,
             txt_det_model_json,
             txt_rec_model_json,
+            capture_asset_signature,
             has_img_det_model,
             has_txt_det_model,
             has_txt_rec_model,
@@ -29,6 +30,7 @@ impl ScriptExecutor {
                 Self::serialize_json("action.capture", "img_det_model", &script_info.img_det_model)?,
                 Self::serialize_json("action.capture", "txt_det_model", &script_info.txt_det_model)?,
                 Self::serialize_json("action.capture", "txt_rec_model", &script_info.txt_rec_model)?,
+                ctx.observation.capture_asset_signature.clone(),
                 script_info.img_det_model.is_some(),
                 script_info.txt_det_model.is_some(),
                 script_info.txt_rec_model.is_some(),
@@ -48,6 +50,7 @@ impl ScriptExecutor {
             &img_det_model_json,
             &txt_det_model_json,
             &txt_rec_model_json,
+            &capture_asset_signature,
         );
 
         if let Some(entry) = {
@@ -257,22 +260,130 @@ impl ScriptExecutor {
         img_det_model_json: &str,
         txt_det_model_json: &str,
         txt_rec_model_json: &str,
+        capture_asset_signature: &str,
     ) -> String {
         let mut hasher = XxHash3_64::default();
-        hasher.write(b"capture:v1");
+        hasher.write(b"capture:v2");
         hasher.write(&image.width().to_le_bytes());
         hasher.write(&image.height().to_le_bytes());
         hasher.write(&signature_grid_size.max(1).to_le_bytes());
         Self::write_hash_segment(&mut hasher, img_det_model_json.as_bytes());
         Self::write_hash_segment(&mut hasher, txt_det_model_json.as_bytes());
         Self::write_hash_segment(&mut hasher, txt_rec_model_json.as_bytes());
+        Self::write_hash_segment(&mut hasher, capture_asset_signature.as_bytes());
         Self::write_hash_segment(&mut hasher, image.as_raw());
-        format!("capture:v1:{:016x}", hasher.finish())
+        format!("capture:v2:{:016x}", hasher.finish())
+    }
+
+    pub(crate) fn build_capture_asset_signature(
+        script_info: &crate::domain::scripts::script_info::ScriptInfo,
+    ) -> String {
+        let mut hasher = XxHash3_64::default();
+        hasher.write(b"capture-assets:v1");
+        Self::write_hash_segment(
+            &mut hasher,
+            Self::detector_asset_signature(script_info.img_det_model.as_ref()).as_bytes(),
+        );
+        Self::write_hash_segment(
+            &mut hasher,
+            Self::detector_asset_signature(script_info.txt_det_model.as_ref()).as_bytes(),
+        );
+        Self::write_hash_segment(
+            &mut hasher,
+            Self::recognizer_asset_signature(script_info.txt_rec_model.as_ref()).as_bytes(),
+        );
+        format!("capture-assets:v1:{:016x}", hasher.finish())
     }
 
     fn write_hash_segment(hasher: &mut XxHash3_64, bytes: &[u8]) {
         hasher.write(&(bytes.len() as u64).to_le_bytes());
         hasher.write(bytes);
+    }
+
+    fn detector_asset_signature(
+        model: Option<&crate::infrastructure::vision::det::DetectorType>,
+    ) -> String {
+        let Some(model) = model else {
+            return "none".to_string();
+        };
+
+        match model {
+            crate::infrastructure::vision::det::DetectorType::Yolo11(cfg)
+            | crate::infrastructure::vision::det::DetectorType::Yolo26(cfg) => format!(
+                "model={};label={}",
+                Self::base_model_asset_signature(&cfg.base_model),
+                Self::optional_file_asset_signature(cfg.label_path.as_deref())
+            ),
+            crate::infrastructure::vision::det::DetectorType::PaddleDbNet(cfg) => {
+                Self::base_model_asset_signature(&cfg.base_model)
+            }
+        }
+    }
+
+    fn recognizer_asset_signature(
+        model: Option<&crate::infrastructure::vision::rec::RecognizerType>,
+    ) -> String {
+        let Some(model) = model else {
+            return "none".to_string();
+        };
+
+        match model {
+            crate::infrastructure::vision::rec::RecognizerType::PaddleCrnn(cfg) => format!(
+                "model={};dict={}",
+                Self::base_model_asset_signature(&cfg.base_model),
+                Self::resolved_path_asset_signature(cfg.resolved_dict_path())
+            ),
+        }
+    }
+
+    fn base_model_asset_signature(
+        model: &vision_core::infrastructure::vision::base_model::BaseModel,
+    ) -> String {
+        Self::resolved_path_asset_signature(model.resolve_model_path())
+    }
+
+    fn optional_file_asset_signature(path: Option<&std::path::Path>) -> String {
+        match path {
+            Some(path) => Self::file_asset_signature(path),
+            None => "none".to_string(),
+        }
+    }
+
+    fn resolved_path_asset_signature(
+        path: vision_core::infrastructure::vision::vision_error::VisionResult<std::path::PathBuf>,
+    ) -> String {
+        match path {
+            Ok(path) => Self::file_asset_signature(&path),
+            Err(error) => format!("resolve-error:{}", error),
+        }
+    }
+
+    fn file_asset_signature(path: &std::path::Path) -> String {
+        let path_text = path.display().to_string();
+        match Self::sha256_file_hex(path) {
+            Ok(hash) => format!("path={};sha256={}", path_text, hash),
+            Err(error) => format!("path={};unhashed={}", path_text, error),
+        }
+    }
+
+    fn sha256_file_hex(path: &std::path::Path) -> Result<String, String> {
+        use sha2::{Digest, Sha256};
+        use std::io::Read;
+
+        let mut file = std::fs::File::open(path)
+            .map_err(|error| format!("open-failed:{}", error))?;
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 8192];
+        loop {
+            let read = file
+                .read(&mut buffer)
+                .map_err(|error| format!("read-failed:{}", error))?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+        }
+        Ok(format!("{:x}", hasher.finalize()))
     }
 
     async fn capture_device_screenshot(&self, step_type: &str) -> ExecuteResult<RgbaImage> {

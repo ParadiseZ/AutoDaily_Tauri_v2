@@ -199,8 +199,10 @@ fn wait_ms_parses_input_number_values() {
 fn capture_cache_key_changes_with_signature_grid_size() {
     let image = RgbaImage::from_pixel(4, 4, Rgba([12, 34, 56, 255]));
 
-    let key_a = ScriptExecutor::build_capture_cache_key(&image, 4, "null", "null", "null");
-    let key_b = ScriptExecutor::build_capture_cache_key(&image, 8, "null", "null", "null");
+    let key_a =
+        ScriptExecutor::build_capture_cache_key(&image, 4, "null", "null", "null", "assets:a");
+    let key_b =
+        ScriptExecutor::build_capture_cache_key(&image, 8, "null", "null", "null", "assets:a");
 
     assert_ne!(key_a, key_b);
 }
@@ -209,10 +211,34 @@ fn capture_cache_key_changes_with_signature_grid_size() {
 fn capture_cache_key_changes_with_model_config() {
     let image = RgbaImage::from_pixel(4, 4, Rgba([12, 34, 56, 255]));
 
+    let key_a = ScriptExecutor::build_capture_cache_key(
+        &image,
+        4,
+        "{\"model\":\"a\"}",
+        "null",
+        "null",
+        "assets:a",
+    );
+    let key_b = ScriptExecutor::build_capture_cache_key(
+        &image,
+        4,
+        "{\"model\":\"b\"}",
+        "null",
+        "null",
+        "assets:a",
+    );
+
+    assert_ne!(key_a, key_b);
+}
+
+#[test]
+fn capture_cache_key_changes_with_asset_signature() {
+    let image = RgbaImage::from_pixel(4, 4, Rgba([12, 34, 56, 255]));
+
     let key_a =
-        ScriptExecutor::build_capture_cache_key(&image, 4, "{\"model\":\"a\"}", "null", "null");
+        ScriptExecutor::build_capture_cache_key(&image, 4, "null", "null", "null", "assets:a");
     let key_b =
-        ScriptExecutor::build_capture_cache_key(&image, 4, "{\"model\":\"b\"}", "null", "null");
+        ScriptExecutor::build_capture_cache_key(&image, 4, "null", "null", "null", "assets:b");
 
     assert_ne!(key_a, key_b);
 }
