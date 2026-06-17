@@ -1,13 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col gap-4">
-    <AppPageHeader title="时间模板">
-      <template #actions>
-        <button class="app-button app-button-primary" type="button" @click="openCreateTemplateDialog">
-          <AppIcon name="plus" :size="16" class="stroke-current" />
-          新增模板
-        </button>
-      </template>
-    </AppPageHeader>
+    <AppPageHeader title="时间模板" />
 
     <div class="grid min-h-0 flex-1 auto-rows-fr items-stretch gap-4 xl:grid-cols-[300px_360px_minmax(0,1fr)]">
       <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
@@ -16,9 +9,10 @@
             <p class="text-sm font-semibold text-(--app-text-strong)">模板定义</p>
             <p class="text-xs text-(--app-text-faint)">这里管理时间窗口本身。</p>
           </div>
-          <span class="rounded-full border border-(--app-border) px-3 py-1 text-xs text-(--app-text-faint)">
-            {{ taskStore.timeTemplates.length }} 个
-          </span>
+          <button class="app-button app-button-primary" type="button" @click="openCreateTemplateDialog">
+            <AppIcon name="plus" :size="16" class="stroke-current" />
+            新增模板
+          </button>
         </div>
 
         <div
@@ -360,13 +354,21 @@ const handleSaveTemplate = async () => {
     showToast('请先填写模板名称', 'warning');
     return;
   }
+  if (!templateForm.startTime) {
+    showToast('请先设置开始时间', 'warning');
+    return;
+  }
+  if (!templateForm.endTime) {
+    showToast('请先设置结束时间', 'warning');
+    return;
+  }
 
   try {
     const nextTemplate: TimeTemplate = {
       id: editingTemplateId.value ?? (await taskService.requestUuid()),
       name: templateForm.name.trim(),
-      startTime: templateForm.startTime || null,
-      endTime: templateForm.endTime || null,
+      startTime: templateForm.startTime,
+      endTime: templateForm.endTime,
     };
     await taskStore.saveTimeTemplate(nextTemplate);
     selectedTemplateId.value = nextTemplate.id;

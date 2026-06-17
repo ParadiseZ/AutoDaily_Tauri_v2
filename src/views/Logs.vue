@@ -4,22 +4,60 @@
       title="运行日志"
     />
 
-    <SurfacePanel class="grid gap-3 xl:grid-cols-[220px_180px_minmax(0,1fr)_180px_auto]">
-      <AppSelect v-model="selectedDeviceId" :options="deviceOptions" placeholder="全部设备" />
-      <AppSelect v-model="selectedLevel" :options="levelOptions" placeholder="全部级别" />
-      <input v-model.trim="searchText" class="app-input" placeholder="搜索日志内容" />
+    <SurfacePanel class="flex flex-wrap items-center gap-3">
+      <div class="w-full max-w-[220px] flex-1">
+        <AppSelect v-model="selectedDeviceId" :options="deviceOptions" placeholder="全部设备" />
+      </div>
+      <div class="w-full max-w-[180px] flex-1">
+        <AppSelect v-model="selectedLevel" :options="levelOptions" placeholder="全部级别" />
+      </div>
+      <div class="min-w-[320px] flex-1">
+        <div class="flex items-center gap-2">
+          <input v-model.trim="searchText" class="app-input min-w-0 flex-1" type="search" placeholder="搜索日志内容" />
+          <div class="flex shrink-0 items-center gap-1 rounded-[12px] border border-(--app-border) bg-(--app-panel-muted)/75 px-2 py-1">
+            <span class="min-w-[54px] text-center text-xs font-medium text-(--app-text-faint)">
+              {{ searchHitLabel }}
+            </span>
+            <button
+              class="app-icon-button h-8 w-8"
+              type="button"
+              title="上一个命中"
+              :disabled="!searchHits.length"
+              @click="moveSearchHit(-1)"
+            >
+              <AppIcon name="chevron-up" :size="14" />
+            </button>
+            <button
+              class="app-icon-button h-8 w-8"
+              type="button"
+              title="下一个命中"
+              :disabled="!searchHits.length"
+              @click="moveSearchHit(1)"
+            >
+              <AppIcon name="chevron-down" :size="14" />
+            </button>
+          </div>
+        </div>
+      </div>
       <AppSelect
         v-if="selectedDeviceId"
+        class="w-full max-w-[180px] flex-1"
         v-model="deviceLogLevel"
         :options="levelOptions.filter((item) => item.value)"
       />
+      <button class="app-icon-button h-10 w-10" type="button" title="滚动到顶部" @click="scrollToTop">
+        <AppIcon name="arrow-up-to-line" :size="16" />
+      </button>
+      <button class="app-icon-button h-10 w-10" type="button" title="滚动到底部" @click="scrollToBottom">
+        <AppIcon name="arrow-down-to-line" :size="16" />
+      </button>
       <button class="app-button app-button-ghost" type="button" @click="logsStore.clearLogs(selectedDeviceId || undefined)">
         清空
       </button>
     </SurfacePanel>
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-    <SurfacePanel v-if="!filteredLogs.length" class="space-y-4">
+    <SurfacePanel v-if="!visibleLogs.length" class="space-y-4">
       <EmptyState
         :title="emptyLogTitle"
         :description="emptyLogDescription"
@@ -42,19 +80,39 @@
     </SurfacePanel>
 
     <SurfacePanel v-else class="h-full overflow-hidden p-0">
-      <div ref="logContainer" class="h-full overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200">
-        <div class="space-y-2">
+      <div
+        ref="logContainer"
+        class="log-viewer h-full overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200"
+        draggable="false"
+        @mousedown.stop
+        @dragstart.prevent
+      >
+        <div class="space-y-1">
           <div
-            v-for="entry in filteredLogs"
-            :key="`${entry.deviceId}-${entry.time}-${entry.message}`"
-            class="grid gap-1 border-b border-white/5 pb-2 md:grid-cols-[160px_90px_1fr]"
+            v-for="log in decoratedLogs"
+            :key="log.key"
+            class="log-line grid gap-x-3 gap-y-0.5 border-b border-white/5 pb-1.5 md:grid-cols-[160px_90px_1fr]"
+            draggable="false"
+            @dragstart.prevent
           >
-            <span class="text-slate-500 font-sans tracking-wide pt-[1px]">{{ entry.time }} · {{ resolveDeviceName(entry.deviceId) }}</span>
-            <div class="flex items-start gap-1.5 pt-[1px]" :class="levelClass(entry.level)">
-              <AppIcon :name="levelIcon(entry.level)" :size="14" class="shrink-0 translate-y-[2px]" />
-              <span class="text-xs font-semibold tracking-wider font-sans uppercase">{{ entry.level }}</span>
+            <span class="log-line__meta pt-[1px] font-sans tracking-wide text-slate-500">{{ log.entry.time }} · {{ resolveDeviceName(log.entry.deviceId) }}</span>
+            <div class="flex items-start gap-1.5 pt-[1px]" :class="levelClass(log.entry.level)">
+              <AppIcon :name="levelIcon(log.entry.level)" :size="14" class="shrink-0 translate-y-[2px]" />
+              <span class="font-sans text-xs font-semibold tracking-wider uppercase">{{ log.entry.level }}</span>
             </div>
-            <span class="whitespace-pre-wrap break-all text-slate-100/90 leading-6">{{ entry.message }}</span>
+            <span class="log-line__message whitespace-pre-wrap break-all leading-5 text-slate-100/90">
+              <template v-for="segment in log.segments" :key="segment.key">
+                <mark
+                  v-if="segment.isMatch"
+                  :ref="(el) => setSearchHitRef(segment.hitId!, el)"
+                  class="log-search-hit"
+                  :class="{ 'log-search-hit-active': segment.hitId === currentSearchHitId }"
+                >
+                  {{ segment.text }}
+                </mark>
+                <template v-else>{{ segment.text }}</template>
+              </template>
+            </span>
           </div>
         </div>
       </div>
@@ -83,6 +141,9 @@ const selectedLevel = ref('');
 const searchText = ref('');
 const deviceLogLevel = ref<LogLevel>('Info');
 const logContainer = ref<HTMLDivElement | null>(null);
+const currentSearchHitIndex = ref(-1);
+const searchHitElements = new Map<string, HTMLElement>();
+const suppressDeviceLogLevelSync = ref(false);
 
 const deviceOptions = computed(() => [
   { label: '全部设备', value: '' },
@@ -100,7 +161,9 @@ const levelOptions = [
   { label: 'Error', value: 'Error' },
 ];
 
-const filteredLogs = computed(() => {
+const normalizedSearchText = computed(() => searchText.value.trim().toLowerCase());
+
+const visibleLogs = computed(() => {
   const pool = selectedDeviceId.value
     ? logsStore.getDeviceLogs(selectedDeviceId.value)
     : Object.values(logsStore.logsByDevice).flat();
@@ -109,15 +172,94 @@ const filteredLogs = computed(() => {
     if (selectedLevel.value && entry.level !== selectedLevel.value) {
       return false;
     }
-    if (searchText.value && !entry.message.toLowerCase().includes(searchText.value.toLowerCase())) {
-      return false;
-    }
     return true;
   });
 });
 
+const buildSearchSegments = (message: string, keyword: string, logIndex: number) => {
+  if (!keyword) {
+    return [
+      {
+        key: `${logIndex}-plain`,
+        text: message,
+        isMatch: false,
+        hitId: null,
+      },
+    ];
+  }
+
+  const lowerMessage = message.toLowerCase();
+  const segments: Array<{ key: string; text: string; isMatch: boolean; hitId: string | null }> = [];
+  let cursor = 0;
+  let matchIndex = 0;
+
+  while (cursor < message.length) {
+    const foundAt = lowerMessage.indexOf(keyword, cursor);
+    if (foundAt === -1) {
+      if (cursor < message.length) {
+        segments.push({
+          key: `${logIndex}-plain-${cursor}`,
+          text: message.slice(cursor),
+          isMatch: false,
+          hitId: null,
+        });
+      }
+      break;
+    }
+
+    if (foundAt > cursor) {
+      segments.push({
+        key: `${logIndex}-plain-${cursor}`,
+        text: message.slice(cursor, foundAt),
+        isMatch: false,
+        hitId: null,
+      });
+    }
+
+    segments.push({
+      key: `${logIndex}-hit-${matchIndex}`,
+      text: message.slice(foundAt, foundAt + keyword.length),
+      isMatch: true,
+      hitId: `${logIndex}:${matchIndex}`,
+    });
+    cursor = foundAt + keyword.length;
+    matchIndex += 1;
+  }
+
+  return segments;
+};
+
+const decoratedLogs = computed(() =>
+  visibleLogs.value.map((entry, logIndex) => {
+    const segments = buildSearchSegments(entry.message, normalizedSearchText.value, logIndex);
+    return {
+      key: `${entry.deviceId}-${entry.time}-${entry.level}-${logIndex}`,
+      entry,
+      segments,
+    };
+  }),
+);
+
+const searchHits = computed(() =>
+  decoratedLogs.value.flatMap((log) => log.segments.filter((segment) => segment.isMatch && segment.hitId).map((segment) => segment.hitId as string)),
+);
+
+const currentSearchHitId = computed(() =>
+  currentSearchHitIndex.value >= 0 ? searchHits.value[currentSearchHitIndex.value] ?? null : null,
+);
+
+const searchHitLabel = computed(() => {
+  if (!normalizedSearchText.value) {
+    return '-- / --';
+  }
+  if (!searchHits.value.length) {
+    return '0 / 0';
+  }
+  return `${currentSearchHitIndex.value + 1} / ${searchHits.value.length}`;
+});
+
 const hasAnyLogs = computed(() => Object.values(logsStore.logsByDevice).some((entries) => entries.length > 0));
-const hasActiveFilter = computed(() => Boolean(selectedDeviceId.value || selectedLevel.value || searchText.value));
+const hasActiveFilter = computed(() => Boolean(selectedDeviceId.value || selectedLevel.value));
 
 const emptyLogTitle = computed(() => {
   if (hasAnyLogs.value && hasActiveFilter.value) {
@@ -128,7 +270,7 @@ const emptyLogTitle = computed(() => {
 
 const emptyLogDescription = computed(() => {
   if (hasAnyLogs.value && hasActiveFilter.value) {
-    return '已有日志被当前设备、级别或关键字条件过滤了。';
+    return '已有日志被当前设备或级别条件过滤了。';
   }
   return '启动设备队列或调试运行后，这里会显示实时日志。';
 });
@@ -151,6 +293,48 @@ const levelIcon = (level: string) => {
   return 'info';
 };
 
+const setSearchHitRef = (hitId: string, el: unknown) => {
+  if (el instanceof HTMLElement) {
+    searchHitElements.set(hitId, el);
+    return;
+  }
+  searchHitElements.delete(hitId);
+};
+
+const scrollToTop = () => {
+  logContainer.value?.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+const scrollToBottom = () => {
+  if (!logContainer.value) {
+    return;
+  }
+  logContainer.value.scrollTo({ top: logContainer.value.scrollHeight, behavior: 'smooth' });
+};
+
+const moveSearchHit = (direction: -1 | 1) => {
+  if (!searchHits.value.length) {
+    return;
+  }
+
+  const nextIndex =
+    currentSearchHitIndex.value < 0
+      ? 0
+      : (currentSearchHitIndex.value + direction + searchHits.value.length) % searchHits.value.length;
+  currentSearchHitIndex.value = nextIndex;
+};
+
+const scrollCurrentSearchHitIntoView = () => {
+  if (!currentSearchHitId.value) {
+    return;
+  }
+
+  searchHitElements.get(currentSearchHitId.value)?.scrollIntoView({
+    block: 'center',
+    behavior: 'smooth',
+  });
+};
+
 const updateDeviceLogLevel = async () => {
   if (!selectedDeviceId.value) {
     return;
@@ -165,18 +349,50 @@ const updateDeviceLogLevel = async () => {
 };
 
 watch(
-  () => filteredLogs.value.length,
+  () => visibleLogs.value.length,
   async () => {
-    await nextTick();
-    if (logContainer.value) {
-      logContainer.value.scrollTop = logContainer.value.scrollHeight;
+    if (normalizedSearchText.value) {
+      return;
     }
+    await nextTick();
+    scrollToBottom();
+  },
+);
+
+watch(
+  searchHits,
+  async (hits, previousHits) => {
+    if (!normalizedSearchText.value || !hits.length) {
+      currentSearchHitIndex.value = -1;
+      return;
+    }
+
+    if (!(previousHits?.length) || currentSearchHitIndex.value < 0 || currentSearchHitIndex.value >= hits.length) {
+      currentSearchHitIndex.value = 0;
+    }
+
+    await nextTick();
+    scrollCurrentSearchHitIntoView();
+  },
+  { immediate: true },
+);
+
+watch(
+  currentSearchHitId,
+  async (hitId, previousHitId) => {
+    if (!hitId || hitId === previousHitId) {
+      return;
+    }
+
+    await nextTick();
+    scrollCurrentSearchHitIntoView();
   },
 );
 
 watch(
   () => selectedDeviceId.value,
   (deviceId) => {
+    suppressDeviceLogLevelSync.value = true;
     if (!deviceId) {
       deviceLogLevel.value = 'Info';
       return;
@@ -190,6 +406,10 @@ watch(
 watch(
   () => deviceLogLevel.value,
   async (level, previousLevel) => {
+    if (suppressDeviceLogLevelSync.value) {
+      suppressDeviceLogLevelSync.value = false;
+      return;
+    }
     if (!selectedDeviceId.value || level === previousLevel) {
       return;
     }
@@ -201,3 +421,47 @@ onMounted(async () => {
   await Promise.all([deviceStore.refreshAll(), logsStore.initListener()]);
 });
 </script>
+
+<style scoped>
+.log-viewer,
+.log-line,
+.log-line__meta,
+.log-line__message {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.log-viewer ::selection,
+.log-line ::selection,
+.log-line__meta ::selection,
+.log-line__message ::selection {
+  background: rgba(96, 165, 250, 0.46);
+  color: rgb(255, 255, 255);
+}
+
+.log-viewer ::-moz-selection,
+.log-line ::-moz-selection,
+.log-line__meta ::-moz-selection,
+.log-line__message ::-moz-selection {
+  background: rgba(96, 165, 250, 0.46);
+  color: rgb(255, 255, 255);
+}
+
+.log-viewer {
+  cursor: text;
+}
+
+.log-search-hit {
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.3);
+  color: #fef3c7;
+  padding: 0 0.18rem;
+  box-shadow: inset 0 0 0 1px rgba(253, 224, 71, 0.18);
+}
+
+.log-search-hit-active {
+  background: rgba(190, 242, 100, 0.96);
+  color: #081019;
+  box-shadow: 0 0 0 1px rgba(236, 252, 203, 0.94);
+}
+</style>
