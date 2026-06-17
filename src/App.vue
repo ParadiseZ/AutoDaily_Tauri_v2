@@ -16,7 +16,6 @@ import { appThemeKey } from './store/store';
 import { useUserStore } from './store/user';
 import { useSettingsStore } from './store/settings';
 import { useDeviceStore } from './store/device';
-import { useLogsStore } from './store/logs';
 import { useRuntimeStore } from './store/runtime';
 import { useScriptTransferStore } from './store/scriptTransfer';
 import AuthModal from "@/components/AuthModal.vue";
@@ -29,7 +28,6 @@ const route = useRoute();
 const userStore = useUserStore();
 const settingsStore = useSettingsStore();
 const deviceStore = useDeviceStore();
-const logsStore = useLogsStore();
 const runtimeStore = useRuntimeStore();
 const scriptTransferStore = useScriptTransferStore();
 
@@ -44,7 +42,6 @@ onMounted(async () => {
   void userStore.checkProfile();
   await Promise.all([
     deviceStore.initIpcListeners(),
-    logsStore.initListener(),
     runtimeStore.initIpcListeners(),
     scriptTransferStore.initListener(),
   ]);

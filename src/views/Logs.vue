@@ -51,7 +51,7 @@
       <button class="app-icon-button h-10 w-10" type="button" title="滚动到底部" @click="scrollToBottom">
         <AppIcon name="arrow-down-to-line" :size="16" />
       </button>
-      <button class="app-button app-button-ghost" type="button" @click="logsStore.clearLogs(selectedDeviceId || undefined)">
+      <button class="app-button app-button-ghost" type="button" @click="handleClearLogs">
         清空
       </button>
     </SurfacePanel>
@@ -70,11 +70,11 @@
         </div>
         <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted)/70 px-4 py-3">
           <p class="font-semibold text-(--app-text-strong)">检查筛选</p>
-          <p class="mt-1 text-xs leading-5">设备、级别或关键字过窄时会隐藏已有日志。</p>
+          <p class="mt-1 text-xs leading-5">设备或级别筛选过窄时会隐藏已有日志。</p>
         </div>
         <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted)/70 px-4 py-3">
-          <p class="font-semibold text-(--app-text-strong)">当前会话</p>
-          <p class="mt-1 text-xs leading-5">这里显示的是本次打开应用后收到的实时日志。</p>
+          <p class="font-semibold text-(--app-text-strong)">本日会话</p>
+          <p class="mt-1 text-xs leading-5">这里显示的是本日打开应用后收到的日志。</p>
         </div>
       </div>
     </SurfacePanel>
@@ -91,12 +91,12 @@
           <div
             v-for="log in decoratedLogs"
             :key="log.key"
-            class="log-line grid gap-x-3 gap-y-0.5 border-b border-white/5 pb-1.5 md:grid-cols-[160px_90px_1fr]"
+            class="log-line grid gap-y-0.5 border-b border-white/5 pb-1.5 md:grid-cols-[160px_90px_1fr]"
             draggable="false"
             @dragstart.prevent
           >
             <span class="log-line__meta pt-[1px] font-sans tracking-wide text-slate-500">{{ log.entry.time }} · {{ resolveDeviceName(log.entry.deviceId) }}</span>
-            <div class="flex items-start gap-1.5 pt-[1px]" :class="levelClass(log.entry.level)">
+            <div class="flex items-start gap-1 pt-[1px]" :class="levelClass(log.entry.level)">
               <AppIcon :name="levelIcon(log.entry.level)" :size="14" class="shrink-0 translate-y-[2px]" />
               <span class="font-sans text-xs font-semibold tracking-wider uppercase">{{ log.entry.level }}</span>
             </div>
@@ -122,7 +122,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
@@ -136,7 +136,6 @@ import type { LogLevel } from '@/types/bindings/LogLevel';
 
 const deviceStore = useDeviceStore();
 const logsStore = useLogsStore();
-const selectedDeviceId = ref('');
 const selectedLevel = ref('');
 const searchText = ref('');
 const deviceLogLevel = ref<LogLevel>('Info');
@@ -144,6 +143,14 @@ const logContainer = ref<HTMLDivElement | null>(null);
 const currentSearchHitIndex = ref(-1);
 const searchHitElements = new Map<string, HTMLElement>();
 const suppressDeviceLogLevelSync = ref(false);
+const pageReady = ref(false);
+
+const selectedDeviceId = computed({
+  get: () => logsStore.selectedDeviceId,
+  set: (value: string) => {
+    void logsStore.setSelectedDevice(value);
+  },
+});
 
 const deviceOptions = computed(() => [
   { label: '全部设备', value: '' },
@@ -152,6 +159,14 @@ const deviceOptions = computed(() => [
     value: device.id,
   })),
 ]);
+
+const deviceNameMap = computed(() =>
+  new Map(deviceStore.devices.map((device) => [device.id, device.data.deviceName])),
+);
+
+const deviceLogLevelMap = computed(() =>
+  new Map(deviceStore.devices.map((device) => [device.id, device.data.logLevel])),
+);
 
 const levelOptions = [
   { label: '全部级别', value: '' },
@@ -166,7 +181,9 @@ const normalizedSearchText = computed(() => searchText.value.trim().toLowerCase(
 const visibleLogs = computed(() => {
   const pool = selectedDeviceId.value
     ? logsStore.getDeviceLogs(selectedDeviceId.value)
-    : Object.values(logsStore.logsByDevice).flat();
+    : Object.values(logsStore.logsByDevice)
+        .flat()
+        .sort((left, right) => left.time.localeCompare(right.time) || left.deviceId.localeCompare(right.deviceId));
 
   return pool.filter((entry) => {
     if (selectedLevel.value && entry.level !== selectedLevel.value) {
@@ -276,7 +293,7 @@ const emptyLogDescription = computed(() => {
 });
 
 const resolveDeviceName = (deviceId: string) => {
-  return deviceStore.devices.find((device) => device.id === deviceId)?.data.deviceName || deviceId;
+  return deviceNameMap.value.get(deviceId) || '未知设备';
 };
 
 const levelClass = (level: string) => {
@@ -348,6 +365,25 @@ const updateDeviceLogLevel = async () => {
   }
 };
 
+const syncSelectedDeviceLogLevel = (deviceId: string) => {
+  const nextLevel = deviceId ? deviceLogLevelMap.value.get(deviceId) || 'Info' : 'Info';
+  if (deviceLogLevel.value === nextLevel) {
+    suppressDeviceLogLevelSync.value = false;
+    return;
+  }
+  suppressDeviceLogLevelSync.value = true;
+  deviceLogLevel.value = nextLevel;
+};
+
+const handleClearLogs = async () => {
+  try {
+    await logsStore.clearLogs(selectedDeviceId.value || null);
+    showToast(selectedDeviceId.value ? '当日日志已清空' : '全部当日日志已清空', 'success');
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '清空日志失败', 'error');
+  }
+};
+
 watch(
   () => visibleLogs.value.length,
   async () => {
@@ -391,14 +427,12 @@ watch(
 
 watch(
   () => selectedDeviceId.value,
-  (deviceId) => {
-    suppressDeviceLogLevelSync.value = true;
-    if (!deviceId) {
-      deviceLogLevel.value = 'Info';
+  async (deviceId) => {
+    syncSelectedDeviceLogLevel(deviceId);
+    if (!pageReady.value) {
       return;
     }
-    deviceLogLevel.value =
-      deviceStore.devices.find((device) => device.id === deviceId)?.data.logLevel || 'Info';
+    await logsStore.ensureTodayLogsLoaded(deviceId || null);
   },
   { immediate: true },
 );
@@ -418,7 +452,23 @@ watch(
 );
 
 onMounted(async () => {
-  await Promise.all([deviceStore.refreshAll(), logsStore.initListener()]);
+  await Promise.all([deviceStore.refreshAll(), logsStore.ensurePersistedSelectionLoaded()]);
+
+  if (
+    selectedDeviceId.value &&
+    !deviceStore.devices.some((device) => device.id === selectedDeviceId.value)
+  ) {
+    await logsStore.setSelectedDevice('');
+  }
+
+  await logsStore.ensureTodayLogsLoaded(selectedDeviceId.value || null);
+  await logsStore.startListener();
+  syncSelectedDeviceLogLevel(selectedDeviceId.value);
+  pageReady.value = true;
+});
+
+onBeforeUnmount(() => {
+  logsStore.stopListener();
 });
 </script>
 
