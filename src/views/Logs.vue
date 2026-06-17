@@ -592,7 +592,11 @@ const handleClearLogs = async () => {
 const loadHistoryLogs = async (deviceId?: string | null) => {
   historyLoading.value = true;
   try {
-    await logsStore.ensureTodayLogsLoaded(deviceId ?? null);
+    if (pageReady.value) {
+      await logsStore.ensureTodayLogsLoaded(deviceId ?? null);
+    } else {
+      await logsStore.reloadTodayLogs(deviceId ?? null);
+    }
   } finally {
     historyLoading.value = false;
     await nextTick();
@@ -742,7 +746,7 @@ onMounted(async () => {
       await logsStore.setSelectedDevice('');
     }
 
-    await logsStore.ensureTodayLogsLoaded(selectedDeviceId.value || null);
+    await logsStore.reloadTodayLogs(selectedDeviceId.value || null);
     await logsStore.startListener();
     syncSelectedDeviceLogLevel(selectedDeviceId.value);
     pageReady.value = true;

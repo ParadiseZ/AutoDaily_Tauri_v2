@@ -54,6 +54,16 @@ const mergeDeviceLogs = (current: DeviceLogEntry[], incoming: DeviceLogEntry[]) 
     return sortLogs(Array.from(merged.values())).slice(-MAX_LOGS_PER_DEVICE);
 };
 
+const groupLogsByDevice = (entries: DeviceLogEntry[]) => {
+    const grouped = new Map<string, DeviceLogEntry[]>();
+    entries.forEach((entry) => {
+        const bucket = grouped.get(entry.deviceId) ?? [];
+        bucket.push(entry);
+        grouped.set(entry.deviceId, bucket);
+    });
+    return grouped;
+};
+
 export const useLogsStore = defineStore('logs', () => {
     const logsByDevice = ref<Record<string, DeviceLogEntry[]>>({});
     const allLogs = ref<DeviceLogEntry[]>([]);
@@ -69,17 +79,30 @@ export const useLogsStore = defineStore('logs', () => {
             return;
         }
 
-        const grouped = new Map<string, DeviceLogEntry[]>();
-        entries.forEach((entry) => {
-            const bucket = grouped.get(entry.deviceId) ?? [];
-            bucket.push(entry);
-            grouped.set(entry.deviceId, bucket);
-        });
-
+        const grouped = groupLogsByDevice(entries);
         const nextLogs = { ...logsByDevice.value };
         grouped.forEach((groupEntries, deviceId) => {
             nextLogs[deviceId] = mergeDeviceLogs(nextLogs[deviceId] ?? [], groupEntries);
         });
+        logsByDevice.value = nextLogs;
+        allLogs.value = sortLogs(Object.values(nextLogs).flat());
+    };
+
+    const replaceLogs = (entries: DeviceLogEntry[], deviceId?: string | null) => {
+        const nextLogs = { ...logsByDevice.value };
+
+        if (deviceId) {
+            nextLogs[deviceId] = sortLogs(entries).slice(-MAX_LOGS_PER_DEVICE);
+        } else {
+            Object.keys(nextLogs).forEach((currentDeviceId) => {
+                nextLogs[currentDeviceId] = [];
+            });
+
+            groupLogsByDevice(entries).forEach((groupEntries, currentDeviceId) => {
+                nextLogs[currentDeviceId] = sortLogs(groupEntries).slice(-MAX_LOGS_PER_DEVICE);
+            });
+        }
+
         logsByDevice.value = nextLogs;
         allLogs.value = sortLogs(Object.values(nextLogs).flat());
     };
@@ -158,6 +181,28 @@ export const useLogsStore = defineStore('logs', () => {
         }
     };
 
+    const reloadTodayLogs = async (deviceId?: string | null) => {
+        await ensurePersistedSelectionLoaded();
+        const targetDeviceId = deviceId ?? selectedDeviceId.value;
+        const entries = await logsService.readToday(targetDeviceId || null);
+
+        replaceLogs(entries, targetDeviceId || null);
+
+        if (targetDeviceId) {
+            historyLoadedByDevice.value = {
+                ...historyLoadedByDevice.value,
+                [targetDeviceId]: true,
+            };
+            return;
+        }
+
+        historyLoadedAll.value = true;
+        historyLoadedByDevice.value = entries.reduce<Record<string, true>>((acc, entry) => {
+            acc[entry.deviceId] = true;
+            return acc;
+        }, { ...historyLoadedByDevice.value });
+    };
+
     const getDeviceLogs = (deviceId: string) => logsByDevice.value[deviceId] ?? [];
 
     const clearLogs = async (deviceId?: string | null) => {
@@ -187,6 +232,7 @@ export const useLogsStore = defineStore('logs', () => {
         listenerActive,
         allLogs,
         logsByDevice,
+        reloadTodayLogs,
         selectedDeviceId,
         setSelectedDevice,
         startListener,
