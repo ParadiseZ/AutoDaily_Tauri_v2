@@ -1,6 +1,6 @@
 <template>
-  <SurfacePanel class="flex h-full flex-col gap-4">
-    <div class="flex items-center justify-between gap-3">
+  <SurfacePanel class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
+    <div class="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-3 bg-(--app-panel)">
       <input
           :value="searchQuery"
           class="app-input"
@@ -12,7 +12,7 @@
       </button>
     </div>
 
-    <div class="space-y-2">
+    <div class="min-h-0 flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
       <button
         v-for="script in scripts"
         :key="script.id"

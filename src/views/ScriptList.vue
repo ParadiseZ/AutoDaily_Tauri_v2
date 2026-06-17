@@ -20,35 +20,34 @@
     </AppPageHeader>
 
     
-    <div class="grid min-h-full gap-4 xl:grid-cols-[300px_minmax(0,1fr)_420px]">
-        <ScriptListSidebar
-          v-model:search-query="searchQuery"
-          :scripts="filteredScripts"
-          :selected-script-id="scriptStore.selectedScriptId"
-          @select="scriptStore.selectScript"
-          @create="openCreateDialog"
-        />
-        <ScriptDetailPanel
-          :current-user-id="userStore.userProfile?.id ?? null"
-          :current-username="userStore.userProfile?.username ?? userStore.authSession?.username ?? null"
-          :script="selectedScript"
-          :upload-pending="isSelectedScriptUploading"
-          :upload-pending-label="selectedUploadPendingLabel"
-          @open-editor="openEditor"
-          @edit-info="openEditDialog"
-          @upload="handleUpload"
-          @clone="handleClone"
-          @clear-logs="handleClearLogs"
-          @delete="handleDelete"
-        />
-
-        <ScriptLogPanel
-          :script="selectedScript"
-          :logs="selectedScriptChangeLogs"
-          :loading="changeLogsLoading"
-          :load-failed="changeLogsLoadFailed"
-        />    
-      </div>
+    <div class="grid flex-1 min-h-0 gap-4 overflow-hidden xl:grid-cols-[300px_minmax(0,1fr)_420px]">
+      <ScriptListSidebar
+        v-model:search-query="searchQuery"
+        :scripts="filteredScripts"
+        :selected-script-id="scriptStore.selectedScriptId"
+        @select="scriptStore.selectScript"
+        @create="openCreateDialog"
+      />
+      <ScriptDetailPanel
+        :current-user-id="userStore.userProfile?.id ?? null"
+        :current-username="userStore.userProfile?.username ?? userStore.authSession?.username ?? null"
+        :script="selectedScript"
+        :upload-pending="isSelectedScriptUploading"
+        :upload-pending-label="selectedUploadPendingLabel"
+        @open-editor="openEditor"
+        @edit-info="openEditDialog"
+        @upload="handleUpload"
+        @clone="handleClone"
+        @clear-logs="handleClearLogs"
+        @delete="handleDelete"
+      />
+      <ScriptLogPanel
+        :script="selectedScript"
+        :logs="selectedScriptChangeLogs"
+        :loading="changeLogsLoading"
+        :load-failed="changeLogsLoadFailed"
+      />
+    </div>
 
       <ScriptInfoDialog
         :mode="dialogMode"
@@ -641,4 +640,3 @@ watch(
   },
 );
 </script>
-
