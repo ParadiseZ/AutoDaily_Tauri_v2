@@ -56,6 +56,7 @@ const mergeDeviceLogs = (current: DeviceLogEntry[], incoming: DeviceLogEntry[]) 
 
 export const useLogsStore = defineStore('logs', () => {
     const logsByDevice = ref<Record<string, DeviceLogEntry[]>>({});
+    const allLogs = ref<DeviceLogEntry[]>([]);
     const listenerActive = ref(false);
     const persistedSelectionLoaded = ref(false);
     const historyLoadedAll = ref(false);
@@ -80,6 +81,7 @@ export const useLogsStore = defineStore('logs', () => {
             nextLogs[deviceId] = mergeDeviceLogs(nextLogs[deviceId] ?? [], groupEntries);
         });
         logsByDevice.value = nextLogs;
+        allLogs.value = sortLogs(Object.values(nextLogs).flat());
     };
 
     const appendLog = (entry: DeviceLogEntry) => {
@@ -162,14 +164,17 @@ export const useLogsStore = defineStore('logs', () => {
         await logsService.clearToday(deviceId);
 
         if (deviceId) {
-            logsByDevice.value = {
+            const nextLogs = {
                 ...logsByDevice.value,
                 [deviceId]: [],
             };
+            logsByDevice.value = nextLogs;
+            allLogs.value = sortLogs(Object.values(nextLogs).flat());
             return;
         }
 
         logsByDevice.value = {};
+        allLogs.value = [];
     };
 
     return {
@@ -180,6 +185,7 @@ export const useLogsStore = defineStore('logs', () => {
         historyLoadedAll,
         historyLoadedByDevice,
         listenerActive,
+        allLogs,
         logsByDevice,
         selectedDeviceId,
         setSelectedDevice,

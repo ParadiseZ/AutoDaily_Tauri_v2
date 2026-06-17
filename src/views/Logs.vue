@@ -57,7 +57,11 @@
     </SurfacePanel>
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-    <SurfacePanel v-if="!visibleLogs.length" class="space-y-4">
+    <SurfacePanel v-if="historyLoading" class="h-full">
+      <AppLoadingState label="正在加载本日日志..." />
+    </SurfacePanel>
+
+    <SurfacePanel v-else-if="!visibleLogs.length" class="space-y-4">
       <EmptyState
         :title="emptyLogTitle"
         :description="emptyLogDescription"
@@ -85,18 +89,21 @@
         class="log-viewer h-full overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200"
         draggable="false"
         @mousedown.stop
+        @scroll="handleLogScroll"
         @dragstart.prevent
       >
-        <div class="space-y-1">
+        <div>
+          <div class="log-spacer" :style="{ height: `${topSpacerHeight}px` }" />
           <div
-            v-for="log in decoratedLogs"
+            v-for="log in virtualLogs"
             :key="log.key"
+            :ref="(el) => setLogRowRef(log.index, el)"
             class="log-line grid gap-y-0.5 border-b border-white/5 pb-1.5 md:grid-cols-[160px_90px_1fr]"
             draggable="false"
             @dragstart.prevent
           >
             <span class="log-line__meta pt-[1px] font-sans tracking-wide text-slate-500">{{ log.entry.time }} · {{ resolveDeviceName(log.entry.deviceId) }}</span>
-            <div class="flex items-start gap-1 pt-[1px]" :class="levelClass(log.entry.level)">
+            <div class="log-line__level flex items-start gap-1 pt-[1px]" :class="levelClass(log.entry.level)">
               <AppIcon :name="levelIcon(log.entry.level)" :size="14" class="shrink-0 translate-y-[2px]" />
               <span class="font-sans text-xs font-semibold tracking-wider uppercase">{{ log.entry.level }}</span>
             </div>
@@ -114,6 +121,7 @@
               </template>
             </span>
           </div>
+          <div class="log-spacer" :style="{ height: `${bottomSpacerHeight}px` }" />
         </div>
       </div>
     </SurfacePanel>
@@ -124,6 +132,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import AppLoadingState from '@/components/shared/AppLoadingState.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
@@ -144,6 +153,17 @@ const currentSearchHitIndex = ref(-1);
 const searchHitElements = new Map<string, HTMLElement>();
 const suppressDeviceLogLevelSync = ref(false);
 const pageReady = ref(false);
+const historyLoading = ref(false);
+const scrollTop = ref(0);
+const viewportHeight = ref(0);
+const rowHeights = ref<number[]>([]);
+const rowElements = new Map<number, HTMLElement>();
+const suspendRowMeasurement = ref(false);
+const ESTIMATED_ROW_HEIGHT = 30;
+const VIRTUAL_OVERSCAN = 10;
+let rowResizeObserver: ResizeObserver | null = null;
+let containerResizeObserver: ResizeObserver | null = null;
+let scrollSettleTimer: number | null = null;
 
 const selectedDeviceId = computed({
   get: () => logsStore.selectedDeviceId,
@@ -181,9 +201,7 @@ const normalizedSearchText = computed(() => searchText.value.trim().toLowerCase(
 const visibleLogs = computed(() => {
   const pool = selectedDeviceId.value
     ? logsStore.getDeviceLogs(selectedDeviceId.value)
-    : Object.values(logsStore.logsByDevice)
-        .flat()
-        .sort((left, right) => left.time.localeCompare(right.time) || left.deviceId.localeCompare(right.deviceId));
+    : logsStore.allLogs;
 
   return pool.filter((entry) => {
     if (selectedLevel.value && entry.level !== selectedLevel.value) {
@@ -257,12 +275,98 @@ const decoratedLogs = computed(() =>
   }),
 );
 
-const searchHits = computed(() =>
-  decoratedLogs.value.flatMap((log) => log.segments.filter((segment) => segment.isMatch && segment.hitId).map((segment) => segment.hitId as string)),
+const rowMetrics = computed(() => {
+  const offsets: number[] = new Array(decoratedLogs.value.length);
+  let totalHeight = 0;
+
+  for (let index = 0; index < decoratedLogs.value.length; index += 1) {
+    offsets[index] = totalHeight;
+    totalHeight += rowHeights.value[index] ?? ESTIMATED_ROW_HEIGHT;
+  }
+
+  return { offsets, totalHeight };
+});
+
+const locateRowIndex = (position: number) => {
+  const { offsets } = rowMetrics.value;
+  let low = 0;
+  let high = offsets.length - 1;
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const top = offsets[mid];
+    const bottom = top + (rowHeights.value[mid] ?? ESTIMATED_ROW_HEIGHT);
+
+    if (position < top) {
+      high = mid - 1;
+      continue;
+    }
+    if (position >= bottom) {
+      low = mid + 1;
+      continue;
+    }
+    return mid;
+  }
+
+  return Math.max(0, Math.min(offsets.length - 1, low));
+};
+
+const virtualRange = computed(() => {
+  if (!decoratedLogs.value.length) {
+    return { start: 0, end: -1 };
+  }
+
+  const start = Math.max(0, locateRowIndex(Math.max(0, scrollTop.value)) - VIRTUAL_OVERSCAN);
+  const end = Math.min(
+    decoratedLogs.value.length - 1,
+    locateRowIndex(scrollTop.value + Math.max(viewportHeight.value, ESTIMATED_ROW_HEIGHT)) + VIRTUAL_OVERSCAN,
+  );
+
+  return { start, end };
+});
+
+const virtualLogs = computed(() =>
+  decoratedLogs.value
+    .slice(virtualRange.value.start, virtualRange.value.end + 1)
+    .map((log, offset) => {
+      const index = virtualRange.value.start + offset;
+      return {
+        ...log,
+        index,
+      };
+    }),
 );
+
+const topSpacerHeight = computed(() => rowMetrics.value.offsets[virtualRange.value.start] ?? 0);
+
+const bottomSpacerHeight = computed(() => {
+  if (virtualRange.value.end < virtualRange.value.start) {
+    return 0;
+  }
+
+  const renderedHeight =
+    (rowMetrics.value.offsets[virtualRange.value.end] ?? 0) +
+    (rowHeights.value[virtualRange.value.end] ?? ESTIMATED_ROW_HEIGHT);
+
+  return Math.max(0, rowMetrics.value.totalHeight - renderedHeight);
+});
+
+const searchHitMeta = computed(() =>
+  decoratedLogs.value.flatMap((log, rowIndex) =>
+    log.segments
+      .filter((segment) => segment.isMatch && segment.hitId)
+      .map((segment) => ({ hitId: segment.hitId as string, rowIndex })),
+  ),
+);
+
+const searchHits = computed(() => searchHitMeta.value.map((item) => item.hitId));
 
 const currentSearchHitId = computed(() =>
   currentSearchHitIndex.value >= 0 ? searchHits.value[currentSearchHitIndex.value] ?? null : null,
+);
+
+const currentSearchHitMeta = computed(() =>
+  currentSearchHitIndex.value >= 0 ? searchHitMeta.value[currentSearchHitIndex.value] ?? null : null,
 );
 
 const searchHitLabel = computed(() => {
@@ -318,6 +422,102 @@ const setSearchHitRef = (hitId: string, el: unknown) => {
   searchHitElements.delete(hitId);
 };
 
+const ensureObservers = () => {
+  if (!rowResizeObserver && typeof ResizeObserver !== 'undefined') {
+    rowResizeObserver = new ResizeObserver((entries) => {
+      if (suspendRowMeasurement.value) {
+        return;
+      }
+
+      const nextHeights = [...rowHeights.value];
+      let changed = false;
+
+      entries.forEach((entry) => {
+        const element = entry.target as HTMLElement;
+        const index = Number(element.dataset.logIndex ?? '-1');
+        if (index < 0) {
+          return;
+        }
+
+        const nextHeight = Math.max(ESTIMATED_ROW_HEIGHT, Math.ceil(entry.contentRect.height));
+        if (nextHeights[index] !== nextHeight) {
+          nextHeights[index] = nextHeight;
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        rowHeights.value = nextHeights;
+      }
+    });
+  }
+
+  if (!containerResizeObserver && typeof ResizeObserver !== 'undefined') {
+    containerResizeObserver = new ResizeObserver(() => {
+      viewportHeight.value = logContainer.value?.clientHeight ?? 0;
+    });
+  }
+};
+
+const setLogRowRef = (index: number, el: unknown) => {
+  ensureObservers();
+
+  const previous = rowElements.get(index);
+  if (previous && previous !== el) {
+    rowResizeObserver?.unobserve(previous);
+    rowElements.delete(index);
+  }
+
+  if (!(el instanceof HTMLElement)) {
+    return;
+  }
+
+  el.dataset.logIndex = String(index);
+  rowElements.set(index, el);
+  rowResizeObserver?.observe(el);
+
+  if (suspendRowMeasurement.value) {
+    return;
+  }
+
+  const measuredHeight = Math.max(ESTIMATED_ROW_HEIGHT, Math.ceil(el.getBoundingClientRect().height));
+  if (rowHeights.value[index] !== measuredHeight) {
+    const nextHeights = [...rowHeights.value];
+    nextHeights[index] = measuredHeight;
+    rowHeights.value = nextHeights;
+  }
+};
+
+const initializeViewport = () => {
+  ensureObservers();
+  if (!logContainer.value) {
+    return;
+  }
+
+  viewportHeight.value = logContainer.value.clientHeight;
+  scrollTop.value = logContainer.value.scrollTop;
+  containerResizeObserver?.observe(logContainer.value);
+};
+
+const handleLogScroll = () => {
+  if (!logContainer.value) {
+    return;
+  }
+
+  suspendRowMeasurement.value = true;
+  scrollTop.value = logContainer.value.scrollTop;
+  viewportHeight.value = logContainer.value.clientHeight;
+
+  if (scrollSettleTimer !== null) {
+    window.clearTimeout(scrollSettleTimer);
+  }
+  scrollSettleTimer = window.setTimeout(() => {
+    suspendRowMeasurement.value = false;
+    scheduleVisibleRowMeasurement();
+    scrollSettleTimer = null;
+  }, 120);
+};
+
 const scrollToTop = () => {
   logContainer.value?.scrollTo({ top: 0, behavior: 'smooth' });
 };
@@ -342,13 +542,18 @@ const moveSearchHit = (direction: -1 | 1) => {
 };
 
 const scrollCurrentSearchHitIntoView = () => {
-  if (!currentSearchHitId.value) {
+  if (!currentSearchHitId.value || !currentSearchHitMeta.value || !logContainer.value) {
     return;
   }
 
-  searchHitElements.get(currentSearchHitId.value)?.scrollIntoView({
-    block: 'center',
-    behavior: 'smooth',
+  const targetTop = rowMetrics.value.offsets[currentSearchHitMeta.value.rowIndex] ?? 0;
+  logContainer.value.scrollTop = Math.max(0, targetTop - logContainer.value.clientHeight * 0.35);
+
+  nextTick(() => {
+    searchHitElements.get(currentSearchHitId.value!)?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    });
   });
 };
 
@@ -378,10 +583,48 @@ const syncSelectedDeviceLogLevel = (deviceId: string) => {
 const handleClearLogs = async () => {
   try {
     await logsStore.clearLogs(selectedDeviceId.value || null);
-    showToast(selectedDeviceId.value ? '当日日志已清空' : '全部当日日志已清空', 'success');
+    showToast(selectedDeviceId.value ? '本日日志已清空' : '全部本日日志已清空', 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '清空日志失败', 'error');
   }
+};
+
+const loadHistoryLogs = async (deviceId?: string | null) => {
+  historyLoading.value = true;
+  try {
+    await logsStore.ensureTodayLogsLoaded(deviceId ?? null);
+  } finally {
+    historyLoading.value = false;
+    await nextTick();
+    initializeViewport();
+    scheduleVisibleRowMeasurement();
+  }
+};
+
+const resetVirtualRows = () => {
+  rowElements.forEach((element) => rowResizeObserver?.unobserve(element));
+  rowElements.clear();
+  rowHeights.value = [];
+  scrollTop.value = logContainer.value?.scrollTop ?? 0;
+  viewportHeight.value = logContainer.value?.clientHeight ?? 0;
+};
+
+const scheduleVisibleRowMeasurement = () => {
+  nextTick(() => {
+    virtualLogs.value.forEach((log) => {
+      const element = rowElements.get(log.index);
+      if (!element) {
+        return;
+      }
+
+      const measuredHeight = Math.max(ESTIMATED_ROW_HEIGHT, Math.ceil(element.getBoundingClientRect().height));
+      if (rowHeights.value[log.index] !== measuredHeight) {
+        const nextHeights = [...rowHeights.value];
+        nextHeights[log.index] = measuredHeight;
+        rowHeights.value = nextHeights;
+      }
+    });
+  });
 };
 
 watch(
@@ -426,13 +669,46 @@ watch(
 );
 
 watch(
+  () => [selectedDeviceId.value, selectedLevel.value, normalizedSearchText.value],
+  () => {
+    resetVirtualRows();
+  },
+);
+
+watch(
+  () => decoratedLogs.value.length,
+  (length, previousLength) => {
+    if (length < previousLength) {
+      resetVirtualRows();
+      return;
+    }
+
+    if (rowHeights.value.length > length) {
+      rowHeights.value = rowHeights.value.slice(0, length);
+    }
+    scheduleVisibleRowMeasurement();
+  },
+);
+
+watch(
+  virtualLogs,
+  () => {
+    if (suspendRowMeasurement.value) {
+      return;
+    }
+    scheduleVisibleRowMeasurement();
+  },
+  { deep: true },
+);
+
+watch(
   () => selectedDeviceId.value,
   async (deviceId) => {
     syncSelectedDeviceLogLevel(deviceId);
     if (!pageReady.value) {
       return;
     }
-    await logsStore.ensureTodayLogsLoaded(deviceId || null);
+    await loadHistoryLogs(deviceId || null);
   },
   { immediate: true },
 );
@@ -452,31 +728,60 @@ watch(
 );
 
 onMounted(async () => {
-  await Promise.all([deviceStore.refreshAll(), logsStore.ensurePersistedSelectionLoaded()]);
+  try {
+    historyLoading.value = true;
+    await Promise.all([
+      deviceStore.devices.length ? Promise.resolve() : deviceStore.refreshAll(),
+      logsStore.ensurePersistedSelectionLoaded(),
+    ]);
 
-  if (
-    selectedDeviceId.value &&
-    !deviceStore.devices.some((device) => device.id === selectedDeviceId.value)
-  ) {
-    await logsStore.setSelectedDevice('');
+    if (
+      selectedDeviceId.value &&
+      !deviceStore.devices.some((device) => device.id === selectedDeviceId.value)
+    ) {
+      await logsStore.setSelectedDevice('');
+    }
+
+    await logsStore.ensureTodayLogsLoaded(selectedDeviceId.value || null);
+    await logsStore.startListener();
+    syncSelectedDeviceLogLevel(selectedDeviceId.value);
+    pageReady.value = true;
+  } finally {
+    historyLoading.value = false;
+    await nextTick();
+    initializeViewport();
+    scheduleVisibleRowMeasurement();
   }
-
-  await logsStore.ensureTodayLogsLoaded(selectedDeviceId.value || null);
-  await logsStore.startListener();
-  syncSelectedDeviceLogLevel(selectedDeviceId.value);
-  pageReady.value = true;
 });
 
 onBeforeUnmount(() => {
+  if (scrollSettleTimer !== null) {
+    window.clearTimeout(scrollSettleTimer);
+    scrollSettleTimer = null;
+  }
+  rowElements.forEach((element) => rowResizeObserver?.unobserve(element));
+  rowElements.clear();
+  rowResizeObserver?.disconnect();
+  rowResizeObserver = null;
+  containerResizeObserver?.disconnect();
+  containerResizeObserver = null;
   logsStore.stopListener();
 });
 </script>
 
 <style scoped>
 .log-viewer,
-.log-line,
+.log-line {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .log-line__meta,
-.log-line__message {
+.log-line__level,
+.log-line__message,
+.log-line__meta *,
+.log-line__level *,
+.log-line__message * {
   user-select: text;
   -webkit-user-select: text;
 }
@@ -499,6 +804,17 @@ onBeforeUnmount(() => {
 
 .log-viewer {
   cursor: text;
+}
+
+.log-spacer {
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+
+.log-line__message {
+  display: block;
+  width: 100%;
 }
 
 .log-search-hit {
