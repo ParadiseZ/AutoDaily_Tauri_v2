@@ -208,10 +208,10 @@ export const scriptService = {
             scriptId,
             fromVersion: fromVersion ?? null,
         })) as ApiEnvelope<ScriptChangeLogRecord[]>;
-        if (!response.success || !response.data) {
-            return [];
+        if (!response.success) {
+            throw createServerResponseError('backend_get_script_change_logs', response);
         }
-        return response.data;
+        return response.data ?? [];
     },
     getCloudSummary: async (scriptId: string): Promise<ScriptCloudSummary | null> => {
         const response = (await invoke('backend_get_script_cloud_summary', {

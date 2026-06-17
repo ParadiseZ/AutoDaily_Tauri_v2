@@ -19,50 +19,46 @@
       </template>
     </AppPageHeader>
 
-    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-    <div class="grid min-h-full gap-4 xl:grid-cols-[300px_minmax(0,1fr)_390px]">
-      <ScriptListSidebar
-        v-model:search-query="searchQuery"
-        :scripts="filteredScripts"
-        :selected-script-id="scriptStore.selectedScriptId"
-        @select="scriptStore.selectScript"
-        @create="openCreateDialog"
-      />
+    
+    <div class="grid min-h-full gap-4 xl:grid-cols-[300px_minmax(0,1fr)_420px]">
+        <ScriptListSidebar
+          v-model:search-query="searchQuery"
+          :scripts="filteredScripts"
+          :selected-script-id="scriptStore.selectedScriptId"
+          @select="scriptStore.selectScript"
+          @create="openCreateDialog"
+        />
+        <ScriptDetailPanel
+          :current-user-id="userStore.userProfile?.id ?? null"
+          :current-username="userStore.userProfile?.username ?? userStore.authSession?.username ?? null"
+          :script="selectedScript"
+          :upload-pending="isSelectedScriptUploading"
+          :upload-pending-label="selectedUploadPendingLabel"
+          @open-editor="openEditor"
+          @edit-info="openEditDialog"
+          @upload="handleUpload"
+          @clone="handleClone"
+          @clear-logs="handleClearLogs"
+          @delete="handleDelete"
+        />
 
-      <ScriptDetailPanel
-        :current-user-id="userStore.userProfile?.id ?? null"
-        :current-username="userStore.userProfile?.username ?? userStore.authSession?.username ?? null"
-        :script="selectedScript"
-        :upload-pending="isSelectedScriptUploading"
-        :upload-pending-label="selectedUploadPendingLabel"
-        @open-editor="openEditor"
-        @edit-info="openEditDialog"
-        @upload="handleUpload"
-        @clone="handleClone"
-        @clear-logs="handleClearLogs"
-        @delete="handleDelete"
-      />
+        <ScriptLogPanel
+          :script="selectedScript"
+          :logs="selectedScriptChangeLogs"
+          :loading="changeLogsLoading"
+          :load-failed="changeLogsLoadFailed"
+        />    
+      </div>
 
-      <ScriptTaskInspector
-        :script="selectedScript"
-        :tasks="selectedScript ? scriptStore.tasksByScriptId[selectedScript.id] ?? [] : []"
-        :loading="selectedScript ? Boolean(scriptStore.taskLoading[selectedScript.id]) : false"
-        :devices="deviceStore.devices"
-        :assignments-by-device="taskStore.assignmentsByDevice"
-        :time-templates="taskStore.timeTemplates"
+      <ScriptInfoDialog
+        :mode="dialogMode"
+        :open="scriptInfoDialogOpen"
+        :script="dialogScript"
+        :task-options="[]"
+        @close="closeInfoDialog"
+        @save="handleSaveScriptInfo"
       />
     </div>
-    </div>
-
-    <ScriptInfoDialog
-      :mode="dialogMode"
-      :open="scriptInfoDialogOpen"
-      :script="dialogScript"
-      :task-options="[]"
-      @close="closeInfoDialog"
-      @save="handleSaveScriptInfo"
-    />
-  </div>
 </template>
 
 <script setup lang="ts">
@@ -75,14 +71,14 @@ import { createScriptName, scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
+import ScriptLogPanel from '@/views/script-list/ScriptLogPanel.vue';
 import ScriptListSidebar from '@/views/script-list/ScriptListSidebar.vue';
-import ScriptTaskInspector from '@/views/script-list/ScriptTaskInspector.vue';
 import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
 import { useScriptTransferStore } from '@/store/scriptTransfer';
 import { useTaskStore } from '@/store/task';
 import { useUserStore } from '@/store/user';
-import type { ScriptTableRecord } from '@/types/app/domain';
+import type { ScriptChangeLogRecord, ScriptTableRecord } from '@/types/app/domain';
 import { createServerResponseError, isAuthFailure } from '@/utils/api';
 import { formatScriptInfoValidationMessage, validateScriptInfo } from '@/utils/scriptInfoValidation';
 import { showToast } from '@/utils/toast';
@@ -102,6 +98,9 @@ const pendingUploadRetrying = ref(false);
 const uploadHistoryOpen = ref(false);
 const uploadPendingScriptId = ref<string | null>(null);
 const uploadPendingLabel = ref('上传中...');
+const selectedScriptChangeLogs = ref<ScriptChangeLogRecord[]>([]);
+const changeLogsLoading = ref(false);
+const changeLogsLoadFailed = ref(false);
 
 const filteredScripts = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();

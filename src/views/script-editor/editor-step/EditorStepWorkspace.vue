@@ -31,27 +31,31 @@
       </div>
 
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
-        <div v-if="selectedStep" class="space-y-4">
-          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-            <div class="grid gap-4">
-              <!-- <div class="min-w-0">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ describeStep(selectedStep) }}</p>
-                  <span class="rounded-full bg-white/50 px-3 py-1 text-xs text-(--app-text-soft)">{{ selectedStep.op }}</span>
-                </div>
-                <p v-if="describeStepMeta(selectedStep) !== describeStep(selectedStep)" class="mt-2 text-xs text-(--app-text-faint)">
-                  {{ describeStepMeta(selectedStep) }}
-                </p>
-              </div> -->
-
-              <label class="space-y-2">
-                <span class="text-xs font-medium tracking-[0.12em] text-(--app-text-faint)">步骤标题</span>
-                <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
-              </label>
+        <EditorOverviewPanel v-if="selectedStep">
+          <EditorOverviewSection title="步骤概览" heading-tag="h1" width="wide">
+            <div class="step-badge-row">
+              <span class="step-badge step-badge-strong">{{ selectedStepKindLabel }}</span>
+              <span class="step-badge">{{ `当前层级第 ${currentSelectedIndexDisplay} 步` }}</span>
+              <span class="step-badge">{{ `本层共 ${currentContainerSteps.length} 步` }}</span>
             </div>
-          </div>
 
-          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+            <EditorOverviewField label="步骤标题">
+              <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
+            </EditorOverviewField>
+
+            <div class="step-summary-card">
+              <p class="text-sm font-medium text-(--app-text-strong)">{{ describeStep(selectedStep) }}</p>
+              <p class="mt-2 text-sm leading-6 text-(--app-text-soft)">
+                {{ selectedStepSummary }}
+              </p>
+            </div>
+          </EditorOverviewSection>
+
+          <EditorOverviewSection
+            :title="selectedStepConfigTitle"
+            :description="selectedStepConfigDescription"
+            width="wide"
+          >
             <div class="space-y-3">
               <EditorStepActionPanel
                 v-if="selectedStep.op === STEP_OP.action && selectedAction"
@@ -241,14 +245,13 @@
                 当前步骤暂未提供专用表单，必要时可从右上角打开底层结构调试。
               </p>
             </div>
-          </div>
-
-        </div>
+          </EditorOverviewSection>
+        </EditorOverviewPanel>
 
         <EmptyState
           v-else
           title="选择一个步骤"
-          description="右侧默认展示步骤概览，选中后可调整标题、关键字段和嵌套关系。"
+          description="右侧会先给出步骤概览，再展示对应的配置表单。"
         />
       </div>
     </div>
@@ -267,6 +270,9 @@ import type { TaskControl } from '@/types/bindings/TaskControl';
 import type { Step } from '@/types/bindings/Step';
 import type { VisionNode } from '@/types/bindings/VisionNode';
 import type { EditorReferenceKind, EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
+import EditorOverviewField from '@/views/script-editor/EditorOverviewField.vue';
+import EditorOverviewPanel from '@/views/script-editor/EditorOverviewPanel.vue';
+import EditorOverviewSection from '@/views/script-editor/EditorOverviewSection.vue';
 import EditorStepActionPanel from '@/views/script-editor/editor-step/EditorStepActionPanel.vue';
 import EditorStepBreadcrumb from '@/views/script-editor/editor-step/EditorStepBreadcrumb.vue';
 import EditorStepDataPanel from '@/views/script-editor/editor-step/EditorStepDataPanel.vue';
@@ -517,6 +523,71 @@ const currentSelectedIndex = computed(() => {
   const branchPath = getParentBranchPath(props.selectedStepPath);
   if (!isSameBranchPath(branchPath, props.activeBranchPath)) return null;
   return props.selectedStepPath[props.selectedStepPath.length - 1]?.index ?? null;
+});
+const currentSelectedIndexDisplay = computed(() =>
+  currentSelectedIndex.value === null ? '-' : String(currentSelectedIndex.value + 1),
+);
+const selectedStepKindLabel = computed(() => {
+  if (!selectedStep.value) {
+    return '未选择步骤';
+  }
+  if (selectedStep.value.op === STEP_OP.action) {
+    return selectedAction.value ? `动作 · ${selectedAction.value.ac}` : '动作';
+  }
+  if (selectedStep.value.op === STEP_OP.flowControl) {
+    return selectedFlow.value ? `流程 · ${selectedFlow.value.type}` : '流程';
+  }
+  if (selectedStep.value.op === STEP_OP.dataHanding) {
+    return selectedData.value ? `数据 · ${selectedData.value.type}` : '数据';
+  }
+  if (selectedStep.value.op === STEP_OP.taskControl) {
+    return selectedTaskControl.value ? `状态 · ${selectedTaskControl.value.type}` : '状态';
+  }
+  if (selectedStep.value.op === STEP_OP.vision) {
+    return selectedVision.value ? `视觉 · ${selectedVision.value.type}` : '视觉';
+  }
+  return '容器 · sequence';
+});
+const selectedStepSummary = computed(() => {
+  if (!selectedStep.value) {
+    return '';
+  }
+  if (selectedStep.value.op === STEP_OP.flowControl) {
+    return '流程步骤既要编辑当前条件，也要继续进入 then / else / flow 这些子层级维护嵌套步骤。';
+  }
+  if (selectedStep.value.op === STEP_OP.dataHanding) {
+    return '数据步骤负责变量写入、过滤和结果整理。优先保持输入输出变量命名稳定，后续排查会轻很多。';
+  }
+  if (selectedStep.value.op === STEP_OP.taskControl) {
+    return '状态步骤会直接影响任务或策略的启停与完成状态，改动前先确认目标范围和副作用。';
+  }
+  if (selectedStep.value.op === STEP_OP.vision) {
+    return '视觉步骤通常依赖检测结果变量和命中后分支，先把输出变量和后续跳转关系说明清楚。';
+  }
+  if (selectedStep.value.op === STEP_OP.sequence) {
+    return 'Sequence 更像容器节点，价值在于收拢可被合并下发的一组设备动作。';
+  }
+  return '动作步骤直接决定设备行为，建议优先检查目标、模式和变量绑定是否明确。';
+});
+const selectedStepConfigTitle = computed(() => {
+  if (!selectedStep.value) {
+    return '步骤配置';
+  }
+  if (selectedStep.value.op === STEP_OP.action) return '动作配置';
+  if (selectedStep.value.op === STEP_OP.flowControl) return '流程配置';
+  if (selectedStep.value.op === STEP_OP.dataHanding) return '数据配置';
+  if (selectedStep.value.op === STEP_OP.taskControl) return '状态配置';
+  if (selectedStep.value.op === STEP_OP.vision) return '视觉配置';
+  return '序列配置';
+});
+const selectedStepConfigDescription = computed(() => {
+  if (!selectedStep.value) {
+    return '';
+  }
+  if (selectedStep.value.op === STEP_OP.sequence) {
+    return 'Sequence 节点字段较少，重点是进入子层级继续编辑允许合并的动作步骤。';
+  }
+  return '详情区现在按概览与配置拆开，和输入、界面等 tab 保持同一套阅读节奏。';
 });
 
 const selectedAction = computed<Action | null>(() => (selectedStep.value?.op === STEP_OP.action ? selectedStep.value.a : null));
@@ -1509,3 +1580,31 @@ const toggleElseBranch = () => {
   });
 };
 </script>
+
+<style scoped>
+@reference "../../../style.css";
+
+.step-badge-row {
+  @apply flex flex-wrap gap-2;
+}
+
+.step-badge {
+  @apply rounded-full border border-(--app-border) bg-white/55 px-3 py-1 text-xs text-(--app-text-soft);
+}
+
+.step-badge-strong {
+  @apply border-transparent bg-(--app-accent-soft) text-(--app-accent);
+}
+
+.step-summary-card {
+  @apply rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4;
+}
+
+.sequence-note {
+  @apply space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4;
+}
+
+.sequence-note-tip {
+  @apply rounded-[14px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft);
+}
+</style>
