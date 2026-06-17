@@ -86,8 +86,9 @@
     <SurfacePanel v-else class="h-full overflow-hidden p-0">
       <div
         ref="logContainer"
-        class="log-viewer h-full overflow-y-auto bg-[#081019] px-5 py-4 font-mono text-xs text-slate-200"
+        class="log-viewer h-full overflow-y-auto bg-[#081019] px-6 py-4 font-mono text-xs text-slate-200"
         draggable="false"
+        @copy="handleLogCopy"
         @mousedown.stop
         @scroll="handleLogScroll"
         @dragstart.prevent
@@ -98,15 +99,12 @@
             v-for="log in virtualLogs"
             :key="log.key"
             :ref="(el) => setLogRowRef(log.index, el)"
-            class="log-line grid gap-y-0.5 border-b border-white/5 pb-1.5 md:grid-cols-[160px_90px_1fr]"
+            class="log-line grid gap-y-0.5 border-b border-white/5 pb-1.5 md:gap-x-2 md:grid-cols-[130px_50px_1fr]"
             draggable="false"
             @dragstart.prevent
           >
-            <span class="log-line__meta pt-[1px] font-sans tracking-wide text-slate-500">{{ log.entry.time }} · {{ resolveDeviceName(log.entry.deviceId) }}</span>
-            <div class="log-line__level flex items-start gap-1 pt-[1px]" :class="levelClass(log.entry.level)">
-              <AppIcon :name="levelIcon(log.entry.level)" :size="14" class="shrink-0 translate-y-[2px]" />
-              <span class="font-sans text-xs font-semibold tracking-wider uppercase">{{ log.entry.level }}</span>
-            </div>
+            <span class="log-line__meta pt-[1px] font-sans tracking-wide text-slate-500">{{ log.entry.time }} {{ resolveDeviceName(log.entry.deviceId) }}</span>
+            <span class="log-line__level font-sans uppercase" :class="levelClass(log.entry.level)">{{ log.entry.level }}</span>
             <span class="log-line__message whitespace-pre-wrap break-all leading-5 text-slate-100/90">
               <template v-for="segment in log.segments" :key="segment.key">
                 <mark
@@ -131,7 +129,6 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import AppIcon from '@/components/shared/AppIcon.vue';
 import AppLoadingState from '@/components/shared/AppLoadingState.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
@@ -158,6 +155,7 @@ const scrollTop = ref(0);
 const viewportHeight = ref(0);
 const rowHeights = ref<number[]>([]);
 const rowElements = new Map<number, HTMLElement>();
+const selectedRowRange = ref<{ start: number; end: number } | null>(null);
 const suspendRowMeasurement = ref(false);
 const ESTIMATED_ROW_HEIGHT = 30;
 const VIRTUAL_OVERSCAN = 10;
@@ -316,11 +314,16 @@ const virtualRange = computed(() => {
     return { start: 0, end: -1 };
   }
 
-  const start = Math.max(0, locateRowIndex(Math.max(0, scrollTop.value)) - VIRTUAL_OVERSCAN);
-  const end = Math.min(
+  let start = Math.max(0, locateRowIndex(Math.max(0, scrollTop.value)) - VIRTUAL_OVERSCAN);
+  let end = Math.min(
     decoratedLogs.value.length - 1,
     locateRowIndex(scrollTop.value + Math.max(viewportHeight.value, ESTIMATED_ROW_HEIGHT)) + VIRTUAL_OVERSCAN,
   );
+
+  if (selectedRowRange.value) {
+    start = Math.min(start, selectedRowRange.value.start);
+    end = Math.max(end, selectedRowRange.value.end);
+  }
 
   return { start, end };
 });
@@ -407,12 +410,6 @@ const levelClass = (level: string) => {
   return 'text-slate-400';
 };
 
-const levelIcon = (level: string) => {
-  if (level === 'Error') return 'hexagon'; // x-octagon alternative if not available, wait 'hexagon' has no 'x' usually but let's use 'alert-triangle'
-  if (level === 'Warn') return 'triangle-alert';
-  if (level === 'Debug') return 'bug';
-  return 'info';
-};
 
 const setSearchHitRef = (hitId: string, el: unknown) => {
   if (el instanceof HTMLElement) {
@@ -516,6 +513,171 @@ const handleLogScroll = () => {
     scheduleVisibleRowMeasurement();
     scrollSettleTimer = null;
   }, 120);
+};
+
+const normalizeCopiedText = (text: string) =>
+  text
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/\s*\n\s*/g, ' ')
+    .trim();
+
+const serializeLogFragment = (root: ParentNode) => {
+  const parts = [
+    root.querySelector<HTMLElement>('.log-line__meta')?.textContent ?? '',
+    root.querySelector<HTMLElement>('.log-line__level')?.textContent ?? '',
+    root.querySelector<HTMLElement>('.log-line__message')?.textContent ?? '',
+  ]
+    .map(normalizeCopiedText)
+    .filter(Boolean);
+
+  if (parts.length > 0) {
+    return parts.join(' ');
+  }
+
+  return normalizeCopiedText(root.textContent ?? '');
+};
+
+const serializeSelectionRange = (range: Range) => {
+  const fragment = range.cloneContents();
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(fragment);
+
+  wrapper.querySelectorAll<HTMLElement>('.log-line').forEach((row) => {
+    const line = serializeLogFragment(row);
+    row.replaceWith(document.createTextNode(`${line}\n`));
+  });
+
+  wrapper.querySelectorAll<HTMLElement>('.log-line__meta').forEach((element) => {
+    const text = normalizeCopiedText(element.textContent ?? '');
+    element.replaceWith(document.createTextNode(text ? `${text} ` : ''));
+  });
+  wrapper.querySelectorAll<HTMLElement>('.log-line__level').forEach((element) => {
+    const text = normalizeCopiedText(element.textContent ?? '');
+    element.replaceWith(document.createTextNode(text ? `${text} ` : ''));
+  });
+  wrapper.querySelectorAll<HTMLElement>('.log-line__message').forEach((element) => {
+    element.replaceWith(document.createTextNode(normalizeCopiedText(element.textContent ?? '')));
+  });
+
+  return (wrapper.textContent ?? '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trimEnd();
+};
+
+const serializeSelectedLogRow = (row: HTMLElement, selectionRange: Range) => {
+  const rowRange = document.createRange();
+  rowRange.selectNodeContents(row);
+
+  if (row.contains(selectionRange.startContainer)) {
+    rowRange.setStart(selectionRange.startContainer, selectionRange.startOffset);
+  }
+  if (row.contains(selectionRange.endContainer)) {
+    rowRange.setEnd(selectionRange.endContainer, selectionRange.endOffset);
+  }
+
+  return serializeSelectionRange(rowRange);
+};
+
+const handleLogCopy = (event: ClipboardEvent) => {
+  if (!logContainer.value || !event.clipboardData) {
+    return;
+  }
+
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+    return;
+  }
+  if (
+    !selection.anchorNode ||
+    !selection.focusNode ||
+    !logContainer.value.contains(selection.anchorNode) ||
+    !logContainer.value.contains(selection.focusNode)
+  ) {
+    return;
+  }
+
+  const range = selection.getRangeAt(0);
+  const anchorIndex = resolveSelectionRowIndex(selection.anchorNode);
+  const focusIndex = resolveSelectionRowIndex(selection.focusNode);
+
+  let text = '';
+  if (anchorIndex !== null && focusIndex !== null) {
+    const start = Math.min(anchorIndex, focusIndex);
+    const end = Math.max(anchorIndex, focusIndex);
+    const lines: string[] = [];
+
+    for (let index = start; index <= end; index += 1) {
+      const row = rowElements.get(index);
+      if (!row) {
+        text = serializeSelectionRange(range);
+        break;
+      }
+
+      const line = serializeSelectedLogRow(row, range);
+      if (line) {
+        lines.push(line);
+      }
+    }
+
+    if (!text) {
+      text = lines.join('\n');
+    }
+  } else {
+    text = serializeSelectionRange(range);
+  }
+
+  event.clipboardData.setData('text/plain', text);
+  event.preventDefault();
+};
+
+const resolveSelectionRowIndex = (node: Node | null) => {
+  if (!node || !logContainer.value) {
+    return null;
+  }
+
+  const element =
+    node instanceof HTMLElement ? node : node.parentElement;
+  const row = element?.closest('.log-line') as HTMLElement | null;
+  if (!row || !logContainer.value.contains(row)) {
+    return null;
+  }
+
+  const index = Number(row.dataset.logIndex ?? '-1');
+  return Number.isInteger(index) && index >= 0 ? index : null;
+};
+
+const updateSelectionPinned = () => {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed || !logContainer.value) {
+    selectedRowRange.value = null;
+    return;
+  }
+
+  const anchorNode = selection.anchorNode;
+  const focusNode = selection.focusNode;
+  if (
+    !anchorNode ||
+    !focusNode ||
+    !logContainer.value.contains(anchorNode) ||
+    !logContainer.value.contains(focusNode)
+  ) {
+    selectedRowRange.value = null;
+    return;
+  }
+
+  const anchorIndex = resolveSelectionRowIndex(anchorNode);
+  const focusIndex = resolveSelectionRowIndex(focusNode);
+  if (anchorIndex === null || focusIndex === null) {
+    selectedRowRange.value = null;
+    return;
+  }
+
+  selectedRowRange.value = {
+    start: Math.min(anchorIndex, focusIndex),
+    end: Math.max(anchorIndex, focusIndex),
+  };
 };
 
 const scrollToTop = () => {
@@ -734,6 +896,7 @@ watch(
 onMounted(async () => {
   try {
     historyLoading.value = true;
+    document.addEventListener('selectionchange', updateSelectionPinned);
     await Promise.all([
       deviceStore.devices.length ? Promise.resolve() : deviceStore.refreshAll(),
       logsStore.ensurePersistedSelectionLoaded(),
@@ -759,6 +922,7 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  document.removeEventListener('selectionchange', updateSelectionPinned);
   if (scrollSettleTimer !== null) {
     window.clearTimeout(scrollSettleTimer);
     scrollSettleTimer = null;
@@ -814,6 +978,16 @@ onBeforeUnmount(() => {
   user-select: none;
   -webkit-user-select: none;
   pointer-events: none;
+}
+
+.log-line {
+  align-items: start;
+}
+
+.log-line__meta,
+.log-line__level,
+.log-line__message {
+  line-height: 1.25rem;
 }
 
 .log-line__message {
