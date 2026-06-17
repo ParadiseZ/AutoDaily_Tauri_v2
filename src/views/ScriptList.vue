@@ -124,6 +124,96 @@ const selectedScript = computed(() => {
   return filteredScripts.value[0] ?? null;
 });
 
+const selectedScriptChangeLogSourceId = computed(() => {
+  if (!selectedScript.value) {
+    return null;
+  }
+
+  if (selectedScript.value.data.cloudId) {
+    return selectedScript.value.data.cloudId;
+  }
+
+  if (selectedScript.value.data.scriptType === 'published') {
+    return selectedScript.value.id;
+  }
+
+  return null;
+});
+
+const buildCurrentVersionLog = (script: ScriptTableRecord): ScriptChangeLogRecord => ({
+  id: null,
+  scriptId: script.data.cloudId || script.id,
+  versionName: script.data.verName || null,
+  versionNum: script.data.verNum ?? null,
+  contentMd: script.data.contentMd || null,
+  createdBy: script.data.userName || null,
+  createdAt: script.data.createTime || null,
+  updatedAt: script.data.updateTime || null,
+});
+
+const mergeChangeLogs = (script: ScriptTableRecord, remoteLogs: ScriptChangeLogRecord[]) => {
+  const items = [buildCurrentVersionLog(script), ...remoteLogs];
+  const seen = new Set<string>();
+
+  return items
+    .filter((item) => item.contentMd || item.versionName || item.versionNum !== null)
+    .filter((item) => {
+      const key = `${item.versionNum ?? 'null'}::${item.versionName ?? ''}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    })
+    .sort((left, right) => {
+      const byVersion = (right.versionNum ?? 0) - (left.versionNum ?? 0);
+      if (byVersion !== 0) {
+        return byVersion;
+      }
+      return (Date.parse(right.updatedAt || right.createdAt || '') || 0) - (Date.parse(left.updatedAt || left.createdAt || '') || 0);
+    });
+};
+
+const loadSelectedScriptChangeLogs = async () => {
+  const script = selectedScript.value;
+  if (!script) {
+    selectedScriptChangeLogs.value = [];
+    changeLogsLoading.value = false;
+    changeLogsLoadFailed.value = false;
+    return;
+  }
+
+  const fallback = [buildCurrentVersionLog(script)];
+  const sourceId = selectedScriptChangeLogSourceId.value;
+
+  if (!sourceId) {
+    selectedScriptChangeLogs.value = fallback;
+    changeLogsLoading.value = false;
+    changeLogsLoadFailed.value = false;
+    return;
+  }
+
+  changeLogsLoading.value = true;
+  changeLogsLoadFailed.value = false;
+  try {
+    const logs = await scriptService.listChangeLogs(sourceId);
+    if (selectedScript.value?.id !== script.id) {
+      return;
+    }
+    selectedScriptChangeLogs.value = mergeChangeLogs(script, logs);
+  } catch {
+    if (selectedScript.value?.id !== script.id) {
+      return;
+    }
+    selectedScriptChangeLogs.value = fallback;
+    changeLogsLoadFailed.value = true;
+  } finally {
+    if (selectedScript.value?.id === script.id) {
+      changeLogsLoading.value = false;
+    }
+  }
+};
+
 const uploadTransferRecords = computed(() => scriptTransferStore.getRecordsByDirection('upload'));
 const isSelectedScriptUploading = computed(
   () => Boolean(selectedScript.value && uploadPendingScriptId.value === selectedScript.value.id),
@@ -488,9 +578,13 @@ watch(
   () => selectedScript.value?.id,
   async (scriptId) => {
     if (!scriptId) {
+      selectedScriptChangeLogs.value = [];
+      changeLogsLoading.value = false;
+      changeLogsLoadFailed.value = false;
       return;
     }
     await scriptStore.loadScriptTasks(scriptId);
+    await loadSelectedScriptChangeLogs();
   },
   { immediate: true },
 );
@@ -547,5 +641,4 @@ watch(
   },
 );
 </script>
-
 

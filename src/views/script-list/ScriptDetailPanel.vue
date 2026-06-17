@@ -120,21 +120,6 @@
       </SurfacePanel>
     </div>
 
-    <SurfacePanel tone="muted" padding="sm" class="space-y-4">
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-sm font-semibold text-(--app-text-strong)">更新日志</p>
-        <button
-          v-if="canEditScript"
-          class="app-button app-button-ghost app-toolbar-button"
-          type="button"
-          @click="$emit('edit-info', script.id)"
-        >
-          <AppIcon name="square-pen" :size="14" />
-          编辑
-        </button>
-      </div>
-      <MarkdownView :content="script.data.contentMd" empty-text="当前脚本还没有填写更新日志。" />
-    </SurfacePanel>
   </SurfacePanel>
 
   <EmptyState
@@ -147,7 +132,6 @@
 import { computed } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
-import MarkdownView from '@/components/shared/MarkdownView.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import type { ScriptTableRecord } from '@/types/app/domain';

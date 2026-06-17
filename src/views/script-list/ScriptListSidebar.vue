@@ -12,7 +12,7 @@
       </button>
     </div>
 
-    <div class="flex-1 space-y-2 overflow-y-auto custom-scrollbar pr-1">
+    <div class="space-y-2">
       <button
         v-for="script in scripts"
         :key="script.id"

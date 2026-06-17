@@ -6,7 +6,7 @@
     </div>
 
     <template v-if="script">
-      <div v-if="loading" class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+      <div v-if="loading">
         <div class="space-y-3">
           <div v-for="index in 3" :key="index" class="log-skeleton">
             <div class="log-skeleton-line w-36" />
@@ -17,7 +17,7 @@
         </div>
       </div>
 
-      <div v-else class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+      <div v-else>
         <div v-if="logs.length" class="space-y-4">
           <section
             v-for="log in logs"
