@@ -11,48 +11,64 @@ pub struct WindowInfo {
 
 impl WindowInfo {
     pub(crate) fn init(window_name: Option<String>) -> Self {
-        let Some(window_name) = window_name
+        let title = window_name
             .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-        else {
+            .filter(|value| !value.is_empty());
+        let Some(window_name) = title.clone() else {
             Log::error("窗口名称未设置！");
             return Self {
                 window: Arc::new(RwLock::new(None)),
                 title: Arc::new(RwLock::new(None)),
             };
         };
-        let target_name = window_name.to_lowercase();
-        // 获取所有窗口
-        let windows = Window::all();
-        if let Err(e) = windows {
-            Log::error(&format!("获取窗口列表失败: {:?}", e));
-            return Self {
-                window: Arc::new(RwLock::new(None)),
-                title: Arc::new(RwLock::new(None)),
-            };
+        Self {
+            window: Arc::new(RwLock::new(Self::find_window(&window_name))),
+            title: Arc::new(RwLock::new(title)),
         }
-        for window in windows.unwrap() {
-            // 最小化的窗口不能截屏
-            if let Ok(is_min) = window.is_minimized() {
-                if is_min {
-                    continue;
-                }
+    }
+
+    pub(crate) async fn refresh_window(&self) -> bool {
+        let Some(window_name) = self.target_title().await else {
+            Log::error("未配置目标窗口标题，无法刷新窗口句柄！");
+            *self.window.write().await = None;
+            return false;
+        };
+
+        let window = Self::find_window(&window_name);
+        let found = window.is_some();
+        *self.window.write().await = window;
+        found
+    }
+
+    pub(crate) async fn target_title(&self) -> Option<String> {
+        self.title
+            .read()
+            .await
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(|value| value.to_string())
+    }
+
+    fn find_window(window_name: &str) -> Option<Window> {
+        let target_name = window_name.to_lowercase();
+        let windows = match Window::all() {
+            Ok(windows) => windows,
+            Err(error) => {
+                Log::error(&format!("获取窗口列表失败: {:?}", error));
+                return None;
+            }
+        };
+
+        for window in windows {
+            if window.is_minimized().unwrap_or(false) {
+                continue;
             }
             let title = window.title().unwrap_or_else(|_| "无标题".to_string());
-            //Log::info(&format!("发现窗口: {}", title));
-            // 检查是否是目标窗口
             if title.to_lowercase().contains(target_name.as_str()) {
-                //Log::info(&format!("找到目标窗口: {}", title));
-                // 找到并截图后退出循环
-                return Self {
-                    window: Arc::new(RwLock::new(Some(window))),
-                    title: Arc::new(RwLock::new(Some(title))),
-                };
+                return Some(window);
             }
         }
-        Self {
-            window: Arc::new(RwLock::new(None)),
-            title: Arc::new(RwLock::new(None)),
-        }
+        None
     }
 }

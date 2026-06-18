@@ -112,9 +112,10 @@ pub enum ControlFlow {
     StopScript,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct StepFrame {
     previous_step_id: Option<StepId>,
+    previous_step_name: Option<String>,
 }
 
 #[derive(Debug)]
@@ -269,25 +270,30 @@ impl ScriptExecutor {
                     &step_name,
                     Some(Self::describe_control_flow(flow)),
                 ),
-                Err(error) => self.log_step_debug("error", step, &step_name, Some(&error.to_string())),
+                Err(error) => {
+                    self.log_step_debug("error", step, &step_name, Some(&error.to_string()))
+                }
             }
             result
         })
     }
 
     async fn enter_step(&mut self, step: &Step) -> StepFrame {
-        let (previous_step_id, assignment_id, script_id, task_id) = {
+        let step_name = self.resolve_step_display_name(step).await;
+        let (previous_step_id, previous_step_name, assignment_id, script_id, task_id) = {
             let mut ctx = self.runtime_ctx.write().await;
             let previous_step_id = ctx.execution.current_step_id;
+            let previous_step_name = ctx.execution.current_step_name.clone();
             ctx.execution.current_step_id = step.id;
+            ctx.execution.current_step_name = Some(step_name.clone());
             (
                 previous_step_id,
+                previous_step_name,
                 ctx.execution.current_assignment_id,
                 Some(ctx.execution.script_id),
                 ctx.execution.current_task.as_ref().map(|task| task.id),
             )
         };
-        let step_name = self.resolve_step_display_name(step).await;
 
         emit_progress_event(
             RuntimeProgressPhase::Executing,
@@ -303,12 +309,16 @@ impl ScriptExecutor {
             self.scope.set_value(format!("idx_{}", id), idx as i64);
         }
 
-        StepFrame { previous_step_id }
+        StepFrame {
+            previous_step_id,
+            previous_step_name,
+        }
     }
 
     async fn leave_step(&mut self, frame: StepFrame) {
         let mut ctx = self.runtime_ctx.write().await;
         ctx.execution.current_step_id = frame.previous_step_id;
+        ctx.execution.current_step_name = frame.previous_step_name;
     }
 
     async fn execute_step_inner(&mut self, step: &Step) -> ExecuteResult<ControlFlow> {
@@ -367,9 +377,8 @@ impl ScriptExecutor {
             .map(|value| format!(", detail={}", value))
             .unwrap_or_default();
         Log::debug(&format!(
-            "[ executor ] step.{}: id={:?}, kind={}, label={}{}",
+            "[ executor ] step.{}: kind={}, label={}{}",
             stage,
-            step.id,
             Self::describe_step_kind(step),
             step_name,
             detail

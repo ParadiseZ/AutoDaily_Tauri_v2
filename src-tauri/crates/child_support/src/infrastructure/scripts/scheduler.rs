@@ -235,7 +235,6 @@ impl ScriptScheduler {
 
         // 标记当前脚本
         *self.current_script.write().await = Some(script_id);
-        Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_id));
         emit_dispatch_event(
             Some(dispatch_id),
             Some(assignment_id),
@@ -268,8 +267,8 @@ impl ScriptScheduler {
         *self.current_script.write().await = None;
 
         match result {
-            Ok(()) => {
-                Log::info(&format!("[ scheduler ] 脚本[{}]执行完成", script_id));
+            Ok(script_name) => {
+                Log::info(&format!("[ scheduler ] 脚本[{}]执行完成", script_name));
                 emit_dispatch_event(
                     Some(dispatch_id),
                     Some(assignment_id),
@@ -279,7 +278,7 @@ impl ScriptScheduler {
                 );
             }
             Err(e) => {
-                Log::error(&format!("[ scheduler ] 脚本[{}]执行失败: {}", script_id, e));
+                Log::error(&format!("[ scheduler ] 脚本执行失败: {}", e));
                 emit_dispatch_event(
                     Some(dispatch_id),
                     Some(assignment_id),
@@ -318,7 +317,7 @@ impl ScriptScheduler {
         &self,
         queue_item: RuntimeQueueItem,
         execution_id: ExecutionId,
-    ) -> Result<(), String> {
+    ) -> Result<String, String> {
         let script_id = queue_item.script_id;
         let assignment_id = queue_item.assignment_id;
         let device_id = try_current_session_summary()
@@ -334,6 +333,7 @@ impl ScriptScheduler {
         let runtime_ctx = get_runtime_ctx();
         let script_info = Self::clone_model_config("script_info", &bundle.script.data.0)?;
         let script_name = script_info.name.clone();
+        Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_name));
         let capture_asset_signature = ScriptExecutor::build_capture_asset_signature(&script_info);
         Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
@@ -356,6 +356,7 @@ impl ScriptScheduler {
             ctx.execution.script_info = Some(script_info);
             ctx.execution.current_task = None;
             ctx.execution.current_step_id = None;
+            ctx.execution.current_step_name = None;
             ctx.execution.var_map.clear();
             ctx.execution.template_values_json = queue_item.template_values_json.clone();
             ctx.execution.policy_states.clear();
@@ -373,7 +374,7 @@ impl ScriptScheduler {
             {
                 Log::warn(&format!(
                     "[ scheduler ] 脚本[{}]加载 OCR 文字缓存失败，已忽略: {}",
-                    script_id, error
+                    script_name, error
                 ));
             }
         }
@@ -391,7 +392,7 @@ impl ScriptScheduler {
         );
         Log::info(&format!(
             "[ scheduler ] 脚本[{}] bundle 已加载，mode={}, task={}, root_task={}, linkable_task={}, skipped_task={}, policy={}, group_relation={}, set_relation={}",
-            script_id,
+            script_name,
             plan_summary.mode_label(),
             tasks_len,
             plan_summary.root_task_count,
@@ -411,7 +412,7 @@ impl ScriptScheduler {
         );
 
         if is_policy_debug_target {
-            return Self::execute_debug_policy_target(
+            Self::execute_debug_policy_target(
                 &run_target,
                 assignment_id,
                 script_id,
@@ -419,7 +420,9 @@ impl ScriptScheduler {
                 queue_item.template_values_json.as_deref(),
                 &runtime_ctx,
             )
-            .await;
+            .await
+            .map_err(|error| format!("脚本[{}] {}", script_name, error))?;
+            return Ok(script_name);
         }
 
         for skipped in &task_selection.skipped_tasks {
@@ -468,6 +471,7 @@ impl ScriptScheduler {
                 let mut ctx = runtime_ctx.write().await;
                 ctx.execution.current_task = Some(task.clone());
                 ctx.execution.current_step_id = None;
+                ctx.execution.current_step_name = None;
             }
 
             emit_progress_event(
@@ -597,6 +601,7 @@ impl ScriptScheduler {
                         let mut ctx = runtime_ctx.write().await;
                         ctx.execution.current_task = None;
                         ctx.execution.current_step_id = None;
+                        ctx.execution.current_step_name = None;
                     }
 
                     if stop_script {
@@ -658,15 +663,16 @@ impl ScriptScheduler {
                         {
                             Log::warn(&format!(
                                 "[ scheduler ] 脚本[{}]失败后写回 OCR 文字缓存失败，已忽略: {}",
-                                script_id, error
+                                script_name, error
                             ));
                         }
                         ctx.execution.current_execution_id = None;
                         ctx.execution.current_assignment_id = None;
                         ctx.execution.current_task = None;
                         ctx.execution.current_step_id = None;
+                        ctx.execution.current_step_name = None;
                     }
-                    return Err(message);
+                    return Err(format!("脚本[{}] {}", script_name, message));
                 }
             }
         }
@@ -677,10 +683,11 @@ impl ScriptScheduler {
             ctx.execution.current_assignment_id = None;
             ctx.execution.current_task = None;
             ctx.execution.current_step_id = None;
+            ctx.execution.current_step_name = None;
             if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
                 Log::warn(&format!(
                     "[ scheduler ] 脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
-                    script_id, error
+                    script_name, error
                 ));
             }
         }
@@ -709,7 +716,7 @@ impl ScriptScheduler {
             )),
         );
 
-        Ok(())
+        Ok(script_name)
     }
 
     async fn execute_debug_policy_target(
@@ -846,6 +853,7 @@ impl ScriptScheduler {
             ctx.execution.current_assignment_id = None;
             ctx.execution.current_task = None;
             ctx.execution.current_step_id = None;
+            ctx.execution.current_step_name = None;
             if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
                 Log::warn(&format!(
                     "[ scheduler ] 脚本[{}]调试执行后写回 OCR 文字缓存失败，已忽略: {}",

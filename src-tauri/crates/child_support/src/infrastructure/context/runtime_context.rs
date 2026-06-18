@@ -76,6 +76,7 @@ pub struct ExecutionState {
     pub script_info: Option<ScriptInfo>,
     pub current_task: Option<ScriptTaskTable>,
     pub current_step_id: Option<StepId>,
+    pub current_step_name: Option<String>,
 
     /// Rhai 变量映射
     pub var_map: HashMap<String, rhai::Dynamic>,
@@ -109,6 +110,7 @@ impl ExecutionState {
             script_info: None,
             current_task: None,
             current_step_id: None,
+            current_step_name: None,
             var_map: HashMap::new(),
             template_values_json: None,
             policy_states: HashMap::new(),

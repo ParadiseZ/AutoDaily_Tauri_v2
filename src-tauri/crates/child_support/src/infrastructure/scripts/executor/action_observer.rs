@@ -34,14 +34,13 @@ impl ScriptExecutor {
             return;
         };
 
-        let (_execution_id, _assignment_id, script_id, task_id, step_id) =
-            self.current_execution_locator().await;
+        let (script_name, task_name, step_name) = self.current_execution_names().await;
         let page_fingerprint = self.current_page_fingerprint().await;
         Log::debug(&format!(
-            "[ executor ] 动作后 observe hook: script={:?}, task={:?}, step={:?}, action={:?}, signature={}, page_fingerprint={}",
-            script_id,
-            task_id,
-            step_id,
+            "[ executor ] 动作后 observe hook: script={}, task={}, step={}, action={:?}, signature={}, page_fingerprint={}",
+            script_name,
+            task_name,
+            step_name,
             action,
             action_trace.signature,
             page_fingerprint.unwrap_or_else(|| "<none>".to_string())
@@ -306,6 +305,35 @@ impl ScriptExecutor {
             ctx.execution.current_task.as_ref().map(|task| task.id),
             ctx.execution.current_step_id,
         )
+    }
+
+    async fn current_execution_names(&self) -> (String, String, String) {
+        let ctx = self.runtime_ctx.read().await;
+        let script_name = ctx
+            .execution
+            .script_info
+            .as_ref()
+            .map(|script| script.name.trim())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("<none>")
+            .to_string();
+        let task_name = ctx
+            .execution
+            .current_task
+            .as_ref()
+            .map(|task| task.name.trim())
+            .filter(|value| !value.is_empty())
+            .unwrap_or("<none>")
+            .to_string();
+        let step_name = ctx
+            .execution
+            .current_step_name
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or("<none>")
+            .to_string();
+        (script_name, task_name, step_name)
     }
 
     async fn mark_current_task_skipped(&self) {
