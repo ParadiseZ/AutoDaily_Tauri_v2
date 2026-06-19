@@ -514,6 +514,188 @@ test('persists handle policy set flow and policy-set-result condition with ids o
   });
 });
 
+test('persists policy binding flow steps with top and reverse flags', async ({ page }) => {
+  const scriptId = 'script-editor-policy-bindings';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略绑定脚本',
+      description: '验证策略集绑定、策略组绑定和策略绑定步骤保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    window.__AUTODAILY_MOCK__.seed({
+      policies: [
+        {
+          id: 'policy-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '登录策略',
+            note: '策略备注 A',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+        {
+          id: 'policy-b',
+          scriptId: seedScript.id,
+          orderIndex: 1,
+          data: {
+            name: '领奖策略',
+            note: '策略备注 B',
+            logPrint: null,
+            curPos: 0,
+            skipFlag: false,
+            execCur: 0,
+            execMax: 1,
+            beforeAction: [],
+            cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+            afterAction: [],
+          },
+        },
+      ],
+      policyGroups: [
+        {
+          id: 'group-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '基础策略组',
+            note: '策略组备注 A',
+          },
+        },
+        {
+          id: 'group-b',
+          scriptId: seedScript.id,
+          orderIndex: 1,
+          data: {
+            name: '扩展策略组',
+            note: '策略组备注 B',
+          },
+        },
+      ],
+      policySets: [
+        {
+          id: 'set-a',
+          scriptId: seedScript.id,
+          orderIndex: 0,
+          data: {
+            name: '主策略集',
+            note: '策略集备注 A',
+          },
+        },
+        {
+          id: 'set-b',
+          scriptId: seedScript.id,
+          orderIndex: 1,
+          data: {
+            name: '备用策略集',
+            note: '策略集备注 B',
+          },
+        },
+      ],
+      groupPolicies: {
+        'group-a': ['policy-a'],
+        'group-b': ['policy-b'],
+      },
+      setGroups: {
+        'set-a': ['group-a'],
+        'set-b': ['group-b'],
+      },
+    });
+  }, script);
+  await page.reload();
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-add-policies').click();
+  await page.getByTestId('editor-step-template-bind-policy-group').click();
+  await page.getByTestId('editor-step-template-bind-policy').click();
+
+  await page.getByTestId('editor-step-card-0').click();
+  await selectOptionByValue(page, 'editor-flow-add-policies-source', 'set-a');
+  await selectOptionByValue(page, 'editor-flow-add-policies-target', 'set-b');
+  await page.getByTestId('editor-flow-add-policies-top').check();
+  await page.getByTestId('editor-flow-add-policies-reverse').check();
+
+  await page.getByTestId('editor-step-card-1').click();
+  await selectOptionByValue(page, 'editor-flow-bind-policy-group-source', 'group-a');
+  await selectOptionByValue(page, 'editor-flow-bind-policy-group-target', 'set-b');
+  await page.getByTestId('editor-flow-bind-policy-group-top').check();
+
+  await page.getByTestId('editor-step-card-2').click();
+  await selectOptionByValue(page, 'editor-flow-bind-policy-source', 'policy-b');
+  await selectOptionByValue(page, 'editor-flow-bind-policy-target', 'group-a');
+  await page.getByTestId('editor-flow-bind-policy-reverse').check();
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'addPolicies',
+      source: 'set-a',
+      target: 'set-b',
+      top: true,
+      reverse: true,
+    },
+  });
+  expect(task.data.steps[1]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'bindPolicyGroup',
+      source: 'group-a',
+      target: 'set-b',
+      top: true,
+      reverse: false,
+    },
+  });
+  expect(task.data.steps[2]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'bindPolicy',
+      source: 'policy-b',
+      target: 'group-a',
+      top: false,
+      reverse: true,
+    },
+  });
+});
+
 test('loads text-det labels for label actions and persists idx only', async ({ page }) => {
   const scriptId = 'script-editor-label-options';
   const script: StoredScriptTable = {

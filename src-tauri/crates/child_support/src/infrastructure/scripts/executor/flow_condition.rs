@@ -225,12 +225,165 @@ impl ScriptExecutor {
         }
     }
 
-    async fn add_policy_overlay(&self, source: PolicySetId, target: PolicySetId) {
+    async fn bind_policy_set(
+        &self,
+        source: PolicySetId,
+        target: PolicySetId,
+        top: bool,
+        reverse: bool,
+    ) {
+        let binding = PolicySetBindingOp {
+            source: PolicySetBindingSource::PolicySet(source),
+            top,
+            reverse,
+        };
         let mut ctx = self.runtime_ctx.write().await;
-        let entry = ctx.execution.policy_set_overlays.entry(target).or_default();
-        if !entry.contains(&source) {
-            entry.push(source);
+        let entry = ctx.execution.policy_set_bindings.entry(target).or_default();
+        entry.retain(|item| item.source != binding.source);
+        entry.push(binding);
+        Log::info(&format!(
+            "[ executor ] 记录策略集绑定: source_set={}, target_set={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+    }
+
+    async fn bind_policy_group_to_set(
+        &self,
+        source: PolicyGroupId,
+        target: PolicySetId,
+        top: bool,
+        reverse: bool,
+    ) {
+        let binding = PolicySetBindingOp {
+            source: PolicySetBindingSource::PolicyGroup(source),
+            top,
+            reverse,
+        };
+        let mut ctx = self.runtime_ctx.write().await;
+        let entry = ctx.execution.policy_set_bindings.entry(target).or_default();
+        entry.retain(|item| item.source != binding.source);
+        entry.push(binding);
+        Log::info(&format!(
+            "[ executor ] 记录策略组绑定: source_group={}, target_set={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+    }
+
+    async fn bind_policy_to_group(
+        &self,
+        source: PolicyId,
+        target: PolicyGroupId,
+        top: bool,
+        reverse: bool,
+    ) {
+        let binding = PolicyGroupBindingOp {
+            source,
+            top,
+            reverse,
+        };
+        let mut ctx = self.runtime_ctx.write().await;
+        let entry = ctx.execution.policy_group_bindings.entry(target).or_default();
+        entry.retain(|item| item.source != binding.source);
+        entry.push(binding);
+        Log::info(&format!(
+            "[ executor ] 记录策略绑定: source_policy={}, target_group={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+    }
+
+    async fn execute_add_policies_binding(
+        &self,
+        source: PolicySetId,
+        target: PolicySetId,
+        top: bool,
+        reverse: bool,
+    ) -> ExecuteResult<()> {
+        if source == target {
+            return Err(Self::execute_error(
+                "flow.addPolicies",
+                format!("源策略集[{}]与目标策略集[{}]不能相同", source, target),
+            ));
         }
+
+        let bundle = self.load_policy_bundle("flow.addPolicies").await?;
+        if !bundle.policy_sets.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.addPolicies",
+                format!("源策略集[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_sets.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.addPolicies",
+                format!("目标策略集[{}]不存在", target),
+            ));
+        }
+
+        Log::info(&format!(
+            "[ executor ] 执行策略集绑定: source_set={}, target_set={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+        self.bind_policy_set(source, target, top, reverse).await;
+        Ok(())
+    }
+
+    async fn execute_bind_policy_group_step(
+        &self,
+        source: PolicyGroupId,
+        target: PolicySetId,
+        top: bool,
+        reverse: bool,
+    ) -> ExecuteResult<()> {
+        let bundle = self.load_policy_bundle("flow.bindPolicyGroup").await?;
+        if !bundle.policy_groups.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.bindPolicyGroup",
+                format!("源策略组[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_sets.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.bindPolicyGroup",
+                format!("目标策略集[{}]不存在", target),
+            ));
+        }
+
+        Log::info(&format!(
+            "[ executor ] 执行策略组绑定: source_group={}, target_set={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+        self.bind_policy_group_to_set(source, target, top, reverse)
+            .await;
+        Ok(())
+    }
+
+    async fn execute_bind_policy_step(
+        &self,
+        source: PolicyId,
+        target: PolicyGroupId,
+        top: bool,
+        reverse: bool,
+    ) -> ExecuteResult<()> {
+        let bundle = self.load_policy_bundle("flow.bindPolicy").await?;
+        if !bundle.policies.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.bindPolicy",
+                format!("源策略[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_groups.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.bindPolicy",
+                format!("目标策略组[{}]不存在", target),
+            ));
+        }
+
+        Log::info(&format!(
+            "[ executor ] 执行策略绑定: source_policy={}, target_group={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+        self.bind_policy_to_group(source, target, top, reverse).await;
+        Ok(())
     }
 
     async fn match_exec_num_compare(

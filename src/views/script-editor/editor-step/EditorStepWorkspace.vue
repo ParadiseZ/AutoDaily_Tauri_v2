@@ -122,6 +122,7 @@
                 @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-number-field="updateNumberField"
                 @update-field="updateFlowField"
+                @update-boolean-field="updateFlowBooleanField"
                 @update-flow-type="updateFlowType"
                 @update-flow-condition="updateFlowCondition"
                 @toggle-else-branch="toggleElseBranch"
@@ -1023,6 +1024,24 @@ const updateFlowField = (field: string, value: string) => {
     }
 
     step.a = { ...(step.a ?? {}), [field]: value } as FlowControl;
+  });
+};
+
+const updateFlowBooleanField = (field: string, value: boolean) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.flowControl) return;
+    if (
+      step.a.type !== FLOW_TYPE.addPolicies &&
+      step.a.type !== FLOW_TYPE.bindPolicyGroup &&
+      step.a.type !== FLOW_TYPE.bindPolicy
+    ) {
+      return;
+    }
+    if (field !== 'top' && field !== 'reverse') {
+      return;
+    }
+
+    step.a = { ...step.a, [field]: value } as FlowControl;
   });
 };
 

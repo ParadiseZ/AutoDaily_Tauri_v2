@@ -437,7 +437,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '条件分支',
+        label: 'if',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.if,
@@ -458,7 +458,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '循环条件',
+        label: 'while',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.while,
@@ -478,7 +478,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '遍历循环',
+        label: 'forEach',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.forEach,
@@ -549,6 +549,63 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.stopScript,
+        },
+      }),
+  },
+  {
+    id: 'add-policies',
+    icon: genSvg(SVG_ICONS.policySet),
+    label: '策略集绑定',
+    description: '把源策略集里的策略组按顺序插入目标策略集。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '策略集绑定',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.addPolicies,
+          source: '',
+          target: '',
+          top: false,
+          reverse: false,
+        },
+      }),
+  },
+  {
+    id: 'bind-policy-group',
+    icon: genSvg(SVG_ICONS.policySet),
+    label: '策略组绑定',
+    description: '把一个策略组插入目标策略集，可控制顶部插入和逆序。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '策略组绑定',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.bindPolicyGroup,
+          source: '',
+          target: '',
+          top: false,
+          reverse: false,
+        },
+      }),
+  },
+  {
+    id: 'bind-policy',
+    icon: genSvg(SVG_ICONS.policy),
+    label: '策略绑定',
+    description: '把一个策略插入目标策略组，可控制顶部插入和逆序。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '策略绑定',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.bindPolicy,
+          source: '',
+          target: '',
+          top: false,
+          reverse: false,
         },
       }),
   },
@@ -785,6 +842,9 @@ export const describeStepTitle = (step: Step) => {
   if (step.op === STEP_OP.flowControl) {
     if (step.a.type === FLOW_TYPE.waitMs) return '等待';
     if (step.a.type === FLOW_TYPE.link) return '跳转任务';
+    if (step.a.type === FLOW_TYPE.addPolicies) return '策略集绑定';
+    if (step.a.type === FLOW_TYPE.bindPolicyGroup) return '策略组绑定';
+    if (step.a.type === FLOW_TYPE.bindPolicy) return '策略绑定';
     if (step.a.type === FLOW_TYPE.handlePolicySet) return '处理策略集';
     if (step.a.type === FLOW_TYPE.handlePolicy) return '处理策略';
     if (step.a.type === FLOW_TYPE.if) return '条件分支';
@@ -860,6 +920,12 @@ export const describeStepMeta = (step: Step) => {
         return `等待 ${String(step.a.ms)} ms`;
       case FLOW_TYPE.link:
         return `跳转到 ${step.a.target || '未指定任务'}`;
+      case FLOW_TYPE.addPolicies:
+        return `策略集 ${step.a.source || '未指定'} -> ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+      case FLOW_TYPE.bindPolicyGroup:
+        return `策略组 ${step.a.source || '未指定'} -> 策略集 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+      case FLOW_TYPE.bindPolicy:
+        return `策略 ${step.a.source || '未指定'} -> 策略组 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
       case FLOW_TYPE.continue:
         return '继续下一轮循环';
       case FLOW_TYPE.break:
@@ -870,8 +936,6 @@ export const describeStepMeta = (step: Step) => {
         return `处理 ${step.a.target.length} 个策略集 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
       case FLOW_TYPE.handlePolicy:
         return `处理 ${step.a.target.length} 个策略 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
-      case FLOW_TYPE.addPolicies:
-        return `追加策略 ${step.a.source || '未命名'} -> ${step.a.target || '未命名'}`;
       default:
         return '流程控制';
     }

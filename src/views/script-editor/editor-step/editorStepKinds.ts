@@ -62,7 +62,22 @@ export const ACTION_MODE = {
   mixed: ACTION_MODES[4],
 } as const;
 
-export const FLOW_TYPES = ['if', 'while', 'forEach', 'repeat', 'continue', 'break', 'stopScript', 'waitMs', 'link', 'addPolicies', 'handlePolicySet', 'handlePolicy'] as const satisfies readonly FlowControl['type'][];
+export const FLOW_TYPES = [
+  'if',
+  'while',
+  'forEach',
+  'repeat',
+  'continue',
+  'break',
+  'stopScript',
+  'waitMs',
+  'link',
+  'addPolicies',
+  'bindPolicyGroup',
+  'bindPolicy',
+  'handlePolicySet',
+  'handlePolicy',
+] as const satisfies readonly FlowControl['type'][];
 export const FLOW_TYPE = {
   if: FLOW_TYPES[0],
   while: FLOW_TYPES[1],
@@ -74,8 +89,10 @@ export const FLOW_TYPE = {
   waitMs: FLOW_TYPES[7],
   link: FLOW_TYPES[8],
   addPolicies: FLOW_TYPES[9],
-  handlePolicySet: FLOW_TYPES[10],
-  handlePolicy: FLOW_TYPES[11],
+  bindPolicyGroup: FLOW_TYPES[10],
+  bindPolicy: FLOW_TYPES[11],
+  handlePolicySet: FLOW_TYPES[12],
+  handlePolicy: FLOW_TYPES[13],
 } as const;
 
 export const DATA_TYPES = ['setVar', 'getVar', 'filter', 'colorCompare', 'relativeFilter'] as const satisfies readonly DataHanding['type'][];

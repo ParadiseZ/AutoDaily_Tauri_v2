@@ -18,6 +18,12 @@ impl ScriptExecutor {
             .await?;
         let bundle = self.load_policy_bundle("flow.handlePolicySet").await?;
         let candidates = self.resolve_policy_set_candidates(&bundle, target).await?;
+        Log::debug(&format!(
+            "[ executor ] HandlePolicySet 候选展开完成: target_count={}, candidate_count={}, out_var={}",
+            target.len(),
+            candidates.len(),
+            out_var
+        ));
         self.execute_policy_candidates("flow.handlePolicySet", candidates, out_var)
             .await
     }
@@ -83,6 +89,12 @@ impl ScriptExecutor {
         self.activate_image_var("flow.handlePolicy", input_var).await?;
         let bundle = self.load_policy_bundle("flow.handlePolicy").await?;
         let candidates = Self::resolve_policy_candidates(&bundle, target)?;
+        Log::debug(&format!(
+            "[ executor ] HandlePolicy 候选展开完成: target_count={}, candidate_count={}, out_var={}",
+            target.len(),
+            candidates.len(),
+            out_var
+        ));
         self.execute_policy_candidates("flow.handlePolicy", candidates, out_var)
             .await
     }

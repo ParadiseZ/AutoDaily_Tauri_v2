@@ -175,8 +175,34 @@ impl ScriptExecutor {
                 Ok(ControlFlow::Next)
             }
             FlowControl::Link { target } => Ok(ControlFlow::Link(*target)),
-            FlowControl::AddPolicies { source, target } => {
-                self.add_policy_overlay(*source, *target).await;
+            FlowControl::AddPolicies {
+                source,
+                target,
+                top,
+                reverse,
+            } => {
+                self.execute_add_policies_binding(*source, *target, *top, *reverse)
+                    .await?;
+                Ok(ControlFlow::Next)
+            }
+            FlowControl::BindPolicyGroup {
+                source,
+                target,
+                top,
+                reverse,
+            } => {
+                self.execute_bind_policy_group_step(*source, *target, *top, *reverse)
+                    .await?;
+                Ok(ControlFlow::Next)
+            }
+            FlowControl::BindPolicy {
+                source,
+                target,
+                top,
+                reverse,
+            } => {
+                self.execute_bind_policy_step(*source, *target, *top, *reverse)
+                    .await?;
                 Ok(ControlFlow::Next)
             }
             FlowControl::HandlePolicySet {

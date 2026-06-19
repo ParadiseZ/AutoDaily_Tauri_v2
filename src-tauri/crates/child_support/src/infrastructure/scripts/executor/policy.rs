@@ -51,7 +51,9 @@ impl ScriptExecutor {
         policy_group_id: PolicyGroupId,
     ) -> ExecuteResult<PolicyExecutionResult> {
         let bundle = self.load_policy_bundle("debug.policyGroup").await?;
-        let candidates = Self::resolve_policy_group_candidates(&bundle, policy_group_id)?;
+        let candidates = self
+            .resolve_policy_group_candidates(&bundle, policy_group_id, "debug.policyGroup")
+            .await?;
         self.debug_execute_policy_candidates("策略组", candidates).await
     }
 

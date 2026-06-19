@@ -4,8 +4,8 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{
-    AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyId, PolicySetId, ScriptId,
-    StepId, TaskId, TemplateId,
+    AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId,
+    ScriptId, StepId, TaskId, TemplateId,
 };
 use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::vision::ocr_service::OcrService;
@@ -64,6 +64,26 @@ impl Default for TaskState {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolicySetBindingSource {
+    PolicySet(PolicySetId),
+    PolicyGroup(PolicyGroupId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PolicySetBindingOp {
+    pub source: PolicySetBindingSource,
+    pub top: bool,
+    pub reverse: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PolicyGroupBindingOp {
+    pub source: PolicyId,
+    pub top: bool,
+    pub reverse: bool,
+}
+
 #[derive(Debug)]
 pub struct ExecutionState {
     pub current_execution_id: Option<ExecutionId>,
@@ -93,8 +113,11 @@ pub struct ExecutionState {
     /// 动作状态（按 action step id 计数）
     pub action_states: HashMap<StepId, ActionState>,
 
-    /// 运行时策略集附加关系：target <- [source...]
-    pub policy_set_overlays: HashMap<PolicySetId, Vec<PolicySetId>>,
+    /// 运行时策略集绑定：把策略集或策略组插入到目标策略集。
+    pub policy_set_bindings: HashMap<PolicySetId, Vec<PolicySetBindingOp>>,
+
+    /// 运行时策略组绑定：把策略插入到目标策略组。
+    pub policy_group_bindings: HashMap<PolicyGroupId, Vec<PolicyGroupBindingOp>>,
 }
 
 impl ExecutionState {
@@ -116,7 +139,8 @@ impl ExecutionState {
             policy_states: HashMap::new(),
             task_states: HashMap::new(),
             action_states: HashMap::new(),
-            policy_set_overlays: HashMap::new(),
+            policy_set_bindings: HashMap::new(),
+            policy_group_bindings: HashMap::new(),
         }
     }
 }

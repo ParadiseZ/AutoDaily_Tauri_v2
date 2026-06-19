@@ -2,7 +2,9 @@ use crate::domain::scripts::nodes::data_handing::VarValue;
 use crate::domain::scripts::nodes::task_control::{StateTarget, TaskControl};
 use crate::domain::scripts::script_decision::Step;
 use crate::domain::vision::ocr_search::{LogicOp, PolicyConditionRule};
-use crate::infrastructure::core::{Deserialize, PolicyId, PolicySetId, Serialize, TaskId};
+use crate::infrastructure::core::{
+    Deserialize, PolicyGroupId, PolicyId, PolicySetId, Serialize, TaskId,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
@@ -42,6 +44,26 @@ pub enum FlowControl {
     AddPolicies {
         source: PolicySetId,
         target: PolicySetId,
+        #[serde(default)]
+        top: bool,
+        #[serde(default)]
+        reverse: bool,
+    },
+    BindPolicyGroup {
+        source: PolicyGroupId,
+        target: PolicySetId,
+        #[serde(default)]
+        top: bool,
+        #[serde(default)]
+        reverse: bool,
+    },
+    BindPolicy {
+        source: PolicyId,
+        target: PolicyGroupId,
+        #[serde(default)]
+        top: bool,
+        #[serde(default)]
+        reverse: bool,
     },
     HandlePolicySet {
         target: Vec<PolicySetId>,

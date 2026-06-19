@@ -27,7 +27,10 @@ use crate::domain::vision::ocr_search::{
     VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
-use crate::infrastructure::context::runtime_context::{SharedRuntimeContext, TaskState};
+use crate::infrastructure::context::runtime_context::{
+    PolicyGroupBindingOp, PolicySetBindingOp, PolicySetBindingSource, SharedRuntimeContext,
+    TaskState,
+};
 use crate::infrastructure::core::{
     AccountId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId, ScriptId,
     ScriptTemplateValueId, StepId, TaskId, TemplateId,

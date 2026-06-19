@@ -71,55 +71,52 @@ impl ScriptExecutor {
             .cloned()
             .map(|set| (set.id, set))
             .collect();
+        let set_group_map = Self::build_set_group_map(&bundle.set_groups);
+        let group_policy_map = Self::build_group_policy_map(&bundle.group_policies);
 
-        let overlays = {
+        let (set_bindings, group_bindings) = {
             let ctx = self.runtime_ctx.read().await;
-            ctx.execution.policy_set_overlays.clone()
+            (
+                ctx.execution.policy_set_bindings.clone(),
+                ctx.execution.policy_group_bindings.clone(),
+            )
         };
 
-        let mut expanded_targets = Vec::new();
+        let mut candidates = Vec::new();
         for set_id in target {
-            Self::collect_policy_set_targets(
+            let group_ids = Self::resolve_policy_set_group_ids(
+                "flow.handlePolicySet",
                 *set_id,
-                &overlays,
                 &set_map,
-                &mut expanded_targets,
+                &set_group_map,
+                &set_bindings,
                 &mut Vec::new(),
             )?;
-        }
+            Log::debug(&format!(
+                "[ executor ] 策略集[{}]展开后的策略组顺序: {}",
+                set_id,
+                Self::format_id_list(&group_ids)
+            ));
 
-        let mut candidates = Vec::new();
-        for set_id in &expanded_targets {
-            let mut group_relations: Vec<_> = bundle
-                .set_groups
-                .iter()
-                .filter(|relation| relation.set_id == *set_id)
-                .cloned()
-                .collect();
-            group_relations.sort_by_key(|relation| relation.order_index);
+            for group_id in group_ids {
+                let policy_ids = Self::resolve_policy_group_policy_ids(
+                    "flow.handlePolicySet",
+                    group_id,
+                    &group_map,
+                    &group_policy_map,
+                    &group_bindings,
+                )?;
+                Log::debug(&format!(
+                    "[ executor ] 策略组[{}]展开后的策略顺序: {}",
+                    group_id,
+                    Self::format_id_list(&policy_ids)
+                ));
 
-            for group_relation in group_relations {
-                if !group_map.contains_key(&group_relation.group_id) {
-                    Log::warn(&format!(
-                        "[ executor ] 策略集[{}]引用的策略组[{}]不存在，已跳过",
-                        set_id, group_relation.group_id
-                    ));
-                    continue;
-                }
-
-                let mut policy_relations: Vec<_> = bundle
-                    .group_policies
-                    .iter()
-                    .filter(|relation| relation.group_id == group_relation.group_id)
-                    .cloned()
-                    .collect();
-                policy_relations.sort_by_key(|relation| relation.order_index);
-
-                for policy_relation in policy_relations {
-                    let Some(policy) = policy_map.get(&policy_relation.policy_id) else {
+                for policy_id in policy_ids {
+                    let Some(policy) = policy_map.get(&policy_id) else {
                         Log::warn(&format!(
                             "[ executor ] 策略组[{}]引用的策略[{}]不存在，已跳过",
-                            group_relation.group_id, policy_relation.policy_id
+                            group_id, policy_id
                         ));
                         continue;
                     };
@@ -127,9 +124,9 @@ impl ScriptExecutor {
                     candidates.push(PolicyCandidate {
                         policy_set_id: Some(*set_id),
                         policy_set_name: set_map.get(set_id).map(|set| set.data.0.name.clone()),
-                        policy_group_id: Some(group_relation.group_id),
+                        policy_group_id: Some(group_id),
                         policy_group_name: group_map
-                            .get(&group_relation.group_id)
+                            .get(&group_id)
                             .map(|group| group.data.0.name.clone()),
                         policy: policy.clone(),
                     });
@@ -140,43 +137,50 @@ impl ScriptExecutor {
         Ok(candidates)
     }
 
-    fn collect_policy_set_targets(
+    fn resolve_policy_set_group_ids(
+        step_type: &str,
         set_id: PolicySetId,
-        overlays: &HashMap<PolicySetId, Vec<PolicySetId>>,
         set_map: &HashMap<PolicySetId, PolicySetTable>,
-        output: &mut Vec<PolicySetId>,
+        set_group_map: &HashMap<PolicySetId, Vec<PolicyGroupId>>,
+        set_bindings: &HashMap<PolicySetId, Vec<PolicySetBindingOp>>,
         visiting: &mut Vec<PolicySetId>,
-    ) -> ExecuteResult<()> {
+    ) -> ExecuteResult<Vec<PolicyGroupId>> {
         if !set_map.contains_key(&set_id) {
             return Err(Self::execute_error(
-                "flow.handlePolicySet",
+                step_type,
                 format!("目标策略集[{}]不存在", set_id),
             ));
         }
-
-        if output.contains(&set_id) {
-            return Ok(());
-        }
         if visiting.contains(&set_id) {
+            let mut chain = visiting.iter().map(ToString::to_string).collect::<Vec<_>>();
+            chain.push(set_id.to_string());
             return Err(Self::execute_error(
-                "flow.handlePolicySet",
-                format!("策略集追加关系存在循环: {}", set_id),
+                step_type,
+                format!("策略集绑定存在循环: {}", chain.join(" -> ")),
             ));
         }
 
         visiting.push(set_id);
-        if let Some(sources) = overlays.get(&set_id) {
-            for source in sources {
-                Self::collect_policy_set_targets(*source, overlays, set_map, output, visiting)?;
+        let mut group_ids = set_group_map.get(&set_id).cloned().unwrap_or_default();
+        if let Some(bindings) = set_bindings.get(&set_id) {
+            for binding in bindings {
+                let source_ids = match binding.source {
+                    PolicySetBindingSource::PolicySet(source_set_id) => Self::resolve_policy_set_group_ids(
+                        step_type,
+                        source_set_id,
+                        set_map,
+                        set_group_map,
+                        set_bindings,
+                        visiting,
+                    )?,
+                    PolicySetBindingSource::PolicyGroup(source_group_id) => vec![source_group_id],
+                };
+                Self::merge_bound_items(&mut group_ids, source_ids, binding.top, binding.reverse);
             }
         }
         visiting.pop();
 
-        if !output.contains(&set_id) {
-            output.push(set_id);
-        }
-
-        Ok(())
+        Ok(group_ids)
     }
 
     fn resolve_policy_candidates(
@@ -211,41 +215,49 @@ impl ScriptExecutor {
         Ok(candidates)
     }
 
-    fn resolve_policy_group_candidates(
+    async fn resolve_policy_group_candidates(
+        &self,
         bundle: &PolicyBundle,
         group_id: PolicyGroupId,
+        step_type: &str,
     ) -> ExecuteResult<Vec<PolicyCandidate>> {
-        let group_exists = bundle.policy_groups.iter().any(|group| group.id == group_id);
-        if !group_exists {
-            return Err(Self::execute_error(
-                "debug.policyGroup",
-                format!("目标策略组[{}]不存在", group_id),
-            ));
-        }
-
+        let group_map: HashMap<PolicyGroupId, PolicyGroupTable> = bundle
+            .policy_groups
+            .iter()
+            .cloned()
+            .map(|group| (group.id, group))
+            .collect();
         let policy_map: HashMap<PolicyId, PolicyTable> = bundle
             .policies
             .iter()
             .cloned()
             .map(|policy| (policy.id, policy))
             .collect();
-        let mut policy_relations: Vec<_> = bundle
-            .group_policies
-            .iter()
-            .filter(|relation| relation.group_id == group_id)
-            .cloned()
-            .collect();
-        policy_relations.sort_by_key(|relation| relation.order_index);
+        let group_policy_map = Self::build_group_policy_map(&bundle.group_policies);
+        let group_bindings = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.execution.policy_group_bindings.clone()
+        };
+
+        let policy_ids = Self::resolve_policy_group_policy_ids(
+            step_type,
+            group_id,
+            &group_map,
+            &group_policy_map,
+            &group_bindings,
+        )?;
+        Log::debug(&format!(
+            "[ executor ] 策略组[{}]展开后的策略顺序: {}",
+            group_id,
+            Self::format_id_list(&policy_ids)
+        ));
 
         let mut candidates = Vec::new();
-        for policy_relation in policy_relations {
-            let Some(policy) = policy_map.get(&policy_relation.policy_id) else {
+        for policy_id in policy_ids {
+            let Some(policy) = policy_map.get(&policy_id) else {
                 return Err(Self::execute_error(
-                    "debug.policyGroup",
-                    format!(
-                        "策略组[{}]引用的策略[{}]不存在",
-                        group_id, policy_relation.policy_id
-                    ),
+                    step_type,
+                    format!("策略组[{}]引用的策略[{}]不存在", group_id, policy_id),
                 ));
             };
 
@@ -253,15 +265,308 @@ impl ScriptExecutor {
                 policy_set_id: None,
                 policy_set_name: None,
                 policy_group_id: Some(group_id),
-                policy_group_name: bundle
-                    .policy_groups
-                    .iter()
-                    .find(|group| group.id == group_id)
+                policy_group_name: group_map
+                    .get(&group_id)
                     .map(|group| group.data.0.name.clone()),
                 policy: policy.clone(),
             });
         }
 
         Ok(candidates)
+    }
+
+    fn resolve_policy_group_policy_ids(
+        step_type: &str,
+        group_id: PolicyGroupId,
+        group_map: &HashMap<PolicyGroupId, PolicyGroupTable>,
+        group_policy_map: &HashMap<PolicyGroupId, Vec<PolicyId>>,
+        group_bindings: &HashMap<PolicyGroupId, Vec<PolicyGroupBindingOp>>,
+    ) -> ExecuteResult<Vec<PolicyId>> {
+        if !group_map.contains_key(&group_id) {
+            return Err(Self::execute_error(
+                step_type,
+                format!("目标策略组[{}]不存在", group_id),
+            ));
+        }
+
+        let mut policy_ids = group_policy_map.get(&group_id).cloned().unwrap_or_default();
+        if let Some(bindings) = group_bindings.get(&group_id) {
+            for binding in bindings {
+                Self::merge_bound_items(
+                    &mut policy_ids,
+                    vec![binding.source],
+                    binding.top,
+                    binding.reverse,
+                );
+            }
+        }
+
+        Ok(policy_ids)
+    }
+
+    fn build_set_group_map(
+        relations: &[SetGroupRelation],
+    ) -> HashMap<PolicySetId, Vec<PolicyGroupId>> {
+        let mut relation_map: HashMap<PolicySetId, Vec<SetGroupRelation>> = HashMap::new();
+        for relation in relations {
+            relation_map
+                .entry(relation.set_id)
+                .or_default()
+                .push(relation.clone());
+        }
+
+        relation_map
+            .into_iter()
+            .map(|(set_id, mut items)| {
+                items.sort_by_key(|relation| relation.order_index);
+                (
+                    set_id,
+                    items.into_iter().map(|relation| relation.group_id).collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn build_group_policy_map(
+        relations: &[GroupPolicyRelation],
+    ) -> HashMap<PolicyGroupId, Vec<PolicyId>> {
+        let mut relation_map: HashMap<PolicyGroupId, Vec<GroupPolicyRelation>> = HashMap::new();
+        for relation in relations {
+            relation_map
+                .entry(relation.group_id)
+                .or_default()
+                .push(relation.clone());
+        }
+
+        relation_map
+            .into_iter()
+            .map(|(group_id, mut items)| {
+                items.sort_by_key(|relation| relation.order_index);
+                (
+                    group_id,
+                    items.into_iter().map(|relation| relation.policy_id).collect(),
+                )
+            })
+            .collect()
+    }
+
+    fn merge_bound_items<T>(target: &mut Vec<T>, mut source: Vec<T>, top: bool, reverse: bool)
+    where
+        T: Copy,
+    {
+        if reverse {
+            source.reverse();
+        }
+        if top {
+            source.extend(target.iter().copied());
+            *target = source;
+            return;
+        }
+        target.extend(source);
+    }
+
+    fn format_id_list<T>(items: &[T]) -> String
+    where
+        T: ToString,
+    {
+        if items.is_empty() {
+            return "<empty>".to_string();
+        }
+        items.iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" -> ")
+    }
+}
+
+#[cfg(test)]
+mod policy_binding_resolution_tests {
+    use super::*;
+
+    fn set_id() -> PolicySetId {
+        PolicySetId::new_v7()
+    }
+
+    fn group_id() -> PolicyGroupId {
+        PolicyGroupId::new_v7()
+    }
+
+    fn policy_id() -> PolicyId {
+        PolicyId::new_v7()
+    }
+
+    #[test]
+    fn resolves_policy_set_bindings_with_top_and_reverse() {
+        let set_a = set_id();
+        let set_b = set_id();
+        let group_a = group_id();
+        let group_b = group_id();
+        let group_c = group_id();
+        let group_d = group_id();
+
+        let mut set_map = HashMap::new();
+        set_map.insert(
+            set_a,
+            PolicySetTable {
+                id: set_a,
+                script_id: ScriptId::new_v7(),
+                order_index: 0,
+                data: SqlJson(crate::domain::scripts::policy::PolicySetInfo {
+                    name: "A".to_string(),
+                    note: String::new(),
+                }),
+            },
+        );
+        set_map.insert(
+            set_b,
+            PolicySetTable {
+                id: set_b,
+                script_id: ScriptId::new_v7(),
+                order_index: 1,
+                data: SqlJson(crate::domain::scripts::policy::PolicySetInfo {
+                    name: "B".to_string(),
+                    note: String::new(),
+                }),
+            },
+        );
+
+        let mut set_group_map = HashMap::new();
+        set_group_map.insert(set_a, vec![group_a, group_b]);
+        set_group_map.insert(set_b, vec![group_c]);
+
+        let mut bindings = HashMap::new();
+        bindings.insert(
+            set_a,
+            vec![
+                PolicySetBindingOp {
+                    source: PolicySetBindingSource::PolicyGroup(group_d),
+                    top: true,
+                    reverse: false,
+                },
+                PolicySetBindingOp {
+                    source: PolicySetBindingSource::PolicySet(set_b),
+                    top: true,
+                    reverse: true,
+                },
+            ],
+        );
+
+        let resolved = ScriptExecutor::resolve_policy_set_group_ids(
+            "test.policySet",
+            set_a,
+            &set_map,
+            &set_group_map,
+            &bindings,
+            &mut Vec::new(),
+        )
+        .expect("policy set bindings should resolve");
+
+        assert_eq!(resolved, vec![group_c, group_d, group_a, group_b]);
+    }
+
+    #[test]
+    fn detects_policy_set_binding_cycle() {
+        let set_a = set_id();
+        let set_b = set_id();
+
+        let mut set_map = HashMap::new();
+        for (id, order_index, name) in [(set_a, 0, "A"), (set_b, 1, "B")] {
+            set_map.insert(
+                id,
+                PolicySetTable {
+                    id,
+                    script_id: ScriptId::new_v7(),
+                    order_index,
+                    data: SqlJson(crate::domain::scripts::policy::PolicySetInfo {
+                        name: name.to_string(),
+                        note: String::new(),
+                    }),
+                },
+            );
+        }
+
+        let set_group_map = HashMap::new();
+        let mut bindings = HashMap::new();
+        bindings.insert(
+            set_a,
+            vec![PolicySetBindingOp {
+                source: PolicySetBindingSource::PolicySet(set_b),
+                top: false,
+                reverse: false,
+            }],
+        );
+        bindings.insert(
+            set_b,
+            vec![PolicySetBindingOp {
+                source: PolicySetBindingSource::PolicySet(set_a),
+                top: false,
+                reverse: false,
+            }],
+        );
+
+        let error = ScriptExecutor::resolve_policy_set_group_ids(
+            "test.policySet",
+            set_a,
+            &set_map,
+            &set_group_map,
+            &bindings,
+            &mut Vec::new(),
+        )
+        .expect_err("cycle should be rejected");
+
+        assert!(error.to_string().contains("策略集绑定存在循环"));
+    }
+
+    #[test]
+    fn resolves_policy_group_bindings_with_top_and_reverse() {
+        let group_a = group_id();
+        let policy_a = policy_id();
+        let policy_b = policy_id();
+        let policy_c = policy_id();
+
+        let mut group_map = HashMap::new();
+        group_map.insert(
+            group_a,
+            PolicyGroupTable {
+                id: group_a,
+                script_id: ScriptId::new_v7(),
+                order_index: 0,
+                data: SqlJson(crate::domain::scripts::policy::PolicyGroupInfo {
+                    name: "G".to_string(),
+                    note: String::new(),
+                }),
+            },
+        );
+
+        let mut group_policy_map = HashMap::new();
+        group_policy_map.insert(group_a, vec![policy_a]);
+
+        let mut bindings = HashMap::new();
+        bindings.insert(
+            group_a,
+            vec![
+                PolicyGroupBindingOp {
+                    source: policy_b,
+                    top: false,
+                    reverse: false,
+                },
+                PolicyGroupBindingOp {
+                    source: policy_c,
+                    top: true,
+                    reverse: true,
+                },
+            ],
+        );
+
+        let resolved = ScriptExecutor::resolve_policy_group_policy_ids(
+            "test.policyGroup",
+            group_a,
+            &group_map,
+            &group_policy_map,
+            &bindings,
+        )
+        .expect("policy group bindings should resolve");
+
+        assert_eq!(resolved, vec![policy_c, policy_a, policy_b]);
     }
 }

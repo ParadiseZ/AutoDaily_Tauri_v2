@@ -77,6 +77,104 @@
       </div>
     </template>
 
+    <template
+      v-else-if="
+        selectedFlow.type === FLOW_TYPE.addPolicies ||
+        selectedFlow.type === FLOW_TYPE.bindPolicyGroup ||
+        selectedFlow.type === FLOW_TYPE.bindPolicy
+      "
+    >
+      <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+        <div class="grid gap-4 xl:grid-cols-2">
+          <div class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">{{ bindingSourceTitle }}</span>
+            <EditorSelectField
+              :model-value="bindingSourceId || null"
+              :options="bindingSourceReferenceOptions"
+              :placeholder="bindingSourcePlaceholder"
+              :test-id="bindingSourceTestId"
+              @update:model-value="$emit('update-field', 'source', String($event || ''))"
+            />
+            <div class="flex flex-wrap gap-2">
+              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createBindingSourceReference">
+                <AppIcon name="plus" :size="14" />
+                新建
+              </button>
+              <button
+                class="app-button app-button-ghost app-toolbar-button"
+                type="button"
+                :disabled="!bindingSourceId"
+                @click="jumpToBindingSource"
+              >
+                <AppIcon name="locate-fixed" :size="14" />
+                定位
+              </button>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">{{ bindingTargetTitle }}</span>
+            <EditorSelectField
+              :model-value="bindingTargetId || null"
+              :options="bindingTargetReferenceOptions"
+              :placeholder="bindingTargetPlaceholder"
+              :test-id="bindingTargetTestId"
+              @update:model-value="$emit('update-field', 'target', String($event || ''))"
+            />
+            <div class="flex flex-wrap gap-2">
+              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createBindingTargetReference">
+                <AppIcon name="plus" :size="14" />
+                新建
+              </button>
+              <button
+                class="app-button app-button-ghost app-toolbar-button"
+                type="button"
+                :disabled="!bindingTargetId"
+                @click="jumpToBindingTarget"
+              >
+                <AppIcon name="locate-fixed" :size="14" />
+                定位
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
+          <input
+            :checked="bindingTopValue"
+            type="checkbox"
+            class="h-4 w-4"
+            :data-testid="bindingTopTestId"
+            style="accent-color: var(--app-accent)"
+            @change="$emit('update-boolean-field', 'top', ($event.target as HTMLInputElement).checked)"
+          />
+          <div class="space-y-1">
+            <p class="text-sm font-medium text-(--app-text-strong)">添加到顶部</p>
+            <p class="text-xs leading-6 text-(--app-text-soft)">开启后，源对象会插到目标对象当前顺序的最前面。</p>
+          </div>
+        </label>
+
+        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
+          <input
+            :checked="bindingReverseValue"
+            type="checkbox"
+            class="h-4 w-4"
+            :data-testid="bindingReverseTestId"
+            style="accent-color: var(--app-accent)"
+            @change="$emit('update-boolean-field', 'reverse', ($event.target as HTMLInputElement).checked)"
+          />
+          <div class="space-y-1">
+            <p class="text-sm font-medium text-(--app-text-strong)">插入前反转</p>
+            <p class="text-xs leading-6 text-(--app-text-soft)">{{ bindingReverseDescription }}</p>
+          </div>
+        </label>
+
+        <div class="rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-xs leading-6 text-(--app-text-soft)">
+          {{ bindingHelpText }}
+        </div>
+      </div>
+    </template>
+
     <template v-else-if="selectedFlow.type === FLOW_TYPE.handlePolicySet || selectedFlow.type === FLOW_TYPE.handlePolicy">
       <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <div class="space-y-2">
@@ -125,7 +223,7 @@
         </div>
 
         <div v-else class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
-          还没有绑定策略集，运行时不会执行任何匹配。
+          {{ emptyTargetText }}
         </div>
 
         <div class="grid gap-4 xl:grid-cols-2">
@@ -350,11 +448,17 @@ import { FLOW_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { isSameBranchPath, type StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
 import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
+type BindingFlow = Extract<
+  FlowControl,
+  { type: 'addPolicies' } | { type: 'bindPolicyGroup' } | { type: 'bindPolicy' }
+>;
+
 defineOptions({ name: 'EditorStepFlowPanel' });
 
 const emit = defineEmits<{
   'update-number-field': [field: string, value: string];
   'update-field': [field: string, value: string];
+  'update-boolean-field': [field: string, value: boolean];
   'update-flow-type': [type: string];
   'update-flow-condition': [condition: ConditionNode];
   'toggle-else-branch': [];
@@ -440,6 +544,119 @@ const waitBindingMode = computed(() => {
     return 'input';
   }
   return 'fixed';
+});
+const isBindingFlow = computed(
+  () =>
+    props.selectedFlow.type === FLOW_TYPE.addPolicies ||
+    props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup ||
+    props.selectedFlow.type === FLOW_TYPE.bindPolicy,
+);
+const bindingFlow = computed<BindingFlow | null>(() =>
+  isBindingFlow.value ? (props.selectedFlow as BindingFlow) : null,
+);
+const bindingSourceKind = computed<EditorReferenceKind | null>(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'policySet';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'policyGroup';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'policy';
+  return null;
+});
+const bindingTargetKind = computed<EditorReferenceKind | null>(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'policySet';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'policySet';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'policyGroup';
+  return null;
+});
+const bindingSourceId = computed(() => bindingFlow.value?.source ?? '');
+const bindingTargetId = computed(() => bindingFlow.value?.target ?? '');
+const bindingTopValue = computed(() => Boolean(bindingFlow.value?.top));
+const bindingReverseValue = computed(() => Boolean(bindingFlow.value?.reverse));
+const bindingSourceTitle = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return '源策略集';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return '源策略组';
+  return '源策略';
+});
+const bindingTargetTitle = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return '目标策略组';
+  return '目标策略集';
+});
+const bindingSourcePlaceholder = computed(() => `选择${bindingSourceTitle.value}`);
+const bindingTargetPlaceholder = computed(() => `选择${bindingTargetTitle.value}`);
+const bindingSourceTestId = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-source';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-source';
+  return 'editor-flow-bind-policy-source';
+});
+const bindingTargetTestId = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-target';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-target';
+  return 'editor-flow-bind-policy-target';
+});
+const bindingTopTestId = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-top';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-top';
+  return 'editor-flow-bind-policy-top';
+});
+const bindingReverseTestId = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-reverse';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-reverse';
+  return 'editor-flow-bind-policy-reverse';
+});
+const bindingReverseDescription = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) {
+    return '会先按源策略集当前顺序展开策略组，再整体反转后插入目标策略集。';
+  }
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) {
+    return '单个策略组本身不会变成多个对象，但保留这个开关以统一绑定语义。';
+  }
+  return '单个策略本身不会变成多个对象，但保留这个开关以统一绑定语义。';
+});
+const bindingHelpText = computed(() => {
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) {
+    return '运行时会读取源策略集当前可见的策略组顺序，再按 top / reverse 规则插入到目标策略集。后续处理目标策略集时会直接使用这份展开结果。';
+  }
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) {
+    return '运行时会把源策略组插入目标策略集。若源策略组之后又被追加了策略，目标策略集在执行时也会读到最新顺序。';
+  }
+  return '运行时会把源策略插入目标策略组。后续处理引用该策略组的策略集时，会使用插入后的最终策略顺序。';
+});
+const resolveReferenceOptions = (
+  currentId: string,
+  options: EditorReferenceOption[],
+  unresolvedLabel: string,
+) => {
+  if (!currentId || options.some((option) => option.value === currentId)) {
+    return options;
+  }
+
+  return [
+    {
+      label: `当前绑定不存在：${currentId}`,
+      value: currentId,
+      description: unresolvedLabel,
+    },
+    ...options,
+  ];
+};
+const bindingSourceReferenceOptions = computed(() => {
+  if (bindingSourceKind.value === 'policySet') {
+    return resolveReferenceOptions(bindingSourceId.value, props.policySetReferenceOptions, '策略集目录里找不到该源绑定，保存时仍会保留当前值。');
+  }
+  if (bindingSourceKind.value === 'policyGroup') {
+    return resolveReferenceOptions(bindingSourceId.value, props.policyGroupReferenceOptions, '策略组目录里找不到该源绑定，保存时仍会保留当前值。');
+  }
+  if (bindingSourceKind.value === 'policy') {
+    return resolveReferenceOptions(bindingSourceId.value, props.policyReferenceOptions, '策略目录里找不到该源绑定，保存时仍会保留当前值。');
+  }
+  return [];
+});
+const bindingTargetReferenceOptions = computed(() => {
+  if (bindingTargetKind.value === 'policySet') {
+    return resolveReferenceOptions(bindingTargetId.value, props.policySetReferenceOptions, '策略集目录里找不到该目标绑定，保存时仍会保留当前值。');
+  }
+  if (bindingTargetKind.value === 'policyGroup') {
+    return resolveReferenceOptions(bindingTargetId.value, props.policyGroupReferenceOptions, '策略组目录里找不到该目标绑定，保存时仍会保留当前值。');
+  }
+  return [];
 });
 const selectedFlowInput = computed(() =>
   props.selectedFlow.type === FLOW_TYPE.handlePolicySet || props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.input_var : '',
@@ -595,12 +812,45 @@ const resolvedTargets = computed(() => {
 
   return [];
 });
+const emptyTargetText = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '还没有绑定策略集，运行时不会执行任何匹配。' : '还没有绑定策略，运行时不会执行任何匹配。',
+);
 const targetTitle = computed(() => (props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '目标策略集' : '目标策略'));
 const targetPlaceholder = computed(() => (props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '选择策略集后添加' : '选择策略后添加'));
 
 const createTaskReferenceAndBind = async () => {
   const id = await props.createReference('task');
   emit('update-field', 'target', id);
+};
+
+const createBindingSourceReference = async () => {
+  if (!bindingSourceKind.value) {
+    return;
+  }
+  const id = await props.createReference(bindingSourceKind.value);
+  emit('update-field', 'source', id);
+};
+
+const createBindingTargetReference = async () => {
+  if (!bindingTargetKind.value) {
+    return;
+  }
+  const id = await props.createReference(bindingTargetKind.value);
+  emit('update-field', 'target', id);
+};
+
+const jumpToBindingSource = () => {
+  if (!bindingSourceKind.value || !bindingSourceId.value) {
+    return;
+  }
+  props.jumpToReference(bindingSourceKind.value, bindingSourceId.value);
+};
+
+const jumpToBindingTarget = () => {
+  if (!bindingTargetKind.value || !bindingTargetId.value) {
+    return;
+  }
+  props.jumpToReference(bindingTargetKind.value, bindingTargetId.value);
 };
 
 const jumpToLinkedTask = () => {
