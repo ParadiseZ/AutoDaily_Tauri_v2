@@ -1,6 +1,7 @@
 use crate::infrastructure::adb_cli_local::adb_command::{
-    click_cmd, input_text_cmd, long_click_and_swipe, long_click_cmd, sleep_cmd, stop_app_cmd,
-    swipe_cmd, swipe_duration_cmd, ADBCmdConv, ADBCommand, ADBCommandResult, BACK, HOME,
+    click_cmd, input_text_cmd, long_click_and_swipe, long_click_cmd, sleep_cmd, start_activity_cmd,
+    stop_app_cmd, swipe_cmd, swipe_duration_cmd, ADBCmdConv, ADBCommand, ADBCommandResult, BACK,
+    HOME,
 };
 use crate::infrastructure::adb_cli_local::adb_config::ADBConnectConfig;
 use crate::infrastructure::adb_cli_local::adb_error::{AdbError, AdbResult};
@@ -357,7 +358,7 @@ impl ADBExecutor {
                     cmd_string.push_str(" &&");
                 }
                 ADBCommand::StartActivity(package_name, activity_name) => {
-                    cmd_string.push_str(&format!("am start -n {}/{}", package_name, activity_name));
+                    cmd_string.push_str(&start_activity_cmd(package_name, activity_name));
                     cmd_string.push_str(" &&");
                 }
                 ADBCommand::InputText(text) => {
@@ -598,17 +599,8 @@ impl ADBExecutor {
                     .await
             }
             ADBCommand::StartActivity(package_name, activity_name) => {
-                if let Some(device) = self.device.as_mut() {
-                    let res = device
-                        .run_activity(package_name, activity_name)
-                        .map(|_| ADBCommandResult::Success)
-                        .unwrap_or_else(|error| ADBCommandResult::Failed(error.to_string()));
-                    Ok(res)
-                } else {
-                    Err(AdbError::ConfigErr {
-                        detail: "[ ADBExecutor ] 设备未连接：ADBDeviceExt为空".to_string(),
-                    })
-                }
+                self.execute_shell(&start_activity_cmd(package_name, activity_name))
+                    .await
             }
             ADBCommand::Capture(_) => Err(AdbError::ConfigErr {
                 detail: "[ ADBExecutor ] 错误路径：截图指令应在单独命令通道中处理".to_string(),

@@ -25,6 +25,22 @@ impl ScriptExecutor {
             .map(Self::build_page_fingerprint)
     }
 
+    fn should_attach_page_fingerprint(evidence_signature: &str) -> bool {
+        evidence_signature.starts_with("vision.")
+            || evidence_signature.starts_with("flow.handlePolicy")
+            || evidence_signature.starts_with("data.relativeFilter")
+            || evidence_signature.starts_with("data.colorCompare")
+            || evidence_signature.starts_with("debug.policy")
+    }
+
+    async fn resolve_evidence_page_fingerprint(&self, evidence_signature: &str) -> Option<String> {
+        if Self::should_attach_page_fingerprint(evidence_signature) {
+            self.current_page_fingerprint().await
+        } else {
+            None
+        }
+    }
+
     async fn observe_refresh_hook(
         &self,
         action: &Action,
@@ -57,10 +73,9 @@ impl ScriptExecutor {
             return Ok(None);
         };
 
-        let page_fingerprint = self.current_page_fingerprint().await;
         self.evaluate_progress_probe(
             runtime_policy,
-            page_fingerprint,
+            None,
             action_trace.signature.clone(),
             format!("动作后观测点: {:?}", action),
         )
@@ -105,9 +120,8 @@ impl ScriptExecutor {
             return Ok(None);
         }
 
-        let timeout_elapsed =
-            now.duration_since(probe.stagnant_since)
-                >= Duration::from_millis(runtime_policy.progress_timeout_ms);
+        let timeout_elapsed = now.duration_since(probe.stagnant_since)
+            >= Duration::from_millis(runtime_policy.progress_timeout_ms);
 
         if !timeout_elapsed || already_notified {
             self.last_progress_probe = Some(probe);
@@ -149,11 +163,15 @@ impl ScriptExecutor {
         let Some(runtime_policy) = get_runtime_execution_policy().await else {
             return Ok(None);
         };
+        let evidence_signature = evidence_signature.into();
+        let page_fingerprint = self
+            .resolve_evidence_page_fingerprint(&evidence_signature)
+            .await;
 
         self.evaluate_progress_probe(
             &runtime_policy,
-            self.current_page_fingerprint().await,
-            evidence_signature.into(),
+            page_fingerprint,
+            evidence_signature,
             detail.into(),
         )
         .await
@@ -242,8 +260,12 @@ impl ScriptExecutor {
         let timeout_message = format!(
             "[timeout] action={:?}; page={}; signature={}; {}",
             timeout_action,
-            page_fingerprint.clone().unwrap_or_else(|| "<none>".to_string()),
-            action_signature.clone().unwrap_or_else(|| "<none>".to_string()),
+            page_fingerprint
+                .clone()
+                .unwrap_or_else(|| "<none>".to_string()),
+            action_signature
+                .clone()
+                .unwrap_or_else(|| "<none>".to_string()),
             message
         );
         emit_progress_event(
