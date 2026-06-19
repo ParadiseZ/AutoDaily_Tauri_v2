@@ -7,83 +7,88 @@
       'app-rule-card-group': currentRule.type === SEARCH_RULE_TYPE.group,
     }"
   >
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="min-w-0 flex-1 space-y-1">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="app-rule-badge">{{ headerLabel }}</span>
-          <span class="truncate text-xs text-(--app-text-faint)">{{ describeSearchRule(currentRule) }}</span>
-        </div>
+    <div class="flex flex-wrap items-center justify-between gap-3 w-full">
+      <div class="flex flex-wrap items-center gap-3 flex-1 min-w-0">
+        <span class="app-rule-badge shrink-0">{{ headerLabel }}</span>
 
-        <div v-if="!isRootGroup" class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+        <div v-if="!isRootGroup" class="flex flex-wrap items-center gap-3 flex-1 min-w-0">
           <EditorSelectField
             :model-value="currentRule.type"
             :options="searchRuleTypeOptions"
             placeholder="规则类型"
-            class="min-w-[180px]"
+            class="shrink-0"
             :test-id="rootTestId('type')"
             @update:model-value="changeType(String($event || SEARCH_RULE_TYPE.txt))"
           />
+
+          <!-- 行内输入框，使布局更紧凑 -->
+          <div v-if="currentRule.type !== SEARCH_RULE_TYPE.group" class="flex-1 min-w-[150px] max-w-[400px]">
+            <input
+              v-if="currentRule.type === SEARCH_RULE_TYPE.txt"
+              :value="currentRule.pattern"
+              class="app-input"
+              placeholder="请输入文本"
+              :data-testid="rootTestId('txt')"
+              @input="replaceRule({ ...currentRule, pattern: ($event.target as HTMLInputElement).value })"
+            />
+            <input
+              v-else-if="currentRule.type === SEARCH_RULE_TYPE.detLabel"
+              :value="String(currentRule.idx)"
+              class="app-input"
+              type="number"
+              placeholder="标签索引"
+              :data-testid="rootTestId('det-label-idx')"
+              @input="replaceRule({ ...currentRule, idx: Number(($event.target as HTMLInputElement).value) || 0 })"
+            />
+          </div>
         </div>
+
+        <span v-else-if="currentRule.type === SEARCH_RULE_TYPE.group" class="truncate text-xs text-(--app-text-faint)">
+          {{ describeSearchRule(currentRule) }}
+        </span>
       </div>
 
-      <button v-if="removable && !isRootGroup" class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove')">
-        删除规则
+      <button
+        v-if="removable && !isRootGroup"
+        class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
+        type="button"
+        title="删除"
+        aria-label="删除"
+        @click="$emit('remove')"
+      >
+        <Trash2 class="h-4 w-4" />
       </button>
     </div>
 
-    <div class="mt-4 space-y-3">
-      <template v-if="currentRule.type === SEARCH_RULE_TYPE.txt">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">文本</span>
-          <input
-            :value="currentRule.pattern"
-            class="app-input"
-            :data-testid="rootTestId('txt')"
-            @input="replaceRule({ ...currentRule, pattern: ($event.target as HTMLInputElement).value })"
+    <!-- 逻辑组自身的配置与子规则列表 -->
+    <div v-if="currentRule.type === SEARCH_RULE_TYPE.group" class="mt-4 space-y-3">
+      <!-- 逻辑组自身的配置区域，直接平铺于卡片中 -->
+      <div class="flex flex-wrap items-start gap-x-6 gap-y-4">
+        <label class="space-y-2 shrink-0">
+          <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
+          <EditorSelectField
+            :model-value="currentRule.op"
+            :options="logicOpOptions"
+            placeholder="组合逻辑"
+            :test-id="rootTestId('logic-op')"
+            @update:model-value="updateGroupField('op', String($event || LOGIC_OP.And))"
           />
         </label>
-      </template>
 
-      <template v-else-if="currentRule.type === SEARCH_RULE_TYPE.detLabel">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签索引</span>
-          <input
-            :value="String(currentRule.idx)"
-            class="app-input"
-            type="number"
-            :data-testid="rootTestId('det-label-idx')"
-            @input="replaceRule({ ...currentRule, idx: Number(($event.target as HTMLInputElement).value) || 0 })"
+        <label class="space-y-2 shrink-0">
+          <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">作用域</span>
+          <EditorSelectField
+            :model-value="currentRule.scope"
+            :options="searchScopeOptions"
+            placeholder="作用域"
+            :test-id="rootTestId('scope')"
+            @update:model-value="updateGroupField('scope', String($event || SEARCH_SCOPE.Global))"
           />
         </label>
-      </template>
 
-      <template v-else-if="currentRule.type === SEARCH_RULE_TYPE.group">
-        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-          <div class="editor-inline-grid">
-            <div class="editor-inline-label">组合逻辑</div>
-            <div class="editor-inline-content">
-              <EditorSelectField
-                :model-value="currentRule.op"
-                :options="logicOpOptions"
-                placeholder="组合逻辑"
-                :test-id="rootTestId('logic-op')"
-                @update:model-value="updateGroupField('op', String($event || LOGIC_OP.And))"
-              />
-            </div>
-
-            <div class="editor-inline-label">作用域</div>
-            <div class="editor-inline-content">
-              <EditorSelectField
-                :model-value="currentRule.scope"
-                :options="searchScopeOptions"
-                placeholder="作用域"
-                :test-id="rootTestId('scope')"
-                @update:model-value="updateGroupField('scope', String($event || SEARCH_SCOPE.Global))"
-              />
-            </div>
-          </div>
-
-          <div class="mt-4 flex flex-wrap gap-2">
+        <div class="space-y-2 flex-1 min-w-[240px]">
+          <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint) block">添加项</span>
+          <div class="flex flex-wrap items-center gap-2">
             <button
               v-for="option in addableRuleTypes"
               :key="option.value"
@@ -91,32 +96,34 @@
               type="button"
               @click="addGroupItem(String(option.value))"
             >
-              添加{{ option.label }}
+              {{ option.label }}
             </button>
           </div>
         </div>
+      </div>
 
-        <div class="space-y-3">
-          <EditorSearchRuleBuilder
-            v-for="(item, index) in currentRule.items"
-            :key="`${item.type}-${index}`"
-            :model-value="item"
-            :depth="depth + 1"
-            :test-id-prefix="rootTestId(`item-${index}`)"
-            removable
-            @update:model-value="updateGroupItem(index, $event)"
-            @remove="removeGroupItem(index)"
-          />
-        </div>
+      <!-- 子规则列表与父级配置之间由分割线清晰隔开 -->
+      <div v-if="currentRule.items.length" class="border-t border-(--app-border) my-4 pt-4 space-y-3">
+        <EditorSearchRuleBuilder
+          v-for="(item, index) in currentRule.items"
+          :key="`${item.type}-${index}`"
+          :model-value="item"
+          :depth="depth + 1"
+          :test-id-prefix="rootTestId(`item-${index}`)"
+          removable
+          @update:model-value="updateGroupItem(index, $event)"
+          @remove="removeGroupItem(index)"
+        />
+      </div>
 
-        <EmptyState v-if="!currentRule.items.length" title="还没有子规则" description="先在当前逻辑组里添加文本、标签或子组。" />
-      </template>
+      <EmptyState v-else title="还没有子规则" description="先在当前逻辑组里添加文本、标签或子组。" class="mt-4" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Trash2 } from 'lucide-vue-next';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { SearchRule } from '@/types/bindings/SearchRule';
@@ -224,16 +231,6 @@ const removeGroupItem = (index: number) => {
   background: rgba(255, 255, 255, 0.56);
 }
 
-.app-rule-card-nested::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  bottom: 14px;
-  left: -10px;
-  width: 2px;
-  border-radius: 999px;
-  background: rgba(70, 110, 255, 0.18);
-}
 
 .app-rule-card-root {
   border-style: solid;
@@ -242,6 +239,7 @@ const removeGroupItem = (index: number) => {
 }
 
 .app-rule-card-group {
+  border-left: 4px solid var(--app-accent);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 248, 255, 0.7)),
     color-mix(in srgb, var(--app-panel-muted) 88%, white);

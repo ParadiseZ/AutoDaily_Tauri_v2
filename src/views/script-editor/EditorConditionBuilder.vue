@@ -1,5 +1,11 @@
 <template>
-  <div class="app-rule-card" :class="{ 'app-rule-card-nested': depth > 0 }">
+  <div
+    class="app-rule-card"
+    :class="{
+      'app-rule-card-nested': depth > 0,
+      'app-rule-card-group': modelValue.type === 'group'
+    }"
+  >
     <div class="flex flex-wrap items-center justify-between gap-3">
       <EditorSelectField
           :model-value="modelValue.type"
@@ -12,11 +18,13 @@
 
       <button
         v-if="removable"
-        class="app-button app-button-danger app-toolbar-button"
+        class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
         type="button"
+        title="删除"
+        aria-label="删除"
         @click="$emit('remove')"
       >
-        删除条件
+        <Trash2 class="h-4 w-4" />
       </button>
     </div>
 
@@ -34,30 +42,35 @@
       </template>
 
       <template v-else-if="modelValue.type === 'group'">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
-          <EditorSelectField
-            :model-value="modelValue.op"
-            :options="logicOpOptions"
-            placeholder="组合逻辑"
-            :test-id="rootTestId('logic-op')"
-            @update:model-value="updateGroupOp(String($event || 'And'))"
-          />
-        </label>
+        <!-- 逻辑组自身的配置与控制区域 -->
+        <div class="space-y-4">
+          <label class="space-y-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
+            <EditorSelectField
+              :model-value="modelValue.op"
+              :options="logicOpOptions"
+              placeholder="组合逻辑"
+              :test-id="rootTestId('logic-op')"
+              @update:model-value="updateGroupOp(String($event || 'And'))"
+            />
+          </label>
 
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="option in addableConditionTypes"
-            :key="option.value"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            @click="addGroupItem(option.value)"
-          >
-            添加{{ option.label }}
-          </button>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint) mr-1">添加项:</span>
+            <button
+              v-for="option in addableConditionTypes"
+              :key="option.value"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              @click="addGroupItem(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
         </div>
 
-        <div class="space-y-3">
+        <!-- 子条件列表与父级配置之间由分割线清晰隔开 -->
+        <div v-if="modelValue.items.length" class="border-t border-(--app-border) my-4 pt-4 space-y-3">
           <EditorConditionBuilder
             v-for="(item, index) in modelValue.items"
             :key="`${item.type}-${index}`"
@@ -81,7 +94,7 @@
           />
         </div>
 
-        <div v-if="!modelValue.items.length" class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-faint)">
+        <div v-else class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-faint) mt-4">
           还没有条件
         </div>
       </template>
@@ -498,6 +511,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { Trash2 } from 'lucide-vue-next';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorPolicyConditionRuleBuilder from '@/views/script-editor/EditorPolicyConditionRuleBuilder.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
@@ -1119,6 +1133,13 @@ const updateColorNumber = (field: 'r' | 'g' | 'b', value: string) => {
 
 .app-rule-card-nested {
   background: rgba(255, 255, 255, 0.56);
+}
+
+.app-rule-card-group {
+  border-left: 4px solid var(--app-accent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 248, 255, 0.7)),
+    color-mix(in srgb, var(--app-panel-muted) 88%, white);
 }
 
 .editor-inline-grid {

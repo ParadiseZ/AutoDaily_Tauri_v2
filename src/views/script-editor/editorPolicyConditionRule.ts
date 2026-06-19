@@ -15,7 +15,7 @@ export { POLICY_CONDITION_RULE_TYPE };
 export const policyConditionRuleTypeOptions = [
   { label: '正则', value: POLICY_CONDITION_RULE_TYPE.regex, description: '按 OCR 文本缓冲区做正则精判。' },
   { label: '相对位置', value: POLICY_CONDITION_RULE_TYPE.relative, description: '按锚点和方向定位目标后做比较。' },
-  { label: '规则组', value: POLICY_CONDITION_RULE_TYPE.group, description: '组合多个精判规则。' },
+  { label: '逻辑组', value: POLICY_CONDITION_RULE_TYPE.group, description: '组合多个精判规则。' },
 ];
 
 export const relativeAnchorTypeOptions = [

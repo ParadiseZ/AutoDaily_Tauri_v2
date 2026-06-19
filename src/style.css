@@ -703,16 +703,6 @@ a {
   background: var(--app-panel);
 }
 
-.app-rule-card-nested::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  bottom: 14px;
-  left: -10px;
-  width: 2px;
-  border-radius: 999px;
-  background: var(--app-border-strong);
-}
 
 .app-rule-card-root {
   border-style: solid;

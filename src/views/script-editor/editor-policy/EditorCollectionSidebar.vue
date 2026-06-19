@@ -51,7 +51,7 @@
             <button class="app-icon-button" type="button" aria-label="复制" title="复制" @click.stop="$emit('duplicate', item.id)">
               <Copy class="h-4 w-4" />
             </button>
-            <button class="app-icon-button text-red-600" type="button" aria-label="删除" title="删除" @click.stop="$emit('remove', item.id)">
+            <button class="app-icon-button app-crash-icon app-icon-button-sec" type="button" aria-label="删除" title="删除" @click.stop="$emit('remove', item.id)">
               <Trash2 class="h-4 w-4" />
             </button>
           </div>

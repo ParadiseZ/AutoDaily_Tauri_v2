@@ -6,44 +6,52 @@
       'app-rule-card-group': currentRule.type === POLICY_CONDITION_RULE_TYPE.group,
     }"
   >
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="min-w-0 flex-1 space-y-1">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="app-rule-badge">{{ currentRule.type === POLICY_CONDITION_RULE_TYPE.group ? '规则组' : '精判规则' }}</span>
-          <span class="truncate text-xs text-(--app-text-faint)">{{ describePolicyConditionRule(currentRule) }}</span>
-        </div>
+    <div class="flex flex-wrap items-center justify-between gap-3 w-full">
+      <div class="flex flex-wrap items-center gap-3 flex-1 min-w-0">
+        <span class="app-rule-badge shrink-0">{{ currentRule.type === POLICY_CONDITION_RULE_TYPE.group ? '逻辑组' : '精判规则' }}</span>
 
-        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3 flex-1 min-w-0">
           <EditorSelectField
             :model-value="currentRule.type"
             :options="policyConditionRuleTypeOptions"
             placeholder="规则类型"
-            class="min-w-[180px]"
+            class="shrink-0"
             :test-id="rootTestId('type')"
             @update:model-value="changeType(String($event || POLICY_CONDITION_RULE_TYPE.regex))"
           />
+
+          <!-- 行内输入框，使布局更紧凑（仅对正则类型展示） -->
+          <div v-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.regex" class="flex-1 min-w-[150px] max-w-[400px]">
+            <input
+              :value="currentRule.pattern"
+              class="app-input"
+              placeholder="请输入正则表达式"
+              :data-testid="rootTestId('regex')"
+              @input="replaceRule({ ...currentRule, pattern: ($event.target as HTMLInputElement).value })"
+            />
+          </div>
         </div>
+
+        <span v-if="currentRule.type !== POLICY_CONDITION_RULE_TYPE.regex" class="truncate text-xs text-(--app-text-faint)">
+          {{ describePolicyConditionRule(currentRule) }}
+        </span>
       </div>
 
-      <button v-if="removable" class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove')">
-        删除规则
+      <button
+        v-if="removable"
+        class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
+        type="button"
+        title="删除"
+        aria-label="删除"
+        @click="$emit('remove')"
+      >
+        <Trash2 class="h-4 w-4" />
       </button>
     </div>
 
-    <div class="mt-4 space-y-3">
-      <template v-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.regex">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">正则表达式</span>
-          <input
-            :value="currentRule.pattern"
-            class="app-input"
-            :data-testid="rootTestId('regex')"
-            @input="replaceRule({ ...currentRule, pattern: ($event.target as HTMLInputElement).value })"
-          />
-        </label>
-      </template>
+    <div v-if="currentRule.type !== POLICY_CONDITION_RULE_TYPE.regex" class="mt-4 space-y-3">
 
-      <template v-else-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.relative">
+      <template v-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.relative">
         <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="editor-inline-grid">
             <div class="editor-inline-label">锚点类型</div>
@@ -138,21 +146,21 @@
       </template>
 
       <template v-else-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.group">
-        <div class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-          <div class="editor-inline-grid">
-            <div class="editor-inline-label">组合逻辑</div>
-            <div class="editor-inline-content">
-              <EditorSelectField
-                :model-value="currentRule.op"
-                :options="logicOpOptions"
-                placeholder="组合逻辑"
-                :test-id="rootTestId('logic-op')"
-                @update:model-value="updateGroupOp(String($event || LOGIC_OP.And))"
-              />
-            </div>
-          </div>
+        <!-- 逻辑组自身的配置区域，直接平铺于卡片中 -->
+        <div class="space-y-4">
+          <label class="space-y-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
+            <EditorSelectField
+              :model-value="currentRule.op"
+              :options="logicOpOptions"
+              placeholder="组合逻辑"
+              :test-id="rootTestId('logic-op')"
+              @update:model-value="updateGroupOp(String($event || LOGIC_OP.And))"
+            />
+          </label>
 
-          <div class="mt-4 flex flex-wrap gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint) mr-1">添加项:</span>
             <button
               v-for="option in addableRuleTypes"
               :key="option.value"
@@ -160,12 +168,13 @@
               type="button"
               @click="addGroupItem(String(option.value))"
             >
-              添加{{ option.label }}
+              {{ option.label }}
             </button>
           </div>
         </div>
 
-        <div class="space-y-3">
+        <!-- 子规则列表与父级配置之间由分割线清晰隔开 -->
+        <div v-if="currentRule.items.length" class="border-t border-(--app-border) my-4 pt-4 space-y-3">
           <EditorPolicyConditionRuleBuilder
             v-for="(item, index) in currentRule.items"
             :key="`${item.type}-${index}`"
@@ -178,7 +187,7 @@
           />
         </div>
 
-        <EmptyState v-if="!currentRule.items.length" title="还没有子规则" description="先添加正则、相对位置或子组。" />
+        <EmptyState v-else title="还没有子规则" description="先添加正则、相对位置或子组。" class="mt-4" />
       </template>
     </div>
   </div>
@@ -186,6 +195,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Trash2 } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { PolicyConditionRule } from '@/types/bindings/PolicyConditionRule';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
@@ -277,18 +287,9 @@ const removeGroupItem = (index: number) => {
   background: rgba(255, 255, 255, 0.56);
 }
 
-.app-rule-card-nested::before {
-  content: '';
-  position: absolute;
-  top: 14px;
-  bottom: 14px;
-  left: -10px;
-  width: 2px;
-  border-radius: 999px;
-  background: rgba(70, 110, 255, 0.18);
-}
 
 .app-rule-card-group {
+  border-left: 4px solid var(--app-accent);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 248, 255, 0.7)),
     color-mix(in srgb, var(--app-panel-muted) 88%, white);

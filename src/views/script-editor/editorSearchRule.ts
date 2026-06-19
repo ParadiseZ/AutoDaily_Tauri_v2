@@ -9,7 +9,7 @@ import {
 export const searchRuleTypeOptions = [
   { label: '文本', value: SEARCH_RULE_TYPE.txt, description: '按 OCR 文本召回策略。' },
   { label: '标签', value: SEARCH_RULE_TYPE.detLabel, description: '按检测标签召回策略。' },
-  { label: '规则组', value: SEARCH_RULE_TYPE.group, description: '组合多个召回规则。' },
+  { label: '逻辑组', value: SEARCH_RULE_TYPE.group, description: '组合多个召回规则。' },
 ];
 
 export const logicOpOptions = [

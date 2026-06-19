@@ -106,7 +106,7 @@ const selectOption = (value: SelectValue) => {
 .editor-select-chip {
   display: inline-flex;
   min-width: 88px;
-  flex: 1 1 0;
+  flex: 0 0 auto;
   align-items: center;
   border-radius: 14px;
   border: 1px solid var(--app-border);
