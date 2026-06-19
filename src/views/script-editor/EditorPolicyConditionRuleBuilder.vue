@@ -147,8 +147,8 @@
 
       <template v-else-if="currentRule.type === POLICY_CONDITION_RULE_TYPE.group">
         <!-- 逻辑组自身的配置区域，直接平铺于卡片中 -->
-        <div class="space-y-4">
-          <label class="space-y-2">
+        <div class="flex flex-wrap items-start gap-x-6 gap-y-4">
+          <label class="space-y-2 shrink-0">
             <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
             <EditorSelectField
               :model-value="currentRule.op"
@@ -159,17 +159,19 @@
             />
           </label>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint) mr-1">添加项:</span>
-            <button
-              v-for="option in addableRuleTypes"
-              :key="option.value"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="addGroupItem(String(option.value))"
-            >
-              {{ option.label }}
-            </button>
+          <div class="space-y-2 flex-1 min-w-[240px]">
+            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint) block">添加项</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                v-for="option in addableRuleTypes"
+                :key="option.value"
+                class="app-button app-button-ghost app-toolbar-button"
+                type="button"
+                @click="addGroupItem(String(option.value))"
+              >
+                {{ option.label }}
+              </button>
+            </div>
           </div>
         </div>
 

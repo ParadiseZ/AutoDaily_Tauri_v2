@@ -65,7 +65,7 @@
       <!-- 逻辑组自身的配置区域，直接平铺于卡片中 -->
       <div class="flex flex-wrap items-start gap-x-6 gap-y-4">
         <label class="space-y-2 shrink-0">
-          <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
+          <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">逻辑类型</span>
           <EditorSelectField
             :model-value="currentRule.op"
             :options="logicOpOptions"
