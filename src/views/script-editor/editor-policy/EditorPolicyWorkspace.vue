@@ -45,6 +45,9 @@
           :model-value="policy.data.cond"
           force-group-root
           test-id-prefix="editor-policy-condition"
+          :label-index-options="labelIndexOptions"
+          :label-select-placeholder="labelSelectPlaceholder"
+          :label-select-hint="labelSelectHint"
           @update:model-value="$emit('update:condition', $event)"
         />
       </div>

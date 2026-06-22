@@ -21,6 +21,7 @@
         </button>
       </div>
     </label>
+    <slot name="after-model-path" />
 
     <div class="dialog-form-grid" :class="{ 'dialog-form-grid-compact': compact }">
       <label class="dialog-form-row" :class="{ 'dialog-form-row-compact': compact }">
@@ -223,7 +224,7 @@ const pickModelPath = async () => {
 
 @media (min-width: 768px) {
   .dialog-form-row {
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .dialog-form-grid {
@@ -231,7 +232,7 @@ const pickModelPath = async () => {
   }
 
   .dialog-form-row-wide {
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .dialog-form-grid-compact {

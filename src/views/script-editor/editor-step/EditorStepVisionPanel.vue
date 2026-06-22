@@ -71,6 +71,9 @@
           :model-value="selectedVision.rule"
           force-group-root
           test-id-prefix="editor-search-rule"
+          :label-index-options="labelIndexOptions"
+          :label-select-placeholder="labelSelectPlaceholder"
+          :label-select-hint="labelSelectHint"
           @update:model-value="$emit('update-rule', $event)"
         />
       </div>
@@ -95,6 +98,9 @@ const props = defineProps<{
   selectedVision: VisionNode & { out_var?: string; rule: SearchRule };
   variableDatalistId: string;
   writableCatalogVariableOptions?: Array<{ label: string; value: string; description: string; disabled?: boolean }>;
+  labelIndexOptions?: Array<{ label: string; value: number; description?: string; disabled?: boolean }>;
+  labelSelectPlaceholder?: string;
+  labelSelectHint?: string | null;
   selectedVisionOutputTarget?: EditorVariableOption | null;
   selectedVisionOutputInputEntry?: EditorInputEntry | null;
   visionBranchTarget: { count: number; path: StepBranchPath } | null;

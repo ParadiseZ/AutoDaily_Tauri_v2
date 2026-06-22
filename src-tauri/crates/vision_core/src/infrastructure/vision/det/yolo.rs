@@ -20,14 +20,16 @@ pub struct YoloDet {
     #[serde(skip)]
     #[ts(skip)]
     pub class_labels: HashMap<u16, String>,
-    pub confidence_thresh: f32,
-    pub iou_thresh: f32,
+    pub confidence_thresh: Option<f32>,
+    pub iou_thresh: Option<f32>,
     #[ts(as = "Option<String>")]
     pub label_path: Option<PathBuf>,
     pub txt_idx: Option<u16>,
+    #[serde(default)]
+    pub postprocess_kind: Option<YoloPostprocessKind>,
     #[serde(skip, default)]
     #[ts(skip)]
-    postprocess_kind: YoloPostprocessKind,
+    runtime_postprocess_kind: YoloPostprocessKind,
     #[serde(skip, default)]
     #[ts(skip)]
     output_layout: OnceLock<YoloOutputLayout>,
@@ -36,8 +38,9 @@ pub struct YoloDet {
     preprocess_buffer: Mutex<Vec<f32>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum YoloPostprocessKind {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ts_rs::TS)]
+#[ts(export)]
+pub enum YoloPostprocessKind {
     LegacyNms,
     EndToEnd,
 }
@@ -74,17 +77,35 @@ const MAX_NMS_CANDIDATES_PER_CLASS: usize = 512;
 const INV_255: f32 = 1.0 / 255.0;
 
 impl YoloDet {
+    const DEFAULT_LEGACY_CONFIDENCE_THRESH: f32 = 0.25;
+    const DEFAULT_LEGACY_IOU_THRESH: f32 = 0.45;
+
     /// 创建 YOLO 检测器内部使用的预处理缓存。
     fn default_preprocess_buffer() -> Mutex<Vec<f32>> {
         Mutex::new(Vec::new())
     }
 
-    /// 根据模型类型初始化一次运行期策略，避免每次推理都判断后处理分支。
-    pub fn refresh_runtime_config(&mut self) {
-        self.postprocess_kind = match self.base_model.model_type {
+    fn fallback_postprocess_kind(&self) -> YoloPostprocessKind {
+        match self.base_model.model_type {
             ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
             _ => YoloPostprocessKind::LegacyNms,
-        };
+        }
+    }
+
+    fn legacy_confidence_thresh(&self) -> f32 {
+        self.confidence_thresh
+            .unwrap_or(Self::DEFAULT_LEGACY_CONFIDENCE_THRESH)
+    }
+
+    fn legacy_iou_thresh(&self) -> f32 {
+        self.iou_thresh.unwrap_or(Self::DEFAULT_LEGACY_IOU_THRESH)
+    }
+
+    /// 根据显式配置或旧模型类型回退值初始化运行期策略。
+    pub fn refresh_runtime_config(&mut self) {
+        self.runtime_postprocess_kind = self
+            .postprocess_kind
+            .unwrap_or_else(|| self.fallback_postprocess_kind());
         self.output_layout = OnceLock::new();
     }
 
@@ -142,7 +163,7 @@ impl YoloDet {
         let rows = shape[0];
         let cols = shape[1];
 
-        match self.postprocess_kind {
+        match self.runtime_postprocess_kind {
             YoloPostprocessKind::LegacyNms => {
                 let expected_attr_count = self.class_count + 4;
                 let expected_with_objectness = self.class_count + 5;
@@ -384,7 +405,7 @@ impl YoloDet {
                         continue;
                     };
 
-                    if prob < self.confidence_thresh || !self.allow_class(class_id) {
+                    if prob < self.legacy_confidence_thresh() || !self.allow_class(class_id) {
                         continue;
                     }
 
@@ -404,7 +425,7 @@ impl YoloDet {
                         continue;
                     };
 
-                    if prob < self.confidence_thresh || !self.allow_class(class_id) {
+                    if prob < self.legacy_confidence_thresh() || !self.allow_class(class_id) {
                         continue;
                     }
 
@@ -425,7 +446,7 @@ impl YoloDet {
         }
 
         Ok(self.finalize_candidates(
-            apply_nms(candidates, self.iou_thresh),
+            apply_nms(candidates, self.legacy_iou_thresh()),
             scale_factor,
             origin_shape,
         ))
@@ -459,7 +480,11 @@ impl YoloDet {
                     let class_id = row[5].round().max(0.0) as usize;
                     let score = row[4];
 
-                    if score < self.confidence_thresh || !self.allow_class(class_id) {
+                    if self
+                        .confidence_thresh
+                        .is_some_and(|threshold| score < threshold)
+                        || !self.allow_class(class_id)
+                    {
                         continue;
                     }
 
@@ -480,7 +505,11 @@ impl YoloDet {
                     let class_id = col[5].round().max(0.0) as usize;
                     let score = col[4];
 
-                    if score < self.confidence_thresh || !self.allow_class(class_id) {
+                    if self
+                        .confidence_thresh
+                        .is_some_and(|threshold| score < threshold)
+                        || !self.allow_class(class_id)
+                    {
                         continue;
                     }
 
@@ -627,7 +656,7 @@ impl TextDetector for YoloDet {
         scale_factor: [f32; 2],
         origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
-        match self.postprocess_kind {
+        match self.runtime_postprocess_kind {
             YoloPostprocessKind::LegacyNms => {
                 self.postprocess_legacy(output, scale_factor, origin_shape)
             }
@@ -752,11 +781,15 @@ mod tests {
             ),
             class_count: 2,
             class_labels,
-            confidence_thresh: 0.25,
-            iou_thresh: 0.45,
+            confidence_thresh: Some(0.25),
+            iou_thresh: Some(0.45),
             label_path: None,
             txt_idx,
-            postprocess_kind: match model_type {
+            postprocess_kind: Some(match model_type {
+                ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
+                _ => YoloPostprocessKind::LegacyNms,
+            }),
+            runtime_postprocess_kind: match model_type {
                 ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
                 _ => YoloPostprocessKind::LegacyNms,
             },

@@ -729,6 +729,7 @@ test('loads text-det labels for label actions and persists idx only', async ({ p
           iouThresh: 0.45,
           labelPath: 'D:\\models\\txt-det.labels.yaml',
           txtIdx: 0,
+          postprocessKind: 'LegacyNms',
         },
       },
       txtRecModel: null,
@@ -2101,6 +2102,87 @@ test('creates policies and persists search rule with before and after actions', 
           },
         },
       ],
+    },
+  });
+});
+
+test('loads text-det labels for policy condition label rules and saves idx', async ({ page }) => {
+  const scriptId = 'script-editor-policy-label-condition';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略标签条件脚本',
+      description: '验证策略命中条件里的标签召回规则会显示 index: labelName。',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: {
+        Yolo11: {
+          baseModel: {
+            intraThreadNum: 4,
+            intraSpinning: true,
+            interThreadNum: 1,
+            interSpinning: true,
+            executionProvider: 'CPU',
+            inputWidth: 640,
+            inputHeight: 640,
+            modelSource: 'Custom',
+            modelPath: 'D:\\models\\txt-det.onnx',
+            modelType: 'Yolo11',
+          },
+          classCount: 4,
+          confidenceThresh: 0.25,
+          iouThresh: 0.45,
+          labelPath: 'D:\\models\\txt-det.labels.yaml',
+          txtIdx: 0,
+          postprocessKind: 'LegacyNms',
+        },
+      },
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await selectEditorMode(page, 'policy');
+  await page.getByTestId('editor-policy-create').click();
+  await page.getByTestId('editor-policy-name').fill('标签命中策略');
+
+  await page.getByTestId('editor-policy-tab-condition').click();
+  await page.getByRole('button', { name: '标签', exact: true }).click();
+  await expect(page.getByTestId('editor-policy-condition-item-0-det-label-idx')).toContainText('0: 文本');
+  await selectOptionByLabel(page, 'editor-policy-condition-item-0-det-label-idx', '1: 按钮');
+  await expect(page.getByTestId('editor-policy-condition-item-0-det-label-idx')).toContainText('1: 按钮');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.policies[0]).toMatchObject({
+    data: {
+      cond: {
+        type: 'group',
+        items: [
+          {
+            type: 'detLabel',
+            idx: 1,
+          },
+        ],
+      },
     },
   });
 });

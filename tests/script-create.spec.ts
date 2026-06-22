@@ -148,6 +148,37 @@ test('disables submit when script name is blank', async ({ page }) => {
   await expect(submitButton).toBeDisabled();
 });
 
+test('aligns YOLO model fields with consistent spacing', async ({ page }) => {
+  await page.getByTestId('script-list-create-button').click();
+
+  const dialog = page.getByRole('dialog', { name: '新建脚本' });
+  await dialog.getByTestId('script-dialog-tab-models').click();
+  await openModelTab(page, 'imgDet');
+  await selectOptionByValue(page, 'script-models-img-det-kind', 'Yolo11');
+
+  const fields = [
+    dialog.getByTestId('script-models-img-det-kind'),
+    dialog.getByTestId('script-models-img-det-base-model-source'),
+    dialog.getByTestId('script-models-img-det-base-model-path'),
+    dialog.getByTestId('script-models-img-det-label-path'),
+    dialog.getByTestId('script-models-img-det-class-count'),
+    dialog.getByTestId('script-models-img-det-base-input-width'),
+  ];
+  const boxes = await Promise.all(fields.map((field) => field.boundingBox()));
+
+  for (const box of boxes) {
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeCloseTo(boxes[0]!.x, 0);
+  }
+
+  const verticalFields = boxes.slice(2);
+  for (let index = 1; index < verticalFields.length; index += 1) {
+    const previous = verticalFields[index - 1]!;
+    const current = verticalFields[index]!;
+    expect(current.y - (previous.y + previous.height)).toBeCloseTo(16, 0);
+  }
+});
+
 test('creates a local script with basic, model, and sponsorship settings', async ({ page }) => {
   const scriptName = `每日清体力 ${Date.now()}`;
   const description = '覆盖基本信息、模型信息和赞助信息的创建流程';
@@ -173,8 +204,8 @@ test('creates a local script with basic, model, and sponsorship settings', async
   await selectOptionByValue(page, 'script-models-img-det-base-model-source', 'Custom');
   await selectOptionByValue(page, 'script-models-img-det-base-execution-provider', 'DirectML');
   await dialog.getByTestId('script-models-img-det-base-model-path').fill('D:\\models\\img-det.onnx');
-  await dialog.getByTestId('script-models-img-det-class-count').fill('3');
   await dialog.getByTestId('script-models-img-det-label-path').fill('D:\\models\\img-det.labels.yaml');
+  await expect(dialog.getByTestId('script-models-img-det-class-count')).toHaveValue('4');
   await dialog.getByTestId('script-models-img-det-confidence').fill('0.55');
   await dialog.getByTestId('script-models-img-det-iou').fill('0.35');
 
@@ -218,10 +249,11 @@ test('creates a local script with basic, model, and sponsorship settings', async
 
   expect(script.data.imgDetModel).toEqual({
     Yolo11: expect.objectContaining({
-      classCount: 3,
+      classCount: 4,
       confidenceThresh: 0.55,
       iouThresh: 0.35,
       labelPath: 'D:\\models\\img-det.labels.yaml',
+      postprocessKind: 'LegacyNms',
       baseModel: expect.objectContaining({
         modelSource: 'Custom',
         executionProvider: 'DirectML',
@@ -279,18 +311,19 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   await selectOptionByValue(page, 'script-models-img-det-kind', 'Yolo26');
   await selectOptionByValue(page, 'script-models-img-det-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-img-det-base-model-path').fill('D:\\models\\img-det-yolo26.onnx');
-  await dialog.getByTestId('script-models-img-det-class-count').fill('5');
   await dialog.getByTestId('script-models-img-det-label-path').fill('D:\\models\\img-det-yolo26.labels.yaml');
-  await dialog.getByTestId('script-models-img-det-confidence').fill('0.4');
-  await dialog.getByTestId('script-models-img-det-iou').fill('0.2');
+  await expect(dialog.getByTestId('script-models-img-det-class-count')).toHaveValue('4');
+  await expect(dialog.getByTestId('script-models-img-det-confidence')).toHaveCount(0);
+  await expect(dialog.getByTestId('script-models-img-det-iou')).toHaveCount(0);
 
   await openModelTab(page, 'txtDet');
   await selectOptionByValue(page, 'script-models-txt-det-kind', 'Yolo26');
   await selectOptionByValue(page, 'script-models-txt-det-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-txt-det-base-model-path').fill('D:\\models\\txt-det-yolo26.onnx');
-  await dialog.getByTestId('script-models-txt-det-class-count').fill('2');
-  await dialog.getByTestId('script-models-txt-det-confidence').fill('0.35');
-  await dialog.getByTestId('script-models-txt-det-iou').fill('0.15');
+  await dialog.getByTestId('script-models-txt-det-label-path').fill('D:\\models\\txt-det-yolo26.labels.yaml');
+  await expect(dialog.getByTestId('script-models-txt-det-class-count')).toHaveValue('4');
+  await expect(dialog.getByTestId('script-models-txt-det-confidence')).toHaveCount(0);
+  await expect(dialog.getByTestId('script-models-txt-det-iou')).toHaveCount(0);
 
   await dialog.getByTestId('script-submit').click();
   await expect(dialog).not.toBeVisible();
@@ -298,10 +331,11 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   const script = await getStoredScript(page);
   expect(script.data.imgDetModel).toEqual({
     Yolo26: expect.objectContaining({
-      classCount: 5,
-      confidenceThresh: 0.4,
-      iouThresh: 0.2,
+      classCount: 4,
+      confidenceThresh: null,
+      iouThresh: null,
       labelPath: 'D:\\models\\img-det-yolo26.labels.yaml',
+      postprocessKind: 'EndToEnd',
       baseModel: expect.objectContaining({
         modelPath: 'D:\\models\\img-det-yolo26.onnx',
         modelType: 'Yolo26',
@@ -311,13 +345,50 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
 
   expect(script.data.txtDetModel).toEqual({
     Yolo26: expect.objectContaining({
-      classCount: 2,
-      confidenceThresh: 0.35,
-      iouThresh: 0.15,
+      classCount: 4,
+      confidenceThresh: null,
+      iouThresh: null,
+      labelPath: 'D:\\models\\txt-det-yolo26.labels.yaml',
+      postprocessKind: 'EndToEnd',
       txtIdx: 0,
       baseModel: expect.objectContaining({
         modelPath: 'D:\\models\\txt-det-yolo26.onnx',
         modelType: 'Yolo26',
+      }),
+    }),
+  });
+});
+
+test('hides built-in crnn dict path and clears custom dict when switching back', async ({ page }) => {
+  const scriptName = `CRNN 内置字典 ${Date.now()}`;
+
+  await page.getByTestId('script-list-create-button').click();
+
+  const dialog = page.getByRole('dialog', { name: '新建脚本' });
+  await dialog.getByTestId('script-basic-name').fill(scriptName);
+  await dialog.getByTestId('script-basic-description').fill('验证 CRNN 内置字典路径隐藏与清理。');
+  await dialog.getByTestId('script-dialog-tab-models').click();
+
+  await openModelTab(page, 'txtRec');
+  await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn');
+  await expect(dialog.getByTestId('script-models-txt-rec-dict-path')).toHaveCount(0);
+
+  await selectOptionByValue(page, 'script-models-txt-rec-base-model-source', 'Custom');
+  await dialog.getByTestId('script-models-txt-rec-base-model-path').fill('D:\\models\\txt-rec.onnx');
+  await dialog.getByTestId('script-models-txt-rec-dict-path').fill('D:\\models\\custom-dict.txt');
+
+  await selectOptionByValue(page, 'script-models-txt-rec-base-model-source', 'BuiltIn');
+  await expect(dialog.getByTestId('script-models-txt-rec-dict-path')).toHaveCount(0);
+
+  await dialog.getByTestId('script-submit').click();
+  await expect(dialog).not.toBeVisible();
+
+  const script = await getStoredScript(page);
+  expect(script.data.txtRecModel).toEqual({
+    PaddleCrnn: expect.objectContaining({
+      dictPath: null,
+      baseModel: expect.objectContaining({
+        modelSource: 'BuiltIn',
       }),
     }),
   });

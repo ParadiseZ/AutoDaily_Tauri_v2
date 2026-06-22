@@ -138,3 +138,4 @@ export type { VisionLayoutItem } from './VisionLayoutItem';
 export type { VisionLayoutSource } from './VisionLayoutSource';
 export type { VisionNode } from './VisionNode';
 export type { YoloDet } from './YoloDet';
+export type { YoloPostprocessKind } from './YoloPostprocessKind';

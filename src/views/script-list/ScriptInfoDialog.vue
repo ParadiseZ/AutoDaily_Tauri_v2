@@ -5,8 +5,8 @@
     :width-class="dialogWidthClass"
     @close="$emit('close')"
   >
-    <form v-if="form" class="grid gap-5 lg:grid-cols-[156px_minmax(0,1fr)]" :class="formClass" @submit.prevent="submit">
-      <aside class="space-y-2">
+    <form v-if="form" class="grid min-h-0 gap-5 lg:grid-cols-[156px_minmax(0,1fr)]" :class="formClass" @submit.prevent="submit">
+      <aside class="space-y-2 overflow-y-auto pr-1 custom-scrollbar">
         <button
           v-for="tab in tabs"
           :key="tab.id"
@@ -20,21 +20,23 @@
         </button>
       </aside>
 
-      <div class="space-y-5">
-        <div
-          v-if="validationIssues.length"
-          class="rounded-[20px] border border-amber-300/70 bg-amber-50 px-4 py-4 text-sm text-amber-950"
-          data-testid="script-info-validation-summary"
-        >
-          <p class="font-semibold">请先补齐脚本信息后再继续。</p>
-          <ul class="mt-2 space-y-1">
-            <li v-for="issue in validationIssues" :key="issue.field">
-              {{ issue.label }}：{{ issue.message }}
-            </li>
-          </ul>
-        </div>
+      <div class="flex min-h-0 flex-col gap-5">
+        <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+          <div
+            v-if="validationIssues.length"
+            class="rounded-[20px] border border-amber-300/70 bg-amber-50 px-4 py-4 text-sm text-amber-950"
+            data-testid="script-info-validation-summary"
+          >
+            <p class="font-semibold">请先补齐脚本信息后再继续。</p>
+            <ul class="mt-2 space-y-1">
+              <li v-for="issue in validationIssues" :key="issue.field">
+                {{ issue.label }}：{{ issue.message }}
+              </li>
+            </ul>
+          </div>
 
-        <template v-if="activeTab === 'basic'">
+          <div :class="validationIssues.length ? 'mt-5' : ''">
+            <template v-if="activeTab === 'basic'">
           <SurfacePanel tone="muted" padding="sm" class="space-y-5">
             <div class="space-y-4">
               <label class="dialog-form-row dialog-form-row-wide">
@@ -60,15 +62,15 @@
               </label>
 
               <div class="dialog-form-grid">
-                <label class="dialog-form-row">
+                <!-- <label class="dialog-form-row">
                   <span class="dialog-form-label">运行时</span>
                   <AppSelect v-model="form.data.runtimeType" :options="runtimeOptions" test-id="script-basic-runtime-type" />
-                </label>
+                </label> -->
 
-                <label class="dialog-form-row">
+                <!-- <label class="dialog-form-row">
                   <span class="dialog-form-label">脚本平台</span>
                   <AppSelect v-model="scriptPlatformValue" :options="platformOptions" test-id="script-basic-platform" />
-                </label>
+                </label> -->
               </div>
 
               <div class="dialog-form-grid">
@@ -146,9 +148,9 @@
               </label>
             </div>
           </SurfacePanel>
-        </template>
+            </template>
 
-        <template v-else-if="activeTab === 'models'">
+            <template v-else-if="activeTab === 'models'">
           <div class="space-y-4">
             <div class="overflow-x-auto">
               <div class="editor-panel-tabs min-w-max">
@@ -182,34 +184,50 @@
                   :built-in-enabled="false"
                   path-placeholder="例如：D:\\models\\img-det.onnx"
                   test-id-prefix="script-models-img-det-base"
-                />
+                >
+                  <template #after-model-path>
+                    <label class="dialog-form-row dialog-form-row-wide">
+                      <span class="dialog-form-label">标签路径</span>
+                      <div class="space-y-2">
+                        <div class="dialog-path-row">
+                          <input
+                            v-model.trim="imgLabelPathValue"
+                            class="app-input"
+                            data-testid="script-models-img-det-label-path"
+                            placeholder="例如：D:\\models\\labels.yaml"
+                          />
+                          <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickImgLabelPath">
+                            <AppIcon name="folder-open" :size="16" />
+                          </button>
+                        </div>
+                        <p v-if="imgLabelLoading || imgLabelPathHint" class="text-xs text-(--app-text-faint)">
+                          {{ imgLabelLoading ? '正在读取标签文件...' : imgLabelPathHint }}
+                        </p>
+                      </div>
+                    </label>
+                    <label class="dialog-form-row dialog-form-row-wide">
+                      <span class="dialog-form-label">类别数量</span>
+                      <input
+                        :value="String(imgYoloModel.classCount ?? 0)"
+                        class="app-input app-input-readonly"
+                        data-testid="script-models-img-det-class-count"
+                        readonly
+                        type="number"
+                      />
+                    </label>
+                  </template>
+                </ModelBaseFields>
                 <div class="dialog-form-grid">
                   <label class="dialog-form-row">
-                    <span class="dialog-form-label">类别数量</span>
-                    <input
-                      v-model.number="imgYoloModel.classCount"
-                      class="app-input"
-                      data-testid="script-models-img-det-class-count"
-                      min="1"
-                      type="number"
+                    <span class="dialog-form-label">后处理</span>
+                    <AppSelect
+                      v-model="imgPostprocessKindValue"
+                      :options="yoloPostprocessOptions"
+                      test-id="script-models-img-det-postprocess-kind"
                     />
                   </label>
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">标签路径</span>
-                    <div class="dialog-path-row">
-                      <input
-                        v-model.trim="imgLabelPathValue"
-                        class="app-input"
-                        data-testid="script-models-img-det-label-path"
-                        placeholder="例如：D:\\models\\labels.yaml"
-                      />
-                      <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickImgLabelPath">
-                        <AppIcon name="folder-open" :size="16" />
-                      </button>
-                    </div>
-                  </label>
                 </div>
-                <div class="dialog-form-grid">
+                <div v-if="showImgYoloThresholds" class="dialog-form-grid">
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">置信度阈值</span>
                     <input
@@ -254,33 +272,53 @@
                   :built-in-enabled="false"
                   path-placeholder="例如：D:\\models\\txt-det.onnx"
                   test-id-prefix="script-models-txt-det-base"
-                />
+                >
+                  <template #after-model-path>
+                    <label class="dialog-form-row dialog-form-row-wide">
+                      <span class="dialog-form-label">标签路径</span>
+                      <div class="space-y-2">
+                        <div class="dialog-path-row">
+                          <input v-model.trim="txtLabelPathValue" class="app-input" data-testid="script-models-txt-det-label-path" placeholder="例如：D:\\models\\labels.yaml" />
+                          <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickTxtLabelPath">
+                            <AppIcon name="folder-open" :size="16" />
+                          </button>
+                        </div>
+                        <p v-if="txtLabelLoading || txtLabelPathHint" class="text-xs text-(--app-text-faint)">
+                          {{ txtLabelLoading ? '正在读取标签文件...' : txtLabelPathHint }}
+                        </p>
+                      </div>
+                    </label>
+                    <label class="dialog-form-row dialog-form-row-wide">
+                      <span class="dialog-form-label">类别数量</span>
+                      <input
+                        :value="String(txtYoloModel.classCount ?? 0)"
+                        class="app-input app-input-readonly"
+                        data-testid="script-models-txt-det-class-count"
+                        readonly
+                        type="number"
+                      />
+                    </label>
+                  </template>
+                </ModelBaseFields>
                 <div class="dialog-form-grid">
                   <label class="dialog-form-row">
-                    <span class="dialog-form-label">类别数量</span>
-                    <input v-model.number="txtYoloModel.classCount" class="app-input" data-testid="script-models-txt-det-class-count" min="1" type="number" />
+                    <span class="dialog-form-label">后处理</span>
+                    <AppSelect
+                      v-model="txtPostprocessKindValue"
+                      :options="yoloPostprocessOptions"
+                      test-id="script-models-txt-det-postprocess-kind"
+                    />
                   </label>
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">标签路径</span>
-                    <div class="dialog-path-row">
-                      <input v-model.trim="txtLabelPathValue" class="app-input" data-testid="script-models-txt-det-label-path" placeholder="例如：D:\\models\\labels.yaml" />
-                      <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickTxtLabelPath">
-                        <AppIcon name="folder-open" :size="16" />
-                      </button>
-                    </div>
-                  </label>
-                </div>
-                <div class="dialog-form-grid">
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">文本类别索引</span>
                     <input v-model.number="txtIdxValue" class="app-input" data-testid="script-models-txt-det-txt-idx" min="0" type="number" />
                   </label>
+                </div>
+                <div v-if="showTxtYoloThresholds" class="dialog-form-grid">
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">置信度阈值</span>
                     <input v-model.number="txtYoloModel.confidenceThresh" class="app-input" data-testid="script-models-txt-det-confidence" max="1" min="0" step="0.01" type="number" />
                   </label>
-                </div>
-                <div class="dialog-form-grid">
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">IOU 阈值</span>
                     <input v-model.number="txtYoloModel.iouThresh" class="app-input" data-testid="script-models-txt-det-iou" max="1" min="0" step="0.01" type="number" />
@@ -364,22 +402,25 @@
                   :model="txtCrnnModel.baseModel"
                   path-placeholder="例如：D:\\models\\ocr-rec.onnx"
                   test-id-prefix="script-models-txt-rec-base"
-                />
+                >
+                  <template #after-model-path>
+                    <label v-if="showTxtRecDictPath" class="dialog-form-row dialog-form-row-wide">
+                      <span class="dialog-form-label">字典路径</span>
+                      <div class="dialog-path-row">
+                        <input
+                          v-model.trim="dictPathValue"
+                          class="app-input"
+                          data-testid="script-models-txt-rec-dict-path"
+                          placeholder="例如：D:\\models\\keys.txt"
+                        />
+                        <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickDictPath">
+                          <AppIcon name="folder-open" :size="16" />
+                        </button>
+                      </div>
+                    </label>
+                  </template>
+                </ModelBaseFields>
                 <div class="dialog-form-grid">
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">字典路径</span>
-                    <div class="dialog-path-row">
-                      <input
-                        v-model.trim="dictPathValue"
-                        class="app-input"
-                        data-testid="script-models-txt-rec-dict-path"
-                        placeholder="例如：D:\\models\\keys.txt"
-                      />
-                      <button class="app-button app-button-ghost dialog-path-button" type="button" @click="pickDictPath">
-                        <AppIcon name="folder-open" :size="16" />
-                      </button>
-                    </div>
-                  </label>
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">缩放插值</span>
                     <AppSelect
@@ -426,9 +467,9 @@
               </template>
             </SurfacePanel>
           </div>
-        </template>
+            </template>
 
-        <template v-else-if="activeTab === 'runtime'">
+            <template v-else-if="activeTab === 'runtime'">
           <SurfacePanel tone="muted" padding="sm" class="space-y-5">
             <div class="max-w-[720px] space-y-4">
               <label class="support-form-row">
@@ -468,9 +509,9 @@
               </label>
             </div>
           </SurfacePanel>
-        </template>
+            </template>
 
-        <template v-else-if="activeTab === 'content'">
+            <template v-else-if="activeTab === 'content'">
           <SurfacePanel tone="muted" padding="sm" class="space-y-4">
             <div class="flex flex-wrap items-center gap-2">
               <button class="app-icon-button" type="button" title="标题" aria-label="标题" @click="wrapContentLine('# ')">
@@ -510,9 +551,9 @@
               </div>
             </div>
           </SurfacePanel>
-        </template>
+            </template>
 
-        <template v-else>
+            <template v-else>
           <SurfacePanel tone="muted" padding="sm" class="space-y-5">
             <div class="max-w-[720px] space-y-4">
               <label class="support-form-row">
@@ -546,7 +587,9 @@
               />
             </div>
           </SurfacePanel>
-        </template>
+            </template>
+          </div>
+        </div>
 
         <div class="flex justify-end gap-3">
           <button class="app-button app-button-ghost" type="button" @click="$emit('close')">取消</button>
@@ -567,6 +610,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import MarkdownView from '@/components/shared/MarkdownView.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
+import { scriptService } from '@/services/scriptService';
 import type { BaseModel } from '@/types/bindings/BaseModel';
 import type { DetectorType } from '@/types/bindings/DetectorType';
 import type { PaddleDetDbNet } from '@/types/bindings/PaddleDetDbNet';
@@ -574,11 +618,16 @@ import type { PaddleRecCrnn } from '@/types/bindings/PaddleRecCrnn';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { ScriptTableRecord } from '@/types/app/domain';
 import type { YoloDet } from '@/types/bindings/YoloDet';
+import type { YoloPostprocessKind } from '@/types/bindings/YoloPostprocessKind';
 import type { ScriptInfoValidationIssue } from '@/utils/scriptInfoValidation';
 import { validateScriptInfo } from '@/utils/scriptInfoValidation';
 import {
+  defaultYoloPostprocessKind,
   rewritePublishedDetectorModelPath,
   rewritePublishedRecognizerModelPath,
+  syncYoloPostprocessFields,
+  YOLO_LEGACY_CONFIDENCE_DEFAULT,
+  YOLO_LEGACY_IOU_DEFAULT,
 } from '@/utils/visionModelPresets';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import SponsorshipQrField from '@/views/script-list/script-info/SponsorshipQrField.vue';
@@ -588,6 +637,7 @@ type ModelTab = 'imgDet' | 'txtDet' | 'txtRec';
 type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
 type RecognizerKind = 'none' | 'PaddleCrnn';
 type EditableDetectorField = 'imgDetModel' | 'txtDetModel';
+type LabelLoaderField = EditableDetectorField;
 type TaskOption = { label: string; value: string | null; description?: string };
 
 const props = defineProps<{
@@ -612,13 +662,16 @@ const modelTabs = [
   { id: 'txtRec' as const, label: '文字识别' },
 ];
 
-const runtimeOptions = [
+/* const runtimeOptions = [
   { label: 'Rhai', value: 'rhai', description: '适合轻量流程和原生脚本。' },
   { label: 'JavaScript', value: 'javaScript', description: '适合复杂逻辑和工具链扩展。' },
   { label: 'Lua', value: 'lua', description: '适合轻量运行时脚本。' },
   { label: 'AI + Vision', value: 'aIAndVision', description: '适合依赖 OCR 与视觉判断的脚本。' },
   { label: 'AI', value: 'aI', description: '适合纯 AI 处理流程。' },
-];
+]; */
+const runtimeOptions = [
+  { label: 'Rhai', value: 'rhai', description: '适合轻量流程和原生脚本。' },
+]; 
 
 const platformOptions = [
   { label: 'Android', value: 'android', description: '当前 ADB / start_activity / 截图链路默认支持的平台。' },
@@ -658,6 +711,11 @@ const recProcessingModeOptions = [
   { label: 'Micro-batch', value: 'MicroBatch', description: '按宽度分桶后做小批次识别，适合框较多的场景。' },
 ];
 
+const yoloPostprocessOptions = [
+  { label: 'Legacy NMS', value: 'LegacyNms', description: '读取原始候选框，客户端本地计算分数并执行 NMS。' },
+  { label: 'End-to-End', value: 'EndToEnd', description: '直接读取图内后处理后的检测结果，不再显示阈值配置。' },
+];
+
 const activeTab = ref<DialogTab>('basic');
 const activeModelTab = ref<ModelTab>('imgDet');
 const form = ref<ScriptTableRecord | null>(null);
@@ -666,6 +724,12 @@ const imgDetKind = ref<DetectorKind>('none');
 const txtDetKind = ref<DetectorKind>('none');
 const txtRecKind = ref<RecognizerKind>('none');
 const contentTextarea = ref<HTMLTextAreaElement | null>(null);
+const imgLabelPathHint = ref<string | null>(null);
+const txtLabelPathHint = ref<string | null>(null);
+const imgLabelLoading = ref(false);
+const txtLabelLoading = ref(false);
+let imgLabelRequestId = 0;
+let txtLabelRequestId = 0;
 
 function createBaseModel(
   modelType: BaseModel['modelType'],
@@ -688,14 +752,15 @@ function createBaseModel(
 }
 
 function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
-  return {
+  return syncYoloPostprocessFields({
     baseModel: createBaseModel(kind, 640, 640, 'Custom'),
-    classCount: 80,
-    confidenceThresh: 0.25,
-    iouThresh: 0.45,
+    classCount: 0,
+    confidenceThresh: YOLO_LEGACY_CONFIDENCE_DEFAULT,
+    iouThresh: YOLO_LEGACY_IOU_DEFAULT,
     labelPath: null,
     txtIdx: textMode ? 0 : null,
-  };
+    postprocessKind: defaultYoloPostprocessKind(kind),
+  });
 }
 
 function createDbNet(): PaddleDetDbNet {
@@ -727,6 +792,16 @@ function normalizeCrnnModel(model: PaddleRecCrnn): PaddleRecCrnn {
   return model;
 }
 
+function normalizeYoloModel(model: YoloDet, kind: 'Yolo11' | 'Yolo26'): YoloDet {
+  if (typeof model.classCount !== 'number' || Number.isNaN(model.classCount) || model.classCount < 0) {
+    model.classCount = 0;
+  }
+  if (model.postprocessKind == null) {
+    model.postprocessKind = defaultYoloPostprocessKind(kind);
+  }
+  return syncYoloPostprocessFields(model);
+}
+
 function resolveDetectorKind(model: DetectorType | null): DetectorKind {
   if (!model) return 'none';
   if ('Yolo11' in model) return 'Yolo11';
@@ -750,6 +825,11 @@ function syncKinds() {
   if (imgYolo && imgYolo.baseModel.modelSource === 'BuiltIn') {
     imgYolo.baseModel.modelSource = 'Custom';
   }
+  if (form.value.data.imgDetModel && 'Yolo11' in form.value.data.imgDetModel) {
+    normalizeYoloModel(form.value.data.imgDetModel.Yolo11, 'Yolo11');
+  } else if (form.value.data.imgDetModel && 'Yolo26' in form.value.data.imgDetModel) {
+    normalizeYoloModel(form.value.data.imgDetModel.Yolo26, 'Yolo26');
+  }
   if (form.value.data.txtDetModel) {
     if ('PaddleDbNet' in form.value.data.txtDetModel && form.value.data.txtDetModel.PaddleDbNet.baseModel.modelSource === 'BuiltIn') {
       form.value.data.txtDetModel.PaddleDbNet.baseModel.modelSource = 'Custom';
@@ -757,6 +837,17 @@ function syncKinds() {
     const txtYolo = extractYoloDetector(form.value.data.txtDetModel);
     if (txtYolo && txtYolo.baseModel.modelSource === 'BuiltIn') {
       txtYolo.baseModel.modelSource = 'Custom';
+    }
+    if ('Yolo11' in form.value.data.txtDetModel) {
+      normalizeYoloModel(form.value.data.txtDetModel.Yolo11, 'Yolo11');
+    } else if ('Yolo26' in form.value.data.txtDetModel) {
+      normalizeYoloModel(form.value.data.txtDetModel.Yolo26, 'Yolo26');
+    }
+  }
+  if (form.value.data.txtRecModel && 'PaddleCrnn' in form.value.data.txtRecModel) {
+    const crnn = normalizeCrnnModel(form.value.data.txtRecModel.PaddleCrnn);
+    if (crnn.baseModel.modelSource === 'BuiltIn') {
+      crnn.dictPath = null;
     }
   }
   imgDetKind.value = resolveDetectorKind(form.value.data.imgDetModel);
@@ -804,12 +895,8 @@ function setRecognizerKind(nextValue: string | number | null) {
 
 const scriptTypeLabel = computed(() => (form.value?.data.scriptType === 'published' ? '云端版本' : '本地开发'));
 const canSubmit = computed(() => Boolean(form.value?.data.name.trim()));
-const dialogWidthClass = computed(() =>
-  props.mode === 'create' ? 'max-w-6xl min-h-[80vh] max-h-[calc(100vh-3rem)] flex flex-col' : 'max-w-6xl',
-);
-const formClass = computed(() =>
-  props.mode === 'create' ? 'min-h-0 flex-1 overflow-y-auto pr-1' : '',
-);
+const dialogWidthClass = computed(() => 'max-w-6xl min-h-[80vh] max-h-[calc(100vh-3rem)] flex flex-col');
+const formClass = computed(() => 'min-h-0 flex-1 overflow-hidden');
 
 function extractYoloDetector(model: DetectorType | null): YoloDet | null {
   if (!model) return null;
@@ -831,6 +918,17 @@ const txtCrnnModel = computed(() => {
   }
   return normalizeCrnnModel(form.value.data.txtRecModel.PaddleCrnn);
 });
+const resolvePostprocessFallback = (kind: DetectorKind): YoloPostprocessKind =>
+  defaultYoloPostprocessKind(kind === 'Yolo26' ? 'Yolo26' : 'Yolo11');
+const imgYoloPostprocessKind = computed<YoloPostprocessKind>(() =>
+  imgYoloModel.value?.postprocessKind ?? resolvePostprocessFallback(imgDetKind.value),
+);
+const txtYoloPostprocessKind = computed<YoloPostprocessKind>(() =>
+  txtYoloModel.value?.postprocessKind ?? resolvePostprocessFallback(txtDetKind.value),
+);
+const showImgYoloThresholds = computed(() => imgYoloPostprocessKind.value === 'LegacyNms');
+const showTxtYoloThresholds = computed(() => txtYoloPostprocessKind.value === 'LegacyNms');
+const showTxtRecDictPath = computed(() => txtCrnnModel.value.baseModel.modelSource === 'Custom');
 
 const descriptionValue = computed({
   get: () => form.value?.data.description || '',
@@ -941,6 +1039,30 @@ const txtLabelPathValue = computed({
   },
 });
 
+const imgPostprocessKindValue = computed<YoloPostprocessKind>({
+  get: () => imgYoloModel.value?.postprocessKind ?? resolvePostprocessFallback(imgDetKind.value),
+  set: (value) => {
+    const model = getYoloDetector('imgDetModel');
+    if (!model) {
+      return;
+    }
+    model.postprocessKind = value;
+    syncYoloPostprocessFields(model);
+  },
+});
+
+const txtPostprocessKindValue = computed<YoloPostprocessKind>({
+  get: () => txtYoloModel.value?.postprocessKind ?? resolvePostprocessFallback(txtDetKind.value),
+  set: (value) => {
+    const model = getYoloDetector('txtDetModel');
+    if (!model) {
+      return;
+    }
+    model.postprocessKind = value;
+    syncYoloPostprocessFields(model);
+  },
+});
+
 const txtIdxValue = computed({
   get: () => txtYoloModel.value?.txtIdx ?? 0,
   set: (value: number) => {
@@ -957,6 +1079,67 @@ const dictPathValue = computed({
     }
   },
 });
+
+const setLabelLoaderState = (
+  field: LabelLoaderField,
+  state: { hint?: string | null; loading?: boolean },
+) => {
+  if (field === 'imgDetModel') {
+    if (state.hint !== undefined) imgLabelPathHint.value = state.hint;
+    if (state.loading !== undefined) imgLabelLoading.value = state.loading;
+    return;
+  }
+  if (state.hint !== undefined) txtLabelPathHint.value = state.hint;
+  if (state.loading !== undefined) txtLabelLoading.value = state.loading;
+};
+
+const nextLabelRequestId = (field: LabelLoaderField) => {
+  if (field === 'imgDetModel') {
+    imgLabelRequestId += 1;
+    return imgLabelRequestId;
+  }
+  txtLabelRequestId += 1;
+  return txtLabelRequestId;
+};
+
+const isLatestLabelRequest = (field: LabelLoaderField, requestId: number) =>
+  field === 'imgDetModel' ? imgLabelRequestId === requestId : txtLabelRequestId === requestId;
+
+async function hydrateYoloClassCount(field: LabelLoaderField, labelPath: string | null | undefined) {
+  const model = getYoloDetector(field);
+  if (!model) {
+    return;
+  }
+
+  const trimmedPath = labelPath?.trim() || '';
+  if (!trimmedPath) {
+    model.classCount = 0;
+    setLabelLoaderState(field, { hint: null, loading: false });
+    return;
+  }
+
+  const requestId = nextLabelRequestId(field);
+  setLabelLoaderState(field, { loading: true });
+  try {
+    const labels = await scriptService.getYoloLabels(trimmedPath);
+    if (!isLatestLabelRequest(field, requestId)) {
+      return;
+    }
+    model.classCount = labels.length;
+    setLabelLoaderState(field, {
+      hint: labels.length ? `已从标签文件读取 ${labels.length} 个类别。` : '标签文件已读取，但未解析到任何 names。',
+      loading: false,
+    });
+  } catch (error) {
+    if (!isLatestLabelRequest(field, requestId)) {
+      return;
+    }
+    setLabelLoaderState(field, {
+      hint: error instanceof Error ? `标签文件读取失败：${error.message}` : '标签文件读取失败，请检查路径和格式。',
+      loading: false,
+    });
+  }
+}
 
 const pickImgLabelPath = async () => {
   const value = await dialogOpen({
@@ -1061,6 +1244,23 @@ function submit() {
   form.value.data.verName = form.value.data.verName.trim() || '0.1.0';
   form.value.data.updateTime = new Date().toISOString();
   const nextScript = cloneScriptRecord(form.value);
+  const normalizeDetector = (model: DetectorType | null) => {
+    if (!model) {
+      return;
+    }
+    if ('Yolo11' in model) {
+      syncYoloPostprocessFields(model.Yolo11);
+      return;
+    }
+    if ('Yolo26' in model) {
+      syncYoloPostprocessFields(model.Yolo26);
+    }
+  };
+  normalizeDetector(nextScript.data.imgDetModel);
+  normalizeDetector(nextScript.data.txtDetModel);
+  if (nextScript.data.txtRecModel && 'PaddleCrnn' in nextScript.data.txtRecModel && nextScript.data.txtRecModel.PaddleCrnn.baseModel.modelSource === 'BuiltIn') {
+    nextScript.data.txtRecModel.PaddleCrnn.dictPath = null;
+  }
   if (nextScript.data.scriptType === 'published') {
     nextScript.data.imgDetModel = rewritePublishedDetectorModelPath(nextScript.data.imgDetModel, nextScript.id, 'img_det_model.onnx');
     nextScript.data.txtDetModel = rewritePublishedDetectorModelPath(nextScript.data.txtDetModel, nextScript.id, 'txt_det_model.onnx');
@@ -1080,6 +1280,41 @@ watch(
     activeTab.value = 'basic';
     activeModelTab.value = 'imgDet';
     syncKinds();
+  },
+  { immediate: true },
+);
+
+watch(
+  () => imgYoloModel.value?.labelPath,
+  (value) => {
+    if (!form.value) {
+      return;
+    }
+    void hydrateYoloClassCount('imgDetModel', value);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => txtYoloModel.value?.labelPath,
+  (value) => {
+    if (!form.value) {
+      return;
+    }
+    void hydrateYoloClassCount('txtDetModel', value);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => txtCrnnModel.value.baseModel.modelSource,
+  (value) => {
+    if (!form.value?.data.txtRecModel || !('PaddleCrnn' in form.value.data.txtRecModel)) {
+      return;
+    }
+    if (value === 'BuiltIn') {
+      form.value.data.txtRecModel.PaddleCrnn.dictPath = null;
+    }
   },
   { immediate: true },
 );
@@ -1146,6 +1381,11 @@ watch(
   min-width: 2.75rem;
   height: 2.75rem;
   padding: 0;
+}
+
+.app-input-readonly {
+  background: color-mix(in srgb, var(--app-panel-muted) 94%, transparent);
+  color: var(--app-text-soft);
 }
 
 .support-form-row {

@@ -666,6 +666,7 @@ import {
   extractYoloDetector,
   resolveDetectorKind,
   resolveRecognizerKind,
+  syncYoloPostprocessFields,
   type DetectorKind,
   type RecognizerKind,
 } from '@/utils/visionModelPresets';
@@ -1150,6 +1151,9 @@ function sanitizeImageDetector(model: DetectorType | null): DetectorType | null 
   if (yolo && yolo.baseModel.modelSource === 'BuiltIn') {
     yolo.baseModel.modelSource = 'Custom';
   }
+  if (yolo) {
+    syncYoloPostprocessFields(yolo);
+  }
   return model;
 }
 
@@ -1166,6 +1170,9 @@ function sanitizeTextDetector(model: DetectorType | null): DetectorType | null {
   const yolo = extractYoloDetector(model);
   if (yolo && yolo.baseModel.modelSource === 'BuiltIn') {
     yolo.baseModel.modelSource = 'Custom';
+  }
+  if (yolo) {
+    syncYoloPostprocessFields(yolo);
   }
   return model;
 }

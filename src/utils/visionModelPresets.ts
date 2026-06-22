@@ -4,9 +4,13 @@ import type { PaddleDetDbNet } from '@/types/bindings/PaddleDetDbNet';
 import type { PaddleRecCrnn } from '@/types/bindings/PaddleRecCrnn';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { YoloDet } from '@/types/bindings/YoloDet';
+import type { YoloPostprocessKind } from '@/types/bindings/YoloPostprocessKind';
 
 export type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
 export type RecognizerKind = 'none' | 'PaddleCrnn';
+export const YOLO_LEGACY_CONFIDENCE_DEFAULT = 0.25;
+export const YOLO_LEGACY_IOU_DEFAULT = 0.45;
+export const CUSTOM_CRNN_DICT_FILE_NAME = 'ch_v5_dict.txt';
 
 function clone<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
@@ -33,14 +37,15 @@ export function createBaseModel(
 }
 
 export function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
-    return {
+    return syncYoloPostprocessFields({
         baseModel: createBaseModel(kind, 640, 640, 'Custom'),
         classCount: 80,
-        confidenceThresh: 0.25,
-        iouThresh: 0.45,
+        confidenceThresh: YOLO_LEGACY_CONFIDENCE_DEFAULT,
+        iouThresh: YOLO_LEGACY_IOU_DEFAULT,
         labelPath: null,
         txtIdx: textMode ? 0 : null,
-    };
+        postprocessKind: defaultYoloPostprocessKind(kind),
+    });
 }
 
 export function createDbNet(): PaddleDetDbNet {
@@ -62,6 +67,29 @@ export function createCrnn(): PaddleRecCrnn {
         microBatchSize: 4,
         widthBucketStep: 32,
     };
+}
+
+export function defaultYoloPostprocessKind(kind: 'Yolo11' | 'Yolo26'): YoloPostprocessKind {
+    return kind === 'Yolo26' ? 'EndToEnd' : 'LegacyNms';
+}
+
+export function syncYoloPostprocessFields(model: YoloDet): YoloDet {
+    const kind = model.postprocessKind ?? 'LegacyNms';
+    model.postprocessKind = kind;
+
+    if (kind === 'EndToEnd') {
+        model.confidenceThresh = null;
+        model.iouThresh = null;
+        return model;
+    }
+
+    if (model.confidenceThresh == null) {
+        model.confidenceThresh = YOLO_LEGACY_CONFIDENCE_DEFAULT;
+    }
+    if (model.iouThresh == null) {
+        model.iouThresh = YOLO_LEGACY_IOU_DEFAULT;
+    }
+    return model;
 }
 
 export function resolveDetectorKind(model: DetectorType | null): DetectorKind {
@@ -160,8 +188,13 @@ export function rewritePublishedRecognizerModelPath(
         return null;
     }
     const next = clone(model);
-    if ('PaddleCrnn' in next && next.PaddleCrnn.baseModel.modelSource === 'Custom') {
-        next.PaddleCrnn.baseModel.modelPath = `${scriptId}/txt_rec_model.onnx`;
+    if ('PaddleCrnn' in next) {
+        if (next.PaddleCrnn.baseModel.modelSource === 'Custom') {
+            next.PaddleCrnn.baseModel.modelPath = `${scriptId}/txt_rec_model.onnx`;
+        }
+        if (next.PaddleCrnn.dictPath?.trim()) {
+            next.PaddleCrnn.dictPath = `${scriptId}/${CUSTOM_CRNN_DICT_FILE_NAME}`;
+        }
     }
     return next;
 }

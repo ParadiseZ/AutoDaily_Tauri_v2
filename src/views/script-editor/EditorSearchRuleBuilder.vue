@@ -31,15 +31,20 @@
               :data-testid="rootTestId('txt')"
               @input="replaceRule({ ...currentRule, pattern: ($event.target as HTMLInputElement).value })"
             />
-            <input
-              v-else-if="currentRule.type === SEARCH_RULE_TYPE.detLabel"
-              :value="String(currentRule.idx)"
-              class="app-input"
-              type="number"
-              placeholder="标签索引"
-              :data-testid="rootTestId('det-label-idx')"
-              @input="replaceRule({ ...currentRule, idx: Number(($event.target as HTMLInputElement).value) || 0 })"
-            />
+            <div v-else-if="currentRule.type === SEARCH_RULE_TYPE.detLabel" class="space-y-2">
+              <AppSelect
+                :model-value="currentRule.idx ?? null"
+                :options="resolvedLabelIndexOptions"
+                :placeholder="labelSelectPlaceholder"
+                :disabled="!(resolvedLabelIndexOptions.length)"
+                searchable
+                search-placeholder="搜索标签"
+                :max-menu-height="320"
+                :test-id="rootTestId('det-label-idx')"
+                @update:model-value="replaceRule({ ...currentRule, idx: Number($event ?? 0) || 0 })"
+              />
+              <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
+            </div>
           </div>
         </div>
 
@@ -111,6 +116,9 @@
           :depth="depth + 1"
           :test-id-prefix="rootTestId(`item-${index}`)"
           removable
+          :label-index-options="labelIndexOptions"
+          :label-select-placeholder="labelSelectPlaceholder"
+          :label-select-hint="labelSelectHint"
           @update:model-value="updateGroupItem(index, $event)"
           @remove="removeGroupItem(index)"
         />
@@ -124,6 +132,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { Trash2 } from 'lucide-vue-next';
+import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { SearchRule } from '@/types/bindings/SearchRule';
@@ -146,12 +155,18 @@ const props = withDefaults(
     removable?: boolean;
     testIdPrefix?: string | null;
     forceGroupRoot?: boolean;
+    labelIndexOptions?: Array<{ label: string; value: number; description?: string; disabled?: boolean }>;
+    labelSelectPlaceholder?: string;
+    labelSelectHint?: string | null;
   }>(),
   {
     depth: 0,
     removable: false,
     testIdPrefix: null,
     forceGroupRoot: false,
+    labelIndexOptions: () => [],
+    labelSelectPlaceholder: '请先设置文字检测模型标签文件',
+    labelSelectHint: null,
   },
 );
 
@@ -166,6 +181,23 @@ const headerLabel = computed(() => {
   if (isRootGroup.value) return '根逻辑组';
   if (currentRule.value.type === SEARCH_RULE_TYPE.group) return '逻辑组';
   return '召回规则';
+});
+const resolvedLabelIndexOptions = computed(() => {
+  if (currentRule.value.type !== SEARCH_RULE_TYPE.detLabel) {
+    return props.labelIndexOptions;
+  }
+  const currentIdx = currentRule.value.idx;
+  if (props.labelIndexOptions.some((option) => option.value === currentIdx)) {
+    return props.labelIndexOptions;
+  }
+  return [
+    {
+      label: `${currentIdx}: 未找到标签`,
+      value: currentIdx,
+      description: '标签文件中不存在该索引，保存时仍会保留当前 idx。',
+    },
+    ...props.labelIndexOptions,
+  ];
 });
 const addableRuleTypes = computed(() => searchRuleTypeOptions.filter((option) => option.value !== SEARCH_RULE_TYPE.group || props.depth < 2));
 const rootTestId = (suffix: string) => (props.testIdPrefix ? `${props.testIdPrefix}-${suffix}` : undefined);

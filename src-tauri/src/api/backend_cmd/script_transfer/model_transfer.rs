@@ -42,6 +42,10 @@ const TXT_REC_MODEL: ModelTypeSpec = ModelTypeSpec {
     type_name: "txt_rec_model",
     file_name: "txt_rec_model.onnx",
 };
+const TXT_REC_DICT: ModelTypeSpec = ModelTypeSpec {
+    type_name: "txt_rec_dict",
+    file_name: "ch_v5_dict.txt",
+};
 
 pub(super) fn runtime_type_param(runtime_type: &RuntimeType) -> Result<String, String> {
     serde_json::to_value(runtime_type)
@@ -111,6 +115,13 @@ pub(super) fn collect_model_uploads(
     )? {
         uploads.push(spec);
     }
+    if let Some(spec) = recognizer_dict_upload(
+        script.data.txt_rec_model.as_ref(),
+        scripts_root,
+        TXT_REC_DICT,
+    )? {
+        uploads.push(spec);
+    }
 
     Ok(uploads)
 }
@@ -130,6 +141,11 @@ pub(super) fn rewrite_script_model_paths_for_published(script: &mut ScriptTable,
         &mut script.data.txt_rec_model,
         script_id,
         TXT_REC_MODEL.file_name,
+    );
+    rewrite_recognizer_dict_path(
+        &mut script.data.txt_rec_model,
+        script_id,
+        TXT_REC_DICT.file_name,
     );
 }
 
@@ -152,6 +168,9 @@ pub(super) fn normalize_model_type(value: &str) -> Result<ModelTypeSpec, String>
         "img_det_model" | "img-det-model" | "imgdetmodel" | "det" => Ok(IMG_DET_MODEL),
         "txt_det_model" | "txt-det-model" | "txtdetmodel" | "txt-det" => Ok(TXT_DET_MODEL),
         "txt_rec_model" | "txt-rec-model" | "txtrecmodel" | "rec" => Ok(TXT_REC_MODEL),
+        "txt_rec_dict" | "txt-rec-dict" | "txtrecdict" | "rec-dict" | "dict" => {
+            Ok(TXT_REC_DICT)
+        }
         other => Err(format!("不支持的模型类型: {}", other)),
     }
 }
@@ -222,6 +241,20 @@ fn recognizer_upload(
     build_local_model_upload(recognizer_base_model(model), scripts_root, target)
 }
 
+fn recognizer_dict_upload(
+    model: Option<&RecognizerType>,
+    scripts_root: &Path,
+    target: ModelTypeSpec,
+) -> Result<Option<LocalModelUpload>, String> {
+    let Some(model) = model else {
+        return Ok(None);
+    };
+    let Some(dict_path) = recognizer_dict_path(model) else {
+        return Ok(None);
+    };
+    build_local_path_upload(dict_path.as_path(), scripts_root, target)
+}
+
 fn build_local_model_upload(
     base_model: &BaseModel,
     scripts_root: &Path,
@@ -234,6 +267,25 @@ fn build_local_model_upload(
         return Err(format!("模型 {} 缺少本地路径", target.file_name));
     }
     let local_path = resolve_local_model_path(base_model.model_path.as_path(), scripts_root);
+    build_local_resolved_upload(local_path, target)
+}
+
+fn build_local_path_upload(
+    path: &Path,
+    scripts_root: &Path,
+    target: ModelTypeSpec,
+) -> Result<Option<LocalModelUpload>, String> {
+    if path.as_os_str().is_empty() {
+        return Ok(None);
+    }
+    let local_path = resolve_local_model_path(path, scripts_root);
+    build_local_resolved_upload(local_path, target)
+}
+
+fn build_local_resolved_upload(
+    local_path: PathBuf,
+    target: ModelTypeSpec,
+) -> Result<Option<LocalModelUpload>, String> {
     let metadata = std::fs::metadata(&local_path)
         .map_err(|error| format!("读取模型文件 {} 失败: {}", local_path.display(), error))?;
     if !metadata.is_file() {
@@ -297,6 +349,22 @@ fn rewrite_detector_model_path(model: &mut Option<DetectorType>, script_id: &str
     }
 }
 
+fn rewrite_recognizer_dict_path(
+    model: &mut Option<RecognizerType>,
+    script_id: &str,
+    file_name: &str,
+) {
+    let Some(model) = model else {
+        return;
+    };
+    let Some(dict_path) = recognizer_dict_path_mut(model) else {
+        return;
+    };
+    if !dict_path.as_os_str().is_empty() {
+        *dict_path = PathBuf::from(script_id).join(file_name);
+    }
+}
+
 fn rewrite_recognizer_model_path(
     model: &mut Option<RecognizerType>,
     script_id: &str,
@@ -331,9 +399,21 @@ fn recognizer_base_model(model: &RecognizerType) -> &BaseModel {
     }
 }
 
+fn recognizer_dict_path(model: &RecognizerType) -> Option<&PathBuf> {
+    match model {
+        RecognizerType::PaddleCrnn(rec) => rec.dict_path.as_ref(),
+    }
+}
+
 fn recognizer_base_model_mut(model: &mut RecognizerType) -> &mut BaseModel {
     match model {
         RecognizerType::PaddleCrnn(rec) => &mut rec.base_model,
+    }
+}
+
+fn recognizer_dict_path_mut(model: &mut RecognizerType) -> Option<&mut PathBuf> {
+    match model {
+        RecognizerType::PaddleCrnn(rec) => rec.dict_path.as_mut(),
     }
 }
 
