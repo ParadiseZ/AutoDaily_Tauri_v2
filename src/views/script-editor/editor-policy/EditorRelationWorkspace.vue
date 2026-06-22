@@ -1,6 +1,6 @@
 <template>
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
-    <template v-if="selectedTitle">
+    <template v-if="hasSelection">
       <div class="space-y-1">
       </div>
 
@@ -90,7 +90,7 @@
                 </span>
               </div>
               <input v-model="unassignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索未关联内容" />
-              <p class="text-xs text-(--app-text-faint)">点击加入当前 {{ selectedTitle }}。</p>
+              <p class="text-xs text-(--app-text-faint)">点击加入当前 {{ selectedTitleText }}。</p>
             </div>
           </div>
 
@@ -126,6 +126,7 @@ import type { EditorNamedItem } from '@/views/script-editor/editor-policy/editor
 
 const props = withDefaults(
   defineProps<{
+    hasSelection: boolean;
     selectedTitle: string | null;
     assignedTitle: string;
     unassignedTitle: string;
@@ -151,6 +152,7 @@ const assignedSearch = ref('');
 const unassignedSearch = ref('');
 const draggingAssignedId = ref<string | null>(null);
 const overAssignedId = ref<string | null>(null);
+const selectedTitleText = computed(() => props.selectedTitle?.trim() || '当前集合');
 
 const matchesSearch = (item: EditorNamedItem, keyword: string) =>
   `${item.title} ${item.subtitle}`.toLowerCase().includes(keyword);

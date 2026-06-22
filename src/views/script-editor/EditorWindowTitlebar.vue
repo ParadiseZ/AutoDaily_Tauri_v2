@@ -67,11 +67,13 @@ const props = withDefaults(
     meta?: string | null;
     statusLabel?: string | null;
     statusTone?: 'info' | 'success' | 'warning' | 'danger';
+    requestClose?: () => boolean | Promise<boolean>;
   }>(),
   {
     meta: null,
     statusLabel: null,
     statusTone: 'info',
+    requestClose: undefined,
   },
 );
 
@@ -124,6 +126,12 @@ async function handleToggleMaximize() {
 async function handleCloseWindow() {
   if (!windowHandle) {
     return;
+  }
+  if (props.requestClose) {
+    const approved = await props.requestClose();
+    if (!approved) {
+      return;
+    }
   }
   await windowHandle.close();
 }

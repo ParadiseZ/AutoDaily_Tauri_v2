@@ -7,9 +7,10 @@
         :meta="formattedSaveTime ? `最近保存 ${formattedSaveTime}` : null"
         :status-label="hasValidationErrors ? '待修复' : dirty ? '未保存' : '已同步'"
         :status-tone="hasValidationErrors ? 'danger' : dirty ? 'warning' : 'success'"
+        :request-close="handleRequestCloseWindow"
       >
         <template #prefix>
-          <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="router.push('/scripts')">
+          <button class="app-icon-button group" type="button" title="返回" aria-label="返回" @click="handleNavigateBack">
             <AppIcon name="chevron-left" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
           </button>
         </template>
@@ -387,7 +388,8 @@
 
               <EditorRelationWorkspace
                 v-else-if="activeMode === 'policyGroup'"
-                :selected-title="currentPolicyGroup?.data.name || null"
+                :has-selection="Boolean(currentPolicyGroup)"
+                :selected-title="currentPolicyGroup?.data.name ?? null"
                 assigned-title="已关联策略"
                 unassigned-title="未关联策略"
                 :assigned-items="assignedPolicies"
@@ -402,7 +404,8 @@
 
               <EditorRelationWorkspace
                 v-else
-                :selected-title="currentPolicySet?.data.name || null"
+                :has-selection="Boolean(currentPolicySet)"
+                :selected-title="currentPolicySet?.data.name ?? null"
                 assigned-title="已关联策略组"
                 unassigned-title="未关联策略组"
                 :assigned-items="assignedGroups"
@@ -461,7 +464,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { listen } from '@tauri-apps/api/event';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorWindowTitlebar from '@/views/script-editor/EditorWindowTitlebar.vue';
@@ -646,7 +649,7 @@ const textDetLabelHint = ref<string | null>('请先在脚本信息里设置文�
 const textDetLabelLoading = ref(false);
 const selectedRunTargetKey = ref<string | null>(null);
 
-const sidebarWidth = ref(340);
+const sidebarWidth = ref(300);
 const configPanelWidth = ref(360);
 const isResizingSidebar = ref(false);
 const isResizingConfigPanel = ref(false);
@@ -1248,6 +1251,31 @@ const formattedSaveTime = computed(() => {
     minute: '2-digit',
   });
 });
+const bypassDirtyExitGuard = ref(false);
+
+const confirmDiscardUnsavedChanges = async () => {
+  if (!dirty.value) {
+    return true;
+  }
+  return requestAppConfirm({
+    title: '当前内容未保存',
+    message: '确认退出？未保存的改动将会丢失。',
+    confirmText: '确认',
+    cancelText: '取消',
+    tone: 'warning',
+  });
+};
+
+const handleNavigateBack = async () => {
+  const approved = await confirmDiscardUnsavedChanges();
+  if (!approved) {
+    return;
+  }
+  bypassDirtyExitGuard.value = true;
+  await router.push('/scripts');
+};
+
+const handleRequestCloseWindow = async () => confirmDiscardUnsavedChanges();
 
 const rawDialogTitle = computed(() => {
   switch (rawDialogSection.value) {
@@ -3618,6 +3646,14 @@ watch(
   },
   { immediate: true },
 );
+
+onBeforeRouteLeave(async () => {
+  if (bypassDirtyExitGuard.value) {
+    bypassDirtyExitGuard.value = false;
+    return true;
+  }
+  return confirmDiscardUnsavedChanges();
+});
 
 watch(
   [currentEditorRunTargetKey, runTargetSelectOptions],
