@@ -43,13 +43,6 @@
             <EditorOverviewField label="步骤标题">
               <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
             </EditorOverviewField>
-
-            <!-- <div class="step-summary-card">
-              <p class="text-sm font-medium text-(--app-text-strong)">{{ describeStep(selectedStep) }}</p>
-              <p class="mt-2 text-sm leading-6 text-(--app-text-soft)">
-                {{ selectedStepSummary }}
-              </p>
-            </div> -->
           </EditorOverviewSection>
 
           <EditorOverviewSection

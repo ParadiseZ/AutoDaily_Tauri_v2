@@ -54,7 +54,7 @@ export const normalizePolicyGroup = (group: PolicyGroupTable, index: number): Po
   ...group,
   orderIndex: index,
   data: {
-    name: group.data?.name || `策略组 ${index + 1}`,
+    name: group.data?.name ?? `策略组 ${index + 1}`,
     note: group.data?.note || '',
   },
 });

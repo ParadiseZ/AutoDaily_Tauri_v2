@@ -919,7 +919,7 @@ export const describeStepMeta = (step: Step) => {
         }
         return `等待 ${String(step.a.ms)} ms`;
       case FLOW_TYPE.link:
-        return `跳转到 ${step.a.target || '未指定任务'}`;
+        return `跳转➡️[${step.a.target || '未指定'}]`;
       case FLOW_TYPE.addPolicies:
         return `策略集 ${step.a.source || '未指定'} -> ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
       case FLOW_TYPE.bindPolicyGroup:

@@ -7,15 +7,19 @@
     }"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
-      <EditorSelectField
-          :model-value="modelValue.type"
-          :options="conditionTypeOptions"
-          placeholder="条件类型"
-          class="min-w-[180px] flex-1"
-          :test-id="rootTestId('type')"
-          @update:model-value="changeType(String($event || 'rawExpr'))"
-        />
-
+      <div class="flex gap-10">
+        <div class="editor-inline-label">条件类型</div>
+        <div class="editor-inline-content">
+          <EditorSelectField
+            :model-value="modelValue.type"
+            :options="conditionTypeOptions"
+            placeholder="条件类型"
+            class="min-w-[180px] flex-1"
+            :test-id="rootTestId('type')"
+            @update:model-value="changeType(String($event || 'rawExpr'))"
+          />
+        </div>
+      </div>
       <button
         v-if="removable"
         class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
@@ -182,7 +186,8 @@
               @update:model-value="updateTaskTargetId(String($event || ''))"
             />
           </div>
-
+        </div>
+        <div class="flex gap-x-10">
           <div class="editor-inline-label">状态类型</div>
           <div class="editor-inline-content">
             <EditorSelectField
@@ -1161,7 +1166,7 @@ const updateColorNumber = (field: 'r' | 'g' | 'b', value: string) => {
   display: flex;
   align-items: center;
   min-height: 44px;
-  color: var(--app-text-faint);
+  /* color: var(--app-text-faint); */
   font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.08em;
