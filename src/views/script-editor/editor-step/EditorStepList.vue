@@ -38,7 +38,7 @@
                 {{ step.op }}
               </span>
             </div>
-            <p v-if="describeStepMeta(step) !== describeStep(step)" class="mt-2 text-sm leading-6 text-(--app-text-soft)">{{ describeStepMeta(step) }}</p>
+            <p v-if="describeStepMetaText(step) !== describeStep(step)" class="mt-2 text-sm leading-6 text-(--app-text-soft)">{{ describeStepMetaText(step) }}</p>
             <p v-if="nestedSummary(step)" class="mt-2 text-xs text-(--app-text-faint)">{{ nestedSummary(step) }}</p>
           </div>
         </button>
@@ -61,6 +61,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import type { Step } from '@/types/bindings/Step';
 import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
+import type { EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { Trash2 } from 'lucide-vue-next';
 
@@ -69,9 +70,11 @@ const props = withDefaults(defineProps<{
   selectedIndex: number | null;
   allowRemove?: boolean;
   allowReorder?: boolean;
+  taskReferenceOptions?: EditorReferenceOption[];
 }>(), {
   allowRemove: true,
   allowReorder: true,
+  taskReferenceOptions: () => [],
 });
 
 const emit = defineEmits<{
@@ -123,6 +126,18 @@ const nestedSummary = (step: Step) => {
     return `命中后 ${step.a.then_steps.length} 个步骤`;
   }
   return '';
+};
+
+const describeStepMetaText = (step: Step) => {
+  if (step.op === STEP_OP.flowControl && step.a.type === FLOW_TYPE.link) {
+    const target = step.a.target?.trim();
+    if (!target) {
+      return '跳转➡️[未指定]';
+    }
+    const taskName = props.taskReferenceOptions.find((option) => option.value === target)?.label || target;
+    return `跳转➡️[${taskName}]`;
+  }
+  return describeStepMeta(step);
 };
 
 onMounted(() => {

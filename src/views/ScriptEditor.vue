@@ -3347,8 +3347,11 @@ watch(
 );
 
 watch(
-  textDetLabelPath,
-  (path) => {
+  [textDetLabelPath, isLoading],
+  ([path, loading]) => {
+    if (loading) {
+      return;
+    }
     void loadTextDetLabels(path);
   },
   { immediate: true },

@@ -376,13 +376,14 @@
     <template v-else-if="flowWithCondition && flowCondition">
       <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
-          <EditorSelectField
+          <!-- 去掉步骤内切换其它类型步骤的功能 -->
+          <!-- <EditorSelectField
             :model-value="flowWithCondition.type"
             :options="flowTypeOptions"
             placeholder="流程类型"
             class="min-w-[180px] flex-1"
             @update:model-value="$emit('update-flow-type', String($event || FLOW_TYPE.if))"
-          />
+          /> -->
 
           <div class="flex flex-wrap items-center gap-2" v-if="branchTargets.length">
             <button

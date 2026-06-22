@@ -432,7 +432,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'if',
     icon: genSvg(SVG_ICONS.branch),
-    label: '条件分支',
+    label: 'if',//条件分支
     description: '创建一段最小化的条件判断骨架。',
     group: '流程',
     create: () =>
@@ -453,7 +453,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'while',
     icon: genSvg(SVG_ICONS.loop),
-    label: '循环条件',
+    label: 'while',//循环条件
     description: '根据 ConditionNode 条件循环执行子步骤。',
     group: '流程',
     create: () =>
@@ -473,7 +473,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'for-each',
     icon: genSvg(SVG_ICONS.forEach),
-    label: '遍历循环',
+    label: 'forEach',//遍历循环
     description: '遍历输入变量中的数组元素，并把当前元素映射到运行时变量。',
     group: '流程',
     create: () =>
@@ -492,7 +492,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'repeat',
     icon: genSvg(SVG_ICONS.repeat),
-    label: '次数循环',
+    label: 'for',//次数循环
     description: '按绑定的数字变量重复执行子步骤，适合用 UI 变量控制执行次数。',
     group: '流程',
     create: () =>
@@ -510,12 +510,12 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'continue',
     icon: genSvg(SVG_ICONS.continue),
-    label: '继续循环',
+    label: 'continue',//继续循环
     description: '在循环内部跳过后续步骤并继续下一轮。',
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '继续循环',
+        label: 'continue',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.continue,
@@ -525,12 +525,12 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'break',
     icon: genSvg(SVG_ICONS.break),
-    label: '跳出循环',
+    label: 'break',//break
     description: '在循环内部立即结束当前循环。',
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '跳出循环',
+        label: 'break',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.break,

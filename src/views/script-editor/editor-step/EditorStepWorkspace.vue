@@ -18,6 +18,7 @@
           v-if="currentContainerSteps.length"
           :steps="currentContainerSteps"
           :selected-index="currentSelectedIndex"
+          :task-reference-options="taskReferenceOptions"
           @select="selectCurrentBranchStep"
           @remove="$emit('remove-step', $event)"
           @reorder="handleReorder"
@@ -43,12 +44,12 @@
               <input :value="selectedStep.label || ''" class="app-input" @input="updateStepLabel(($event.target as HTMLInputElement).value)" />
             </EditorOverviewField>
 
-            <div class="step-summary-card">
+            <!-- <div class="step-summary-card">
               <p class="text-sm font-medium text-(--app-text-strong)">{{ describeStep(selectedStep) }}</p>
               <p class="mt-2 text-sm leading-6 text-(--app-text-soft)">
                 {{ selectedStepSummary }}
               </p>
-            </div>
+            </div> -->
           </EditorOverviewSection>
 
           <EditorOverviewSection
@@ -591,7 +592,8 @@ const selectedStepConfigDescription = computed(() => {
   if (selectedStep.value.op === STEP_OP.sequence) {
     return 'Sequence 节点字段较少，重点是进入子层级继续编辑允许合并的动作步骤。';
   }
-  return '详情区现在按概览与配置拆开，和输入、界面等 tab 保持同一套阅读节奏。';
+  /* return '详情区现在按概览与配置拆开，和输入、界面等 tab 保持同一套阅读节奏。'; */
+  return '';
 });
 
 const selectedAction = computed<Action | null>(() => (selectedStep.value?.op === STEP_OP.action ? selectedStep.value.a : null));

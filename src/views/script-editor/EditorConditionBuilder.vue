@@ -316,7 +316,8 @@
           </button>
         </div>
 
-        <EditorVariableMetaCard
+        <!-- 去掉步骤内变量编辑功能，以保持页面简洁性 -->
+        <!-- <EditorVariableMetaCard
           v-if="selectedVarCompareOption"
           :variable="selectedVarCompareOption"
           :input-entry="selectedVarCompareInputEntry"
@@ -324,7 +325,7 @@
           compact
           hide-header
           @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-        />
+        /> -->
 
         <label v-if="currentVarValueDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
