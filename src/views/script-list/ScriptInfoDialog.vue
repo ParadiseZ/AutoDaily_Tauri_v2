@@ -98,36 +98,12 @@
               </div>
 
               <div class="dialog-form-grid">
-                <label class="dialog-form-row">
-                  <span class="dialog-form-label">最低程序版本</span>
-                  <input
-                    v-model.trim="minAppVersionValue"
-                    class="app-input"
-                    data-testid="script-basic-min-app-version"
-                    maxlength="20"
-                    placeholder="0.1.0"
-                  />
-                </label>
-
-                <label class="dialog-form-row">
-                  <span class="dialog-form-label">运行时结构版本</span>
-                  <input
-                    v-model.number="minRuntimeSchemaValue"
-                    class="app-input"
-                    data-testid="script-basic-min-runtime-schema"
-                    min="1"
-                    type="number"
-                  />
-                </label>
-              </div>
-
-              <div class="dialog-form-grid">
                 <div class="dialog-form-row">
                   <span class="dialog-form-label">作者</span>
                   <div class="dialog-form-readonly">{{ form.data.userName || 'Local User' }}</div>
                 </div>
 
-                <div class="dialog-form-row">
+                <div class="dialog-form-row" style="display: none">
                   <span class="dialog-form-label">脚本类型</span>
                   <div class="dialog-form-readonly">{{ scriptTypeLabel }}</div>
                 </div>
@@ -540,7 +516,7 @@
                   class="app-textarea min-h-[280px]"
                   data-testid="script-content-md"
                   maxlength="4000"
-                  placeholder="# 0.1.0&#10;- 初始版本。"
+                  placeholder="# 2026-05-06&#10;## v0.0.1 更新日志&#10;首次发布。"
                 />
               </label>
               <div class="grid gap-2">
@@ -895,7 +871,7 @@ function setRecognizerKind(nextValue: string | number | null) {
 
 const scriptTypeLabel = computed(() => (form.value?.data.scriptType === 'published' ? '云端版本' : '本地开发'));
 const canSubmit = computed(() => Boolean(form.value?.data.name.trim()));
-const dialogWidthClass = computed(() => 'max-w-6xl min-h-[80vh] max-h-[calc(100vh-3rem)] flex flex-col');
+const dialogWidthClass = computed(() => 'max-w-6xl min-h-[84vh] max-h-[calc(100vh-3rem)] flex flex-col');
 const formClass = computed(() => 'min-h-0 flex-1 overflow-hidden');
 
 function extractYoloDetector(model: DetectorType | null): YoloDet | null {
@@ -941,20 +917,6 @@ const contentMdValue = computed({
   get: () => form.value?.data.contentMd || '',
   set: (value: string) => {
     if (form.value) form.value.data.contentMd = value || null;
-  },
-});
-
-const minAppVersionValue = computed({
-  get: () => form.value?.data.minAppVersion || '',
-  set: (value: string) => {
-    if (form.value) form.value.data.minAppVersion = value.trim() || null;
-  },
-});
-
-const minRuntimeSchemaValue = computed({
-  get: () => form.value?.data.minRuntimeSchema ?? 1,
-  set: (value: number) => {
-    if (form.value) form.value.data.minRuntimeSchema = Math.max(1, Math.floor(Number(value) || 1));
   },
 });
 
@@ -1220,8 +1182,6 @@ function cloneScriptRecord(script: unknown): ScriptTableRecord {
 function ensureRuntimeSettings(script: ScriptTableRecord) {
   script.data.contentMd = script.data.contentMd || null;
   script.data.platform = script.data.platform || 'android';
-  script.data.minAppVersion = script.data.minAppVersion || '0.1.0';
-  script.data.minRuntimeSchema = Math.max(1, Math.floor(Number(script.data.minRuntimeSchema ?? 1) || 1));
   script.data.requiredFeatures = Array.isArray(script.data.requiredFeatures) && script.data.requiredFeatures.length
     ? script.data.requiredFeatures
     : [...defaultScriptRequiredFeatures];

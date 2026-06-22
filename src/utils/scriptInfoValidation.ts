@@ -72,6 +72,9 @@ export const validateScriptInfo = (script: ScriptTableRecord | null | undefined)
   if(isBlank(script.data.runtimeType)) {
     script.data.runtimeType = 'rhai';
   }
+  if(isBlank(script.data.platform)) {
+    script.data.platform = 'android';
+  }
   if (script.data.runtimeType == 'rhai') {
     if (!script.data.imgDetModel) {
       issues.push({ field: 'imgDetModel', label: '图像检测模型', message: 'Rhai 运行时必须配置图像检测模型。' });

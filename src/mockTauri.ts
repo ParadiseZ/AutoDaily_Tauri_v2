@@ -70,6 +70,8 @@ const DEFAULT_LOG_CONFIG: LogConfig = {
   logDir: 'logs',
   retentionDays: 7,
 };
+const CURRENT_APP_VERSION = '0.1.0';
+const CURRENT_RUNTIME_SCHEMA = 1;
 const MOCK_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9p7sKn0AAAAASUVORK5CYII=';
 
@@ -92,6 +94,15 @@ const createDefaultState = (): MockState => ({
   transferRecords: [],
   devices: [],
   timeTemplates: [],
+});
+
+const applyCurrentScriptCapability = (script: StoredScriptTable): StoredScriptTable => ({
+  ...script,
+  data: {
+    ...script.data,
+    minAppVersion: CURRENT_APP_VERSION,
+    minRuntimeSchema: CURRENT_RUNTIME_SCHEMA,
+  },
 });
 
 const isBrowserMockTarget =
@@ -916,6 +927,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             const now = new Date().toISOString();
             updateState((current) => ({
               ...current,
+              scripts: current.scripts.map((script) =>
+                script.id === String(args.scriptId) ? applyCurrentScriptCapability(script) : script,
+              ),
               transferRecords: upsertTransferRecord(current.transferRecords, {
                 id: recordId,
                 direction: 'upload',
@@ -1373,7 +1387,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           });
           return null;
         case 'save_script_cmd': {
-          const nextScript = args.script as StoredScriptTable;
+          const nextScript = applyCurrentScriptCapability(args.script as StoredScriptTable);
           const existingScript = readState().scripts.find((script) => script.id === nextScript.id) ?? null;
           validateScriptEditable(existingScript, nextScript);
           updateState((current) => ({

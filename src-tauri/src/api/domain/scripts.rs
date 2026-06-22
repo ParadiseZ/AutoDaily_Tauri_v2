@@ -1,4 +1,5 @@
 use crate::api::api_response::ApiResponse;
+use crate::api::backend_dto::apply_current_client_capability;
 use crate::api::backend_cmd::local_scripts_dir;
 use crate::api::infrastructure::process_api::{
     enqueue_device_runtime_session_refresh_jobs, load_assigned_device_ids_by_script,
@@ -44,7 +45,7 @@ pub async fn get_script_by_id_cmd(script_id: ScriptId) -> Result<Option<ScriptTa
 #[command]
 pub async fn save_script_cmd(
     app_handle: tauri::AppHandle,
-    script: ScriptTable,
+    mut script: ScriptTable,
 ) -> Result<(), String> {
     if script.data.script_type == ScriptType::Published {
         return Err(PUBLISHED_SCRIPT_EDIT_ERROR.to_string());
@@ -55,6 +56,8 @@ pub async fn save_script_cmd(
     {
         ensure_script_is_editable(&existing)?;
     }
+
+    apply_current_client_capability(&mut script.data);
 
     let affected_device_ids = load_assigned_device_ids_by_script(script.id).await?;
     DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await?;

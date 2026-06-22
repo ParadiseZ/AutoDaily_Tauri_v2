@@ -1333,6 +1333,13 @@ pub async fn backend_upload_script(
         }
     }
 
+    apply_current_client_capability(&mut script.data);
+    if let Err(error) =
+        DbRepo::upsert_id_data(SCRIPT_TABLE, &script.id.to_string(), &script.data).await
+    {
+        return ApiResponse::error(Some(format!("更新本地脚本兼容信息失败: {}", error)));
+    }
+
     let published_script_id = script.id.to_string();
     rewrite_script_model_paths_for_published(&mut script, &published_script_id);
 

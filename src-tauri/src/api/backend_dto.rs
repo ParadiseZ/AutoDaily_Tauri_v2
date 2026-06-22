@@ -1,5 +1,6 @@
 use crate::infrastructure::core::{Deserialize, Serialize};
 pub use runtime_engine::api::backend_dto::{AuthRes, BackendApiRes};
+use runtime_engine::domain::scripts::script_info::ScriptInfo;
 use runtime_engine::domain::scripts::script_info::{
     supported_script_features, SCRIPT_RUNTIME_SCHEMA,
 };
@@ -18,6 +19,12 @@ pub fn current_client_capability() -> ClientCapability {
         runtime_schema: SCRIPT_RUNTIME_SCHEMA,
         supported_features: supported_script_features(),
     }
+}
+
+pub fn apply_current_client_capability(script: &mut ScriptInfo) {
+    let client = current_client_capability();
+    script.min_app_version = Some(client.app_version);
+    script.min_runtime_schema = Some(client.runtime_schema);
 }
 
 #[derive(Debug, Serialize, Deserialize)]

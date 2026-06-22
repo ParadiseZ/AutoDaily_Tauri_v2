@@ -148,6 +148,14 @@ test('disables submit when script name is blank', async ({ page }) => {
   await expect(submitButton).toBeDisabled();
 });
 
+test('hides compatibility fields and lets runtime fill them', async ({ page }) => {
+  await page.getByTestId('script-list-create-button').click();
+
+  const dialog = page.getByRole('dialog', { name: '新建脚本' });
+  await expect(dialog.getByTestId('script-basic-min-app-version')).toHaveCount(0);
+  await expect(dialog.getByTestId('script-basic-min-runtime-schema')).toHaveCount(0);
+});
+
 test('aligns YOLO model fields with consistent spacing', async ({ page }) => {
   await page.getByTestId('script-list-create-button').click();
 
