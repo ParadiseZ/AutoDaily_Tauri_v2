@@ -6,8 +6,8 @@ import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { YoloDet } from '@/types/bindings/YoloDet';
 import type { YoloPostprocessKind } from '@/types/bindings/YoloPostprocessKind';
 
-export type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
-export type RecognizerKind = 'none' | 'PaddleCrnn';
+export type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet5' | 'PaddleDbNet6' | 'Yolo26';
+export type RecognizerKind = 'none' | 'PaddleCrnn5' | 'PaddleCrnn6';
 export const YOLO_LEGACY_CONFIDENCE_DEFAULT = 0.25;
 export const YOLO_LEGACY_IOU_DEFAULT = 0.45;
 export const CUSTOM_CRNN_DICT_FILE_NAME = 'ch_v5_dict.txt';
@@ -48,19 +48,20 @@ export function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): Yol
     });
 }
 
-export function createDbNet(): PaddleDetDbNet {
+export function createDbNet(version: 'v5' | 'v6' = 'v5'): PaddleDetDbNet {
+    const isV6 = version === 'v6';
     return {
-        baseModel: createBaseModel('PaddleDet5', 640, 640, 'Custom'),
-        dbThresh: 0.3,
-        dbBoxThresh: 0.5,
-        unclipRatio: 1.5,
+        baseModel: createBaseModel(isV6 ? 'PaddleDet6' : 'PaddleDet5', 640, 640, 'Custom'),
+        dbThresh: isV6 ? 0.2 : 0.3,
+        dbBoxThresh: isV6 ? 0.4 : 0.5,
+        unclipRatio: isV6 ? 1.4 : 1.5,
         useDilation: false,
     };
 }
 
-export function createCrnn(): PaddleRecCrnn {
+export function createCrnn(version: 'v5' | 'v6' = 'v5'): PaddleRecCrnn {
     return {
-        baseModel: createBaseModel('PaddleCrnn5', 320, 48, 'BuiltIn'),
+        baseModel: createBaseModel(version === 'v6' ? 'PaddleCrnn6' : 'PaddleCrnn5', 320, 48, 'BuiltIn'),
         dictPath: null,
         resizeFilter: 'Triangle',
         processingMode: 'Single',
@@ -96,13 +97,17 @@ export function resolveDetectorKind(model: DetectorType | null): DetectorKind {
     if (!model) return 'none';
     if ('Yolo11' in model) return 'Yolo11';
     if ('Yolo26' in model) return 'Yolo26';
-    if ('PaddleDbNet' in model) return 'PaddleDbNet';
+    if ('PaddleDbNet' in model) {
+        return model.PaddleDbNet.baseModel.modelType === 'PaddleDet6' ? 'PaddleDbNet6' : 'PaddleDbNet5';
+    }
     return 'none';
 }
 
 export function resolveRecognizerKind(model: RecognizerType | null): RecognizerKind {
     if (!model) return 'none';
-    if ('PaddleCrnn' in model) return 'PaddleCrnn';
+    if ('PaddleCrnn' in model) {
+        return model.PaddleCrnn.baseModel.modelType === 'PaddleCrnn6' ? 'PaddleCrnn6' : 'PaddleCrnn5';
+    }
     return 'none';
 }
 
@@ -145,12 +150,13 @@ export function createDetectorByKind(kind: DetectorKind, textMode: boolean): Det
     if (kind === 'none') return null;
     if (kind === 'Yolo11') return { Yolo11: createYoloDet('Yolo11', textMode) };
     if (kind === 'Yolo26') return { Yolo26: createYoloDet('Yolo26', textMode) };
-    return { PaddleDbNet: createDbNet() };
+    if (kind === 'PaddleDbNet6') return { PaddleDbNet: createDbNet('v6') };
+    return { PaddleDbNet: createDbNet('v5') };
 }
 
 export function createRecognizerByKind(kind: RecognizerKind): RecognizerType | null {
     if (kind === 'none') return null;
-    return { PaddleCrnn: createCrnn() };
+    return { PaddleCrnn: createCrnn(kind === 'PaddleCrnn6' ? 'v6' : 'v5') };
 }
 
 export function rewritePublishedDetectorModelPath(

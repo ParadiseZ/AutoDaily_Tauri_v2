@@ -696,7 +696,7 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
   });
 });
 
-test('loads text-det labels for label actions and persists idx only', async ({ page }) => {
+test('loads img-det labels for label actions and persists idx only', async ({ page }) => {
   const scriptId = 'script-editor-label-options';
   const script: StoredScriptTable = {
     id: scriptId,
@@ -709,8 +709,7 @@ test('loads text-det labels for label actions and persists idx only', async ({ p
       sponsorshipQr: null,
       sponsorshipUrl: null,
       contactInfo: null,
-      imgDetModel: null,
-      txtDetModel: {
+      imgDetModel: {
         Yolo11: {
           baseModel: {
             intraThreadNum: 4,
@@ -721,17 +720,18 @@ test('loads text-det labels for label actions and persists idx only', async ({ p
             inputWidth: 640,
             inputHeight: 640,
             modelSource: 'BuiltIn',
-            modelPath: 'D:\\models\\txt-det.onnx',
+            modelPath: 'D:\\models\\img-det.onnx',
             modelType: 'Yolo11',
           },
           classCount: 4,
           confidenceThresh: 0.25,
           iouThresh: 0.45,
-          labelPath: 'D:\\models\\txt-det.labels.yaml',
+          labelPath: 'D:\\models\\img-det.labels.yaml',
           txtIdx: 0,
           postprocessKind: 'LegacyNms',
         },
       },
+      txtDetModel: null,
       txtRecModel: null,
       createTime: '2026-03-26T08:00:00.000Z',
       updateTime: '2026-03-26T08:00:00.000Z',
@@ -823,7 +823,7 @@ test('loads text-det labels for label actions and persists idx only', async ({ p
   });
 });
 
-test('reminds user to configure text-det label path when label action has no options', async ({ page }) => {
+test('reminds user to configure img-det label path when label action has no options', async ({ page }) => {
   const scriptId = 'script-editor-label-warning';
   const script: StoredScriptTable = {
     id: scriptId,
@@ -909,7 +909,7 @@ test('reminds user to configure text-det label path when label action has no opt
 
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-card-0').click();
-  await expect(page.getByText('当前脚本未设置文字检测模型的标签文件')).toBeVisible();
+  await expect(page.getByText('当前脚本未设置图像检测模型的标签文件')).toBeVisible();
 });
 
 test('renders script-level task preview with title groups and task metadata', async ({ page }) => {
@@ -2106,7 +2106,7 @@ test('creates policies and persists search rule with before and after actions', 
   });
 });
 
-test('loads text-det labels for policy condition label rules and saves idx', async ({ page }) => {
+test('loads img-det labels for policy condition label rules and saves idx', async ({ page }) => {
   const scriptId = 'script-editor-policy-label-condition';
   const script: StoredScriptTable = {
     id: scriptId,
@@ -2119,8 +2119,7 @@ test('loads text-det labels for policy condition label rules and saves idx', asy
       sponsorshipQr: null,
       sponsorshipUrl: null,
       contactInfo: null,
-      imgDetModel: null,
-      txtDetModel: {
+      imgDetModel: {
         Yolo11: {
           baseModel: {
             intraThreadNum: 4,
@@ -2131,17 +2130,18 @@ test('loads text-det labels for policy condition label rules and saves idx', asy
             inputWidth: 640,
             inputHeight: 640,
             modelSource: 'Custom',
-            modelPath: 'D:\\models\\txt-det.onnx',
+            modelPath: 'D:\\models\\img-det.onnx',
             modelType: 'Yolo11',
           },
           classCount: 4,
           confidenceThresh: 0.25,
           iouThresh: 0.45,
-          labelPath: 'D:\\models\\txt-det.labels.yaml',
+          labelPath: 'D:\\models\\img-det.labels.yaml',
           txtIdx: 0,
           postprocessKind: 'LegacyNms',
         },
       },
+      txtDetModel: null,
       txtRecModel: null,
       createTime: '2026-03-26T08:00:00.000Z',
       updateTime: '2026-03-26T08:00:00.000Z',

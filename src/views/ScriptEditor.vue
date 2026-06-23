@@ -311,9 +311,9 @@
                 :input-entries="inputEntries"
                 :variable-options="variableOptions"
                 :catalog-variable-options="catalogVariableOptions"
-                :label-index-options="textDetLabelOptions"
-                :label-select-placeholder="textDetLabelSelectPlaceholder"
-                :label-select-hint="textDetLabelHint"
+                :label-index-options="imgDetLabelOptions"
+                :label-select-placeholder="imgDetLabelSelectPlaceholder"
+                :label-select-hint="imgDetLabelHint"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
                 :task-ui-variable-options="taskUiVariableOptions"
@@ -364,9 +364,9 @@
                 :active-branch-path="activePolicyBranchPath"
                 :variable-options="policyVariableOptions"
                 :catalog-variable-options="policyCatalogVariableOptions"
-                :label-index-options="textDetLabelOptions"
-                :label-select-placeholder="textDetLabelSelectPlaceholder"
-                :label-select-hint="textDetLabelHint"
+                :label-index-options="imgDetLabelOptions"
+                :label-select-placeholder="imgDetLabelSelectPlaceholder"
+                :label-select-hint="imgDetLabelHint"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
                 :task-ui-variable-options="taskUiVariableOptions"
@@ -644,9 +644,9 @@ const isConsoleVisible = ref(true);
 const selectedPreviewDeviceId = ref<string | null>(null);
 const deviceEditorOpen = ref(false);
 const editingDeviceId = ref<string | null>(null);
-const textDetLabelOptions = ref<Array<{ label: string; value: number; description?: string }>>([]);
-const textDetLabelHint = ref<string | null>('请先在脚本信息里设置文字检测模型的标签文件。');
-const textDetLabelLoading = ref(false);
+const imgDetLabelOptions = ref<Array<{ label: string; value: number; description?: string }>>([]);
+const imgDetLabelHint = ref<string | null>('请先在脚本信息里设置图像检测模型的标签文件。');
+const imgDetLabelLoading = ref(false);
 const selectedRunTargetKey = ref<string | null>(null);
 
 const sidebarWidth = ref(300);
@@ -913,15 +913,15 @@ const extractYoloDetector = (model: DetectorType | null | undefined): YoloDet | 
   return null;
 };
 
-const textDetLabelPath = computed(() => extractYoloDetector(draftScript.value?.data.txtDetModel)?.labelPath?.trim() || '');
-const textDetLabelSelectPlaceholder = computed(() => {
-  if (textDetLabelLoading.value) {
+const imgDetLabelPath = computed(() => extractYoloDetector(draftScript.value?.data.imgDetModel)?.labelPath?.trim() || '');
+const imgDetLabelSelectPlaceholder = computed(() => {
+  if (imgDetLabelLoading.value) {
     return '正在加载标签...';
   }
-  if (textDetLabelOptions.value.length) {
+  if (imgDetLabelOptions.value.length) {
     return '选择标签';
   }
-  return '请先设置文字检测模型标签文件';
+  return '请先设置图像检测模型标签文件';
 });
 
 const buildRunTargetKey = (
@@ -2352,33 +2352,33 @@ const updateRelationNote = (mode: 'policyGroup' | 'policySet', value: string) =>
   }
 };
 
-const loadTextDetLabels = async (path: string) => {
+const loadImgDetLabels = async (path: string) => {
   const trimmedPath = path.trim();
   if (!trimmedPath) {
-    textDetLabelOptions.value = [];
-    textDetLabelHint.value = '当前脚本未设置文字检测模型的标签文件，请先在“编辑脚本信息 > 模型信息 > 文字检测”里配置标签路径。';
-    appendConsoleLine('文字检测标签文件未配置。', 'warning');
+    imgDetLabelOptions.value = [];
+    imgDetLabelHint.value = '当前脚本未设置图像检测模型的标签文件，请先在“编辑脚本信息 > 模型信息 > 目标检测”里配置标签路径。';
+    appendConsoleLine('图像检测标签文件未配置。', 'warning');
     return;
   }
 
-  textDetLabelLoading.value = true;
+  imgDetLabelLoading.value = true;
 
   try {
     const labels = await scriptService.getYoloLabels(trimmedPath);
-    textDetLabelOptions.value = labels.map((item) => ({
+    imgDetLabelOptions.value = labels.map((item) => ({
       label: `${item.index}: ${item.label}`,
       value: item.index,
       description: `idx ${item.index}`,
     }));
-    textDetLabelHint.value = labels.length ? null : '标签文件已读取，但未解析出任何 names 标签。';
-    appendConsoleLine(`已加载文字检测标签 ${labels.length} 项：${trimmedPath}`);
+    imgDetLabelHint.value = labels.length ? null : '标签文件已读取，但未解析出任何 names 标签。';
+    appendConsoleLine(`已加载图像检测标签 ${labels.length} 项：${trimmedPath}`);
   } catch (error) {
     console.error(error);
-    textDetLabelOptions.value = [];
-    textDetLabelHint.value = error instanceof Error ? `标签文件读取失败：${error.message}` : '标签文件读取失败，请检查路径和格式。';
-    appendConsoleLine(`文字检测标签加载失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
+    imgDetLabelOptions.value = [];
+    imgDetLabelHint.value = error instanceof Error ? `标签文件读取失败：${error.message}` : '标签文件读取失败，请检查路径和格式。';
+    appendConsoleLine(`图像检测标签加载失败：${error instanceof Error ? error.message : '未知错误'}`, 'error');
   } finally {
-    textDetLabelLoading.value = false;
+    imgDetLabelLoading.value = false;
   }
 };
 
@@ -3375,12 +3375,12 @@ watch(
 );
 
 watch(
-  [textDetLabelPath, isLoading],
+  [imgDetLabelPath, isLoading],
   ([path, loading]) => {
     if (loading) {
       return;
     }
-    void loadTextDetLabels(path);
+    void loadImgDetLabels(path);
   },
   { immediate: true },
 );

@@ -301,7 +301,7 @@
                   </label>
                 </div>
               </template>
-              <template v-else-if="txtDetKind === 'PaddleDbNet' && form.data.txtDetModel && 'PaddleDbNet' in form.data.txtDetModel">
+              <template v-else-if="form.data.txtDetModel && 'PaddleDbNet' in form.data.txtDetModel">
                 <ModelBaseFields
                   :model="form.data.txtDetModel.PaddleDbNet.baseModel"
                   :built-in-enabled="false"
@@ -373,7 +373,7 @@
                   @update:model-value="setRecognizerKind($event)"
                 />
               </label>
-              <template v-if="txtRecKind === 'PaddleCrnn' && form.data.txtRecModel && 'PaddleCrnn' in form.data.txtRecModel">
+              <template v-if="form.data.txtRecModel && 'PaddleCrnn' in form.data.txtRecModel">
                 <ModelBaseFields
                   :model="txtCrnnModel.baseModel"
                   path-placeholder="例如：D:\\models\\ocr-rec.onnx"
@@ -587,10 +587,7 @@ import MarkdownView from '@/components/shared/MarkdownView.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import { scriptService } from '@/services/scriptService';
-import type { BaseModel } from '@/types/bindings/BaseModel';
 import type { DetectorType } from '@/types/bindings/DetectorType';
-import type { PaddleDetDbNet } from '@/types/bindings/PaddleDetDbNet';
-import type { PaddleRecCrnn } from '@/types/bindings/PaddleRecCrnn';
 import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { ScriptTableRecord } from '@/types/app/domain';
 import type { YoloDet } from '@/types/bindings/YoloDet';
@@ -598,10 +595,17 @@ import type { YoloPostprocessKind } from '@/types/bindings/YoloPostprocessKind';
 import type { ScriptInfoValidationIssue } from '@/utils/scriptInfoValidation';
 import { validateScriptInfo } from '@/utils/scriptInfoValidation';
 import {
+  createCrnn,
+  createDetectorByKind,
+  createRecognizerByKind,
   defaultYoloPostprocessKind,
+  resolveDetectorKind,
+  resolveRecognizerKind,
   rewritePublishedDetectorModelPath,
   rewritePublishedRecognizerModelPath,
   syncYoloPostprocessFields,
+  type DetectorKind,
+  type RecognizerKind,
   YOLO_LEGACY_CONFIDENCE_DEFAULT,
   YOLO_LEGACY_IOU_DEFAULT,
 } from '@/utils/visionModelPresets';
@@ -610,8 +614,6 @@ import SponsorshipQrField from '@/views/script-list/script-info/SponsorshipQrFie
 
 type DialogTab = 'basic' | 'models' | 'runtime' | 'content' | 'support';
 type ModelTab = 'imgDet' | 'txtDet' | 'txtRec';
-type DetectorKind = 'none' | 'Yolo11' | 'PaddleDbNet' | 'Yolo26';
-type RecognizerKind = 'none' | 'PaddleCrnn';
 type EditableDetectorField = 'imgDetModel' | 'txtDetModel';
 type LabelLoaderField = EditableDetectorField;
 type TaskOption = { label: string; value: string | null; description?: string };
@@ -665,13 +667,15 @@ const imgDetectorOptions = [
 const txtDetectorOptions = [
   { label: '不设置', value: 'none', description: '当前字段留空，不启用该类模型。' },
   { label: 'YOLO11', value: 'Yolo11', description: '适合文本区域检测或字符框检测。' },
-  { label: 'Paddle DBNet', value: 'PaddleDbNet', description: '适合文本区域检测。' },
+  { label: 'Paddle DBNet v5', value: 'PaddleDbNet5', description: 'PP-OCR v5 文本检测。' },
+  { label: 'Paddle DBNet v6', value: 'PaddleDbNet6', description: 'PP-OCR v6 文本检测。' },
   { label: 'YOLO26', value: 'Yolo26', description: '端到端 NMS-free 检测方案。' },
 ];
 
 const recognizerOptions = [
   { label: '不设置', value: 'none', description: '当前字段留空，不启用识别模型。' },
-  { label: 'Paddle CRNN', value: 'PaddleCrnn', description: '当前绑定里可用的文本识别模型。' },
+  { label: 'Paddle CRNN v5', value: 'PaddleCrnn5', description: 'PP-OCR v5 文本识别。' },
+  { label: 'Paddle CRNN v6', value: 'PaddleCrnn6', description: 'PP-OCR v6 文本识别。' },
 ];
 
 const recResizeFilterOptions = [
@@ -707,29 +711,20 @@ const txtLabelLoading = ref(false);
 let imgLabelRequestId = 0;
 let txtLabelRequestId = 0;
 
-function createBaseModel(
-  modelType: BaseModel['modelType'],
-  width: number,
-  height: number,
-  modelSource: BaseModel['modelSource'] = 'Custom',
-): BaseModel {
-  return {
-    intraThreadNum: 4,
-    intraSpinning: true,
-    interThreadNum: 1,
-    interSpinning: true,
-    executionProvider: 'CPU',
-    inputWidth: width,
-    inputHeight: height,
-    modelSource,
-    modelPath: '',
-    modelType,
-  };
-}
-
 function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
   return syncYoloPostprocessFields({
-    baseModel: createBaseModel(kind, 640, 640, 'Custom'),
+    baseModel: {
+      intraThreadNum: 4,
+      intraSpinning: true,
+      interThreadNum: 1,
+      interSpinning: true,
+      executionProvider: 'CPU',
+      inputWidth: 640,
+      inputHeight: 640,
+      modelSource: 'Custom',
+      modelPath: '',
+      modelType: kind,
+    },
     classCount: 0,
     confidenceThresh: YOLO_LEGACY_CONFIDENCE_DEFAULT,
     iouThresh: YOLO_LEGACY_IOU_DEFAULT,
@@ -739,28 +734,7 @@ function createYoloDet(kind: 'Yolo11' | 'Yolo26', textMode: boolean): YoloDet {
   });
 }
 
-function createDbNet(): PaddleDetDbNet {
-  return {
-    baseModel: createBaseModel('PaddleDet5', 640, 640, 'Custom'),
-    dbThresh: 0.3,
-    dbBoxThresh: 0.5,
-    unclipRatio: 1.5,
-    useDilation: false,
-  };
-}
-
-function createCrnn(): PaddleRecCrnn {
-  return {
-    baseModel: createBaseModel('PaddleCrnn5', 320, 48, 'BuiltIn'),
-    dictPath: null,
-    resizeFilter: 'Triangle',
-    processingMode: 'Single',
-    microBatchSize: 4,
-    widthBucketStep: 32,
-  };
-}
-
-function normalizeCrnnModel(model: PaddleRecCrnn): PaddleRecCrnn {
+function normalizeCrnnModel(model: ReturnType<typeof createCrnn>): ReturnType<typeof createCrnn> {
   if (!model.resizeFilter) model.resizeFilter = 'Triangle';
   if (!model.processingMode) model.processingMode = 'Single';
   if (!model.microBatchSize || model.microBatchSize < 1) model.microBatchSize = 4;
@@ -776,20 +750,6 @@ function normalizeYoloModel(model: YoloDet, kind: 'Yolo11' | 'Yolo26'): YoloDet 
     model.postprocessKind = defaultYoloPostprocessKind(kind);
   }
   return syncYoloPostprocessFields(model);
-}
-
-function resolveDetectorKind(model: DetectorType | null): DetectorKind {
-  if (!model) return 'none';
-  if ('Yolo11' in model) return 'Yolo11';
-  if ('Yolo26' in model) return 'Yolo26';
-  if ('PaddleDbNet' in model) return 'PaddleDbNet';
-  return 'none';
-}
-
-function resolveRecognizerKind(model: RecognizerType | null): RecognizerKind {
-  if (!model) return 'none';
-  if ('PaddleCrnn' in model) return 'PaddleCrnn';
-  return 'none';
 }
 
 function syncKinds() {
@@ -859,14 +819,14 @@ function setDetectorKind(field: EditableDetectorField, nextValue: string | numbe
     return;
   }
 
-  form.value.data[field] = { PaddleDbNet: createDbNet() };
+  form.value.data[field] = createDetectorByKind(kind, field === 'txtDetModel');
 }
 
 function setRecognizerKind(nextValue: string | number | null) {
   if (!form.value) return;
   const kind = (nextValue ?? 'none') as RecognizerKind;
   txtRecKind.value = kind;
-  form.value.data.txtRecModel = kind === 'PaddleCrnn' ? { PaddleCrnn: createCrnn() } : null;
+  form.value.data.txtRecModel = createRecognizerByKind(kind);
 }
 
 const scriptTypeLabel = computed(() => (form.value?.data.scriptType === 'published' ? '云端版本' : '本地开发'));

@@ -362,7 +362,7 @@ const props = withDefaults(
   {
     inputEntries: () => [],
     labelIndexOptions: () => [],
-    labelSelectPlaceholder: '请先设置文字检测模型标签文件',
+    labelSelectPlaceholder: '请先设置图像检测模型标签文件',
     labelSelectHint: null,
   },
 );

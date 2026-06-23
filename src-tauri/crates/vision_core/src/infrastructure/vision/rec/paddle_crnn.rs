@@ -2,7 +2,7 @@ use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::image::crop_image::get_crop_image;
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::base_model::{BaseModel, ModelSource};
+use crate::infrastructure::vision::base_model::{BaseModel, ModelSource, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infrastructure::vision::tensor_view::select_batch_and_squeeze_to_2d;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
@@ -120,7 +120,17 @@ impl PaddleRecCrnn {
         }
 
         if self.base_model.model_source == ModelSource::BuiltIn {
-            let relative = PathBuf::from("ppocr").join("ch_v5_dict.txt");
+            let relative = match self.base_model.model_type {
+                ModelType::PaddleCrnn5 => PathBuf::from("ppocr").join("ch_v5_dict.txt"),
+                ModelType::PaddleCrnn6 => PathBuf::from("ppocr").join("v6_dict.txt"),
+                _ => {
+                    Log::error("内置模型加载失败：未找到内置识别字典文件");
+                    return Err(VisionError::IoError {
+                      path: "".to_string(),
+                      e: format!("类型：{:?}, 未找到内置识别字典文件", self.base_model.model_type),
+                    })
+                }
+            };
             let mut candidates = vec![
                 PathBuf::from("src-tauri").join("models").join(&relative),
                 PathBuf::from("models").join(&relative),

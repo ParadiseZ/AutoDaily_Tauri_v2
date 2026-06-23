@@ -218,7 +218,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
   await dialog.getByTestId('script-models-img-det-iou').fill('0.35');
 
   await openModelTab(page, 'txtDet');
-  await selectOptionByValue(page, 'script-models-txt-det-kind', 'PaddleDbNet');
+  await selectOptionByValue(page, 'script-models-txt-det-kind', 'PaddleDbNet5');
   await selectOptionByValue(page, 'script-models-txt-det-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-txt-det-base-model-path').fill('D:\\models\\txt-det.onnx');
   await dialog.getByTestId('script-models-txt-det-db-thresh').fill('0.42');
@@ -227,7 +227,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
   await dialog.getByTestId('script-models-txt-det-use-dilation').check();
 
   await openModelTab(page, 'txtRec');
-  await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn');
+  await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn5');
   await selectOptionByValue(page, 'script-models-txt-rec-base-model-source', 'Custom');
   await dialog.getByTestId('script-models-txt-rec-base-model-path').fill('D:\\models\\txt-rec.onnx');
   await dialog.getByTestId('script-models-txt-rec-dict-path').fill('D:\\models\\keys.txt');
@@ -279,6 +279,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
       baseModel: expect.objectContaining({
         modelSource: 'Custom',
         modelPath: 'D:\\models\\txt-det.onnx',
+        modelType: 'PaddleDet5',
       }),
     }),
   });
@@ -293,6 +294,7 @@ test('creates a local script with basic, model, and sponsorship settings', async
       baseModel: expect.objectContaining({
         modelSource: 'Custom',
         modelPath: 'D:\\models\\txt-rec.onnx',
+        modelType: 'PaddleCrnn5',
       }),
     }),
   });
@@ -378,7 +380,7 @@ test('hides built-in crnn dict path and clears custom dict when switching back',
   await dialog.getByTestId('script-dialog-tab-models').click();
 
   await openModelTab(page, 'txtRec');
-  await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn');
+  await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn5');
   await expect(dialog.getByTestId('script-models-txt-rec-dict-path')).toHaveCount(0);
 
   await selectOptionByValue(page, 'script-models-txt-rec-base-model-source', 'Custom');
@@ -397,6 +399,52 @@ test('hides built-in crnn dict path and clears custom dict when switching back',
       dictPath: null,
       baseModel: expect.objectContaining({
         modelSource: 'BuiltIn',
+        modelType: 'PaddleCrnn5',
+      }),
+    }),
+  });
+});
+
+test('persists v6 OCR model types from the shared kind selectors', async ({ page }) => {
+  const scriptName = `PPOCR v6 ${Date.now()}`;
+
+  await page.getByTestId('script-list-create-button').click();
+
+  const dialog = page.getByRole('dialog', { name: '新建脚本' });
+  await dialog.getByTestId('script-basic-name').fill(scriptName);
+  await dialog.getByTestId('script-basic-description').fill('验证 v6 OCR 模型类型通过统一下拉保存。');
+  await dialog.getByTestId('script-dialog-tab-models').click();
+
+  await openModelTab(page, 'txtDet');
+  await selectOptionByValue(page, 'script-models-txt-det-kind', 'PaddleDbNet6');
+  await expect(dialog.getByTestId('script-models-txt-det-db-thresh')).toHaveValue('0.2');
+  await expect(dialog.getByTestId('script-models-txt-det-db-box-thresh')).toHaveValue('0.4');
+  await expect(dialog.getByTestId('script-models-txt-det-unclip-ratio')).toHaveValue('1.4');
+
+  await openModelTab(page, 'txtRec');
+  await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn6');
+  await expect(dialog.getByTestId('script-models-txt-rec-dict-path')).toHaveCount(0);
+
+  await dialog.getByTestId('script-submit').click();
+  await expect(dialog).not.toBeVisible();
+
+  const script = await getStoredScript(page);
+  expect(script.data.txtDetModel).toEqual({
+    PaddleDbNet: expect.objectContaining({
+      dbThresh: 0.2,
+      dbBoxThresh: 0.4,
+      unclipRatio: 1.4,
+      baseModel: expect.objectContaining({
+        modelType: 'PaddleDet6',
+      }),
+    }),
+  });
+  expect(script.data.txtRecModel).toEqual({
+    PaddleCrnn: expect.objectContaining({
+      dictPath: null,
+      baseModel: expect.objectContaining({
+        modelSource: 'BuiltIn',
+        modelType: 'PaddleCrnn6',
       }),
     }),
   });

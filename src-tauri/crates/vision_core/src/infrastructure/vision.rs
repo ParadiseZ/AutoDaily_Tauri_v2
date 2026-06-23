@@ -12,3 +12,4 @@ pub mod vision_error;
 
 pub mod base_model;
 mod tensor_view;
+mod ppocr_v6;

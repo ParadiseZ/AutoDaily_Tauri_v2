@@ -88,6 +88,8 @@ pub enum ModelType {
     Yolo26,
     PaddleDet5,
     PaddleCrnn5,
+    PaddleDet6,
+    PaddleCrnn6,
 }
 impl BaseModel {
     pub fn resolve_model_path(&self) -> VisionResult<PathBuf> {
@@ -101,6 +103,8 @@ impl BaseModel {
         let relative = match self.model_type {
             ModelType::PaddleDet5 => PathBuf::from("ppocr").join("ch_mobile_v5_det.onnx"),
             ModelType::PaddleCrnn5 => PathBuf::from("ppocr").join("ch_mobile_v5_rec.onnx"),
+            ModelType::PaddleDet6 => PathBuf::from("ppocr").join("small_v6_det.onnx"),
+            ModelType::PaddleCrnn6 => PathBuf::from("ppocr").join("small_v6_rec.onnx"),
             ModelType::Yolo11 | ModelType::Yolo26 => {
                 return Err(VisionError::IoError {
                     path: "[built-in-detector]".to_string(),
@@ -115,10 +119,10 @@ impl BaseModel {
             PathBuf::from("resources").join("models").join(&relative),
         ];
 
-        if let Ok(current_exe) = std::env::current_exe() {
-            if let Some(exe_dir) = current_exe.parent() {
-                candidates.push(exe_dir.join("models").join(&relative));
-                candidates.push(exe_dir.join("resources").join("models").join(&relative));
+            if let Ok(current_exe) = std::env::current_exe() {
+                if let Some(exe_dir) = current_exe.parent() {
+                    candidates.push(exe_dir.join("models").join(&relative));
+                    candidates.push(exe_dir.join("resources").join("models").join(&relative));
             }
         }
 

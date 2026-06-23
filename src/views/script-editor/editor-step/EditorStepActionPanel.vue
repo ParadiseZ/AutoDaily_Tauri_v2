@@ -1,6 +1,6 @@
 <template>
-  <div class="space-y-3">
-    <EditorOverviewSection title="动作配置">
+  <div class="space-y-4">
+    <div class="editor-config-strip">
       <EditorOverviewField label="执行次数" width="compact">
         <input
           :value="String(actionExecMax)"
@@ -12,7 +12,7 @@
           placeholder="0表示无限次"
         />
       </EditorOverviewField>
-    </EditorOverviewSection>
+    </div>
 
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
@@ -165,39 +165,39 @@
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.click">
-      <div class="editor-inline-grid">
-        <div class="editor-inline-label">点击方式</div>
-        <div class="editor-inline-content">
+      <div class="editor-compact-grid editor-compact-grid--triple">
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">点击方式</span>
           <EditorSelectField
             :model-value="String(selectedAction.mode || ACTION_MODE.point)"
             :options="clickModeOptions"
             placeholder="点击方式"
             @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
           />
-        </div>
-        <div class="editor-inline-label">偏移 X</div>
-        <div class="editor-inline-content">
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">偏移 X</span>
           <input
             :value="String(selectedAction.offset_x ?? 0)"
             class="app-input"
             type="number"
             @input="$emit('update-number-field', 'offset_x', ($event.target as HTMLInputElement).value)"
           />
-        </div>
-        <div class="editor-inline-label">偏移 Y</div>
-        <div class="editor-inline-content">
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">偏移 Y</span>
           <input
             :value="String(selectedAction.offset_y ?? 0)"
             class="app-input"
             type="number"
             @input="$emit('update-number-field', 'offset_y', ($event.target as HTMLInputElement).value)"
           />
-        </div>
+        </label>
       </div>
 
-      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-inline-grid">
-        <div class="editor-inline-label">X</div>
-        <div class="editor-inline-content">
+      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-compact-grid">
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">X</span>
           <input
             :value="String((selectedAction.p as { x?: number })?.x ?? '')"
             aria-label="X"
@@ -205,9 +205,9 @@
             type="number"
             @input="$emit('update-point-field', 'p', 'x', ($event.target as HTMLInputElement).value)"
           />
-        </div>
-        <div class="editor-inline-label">Y</div>
-        <div class="editor-inline-content">
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">Y</span>
           <input
             :value="String((selectedAction.p as { y?: number })?.y ?? '')"
             aria-label="Y"
@@ -215,7 +215,7 @@
             type="number"
             @input="$emit('update-point-field', 'p', 'y', ($event.target as HTMLInputElement).value)"
           />
-        </div>
+        </label>
       </div>
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
@@ -289,20 +289,20 @@
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.swipe">
-      <div class="editor-inline-grid">
-        <div class="editor-inline-label">滑动方式</div>
-        <div class="editor-inline-content">
+      <div class="editor-compact-grid">
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">滑动方式</span>
           <EditorSelectField
             :model-value="String(selectedAction.mode || ACTION_MODE.point)"
             :options="swipeModeOptions"
             placeholder="滑动方式"
             @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
           />
-        </div>
-        <div class="editor-inline-label">持续时间</div>
-        <div class="editor-inline-content">
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">持续时间</span>
           <input :value="String(selectedAction.duration ?? 300)" class="app-input" type="number" @input="$emit('update-number-field', 'duration', ($event.target as HTMLInputElement).value)" />
-        </div>
+        </label>
       </div>
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
@@ -334,9 +334,9 @@
         </div>
       </template>
 
-      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-inline-grid">
-        <div class="editor-inline-label">起点 X</div>
-        <div class="editor-inline-content">
+      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-compact-grid editor-compact-grid--quad">
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">起点 X</span>
           <input
             :value="String((selectedAction.from as { x?: number })?.x ?? '')"
             aria-label="起点 X"
@@ -344,9 +344,9 @@
             type="number"
             @input="$emit('update-point-field', 'from', 'x', ($event.target as HTMLInputElement).value)"
           />
-        </div>
-        <div class="editor-inline-label">起点 Y</div>
-        <div class="editor-inline-content">
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">起点 Y</span>
           <input
             :value="String((selectedAction.from as { y?: number })?.y ?? '')"
             aria-label="起点 Y"
@@ -354,9 +354,9 @@
             type="number"
             @input="$emit('update-point-field', 'from', 'y', ($event.target as HTMLInputElement).value)"
           />
-        </div>
-        <div class="editor-inline-label">终点 X</div>
-        <div class="editor-inline-content">
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">终点 X</span>
           <input
             :value="String((selectedAction.to as { x?: number })?.x ?? '')"
             aria-label="终点 X"
@@ -364,9 +364,9 @@
             type="number"
             @input="$emit('update-point-field', 'to', 'x', ($event.target as HTMLInputElement).value)"
           />
-        </div>
-        <div class="editor-inline-label">终点 Y</div>
-        <div class="editor-inline-content">
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">终点 Y</span>
           <input
             :value="String((selectedAction.to as { y?: number })?.y ?? '')"
             aria-label="终点 Y"
@@ -374,7 +374,7 @@
             type="number"
             @input="$emit('update-point-field', 'to', 'y', ($event.target as HTMLInputElement).value)"
           />
-        </div>
+        </label>
       </div>
 
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
@@ -483,7 +483,6 @@ import type { Action } from '@/types/bindings/Action';
 import { ACTION_MODE, ACTION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import type { EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
 import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
-import EditorOverviewSection from '../EditorOverviewSection.vue';
 import EditorOverviewField from '../EditorOverviewField.vue';
 
 defineOptions({ name: 'EditorStepActionPanel' });
@@ -766,30 +765,58 @@ const resolvedSwipeToLabelOptions = computed(() =>
 </script>
 
 <style scoped>
-.editor-inline-grid {
+.editor-config-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem 1rem;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--app-border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--app-panel-muted) 76%, white);
+}
+
+.editor-config-strip__hint {
+  flex: 1 1 14rem;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--app-text-faint);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.editor-compact-grid {
   display: grid;
   gap: 0.75rem;
 }
 
 @media (min-width: 768px) {
-  .editor-inline-grid {
-    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
-    align-items: center;
+  .editor-compact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-compact-grid--triple {
+    grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 0.9fr));
+  }
+
+  .editor-compact-grid--quad {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-.editor-inline-label {
+.editor-compact-field {
   display: flex;
-  align-items: center;
-  min-height: 44px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.editor-compact-field__label {
   color: var(--app-text-faint);
   font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.editor-inline-content {
-  min-height: 44px;
 }
 </style>

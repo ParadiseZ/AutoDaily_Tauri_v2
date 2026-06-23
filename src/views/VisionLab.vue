@@ -686,7 +686,7 @@ import type { DeviceTable } from '@/types/bindings/DeviceTable';
 type VisionItemKind = 'folder' | 'capture';
 type PreviewTool = 'browse' | 'pick' | 'region';
 type VisionTab = 'det' | 'ocr' | 'combo';
-type VisionImgDetectorKind = Exclude<DetectorKind, 'PaddleDbNet'>;
+type VisionImgDetectorKind = Exclude<DetectorKind, 'PaddleDbNet5' | 'PaddleDbNet6'>;
 
 interface VisionSourceItem {
   id: string;
@@ -824,12 +824,14 @@ const imgDetectorOptions = [
 const txtDetectorOptions = [
   { label: '不设置', value: 'none', description: '当前字段留空。' },
   { label: 'YOLO11', value: 'Yolo11', description: '适合文本框或字符框检测。' },
-  { label: 'Paddle DBNet', value: 'PaddleDbNet', description: '适合文本区域检测。' },
+  { label: 'Paddle DBNet v5', value: 'PaddleDbNet5', description: 'PP-OCR v5 文本检测。' },
+  { label: 'Paddle DBNet v6', value: 'PaddleDbNet6', description: 'PP-OCR v6 文本检测。' },
   { label: 'YOLO26', value: 'Yolo26', description: '端到端检测方案。' },
 ];
 const recognizerOptions = [
   { label: '不设置', value: 'none', description: '不启用识别模型。' },
-  { label: 'Paddle CRNN', value: 'PaddleCrnn', description: '当前绑定里可用的文本识别模型。' },
+  { label: 'Paddle CRNN v5', value: 'PaddleCrnn5', description: 'PP-OCR v5 文本识别。' },
+  { label: 'Paddle CRNN v6', value: 'PaddleCrnn6', description: 'PP-OCR v6 文本识别。' },
 ];
 const previewTools = [
   { label: '浏览', value: 'browse' as const },
@@ -855,7 +857,7 @@ const activeTabLabel = computed(() => tabOptions.find((tab) => tab.value === act
 
 const imgDetKind = computed<VisionImgDetectorKind>(() => {
   const kind = resolveDetectorKind(imgDetModel.value);
-  return kind === 'PaddleDbNet' ? 'none' : kind;
+  return kind === 'PaddleDbNet5' || kind === 'PaddleDbNet6' ? 'none' : kind;
 });
 const txtDetKind = computed<DetectorKind>(() => resolveDetectorKind(txtDetModel.value));
 const txtRecKind = computed<RecognizerKind>(() => resolveRecognizerKind(txtRecModel.value));
@@ -1627,8 +1629,8 @@ async function loadTxtDetLabels() {
 async function hydrateFromLocalConfig() {
   const config = await visionLabConfigService.getModelConfig().catch(() => null);
   imgDetModel.value = sanitizeImageDetector(clone(config?.imgDetModel ?? createDetectorByKind('Yolo11', false)));
-  txtDetModel.value = sanitizeTextDetector(clone(config?.txtDetModel ?? createDetectorByKind('PaddleDbNet', true)));
-  txtRecModel.value = clone(config?.txtRecModel ?? createRecognizerByKind('PaddleCrnn'));
+  txtDetModel.value = sanitizeTextDetector(clone(config?.txtDetModel ?? createDetectorByKind('PaddleDbNet5', true)));
+  txtRecModel.value = clone(config?.txtRecModel ?? createRecognizerByKind('PaddleCrnn5'));
 }
 
 async function hydrateFromLaunchPreset() {
@@ -1638,8 +1640,8 @@ async function hydrateFromLaunchPreset() {
     return;
   }
   imgDetModel.value = sanitizeImageDetector(clone(preset.imgDetModel ?? createDetectorByKind('Yolo11', false)));
-  txtDetModel.value = sanitizeTextDetector(clone(preset.txtDetModel ?? createDetectorByKind('PaddleDbNet', true)));
-  txtRecModel.value = clone(preset.txtRecModel ?? createRecognizerByKind('PaddleCrnn'));
+  txtDetModel.value = sanitizeTextDetector(clone(preset.txtDetModel ?? createDetectorByKind('PaddleDbNet5', true)));
+  txtRecModel.value = clone(preset.txtRecModel ?? createRecognizerByKind('PaddleCrnn5'));
   if (preset.selectedDeviceId) {
     selectedDeviceId.value = preset.selectedDeviceId;
   }
