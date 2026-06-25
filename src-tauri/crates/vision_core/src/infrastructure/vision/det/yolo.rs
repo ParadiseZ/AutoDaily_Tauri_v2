@@ -29,9 +29,6 @@ pub struct YoloDet {
     pub postprocess_kind: Option<YoloPostprocessKind>,
     #[serde(skip, default)]
     #[ts(skip)]
-    runtime_postprocess_kind: YoloPostprocessKind,
-    #[serde(skip, default)]
-    #[ts(skip)]
     output_layout: OnceLock<YoloOutputLayout>,
     #[serde(skip, default = "YoloDet::default_preprocess_buffer")]
     #[ts(skip)]
@@ -86,10 +83,12 @@ impl YoloDet {
     }
 
     fn fallback_postprocess_kind(&self) -> YoloPostprocessKind {
-        match self.base_model.model_type {
-            ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
-            _ => YoloPostprocessKind::LegacyNms,
-        }
+        YoloPostprocessKind::EndToEnd
+    }
+
+    fn effective_postprocess_kind(&self) -> YoloPostprocessKind {
+        self.postprocess_kind
+            .unwrap_or_else(|| self.fallback_postprocess_kind())
     }
 
     fn legacy_confidence_thresh(&self) -> f32 {
@@ -101,11 +100,8 @@ impl YoloDet {
         self.iou_thresh.unwrap_or(Self::DEFAULT_LEGACY_IOU_THRESH)
     }
 
-    /// 根据显式配置或旧模型类型回退值初始化运行期策略。
-    pub fn refresh_runtime_config(&mut self) {
-        self.runtime_postprocess_kind = self
-            .postprocess_kind
-            .unwrap_or_else(|| self.fallback_postprocess_kind());
+    /// 配置变更后清空依赖后处理模式的布局缓存。
+    fn reset_runtime_cache(&mut self) {
         self.output_layout = OnceLock::new();
     }
 
@@ -163,7 +159,7 @@ impl YoloDet {
         let rows = shape[0];
         let cols = shape[1];
 
-        match self.runtime_postprocess_kind {
+        match self.effective_postprocess_kind() {
             YoloPostprocessKind::LegacyNms => {
                 let expected_attr_count = self.class_count + 4;
                 let expected_with_objectness = self.class_count + 5;
@@ -541,7 +537,7 @@ impl YoloDet {
 
 impl ModelHandler for YoloDet {
     fn load_model(&mut self) -> VisionResult<()> {
-        self.refresh_runtime_config();
+        self.reset_runtime_cache();
         self.base_model
             .load_model_base::<Self>(self.model_file_stem())
     }
@@ -656,7 +652,7 @@ impl TextDetector for YoloDet {
         scale_factor: [f32; 2],
         origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
-        match self.runtime_postprocess_kind {
+        match self.effective_postprocess_kind() {
             YoloPostprocessKind::LegacyNms => {
                 self.postprocess_legacy(output, scale_factor, origin_shape)
             }
@@ -785,14 +781,7 @@ mod tests {
             iou_thresh: Some(0.45),
             label_path: None,
             txt_idx,
-            postprocess_kind: Some(match model_type {
-                ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
-                _ => YoloPostprocessKind::LegacyNms,
-            }),
-            runtime_postprocess_kind: match model_type {
-                ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
-                _ => YoloPostprocessKind::LegacyNms,
-            },
+            postprocess_kind: Some(YoloPostprocessKind::EndToEnd),
             output_layout: OnceLock::new(),
             preprocess_buffer: YoloDet::default_preprocess_buffer(),
         }

@@ -30,7 +30,6 @@ impl OcrService {
         let detector: Arc<dyn TextDetector + Send + Sync> = match config {
             DetectorType::Yolo11(mut yolo) => {
                 yolo.base_model.model_type = ModelType::Yolo11;
-                yolo.refresh_runtime_config();
                 //加载标签
                 Log::debug("加载yolo标签文件...");
                 yolo.load_labels().await?;
@@ -40,7 +39,6 @@ impl OcrService {
             }
             DetectorType::Yolo26(mut yolo) => {
                 yolo.base_model.model_type = ModelType::Yolo26;
-                yolo.refresh_runtime_config();
                 //加载标签
                 Log::debug("加载yolo26标签文件...");
                 yolo.load_labels().await?;
@@ -310,8 +308,18 @@ mod tests {
                 cfg.get_target_width(),
                 cfg.get_target_height(),
             ),
+            DetectorType::Yolo26(ref cfg) => (
+                cfg.base_model.intra_thread_num,
+                cfg.base_model.intra_spinning,
+                cfg.base_model.inter_thread_num,
+                cfg.base_model.inter_spinning,
+                cfg.base_model.execution_provider.name(),
+                cfg.get_target_width(),
+                cfg.get_target_height(),
+            ),
             _ => {
-                panic!("unsupported detector type")
+                println!("unsupported detector type");
+                (0usize, false, 0usize, false, "", 0u32, 0u32)
             }
         };
         let rec_conf = match config_print.recognizer {
@@ -333,7 +341,7 @@ mod tests {
                  det_conf.3,
                  det_conf.4,
                  det_conf.5,
-                 det_conf.6
+                 det_conf.6,
         );
         println!("rec: intraThreadNum: {}, intraSpinning:{}, interThreadNum: {}, interSpinning:{}, provider: {}, inputWidth: {}, inputHeight: {}",
                  rec_conf.0,

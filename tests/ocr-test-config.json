@@ -1,23 +1,24 @@
 {
   "detector": {
-    "Yolo11": {
+    "Yolo26": {
       "baseModel": {
         "intraThreadNum": 4,
         "intraSpinning": false,
         "interThreadNum": 1,
         "interSpinning": false,
         "executionProvider": "DirectML",
-        "inputWidth": 640,
-        "inputHeight": 640,
+        "inputWidth": 800,
+        "inputHeight": 800,
         "modelSource": "Custom",
-        "modelPath": "D:\\Database\\Project\\YOLO\\train_res_model\\tkfm_25062201_10_100_v11s_640_31\\best.onnx",
+        "modelPath": "D:\\Project\\YoloModel\\bh3_26062401\\best_txt.onnx",
         "modelType": "Yolo11"
       },
-      "classCount": 31,
+      "classCount": 1,
       "confidenceThresh": 0.25,
       "iouThresh": 0.45,
-      "labelPath": "D:\\Database\\Project\\YOLO\\AutoDailyTKFM\\config\\coco8.yaml",
-      "txtIdx": 0
+      "labelPath": "D:\\Project\\YoloModel\\bh3_26062401\\coco8_txt.yaml",
+      "txtIdx": 0,
+      "postprocessKind":"EndToEnd"
     }
   },
   "recognizer": {
@@ -25,16 +26,16 @@
       "baseModel": {
         "intraThreadNum": 4,
         "intraSpinning": true,
-        "interThreadNum": 4,
+        "interThreadNum": 1,
         "interSpinning": true,
         "executionProvider": "CPU",
         "inputWidth": 320,
         "inputHeight": 48,
         "modelSource": "Custom",
-        "modelPath": "D:\\Database\\Project\\PP-OCRv5_mobile_rec_infer\\inference.onnx",
-        "modelType": "PaddleCrnn5"
+        "modelPath": "D:\\Database\\Project\\OCR\\PP-OCRv6_small_rec_infer\\inference.onnx",
+        "modelType": "PaddleCrnn6"
       },
-      "dictPath": "D:\\Database\\Project\\PaddleOCR-release-3.1\\ppocr\\utils\\dict\\ppocrv5_dict.txt",
+      "dictPath": "D:\\Database\\Project\\OCR\\PP-OCRv6_small_rec_infer\\v6_dict.txt",
       "resizeFilter": "Triangle",
       "processingMode": "MicroBatch",
       "microBatchSize": 4,
@@ -42,5 +43,5 @@
     }
   },
   "imagePath": "D:\\Database\\Project\\YOLO\\AutoDailyTKFM\\all_images\\0044.jpg",
-  "printRes":true
+  "printRes":false
 }
