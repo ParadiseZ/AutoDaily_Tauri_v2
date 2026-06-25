@@ -123,6 +123,32 @@ fn select_det_result_uses_position_for_duplicate_labels() {
 }
 
 #[test]
+fn vision_count_compare_counts_det_labels() {
+    let items = vec![
+        build_det_result(1, "enemy", 0, 0, 20, 20),
+        build_det_result(1, "enemy", 30, 0, 50, 20),
+        build_det_result(2, "ally", 60, 0, 80, 20),
+    ];
+
+    assert_eq!(ScriptExecutor::count_det_items(&items, Some("enemy")), 2);
+    assert_eq!(ScriptExecutor::count_det_items(&items, Some("all")), 1);
+    assert_eq!(ScriptExecutor::count_det_items(&items, None), 3);
+}
+
+#[test]
+fn vision_count_compare_prefers_exact_ocr_match() {
+    let items = vec![
+        build_ocr_result("开始行动", 0, 0, 40, 20),
+        build_ocr_result("开始", 50, 0, 90, 20),
+        build_ocr_result("开始", 100, 0, 140, 20),
+    ];
+
+    assert_eq!(ScriptExecutor::count_ocr_items(&items, Some("开始")), 2);
+    assert_eq!(ScriptExecutor::count_ocr_items(&items, Some("行动")), 1);
+    assert_eq!(ScriptExecutor::count_ocr_items(&items, None), 3);
+}
+
+#[test]
 fn drop_set_next_cycles_options_and_updates_template_root() {
     let options = vec!["A".to_string(), "B".to_string(), "C".to_string()];
     assert_eq!(ScriptExecutor::next_option_value(&options, Some("A")), "B");

@@ -36,7 +36,7 @@
       <slot name="actions" />
     </div>
 
-    <div v-if="windowHandle" class="editor-window-titlebar__window-controls">
+    <div v-if="windowHandle && showWindowControls" class="editor-window-titlebar__window-controls">
       <button class="editor-window-titlebar__window-button" type="button" title="最小化" aria-label="最小化" @click="handleMinimize">
         <AppIcon name="minus" :size="14" />
       </button>
@@ -68,12 +68,14 @@ const props = withDefaults(
     statusLabel?: string | null;
     statusTone?: 'info' | 'success' | 'warning' | 'danger';
     requestClose?: () => boolean | Promise<boolean>;
+    showWindowControls?: boolean;
   }>(),
   {
     meta: null,
     statusLabel: null,
     statusTone: 'info',
     requestClose: undefined,
+    showWindowControls: false,
   },
 );
 

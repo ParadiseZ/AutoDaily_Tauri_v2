@@ -15,7 +15,8 @@
     "core:tray:default",
     "core:window:create",
     "core:window:show",
-    "core:window:hide"
+    "core:window:hide",
+    "core:window:allow-close"
   ],
   "capabilities": []
 }

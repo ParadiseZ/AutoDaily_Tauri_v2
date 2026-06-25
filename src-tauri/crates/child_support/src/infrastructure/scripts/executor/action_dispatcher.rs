@@ -340,7 +340,7 @@ impl<'a> ActionRunner<'a> {
                         .await?,
                 );
                 self.executor
-                    .activate_image_context("action.capture", image, Some(output_var))
+                    .store_capture_image(image, Some(output_var))
                     .await?;
                 Ok((ControlFlow::Next, None))
             }

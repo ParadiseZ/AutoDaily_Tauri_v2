@@ -111,7 +111,7 @@ const getBranchStepsFromStep = (step: Step, branch: StepBranchKind): Step[] => {
     case 'flow':
       return step.op === STEP_OP.flowControl && (step.a.type === FLOW_TYPE.while || step.a.type === FLOW_TYPE.forEach || step.a.type === FLOW_TYPE.repeat) ? step.a.flow : [];
     case 'visionThen':
-      return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? step.a.then_steps : [];
+      return step.op === STEP_OP.vision && (step.a.type === VISION_TYPE.visionSearch || step.a.type === VISION_TYPE.countCompare) ? step.a.then_steps : [];
     case 'filterThen':
       return step.op === STEP_OP.dataHanding &&
         (step.a.type === DATA_TYPE.filter || step.a.type === DATA_TYPE.colorCompare || step.a.type === DATA_TYPE.relativeFilter)
@@ -135,7 +135,9 @@ const setBranchStepsOnStep = (step: Step, branch: StepBranchKind, steps: Step[])
         ? { ...step, a: { ...step.a, flow: steps } }
         : step;
     case 'visionThen':
-      return step.op === STEP_OP.vision && step.a.type === VISION_TYPE.visionSearch ? { ...step, a: { ...step.a, then_steps: steps } } : step;
+      return step.op === STEP_OP.vision && (step.a.type === VISION_TYPE.visionSearch || step.a.type === VISION_TYPE.countCompare)
+        ? { ...step, a: { ...step.a, then_steps: steps } }
+        : step;
     case 'filterThen':
       return step.op === STEP_OP.dataHanding &&
         (step.a.type === DATA_TYPE.filter || step.a.type === DATA_TYPE.colorCompare || step.a.type === DATA_TYPE.relativeFilter)

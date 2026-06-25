@@ -1,4 +1,5 @@
 use crate::domain::scripts::script_decision::Step;
+use crate::domain::scripts::nodes::flow_control::CompareOp;
 use crate::domain::vision::ocr_search::SearchRule;
 use crate::infrastructure::core::{Deserialize, Serialize};
 
@@ -6,6 +7,22 @@ use crate::infrastructure::core::{Deserialize, Serialize};
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum VisionNode {
+    Detect {
+        input_var: String,
+        out_var: String,
+    },
+    Ocr {
+        input_var: String,
+        out_var: String,
+    },
+    CountCompare {
+        input_var: String,
+        out_var: String,
+        target_value: Option<String>,
+        op: CompareOp,
+        expected_count: i32,
+        then_steps: Vec<Step>,
+    },
     /// 增强视觉搜索：支持 OCR + YOLO + 颜色逻辑
     VisionSearch {
         rule: SearchRule,

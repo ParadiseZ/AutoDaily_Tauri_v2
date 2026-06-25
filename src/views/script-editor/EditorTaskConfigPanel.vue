@@ -42,53 +42,15 @@
           </label>
         </div>
 
-        <div v-else-if="activePanel === 'inputs'" class="space-y-4">
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex gap-2">
-              <button class="app-button app-button-primary app-toolbar-button" type="button" data-testid="editor-input-add" @click="$emit('add-input')">
-                添加输入
-              </button>
-            </div>
-          </div>
-
-          <div v-if="inputEntries.length" class="space-y-2">
-            <article
-              v-for="(entry, index) in inputEntries"
-              :key="entry.id"
-              class="app-list-item cursor-pointer"
-              :class="{ 'app-list-item-active': selectedInputId === entry.id }"
-              :data-testid="`editor-input-item-${index}`"
-              @click="$emit('select-input', entry.id)"
-            >
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-2">
-                    <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ entry.name || entry.key || '未命名变量' }}</p>
-                    <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-faint)">
-                      {{ getScopeLabel(entry.namespace) }}
-                    </span>
-                  </div>
-                  <p class="mt-1 text-xs text-(--app-text-faint)">{{ entry.key || '未设置键' }} · {{ getInputTypeLabel(entry.type) }}</p>
-                </div>
-                <button
-                  class="app-button app-button-danger app-toolbar-button shrink-0"
-                  type="button"
-                  :data-testid="`editor-input-remove-${index}`"
-                  @click.stop="$emit('remove-input', entry.id)"
-                >
-                  删除
-                </button>
-              </div>
-            </article>
-          </div>
-
-          <EmptyState
-            v-else
-            title="还没有变量"
-          />
-
-          <p v-if="inputError" class="text-sm text-red-700">{{ inputError }}</p>
-        </div>
+        <EditorVariableListPanel
+          v-else-if="activePanel === 'inputs'"
+          :entries="inputEntries"
+          :selected-input-id="selectedInputId"
+          :input-error="inputError"
+          @add="$emit('add-input')"
+          @select="$emit('select-input', $event)"
+          @remove="$emit('remove-input', $event)"
+        />
 
         <div v-else-if="activePanel === 'ui'" class="space-y-4">
           <div class="flex items-center justify-between gap-3">
@@ -127,8 +89,8 @@
                   <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-soft)">
                     {{ index + 1 }}
                   </span>
-                  <button class="app-button app-button-danger app-toolbar-button" type="button" @click.stop="$emit('remove-ui-field', field.id)">
-                    删除
+                  <button class="app-icon-button app-crash-icon app-icon-button-sec" type="button" aria-label="删除" title="删除" @click.stop="$emit('remove-ui-field', field.id)">
+                    <Trash2 class="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -141,38 +103,12 @@
           />
         </div>
 
-        <div v-else class="space-y-4">
-          <div class="flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-(--app-text-strong)">快速模板</p>
-            </div>
-          </div>
-
-          <div class="space-y-3">
-            <details v-for="group in templateGroups" :key="group.name" class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted)" :open="true">
-              <summary class="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-(--app-text-strong)">
-                <div class="flex items-center justify-between gap-3">
-                  <span>{{ group.name }}</span>
-                  <span class="text-xs text-(--app-text-faint)">{{ group.items.length }}</span>
-                </div>
-              </summary>
-
-              <div class="grid gap-2 px-3 pb-3 sm:grid-cols-2">
-                <button
-                  v-for="template in group.items"
-                  :key="template.id"
-                  class="editor-template-tile"
-                  :data-testid="`editor-step-template-${template.id}`"
-                  type="button"
-                  @click="$emit('append-template-step', template.id)"
-                >
-                  <span class="editor-template-icon" v-html="template.icon" />
-                  <span class="truncate">{{ template.label }}</span>
-                </button>
-              </div>
-            </details>
-          </div>
-        </div>
+        <EditorStepTemplateLibrary
+          v-else
+          :restrict-sequence-templates="restrictSequenceTemplates"
+          test-id-prefix="editor-step-template"
+          @select="$emit('append-template-step', $event)"
+        />
       </div>
     </template>
 
@@ -186,6 +122,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { Trash2 } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
@@ -193,14 +130,12 @@ import type { TaskRowType } from '@/types/bindings/TaskRowType';
 import type { TaskTone } from '@/types/bindings/TaskTone';
 import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
-import {
-  editorStepTemplates,
-  isActionSequenceTemplateId,
-} from '@/views/script-editor/editor-step/editorStepTemplates';
+import EditorStepTemplateLibrary from '@/views/script-editor/EditorStepTemplateLibrary.vue';
+import EditorVariableListPanel from '@/views/script-editor/EditorVariableListPanel.vue';
 import { getUiControlLabel, uiFieldTemplates } from '@/views/script-editor/editorSchema';
 import type { EditorPanelId, EditorUiSchema, UiFieldControl } from '@/views/script-editor/editorSchema';
 import { taskRowTypeOptions } from '@/views/script-editor/editorTaskMeta';
-import { getInputTypeLabel, type EditorInputEntry } from '@/views/script-editor/editorVariables';
+import type { EditorInputEntry } from '@/views/script-editor/editorVariables';
 
 const props = defineProps<{
   task: ScriptTaskTable | null;
@@ -260,73 +195,10 @@ const tabs = computed<Array<{ id: EditorPanelId; label: string }>>(() => {
 
   return [
     { id: 'basic', label: '基本' },
-    { id: 'inputs', label: `输入 ${props.inputEntries.length}` },
+    { id: 'inputs', label: `变量 ${props.inputEntries.length}` },
     { id: 'ui', label: `界面 ${props.uiSchema.fields.length}` },
     { id: 'steps', label: `步骤 ${props.task?.data.steps.length ?? 0}` },
   ];
 });
 
-const getScopeLabel = (scope: EditorInputEntry['namespace']) => {
-  if (scope === 'runtime') return 'Runtime';
-  if (scope === 'system') return 'System';
-  return 'Input';
-};
-
-const templateGroups = computed(() => {
-  const grouped = new Map<string, typeof editorStepTemplates>();
-  for (const template of editorStepTemplates) {
-    if (props.restrictSequenceTemplates && !isActionSequenceTemplateId(template.id)) {
-      continue;
-    }
-    const bucket = grouped.get(template.group) ?? [];
-    bucket.push(template);
-    grouped.set(template.group, bucket);
-  }
-
-  const groupOrder = props.restrictSequenceTemplates ? ['动作', '流程'] : ['动作', '流程', '数据', '视觉', '状态', '容器', '兼容'];
-
-  return Array.from(grouped.entries())
-    .sort(([left], [right]) => {
-      const leftIndex = groupOrder.indexOf(left);
-      const rightIndex = groupOrder.indexOf(right);
-      return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex) - (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
-    })
-    .map(([name, items]) => ({ name, items }));
-});
 </script>
-
-<style scoped>
-.editor-template-tile {
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  width: 100%;
-  border-radius: 14px;
-  border: 1px solid var(--app-border);
-  background: var(--app-panel-muted);
-  padding: 0.7rem 0.8rem;
-  text-align: left;
-  color: var(--app-text-strong);
-  transition: border-color 0.16s ease, background 0.16s ease;
-}
-
-.editor-template-tile:hover {
-  border-color: rgba(70, 110, 255, 1);
-  cursor: pointer;
-}
-
-.editor-template-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.15rem;
-  height: 1.15rem;
-  color: var(--app-accent);
-  flex-shrink: 0;
-}
-
-.editor-template-icon :deep(svg) {
-  width: 100%;
-  height: 100%;
-}
-</style>

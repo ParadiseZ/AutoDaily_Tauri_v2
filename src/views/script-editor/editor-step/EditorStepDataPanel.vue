@@ -33,13 +33,6 @@
           </button>
         </div>
 
-        <EditorVariableMetaCard
-          v-if="selectedSetVarTarget"
-          :variable="selectedSetVarTarget"
-          :input-entry="selectedSetVarInputEntry"
-          editable
-          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-        />
       </div>
 
       <div v-if="selectedSetVarTarget && setVarCanSwitchMode" class="flex justify-end">
@@ -135,13 +128,6 @@
           </button>
         </div>
 
-        <EditorVariableMetaCard
-          v-if="selectedGetVarTarget"
-          :variable="selectedGetVarTarget"
-          :input-entry="selectedGetVarInputEntry"
-          editable
-          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-        />
       </div>
       <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
         <input
@@ -226,13 +212,6 @@
               定位变量
             </button>
           </div>
-          <EditorVariableMetaCard
-            v-if="selectedFilterInputTarget"
-            :variable="selectedFilterInputTarget"
-            :input-entry="selectedFilterInputEntry"
-            editable
-            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-          />
         </div>
 
         <div class="space-y-3">
@@ -269,13 +248,6 @@
               定位变量
             </button>
           </div>
-          <EditorVariableMetaCard
-            v-if="selectedFilterOutputTarget"
-            :variable="selectedFilterOutputTarget"
-            :input-entry="selectedFilterOutputInputEntry"
-            editable
-            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-          />
         </div>
         <div class="editor-inline-grid">
           <div class="editor-inline-label">过滤模式</div>
@@ -362,13 +334,6 @@
               定位变量
             </button>
           </div>
-          <EditorVariableMetaCard
-            v-if="selectedColorCompareInputTarget"
-            :variable="selectedColorCompareInputTarget"
-            :input-entry="selectedColorCompareInputEntry"
-            editable
-            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-          />
         </div>
 
         <div class="space-y-3">
@@ -405,13 +370,6 @@
               定位变量
             </button>
           </div>
-          <EditorVariableMetaCard
-            v-if="selectedColorCompareOutputTarget"
-            :variable="selectedColorCompareOutputTarget"
-            :input-entry="selectedColorCompareOutputInputEntry"
-            editable
-            @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-          />
         </div>
 
         <label class="space-y-2 md:col-span-2">
@@ -529,28 +487,21 @@ import { computed, defineComponent, h, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
-import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { varValueTypeOptions, type VarValueDraft, type VarValueKind } from '@/views/script-editor/editorVarValue';
 import type { StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
-import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 defineOptions({ name: 'EditorStepDataPanel' });
 
 const props = defineProps<{
   selectedData: DataHanding;
   selectedSetVarTarget: EditorVariableOption | null;
-  selectedSetVarInputEntry?: EditorInputEntry | null;
   selectedGetVarTarget: EditorVariableOption | null;
-  selectedGetVarInputEntry?: EditorInputEntry | null;
   selectedFilterInputTarget?: EditorVariableOption | null;
-  selectedFilterInputEntry?: EditorInputEntry | null;
   selectedFilterOutputTarget?: EditorVariableOption | null;
-  selectedFilterOutputInputEntry?: EditorInputEntry | null;
   selectedColorCompareInputTarget?: EditorVariableOption | null;
-  selectedColorCompareInputEntry?: EditorInputEntry | null;
   selectedColorCompareOutputTarget?: EditorVariableOption | null;
-  selectedColorCompareOutputInputEntry?: EditorInputEntry | null;
   selectedSetVarKind: VarValueKind | null;
   setVarUsesExpression: boolean;
   setVarCanSwitchMode: boolean;

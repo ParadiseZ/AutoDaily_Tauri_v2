@@ -1,4 +1,5 @@
 import type { Step } from '@/types/bindings';
+import type { VisionNode } from '@/types/bindings/VisionNode';
 import {
   ACTION_MODE,
   ACTION_TYPE,
@@ -91,6 +92,9 @@ const SVG_ICONS = {
   getVar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
   filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
   color: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.836-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  detect: '<path d="M3 11h4"/><path d="M17 11h4"/><path d="M11 3v4"/><path d="M11 17v4"/><rect x="6" y="6" width="10" height="10" rx="2"/>',
+  ocr: '<path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h7"/><path d="M18 12l2 2-4 4"/>',
+  count: '<path d="M9 7h11"/><path d="M9 12h11"/><path d="M9 17h11"/><path d="M4 7h.01"/><path d="M4 12h.01"/><path d="M4 17h.01"/>',
   search: '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>',
   state: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
@@ -735,6 +739,61 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'vision-detect',
+    icon: genSvg(SVG_ICONS.detect),
+    label: '目标检测',
+    description: '对截图变量执行目标检测，并输出检测结果。', 
+    group: '视觉',
+    create: () =>
+      createBaseStep({
+        label: '目标检测',
+        op: STEP_OP.vision,
+        a: {
+          type: VISION_TYPE.detect,
+          input_var: 'runtime.latestCapture',
+          out_var: 'runtime.detResults',
+        },
+      }),
+  },
+  {
+    id: 'vision-ocr',
+    icon: genSvg(SVG_ICONS.ocr),
+    label: 'OCR',
+    description: '对截图变量执行 OCR，并输出文字识别结果。',
+    group: '视觉',
+    create: () =>
+      createBaseStep({
+        label: 'OCR',
+        op: STEP_OP.vision,
+        a: {
+          type: VISION_TYPE.ocr,
+          input_var: 'runtime.latestCapture',
+          out_var: 'runtime.ocrResults',
+        },
+      }),
+  },
+  {
+    id: 'vision-count-compare',
+    icon: genSvg(SVG_ICONS.count),
+    label: '判断数量大小',
+    description: '统计检测标签或 OCR 文字的匹配数量，并和指定数量比较。',
+    group: '视觉',
+    create: () =>
+      createBaseStep({
+        label: '判断数量大小',
+        op: STEP_OP.vision,
+        a: {
+          type: VISION_TYPE.countCompare,
+          input_var: 'runtime.ocrResults',
+          out_var: 'runtime.countCompareMatched',
+          target_value: null,
+          op: 'ge',
+          expected_count: 1,
+          then_steps: createStepList(),
+        },
+      }),
+  },
+  {
     id: 'vision-search',
     icon: genSvg(SVG_ICONS.search),
     label: '视觉搜索',
@@ -810,6 +869,8 @@ export const createStepFromTemplate = (templateId: string) =>
   editorStepTemplates.find((template) => template.id === templateId)?.create() ?? null;
 
 export const describeStepTitle = (step: Step) => {
+  const visionStep = step.op === STEP_OP.vision ? (step.a as VisionNode) : null;
+
   if (step.op === STEP_OP.sequence) {
     return '动作序列';
   }
@@ -871,8 +932,11 @@ export const describeStepTitle = (step: Step) => {
     return '状态控制';
   }
 
-  if (step.op === STEP_OP.vision) {
-    if (step.a.type === VISION_TYPE.visionSearch) return '视觉搜索';
+  if (visionStep) {
+    if (visionStep.type === VISION_TYPE.detect) return '目标检测';
+    if (visionStep.type === VISION_TYPE.ocr) return 'OCR';
+    if (visionStep.type === VISION_TYPE.countCompare) return '判断数量大小';
+    if (visionStep.type === VISION_TYPE.visionSearch) return '视觉搜索';
     return '视觉步骤';
   }
 
@@ -880,6 +944,8 @@ export const describeStepTitle = (step: Step) => {
 };
 
 export const describeStepMeta = (step: Step) => {
+  const visionStep = step.op === STEP_OP.vision ? (step.a as VisionNode) : null;
+
   if (step.op === STEP_OP.sequence) {
     return `动作序列 · ${step.steps.length} 个子步骤`;
   }
@@ -958,8 +1024,17 @@ export const describeStepMeta = (step: Step) => {
     }
   }
 
-  if (step.op === STEP_OP.vision) {
-    return `视觉搜索 -> ${step.a.out_var || '未命名输出'}`;
+  if (visionStep) {
+    if (visionStep.type === VISION_TYPE.detect) {
+      return `目标检测 ${visionStep.input_var || '未命名输入'} -> ${visionStep.out_var || '未命名输出'}`;
+    }
+    if (visionStep.type === VISION_TYPE.ocr) {
+      return `OCR ${visionStep.input_var || '未命名输入'} -> ${visionStep.out_var || '未命名输出'}`;
+    }
+    if (visionStep.type === VISION_TYPE.countCompare) {
+      return `数量比较 ${visionStep.input_var || '未命名输入'} -> ${visionStep.out_var || '未命名输出'}`;
+    }
+    return `视觉搜索 -> ${visionStep.out_var || '未命名输出'}`;
   }
 
   if (step.op === STEP_OP.taskControl) {

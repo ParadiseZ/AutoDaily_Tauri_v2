@@ -68,8 +68,8 @@
                     >
                       <GripVertical class="h-4 w-4" />
                     </button>
-                    <button class="app-button app-button-danger app-toolbar-button shrink-0" type="button" @click="$emit('unlink', item.id)">
-                      移除
+                    <button class="app-icon-button app-crash-icon app-icon-button-sec shrink-0" type="button" aria-label="移除" title="移除" @click="$emit('unlink', item.id)">
+                      <Trash2 class="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -119,7 +119,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { GripVertical } from 'lucide-vue-next';
+import { GripVertical, Trash2 } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';

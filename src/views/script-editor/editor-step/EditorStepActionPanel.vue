@@ -49,13 +49,6 @@
             定位变量
           </button>
         </div>
-        <EditorVariableMetaCard
-          v-if="selectedCaptureOutputTarget"
-          :variable="selectedCaptureOutputTarget"
-          :input-entry="selectedCaptureOutputInputEntry"
-          editable
-          @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
-        />
         <p class="text-xs leading-5 text-(--app-text-faint)">
           当前运行时会把截图图像对象写入 runtime 变量，不再默认转成字符串或文件路径。
         </p>
@@ -478,11 +471,10 @@ import { computed, defineComponent, h, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
-import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import type { Action } from '@/types/bindings/Action';
 import { ACTION_MODE, ACTION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import type { EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
-import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 import EditorOverviewField from '../EditorOverviewField.vue';
 
 defineOptions({ name: 'EditorStepActionPanel' });
@@ -498,7 +490,6 @@ const props = defineProps<{
   labelSelectPlaceholder?: string;
   labelSelectHint?: string | null;
   selectedCaptureOutputTarget?: EditorVariableOption | null;
-  selectedCaptureOutputInputEntry?: EditorInputEntry | null;
   selectedActionInputTarget?: EditorVariableOption | null;
   policyReferenceOptions?: EditorReferenceOption[];
   taskReferenceOptions?: EditorReferenceOption[];

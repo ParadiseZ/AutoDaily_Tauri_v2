@@ -215,8 +215,8 @@
                 <AppIcon name="locate-fixed" :size="14" />
                 定位
               </button>
-              <button class="app-button app-button-danger app-toolbar-button" type="button" @click="removeTarget(target.id)">
-                移除
+              <button class="app-icon-button app-crash-icon app-icon-button-sec" type="button" aria-label="移除" title="移除" @click="removeTarget(target.id)">
+                <Trash2 class="h-4 w-4" />
               </button>
             </div>
           </article>
@@ -923,8 +923,8 @@ const createFlowInputVariable = async () => {
   }
 
   const key = await props.createVariable('runtime', 'image', {
-    preferredKey: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'policySetImage' : 'policyImage',
-    name: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '策略集输入图像' : '策略输入图像',
+    preferredKey: 'captureResult',
+    name: '截图结果',
   });
   if (!key) {
     return;

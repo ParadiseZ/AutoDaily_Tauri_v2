@@ -16,6 +16,17 @@
         </template>
 
         <template #status-actions>
+          <button
+            v-if="canOpenCurrentRawEditor"
+            class="app-icon-button group"
+            type="button"
+            title="查看 JSON"
+            aria-label="查看 JSON"
+            data-testid="editor-open-raw-json"
+            @click="openCurrentRawEditor"
+          >
+            <AppIcon name="braces" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
+          </button>
           <button class="app-icon-button group" type="button" title="显示日志" aria-label="显示日志" data-testid="editor-show-console" @click="showConsole">
             <AppIcon name="scroll-text" :size="16" class="text-(--app-text-soft) group-hover:text-(--app-accent) transition-colors" />
           </button>
@@ -253,6 +264,8 @@
                 :policy-name="currentPolicy?.data.name || ''"
                 :policy-note="currentPolicy?.data.note || ''"
                 :policy-log-print="currentPolicy?.data.logPrint ?? null"
+                :input-entries="inputEntries"
+                :selected-input-id="selectedInputId"
                 :restrict-sequence-templates="activePolicyBranchPath.branch === 'sequence'"
                 @update:active-panel="activePolicyPanel = $event"
                 @update:policy-name="updatePolicyTextField('name', $event)"
@@ -260,6 +273,9 @@
                 @update:policy-log-print="updatePolicyTextField('logPrint', $event)"
                 @update:number-field="updatePolicyNumberField"
                 @update:boolean-field="updatePolicyBooleanField"
+                @add-input="addInput"
+                @select-input="selectedInputId = $event"
+                @remove-input="removeInput"
                 @append-template-step="appendPolicyTemplateStep"
               />
 
@@ -362,6 +378,8 @@
                 :steps="currentPolicySteps"
                 :selected-step-path="selectedPolicyStepPath"
                 :active-branch-path="activePolicyBranchPath"
+                :input-entries="inputEntries"
+                :selected-input-id="selectedInputId"
                 :variable-options="policyVariableOptions"
                 :catalog-variable-options="policyCatalogVariableOptions"
                 :label-index-options="imgDetLabelOptions"
@@ -376,6 +394,7 @@
                 :jump-to-reference="jumpToReferenceResource"
                 :create-variable="createVariableResource"
                 :jump-to-variable="jumpToVariableResource"
+                @update-input="updateInput"
                 @update:number-field="updatePolicyNumberField"
                 @update:boolean-field="updatePolicyBooleanField"
                 @update:condition="updatePolicyCondition"
@@ -763,6 +782,63 @@ const visitStepTree = (steps: Step[], visitor: (step: Step) => string | null): s
   return null;
 };
 
+const findStepPathById = (steps: Step[], stepId: string, branch: StepBranchPath = ROOT_BRANCH_PATH): StepPath | null => {
+  for (let index = 0; index < steps.length; index += 1) {
+    const step = steps[index];
+    const path = buildStepPath(branch, index);
+    if (step.id === stepId) {
+      return path;
+    }
+
+    if (step.op === 'sequence') {
+      const nested = findStepPathById(step.steps, stepId, { parentStepPath: path, branch: 'sequence' });
+      if (nested) {
+        return nested;
+      }
+      continue;
+    }
+
+    if (step.op === 'flowControl') {
+      if (step.a.type === 'if') {
+        const thenPath = findStepPathById(step.a.then, stepId, { parentStepPath: path, branch: 'then' });
+        if (thenPath) {
+          return thenPath;
+        }
+        const elsePath = findStepPathById(step.a.else_steps ?? [], stepId, { parentStepPath: path, branch: 'else' });
+        if (elsePath) {
+          return elsePath;
+        }
+        continue;
+      }
+
+      if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
+        const flowPath = findStepPathById(step.a.flow, stepId, { parentStepPath: path, branch: 'flow' });
+        if (flowPath) {
+          return flowPath;
+        }
+      }
+      continue;
+    }
+
+    if (step.op === 'vision' && (step.a.type === 'visionSearch' || step.a.type === 'countCompare')) {
+      const visionPath = findStepPathById(step.a.then_steps, stepId, { parentStepPath: path, branch: 'visionThen' });
+      if (visionPath) {
+        return visionPath;
+      }
+      continue;
+    }
+
+    if (step.op === 'dataHanding' && (step.a.type === 'filter' || step.a.type === 'colorCompare' || step.a.type === 'relativeFilter')) {
+      const filterPath = findStepPathById(step.a.then_steps ?? [], stepId, { parentStepPath: path, branch: 'filterThen' });
+      if (filterPath) {
+        return filterPath;
+      }
+    }
+  }
+
+  return null;
+};
+
 const resolveTaskNameForConsole = (taskId: string | null | undefined) => {
   if (!taskId) {
     return null;
@@ -856,6 +932,12 @@ const currentTask = computed<ScriptTaskTable | null>(() => {
   const matched = tasks.find((task) => task.id === selected) ?? null;
   return matched ?? tasks[0] ?? null;
 });
+const currentRawEditorSection = computed<RawEditorSection>(() => {
+  if (activePanel.value === 'steps') return 'steps';
+  if (activePanel.value === 'ui') return 'ui';
+  return 'inputs';
+});
+const canOpenCurrentRawEditor = computed(() => activeMode.value === 'task' && Boolean(currentTask.value));
 
 const currentPolicy = computed<PolicyTable | null>(() => {
   const selected = selectedPolicyId.value;
@@ -1995,6 +2077,17 @@ const createVariableEntry = (
   inputType: EditorInputType,
   options: VariableCreateOptions = {},
 ) => {
+  const trimmedPreferred = options.preferredKey?.trim().replace(/^(input|runtime|system)\./, '') ?? '';
+  if (trimmedPreferred) {
+    const existingEntry = inputEntries.value.find((entry) => entry.namespace === namespace && entry.key.trim() === trimmedPreferred) ?? null;
+    if (existingEntry) {
+      if (options.select !== false) {
+        selectedInputId.value = existingEntry.id;
+      }
+      return buildVariableReferenceKey(namespace, trimmedPreferred);
+    }
+  }
+
   const nextKey = createUniqueVariableStorageKey(namespace, options.preferredKey);
   const nextEntry: EditorInputEntry = {
     ...createInputEntry(inputType),
@@ -2207,6 +2300,37 @@ const jumpToVariableResource = (option: EditorVariableOption) => {
     return;
   }
 
+  if (option.sourceType === 'manual') {
+    if (activeMode.value === 'policy') {
+      activePolicyPanel.value = 'inputs';
+      selectedInputId.value = option.id;
+      return;
+    }
+
+    activeMode.value = 'task';
+    activePanel.value = 'inputs';
+    selectedInputId.value = option.id;
+    return;
+  }
+
+  if (option.sourceStepId && activeMode.value === 'policy' && currentPolicy.value) {
+    const beforePath = findStepPathById(currentPolicy.value.data.beforeAction as Step[], option.sourceStepId);
+    if (beforePath) {
+      activePolicyPanel.value = 'before';
+      selectedPolicyStepPathBefore.value = beforePath;
+      activePolicyBranchPathBefore.value = getParentBranchPath(beforePath);
+      return;
+    }
+
+    const afterPath = findStepPathById(currentPolicy.value.data.afterAction as Step[], option.sourceStepId);
+    if (afterPath) {
+      activePolicyPanel.value = 'after';
+      selectedPolicyStepPathAfter.value = afterPath;
+      activePolicyBranchPathAfter.value = getParentBranchPath(afterPath);
+      return;
+    }
+  }
+
   if (!option.ownerTaskId) {
     showToast('这个变量没有可定位的来源任务。', 'warning');
     return;
@@ -2220,10 +2344,16 @@ const jumpToVariableResource = (option: EditorVariableOption) => {
 
   selectedTaskId.value = matchedTask.id;
   activeMode.value = 'task';
-  if (option.sourceType === 'manual') {
-    activePanel.value = 'inputs';
-    selectedInputId.value = option.id;
-    return;
+
+  if (option.sourceStepId) {
+    const path = findStepPathById(matchedTask.data.steps as Step[], option.sourceStepId);
+    if (path) {
+      activePanel.value = 'steps';
+      selectedStepPath.value = path;
+      activeBranchPath.value = getParentBranchPath(path);
+      showToast('已定位到变量来源任务的步骤工作区。', 'success');
+      return;
+    }
   }
 
   activePanel.value = 'steps';
@@ -2816,8 +2946,8 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
 
   if (templateId === 'handle-policy-set' && nextStep.op === 'flowControl' && nextStep.a.type === 'handlePolicySet') {
     nextStep.a.input_var = await createVariableResource('runtime', 'image', {
-      preferredKey: 'policySetImage',
-      name: '策略集输入图像',
+      preferredKey: 'captureResult',
+      name: '截图结果',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,
@@ -2834,8 +2964,8 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
 
   if (templateId === 'handle-policy' && nextStep.op === 'flowControl' && nextStep.a.type === 'handlePolicy') {
     nextStep.a.input_var = await createVariableResource('runtime', 'image', {
-      preferredKey: 'policyImage',
-      name: '策略输入图像',
+      preferredKey: 'captureResult',
+      name: '截图结果',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,
@@ -3052,6 +3182,13 @@ const openRawEditor = (section: RawEditorSection) => {
         : currentTask.value.data.steps ?? [],
   );
   rawDialogOpen.value = true;
+};
+
+const openCurrentRawEditor = () => {
+  if (!canOpenCurrentRawEditor.value) {
+    return;
+  }
+  openRawEditor(currentRawEditorSection.value);
 };
 
 const formatRawEditor = () => {

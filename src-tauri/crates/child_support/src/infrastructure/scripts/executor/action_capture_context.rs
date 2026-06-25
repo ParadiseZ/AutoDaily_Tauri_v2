@@ -163,7 +163,13 @@ impl ScriptExecutor {
         .await?;
 
         let mut ctx = self.runtime_ctx.write().await;
-        ctx.observation.last_capture_image = Some(image);
+        ctx.observation.last_capture_image = Some(image.clone());
+        ctx.observation.last_vision_input_signature = Some(Self::build_image_signature(
+            ctx.observation.capture_asset_signature.as_str(),
+            image.as_ref(),
+        ));
+        ctx.observation.last_det_results = det_results;
+        ctx.observation.last_ocr_results = ocr_results;
         ctx.observation.screen_size = screen_size;
         ctx.observation.last_snapshot = Some(snapshot);
         ctx.observation.last_hits.clear();
@@ -173,9 +179,199 @@ impl ScriptExecutor {
         Ok(())
     }
 
+    async fn store_capture_image(
+        &mut self,
+        image: Arc<RgbaImage>,
+        output_var: Option<&str>,
+    ) -> ExecuteResult<()> {
+        let screen_size = (image.width(), image.height());
+        if let Some(output_var) = output_var {
+            self.set_runtime_var(output_var, Dynamic::from(image.clone()))
+                .await?;
+        }
+        self.set_runtime_var("runtime.latestCapture", Dynamic::from(image.clone()))
+            .await?;
+        self.set_runtime_var("runtime.detResults", Dynamic::from(Array::new()))
+            .await?;
+        self.set_runtime_var("runtime.ocrResults", Dynamic::from(Array::new()))
+            .await?;
+
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.observation.last_capture_image = Some(image);
+        ctx.observation.last_vision_input_signature = None;
+        ctx.observation.last_det_results.clear();
+        ctx.observation.last_ocr_results.clear();
+        ctx.observation.screen_size = screen_size;
+        ctx.observation.last_snapshot = None;
+        ctx.observation.last_hits.clear();
+        Ok(())
+    }
+
     async fn activate_image_var(&mut self, step_type: &str, input_var: &str) -> ExecuteResult<()> {
         let image = self.read_runtime_image_var(input_var, step_type).await?;
         self.activate_image_context(step_type, image, None).await
+    }
+
+    async fn execute_detect_step(
+        &mut self,
+        step_type: &str,
+        input_var: &str,
+        out_var: &str,
+    ) -> ExecuteResult<Vec<DetResult>> {
+        let image = self.read_runtime_image_var(input_var, step_type).await?;
+        let service = {
+            let ctx = self.runtime_ctx.read().await;
+            let Some(script_info) = ctx.execution.script_info.as_ref() else {
+                return Err(Self::execute_error(
+                    step_type,
+                    "当前运行时缺少 script_info，无法执行目标检测".to_string(),
+                ));
+            };
+            if script_info.img_det_model.is_none() {
+                return Err(Self::execute_error(
+                    step_type,
+                    "当前脚本未配置图像检测模型".to_string(),
+                ));
+            }
+            ctx.img_det_service.clone()
+        };
+        let detect_image = DynamicImage::ImageRgba8(image.as_ref().clone());
+        let det_results = Self::run_ocr_service_with_timeout(
+            step_type,
+            "目标检测",
+            VISION_INFERENCE_TIMEOUT_MS,
+            service,
+            move |service| {
+                service
+                    .detect(&detect_image)
+                    .map_err(|error| format!("目标检测执行失败: {}", error))
+            },
+        )
+        .await?;
+        self.store_explicit_vision_results(step_type, image, Some(det_results.clone()), None)
+            .await?;
+        self.set_runtime_var(
+            out_var,
+            Self::results_to_dynamic(step_type, "检测", &det_results)?,
+        )
+        .await?;
+        self.set_runtime_var(
+            "runtime.detResults",
+            Self::results_to_dynamic(step_type, "检测", &det_results)?,
+        )
+        .await?;
+        Ok(det_results)
+    }
+
+    async fn execute_ocr_step(
+        &mut self,
+        step_type: &str,
+        input_var: &str,
+        out_var: &str,
+    ) -> ExecuteResult<Vec<OcrResult>> {
+        let image = self.read_runtime_image_var(input_var, step_type).await?;
+        let service = {
+            let ctx = self.runtime_ctx.read().await;
+            let Some(script_info) = ctx.execution.script_info.as_ref() else {
+                return Err(Self::execute_error(
+                    step_type,
+                    "当前运行时缺少 script_info，无法执行 OCR".to_string(),
+                ));
+            };
+            if script_info.txt_det_model.is_none() || script_info.txt_rec_model.is_none() {
+                return Err(Self::execute_error(
+                    step_type,
+                    "当前脚本未完整配置 OCR 模型".to_string(),
+                ));
+            }
+            ctx.ocr_service.clone()
+        };
+        let ocr_image = DynamicImage::ImageRgba8(image.as_ref().clone());
+        let ocr_results = Self::run_ocr_service_with_timeout(
+            step_type,
+            "OCR",
+            VISION_INFERENCE_TIMEOUT_MS,
+            service,
+            move |service| {
+                service
+                    .ocr_batch(&ocr_image)
+                    .map_err(|error| format!("OCR 执行失败: {}", error))
+            },
+        )
+        .await?;
+        self.store_explicit_vision_results(step_type, image, None, Some(ocr_results.clone()))
+            .await?;
+        self.set_runtime_var(
+            out_var,
+            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
+        )
+        .await?;
+        self.set_runtime_var(
+            "runtime.ocrResults",
+            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
+        )
+        .await?;
+        Ok(ocr_results)
+    }
+
+    async fn store_explicit_vision_results(
+        &mut self,
+        step_type: &str,
+        image: Arc<RgbaImage>,
+        det_results: Option<Vec<DetResult>>,
+        ocr_results: Option<Vec<OcrResult>>,
+    ) -> ExecuteResult<()> {
+        let (grid_size, capture_asset_signature, existing_signature, existing_det, existing_ocr) = {
+            let ctx = self.runtime_ctx.read().await;
+            (
+                ctx.observation.vision_signature_grid_size,
+                ctx.observation.capture_asset_signature.clone(),
+                ctx.observation.last_vision_input_signature.clone(),
+                ctx.observation.last_det_results.clone(),
+                ctx.observation.last_ocr_results.clone(),
+            )
+        };
+        let current_signature =
+            Self::build_image_signature(capture_asset_signature.as_str(), image.as_ref());
+        let same_image = existing_signature.as_deref() == Some(current_signature.as_str());
+        let next_det_results = det_results.unwrap_or_else(|| {
+            if same_image {
+                existing_det
+            } else {
+                Vec::new()
+            }
+        });
+        let next_ocr_results = ocr_results.unwrap_or_else(|| {
+            if same_image {
+                existing_ocr
+            } else {
+                Vec::new()
+            }
+        });
+        let snapshot = VisionSnapshot::new(
+            next_ocr_results.clone(),
+            next_det_results.clone(),
+            None,
+            grid_size,
+        )
+        .map_err(|error| {
+            Self::execute_error(step_type, format!("构建视觉快照失败: {}", error))
+        })?;
+        let fingerprint = Self::build_page_fingerprint(&snapshot);
+
+        let screen_size = (image.width(), image.height());
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.observation.last_capture_image = Some(image);
+        ctx.observation.last_vision_input_signature = Some(current_signature);
+        ctx.observation.last_det_results = next_det_results;
+        ctx.observation.last_ocr_results = next_ocr_results;
+        ctx.observation.screen_size = screen_size;
+        ctx.observation.last_snapshot = Some(snapshot);
+        ctx.observation.last_hits.clear();
+        drop(ctx);
+
+        self.push_active_policy_page_fingerprint(fingerprint);
+        Ok(())
     }
 
     async fn read_runtime_image_var(
@@ -273,6 +469,16 @@ impl ScriptExecutor {
         Self::write_hash_segment(&mut hasher, capture_asset_signature.as_bytes());
         Self::write_hash_segment(&mut hasher, image.as_raw());
         format!("capture:v2:{:016x}", hasher.finish())
+    }
+
+    fn build_image_signature(capture_asset_signature: &str, image: &RgbaImage) -> String {
+        let mut hasher = XxHash3_64::default();
+        hasher.write(b"vision-image:v1");
+        Self::write_hash_segment(&mut hasher, capture_asset_signature.as_bytes());
+        hasher.write(&image.width().to_le_bytes());
+        hasher.write(&image.height().to_le_bytes());
+        Self::write_hash_segment(&mut hasher, image.as_raw());
+        format!("vision-image:v1:{:016x}", hasher.finish())
     }
 
     pub(crate) fn build_capture_asset_signature(

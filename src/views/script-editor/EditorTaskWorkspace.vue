@@ -1,12 +1,6 @@
 <template>
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <template v-if="task">
-      <div class="flex items-start justify-between gap-3">
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('open-raw', rawSection)">
-          查看JSON结构
-        </button>
-      </div>
-
       <EditorInputDetailsPanel
         v-if="activePanel === 'inputs'"
         :selected-input-entry="selectedInputEntry"
@@ -225,12 +219,6 @@ const uiWorkspaceTabs = [
 ] as const;
 
 const uiWorkspaceTab = ref<(typeof uiWorkspaceTabs)[number]['id']>('edit');
-
-const rawSection = computed(() => {
-  if (props.activePanel === 'steps') return 'steps';
-  if (props.activePanel === 'ui') return 'ui';
-  return 'inputs';
-});
 
 const selectedInputEntry = computed(() => props.inputEntries.find((entry) => entry.id === props.selectedInputId) ?? null);
 const selectedInputIndex = computed(() =>

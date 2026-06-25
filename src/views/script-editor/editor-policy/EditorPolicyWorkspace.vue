@@ -1,6 +1,13 @@
 <template>
   <SurfacePanel padding="sm" class="flex h-full min-h-0 flex-col gap-4 overflow-hidden">
     <template v-if="policy">
+      <EditorInputDetailsPanel
+        v-if="activePanel === 'inputs'"
+        :selected-input-entry="selectedInputEntry"
+        :selected-input-index="selectedInputIndex"
+        @update-input="(entryId, field, value) => $emit('update-input', entryId, field, value)"
+      />
+
       <div class="flex items-start justify-between gap-3">
       </div>
       <div v-if="activePanel === 'basic'" class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
@@ -57,6 +64,7 @@
         :steps="steps"
         :selected-step-path="selectedStepPath"
         :active-branch-path="activeBranchPath"
+        :input-entries="inputEntries"
         :variable-options="variableOptions"
         :catalog-variable-options="catalogVariableOptions"
         :label-index-options="labelIndexOptions"
@@ -88,24 +96,28 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { Step } from '@/types/bindings/Step';
+import EditorInputDetailsPanel from '@/views/script-editor/EditorInputDetailsPanel.vue';
 import EditorSearchRuleBuilder from '@/views/script-editor/EditorSearchRuleBuilder.vue';
 import type { EditorReferenceKind, EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
 import EditorStepWorkspace from '@/views/script-editor/editor-step/EditorStepWorkspace.vue';
 import type { PolicyEditorPanelId } from '@/views/script-editor/editor-policy/editorPolicy';
 import type { StepBranchPath, StepPath } from '@/views/script-editor/editor-step/editorStepTree';
-import type { EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
-defineProps<{
+const props = defineProps<{
   policy: PolicyTable | null;
   activePanel: PolicyEditorPanelId;
   steps: Step[];
   selectedStepPath: StepPath | null;
   activeBranchPath: StepBranchPath;
+  inputEntries: EditorInputEntry[];
+  selectedInputId: string | null;
   variableOptions: EditorVariableOption[];
   catalogVariableOptions: EditorVariableOption[];
   labelIndexOptions: Array<{ label: string; value: number; description?: string; disabled?: boolean }>;
@@ -127,6 +139,7 @@ defineProps<{
 }>();
 
 defineEmits<{
+  'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
   'update:number-field': [field: 'curPos' | 'execMax', value: string];
   'update:boolean-field': [field: 'skipFlag', value: boolean];
   'update:condition': [value: SearchRule];
@@ -136,4 +149,9 @@ defineEmits<{
   'remove-step': [index: number];
   'update-step': [index: number, step: Step];
 }>();
+
+const selectedInputEntry = computed(() => props.inputEntries.find((entry) => entry.id === props.selectedInputId) ?? null);
+const selectedInputIndex = computed(() =>
+  selectedInputEntry.value ? props.inputEntries.findIndex((entry) => entry.id === selectedInputEntry.value?.id) : -1,
+);
 </script>

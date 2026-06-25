@@ -2,6 +2,7 @@ use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::scripts::script_info::ScriptInfo;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
+use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::core::{
     AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId,
@@ -150,6 +151,15 @@ pub struct ObservationState {
     /// 最近一次截图动作得到的原始图像。
     pub last_capture_image: Option<Arc<RgbaImage>>,
 
+    /// 最近一次显式视觉步骤所使用的图像签名，用于合并 OCR/检测结果。
+    pub last_vision_input_signature: Option<String>,
+
+    /// 最近一次显式目标检测结果。
+    pub last_det_results: Vec<DetResult>,
+
+    /// 最近一次显式 OCR 结果。
+    pub last_ocr_results: Vec<OcrResult>,
+
     /// 每一帧的视觉快照缓存
     pub last_snapshot: Option<VisionSnapshot>,
 
@@ -174,6 +184,9 @@ impl ObservationState {
         let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
         Self {
             last_capture_image: None,
+            last_vision_input_signature: None,
+            last_det_results: Vec::new(),
+            last_ocr_results: Vec::new(),
             last_snapshot: None,
             last_hits: Vec::new(),
             screen_size: (0, 0),

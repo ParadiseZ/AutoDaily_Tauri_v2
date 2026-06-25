@@ -63,7 +63,6 @@
                 :label-select-placeholder="labelSelectPlaceholder"
                 :label-select-hint="labelSelectHint"
                 :selected-capture-output-target="selectedCaptureOutputTarget"
-                :selected-capture-output-input-entry="selectedCaptureOutputInputEntry"
                 :selected-action-input-target="selectedActionInputTarget"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
@@ -131,13 +130,9 @@
                 :selected-get-var-target="selectedGetVarTarget"
                 :selected-get-var-input-entry="selectedGetVarInputEntry"
                 :selected-filter-input-target="selectedFilterInputTarget"
-                :selected-filter-input-entry="selectedFilterInputEntry"
                 :selected-filter-output-target="selectedFilterOutputTarget"
-                :selected-filter-output-input-entry="selectedFilterOutputInputEntry"
                 :selected-color-compare-input-target="selectedColorCompareInputTarget"
-                :selected-color-compare-input-entry="selectedColorCompareInputEntry"
                 :selected-color-compare-output-target="selectedColorCompareOutputTarget"
-                :selected-color-compare-output-input-entry="selectedColorCompareOutputInputEntry"
                 :selected-set-var-kind="selectedSetVarKind"
                 :set-var-uses-expression="setVarUsesExpression"
                 :set-var-can-switch-mode="setVarCanSwitchMode"
@@ -195,20 +190,22 @@
               />
 
               <EditorStepVisionPanel
-                v-else-if="selectedStep.op === STEP_OP.vision && selectedVision?.type === VISION_TYPE.visionSearch"
+                v-else-if="selectedStep.op === STEP_OP.vision && selectedVision"
                 :selected-vision="selectedVision"
                 :variable-datalist-id="variableDatalistId"
                 :writable-catalog-variable-options="writableCatalogVariableOptions"
+                :readable-catalog-variable-options="readableCatalogVariableOptions"
                 :label-index-options="labelIndexOptions"
                 :label-select-placeholder="labelSelectPlaceholder"
                 :label-select-hint="labelSelectHint"
+                :selected-vision-input-target="selectedVisionInputTarget"
                 :selected-vision-output-target="selectedVisionOutputTarget"
-                :selected-vision-output-input-entry="selectedVisionOutputInputEntry"
                 :vision-branch-target="visionBranchTarget"
                 :create-variable="createVariable"
                 :jump-to-variable="jumpToVariable"
-                @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-field="updateVisionField"
+                @update-nullable-field="updateVisionNullableField"
+                @update-number-field="updateVisionNumberField"
                 @update-rule="updateVisionRule"
                 @create-variable="handleCreateVisionVariable"
                 @jump-to-variable="handleJumpToDataVariable"
@@ -260,6 +257,7 @@
 import { computed, ref, watch } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { Action } from '@/types/bindings/Action';
+import type { CompareOp } from '@/types/bindings/CompareOp';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { DataHanding } from '@/types/bindings/DataHanding';
 import type { SearchRule } from '@/types/bindings/SearchRule';
@@ -328,6 +326,16 @@ import {
 import { cloneJson } from '@/views/script-editor/editorSchema';
 
 type NestedGroupKey = 'sequence' | 'then' | 'else' | 'flow' | 'visionThen' | 'filterThen';
+type EditableVisionNode = {
+  type: VisionNode['type'];
+  input_var?: string;
+  out_var?: string;
+  target_value?: string | null;
+  op?: CompareOp;
+  expected_count?: number;
+  then_steps?: Step[];
+  rule?: SearchRule;
+};
 
 const props = withDefaults(
   defineProps<{
@@ -593,7 +601,9 @@ const selectedAction = computed<Action | null>(() => (selectedStep.value?.op ===
 const selectedFlow = computed<FlowControl | null>(() => (selectedStep.value?.op === STEP_OP.flowControl ? selectedStep.value.a : null));
 const selectedData = computed<DataHanding | null>(() => (selectedStep.value?.op === STEP_OP.dataHanding ? selectedStep.value.a : null));
 const selectedTaskControl = computed<TaskControl | null>(() => (selectedStep.value?.op === STEP_OP.taskControl ? selectedStep.value.a : null));
-const selectedVision = computed<VisionNode | null>(() => (selectedStep.value?.op === STEP_OP.vision ? selectedStep.value.a : null));
+const selectedVision = computed<EditableVisionNode | null>(() =>
+  selectedStep.value?.op === STEP_OP.vision ? (selectedStep.value.a as EditableVisionNode) : null,
+);
 const filteredStateStatusTypeOptions = computed(() =>
   selectedTaskControl.value?.target.type !== STATE_TARGET_TYPE.task
     ? stateStatusTypeOptions.filter((option) => option.value !== STATE_STATUS_TYPE.enabled)
@@ -665,9 +675,6 @@ const currentActionInputName = computed(() => {
 const selectedCaptureOutputTarget = computed(() =>
   currentCaptureOutputName.value ? props.variableOptions.find((item) => item.key === currentCaptureOutputName.value) ?? null : null,
 );
-const selectedCaptureOutputInputEntry = computed(() =>
-  selectedCaptureOutputTarget.value ? findInputEntryByVariableKey(selectedCaptureOutputTarget.value.key) : null,
-);
 const selectedActionInputTarget = computed(() =>
   currentActionInputName.value ? props.variableOptions.find((item) => item.key === currentActionInputName.value) ?? null : null,
 );
@@ -685,30 +692,32 @@ const selectedFilterInputTarget = computed(() =>
 const selectedFilterOutputTarget = computed(() =>
   currentFilterOutputName.value ? props.variableOptions.find((item) => item.key === currentFilterOutputName.value) ?? null : null,
 );
-const selectedFilterInputEntry = computed(() => (selectedFilterInputTarget.value ? findInputEntryByVariableKey(selectedFilterInputTarget.value.key) : null));
-const selectedFilterOutputInputEntry = computed(() =>
-  selectedFilterOutputTarget.value ? findInputEntryByVariableKey(selectedFilterOutputTarget.value.key) : null,
-);
 const selectedColorCompareInputTarget = computed(() =>
   currentColorCompareInputName.value ? props.variableOptions.find((item) => item.key === currentColorCompareInputName.value) ?? null : null,
 );
 const selectedColorCompareOutputTarget = computed(() =>
   currentColorCompareOutputName.value ? props.variableOptions.find((item) => item.key === currentColorCompareOutputName.value) ?? null : null,
 );
-const selectedColorCompareInputEntry = computed(() =>
-  selectedColorCompareInputTarget.value ? findInputEntryByVariableKey(selectedColorCompareInputTarget.value.key) : null,
-);
-const selectedColorCompareOutputInputEntry = computed(() =>
-  selectedColorCompareOutputTarget.value ? findInputEntryByVariableKey(selectedColorCompareOutputTarget.value.key) : null,
+const currentVisionInputName = computed(() =>
+  selectedVision.value?.type === VISION_TYPE.detect ||
+  selectedVision.value?.type === VISION_TYPE.ocr ||
+  selectedVision.value?.type === VISION_TYPE.countCompare
+    ? selectedVision.value.input_var ?? ''
+    : '',
 );
 const currentVisionOutputName = computed(() =>
-  selectedVision.value?.type === VISION_TYPE.visionSearch ? selectedVision.value.out_var ?? '' : '',
+  selectedVision.value?.type === VISION_TYPE.detect ||
+  selectedVision.value?.type === VISION_TYPE.ocr ||
+  selectedVision.value?.type === VISION_TYPE.countCompare ||
+  selectedVision.value?.type === VISION_TYPE.visionSearch
+    ? selectedVision.value.out_var ?? ''
+    : '',
+);
+const selectedVisionInputTarget = computed(() =>
+  currentVisionInputName.value ? props.variableOptions.find((item) => item.key === currentVisionInputName.value) ?? null : null,
 );
 const selectedVisionOutputTarget = computed(() =>
   currentVisionOutputName.value ? props.variableOptions.find((item) => item.key === currentVisionOutputName.value) ?? null : null,
-);
-const selectedVisionOutputInputEntry = computed(() =>
-  selectedVisionOutputTarget.value ? findInputEntryByVariableKey(selectedVisionOutputTarget.value.key) : null,
 );
 const selectedSetVarKind = computed(() => (selectedSetVarTarget.value ? mapVariableTypeToVarKind(selectedSetVarTarget.value.valueType) : null));
 const setVarUsesExpression = computed(() => {
@@ -776,8 +785,8 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
     return [{ key: 'flow', label: '循环体', count: selectedFlow.value.flow.length, path: { parentStepPath: props.selectedStepPath, branch: 'flow' } }];
   }
 
-  if (selectedVision.value?.type === VISION_TYPE.visionSearch) {
-    return [{ key: 'visionThen', label: '命中后执行', count: selectedVision.value.then_steps.length, path: { parentStepPath: props.selectedStepPath, branch: 'visionThen' } }];
+  if (selectedVision.value?.type === VISION_TYPE.visionSearch || selectedVision.value?.type === VISION_TYPE.countCompare) {
+    return [{ key: 'visionThen', label: '命中后执行', count: selectedVision.value.then_steps?.length ?? 0, path: { parentStepPath: props.selectedStepPath, branch: 'visionThen' } }];
   }
 
   if (selectedData.value?.type === DATA_TYPE.filter) {
@@ -1477,21 +1486,40 @@ const updateVisionField = (field: string, value: string) => {
   });
 };
 
-const handleCreateVisionVariable = async (target: 'visionOutput') => {
+const updateVisionNullableField = (field: string, value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.vision) return;
+    step.a = { ...(step.a ?? {}), [field]: value.trim() ? value : null } as VisionNode;
+  });
+};
+
+const updateVisionNumberField = (field: string, value: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.vision) return;
+    step.a = { ...(step.a ?? {}), [field]: Number(value) || 0 } as VisionNode;
+  });
+};
+
+const handleCreateVisionVariable = async (target: 'visionInput' | 'visionOutput') => {
   if (!props.createVariable) {
     return;
   }
 
-  if (target !== 'visionOutput') {
-    return;
-  }
-
-  const key = await props.createVariable('runtime', 'json');
+  const key = await props.createVariable(
+    'runtime',
+    target === 'visionInput'
+      ? selectedVision.value?.type === VISION_TYPE.countCompare
+        ? 'json'
+        : 'image'
+      : selectedVision.value?.type === VISION_TYPE.countCompare
+        ? 'bool'
+        : 'json',
+  );
   if (!key) {
     return;
   }
 
-  updateVisionField('out_var', key);
+  updateVisionField(target === 'visionInput' ? 'input_var' : 'out_var', key);
 };
 
 const updateVisionRule = (rule: SearchRule) => {

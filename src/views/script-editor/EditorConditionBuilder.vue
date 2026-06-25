@@ -523,7 +523,6 @@ import { Trash2 } from 'lucide-vue-next';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorPolicyConditionRuleBuilder from '@/views/script-editor/EditorPolicyConditionRuleBuilder.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
-import EditorVariableMetaCard from '@/views/script-editor/EditorVariableMetaCard.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { PolicyConditionRule } from '@/types/bindings/PolicyConditionRule';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
