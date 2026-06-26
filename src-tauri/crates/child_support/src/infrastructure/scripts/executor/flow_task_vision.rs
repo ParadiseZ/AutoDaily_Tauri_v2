@@ -32,7 +32,7 @@ impl ScriptExecutor {
             VisionNode::Detect { input_var, out_var } => {
                 if let Some(timeout_flow) = self
                     .record_progress_evidence(
-                        "vision.detect",
+                        "vision.inference",
                         format!("Vision Detect {} -> {}", input_var, out_var),
                     )
                     .await?
@@ -46,7 +46,7 @@ impl ScriptExecutor {
             VisionNode::Ocr { input_var, out_var } => {
                 if let Some(timeout_flow) = self
                     .record_progress_evidence(
-                        "vision.ocr",
+                        "vision.inference",
                         format!("Vision OCR {} -> {}", input_var, out_var),
                     )
                     .await?

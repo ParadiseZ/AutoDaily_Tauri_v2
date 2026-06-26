@@ -224,7 +224,12 @@
           />
         </label>
         <div class="flex flex-wrap gap-2">
-          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'actionInput')">
+          <button
+            v-if="createVariable && !(selectedAction.ac === ACTION_TYPE.click && (selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx))"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            @click="$emit('create-variable', 'actionInput')"
+          >
             <AppIcon name="plus" :size="14" />
             新建结果变量
           </button>
@@ -240,7 +245,7 @@
         </div>
       </template>
 
-      <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
+      <div v-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-3">
         <label class="md:col-span-2 flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
           <input
             :checked="selectedAction.enable_filter ?? true"
@@ -254,30 +259,33 @@
             <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。先按文字筛选，再只点击当前位置对应的一个结果。</p>
           </div>
         </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
-          <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">绑定变量</span>
-          <EditorSelectField
-            :model-value="selectedAction.txt_expr || null"
-            :options="resolvedClickTextVariableOptions"
-            :show-description="true"
-            placeholder="绑定文字变量"
-            test-id="editor-action-click-text-var"
-            @update:model-value="$emit('update-text-field', 'txt_expr', String($event || ''))"
-          />
-        </label>
-        <button
-          v-if="createVariable"
-          class="app-button app-button-ghost app-toolbar-button md:col-start-2"
-          type="button"
-          @click="$emit('create-variable', 'clickText')"
-        >
-          <AppIcon name="plus" :size="14" />
-          新建文字变量
-        </button>
+        <template v-if="selectedAction.enable_filter ?? true">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">筛选取值</span>
+            <EditorSelectField
+              :model-value="clickTextFilterSource"
+              :options="filterSourceOptions"
+              placeholder="选择取值来源"
+              test-id="editor-action-click-text-filter-source"
+              @update:model-value="updateClickTextFilterSource(String($event || 'fixed'))"
+            />
+          </label>
+          <label v-if="clickTextFilterSource === 'fixed'" class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
+            <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
+          </label>
+          <label v-else class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">用户定义变量</span>
+            <EditorSelectField
+              :model-value="selectedAction.txt_expr || null"
+              :options="resolvedClickTextVariableOptions"
+              :show-description="true"
+              placeholder="绑定 input 文本变量"
+              test-id="editor-action-click-text-var"
+              @update:model-value="$emit('update-text-field', 'txt_expr', String($event || ''))"
+            />
+          </label>
+        </template>
       </div>
 
       <div v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="space-y-3">
@@ -295,18 +303,41 @@
               <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。先按标签筛选，再只点击当前位置对应的一个结果。</p>
             </div>
           </label>
-          <div class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签</span>
-            <AppSelect
-              :model-value="selectedAction.idx ?? null"
-              :options="resolvedLabelIdxOptions"
-              :placeholder="labelSelectPlaceholder"
-              :disabled="!(labelIndexOptions?.length)"
-              test-id="editor-action-click-label-idx"
-              @update:model-value="$emit('update-number-field', 'idx', String($event ?? 0))"
-            />
-            <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
-          </div>
+          <template v-if="selectedAction.enable_filter ?? true">
+            <label class="space-y-2">
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">筛选取值</span>
+              <EditorSelectField
+                :model-value="clickLabelFilterSource"
+                :options="filterSourceOptions"
+                placeholder="选择取值来源"
+                test-id="editor-action-click-label-filter-source"
+                @update:model-value="updateClickLabelFilterSource(String($event || 'fixed'))"
+              />
+            </label>
+            <div v-if="clickLabelFilterSource === 'fixed'" class="space-y-2">
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签</span>
+              <AppSelect
+                :model-value="selectedAction.idx ?? null"
+                :options="resolvedLabelIdxOptions"
+                :placeholder="labelSelectPlaceholder"
+                :disabled="!(labelIndexOptions?.length)"
+                test-id="editor-action-click-label-idx"
+                @update:model-value="$emit('update-number-field', 'idx', String($event ?? 0))"
+              />
+              <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
+            </div>
+            <label v-else class="space-y-2">
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">用户定义变量</span>
+              <EditorSelectField
+                :model-value="selectedAction.idx_expr || null"
+                :options="resolvedClickLabelVariableOptions"
+                :show-description="true"
+                placeholder="绑定 input 整数变量"
+                test-id="editor-action-click-label-var"
+                @update:model-value="$emit('update-text-field', 'idx_expr', String($event || ''))"
+              />
+            </label>
+          </template>
         </div>
       </div>
     </template>
@@ -516,6 +547,7 @@ const props = defineProps<{
   writableCatalogVariableOptions?: Array<{ label: string; value: string; description: string; disabled?: boolean }>;
   resultCatalogVariableOptions?: SelectOption[];
   textVariableOptions?: SelectOption[];
+  numberVariableOptions?: SelectOption[];
   labelIndexOptions?: LabelSelectOption[];
   labelSelectPlaceholder?: string;
   labelSelectHint?: string | null;
@@ -564,6 +596,11 @@ type MixedSwipeTarget = {
 const swipeTargetSourceOptions = [
   { label: '文字', value: ACTION_MODE.txt, description: '从 OCR 结果中取目标中心点。' },
   { label: '标签', value: ACTION_MODE.labelIdx, description: '从检测结果中取目标中心点。' },
+];
+
+const filterSourceOptions = [
+  { label: '固定值', value: 'fixed', description: '使用步骤里填写的目标文字或目标标签。' },
+  { label: '用户定义', value: 'expr', description: '绑定 input 变量，由普通用户填写。' },
 ];
 
 const MixedSwipeTargetEditor = defineComponent({
@@ -755,6 +792,11 @@ const resolvedClickTextVariableOptions = computed(() =>
     ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.txt_expr ?? '')
     : props.textVariableOptions ?? [],
 );
+const resolvedClickLabelVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx
+    ? withCurrentVariableOption(props.numberVariableOptions ?? [], props.selectedAction.idx_expr ?? '')
+    : props.numberVariableOptions ?? [],
+);
 const resolvedSwipeFromTextVariableOptions = computed(() =>
   props.selectedAction.ac === ACTION_TYPE.swipe && props.selectedAction.mode === ACTION_MODE.txt
     ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.from_expr ?? '')
@@ -783,6 +825,34 @@ const resolvedSwipeToLabelOptions = computed(() =>
     ? withCurrentLabelOption(props.labelIndexOptions ?? [], typeof props.selectedAction.to === 'number' ? props.selectedAction.to : null)
     : props.labelIndexOptions ?? [],
 );
+
+const clickTextFilterSource = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt && props.selectedAction.txt_expr?.trim()
+    ? 'expr'
+    : 'fixed',
+);
+
+const clickLabelFilterSource = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx && props.selectedAction.idx_expr?.trim()
+    ? 'expr'
+    : 'fixed',
+);
+
+const updateClickTextFilterSource = (value: string) => {
+  if (value === 'expr') {
+    emit('update-text-field', 'txt_expr', props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt ? (props.selectedAction.txt_expr ?? '') : '');
+    return;
+  }
+  emit('update-text-field', 'txt_expr', '');
+};
+
+const updateClickLabelFilterSource = (value: string) => {
+  if (value === 'expr') {
+    emit('update-text-field', 'idx_expr', props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx ? (props.selectedAction.idx_expr ?? '') : '');
+    return;
+  }
+  emit('update-text-field', 'idx_expr', '');
+};
 </script>
 
 <style scoped>

@@ -210,7 +210,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           offset_x: 0,
           offset_y: 0,
           mode: ACTION_MODE.txt,
-          input_var: 'runtime.ocrResults',
+          input_var: 'runtime.searchHits',
           txt: '开始',
           enable_filter: true,
         },
@@ -234,6 +234,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           mode: ACTION_MODE.labelIdx,
           input_var: 'runtime.detResults',
           idx: 0,
+          idx_expr: null,
           enable_filter: true,
         },
       }),
@@ -752,7 +753,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         op: STEP_OP.vision,
         a: {
           type: VISION_TYPE.detect,
-          input_var: 'runtime.latestCapture',
+          input_var: 'runtime.captureResult',
           out_var: 'runtime.detResults',
         },
       }),
@@ -769,7 +770,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         op: STEP_OP.vision,
         a: {
           type: VISION_TYPE.ocr,
-          input_var: 'runtime.latestCapture',
+          input_var: 'runtime.captureResult',
           out_var: 'runtime.ocrResults',
         },
       }),
@@ -787,7 +788,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           type: VISION_TYPE.countCompare,
           input_var: 'runtime.ocrResults',
-          out_var: 'runtime.countCompareMatched',
+          out_var: '',
           target_value: null,
           op: 'ge',
           expected_count: 1,

@@ -188,7 +188,7 @@
               @update:model-value="pendingTargetId = String($event || '')"
             />
             <button
-              class="app-button app-button-primary app-toolbar-button"
+              class="app-button app-button-primary app-toolbar-button justify-center"
               type="button"
               :data-testid="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-add' : 'editor-flow-policy-add'"
               :disabled="!pendingTargetId"
@@ -226,7 +226,7 @@
           {{ emptyTargetText }}
         </div>
 
-        <div class="grid gap-4 xl:grid-cols-2">
+        <div class="space-y-4">
           <div class="space-y-2">
             <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入图像变量</span>
             <EditorSelectField
@@ -241,15 +241,6 @@
               <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createFlowInputVariable">
                 <AppIcon name="plus" :size="14" />
                 新建图像变量
-              </button>
-              <button
-                class="app-button app-button-ghost app-toolbar-button"
-                type="button"
-                :disabled="!selectedFlowInputOption"
-                @click="jumpToFlowInputVariable"
-              >
-                <AppIcon name="locate-fixed" :size="14" />
-                定位变量
               </button>
             </div>
           </div>
@@ -268,15 +259,6 @@
               <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createFlowOutputVariable">
                 <AppIcon name="plus" :size="14" />
                 新建结果变量
-              </button>
-              <button
-                class="app-button app-button-ghost app-toolbar-button"
-                type="button"
-                :disabled="!selectedFlowOutputOption"
-                @click="jumpToFlowOutputVariable"
-              >
-                <AppIcon name="locate-fixed" :size="14" />
-                定位变量
               </button>
             </div>
           </div>

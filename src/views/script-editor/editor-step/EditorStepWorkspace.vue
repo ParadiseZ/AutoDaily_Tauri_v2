@@ -59,6 +59,7 @@
                 :writable-catalog-variable-options="writableCatalogVariableOptions"
                 :result-catalog-variable-options="resultCatalogVariableOptions"
                 :text-variable-options="textVariableOptions"
+                :number-variable-options="numberVariableOptions"
                 :label-index-options="labelIndexOptions"
                 :label-select-placeholder="labelSelectPlaceholder"
                 :label-select-hint="labelSelectHint"
@@ -469,14 +470,33 @@ const resultCatalogVariableOptions = computed(() =>
 const textVariableOptions = computed(() => {
   const options = new Map<string, VariableSelectOption>();
 
-  for (const entry of props.inputEntries.filter((item) => item.type === 'string')) {
+  for (const entry of props.inputEntries.filter((item) => item.namespace === 'input' && item.type === 'string')) {
     const option = createDraftVariableSelectOption(entry, 'read');
     if (option) {
       options.set(option.value, option);
     }
   }
 
-  for (const item of props.variableOptions.filter((option) => option.readable && option.valueType === 'string')) {
+  for (const item of props.variableOptions.filter((option) => option.namespace === 'input' && option.readable && option.valueType === 'string')) {
+    if (!options.has(item.key)) {
+      options.set(item.key, createVariableSelectOption(item));
+    }
+  }
+
+  return Array.from(options.values());
+});
+
+const numberVariableOptions = computed(() => {
+  const options = new Map<string, VariableSelectOption>();
+
+  for (const entry of props.inputEntries.filter((item) => item.namespace === 'input' && item.type === 'int')) {
+    const option = createDraftVariableSelectOption(entry, 'read');
+    if (option) {
+      options.set(option.value, option);
+    }
+  }
+
+  for (const item of props.variableOptions.filter((option) => option.namespace === 'input' && option.readable && option.valueType === 'int')) {
     if (!options.has(item.key)) {
       options.set(item.key, createVariableSelectOption(item));
     }
@@ -892,9 +912,9 @@ const createClickAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.p
     case ACTION_MODE.percent:
       return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
     case ACTION_MODE.txt:
-      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始', txt_expr: null, enable_filter: true };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.searchHits', txt: '开始', txt_expr: null, enable_filter: true };
     case ACTION_MODE.labelIdx:
-      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0, enable_filter: true };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0, idx_expr: null, enable_filter: true };
     default:
       return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.point, p: { x: 640, y: 360 } };
   }
@@ -1162,7 +1182,10 @@ const handleCreateDataVariable = async (
         ? await props.createVariable('runtime', 'json')
         : target === 'filterInput'
         ? await props.createVariable('input', 'json')
-        : await props.createVariable('input', 'int');
+        : await props.createVariable('input', 'int', {
+            preferredKey: 'newVar',
+            name: '新变量',
+          });
   if (!key) {
     return;
   }
@@ -1557,10 +1580,16 @@ const handleCreateVisionVariable = async (
   }
 
   const createOptions =
-    target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.detect
+    target === 'visionInput'
+      ? selectedVision.value?.type === VISION_TYPE.countCompare
+        ? { preferredKey: 'ocrResults', name: 'OCR结果' }
+        : { preferredKey: 'captureResult', name: '截图结果' }
+      : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.detect
       ? { preferredKey: 'detResults', name: '检测结果' }
       : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.ocr
         ? { preferredKey: 'ocrResults', name: 'OCR结果' }
+        : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.countCompare
+          ? { preferredKey: 'countMatched', name: '数量比较结果' }
         : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.visionSearch
           ? { preferredKey: 'searchHits', name: '搜索命中' }
           : target === 'visionSearchDetInput'

@@ -144,16 +144,16 @@ impl ScriptExecutor {
                 txt_expr,
                 enable_filter,
             } => {
-                let target_text =
-                    self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), step_type)?;
+                let target_text = if *enable_filter {
+                    self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), step_type)?
+                } else {
+                    None
+                };
                 let items = self
                     .resolve_ocr_target_items(step_type, input_var, target_text.as_deref())
                     .await?;
-                let items = if *enable_filter {
-                    Self::select_positioned_owned(items, self.resolve_active_policy_click_pos().await)
-                } else {
-                    items
-                };
+                let items =
+                    Self::select_positioned_owned(items, self.resolve_active_policy_click_pos().await);
                 let mut points = Vec::new();
                 let mut targets = Vec::new();
                 for item in items {
@@ -175,14 +175,19 @@ impl ScriptExecutor {
             ClickMode::LabelIdx {
                 input_var,
                 idx,
+                idx_expr,
                 enable_filter,
             } => {
-                let items = self.resolve_det_target_items(step_type, input_var, *idx).await?;
-                let items = if *enable_filter {
-                    Self::select_positioned_owned(items, self.resolve_active_policy_click_pos().await)
+                let target_idx = if *enable_filter {
+                    self.resolve_optional_u32(*idx, idx_expr.as_deref(), step_type)?
                 } else {
-                    items
+                    None
                 };
+                let items = self
+                    .resolve_det_target_items(step_type, input_var, target_idx)
+                    .await?;
+                let items =
+                    Self::select_positioned_owned(items, self.resolve_active_policy_click_pos().await);
                 let mut points = Vec::new();
                 let mut targets = Vec::new();
                 for item in items {

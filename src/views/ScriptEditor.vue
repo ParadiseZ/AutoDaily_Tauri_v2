@@ -1948,6 +1948,20 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
       if ((step.a.ac === 'click' || step.a.ac === 'swipe') && (step.a.mode === 'txt' || step.a.mode === 'labelIdx') && step.a.input_var?.trim()) {
         bucket.add(step.a.input_var.trim());
       }
+      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'txt' && step.a.txt_expr?.trim()) {
+        bucket.add(step.a.txt_expr.trim());
+      }
+      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'labelIdx' && step.a.idx_expr?.trim()) {
+        bucket.add(step.a.idx_expr.trim());
+      }
+      if (step.a.ac === 'swipe' && step.a.mode === 'txt') {
+        if (step.a.from_expr?.trim()) {
+          bucket.add(step.a.from_expr.trim());
+        }
+        if (step.a.to_expr?.trim()) {
+          bucket.add(step.a.to_expr.trim());
+        }
+      }
     }
 
     if (step.op === 'dataHanding') {
@@ -2209,6 +2223,20 @@ const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nex
 
       if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'swipe') && (nextStep.a.mode === 'txt' || nextStep.a.mode === 'labelIdx') && nextStep.a.input_var === previousKey) {
         nextStep.a.input_var = nextKey;
+      }
+      if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'longClick') && nextStep.a.mode === 'txt' && nextStep.a.txt_expr === previousKey) {
+        nextStep.a.txt_expr = nextKey;
+      }
+      if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'longClick') && nextStep.a.mode === 'labelIdx' && nextStep.a.idx_expr === previousKey) {
+        nextStep.a.idx_expr = nextKey;
+      }
+      if (nextStep.a.ac === 'swipe' && nextStep.a.mode === 'txt') {
+        if (nextStep.a.from_expr === previousKey) {
+          nextStep.a.from_expr = nextKey;
+        }
+        if (nextStep.a.to_expr === previousKey) {
+          nextStep.a.to_expr = nextKey;
+        }
       }
       return nextStep;
     }
@@ -2849,6 +2877,8 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
 
   if (templateId === 'set-var' && nextStep.op === 'dataHanding' && nextStep.a.type === 'setVar') {
     nextStep.a.name = await createVariableResource('input', 'int', {
+      preferredKey: 'newVar',
+      name: '新变量',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,
@@ -2912,10 +2942,58 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
     return nextStep;
   }
 
-  if (templateId === 'click-text' && nextStep.op === 'action' && nextStep.a.ac === 'click' && nextStep.a.mode === 'txt') {
+  if (templateId === 'vision-detect' && nextStep.op === 'vision' && nextStep.a.type === 'detect') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'image', {
+      preferredKey: 'captureResult',
+      name: '截图结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'detResults',
+      name: '检测结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'vision-ocr' && nextStep.op === 'vision' && nextStep.a.type === 'ocr') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'image', {
+      preferredKey: 'captureResult',
+      name: '截图结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'ocrResults',
+      name: 'OCR结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
+  if (templateId === 'vision-count-compare' && nextStep.op === 'vision' && nextStep.a.type === 'countCompare') {
     nextStep.a.input_var = await createVariableResource('runtime', 'json', {
       preferredKey: 'ocrResults',
       name: 'OCR结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_var = '';
+    return nextStep;
+  }
+
+  if (templateId === 'click-text' && nextStep.op === 'action' && nextStep.a.ac === 'click' && nextStep.a.mode === 'txt') {
+    nextStep.a.input_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'searchHits',
+      name: '搜索命中',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,

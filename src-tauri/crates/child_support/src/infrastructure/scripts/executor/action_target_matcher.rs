@@ -92,4 +92,30 @@ impl ScriptExecutor {
             .filter(|value| !value.is_empty())
             .map(str::to_string))
     }
+
+    fn resolve_optional_u32(
+        &mut self,
+        value: Option<u32>,
+        expr: Option<&str>,
+        step_type: &str,
+    ) -> ExecuteResult<Option<u32>> {
+        if let Some(expr) = expr.map(str::trim).filter(|value| !value.is_empty()) {
+            let dynamic = self.eval_dynamic(expr, step_type)?;
+            if let Some(number) = Self::dynamic_to_number(&dynamic) {
+                if number < 0.0 {
+                    return Err(Self::execute_error(
+                        step_type,
+                        format!("整数表达式结果不能为负数: {}", expr),
+                    ));
+                }
+                return Ok(Some(number.trunc() as u32));
+            }
+            return Err(Self::execute_error(
+                step_type,
+                format!("整数表达式结果无法转为数字: {}", expr),
+            ));
+        }
+
+        Ok(value)
+    }
 }

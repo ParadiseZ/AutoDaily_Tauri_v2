@@ -100,7 +100,7 @@
                 <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
                   <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.title }}</p>
                   <p class="truncate text-sm text-(--app-text-faint)">{{ item.subtitle }}</p>
-                  <button class="app-button app-button-primary app-toolbar-button shrink-0" type="button" @click="$emit('link', item.id)">
+                  <button class="app-button app-button-primary app-toolbar-button justify-center shrink-0" type="button" @click="$emit('link', item.id)">
                     添加
                   </button>
                 </div>

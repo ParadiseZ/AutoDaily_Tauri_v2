@@ -9,7 +9,15 @@
       :disabled="disabled"
       @click="toggleOpen"
     >
-      <span class="truncate">{{ selectedOption?.label || placeholder }}</span>
+      <span class="app-select-trigger-copy">
+        <span class="truncate font-medium">{{ selectedOption?.label || placeholder }}</span>
+        <span
+          v-if="showDescription && selectedOption?.description"
+          class="truncate text-xs text-(--app-text-faint)"
+        >
+          {{ selectedOption.description }}
+        </span>
+      </span>
       <AppIcon name="chevron-down" :size="16" class="shrink-0 text-(--app-text-faint)" />
     </button>
 
@@ -201,6 +209,15 @@ watch(isOpen, async (open) => {
 </script>
 
 <style scoped>
+.app-select-trigger-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
 .select-fade-enter-active,
 .select-fade-leave-active {
   transition: opacity 0.14s ease, transform 0.14s ease;

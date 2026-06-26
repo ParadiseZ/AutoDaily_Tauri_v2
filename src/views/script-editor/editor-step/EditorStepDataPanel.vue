@@ -16,20 +16,10 @@
           </div>
         </div>
 
-        <div v-if="createVariable || (selectedSetVarTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+        <div v-if="createVariable" class="flex flex-wrap gap-2">
           <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" data-testid="editor-set-var-create" @click="$emit('create-variable', 'setVar')">
             <AppIcon name="plus" :size="14" />
             新建变量
-          </button>
-          <button
-            v-if="selectedSetVarTarget && jumpToVariable"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            data-testid="editor-set-var-locate"
-            @click="$emit('jump-to-variable', selectedSetVarTarget)"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位变量
           </button>
         </div>
 

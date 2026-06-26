@@ -1,6 +1,11 @@
 <template>
   <div class="vision-lab-shell h-svh overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
     <div class="mx-auto flex h-full max-w-[1900px] flex-col gap-4">
+      <EditorWindowTitlebar
+        class="vision-lab-titlebar"
+        title="视觉测试工作台"
+      />
+
       <header class="vision-lab-header rounded-[28px] border border-(--app-border) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div class="space-y-2">
@@ -643,6 +648,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorWindowTitlebar from '@/views/script-editor/EditorWindowTitlebar.vue';
 import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
 import { scriptService } from '@/services/scriptService';
@@ -1732,6 +1738,13 @@ onMounted(async () => {
   background: var(--app-toolbar-bg);
   box-shadow: var(--app-shadow-soft);
   backdrop-filter: blur(16px);
+}
+
+:deep(.vision-lab-titlebar.editor-window-titlebar) {
+  min-height: 48px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--app-border) 92%, transparent);
+  padding: 0 0.75rem 0 1rem;
 }
 
 .vision-side-panel {

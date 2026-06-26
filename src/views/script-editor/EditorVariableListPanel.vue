@@ -2,7 +2,7 @@
   <div class="space-y-4">
     <div class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
       <input v-model="search" class="app-input" type="search" placeholder="按名称 / 键 / 备注搜索变量" />
-      <button class="app-icon-button app-icon-button-sec" type="button" title="添加变量" aria-label="添加变量" data-testid="editor-input-add" @click="$emit('add')">
+      <button class="app-button app-button-primary app-toolbar-button justify-center" type="button" title="添加变量" aria-label="添加变量" data-testid="editor-input-add" @click="$emit('add')">
         <Plus class="h-4 w-4" />
       </button>
     </div>

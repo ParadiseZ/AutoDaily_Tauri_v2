@@ -14,24 +14,14 @@
               @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
             />
           </label>
-          <div class="flex flex-wrap gap-2">
+          <div v-if="createVariable" class="flex flex-wrap gap-2">
             <button
-              v-if="createVariable"
               class="app-button app-button-ghost app-toolbar-button"
               type="button"
               @click="$emit('create-variable', 'visionInput')"
             >
               <AppIcon name="plus" :size="14" />
               新建图像变量
-            </button>
-            <button
-              v-if="selectedVisionInputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('jump-to-variable', selectedVisionInputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
             </button>
           </div>
         </div>
@@ -48,9 +38,8 @@
               @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
             />
           </label>
-          <div class="flex flex-wrap gap-2">
+          <div v-if="createVariable" class="flex flex-wrap gap-2">
             <button
-              v-if="createVariable"
               class="app-button app-button-ghost app-toolbar-button"
               type="button"
               @click="$emit('create-variable', 'visionOutput')"
@@ -58,22 +47,13 @@
               <AppIcon name="plus" :size="14" />
               新建结果变量
             </button>
-            <button
-              v-if="selectedVisionOutputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('jump-to-variable', selectedVisionOutputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
           </div>
         </div>
       </div>
     </template>
 
     <template v-else-if="selectedVision.type === VISION_TYPE.countCompare">
-      <div class="grid gap-3 xl:grid-cols-2">
+      <div class="space-y-3">
         <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
           <label class="space-y-2">
             <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果变量</span>
@@ -86,24 +66,14 @@
               @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
             />
           </label>
-          <div class="flex flex-wrap gap-2">
+          <div v-if="createVariable" class="flex flex-wrap gap-2">
             <button
-              v-if="createVariable"
               class="app-button app-button-ghost app-toolbar-button"
               type="button"
               @click="$emit('create-variable', 'visionInput')"
             >
               <AppIcon name="plus" :size="14" />
               新建结果变量
-            </button>
-            <button
-              v-if="selectedVisionInputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('jump-to-variable', selectedVisionInputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
             </button>
           </div>
         </div>
@@ -115,29 +85,19 @@
               :model-value="selectedVision.out_var || null"
               :options="resolvedVisionBoolOutputOptions"
               :show-description="true"
-              placeholder="选择或创建布尔变量"
+              placeholder="未配置"
               test-id="editor-vision-count-compare-output-var"
               @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
             />
           </label>
-          <div class="flex flex-wrap gap-2">
+          <div v-if="createVariable" class="flex flex-wrap gap-2">
             <button
-              v-if="createVariable"
               class="app-button app-button-ghost app-toolbar-button"
               type="button"
               @click="$emit('create-variable', 'visionOutput')"
             >
               <AppIcon name="plus" :size="14" />
               新建布尔变量
-            </button>
-            <button
-              v-if="selectedVisionOutputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('jump-to-variable', selectedVisionOutputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
             </button>
           </div>
         </div>

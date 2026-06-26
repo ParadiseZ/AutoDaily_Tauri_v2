@@ -188,11 +188,12 @@ impl<'a> ActionRunner<'a> {
             ClickMode::LabelIdx {
                 input_var,
                 idx,
+                idx_expr,
                 enable_filter,
             } => {
                 format!(
-                    "labelIdx(input_var={}, idx={:?}, enable_filter={})",
-                    input_var, idx, enable_filter
+                    "labelIdx(input_var={}, idx={:?}, idx_expr={:?}, enable_filter={})",
+                    input_var, idx, idx_expr, enable_filter
                 )
             }
         }

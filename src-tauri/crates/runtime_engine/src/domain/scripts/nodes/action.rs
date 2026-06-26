@@ -78,6 +78,8 @@ pub enum ClickMode {
     LabelIdx {
         input_var: String,
         idx: Option<u32>,
+        #[serde(default)]
+        idx_expr: Option<String>,
         #[serde(default = "default_enable_filter")]
         enable_filter: bool,
     },
