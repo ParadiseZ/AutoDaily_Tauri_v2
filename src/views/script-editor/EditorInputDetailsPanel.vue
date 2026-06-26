@@ -6,12 +6,6 @@
       heading-tag="h1"
       width="wide"
     >
-<!--      <template #actions>
-        <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('remove-input', selectedInputEntry.id)">
-          删除变量
-        </button>
-      </template>-->
-
       <EditorOverviewField label="名称" width="compact">
         <input
           :value="selectedInputEntry.name"

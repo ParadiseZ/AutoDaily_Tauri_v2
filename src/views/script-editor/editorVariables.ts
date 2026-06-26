@@ -262,6 +262,14 @@ const collectDerivedRuntimeVariables = (
         const key = step.a.out_var.trim();
         bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
       }
+      if (step.a.out_det_var?.trim()) {
+        const key = step.a.out_det_var.trim();
+        bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
+      }
+      if (step.a.out_ocr_var?.trim()) {
+        const key = step.a.out_ocr_var.trim();
+        bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
+      }
       collectDerivedRuntimeVariables(step.a.then_steps, ownerTaskId, bucket);
       continue;
     }

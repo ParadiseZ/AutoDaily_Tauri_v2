@@ -693,6 +693,59 @@ async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration
 }
 
 #[tokio::test]
+async fn policy_before_action_runs_even_when_condition_misses() {
+    let script_id = UuidV7(101);
+    let policy_id = UuidV7(121);
+    let policy_group_id = UuidV7(131);
+    let policy_set_id = UuidV7(141);
+    let mut executor = build_executor_with_target(RunTarget::PolicyGroup {
+        script_id,
+        policy_group_id,
+    });
+
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.observation.last_snapshot = Some(
+            VisionSnapshot::new(
+                vec![build_ocr_result("未命中", 0, 0, 30, 12)],
+                Vec::new(),
+                None,
+                8,
+            )
+            .unwrap(),
+        );
+    }
+
+    let candidate = super::PolicyCandidate {
+        policy_set_id: Some(policy_set_id),
+        policy_set_name: None,
+        policy_group_id: Some(policy_group_id),
+        policy_group_name: None,
+        policy: build_policy_table(
+            policy_id,
+            script_id,
+            vec![build_set_var_step("runtime.beforeOnly", r#""ran-before-match""#)],
+            vec![build_set_var_step("runtime.afterOnly", r#""ran-after-match""#)],
+        ),
+    };
+
+    executor
+        .execute_policy_candidates("debug.policy", vec![candidate], "runtime.policyDebugResult")
+        .await
+        .unwrap();
+
+    let before_value = executor
+        .read_runtime_var("runtime.beforeOnly")
+        .await
+        .unwrap();
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&before_value).unwrap(),
+        "ran-before-match"
+    );
+    assert!(executor.read_runtime_var("runtime.afterOnly").await.is_none());
+}
+
+#[tokio::test]
 async fn timeout_handling_resets_progress_probe_after_stop_execution() {
     let mut executor = build_executor();
     executor.last_progress_probe = Some(super::ProgressProbe {
@@ -884,10 +937,14 @@ async fn vision_search_path_triggers_timeout_detector() {
     let flow = executor
         .execute_vision_step(
             &crate::domain::scripts::nodes::vision_node::VisionNode::VisionSearch {
+                det_res_var: None,
+                ocr_res_var: None,
                 rule: SearchRule::Txt {
                     pattern: "开始".to_string(),
                 },
                 out_var: "runtime.visionHits".to_string(),
+                out_det_var: None,
+                out_ocr_var: None,
                 then_steps: Vec::new(),
             },
         )

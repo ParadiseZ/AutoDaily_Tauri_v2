@@ -1,4 +1,28 @@
 impl ScriptExecutor {
+    fn select_positioned_owned<T: Clone>(items: Vec<T>, position: Option<u16>) -> Vec<T> {
+        if items.is_empty() {
+            return items;
+        }
+        let index = match position {
+            Some(999) => items.len() - 1,
+            Some(value) => usize::from(value).min(items.len() - 1),
+            None => 0,
+        };
+        vec![items[index].clone()]
+    }
+
+    async fn resolve_active_policy_click_pos(&self) -> Option<u16> {
+        let context = self.active_policy_context.as_ref()?;
+        let ctx = self.runtime_ctx.read().await;
+        Some(
+            ctx.execution
+                .policy_states
+                .get(&context.policy_id)
+                .and_then(|state| state.click_pos)
+                .unwrap_or(context.base_click_pos),
+        )
+    }
+
     async fn plan_click_action(
         &mut self,
         mode: &ClickMode,
@@ -118,12 +142,18 @@ impl ScriptExecutor {
                 input_var,
                 txt,
                 txt_expr,
+                enable_filter,
             } => {
                 let target_text =
                     self.resolve_optional_text(txt.as_deref(), txt_expr.as_deref(), step_type)?;
                 let items = self
                     .resolve_ocr_target_items(step_type, input_var, target_text.as_deref())
                     .await?;
+                let items = if *enable_filter {
+                    Self::select_positioned_owned(items, self.resolve_active_policy_click_pos().await)
+                } else {
+                    items
+                };
                 let mut points = Vec::new();
                 let mut targets = Vec::new();
                 for item in items {
@@ -142,8 +172,17 @@ impl ScriptExecutor {
                     targets,
                 })
             }
-            ClickMode::LabelIdx { input_var, idx } => {
+            ClickMode::LabelIdx {
+                input_var,
+                idx,
+                enable_filter,
+            } => {
                 let items = self.resolve_det_target_items(step_type, input_var, *idx).await?;
+                let items = if *enable_filter {
+                    Self::select_positioned_owned(items, self.resolve_active_policy_click_pos().await)
+                } else {
+                    items
+                };
                 let mut points = Vec::new();
                 let mut targets = Vec::new();
                 for item in items {

@@ -115,29 +115,6 @@ impl ScriptExecutor {
             return Ok(timeout_flow);
         }
 
-        let match_flags = {
-            let ctx = self.runtime_ctx.read().await;
-            ctx.observation
-                .last_snapshot
-                .as_ref()
-                .map(|snapshot| Self::build_policy_match_flags(snapshot, &candidates))
-        };
-        let Some(match_flags) = match_flags else {
-            let result = PolicyExecutionResult {
-                matched: false,
-                policy_set_id: None,
-                policy_group_id: None,
-                policy_id: None,
-                rounds: Vec::new(),
-            };
-            self.set_runtime_var(
-                out_var,
-                Self::results_to_dynamic(step_type, "策略执行", &result)?,
-            )
-            .await?;
-            return Ok(ControlFlow::Next);
-        };
-
         let total_candidates = candidates.len();
         let mut result = PolicyExecutionResult {
             matched: false,
@@ -147,11 +124,7 @@ impl ScriptExecutor {
             rounds: Vec::new(),
         };
 
-        for (index, (candidate, matched)) in candidates
-            .into_iter()
-            .zip(match_flags.into_iter())
-            .enumerate()
-        {
+        for (index, candidate) in candidates.into_iter().enumerate() {
             if let Some(timeout_flow) = self
                 .record_progress_evidence(
                     format!("{}.candidate", step_type),
@@ -169,7 +142,7 @@ impl ScriptExecutor {
 
             let skipped = self.policy_is_skipped(candidate.policy.id).await;
             let mut round = PolicyExecutionRound {
-                matched: matched && !skipped,
+                matched: false,
                 policy_set_id: candidate.policy_set_id,
                 policy_group_id: candidate.policy_group_id,
                 policy_id: Some(candidate.policy.id),
@@ -178,7 +151,7 @@ impl ScriptExecutor {
                 actions: Vec::new(),
             };
 
-            if !matched || skipped {
+            if skipped {
                 result.rounds.push(round);
                 continue;
             }
@@ -206,6 +179,12 @@ impl ScriptExecutor {
                     before_action.as_slice(),
                 )
                 .await?;
+                let matched = self
+                    .evaluate_policy_match(step_type, &candidate.policy.data.0.cond)
+                    .await?;
+                if !matched {
+                    return Ok::<bool, crate::infrastructure::scripts::script_error::ScriptError>(false);
+                }
                 self.execute_policy_steps(
                     step_type,
                     &policy_name,
@@ -213,17 +192,22 @@ impl ScriptExecutor {
                     after_action.as_slice(),
                 )
                 .await?;
-                Ok::<(), crate::infrastructure::scripts::script_error::ScriptError>(())
+                Ok::<bool, crate::infrastructure::scripts::script_error::ScriptError>(true)
             }
             .await;
             let trace = self.take_active_policy_round_trace();
-            execute_result?;
+            let matched = execute_result?;
 
-            self.mark_policy_succeeded(candidate.policy.id).await;
-            round.matched = true;
             round.page_fingerprints = trace.page_fingerprints;
             round.action_signatures = trace.action_signatures;
             round.actions = trace.actions;
+            if !matched {
+                result.rounds.push(round);
+                continue;
+            }
+
+            self.mark_policy_succeeded(candidate.policy.id).await;
+            round.matched = true;
             result.matched = true;
             result.policy_set_id = candidate.policy_set_id;
             result.policy_group_id = candidate.policy_group_id;
@@ -244,6 +228,23 @@ impl ScriptExecutor {
         )
         .await?;
         Ok(ControlFlow::Next)
+    }
+
+    async fn evaluate_policy_match(
+        &self,
+        step_type: &str,
+        rule: &SearchRule,
+    ) -> ExecuteResult<bool> {
+        let ctx = self.runtime_ctx.read().await;
+        let snapshot = ctx.observation.last_snapshot.as_ref().ok_or_else(|| {
+            Self::execute_error(
+                step_type,
+                "当前没有可用的视觉快照，无法评估策略命中条件".to_string(),
+            )
+        })?;
+        let searcher = OcrSearcher::new(std::slice::from_ref(rule));
+        let hits = searcher.search(snapshot);
+        Ok(rule.evaluate(&hits, &snapshot.det_items))
     }
 
     async fn execute_policy_steps(
@@ -281,31 +282,4 @@ impl ScriptExecutor {
         state.exec_cur = state.exec_cur.saturating_add(1);
     }
 
-    fn build_policy_match_flags(
-        snapshot: &VisionSnapshot,
-        candidates: &[PolicyCandidate],
-    ) -> Vec<bool> {
-        if candidates.is_empty() {
-            return Vec::new();
-        }
-
-        let rules: Vec<_> = candidates
-            .iter()
-            .map(|candidate| candidate.policy.data.0.cond.clone())
-            .collect();
-        let searcher = OcrSearcher::new(&rules);
-        let hits = searcher.search(snapshot);
-
-        candidates
-            .iter()
-            .map(|candidate| {
-                candidate
-                    .policy
-                    .data
-                    .0
-                    .cond
-                    .evaluate(&hits, &snapshot.det_items)
-            })
-            .collect()
-    }
 }

@@ -242,18 +242,6 @@ impl ScriptExecutor {
         }
     }
 
-    fn search_hits_to_dynamic(hits: &[SearchHit]) -> Dynamic {
-        let mut array = Array::new();
-        for hit in hits {
-            let mut item = Map::new();
-            item.insert("pattern".into(), Dynamic::from(hit.pattern.clone()));
-            item.insert("ocrIndex".into(), Dynamic::from_int(hit.ocr_index as INT));
-            item.insert("text".into(), Dynamic::from(hit.ocr_item.txt.clone()));
-            array.push(Dynamic::from(item));
-        }
-        Dynamic::from(array)
-    }
-
     fn compare_dynamic(lhs: &Dynamic, op: &CompareOp, rhs: &Dynamic) -> bool {
         match op {
             CompareOp::Contains => Self::dynamic_to_string(lhs)

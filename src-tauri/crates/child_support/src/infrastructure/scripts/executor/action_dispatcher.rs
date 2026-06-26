@@ -180,12 +180,20 @@ impl<'a> ActionRunner<'a> {
                 input_var,
                 txt,
                 txt_expr,
+                enable_filter,
             } => format!(
-                "txt(input_var={}, txt={:?}, txt_expr={:?})",
-                input_var, txt, txt_expr
+                "txt(input_var={}, txt={:?}, txt_expr={:?}, enable_filter={})",
+                input_var, txt, txt_expr, enable_filter
             ),
-            ClickMode::LabelIdx { input_var, idx } => {
-                format!("labelIdx(input_var={}, idx={:?})", input_var, idx)
+            ClickMode::LabelIdx {
+                input_var,
+                idx,
+                enable_filter,
+            } => {
+                format!(
+                    "labelIdx(input_var={}, idx={:?}, enable_filter={})",
+                    input_var, idx, enable_filter
+                )
             }
         }
     }

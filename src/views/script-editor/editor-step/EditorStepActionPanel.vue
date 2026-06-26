@@ -241,6 +241,19 @@
       </template>
 
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
+        <label class="md:col-span-2 flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
+          <input
+            :checked="selectedAction.enable_filter ?? true"
+            type="checkbox"
+            class="h-4 w-4"
+            style="accent-color: var(--app-accent)"
+            @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
+          />
+          <div class="space-y-1">
+            <p class="text-sm font-medium text-(--app-text-strong)">筛选后按当前位置点击</p>
+            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。先按文字筛选，再只点击当前位置对应的一个结果。</p>
+          </div>
+        </label>
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
           <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
@@ -267,18 +280,35 @@
         </button>
       </div>
 
-      <label v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签</span>
-        <AppSelect
-          :model-value="selectedAction.idx ?? null"
-          :options="resolvedLabelIdxOptions"
-          :placeholder="labelSelectPlaceholder"
-          :disabled="!(labelIndexOptions?.length)"
-          test-id="editor-action-click-label-idx"
-          @update:model-value="$emit('update-number-field', 'idx', String($event ?? 0))"
-        />
-        <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
-      </label>
+      <div v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="space-y-3">
+        <div class="space-y-3">
+          <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
+            <input
+              :checked="selectedAction.enable_filter ?? true"
+              type="checkbox"
+              class="h-4 w-4"
+              style="accent-color: var(--app-accent)"
+              @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
+            />
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-(--app-text-strong)">筛选后按当前位置点击</p>
+              <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。先按标签筛选，再只点击当前位置对应的一个结果。</p>
+            </div>
+          </label>
+          <div class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签</span>
+            <AppSelect
+              :model-value="selectedAction.idx ?? null"
+              :options="resolvedLabelIdxOptions"
+              :placeholder="labelSelectPlaceholder"
+              :disabled="!(labelIndexOptions?.length)"
+              test-id="editor-action-click-label-idx"
+              @update:model-value="$emit('update-number-field', 'idx', String($event ?? 0))"
+            />
+            <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
+          </div>
+        </div>
+      </div>
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.swipe">

@@ -80,8 +80,12 @@ impl ScriptExecutor {
                 Ok(ControlFlow::Next)
             }
             VisionNode::VisionSearch {
+                det_res_var,
+                ocr_res_var,
                 rule,
                 out_var,
+                out_det_var,
+                out_ocr_var,
                 then_steps,
             } => {
                 if let Some(timeout_flow) = self
@@ -93,25 +97,44 @@ impl ScriptExecutor {
                 {
                     return Ok(timeout_flow);
                 }
-                let (hits, matched) = {
-                    let ctx = self.runtime_ctx.read().await;
-                    if let Some(snapshot) = ctx.observation.last_snapshot.as_ref() {
-                        let searcher = OcrSearcher::new(std::slice::from_ref(rule));
-                        let hits = searcher.search(snapshot);
-                        let matched = rule.evaluate(&hits, &snapshot.det_items);
-                        (hits, matched)
-                    } else {
-                        (Vec::new(), false)
-                    }
-                };
+                let (hits, filtered_det_results, filtered_ocr_results, matched) = self
+                    .execute_vision_search_step(
+                        "vision.search",
+                        det_res_var.as_deref(),
+                        ocr_res_var.as_deref(),
+                        rule,
+                    )
+                    .await?;
 
                 {
                     let mut ctx = self.runtime_ctx.write().await;
                     ctx.observation.last_hits = hits.clone();
                 }
 
-                self.set_runtime_var(out_var, Self::search_hits_to_dynamic(&hits))
+                self.set_runtime_var(
+                    out_var,
+                    to_dynamic(&hits).map_err(|error| {
+                        Self::execute_error(
+                            "vision.search",
+                            format!("序列化 SearchHit 结果失败: {}", error),
+                        )
+                    })?,
+                )
                     .await?;
+                if let Some(out_det_var) = out_det_var.as_deref().filter(|value| !value.trim().is_empty()) {
+                    self.set_runtime_var(
+                        out_det_var,
+                        Self::results_to_dynamic("vision.search", "检测", &filtered_det_results)?,
+                    )
+                    .await?;
+                }
+                if let Some(out_ocr_var) = out_ocr_var.as_deref().filter(|value| !value.trim().is_empty()) {
+                    self.set_runtime_var(
+                        out_ocr_var,
+                        Self::results_to_dynamic("vision.search", "OCR", &filtered_ocr_results)?,
+                    )
+                    .await?;
+                }
 
                 if matched && !then_steps.is_empty() {
                     return self.execute(then_steps).await;
@@ -158,6 +181,86 @@ impl ScriptExecutor {
         );
         self.set_runtime_var(out_var, Dynamic::from_bool(matched)).await?;
         Ok(matched)
+    }
+
+    async fn execute_vision_search_step(
+        &self,
+        step_type: &str,
+        det_res_var: Option<&str>,
+        ocr_res_var: Option<&str>,
+        rule: &SearchRule,
+    ) -> ExecuteResult<(Vec<SearchHit>, Vec<DetResult>, Vec<OcrResult>, bool)> {
+        let (default_ocr, default_det, grid_size) = {
+            let ctx = self.runtime_ctx.read().await;
+            (
+                ctx.observation.last_ocr_results.clone(),
+                ctx.observation.last_det_results.clone(),
+                ctx.observation.vision_signature_grid_size,
+            )
+        };
+        let ocr_results = match ocr_res_var.map(str::trim).filter(|value| !value.is_empty()) {
+            Some(input_var) => self
+                .read_runtime_result_vec::<OcrResult>(input_var, step_type, "OCR")
+                .await?,
+            None => default_ocr,
+        };
+        let det_results = match det_res_var.map(str::trim).filter(|value| !value.is_empty()) {
+            Some(input_var) => self
+                .read_runtime_result_vec::<DetResult>(input_var, step_type, "检测")
+                .await?,
+            None => default_det,
+        };
+        let snapshot = VisionSnapshot::new(ocr_results, det_results, None, grid_size)
+            .map_err(|error| Self::execute_error(step_type, format!("构建视觉快照失败: {}", error)))?;
+        let searcher = OcrSearcher::new(std::slice::from_ref(rule));
+        let hits = searcher.search(&snapshot);
+        let matched = rule.evaluate(&hits, &snapshot.det_items);
+        Ok((
+            hits.clone(),
+            Self::collect_det_results_by_rule(rule, &snapshot.det_items),
+            Self::collect_ocr_results_from_hits(&hits),
+            matched,
+        ))
+    }
+
+    fn collect_ocr_results_from_hits(hits: &[SearchHit]) -> Vec<OcrResult> {
+        let mut seen = std::collections::HashSet::new();
+        let mut output = Vec::new();
+        for hit in hits {
+            if seen.insert(hit.ocr_index) {
+                output.push(hit.ocr_item.clone());
+            }
+        }
+        output
+    }
+
+    fn collect_det_results_by_rule(rule: &SearchRule, det_results: &[DetResult]) -> Vec<DetResult> {
+        let mut indices = Vec::new();
+        Self::collect_det_label_indices(rule, &mut indices);
+        if indices.is_empty() {
+            return Vec::new();
+        }
+        det_results
+            .iter()
+            .filter(|item| indices.contains(&item.index))
+            .cloned()
+            .collect()
+    }
+
+    fn collect_det_label_indices(rule: &SearchRule, bucket: &mut Vec<i32>) {
+        match rule {
+            SearchRule::DetLabel { idx } => {
+                if !bucket.contains(idx) {
+                    bucket.push(*idx);
+                }
+            }
+            SearchRule::Group { items, .. } => {
+                for item in items {
+                    Self::collect_det_label_indices(item, bucket);
+                }
+            }
+            SearchRule::Txt { .. } => {}
+        }
     }
 
     fn count_det_items(items: &[DetResult], target_value: Option<&str>) -> i32 {

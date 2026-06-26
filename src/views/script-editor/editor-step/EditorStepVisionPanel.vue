@@ -199,15 +199,63 @@
     </template>
 
     <template v-else>
-      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
+      <div class="grid gap-3 xl:grid-cols-2">
         <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
           <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出名称</span>
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">OCR 结果输入</span>
+            <EditorSelectField
+              :model-value="selectedVision.ocr_res_var || null"
+              :options="resolvedVisionSearchOcrInputOptions"
+              :show-description="true"
+              placeholder="未绑定时使用当前 OCR 结果"
+              test-id="editor-vision-search-ocr-input-var"
+              @update:model-value="$emit('update-nullable-field', 'ocr_res_var', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedVisionOcrInputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
+            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchOcrInput')">
+              <AppIcon name="plus" :size="14" />
+              新建 OCR 变量
+            </button>
+            <button v-if="selectedVisionOcrInputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionOcrInputTarget)">
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">检测结果输入</span>
+            <EditorSelectField
+              :model-value="selectedVision.det_res_var || null"
+              :options="resolvedVisionSearchDetInputOptions"
+              :show-description="true"
+              placeholder="未绑定时使用当前检测结果"
+              test-id="editor-vision-search-det-input-var"
+              @update:model-value="$emit('update-nullable-field', 'det_res_var', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedVisionDetInputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
+            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchDetInput')">
+              <AppIcon name="plus" :size="14" />
+              新建检测变量
+            </button>
+            <button v-if="selectedVisionDetInputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionDetInputTarget)">
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">SearchHit 输出</span>
             <EditorSelectField
               :model-value="selectedVision.out_var || null"
               :options="resolvedVisionOutputOptions"
               :show-description="true"
-              placeholder="选择或创建输出变量"
+              placeholder="选择或创建 SearchHit 结果变量"
               test-id="editor-vision-output-var"
               @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
             />
@@ -221,7 +269,7 @@
               @click="$emit('create-variable', 'visionOutput')"
             >
               <AppIcon name="plus" :size="14" />
-              新建 Runtime 变量
+              新建 SearchHit 变量
             </button>
             <button
               v-if="selectedVisionOutputTarget && jumpToVariable"
@@ -237,6 +285,54 @@
         </div>
 
         <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">检测筛选输出</span>
+            <EditorSelectField
+              :model-value="selectedVision.out_det_var || null"
+              :options="resolvedVisionSearchDetOutputOptions"
+              :show-description="true"
+              placeholder="未绑定时不输出检测筛选结果"
+              test-id="editor-vision-search-det-output-var"
+              @update:model-value="$emit('update-nullable-field', 'out_det_var', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedVisionDetOutputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
+            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchDetOutput')">
+              <AppIcon name="plus" :size="14" />
+              新建检测输出
+            </button>
+            <button v-if="selectedVisionDetOutputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionDetOutputTarget)">
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">OCR 筛选输出</span>
+            <EditorSelectField
+              :model-value="selectedVision.out_ocr_var || null"
+              :options="resolvedVisionSearchOcrOutputOptions"
+              :show-description="true"
+              placeholder="未绑定时不输出 OCR 筛选结果"
+              test-id="editor-vision-search-ocr-output-var"
+              @update:model-value="$emit('update-nullable-field', 'out_ocr_var', String($event || ''))"
+            />
+          </label>
+          <div v-if="createVariable || (selectedVisionOcrOutputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
+            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchOcrOutput')">
+              <AppIcon name="plus" :size="14" />
+              新建 OCR 输出
+            </button>
+            <button v-if="selectedVisionOcrOutputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionOcrOutputTarget)">
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4 xl:col-span-2">
           <div class="editor-inline-grid">
             <div class="editor-inline-label">命中后</div>
             <div class="editor-inline-content flex items-center justify-between gap-3">
@@ -292,6 +388,10 @@ type EditableVisionNode = {
   type: VisionNode['type'];
   input_var?: string;
   out_var?: string;
+  det_res_var?: string | null;
+  ocr_res_var?: string | null;
+  out_det_var?: string | null;
+  out_ocr_var?: string | null;
   target_value?: string | null;
   op?: CompareOp;
   expected_count?: number;
@@ -309,6 +409,10 @@ const props = defineProps<{
   labelSelectHint?: string | null;
   selectedVisionInputTarget?: EditorVariableOption | null;
   selectedVisionOutputTarget?: EditorVariableOption | null;
+  selectedVisionDetInputTarget?: EditorVariableOption | null;
+  selectedVisionOcrInputTarget?: EditorVariableOption | null;
+  selectedVisionDetOutputTarget?: EditorVariableOption | null;
+  selectedVisionOcrOutputTarget?: EditorVariableOption | null;
   visionBranchTarget: { count: number; path: StepBranchPath } | null;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
@@ -320,7 +424,7 @@ const emit = defineEmits<{
   'update-number-field': [field: string, value: string];
   'update-rule': [rule: SearchRule];
   'navigate-branch': [branchPath: StepBranchPath];
-  'create-variable': [target: 'visionInput' | 'visionOutput'];
+  'create-variable': [target: 'visionInput' | 'visionOutput' | 'visionSearchDetInput' | 'visionSearchOcrInput' | 'visionSearchDetOutput' | 'visionSearchOcrOutput'];
   'jump-to-variable': [option: EditorVariableOption];
 }>();
 
@@ -351,6 +455,11 @@ const withCurrentVariableOption = (options: SelectOption[], value: string) => {
   ];
 };
 
+const withUnboundOption = (options: SelectOption[], description: string) => [
+  { label: '未绑定', value: '', description },
+  ...options,
+];
+
 const resolvedVisionInputOptions = computed(() =>
   withCurrentVariableOption(
     (props.readableCatalogVariableOptions ?? []).filter((option) => option.description.includes('图像') || option.description.includes('Image')),
@@ -373,6 +482,44 @@ const resolvedVisionBoolOutputOptions = computed(() =>
   withCurrentVariableOption(
     (props.writableCatalogVariableOptions ?? []).filter((option) => option.description.includes('布尔') || option.description.includes('Boolean') || option.description.includes('bool')),
     props.selectedVision.out_var ?? '',
+  ),
+);
+
+const filterStructuredOptions = (options: SelectOption[]) =>
+  options.filter((option) => option.description.includes('JSON') || option.description.includes('列表') || option.description.includes('对象'));
+
+const buildNullableStructuredOptions = (options: SelectOption[], value: string, description: string) =>
+  withUnboundOption(withCurrentVariableOption(filterStructuredOptions(options), value), description);
+
+const resolvedVisionSearchOcrInputOptions = computed(() =>
+  buildNullableStructuredOptions(
+    props.readableCatalogVariableOptions ?? [],
+    props.selectedVision.ocr_res_var ?? '',
+    '留空时使用当前上下文中的最近 OCR 结果。',
+  ),
+);
+
+const resolvedVisionSearchDetInputOptions = computed(() =>
+  buildNullableStructuredOptions(
+    props.readableCatalogVariableOptions ?? [],
+    props.selectedVision.det_res_var ?? '',
+    '留空时使用当前上下文中的最近检测结果。',
+  ),
+);
+
+const resolvedVisionSearchDetOutputOptions = computed(() =>
+  buildNullableStructuredOptions(
+    props.writableCatalogVariableOptions ?? [],
+    props.selectedVision.out_det_var ?? '',
+    '留空时不写出检测筛选结果。',
+  ),
+);
+
+const resolvedVisionSearchOcrOutputOptions = computed(() =>
+  buildNullableStructuredOptions(
+    props.writableCatalogVariableOptions ?? [],
+    props.selectedVision.out_ocr_var ?? '',
+    '留空时不写出 OCR 筛选结果。',
   ),
 );
 </script>

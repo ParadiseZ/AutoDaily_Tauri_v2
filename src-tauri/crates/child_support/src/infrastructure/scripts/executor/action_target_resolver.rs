@@ -110,6 +110,17 @@ impl ScriptExecutor {
         input_var: &str,
         target_text: Option<&str>,
     ) -> ExecuteResult<Vec<OcrResult>> {
+        if let Ok(hits) = self
+            .read_runtime_result_vec::<SearchHit>(input_var, step_type, "SearchHit")
+            .await
+        {
+            let items = Self::collect_ocr_results_from_hits(&hits);
+            return Ok(Self::select_ocr_results(&items, target_text)
+                .into_iter()
+                .cloned()
+                .collect());
+        }
+
         let items = self
             .read_runtime_result_vec::<OcrResult>(input_var, step_type, "OCR")
             .await?;

@@ -1979,8 +1979,20 @@ const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<stri
     }
 
     if (step.op === 'vision' && step.a.type === 'visionSearch') {
+      if (step.a.det_res_var?.trim()) {
+        bucket.add(step.a.det_res_var.trim());
+      }
+      if (step.a.ocr_res_var?.trim()) {
+        bucket.add(step.a.ocr_res_var.trim());
+      }
       if (step.a.out_var?.trim()) {
         bucket.add(step.a.out_var.trim());
+      }
+      if (step.a.out_det_var?.trim()) {
+        bucket.add(step.a.out_det_var.trim());
+      }
+      if (step.a.out_ocr_var?.trim()) {
+        bucket.add(step.a.out_ocr_var.trim());
       }
       collectVariableReferencesFromSteps(step.a.then_steps, bucket);
       continue;
@@ -2891,8 +2903,8 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
 
   if (templateId === 'vision-search' && nextStep.op === 'vision' && nextStep.a.type === 'visionSearch') {
     nextStep.a.out_var = await createVariableResource('runtime', 'json', {
-      preferredKey: 'visionHit',
-      name: '视觉命中',
+      preferredKey: 'searchHits',
+      name: '搜索命中',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,

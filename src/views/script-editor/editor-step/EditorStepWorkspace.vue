@@ -200,6 +200,10 @@
                 :label-select-hint="labelSelectHint"
                 :selected-vision-input-target="selectedVisionInputTarget"
                 :selected-vision-output-target="selectedVisionOutputTarget"
+                :selected-vision-det-input-target="selectedVisionDetInputTarget"
+                :selected-vision-ocr-input-target="selectedVisionOcrInputTarget"
+                :selected-vision-det-output-target="selectedVisionDetOutputTarget"
+                :selected-vision-ocr-output-target="selectedVisionOcrOutputTarget"
                 :vision-branch-target="visionBranchTarget"
                 :create-variable="createVariable"
                 :jump-to-variable="jumpToVariable"
@@ -330,6 +334,10 @@ type EditableVisionNode = {
   type: VisionNode['type'];
   input_var?: string;
   out_var?: string;
+  det_res_var?: string | null;
+  ocr_res_var?: string | null;
+  out_det_var?: string | null;
+  out_ocr_var?: string | null;
   target_value?: string | null;
   op?: CompareOp;
   expected_count?: number;
@@ -719,6 +727,38 @@ const selectedVisionInputTarget = computed(() =>
 const selectedVisionOutputTarget = computed(() =>
   currentVisionOutputName.value ? props.variableOptions.find((item) => item.key === currentVisionOutputName.value) ?? null : null,
 );
+const selectedVisionDetInputTarget = computed(() =>
+  {
+    const vision = selectedVision.value;
+    return vision?.type === VISION_TYPE.visionSearch && vision.det_res_var
+      ? props.variableOptions.find((item) => item.key === vision.det_res_var) ?? null
+      : null;
+  },
+);
+const selectedVisionOcrInputTarget = computed(() =>
+  {
+    const vision = selectedVision.value;
+    return vision?.type === VISION_TYPE.visionSearch && vision.ocr_res_var
+      ? props.variableOptions.find((item) => item.key === vision.ocr_res_var) ?? null
+      : null;
+  },
+);
+const selectedVisionDetOutputTarget = computed(() =>
+  {
+    const vision = selectedVision.value;
+    return vision?.type === VISION_TYPE.visionSearch && vision.out_det_var
+      ? props.variableOptions.find((item) => item.key === vision.out_det_var) ?? null
+      : null;
+  },
+);
+const selectedVisionOcrOutputTarget = computed(() =>
+  {
+    const vision = selectedVision.value;
+    return vision?.type === VISION_TYPE.visionSearch && vision.out_ocr_var
+      ? props.variableOptions.find((item) => item.key === vision.out_ocr_var) ?? null
+      : null;
+  },
+);
 const selectedSetVarKind = computed(() => (selectedSetVarTarget.value ? mapVariableTypeToVarKind(selectedSetVarTarget.value.valueType) : null));
 const setVarUsesExpression = computed(() => {
   if (selectedData.value?.type !== DATA_TYPE.setVar) {
@@ -827,7 +867,10 @@ const updateStepLabel = (value: string) => {
 const updateActionField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.action) return;
-    step.a = { ...(step.a ?? {}), [field]: value } as Action;
+    step.a = {
+      ...(step.a ?? {}),
+      [field]: field === 'enable_filter' ? value === 'true' : value,
+    } as Action;
   });
 };
 
@@ -849,9 +892,9 @@ const createClickAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.p
     case ACTION_MODE.percent:
       return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
     case ACTION_MODE.txt:
-      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始', txt_expr: null };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.ocrResults', txt: '开始', txt_expr: null, enable_filter: true };
     case ACTION_MODE.labelIdx:
-      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0 };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0, enable_filter: true };
     default:
       return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.point, p: { x: 640, y: 360 } };
   }
@@ -1500,10 +1543,35 @@ const updateVisionNumberField = (field: string, value: string) => {
   });
 };
 
-const handleCreateVisionVariable = async (target: 'visionInput' | 'visionOutput') => {
+const handleCreateVisionVariable = async (
+  target:
+    | 'visionInput'
+    | 'visionOutput'
+    | 'visionSearchDetInput'
+    | 'visionSearchOcrInput'
+    | 'visionSearchDetOutput'
+    | 'visionSearchOcrOutput',
+) => {
   if (!props.createVariable) {
     return;
   }
+
+  const createOptions =
+    target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.detect
+      ? { preferredKey: 'detResults', name: '检测结果' }
+      : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.ocr
+        ? { preferredKey: 'ocrResults', name: 'OCR结果' }
+        : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.visionSearch
+          ? { preferredKey: 'searchHits', name: '搜索命中' }
+          : target === 'visionSearchDetInput'
+            ? { preferredKey: 'detResults', name: '检测结果' }
+            : target === 'visionSearchOcrInput'
+              ? { preferredKey: 'ocrResults', name: 'OCR结果' }
+              : target === 'visionSearchDetOutput'
+                ? { preferredKey: 'filteredDetResults', name: '筛选检测结果' }
+                : target === 'visionSearchOcrOutput'
+                  ? { preferredKey: 'filteredOcrResults', name: '筛选OCR结果' }
+                  : undefined;
 
   const key = await props.createVariable(
     'runtime',
@@ -1514,12 +1582,27 @@ const handleCreateVisionVariable = async (target: 'visionInput' | 'visionOutput'
       : selectedVision.value?.type === VISION_TYPE.countCompare
         ? 'bool'
         : 'json',
+    createOptions,
   );
   if (!key) {
     return;
   }
 
-  updateVisionField(target === 'visionInput' ? 'input_var' : 'out_var', key);
+  if (target === 'visionInput' || target === 'visionOutput') {
+    updateVisionField(target === 'visionInput' ? 'input_var' : 'out_var', key);
+    return;
+  }
+
+  updateVisionNullableField(
+    target === 'visionSearchDetInput'
+      ? 'det_res_var'
+      : target === 'visionSearchOcrInput'
+        ? 'ocr_res_var'
+        : target === 'visionSearchDetOutput'
+          ? 'out_det_var'
+          : 'out_ocr_var',
+    key,
+  );
 };
 
 const updateVisionRule = (rule: SearchRule) => {

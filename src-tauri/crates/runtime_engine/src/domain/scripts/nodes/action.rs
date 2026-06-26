@@ -5,6 +5,10 @@ fn default_click_offset() -> i32 {
     0
 }
 
+fn default_enable_filter() -> bool {
+    true
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "source")]
@@ -68,10 +72,14 @@ pub enum ClickMode {
         txt: Option<String>,
         #[serde(default)]
         txt_expr: Option<String>,
+        #[serde(default = "default_enable_filter")]
+        enable_filter: bool,
     },
     LabelIdx {
         input_var: String,
         idx: Option<u32>,
+        #[serde(default = "default_enable_filter")]
+        enable_filter: bool,
     },
 }
 
