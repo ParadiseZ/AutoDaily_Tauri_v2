@@ -6,12 +6,6 @@ import type { DataHanding } from '@/types/bindings/DataHanding';
 import type { FilterMode } from '@/types/bindings/FilterMode';
 import type { FlowControl } from '@/types/bindings/FlowControl';
 import type { LogicOp } from '@/types/bindings/LogicOp';
-import type { PolicyConditionRule } from '@/types/bindings/PolicyConditionRule';
-import type { RelativeAnchorType } from '@/types/bindings/RelativeAnchorType';
-import type { RelativeCompareOp } from '@/types/bindings/RelativeCompareOp';
-import type { RelativeDirection } from '@/types/bindings/RelativeDirection';
-import type { RelativeTargetKind } from '@/types/bindings/RelativeTargetKind';
-import type { RelativeValueType } from '@/types/bindings/RelativeValueType';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { SearchScope } from '@/types/bindings/SearchScope';
 import type { StateStatus } from '@/types/bindings/StateStatus';
@@ -192,7 +186,7 @@ export const TASK_CYCLE_VALUE = {
   monthDay: 'monthDay',
 } as const;
 
-export const CONDITION_TYPES = ['rawExpr', 'group', 'execNumCompare', 'taskStatus', 'currentTaskIn', 'varCompare', 'policySetResult', 'policyCondition', 'colorCompare'] as const satisfies readonly ConditionNode['type'][];
+export const CONDITION_TYPES = ['rawExpr', 'group', 'execNumCompare', 'taskStatus', 'currentTaskIn', 'varCompare', 'policySetResult', 'colorCompare'] as const satisfies readonly ConditionNode['type'][];
 export const CONDITION_TYPE = {
   rawExpr: CONDITION_TYPES[0],
   group: CONDITION_TYPES[1],
@@ -201,8 +195,7 @@ export const CONDITION_TYPE = {
   currentTaskIn: CONDITION_TYPES[4],
   varCompare: CONDITION_TYPES[5],
   policySetResult: CONDITION_TYPES[6],
-  policyCondition: CONDITION_TYPES[7],
-  colorCompare: CONDITION_TYPES[8],
+  colorCompare: CONDITION_TYPES[7],
 } as const;
 
 export const POLICY_SET_RESULT_FIELDS = ['matched', 'policySetId', 'policyGroupId', 'policyId'] as const satisfies readonly PolicySetResultField[];
@@ -231,65 +224,9 @@ export const COMPARE_OP = {
   notContains: COMPARE_OPS[7],
 } as const;
 
-export const POLICY_CONDITION_RULE_TYPES = ['regex', 'relative', 'group'] as const satisfies readonly PolicyConditionRule['type'][];
-export const POLICY_CONDITION_RULE_TYPE = {
-  regex: POLICY_CONDITION_RULE_TYPES[0],
-  relative: POLICY_CONDITION_RULE_TYPES[1],
-  group: POLICY_CONDITION_RULE_TYPES[2],
-} as const;
-
-export const RELATIVE_ANCHOR_TYPES = ['ocrText', 'detLabel'] as const satisfies readonly RelativeAnchorType[];
-export const RELATIVE_ANCHOR_TYPE = {
-  ocrText: RELATIVE_ANCHOR_TYPES[0],
-  detLabel: RELATIVE_ANCHOR_TYPES[1],
-} as const;
-
-export const RELATIVE_DIRECTIONS = ['left', 'leftAbove', 'right', 'rightAbove', 'above', 'rightBelow', 'below', 'leftBelow', 'near'] as const satisfies readonly RelativeDirection[];
-export const RELATIVE_DIRECTION = {
-  left: RELATIVE_DIRECTIONS[0],
-  leftAbove: RELATIVE_DIRECTIONS[1],
-  right: RELATIVE_DIRECTIONS[2],
-  rightAbove: RELATIVE_DIRECTIONS[3],
-  above: RELATIVE_DIRECTIONS[4],
-  rightBelow: RELATIVE_DIRECTIONS[5],
-  below: RELATIVE_DIRECTIONS[6],
-  leftBelow: RELATIVE_DIRECTIONS[7],
-  near: RELATIVE_DIRECTIONS[8],
-} as const;
-
-export const RELATIVE_TARGET_KINDS = ['ocrText', 'detLabel', 'any'] as const satisfies readonly RelativeTargetKind[];
-export const RELATIVE_TARGET_KIND = {
-  ocrText: RELATIVE_TARGET_KINDS[0],
-  detLabel: RELATIVE_TARGET_KINDS[1],
-  any: RELATIVE_TARGET_KINDS[2],
-} as const;
-
-export const RELATIVE_VALUE_TYPES = ['text', 'number', 'fractionLeftNumber', 'fractionRightNumber', 'label', 'labelIndex'] as const satisfies readonly RelativeValueType[];
-export const RELATIVE_VALUE_TYPE = {
-  text: RELATIVE_VALUE_TYPES[0],
-  number: RELATIVE_VALUE_TYPES[1],
-  fractionLeftNumber: RELATIVE_VALUE_TYPES[2],
-  fractionRightNumber: RELATIVE_VALUE_TYPES[3],
-  label: RELATIVE_VALUE_TYPES[4],
-  labelIndex: RELATIVE_VALUE_TYPES[5],
-} as const;
-
-export const RELATIVE_COMPARE_OPS = ['eq', 'ne', 'lt', 'le', 'gt', 'ge', 'contains', 'notContains'] as const satisfies readonly RelativeCompareOp[];
-export const RELATIVE_COMPARE_OP = {
-  eq: RELATIVE_COMPARE_OPS[0],
-  ne: RELATIVE_COMPARE_OPS[1],
-  lt: RELATIVE_COMPARE_OPS[2],
-  le: RELATIVE_COMPARE_OPS[3],
-  gt: RELATIVE_COMPARE_OPS[4],
-  ge: RELATIVE_COMPARE_OPS[5],
-  contains: RELATIVE_COMPARE_OPS[6],
-  notContains: RELATIVE_COMPARE_OPS[7],
-} as const;
-
 export const createStepList = (): Step[] => [];
 export const createSearchRuleList = (): SearchRule[] => [];
 export const createConditionNodeList = (): ConditionNode[] => [];
-export const createPolicyConditionRuleList = (): PolicyConditionRule[] => [];
 export const createStringList = (): string[] => [];
 export const createStateTargetList = (): StateTarget[] => [];
 

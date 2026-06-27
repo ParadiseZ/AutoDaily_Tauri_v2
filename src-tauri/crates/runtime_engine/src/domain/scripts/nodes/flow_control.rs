@@ -1,7 +1,7 @@
 use crate::domain::scripts::nodes::data_handing::VarValue;
 use crate::domain::scripts::nodes::task_control::{StateTarget, TaskControl};
 use crate::domain::scripts::script_decision::Step;
-use crate::domain::vision::ocr_search::{LogicOp, PolicyConditionRule};
+use crate::domain::vision::ocr_search::LogicOp;
 use crate::infrastructure::core::{
     Deserialize, PolicyGroupId, PolicyId, PolicySetId, Serialize, TaskId,
 };
@@ -116,12 +116,6 @@ pub enum ConditionNode {
         op: PolicySetResultCompareOp,
         value_bool: bool,
         value_id: String,
-    },
-
-    /// 视觉精判规则，可在线性步骤流中使用
-    PolicyCondition {
-        input_var: Option<String>,
-        rule: PolicyConditionRule,
     },
 
     Group {

@@ -69,7 +69,6 @@ export type { PolicyActionSource } from './PolicyActionSource';
 export type { PolicyActionTarget } from './PolicyActionTarget';
 export type { PolicyActionTargetRole } from './PolicyActionTargetRole';
 export type { PolicyActionTrace } from './PolicyActionTrace';
-export type { PolicyConditionRule } from './PolicyConditionRule';
 export type { PolicyExecutionResult } from './PolicyExecutionResult';
 export type { PolicyExecutionRound } from './PolicyExecutionRound';
 export type { PolicyGroupInfo } from './PolicyGroupInfo';

@@ -12,7 +12,7 @@
         <div class="editor-inline-content">
           <EditorSelectField
             :model-value="modelValue.type"
-            :options="conditionTypeOptions"
+            :options="resolvedConditionTypeOptions"
             placeholder="条件类型"
             class="min-w-[180px] flex-1"
             :test-id="rootTestId('type')"
@@ -435,44 +435,6 @@
         </div>
       </template>
 
-      <template v-else-if="modelValue.type === 'policyCondition'">
-        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-          <div class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入图像变量</span>
-            <EditorSelectField
-              :model-value="modelValue.input_var || null"
-              :options="resolvedPolicyConditionInputOptions"
-              :show-description="true"
-              placeholder="留空则使用当前策略图像上下文"
-              :test-id="rootTestId('policy-condition-input-var')"
-              @update:model-value="updatePolicyConditionInput($event ? String($event) : null)"
-            />
-          </div>
-
-          <div v-if="createVariable || (selectedPolicyConditionInputOption && jumpToVariable)" class="flex flex-wrap gap-2">
-            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createPolicyConditionInputVariable">
-              <AppIcon name="plus" :size="14" />
-              新建图像变量
-            </button>
-            <button
-              v-if="selectedPolicyConditionInputOption && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="jumpToPolicyConditionInputVariable"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-
-          <EditorPolicyConditionRuleBuilder
-            :model-value="modelValue.rule"
-            :test-id-prefix="rootTestId('policy-condition-rule')"
-            @update:model-value="updatePolicyConditionRule"
-          />
-        </div>
-      </template>
-
       <template v-else-if="modelValue.type === 'colorCompare'">
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">OCR 目标文本</span>
@@ -521,10 +483,8 @@
 import { computed, ref, watch } from 'vue';
 import { Trash2 } from 'lucide-vue-next';
 import AppIcon from '@/components/shared/AppIcon.vue';
-import EditorPolicyConditionRuleBuilder from '@/views/script-editor/EditorPolicyConditionRuleBuilder.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
-import type { PolicyConditionRule } from '@/types/bindings/PolicyConditionRule';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
 import { buildVariableCatalogKey, type EditorInputEntry, type EditorInputType, type EditorVariableOption } from '@/views/script-editor/editorVariables';
@@ -592,6 +552,7 @@ const emit = defineEmits<{
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
 
+const resolvedConditionTypeOptions = computed(() => [...conditionTypeOptions]);
 const addableConditionTypes = computed(() => conditionTypeOptions.filter((option) => option.value !== 'group' || props.depth < 2));
 const varCompareKindPreference = ref<VarValueKind | null>(null);
 const filteredStateStatusTypeOptions = computed(() =>
@@ -677,14 +638,6 @@ const selectedPolicySetResultVarOption = computed(() => {
 
   return props.variableReferenceOptions.find((option) => option.key === node.result_var) ?? null;
 });
-const selectedPolicyConditionInputOption = computed(() => {
-  const node = props.modelValue;
-  if (node.type !== 'policyCondition' || !node.input_var) {
-    return null;
-  }
-
-  return props.variableReferenceOptions.find((option) => option.key === node.input_var) ?? null;
-});
 const selectedCurrentTaskOptions = computed(() => {
   if (props.modelValue.type !== 'currentTaskIn') {
     return [];
@@ -705,34 +658,6 @@ const availableCurrentTaskOptions = computed(() => {
   }
 
   return props.taskReferenceOptions.filter((option) => !node.targets.includes(option.value));
-});
-const imageVariableReferenceOptions = computed(() =>
-  props.variableReferenceOptions
-    .filter((option) => option.valueType === 'image')
-    .map((option) => ({
-      label: option.label,
-      value: option.key,
-      description: option.description,
-    })),
-);
-const resolvedPolicyConditionInputOptions = computed(() => {
-  if (props.modelValue.type !== 'policyCondition') {
-    return imageVariableReferenceOptions.value;
-  }
-
-  const current = props.modelValue.input_var ?? '';
-  if (!current || imageVariableReferenceOptions.value.some((option) => option.value === current)) {
-    return imageVariableReferenceOptions.value;
-  }
-
-  return [
-    {
-      label: `未解析变量 ${current}`,
-      value: current,
-      description: `保留历史输入 ${current}`,
-    },
-    ...imageVariableReferenceOptions.value,
-  ];
 });
 const resolvedPolicySetResultTargetOptions = computed(() => {
   if (props.modelValue.type !== 'policySetResult') {
@@ -1082,35 +1007,6 @@ const createPolicySetResultVariable = async () => {
 const jumpToPolicySetResultVariable = () => {
   if (!selectedPolicySetResultVarOption.value || !props.jumpToVariable) return;
   props.jumpToVariable(selectedPolicySetResultVarOption.value);
-};
-
-const updatePolicyConditionInput = (value: string | null) => {
-  if (props.modelValue.type !== 'policyCondition') return;
-  replaceNode({
-    ...props.modelValue,
-    input_var: value?.trim() ? value : null,
-  });
-};
-
-const createPolicyConditionInputVariable = async () => {
-  if (props.modelValue.type !== 'policyCondition' || !props.createVariable) return;
-  const key = await props.createVariable('runtime', 'image');
-  if (key) {
-    updatePolicyConditionInput(key);
-  }
-};
-
-const jumpToPolicyConditionInputVariable = () => {
-  if (!selectedPolicyConditionInputOption.value || !props.jumpToVariable) return;
-  props.jumpToVariable(selectedPolicyConditionInputOption.value);
-};
-
-const updatePolicyConditionRule = (rule: PolicyConditionRule) => {
-  if (props.modelValue.type !== 'policyCondition') return;
-  replaceNode({
-    ...props.modelValue,
-    rule,
-  });
 };
 
 const updateColorField = (field: 'txt_target' | 'is_font', value: string | boolean) => {

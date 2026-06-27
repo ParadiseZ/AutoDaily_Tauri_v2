@@ -102,7 +102,7 @@
           </button>
         </div>
         <p class="text-xs leading-5 text-(--app-text-faint)">
-          只调整本次运行中的点击索引，不写回策略配置；策略内文字/标签点击会用该索引选择第 N 个匹配目标。
+          只调整本次运行中的点击序号，不写回策略配置；多个目标会先按从上到下、从左到右排序，再按策略序号点击。
         </p>
       </div>
     </template>
@@ -255,8 +255,8 @@
             @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
           />
           <div class="space-y-1">
-            <p class="text-sm font-medium text-(--app-text-strong)">筛选后按当前位置点击</p>
-            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。先按文字筛选，再只点击当前位置对应的一个结果。</p>
+            <p class="text-sm font-medium text-(--app-text-strong)">筛选后按策略序号点击</p>
+            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按当前策略序号点击。</p>
           </div>
         </label>
         <template v-if="selectedAction.enable_filter ?? true">
@@ -299,8 +299,8 @@
               @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
             />
             <div class="space-y-1">
-              <p class="text-sm font-medium text-(--app-text-strong)">筛选后按当前位置点击</p>
-              <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。先按标签筛选，再只点击当前位置对应的一个结果。</p>
+              <p class="text-sm font-medium text-(--app-text-strong)">筛选后按策略序号点击</p>
+              <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按当前策略序号点击。</p>
             </div>
           </label>
           <template v-if="selectedAction.enable_filter ?? true">
@@ -528,7 +528,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, type PropType } from 'vue';
+import { computed, defineComponent, h, ref, watch, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
@@ -827,28 +827,61 @@ const resolvedSwipeToLabelOptions = computed(() =>
 );
 
 const clickTextFilterSource = computed(() =>
-  props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt && props.selectedAction.txt_expr?.trim()
-    ? 'expr'
-    : 'fixed',
+  clickTextFilterSourceState.value,
 );
 
 const clickLabelFilterSource = computed(() =>
-  props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx && props.selectedAction.idx_expr?.trim()
-    ? 'expr'
-    : 'fixed',
+  clickLabelFilterSourceState.value,
+);
+
+const clickTextFilterSourceState = ref<'fixed' | 'expr'>('fixed');
+const clickLabelFilterSourceState = ref<'fixed' | 'expr'>('fixed');
+
+watch(
+  () => [
+    props.selectedAction.ac,
+    props.selectedAction.ac === ACTION_TYPE.click ? props.selectedAction.mode : null,
+    props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt ? props.selectedAction.txt_expr ?? '' : '',
+  ],
+  ([ac, mode, txtExpr]) => {
+    clickTextFilterSourceState.value = ac === ACTION_TYPE.click && mode === ACTION_MODE.txt && String(txtExpr).trim() ? 'expr' : 'fixed';
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [
+    props.selectedAction.ac,
+    props.selectedAction.ac === ACTION_TYPE.click ? props.selectedAction.mode : null,
+    props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx ? props.selectedAction.idx_expr ?? '' : '',
+  ],
+  ([ac, mode, idxExpr]) => {
+    clickLabelFilterSourceState.value = ac === ACTION_TYPE.click && mode === ACTION_MODE.labelIdx && String(idxExpr).trim() ? 'expr' : 'fixed';
+  },
+  { immediate: true },
 );
 
 const updateClickTextFilterSource = (value: string) => {
+  clickTextFilterSourceState.value = value === 'expr' ? 'expr' : 'fixed';
   if (value === 'expr') {
-    emit('update-text-field', 'txt_expr', props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt ? (props.selectedAction.txt_expr ?? '') : '');
+    const fallbackValue =
+      props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt
+        ? props.selectedAction.txt_expr?.trim() || resolvedClickTextVariableOptions.value[0]?.value || ''
+        : '';
+    emit('update-text-field', 'txt_expr', fallbackValue);
     return;
   }
   emit('update-text-field', 'txt_expr', '');
 };
 
 const updateClickLabelFilterSource = (value: string) => {
+  clickLabelFilterSourceState.value = value === 'expr' ? 'expr' : 'fixed';
   if (value === 'expr') {
-    emit('update-text-field', 'idx_expr', props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx ? (props.selectedAction.idx_expr ?? '') : '');
+    const fallbackValue =
+      props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx
+        ? props.selectedAction.idx_expr?.trim() || resolvedClickLabelVariableOptions.value[0]?.value || ''
+        : '';
+    emit('update-text-field', 'idx_expr', fallbackValue);
     return;
   }
   emit('update-text-field', 'idx_expr', '');

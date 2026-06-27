@@ -20,7 +20,7 @@
               type="number"
               @input="$emit('update:number-field', 'curPos', ($event.target as HTMLInputElement).value)"
             />
-            <p class="mt-2 text-xs leading-5 text-(--app-text-faint)">用于选择第 N 个匹配目标；`999` 表示最后一个。</p>
+            <p class="mt-2 text-xs leading-5 text-(--app-text-faint)">多个目标会先按从上到下、从左到右排序，再按这个序号点击；`999` 表示最后一个。</p>
           </div>
 
           <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">

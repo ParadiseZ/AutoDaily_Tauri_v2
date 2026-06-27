@@ -44,30 +44,6 @@ impl ScriptExecutor {
                 }
                 ConditionNode::TaskStatus { a } => self.match_state_status(a).await,
                 ConditionNode::CurrentTaskIn { targets } => Ok(self.current_task_in(targets).await),
-                ConditionNode::PolicyCondition { input_var, rule } => {
-                    if let Some(input_var) =
-                        input_var.as_deref().map(str::trim).filter(|value| !value.is_empty())
-                    {
-                        if let Err(error) = self
-                            .activate_image_var("condition.policyCondition", input_var)
-                            .await
-                        {
-                            Log::debug(&format!(
-                                "[ executor ] PolicyCondition 输入图像不可用，按 false 处理: {}",
-                                error
-                            ));
-                            return Ok(false);
-                        }
-                    }
-
-                    let ctx = self.runtime_ctx.read().await;
-                    if let Some(snapshot) = ctx.observation.last_snapshot.as_ref() {
-                        Ok(rule.evaluate(snapshot))
-                    } else {
-                        Log::debug("[ executor ] PolicyCondition 未找到可用视觉快照，按 false 处理");
-                        Ok(false)
-                    }
-                }
                 ConditionNode::ExecNumCompare { target, op } => {
                     self.match_exec_num_compare(target, op).await
                 }

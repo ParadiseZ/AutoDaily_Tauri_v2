@@ -1138,6 +1138,15 @@ const defaultTaskCycleDay = computed(() => {
   return 'weekDay' in defaultTaskCycle.value ? defaultTaskCycle.value.weekDay : defaultTaskCycle.value.monthDay;
 });
 const currentPolicyStepTarget = computed<'before' | 'after'>(() => (activePolicyPanel.value === 'before' ? 'before' : 'after'));
+const currentPolicyAllSteps = computed<Step[]>(() => {
+  if (!currentPolicy.value) {
+    return [];
+  }
+  return [
+    ...(currentPolicy.value.data.beforeAction as Step[]),
+    ...(currentPolicy.value.data.afterAction as Step[]),
+  ];
+});
 const currentPolicySteps = computed<Step[]>(() => {
   if (!currentPolicy.value) {
     return [];
@@ -1151,10 +1160,10 @@ const activePolicyBranchPath = computed<StepBranchPath>(() =>
   currentPolicyStepTarget.value === 'before' ? activePolicyBranchPathBefore.value : activePolicyBranchPathAfter.value,
 );
 const policyVariableOptions = computed(() =>
-  listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicySteps.value),
+  listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicyAllSteps.value),
 );
 const policyCatalogVariableOptions = computed(() =>
-  listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicySteps.value, 'read', false),
+  listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicyAllSteps.value, 'read', false),
 );
 
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
@@ -2061,9 +2070,6 @@ const collectConditionVariableReferences = (condition: ConditionNode, bucket: Se
     return;
   }
 
-  if (condition.type === 'policyCondition' && condition.input_var?.trim()) {
-    bucket.add(condition.input_var.trim());
-  }
 };
 
 type VariableCreateOptions = {
@@ -2267,10 +2273,6 @@ const renameConditionVariableReferences = (condition: ConditionNode, previousKey
   if (nextCondition.type === 'policySetResult' && nextCondition.result_var === previousKey) {
     nextCondition.result_var = nextKey;
     return nextCondition;
-  }
-
-  if (nextCondition.type === 'policyCondition' && nextCondition.input_var === previousKey) {
-    nextCondition.input_var = nextKey;
   }
 
   return nextCondition;
@@ -3145,13 +3147,14 @@ const updateStep = (index: number, nextStep: Step) => {
   selectedStepPath.value = buildStepPath(activeBranchPath.value, index);
 };
 
-const appendPolicyTemplateStep = (templateId: string) => {
+const appendPolicyTemplateStep = async (templateId: string) => {
   if (activePolicyBranchPath.value.branch === 'sequence' && !isActionSequenceTemplateId(templateId)) {
     showToast(actionSequenceTemplateBlockedMessage, 'warning');
     return;
   }
 
-  const step = createStepFromTemplate(templateId);
+  const templateStep = createStepFromTemplate(templateId);
+  const step = templateStep ? await bindTemplateVariableDefaults(templateId, templateStep) : null;
   if (!step) {
     return;
   }
@@ -3600,6 +3603,12 @@ watch(
   },
   { immediate: true },
 );
+
+watch(activePolicyPanel, (panel) => {
+  if (panel === 'inputs' && !inputEntries.value.find((entry) => entry.id === selectedInputId.value)) {
+    selectedInputId.value = inputEntries.value[0]?.id ?? null;
+  }
+});
 
 watch(
   [imgDetLabelPath, isLoading],

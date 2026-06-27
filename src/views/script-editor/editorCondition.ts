@@ -32,7 +32,7 @@ export const conditionTypeOptions = [
   { label: '当前任务', value: CONDITION_TYPE.currentTaskIn, description: '判断当前执行任务是否属于指定列表。' },
   { label: '变量比较', value: CONDITION_TYPE.varCompare, description: '比较运行时变量或输入变量。' },
   { label: '策略集结果', value: CONDITION_TYPE.policySetResult, description: '按策略集处理步骤输出的结果对象判断。' },
-  { label: '策略条件', value: CONDITION_TYPE.policyCondition, description: '基于图像做视觉精判，可用于策略或任务步骤。' },
+  { label: '颜色比较', value: CONDITION_TYPE.colorCompare, description: '比较 OCR 文本的字体色或背景色。' },
 ];
 
 export const logicOpOptions = [
@@ -128,15 +128,6 @@ export const createConditionNode = (type: ConditionNode['type'] = CONDITION_TYPE
         value_bool: true,
         value_id: '',
       });
-    case CONDITION_TYPE.policyCondition:
-      return castCondition({
-        type: CONDITION_TYPE.policyCondition,
-        input_var: null,
-        rule: {
-          type: 'regex',
-          pattern: '.*',
-        },
-      });
     case CONDITION_TYPE.colorCompare:
       return castCondition({
         type: CONDITION_TYPE.colorCompare,
@@ -172,8 +163,8 @@ export const describeConditionNode = (node: ConditionNode) => {
       return `变量 ${node.var_name || '未命名'} · ${node.op}`;
     case 'policySetResult':
       return `策略集结果 · ${node.field}`;
-    case 'policyCondition':
-      return `策略条件 · ${node.rule.type}`;
+    case 'colorCompare':
+      return `${node.is_font ? '字体色' : '背景色'} · ${node.txt_target || '未指定目标'}`;
     default:
       return '条件';
   }
