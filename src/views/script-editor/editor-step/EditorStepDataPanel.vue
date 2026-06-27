@@ -166,6 +166,61 @@
       </template>
     </template>
 
+    <template v-else-if="selectedData.type === DATA_TYPE.rhai">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+        <div class="editor-inline-grid">
+          <div class="editor-inline-label">输出变量</div>
+          <div class="editor-inline-content md:col-span-3">
+            <EditorSelectField
+              :model-value="selectedData.out_var || null"
+              :options="resolvedRhaiOutputOptions"
+              :show-description="true"
+              placeholder="可选，接收代码块最后返回值"
+              test-id="editor-rhai-output-var"
+              @update:model-value="$emit('update-data-nullable-field', 'out_var', String($event || ''))"
+            />
+          </div>
+        </div>
+
+        <div v-if="createVariable || (selectedRhaiOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
+          <button
+            v-if="createVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            data-testid="editor-rhai-output-create"
+            @click="$emit('create-variable', 'rhaiOutput')"
+          >
+            <AppIcon name="plus" :size="14" />
+            新建 Runtime 变量
+          </button>
+          <button
+            v-if="selectedRhaiOutputTarget && jumpToVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            data-testid="editor-rhai-output-locate"
+            @click="$emit('jump-to-variable', selectedRhaiOutputTarget)"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center justify-between gap-3">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">Rhai 代码</span>
+          <span class="text-xs text-(--app-text-faint)">可直接读取 `input` / `runtime`，最后一行作为返回值</span>
+        </div>
+        <EditorCodeField
+          :model-value="selectedData.code"
+          placeholder="// 例如：\nruntime.count = (runtime.count ?? 0) + 1;\nruntime.count"
+          :min-height="260"
+          test-id="editor-rhai-code"
+          @update:model-value="$emit('update-data-field', 'code', $event)"
+        />
+      </div>
+    </template>
+
     <template v-else-if="selectedData.type === DATA_TYPE.filter">
       <div class="grid gap-3 md:grid-cols-2">
         <div class="space-y-3">
@@ -475,6 +530,7 @@
 <script setup lang="ts">
 import { computed, defineComponent, h, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import EditorCodeField from '@/views/script-editor/EditorCodeField.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
 import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
@@ -488,6 +544,7 @@ const props = defineProps<{
   selectedData: DataHanding;
   selectedSetVarTarget: EditorVariableOption | null;
   selectedGetVarTarget: EditorVariableOption | null;
+  selectedRhaiOutputTarget?: EditorVariableOption | null;
   selectedFilterInputTarget?: EditorVariableOption | null;
   selectedFilterOutputTarget?: EditorVariableOption | null;
   selectedColorCompareInputTarget?: EditorVariableOption | null;
@@ -528,7 +585,7 @@ const emit = defineEmits<{
   'update-color-compare-method': [value: string];
   'update-color-compare-boolean': [field: 'is_font', value: boolean];
   'navigate-branch': [branchPath: StepBranchPath];
-  'create-variable': [target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput'];
+  'create-variable': [target: 'setVar' | 'getVar' | 'rhaiOutput' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput'];
   'jump-to-variable': [option: EditorVariableOption];
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
@@ -598,6 +655,12 @@ const resolvedFilterInputOptions = computed(() =>
   props.selectedData.type === DATA_TYPE.filter
     ? withCurrentVariableOption(props.readableCatalogVariableOptions, props.selectedData.input_var)
     : props.readableCatalogVariableOptions,
+);
+
+const resolvedRhaiOutputOptions = computed(() =>
+  props.selectedData.type === DATA_TYPE.rhai
+    ? withCurrentVariableOption(props.writableCatalogVariableOptions, props.selectedData.out_var ?? '')
+    : props.writableCatalogVariableOptions,
 );
 
 const resolvedFilterOutputOptions = computed(() =>

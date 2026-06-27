@@ -90,6 +90,7 @@ const SVG_ICONS = {
   policy: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
   setVar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
   getVar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  code: '<path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/><path d="M14 4l-4 16"/>',
   filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
   color: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.836-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
   detect: '<path d="M3 11h4"/><path d="M17 11h4"/><path d="M11 3v4"/><path d="M11 17v4"/><rect x="6" y="6" width="10" height="10" rx="2"/>',
@@ -692,6 +693,23 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'rhai',
+    icon: genSvg(SVG_ICONS.code),
+    label: 'Rhai 代码',
+    description: '执行一段预编译的 Rhai 代码块，可选写回输出变量。',
+    group: '数据',
+    create: () =>
+      createBaseStep({
+        label: 'Rhai 代码',
+        op: STEP_OP.dataHanding,
+        a: {
+          type: DATA_TYPE.rhai,
+          code: '// 直接读取 input / runtime\nruntime.value ?? 0',
+          out_var: null,
+        },
+      }),
+  },
+  {
     id: 'filter-var',
     icon: genSvg(SVG_ICONS.filter),
     label: '过滤变量',
@@ -928,6 +946,7 @@ export const describeStepTitle = (step: Step) => {
   if (step.op === STEP_OP.dataHanding) {
     if (step.a.type === DATA_TYPE.setVar) return '设置变量';
     if (step.a.type === DATA_TYPE.getVar) return '读取变量';
+    if (step.a.type === DATA_TYPE.rhai) return 'Rhai 代码';
     if (step.a.type === DATA_TYPE.filter) return '过滤变量';
     if (step.a.type === DATA_TYPE.colorCompare) return '颜色比较';
     if (step.a.type === DATA_TYPE.relativeFilter) return '相对位置筛选';
@@ -1020,6 +1039,10 @@ export const describeStepMeta = (step: Step) => {
         return `写入变量 ${step.a.name || '未命名变量'}`;
       case DATA_TYPE.getVar:
         return `读取变量 ${step.a.name || '未命名变量'}`;
+      case DATA_TYPE.rhai:
+        return step.a.out_var?.trim()
+          ? `Rhai 代码 -> ${step.a.out_var.trim()}`
+          : 'Rhai 代码块';
       case DATA_TYPE.filter:
         return `过滤 ${step.a.input_var || '未命名输入'} -> ${step.a.out_name || '未命名输出'}`;
       case DATA_TYPE.colorCompare:

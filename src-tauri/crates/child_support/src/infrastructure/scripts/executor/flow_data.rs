@@ -6,10 +6,7 @@ impl ScriptExecutor {
         match data {
             DataHanding::SetVar { name, val, expr } => {
                 if let Some(timeout_flow) = self
-                    .record_progress_evidence(
-                        "data.setVar",
-                        format!("SetVar 写入变量 {}", name),
-                    )
+                    .record_progress_evidence("data.setVar", format!("SetVar 写入变量 {}", name))
                     .await?
                 {
                     return Ok(timeout_flow);
@@ -27,10 +24,7 @@ impl ScriptExecutor {
             }
             DataHanding::GetVar { name, default_val } => {
                 if let Some(timeout_flow) = self
-                    .record_progress_evidence(
-                        "data.getVar",
-                        format!("GetVar 读取变量 {}", name),
-                    )
+                    .record_progress_evidence("data.getVar", format!("GetVar 读取变量 {}", name))
                     .await?
                 {
                     return Ok(timeout_flow);
@@ -190,7 +184,24 @@ impl ScriptExecutor {
                 )
                 .await
             }
+            DataHanding::Rhai { code, out_var } => {
+                if let Some(timeout_flow) = self
+                    .record_progress_evidence("data.rhai", "执行 Rhai 代码块".to_string())
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
+
+                let result = self.eval_rhai_block(code, "data.rhai")?;
+                self.sync_scope_root_to_runtime_var_map("input").await;
+                self.sync_scope_root_to_runtime_var_map("runtime").await;
+
+                if let Some(target) = out_var.as_ref().filter(|value| !value.trim().is_empty()) {
+                    self.set_runtime_var(target, result).await?;
+                }
+
+                Ok(ControlFlow::Next)
+            }
         }
     }
-
 }

@@ -23,8 +23,8 @@ use crate::domain::scripts::script_variable::{
     ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace,
 };
 use crate::domain::vision::ocr_search::{
-    OcrSearcher, RelativeAnchorType, RelativeDirection, RelativeTargetKind, SearchHit,
-    SearchRule, VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
+    OcrSearcher, RelativeAnchorType, RelativeDirection, RelativeTargetKind, SearchHit, SearchRule,
+    VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{
@@ -32,8 +32,8 @@ use crate::infrastructure::context::runtime_context::{
     TaskState,
 };
 use crate::infrastructure::core::{
-    AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId,
-    PolicySetId, ScriptId, ScriptTemplateValueId, StepId, TaskId, TemplateId,
+    AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId,
+    ScriptId, ScriptTemplateValueId, StepId, TaskId, TemplateId,
 };
 use crate::infrastructure::db::get_pool;
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
@@ -50,7 +50,7 @@ use crate::infrastructure::session::runtime_session::{
 use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{DynamicImage, RgbaImage};
 use rhai::serde::{from_dynamic, to_dynamic};
-use rhai::{Array, Dynamic, Engine, Map, Scope, FLOAT, INT};
+use rhai::{Array, Dynamic, Engine, Map, Scope, AST, FLOAT, INT};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
@@ -197,6 +197,7 @@ pub struct ScriptExecutor {
     pub scope: Scope<'static>,
     pub runtime_ctx: SharedRuntimeContext,
     pub node_indices: HashMap<StepId, usize>,
+    compiled_rhai_blocks: HashMap<u64, AST>,
     active_policy_round: Option<ActivePolicyRoundTrace>,
     active_policy_context: Option<ActivePolicyContext>,
     last_progress_probe: Option<ProgressProbe>,
@@ -209,6 +210,7 @@ impl ScriptExecutor {
             scope: Scope::new(),
             runtime_ctx,
             node_indices: HashMap::new(),
+            compiled_rhai_blocks: HashMap::new(),
             active_policy_round: None,
             active_policy_context: None,
             last_progress_probe: None,

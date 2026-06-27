@@ -462,6 +462,61 @@ fn build_set_var_step(name: &str, expr: &str) -> Step {
     }
 }
 
+fn build_rhai_step(code: &str, out_var: Option<&str>) -> Step {
+    Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: None,
+        skip_flag: false,
+        kind: StepKind::DataHanding {
+            a: crate::domain::scripts::nodes::data_handing::DataHanding::Rhai {
+                code: code.to_string(),
+                out_var: out_var.map(str::to_string),
+            },
+        },
+    }
+}
+
+#[tokio::test]
+async fn rhai_step_executes_compiled_block_and_syncs_runtime_roots() {
+    let mut executor = build_executor();
+    executor
+        .set_runtime_var("runtime.count", Dynamic::from_int(2))
+        .await
+        .unwrap();
+
+    executor
+        .execute(&[build_rhai_step(
+            r#"
+                runtime.count += 3;
+                runtime.message = "done";
+                runtime.count
+            "#,
+            Some("runtime.result"),
+        )])
+        .await
+        .unwrap();
+
+    let count = executor.read_runtime_var("runtime.count").await.unwrap();
+    let message = executor.read_runtime_var("runtime.message").await.unwrap();
+    let result = executor.read_runtime_var("runtime.result").await.unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<i64>(&count).unwrap(),
+        5
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&message).unwrap(),
+        "done"
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<i64>(&result).unwrap(),
+        5
+    );
+    assert_eq!(executor.compiled_rhai_blocks.len(), 1);
+}
+
 fn build_policy_table(
     policy_id: PolicyId,
     script_id: UuidV7,
@@ -724,8 +779,14 @@ async fn policy_before_action_runs_even_when_condition_misses() {
         policy: build_policy_table(
             policy_id,
             script_id,
-            vec![build_set_var_step("runtime.beforeOnly", r#""ran-before-match""#)],
-            vec![build_set_var_step("runtime.afterOnly", r#""ran-after-match""#)],
+            vec![build_set_var_step(
+                "runtime.beforeOnly",
+                r#""ran-before-match""#,
+            )],
+            vec![build_set_var_step(
+                "runtime.afterOnly",
+                r#""ran-after-match""#,
+            )],
         ),
     };
 
@@ -742,7 +803,10 @@ async fn policy_before_action_runs_even_when_condition_misses() {
         ScriptExecutor::deserialize_dynamic_value::<String>(&before_value).unwrap(),
         "ran-before-match"
     );
-    assert!(executor.read_runtime_var("runtime.afterOnly").await.is_none());
+    assert!(executor
+        .read_runtime_var("runtime.afterOnly")
+        .await
+        .is_none());
 }
 
 #[tokio::test]

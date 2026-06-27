@@ -80,6 +80,14 @@ const selectOptionByLabel = async (page: Page, testId: string, label: string) =>
   await dropdownOption.first().evaluate((element: HTMLElement) => element.click());
 };
 
+const fillCodeEditor = async (page: Page, testId: string, value: string) => {
+  const editor = page.locator(`[data-testid="${testId}"] .cm-content`).first();
+  await editor.click();
+  await editor.press('Control+A');
+  await page.keyboard.press('Backspace');
+  await page.keyboard.insertText(value);
+};
+
 const selectEditorMode = async (page: Page, mode: 'task' | 'policy' | 'policyGroup' | 'policySet') => {
   await page.getByTestId(`editor-mode-${mode}`).click();
 };
@@ -1561,6 +1569,57 @@ test('persists action sequence, vision rule, and task state forms', async ({ pag
           },
         },
       ],
+    },
+  });
+});
+
+test('persists rhai code step from editor panel', async ({ page }) => {
+  const scriptId = 'script-editor-rhai-step';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: 'Rhai 步骤脚本',
+      description: '验证 Rhai 代码步骤保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-rhai').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await fillCodeEditor(page, 'editor-rhai-code', 'runtime.counter = (runtime.counter ?? 0) + 1;\nruntime.counter');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'rhai',
+      code: 'runtime.counter = (runtime.counter ?? 0) + 1;\nruntime.counter',
+      out_var: null,
     },
   });
 });

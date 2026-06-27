@@ -130,6 +130,7 @@
                 :selected-set-var-input-entry="selectedSetVarInputEntry"
                 :selected-get-var-target="selectedGetVarTarget"
                 :selected-get-var-input-entry="selectedGetVarInputEntry"
+                :selected-rhai-output-target="selectedRhaiOutputTarget"
                 :selected-filter-input-target="selectedFilterInputTarget"
                 :selected-filter-output-target="selectedFilterOutputTarget"
                 :selected-color-compare-input-target="selectedColorCompareInputTarget"
@@ -680,6 +681,12 @@ const selectedSetVarTarget = computed(() =>
 const selectedGetVarTarget = computed(() =>
   currentGetVarName.value ? props.variableOptions.find((item) => item.key === currentGetVarName.value) ?? null : null,
 );
+const currentRhaiOutputName = computed(() =>
+  selectedData.value?.type === DATA_TYPE.rhai ? selectedData.value.out_var?.trim() ?? '' : '',
+);
+const selectedRhaiOutputTarget = computed(() =>
+  currentRhaiOutputName.value ? props.variableOptions.find((item) => item.key === currentRhaiOutputName.value) ?? null : null,
+);
 const findInputEntryByVariableKey = (key: string) =>
   props.inputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === key) ?? null;
 const selectedSetVarInputEntry = computed(() => (selectedSetVarTarget.value ? findInputEntryByVariableKey(selectedSetVarTarget.value.key) : null));
@@ -1169,14 +1176,14 @@ const updateSetVarTarget = (value: string) => {
 };
 
 const handleCreateDataVariable = async (
-  target: 'setVar' | 'getVar' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput',
+  target: 'setVar' | 'getVar' | 'rhaiOutput' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput',
 ) => {
   if (!props.createVariable) {
     return;
   }
 
   const key =
-    target === 'filterOutput' || target === 'colorCompareOutput'
+    target === 'rhaiOutput' || target === 'filterOutput' || target === 'colorCompareOutput'
       ? await props.createVariable('runtime', 'json')
       : target === 'colorCompareInput'
         ? await props.createVariable('runtime', 'json')
@@ -1197,6 +1204,11 @@ const handleCreateDataVariable = async (
 
   if (target === 'filterInput') {
     updateDataField('input_var', key);
+    return;
+  }
+
+  if (target === 'rhaiOutput') {
+    updateDataNullableField('out_var', key);
     return;
   }
 

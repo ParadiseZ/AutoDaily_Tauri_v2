@@ -73,6 +73,10 @@ pub enum DataHanding {
         #[serde(default)]
         then_steps: Vec<Step>,
     },
+    Rhai {
+        code: String,
+        out_var: Option<String>,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]

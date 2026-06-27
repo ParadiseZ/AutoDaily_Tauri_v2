@@ -74,7 +74,8 @@ impl ScriptExecutor {
                 continue;
             }
 
-            let value = Self::resolve_input_variable_value(variable, template_values.as_ref(), task);
+            let value =
+                Self::resolve_input_variable_value(variable, template_values.as_ref(), task);
             match value {
                 Some(value) => {
                     let dynamic = to_dynamic(&value).map_err(|error| {
@@ -233,6 +234,65 @@ impl ScriptExecutor {
         }
     }
 
+    fn flatten_scope_root(root: &str, value: Dynamic, bucket: &mut HashMap<String, Dynamic>) {
+        if let Some(map) = value.clone().try_cast::<Map>() {
+            for (key, child) in map {
+                let next_key = format!("{}.{}", root, key);
+                Self::flatten_scope_root(&next_key, child, bucket);
+            }
+            return;
+        }
+
+        bucket.insert(root.to_string(), value);
+    }
+
+    async fn sync_scope_root_to_runtime_var_map(&mut self, root: &str) {
+        let Some(value) = self.scope.get_value::<Dynamic>(root) else {
+            return;
+        };
+
+        let mut flattened = HashMap::new();
+        Self::flatten_scope_root(root, value.clone(), &mut flattened);
+
+        let root_prefix = format!("{}.", root);
+        let root_value = {
+            let mut ctx = self.runtime_ctx.write().await;
+            ctx.execution
+                .var_map
+                .retain(|key, _| key != root && !key.starts_with(&root_prefix));
+            for (key, item) in flattened {
+                ctx.execution.var_map.insert(key, item);
+            }
+            Self::build_scope_root_value(&ctx.execution.var_map, root)
+        };
+
+        self.scope.set_value(root, root_value);
+    }
+
+    fn compile_rhai_ast(&mut self, code: &str, step_type: &str) -> ExecuteResult<AST> {
+        let mut hasher = XxHash3_64::default();
+        hasher.write(code.as_bytes());
+        let key = hasher.finish();
+
+        if let Some(ast) = self.compiled_rhai_blocks.get(&key) {
+            return Ok(ast.clone());
+        }
+
+        let ast = self
+            .engine
+            .compile_with_scope(&self.scope, code)
+            .map_err(|error| Self::execute_error(step_type, error.to_string()))?;
+        self.compiled_rhai_blocks.insert(key, ast.clone());
+        Ok(ast)
+    }
+
+    fn eval_rhai_block(&mut self, code: &str, step_type: &str) -> ExecuteResult<Dynamic> {
+        let ast = self.compile_rhai_ast(code, step_type)?;
+        self.engine
+            .eval_ast_with_scope::<Dynamic>(&mut self.scope, &ast)
+            .map_err(|error| Self::execute_error(step_type, error.to_string()))
+    }
+
     fn var_value_to_dynamic(value: &VarValue) -> Dynamic {
         match value {
             VarValue::Int { value } => Dynamic::from_int((*value).into()),
@@ -306,9 +366,10 @@ impl ScriptExecutor {
             Ok(parsed) => Ok(parsed),
             Err(primary_error) => {
                 let primary_message = primary_error.to_string();
-                let json_value = from_dynamic::<serde_json::Value>(value).map_err(|json_error| {
-                    format!("{}；JSON 中转失败: {}", primary_message, json_error)
-                })?;
+                let json_value =
+                    from_dynamic::<serde_json::Value>(value).map_err(|json_error| {
+                        format!("{}；JSON 中转失败: {}", primary_message, json_error)
+                    })?;
 
                 serde_json::from_value(json_value).map_err(|json_error| {
                     format!("{}；JSON 回退反序列化失败: {}", primary_message, json_error)
@@ -400,10 +461,7 @@ impl ScriptExecutor {
             return Ok(0);
         }
         usize::try_from(count).map_err(|_| {
-            Self::execute_error(
-                step_type,
-                format!("循环次数超出可支持范围: {}", count),
-            )
+            Self::execute_error(step_type, format!("循环次数超出可支持范围: {}", count))
         })
     }
 
