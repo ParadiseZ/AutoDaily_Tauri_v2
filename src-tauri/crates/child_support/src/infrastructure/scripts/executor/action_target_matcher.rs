@@ -1,4 +1,103 @@
 impl ScriptExecutor {
+    fn resolve_u16_point(
+        &mut self,
+        value: &PointU16,
+        expr: Option<&str>,
+        step_type: &str,
+    ) -> ExecuteResult<PointU16> {
+        let Some(expr) = expr.map(str::trim).filter(|value| !value.is_empty()) else {
+            return Ok(value.clone());
+        };
+
+        let dynamic = self.eval_dynamic(expr, step_type)?;
+        let (x, y) = Self::dynamic_to_point_components(&dynamic, step_type, expr)?;
+        if x < 0.0 || y < 0.0 {
+            return Err(Self::execute_error(
+                step_type,
+                format!("点位变量结果不能为负数: {}", expr),
+            ));
+        }
+        if x > u16::MAX as f64 || y > u16::MAX as f64 {
+            return Err(Self::execute_error(
+                step_type,
+                format!("点位变量结果超出坐标范围: {}", expr),
+            ));
+        }
+
+        Ok(PointU16 {
+            x: x.round() as u16,
+            y: y.round() as u16,
+        })
+    }
+
+    fn resolve_f32_point(
+        &mut self,
+        value: &PointF32,
+        expr: Option<&str>,
+        step_type: &str,
+    ) -> ExecuteResult<PointF32> {
+        let Some(expr) = expr.map(str::trim).filter(|value| !value.is_empty()) else {
+            return Ok(value.clone());
+        };
+
+        let dynamic = self.eval_dynamic(expr, step_type)?;
+        let (x, y) = Self::dynamic_to_point_components(&dynamic, step_type, expr)?;
+        Ok(PointF32 {
+            x: x as f32,
+            y: y as f32,
+        })
+    }
+
+    fn dynamic_to_point_components(
+        value: &Dynamic,
+        step_type: &str,
+        expr: &str,
+    ) -> ExecuteResult<(f64, f64)> {
+        let json_value = rhai::serde::from_dynamic::<serde_json::Value>(value).map_err(|error| {
+            Self::execute_error(
+                step_type,
+                format!("点位变量结果无法转为 JSON 对象: {} ({})", expr, error),
+            )
+        })?;
+
+        let serde_json::Value::Object(map) = json_value else {
+            return Err(Self::execute_error(
+                step_type,
+                format!("点位变量结果必须是包含 x / y 的 JSON 对象: {}", expr),
+            ));
+        };
+
+        let parse_component = |key: &str| {
+            map.get(key).and_then(|entry| match entry {
+                serde_json::Value::Number(number) => number.as_f64(),
+                serde_json::Value::String(text) => text.trim().parse::<f64>().ok(),
+                _ => None,
+            })
+        };
+
+        let Some(x) = parse_component("x") else {
+            return Err(Self::execute_error(
+                step_type,
+                format!("点位变量结果缺少数字字段 x: {}", expr),
+            ));
+        };
+        let Some(y) = parse_component("y") else {
+            return Err(Self::execute_error(
+                step_type,
+                format!("点位变量结果缺少数字字段 y: {}", expr),
+            ));
+        };
+
+        if !x.is_finite() || !y.is_finite() {
+            return Err(Self::execute_error(
+                step_type,
+                format!("点位变量结果必须是有限数字: {}", expr),
+            ));
+        }
+
+        Ok((x, y))
+    }
+
     fn select_ocr_result<'a>(
         items: &'a [OcrResult],
         target_text: Option<&str>,

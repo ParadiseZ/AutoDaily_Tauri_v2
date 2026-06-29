@@ -171,8 +171,21 @@ impl<'a> SequenceOperationCompiler<'a> {
             )),
             Action::LaunchApp {
                 pkg_name,
+                pkg_name_expr,
                 activity_name,
+                activity_name_expr,
             } => {
+                if pkg_name_expr
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                    || activity_name_expr
+                        .as_deref()
+                        .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "LaunchApp 依赖变量绑定，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
                 if pkg_name.trim().is_empty() || activity_name.trim().is_empty() {
                     return Ok(Err(
                         "LaunchApp 缺少 pkg_name 或 activity_name".to_string(),
@@ -189,15 +202,28 @@ impl<'a> SequenceOperationCompiler<'a> {
                     debug_label: format!("启动应用({}/{})", pkg_name, activity_name),
                 }))
             }
-            Action::StopApp { pkg_name } => Ok(Ok(CompiledSequenceOperation {
-                operation: DeviceOperation::StopApp {
-                    pkg_name: pkg_name.clone(),
-                },
-                trace: Some(ActionTraceBuilder::build_simple_action_trace(
-                    PolicyActionKind::StopApp,
-                )),
-                debug_label: format!("停止应用({})", pkg_name),
-            })),
+            Action::StopApp {
+                pkg_name,
+                pkg_name_expr,
+            } => {
+                if pkg_name_expr
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "StopApp 依赖变量绑定，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
+                Ok(Ok(CompiledSequenceOperation {
+                    operation: DeviceOperation::StopApp {
+                        pkg_name: pkg_name.clone(),
+                    },
+                    trace: Some(ActionTraceBuilder::build_simple_action_trace(
+                        PolicyActionKind::StopApp,
+                    )),
+                    debug_label: format!("停止应用({})", pkg_name),
+                }))
+            }
         }
     }
 
@@ -208,8 +234,26 @@ impl<'a> SequenceOperationCompiler<'a> {
         offset_y: i32,
     ) -> ExecuteResult<Result<CompiledSequenceOperation, String>> {
         let point = match mode {
-            ClickMode::Point { p } => ScriptExecutor::point_to_absolute(p),
-            ClickMode::Percent { p } => {
+            ClickMode::Point { p, p_expr } => {
+                if p_expr
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "点击依赖变量点位，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
+                ScriptExecutor::point_to_absolute(p)
+            }
+            ClickMode::Percent { p, p_expr } => {
+                if p_expr
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "点击依赖变量点位，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
                 let screen_size = self.executor.ensure_screen_size().await?;
                 ScriptExecutor::percent_point_to_absolute(p, screen_size)?
             }
@@ -245,8 +289,26 @@ impl<'a> SequenceOperationCompiler<'a> {
         offset_y: i32,
     ) -> ExecuteResult<Result<CompiledSequenceOperation, String>> {
         let point = match mode {
-            ClickMode::Point { p } => ScriptExecutor::point_to_absolute(p),
-            ClickMode::Percent { p } => {
+            ClickMode::Point { p, p_expr } => {
+                if p_expr
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "长按依赖变量点位，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
+                ScriptExecutor::point_to_absolute(p)
+            }
+            ClickMode::Percent { p, p_expr } => {
+                if p_expr
+                    .as_deref()
+                    .is_some_and(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "长按依赖变量点位，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
                 let screen_size = self.executor.ensure_screen_size().await?;
                 ScriptExecutor::percent_point_to_absolute(p, screen_size)?
             }

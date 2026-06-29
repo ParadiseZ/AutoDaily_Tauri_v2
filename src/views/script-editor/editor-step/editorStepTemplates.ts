@@ -134,7 +134,9 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           ac: ACTION_TYPE.launchApp,
           pkg_name: '',
+          pkg_name_expr: null,
           activity_name: '',
+          activity_name_expr: null,
         },
       }),
   },
@@ -152,6 +154,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           ac: ACTION_TYPE.stopApp,
           pkg_name: '',
+          pkg_name_expr: null,
         },
       }),
   },
@@ -172,6 +175,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           offset_y: 0,
           mode: ACTION_MODE.point,
           p: { x: 640, y: 360 },
+          p_expr: null,
         },
       }),
   },
@@ -192,6 +196,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           offset_y: 0,
           mode: ACTION_MODE.percent,
           p: { x: 0.5, y: 0.5 },
+          p_expr: null,
         },
       }),
   },
@@ -979,9 +984,11 @@ export const describeStepMeta = (step: Step) => {
   if (step.op === STEP_OP.action) {
     if (step.a.ac === ACTION_TYPE.capture) return `截图写入 ${step.a.output_var}`;
     if (step.a.ac === ACTION_TYPE.launchApp) {
-      return `启动 ${step.a.pkg_name || '未指定包名'}/${step.a.activity_name || '未指定 Activity'}`;
+      const pkg = step.a.pkg_name_expr || step.a.pkg_name || '未指定包名';
+      const activity = step.a.activity_name_expr || step.a.activity_name || '未指定 Activity';
+      return `启动 ${pkg}/${activity}`;
     }
-    if (step.a.ac === ACTION_TYPE.stopApp) return `停止 ${step.a.pkg_name || '未指定包名'}`;
+    if (step.a.ac === ACTION_TYPE.stopApp) return `停止 ${step.a.pkg_name_expr || step.a.pkg_name || '未指定包名'}`;
     if (step.a.ac === ACTION_TYPE.reboot) return '旧版重启应用动作，请改用停止应用 + 启动应用';
     if (step.a.ac === ACTION_TYPE.back) return 'Android 返回键';
     if (step.a.ac === ACTION_TYPE.posAdd) return `调整策略 ${step.a.target || '未指定'} · +1`;

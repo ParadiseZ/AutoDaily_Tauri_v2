@@ -115,8 +115,9 @@ impl ScriptExecutor {
         mode: &ClickMode,
     ) -> ExecuteResult<ResolvedPrimaryTargets> {
         match mode {
-            ClickMode::Point { p } => {
-                let point = Self::point_to_absolute(p);
+            ClickMode::Point { p, p_expr } => {
+                let resolved = self.resolve_u16_point(p, p_expr.as_deref(), step_type)?;
+                let point = Self::point_to_absolute(&resolved);
                 Ok(ResolvedPrimaryTargets {
                     points: vec![point],
                     source: PolicyActionSource::Fixed,
@@ -126,9 +127,10 @@ impl ScriptExecutor {
                     )],
                 })
             }
-            ClickMode::Percent { p } => {
+            ClickMode::Percent { p, p_expr } => {
                 let screen_size = self.ensure_screen_size().await?;
-                let point = Self::percent_point_to_absolute(p, screen_size)?;
+                let resolved = self.resolve_f32_point(p, p_expr.as_deref(), step_type)?;
+                let point = Self::percent_point_to_absolute(&resolved, screen_size)?;
                 Ok(ResolvedPrimaryTargets {
                     points: vec![point],
                     source: PolicyActionSource::Fixed,

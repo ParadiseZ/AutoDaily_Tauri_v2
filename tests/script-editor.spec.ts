@@ -367,8 +367,8 @@ test('persists flow conditions and action forms from step workspace', async ({ p
 
   await page.getByTestId('editor-step-template-click-point').click();
   await page.getByTestId('editor-step-card-1').click();
-  await page.getByLabel('X').fill('128');
-  await page.getByLabel('Y').fill('256');
+  await page.getByRole('spinbutton', { name: 'X', exact: true }).fill('128');
+  await page.getByRole('spinbutton', { name: 'Y', exact: true }).fill('256');
 
   await page.getByTestId('editor-save').click();
 
@@ -1699,6 +1699,427 @@ test('persists action sequence, vision rule, and task state forms', async ({ pag
           },
         },
       ],
+    },
+  });
+});
+
+test('switches preset and binding editors for launch click and wait steps', async ({ page }) => {
+  const scriptId = 'script-editor-preset-binding';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '预设绑定脚本',
+      description: '验证启动应用、点击和等待步骤的预设/绑定变量切换',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'var-package-name',
+            key: 'input.packageName',
+            name: '包名变量',
+            namespace: 'input',
+            valueType: 'string',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 'com.example.app',
+            description: '',
+          },
+          {
+            id: 'var-activity-name',
+            key: 'input.activityName',
+            name: 'Activity 变量',
+            namespace: 'input',
+            valueType: 'string',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: '.MainActivity',
+            description: '',
+          },
+          {
+            id: 'var-tap-point',
+            key: 'input.tapPoint',
+            name: '点击坐标变量',
+            namespace: 'input',
+            valueType: 'json',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: { x: 320, y: 480 },
+            description: '',
+          },
+          {
+            id: 'var-tap-percent',
+            key: 'input.tapPercent',
+            name: '点击百分比变量',
+            namespace: 'input',
+            valueType: 'json',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: { x: 0.5, y: 0.5 },
+            description: '',
+          },
+          {
+            id: 'var-target-text',
+            key: 'input.targetText',
+            name: '目标文字变量',
+            namespace: 'input',
+            valueType: 'string',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: '领取',
+            description: '',
+          },
+          {
+            id: 'var-target-label',
+            key: 'input.targetLabel',
+            name: '目标标签变量',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 1,
+            description: '',
+          },
+          {
+            id: 'var-wait-ms',
+            key: 'input.waitMs',
+            name: '等待毫秒变量',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 3000,
+            description: '',
+          },
+          {
+            id: 'var-search-hits',
+            key: 'runtime.searchHits',
+            name: 'OCR 结果',
+            namespace: 'runtime',
+            valueType: 'json',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: false,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: '',
+          },
+          {
+            id: 'var-det-results',
+            key: 'runtime.detResults',
+            name: '检测结果',
+            namespace: 'runtime',
+            valueType: 'json',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: false,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: '',
+          },
+          {
+            id: 'var-ocr-results',
+            key: 'runtime.ocrResults',
+            name: 'OCR 倒计时结果',
+            namespace: 'runtime',
+            valueType: 'json',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: false,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: '',
+          },
+        ],
+      },
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'preset_binding_task',
+        scriptId: currentScriptId,
+        name: '预设绑定任务',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '启动应用',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'launchApp',
+                pkg_name: 'com.fixed.app',
+                activity_name: '.FixedActivity',
+              },
+            },
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '点击坐标',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'click',
+                mode: 'point',
+                offset_x: 0,
+                offset_y: 0,
+                p: { x: 640, y: 360 },
+              },
+            },
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '点击百分比',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'click',
+                mode: 'percent',
+                offset_x: 0,
+                offset_y: 0,
+                p: { x: 0.5, y: 0.5 },
+              },
+            },
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '点击文字',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'click',
+                mode: 'txt',
+                input_var: 'runtime.searchHits',
+                txt: '开始',
+                enable_filter: true,
+              },
+            },
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '点击标签',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'click',
+                mode: 'labelIdx',
+                input_var: 'runtime.detResults',
+                idx: 0,
+                enable_filter: true,
+              },
+            },
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '等待',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'flowControl',
+              a: {
+                type: 'waitMs',
+                ms: 1000,
+              },
+            },
+          ],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await page.getByTestId('editor-tab-steps').click();
+
+  await page.getByTestId('editor-step-card-0').click();
+  await selectOptionByValue(page, 'editor-action-launch-pkg-source', 'expr');
+  await expect(page.getByTestId('editor-action-launch-pkg-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-action-launch-pkg-var', 'input.packageName');
+  await selectOptionByValue(page, 'editor-action-launch-activity-source', 'expr');
+  await expect(page.getByTestId('editor-action-launch-activity-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-action-launch-activity-var', 'input.activityName');
+
+  await page.getByTestId('editor-step-card-1').click();
+  await selectOptionByValue(page, 'editor-action-click-point-source', 'expr');
+  await expect(page.getByTestId('editor-action-click-point-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-action-click-point-var', 'input.tapPoint');
+
+  await page.getByTestId('editor-step-card-2').click();
+  await selectOptionByValue(page, 'editor-action-click-point-source', 'expr');
+  await expect(page.getByTestId('editor-action-click-point-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-action-click-point-var', 'input.tapPercent');
+
+  await page.getByTestId('editor-step-card-3').click();
+  await selectOptionByValue(page, 'editor-action-click-text-filter-source', 'expr');
+  await expect(page.getByTestId('editor-action-click-text-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-action-click-text-var', 'input.targetText');
+
+  await page.getByTestId('editor-step-card-4').click();
+  await selectOptionByValue(page, 'editor-action-click-label-filter-source', 'expr');
+  await expect(page.getByTestId('editor-action-click-label-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-action-click-label-var', 'input.targetLabel');
+
+  await page.getByTestId('editor-step-card-5').click();
+  await selectOptionByValue(page, 'editor-flow-wait-binding-mode', 'expr');
+  await expect(page.getByTestId('editor-flow-wait-runtime-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-flow-wait-variable-mode', 'input');
+  await expect(page.getByTestId('editor-flow-wait-input-var')).toBeVisible();
+  await selectOptionByValue(page, 'editor-flow-wait-input-var', 'input.waitMs');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'launchApp',
+      pkg_name_expr: 'input.packageName',
+      activity_name_expr: 'input.activityName',
+    },
+  });
+  expect(task.data.steps[1]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'click',
+      mode: 'point',
+      p_expr: 'input.tapPoint',
+    },
+  });
+  expect(task.data.steps[2]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'click',
+      mode: 'percent',
+      p_expr: 'input.tapPercent',
+    },
+  });
+  expect(task.data.steps[3]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'click',
+      mode: 'txt',
+      txt_expr: 'input.targetText',
+    },
+  });
+  expect(task.data.steps[4]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'click',
+      mode: 'labelIdx',
+      idx_expr: 'input.targetLabel',
+    },
+  });
+  expect(task.data.steps[5]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'waitMs',
+      input_var: 'input.waitMs',
     },
   });
 });

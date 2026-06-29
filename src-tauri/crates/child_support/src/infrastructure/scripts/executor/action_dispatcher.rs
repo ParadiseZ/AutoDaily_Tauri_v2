@@ -167,15 +167,20 @@ impl<'a> ActionRunner<'a> {
             Action::LaunchApp {
                 pkg_name,
                 activity_name,
+                ..
             } => format!("启动应用(pkg={}, activity={})", pkg_name, activity_name),
-            Action::StopApp { pkg_name } => format!("停止应用(pkg={})", pkg_name),
+            Action::StopApp { pkg_name, .. } => format!("停止应用(pkg={})", pkg_name),
         }
     }
 
     fn describe_click_mode(mode: &ClickMode) -> String {
         match mode {
-            ClickMode::Point { p } => format!("point=({}, {})", p.x, p.y),
-            ClickMode::Percent { p } => format!("percent=({:.3}, {:.3})", p.x, p.y),
+            ClickMode::Point { p, p_expr } => {
+                format!("point=({}, {}), p_expr={:?}", p.x, p.y, p_expr)
+            }
+            ClickMode::Percent { p, p_expr } => {
+                format!("percent=({:.3}, {:.3}), p_expr={:?}", p.x, p.y, p_expr)
+            }
             ClickMode::Txt {
                 input_var,
                 txt,
@@ -414,9 +419,28 @@ impl<'a> ActionRunner<'a> {
             }
             Action::LaunchApp {
                 pkg_name,
+                pkg_name_expr,
                 activity_name,
+                activity_name_expr,
             } => {
-                if pkg_name.trim().is_empty() || activity_name.trim().is_empty() {
+                let resolved_pkg_name = self
+                    .executor
+                    .resolve_optional_text(
+                        Some(pkg_name.as_str()),
+                        pkg_name_expr.as_deref(),
+                        "action.launchApp",
+                    )?
+                    .unwrap_or_default();
+                let resolved_activity_name = self
+                    .executor
+                    .resolve_optional_text(
+                        Some(activity_name.as_str()),
+                        activity_name_expr.as_deref(),
+                        "action.launchApp",
+                    )?
+                    .unwrap_or_default();
+
+                if resolved_pkg_name.trim().is_empty() || resolved_activity_name.trim().is_empty() {
                     return Err(ScriptExecutor::execute_error(
                         "action.launchApp",
                         "LaunchApp 需要同时提供 pkg_name 和 activity_name".to_string(),
@@ -426,25 +450,43 @@ impl<'a> ActionRunner<'a> {
                     "action.launchApp",
                     "启动应用",
                     DeviceOperation::LaunchApp {
-                        pkg_name: pkg_name.clone(),
-                        activity_name: activity_name.clone(),
+                        pkg_name: resolved_pkg_name,
+                        activity_name: resolved_activity_name,
                     },
                     PolicyActionKind::StartApp,
                     DEVICE_EXTERNAL_TIMEOUT_MS,
                 )
                 .await
             }
-            Action::StopApp { pkg_name } => self
-                .execute_simple_device_operation(
+            Action::StopApp {
+                pkg_name,
+                pkg_name_expr,
+            } => {
+                let resolved_pkg_name = self
+                    .executor
+                    .resolve_optional_text(
+                        Some(pkg_name.as_str()),
+                        pkg_name_expr.as_deref(),
+                        "action.stopApp",
+                    )?
+                    .unwrap_or_default();
+                if resolved_pkg_name.trim().is_empty() {
+                    return Err(ScriptExecutor::execute_error(
+                        "action.stopApp",
+                        "StopApp 需要提供 pkg_name".to_string(),
+                    ));
+                }
+                self.execute_simple_device_operation(
                     "action.stopApp",
                     "停止应用",
                     DeviceOperation::StopApp {
-                        pkg_name: pkg_name.clone(),
+                        pkg_name: resolved_pkg_name,
                     },
                     PolicyActionKind::StopApp,
                     DEVICE_EXTERNAL_TIMEOUT_MS,
                 )
-                .await,
+                .await
+            }
         }
     }
 

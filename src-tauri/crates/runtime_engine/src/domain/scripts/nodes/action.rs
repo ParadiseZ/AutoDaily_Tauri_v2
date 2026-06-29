@@ -63,9 +63,13 @@ pub enum SwipeMode {
 pub enum ClickMode {
     Point {
         p: PointU16,
+        #[serde(default)]
+        p_expr: Option<String>,
     },
     Percent {
         p: PointF32,
+        #[serde(default)]
+        p_expr: Option<String>,
     },
     Txt {
         input_var: String,
@@ -131,9 +135,15 @@ pub enum Action {
     },
     LaunchApp {
         pkg_name: String,
+        #[serde(default)]
+        pkg_name_expr: Option<String>,
         activity_name: String,
+        #[serde(default)]
+        activity_name_expr: Option<String>,
     },
     StopApp {
         pkg_name: String,
+        #[serde(default)]
+        pkg_name_expr: Option<String>,
     },
 }

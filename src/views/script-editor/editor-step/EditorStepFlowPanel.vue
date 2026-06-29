@@ -2,57 +2,75 @@
   <div class="space-y-3">
     <template v-if="selectedFlow.type === FLOW_TYPE.waitMs">
       <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">等待来源</span>
-          <EditorSelectField
-            :model-value="waitBindingMode"
-            :options="waitBindingModeOptions"
-            placeholder="选择等待来源"
-            test-id="editor-flow-wait-binding-mode"
-            @update:model-value="updateWaitBindingMode(String($event || 'fixed'))"
-          />
-        </label>
+        <EditorPresetBindingSection
+          label="等待取值"
+          :model-value="waitSourceMode"
+          :options="presetBindingModeOptions"
+          placeholder="选择等待取值方式"
+          test-id="editor-flow-wait-binding-mode"
+          @update:model-value="updateWaitSourceMode(String($event || 'fixed'))"
+        >
+          <template #fixed>
+            <label class="space-y-2">
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">等待毫秒</span>
+              <input :value="String(selectedFlow.ms ?? 1000)" class="app-input" type="number" @input="$emit('update-number-field', 'ms', ($event.target as HTMLInputElement).value)" />
+            </label>
+          </template>
 
-        <EditorVariableBindingField
-          v-if="waitBindingMode === 'input'"
-          label="输入变量"
-          :model-value="selectedFlow.input_var || null"
-          :options="resolvedWaitInputOptions"
-          placeholder="绑定输入毫秒变量"
-          test-id="editor-flow-wait-input-var"
-          create-label="新建毫秒变量"
-          :show-create="Boolean(createVariable)"
-          :show-locate="Boolean(selectedWaitInputOption && jumpToVariable)"
-          :locate-disabled="!selectedWaitInputOption || !jumpToVariable"
-          @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-          @create="createWaitInputVariable"
-          @locate="jumpToSelectedWaitInputVariable"
-        />
+          <template #binding>
+            <label class="space-y-2">
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">变量类型</span>
+              <EditorSelectField
+                :model-value="waitVariableMode"
+                :options="waitVariableModeOptions"
+                placeholder="选择变量类型"
+                test-id="editor-flow-wait-variable-mode"
+                @update:model-value="updateWaitVariableMode(String($event || 'runtime'))"
+              />
+            </label>
 
-        <EditorVariableBindingField
-          v-else-if="waitBindingMode === 'runtime'"
-          label="运行时变量"
-          :model-value="selectedFlow.runtime_var || null"
-          :options="resolvedWaitRuntimeOptions"
-          placeholder="绑定 OCR 结果变量"
-          test-id="editor-flow-wait-runtime-var"
-          create-label="新建 OCR 变量"
-          :show-create="Boolean(createVariable)"
-          :show-locate="Boolean(selectedWaitRuntimeOption && jumpToVariable)"
-          :locate-disabled="!selectedWaitRuntimeOption || !jumpToVariable"
-          @update:model-value="$emit('update-field', 'runtime_var', String($event || ''))"
-          @create="createWaitRuntimeVariable"
-          @locate="jumpToSelectedWaitRuntimeVariable"
-        />
+            <EditorVariableBindingField
+              v-if="waitVariableMode === 'input'"
+              label="输入变量"
+              :model-value="selectedFlow.input_var || null"
+              :options="resolvedWaitInputOptions"
+              placeholder="绑定输入毫秒变量"
+              test-id="editor-flow-wait-input-var"
+              create-label="新建毫秒变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedWaitInputOption && jumpToVariable)"
+              :locate-disabled="!selectedWaitInputOption || !jumpToVariable"
+              @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+              @create="createWaitInputVariable"
+              @locate="jumpToSelectedWaitInputVariable"
+            />
 
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">兜底等待毫秒</span>
-          <input :value="String(selectedFlow.ms ?? 1000)" class="app-input" type="number" @input="$emit('update-number-field', 'ms', ($event.target as HTMLInputElement).value)" />
-        </label>
+            <EditorVariableBindingField
+              v-else
+              label="运行时变量"
+              :model-value="selectedFlow.runtime_var || null"
+              :options="resolvedWaitRuntimeOptions"
+              placeholder="绑定 OCR 结果变量"
+              test-id="editor-flow-wait-runtime-var"
+              create-label="新建 OCR 变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedWaitRuntimeOption && jumpToVariable)"
+              :locate-disabled="!selectedWaitRuntimeOption || !jumpToVariable"
+              @update:model-value="$emit('update-field', 'runtime_var', String($event || ''))"
+              @create="createWaitRuntimeVariable"
+              @locate="jumpToSelectedWaitRuntimeVariable"
+            />
 
-        <p class="text-xs leading-6 text-(--app-text-soft)">
-          绑定 `input` 时直接读取毫秒值；绑定 `runtime` 时会从 OCR 结果里提取 `00:00` 或 `00:00:00`，解析失败时回退到这里的毫秒值。
-        </p>
+            <label class="space-y-2">
+              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">兜底等待毫秒</span>
+              <input :value="String(selectedFlow.ms ?? 1000)" class="app-input" type="number" @input="$emit('update-number-field', 'ms', ($event.target as HTMLInputElement).value)" />
+            </label>
+
+            <p class="text-xs leading-6 text-(--app-text-soft)">
+              绑定 `input` 时直接读取毫秒值；绑定 `runtime` 时会从 OCR 结果里提取 `00:00` 或 `00:00:00`，解析失败时回退到这里的毫秒值。
+            </p>
+          </template>
+        </EditorPresetBindingSection>
       </div>
     </template>
 
@@ -417,8 +435,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import EditorPresetBindingSection from '@/views/script-editor/EditorPresetBindingSection.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
@@ -484,7 +503,7 @@ const jsonVariableOptions = computed(() =>
 );
 const numberVariableOptions = computed(() =>
   props.variableReferenceOptions
-    .filter((option) => ['int', 'float', 'string'].includes(option.valueType))
+    .filter((option) => ['int', 'float'].includes(option.valueType))
     .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
 );
 const imageVariableOptions = computed(() =>
@@ -510,8 +529,11 @@ const runtimeWaitVariableOptions = computed(() => {
     ...options,
   ];
 });
-const waitBindingModeOptions = [
-  { label: '固定毫秒', value: 'fixed', description: '始终按下方毫秒值等待。' },
+const presetBindingModeOptions = [
+  { label: '预设', value: 'fixed', description: '使用步骤里填写的固定值。' },
+  { label: '绑定变量', value: 'expr', description: '从变量读取当前值。' },
+];
+const waitVariableModeOptions = [
   { label: '输入变量', value: 'input', description: '从 input 变量读取等待毫秒。' },
   { label: 'OCR 结果', value: 'runtime', description: '从 runtime OCR 结果里提取倒计时文本。' },
 ];
@@ -527,6 +549,8 @@ const waitBindingMode = computed(() => {
   }
   return 'fixed';
 });
+const waitSourceMode = computed(() => (waitBindingMode.value === 'fixed' ? 'fixed' : 'expr'));
+const waitVariableMode = computed(() => (waitBindingMode.value === 'runtime' ? 'runtime' : 'input'));
 const isBindingFlow = computed(
   () =>
     props.selectedFlow.type === FLOW_TYPE.addPolicies ||
@@ -943,21 +967,36 @@ const createForEachInputVariable = async () => {
   }
 };
 
-const updateWaitBindingMode = (mode: string) => {
+const updateWaitVariableMode = async (mode: string) => {
   if (props.selectedFlow.type !== FLOW_TYPE.waitMs) {
     return;
   }
 
   if (mode === 'input') {
     emit('update-field', 'runtime_var', '');
+    await nextTick();
+    if (!props.selectedFlow.input_var?.trim()) {
+      emit('update-field', 'input_var', resolvedWaitInputOptions.value[0]?.value ?? '');
+    }
     return;
   }
 
   if (mode === 'runtime') {
     emit('update-field', 'input_var', '');
+    await nextTick();
     if (!props.selectedFlow.runtime_var?.trim()) {
       emit('update-field', 'runtime_var', 'runtime.ocrResults');
     }
+    return;
+  }
+
+  emit('update-field', 'input_var', '');
+  emit('update-field', 'runtime_var', '');
+};
+
+const updateWaitSourceMode = (mode: string) => {
+  if (mode === 'expr') {
+    updateWaitVariableMode(waitBindingMode.value === 'fixed' ? 'runtime' : waitBindingMode.value);
     return;
   }
 

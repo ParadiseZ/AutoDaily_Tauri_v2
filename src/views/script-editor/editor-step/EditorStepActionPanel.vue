@@ -40,14 +40,64 @@
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.launchApp || selectedAction.ac === ACTION_TYPE.stopApp">
       <div class="space-y-3">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">包名</span>
-          <input :value="selectedAction.pkg_name || ''" class="app-input" @input="$emit('update-field', 'pkg_name', ($event.target as HTMLInputElement).value)" />
-        </label>
-        <label v-if="selectedAction.ac === ACTION_TYPE.launchApp" class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">Activity</span>
-          <input :value="selectedAction.activity_name || ''" class="app-input" placeholder=".MainActivity" @input="$emit('update-field', 'activity_name', ($event.target as HTMLInputElement).value)" />
-        </label>
+        <EditorPresetBindingSection
+          label="包名"
+          :model-value="launchPackageSource"
+          :options="presetBindingModeOptions"
+          placeholder="选择包名来源"
+          test-id="editor-action-launch-pkg-source"
+          @update:model-value="updateLaunchPackageSource(String($event || 'fixed'))"
+        >
+          <template #fixed>
+            <input :value="selectedAction.pkg_name || ''" class="app-input" @input="$emit('update-field', 'pkg_name', ($event.target as HTMLInputElement).value)" />
+          </template>
+          <template #binding>
+            <EditorVariableBindingField
+              label="包名变量"
+              :model-value="selectedAction.pkg_name_expr || null"
+              :options="resolvedLaunchPackageVariableOptions"
+              placeholder="绑定字符串变量"
+              test-id="editor-action-launch-pkg-var"
+              create-label="新建包名变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedLaunchPackageTarget && jumpToVariable)"
+              :locate-disabled="!selectedLaunchPackageTarget || !jumpToVariable"
+              @update:model-value="$emit('update-text-field', 'pkg_name_expr', String($event || ''))"
+              @create="$emit('create-variable', 'launchPackage')"
+              @locate="selectedLaunchPackageTarget ? $emit('jump-to-variable', selectedLaunchPackageTarget) : undefined"
+            />
+          </template>
+        </EditorPresetBindingSection>
+
+        <EditorPresetBindingSection
+          v-if="selectedAction.ac === ACTION_TYPE.launchApp"
+          label="Activity"
+          :model-value="launchActivitySource"
+          :options="presetBindingModeOptions"
+          placeholder="选择 Activity 来源"
+          test-id="editor-action-launch-activity-source"
+          @update:model-value="updateLaunchActivitySource(String($event || 'fixed'))"
+        >
+          <template #fixed>
+            <input :value="selectedAction.activity_name || ''" class="app-input" placeholder=".MainActivity" @input="$emit('update-field', 'activity_name', ($event.target as HTMLInputElement).value)" />
+          </template>
+          <template #binding>
+            <EditorVariableBindingField
+              label="Activity 变量"
+              :model-value="selectedAction.activity_name_expr || null"
+              :options="resolvedLaunchActivityVariableOptions"
+              placeholder="绑定字符串变量"
+              test-id="editor-action-launch-activity-var"
+              create-label="新建 Activity 变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedLaunchActivityTarget && jumpToVariable)"
+              :locate-disabled="!selectedLaunchActivityTarget || !jumpToVariable"
+              @update:model-value="$emit('update-text-field', 'activity_name_expr', String($event || ''))"
+              @create="$emit('create-variable', 'launchActivity')"
+              @locate="selectedLaunchActivityTarget ? $emit('jump-to-variable', selectedLaunchActivityTarget) : undefined"
+            />
+          </template>
+        </EditorPresetBindingSection>
       </div>
     </template>
 
@@ -171,28 +221,57 @@
         </label>
       </div>
 
-      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-compact-grid">
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">X</span>
-          <input
-            :value="String((selectedAction.p as { x?: number })?.x ?? '')"
-            aria-label="X"
-            class="app-input"
-            type="number"
-            @input="$emit('update-point-field', 'p', 'x', ($event.target as HTMLInputElement).value)"
+      <EditorPresetBindingSection
+        v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent"
+        :label="selectedAction.mode === ACTION_MODE.point ? '坐标来源' : '百分比来源'"
+        :model-value="clickPointSource"
+        :options="presetBindingModeOptions"
+        placeholder="选择点位来源"
+        test-id="editor-action-click-point-source"
+        @update:model-value="updateClickPointSource(String($event || 'fixed'))"
+      >
+        <template #fixed>
+          <div class="editor-compact-grid">
+            <label class="editor-compact-field">
+              <span class="editor-compact-field__label">X</span>
+              <input
+                :value="String((selectedAction.p as { x?: number })?.x ?? '')"
+                class="app-input"
+                type="number"
+                @input="$emit('update-point-field', 'p', 'x', ($event.target as HTMLInputElement).value)"
+              />
+            </label>
+            <label class="editor-compact-field">
+              <span class="editor-compact-field__label">Y</span>
+              <input
+                :value="String((selectedAction.p as { y?: number })?.y ?? '')"
+                class="app-input"
+                type="number"
+                @input="$emit('update-point-field', 'p', 'y', ($event.target as HTMLInputElement).value)"
+              />
+            </label>
+          </div>
+        </template>
+        <template #binding>
+          <EditorVariableBindingField
+            label="点位变量"
+            :model-value="selectedAction.p_expr || null"
+            :options="resolvedClickPointVariableOptions"
+            placeholder="绑定 JSON 点位变量"
+            test-id="editor-action-click-point-var"
+            create-label="新建点位变量"
+            :show-create="Boolean(createVariable)"
+            :show-locate="Boolean(selectedClickPointTarget && jumpToVariable)"
+            :locate-disabled="!selectedClickPointTarget || !jumpToVariable"
+            @update:model-value="$emit('update-text-field', 'p_expr', String($event || ''))"
+            @create="$emit('create-variable', 'clickPoint')"
+            @locate="selectedClickPointTarget ? $emit('jump-to-variable', selectedClickPointTarget) : undefined"
           />
-        </label>
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">Y</span>
-          <input
-            :value="String((selectedAction.p as { y?: number })?.y ?? '')"
-            aria-label="Y"
-            class="app-input"
-            type="number"
-            @input="$emit('update-point-field', 'p', 'y', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-      </div>
+          <p class="text-xs leading-5 text-(--app-text-soft)">
+            变量值使用 JSON `{ "x": ..., "y": ... }`。坐标模式读绝对值；百分比模式读 0 到 1。
+          </p>
+        </template>
+      </EditorPresetBindingSection>
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
         <EditorVariableBindingField
@@ -227,22 +306,22 @@
           </div>
         </label>
         <template v-if="selectedAction.enable_filter ?? true">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">筛选取值</span>
-            <EditorSelectField
-              :model-value="clickTextFilterSource"
-              :options="filterSourceOptions"
-              placeholder="选择取值来源"
-              test-id="editor-action-click-text-filter-source"
-              @update:model-value="updateClickTextFilterSource(String($event || 'fixed'))"
-            />
-          </label>
-          <label v-if="clickTextFilterSource === 'fixed'" class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
-            <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
-          </label>
-            <EditorVariableBindingField
-              v-else
+          <EditorPresetBindingSection
+            label="筛选取值"
+            :model-value="clickTextFilterSource"
+            :options="presetBindingModeOptions"
+            placeholder="选择取值来源"
+            test-id="editor-action-click-text-filter-source"
+            @update:model-value="updateClickTextFilterSource(String($event || 'fixed'))"
+          >
+            <template #fixed>
+              <label class="space-y-2">
+                <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
+                <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
+              </label>
+            </template>
+            <template #binding>
+              <EditorVariableBindingField
               label="目标变量"
               :model-value="selectedAction.txt_expr || null"
               :options="resolvedClickTextVariableOptions"
@@ -256,6 +335,8 @@
               @create="$emit('create-variable', 'clickText')"
               @locate="selectedClickTextTarget ? $emit('jump-to-variable', selectedClickTextTarget) : undefined"
             />
+            </template>
+          </EditorPresetBindingSection>
         </template>
       </div>
 
@@ -275,30 +356,30 @@
           </div>
           </label>
           <template v-if="selectedAction.enable_filter ?? true">
-            <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">筛选取值</span>
-              <EditorSelectField
-                :model-value="clickLabelFilterSource"
-                :options="filterSourceOptions"
-                placeholder="选择取值来源"
-                test-id="editor-action-click-label-filter-source"
-                @update:model-value="updateClickLabelFilterSource(String($event || 'fixed'))"
-              />
-            </label>
-            <div v-if="clickLabelFilterSource === 'fixed'" class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签</span>
-              <AppSelect
-                :model-value="selectedAction.idx ?? null"
-                :options="resolvedLabelIdxOptions"
-                :placeholder="labelSelectPlaceholder"
-                :disabled="!(labelIndexOptions?.length)"
-                test-id="editor-action-click-label-idx"
-                @update:model-value="$emit('update-number-field', 'idx', String($event ?? 0))"
-              />
-              <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
-            </div>
+            <EditorPresetBindingSection
+              label="筛选取值"
+              :model-value="clickLabelFilterSource"
+              :options="presetBindingModeOptions"
+              placeholder="选择取值来源"
+              test-id="editor-action-click-label-filter-source"
+              @update:model-value="updateClickLabelFilterSource(String($event || 'fixed'))"
+            >
+              <template #fixed>
+                <div class="space-y-2">
+                  <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">标签</span>
+                  <AppSelect
+                    :model-value="selectedAction.idx ?? null"
+                    :options="resolvedLabelIdxOptions"
+                    :placeholder="labelSelectPlaceholder"
+                    :disabled="!(labelIndexOptions?.length)"
+                    test-id="editor-action-click-label-idx"
+                    @update:model-value="$emit('update-number-field', 'idx', String($event ?? 0))"
+                  />
+                  <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
+                </div>
+              </template>
+              <template #binding>
               <EditorVariableBindingField
-                v-else
                 label="目标变量"
                 :model-value="selectedAction.idx_expr || null"
                 :options="resolvedClickLabelVariableOptions"
@@ -312,6 +393,8 @@
                 @create="$emit('create-variable', 'clickLabel')"
                 @locate="selectedClickLabelTarget ? $emit('jump-to-variable', selectedClickLabelTarget) : undefined"
               />
+              </template>
+            </EditorPresetBindingSection>
           </template>
         </div>
       </div>
@@ -490,6 +573,7 @@
 import { computed, defineComponent, h, ref, watch, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorPresetBindingSection from '@/views/script-editor/EditorPresetBindingSection.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { Action } from '@/types/bindings/Action';
@@ -522,12 +606,16 @@ const props = defineProps<{
   taskUiVariableOptions?: EditorTaskUiVariableOption[];
   clickModeOptions: Array<{ label: string; value: string; description: string }>;
   swipeModeOptions: Array<{ label: string; value: string; description: string }>;
-  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean; focusEditor?: boolean }) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
   createPolicy?: () => Promise<string>;
   jumpToPolicy?: (id: string) => void;
   createTask?: () => Promise<string>;
   jumpToTask?: (id: string) => void;
+  jsonVariableOptions?: SelectOption[];
+  selectedLaunchPackageTarget?: EditorVariableOption | null;
+  selectedLaunchActivityTarget?: EditorVariableOption | null;
+  selectedClickPointTarget?: EditorVariableOption | null;
 }>();
 
 const emit = defineEmits<{
@@ -538,7 +626,7 @@ const emit = defineEmits<{
   'update-number-field': [field: string, value: string];
   'update-text-field': [field: string, value: string];
   'update-swipe-target-field': [target: 'from' | 'to', field: string, value: string | number | null];
-  'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText'];
+  'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText' | 'launchPackage' | 'launchActivity' | 'clickPoint'];
   'jump-to-variable': [option: EditorVariableOption];
   'create-policy-target': [];
   'jump-policy-target': [id: string];
@@ -565,6 +653,10 @@ const swipeTargetSourceOptions = [
 const filterSourceOptions = [
   { label: '预设', value: 'fixed', description: '使用步骤里填写的目标文字或目标标签。' },
   { label: '绑定变量', value: 'expr', description: '绑定变量' },
+];
+const presetBindingModeOptions = [
+  { label: '预设', value: 'fixed', description: '使用步骤里直接填写的固定值。' },
+  { label: '绑定变量', value: 'expr', description: '从变量里读取当前值。' },
 ];
 
 const MixedSwipeTargetEditor = defineComponent({
@@ -751,6 +843,22 @@ const selectedActionInput = computed(() => {
 const resolvedActionInputOptions = computed(() =>
   withCurrentVariableOption(props.resultCatalogVariableOptions ?? [], selectedActionInput.value),
 );
+const resolvedLaunchPackageVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.launchApp || props.selectedAction.ac === ACTION_TYPE.stopApp
+    ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.pkg_name_expr ?? '')
+    : props.textVariableOptions ?? [],
+);
+const resolvedLaunchActivityVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.launchApp
+    ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.activity_name_expr ?? '')
+    : props.textVariableOptions ?? [],
+);
+const resolvedClickPointVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.click &&
+  (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+    ? withCurrentVariableOption(props.jsonVariableOptions ?? [], props.selectedAction.p_expr ?? '')
+    : props.jsonVariableOptions ?? [],
+);
 const resolvedClickTextVariableOptions = computed(() =>
   props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt
     ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.txt_expr ?? '')
@@ -800,6 +908,76 @@ const clickLabelFilterSource = computed(() =>
 
 const clickTextFilterSourceState = ref<'fixed' | 'expr'>('fixed');
 const clickLabelFilterSourceState = ref<'fixed' | 'expr'>('fixed');
+const launchPackageSourceState = ref<'fixed' | 'expr'>('fixed');
+const launchActivitySourceState = ref<'fixed' | 'expr'>('fixed');
+const clickPointSourceState = ref<'fixed' | 'expr'>('fixed');
+
+watch(
+  () => [
+    props.selectedAction.ac,
+    (props.selectedAction.ac === ACTION_TYPE.launchApp || props.selectedAction.ac === ACTION_TYPE.stopApp) ? props.selectedAction.pkg_name_expr ?? '' : '',
+  ],
+  ([ac, pkgExpr]) => {
+    if (ac !== ACTION_TYPE.launchApp && ac !== ACTION_TYPE.stopApp) {
+      launchPackageSourceState.value = 'fixed';
+      return;
+    }
+    if (String(pkgExpr).trim()) {
+      launchPackageSourceState.value = 'expr';
+      return;
+    }
+    if (launchPackageSourceState.value !== 'expr') {
+      launchPackageSourceState.value = 'fixed';
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [
+    props.selectedAction.ac,
+    props.selectedAction.ac === ACTION_TYPE.launchApp ? props.selectedAction.activity_name_expr ?? '' : '',
+  ],
+  ([ac, activityExpr]) => {
+    if (ac !== ACTION_TYPE.launchApp) {
+      launchActivitySourceState.value = 'fixed';
+      return;
+    }
+    if (String(activityExpr).trim()) {
+      launchActivitySourceState.value = 'expr';
+      return;
+    }
+    if (launchActivitySourceState.value !== 'expr') {
+      launchActivitySourceState.value = 'fixed';
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [
+    props.selectedAction.ac,
+    props.selectedAction.ac === ACTION_TYPE.click ? props.selectedAction.mode : null,
+    props.selectedAction.ac === ACTION_TYPE.click &&
+    (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+      ? props.selectedAction.p_expr ?? ''
+      : '',
+  ],
+  ([ac, mode, pointExpr]) => {
+    if (ac !== ACTION_TYPE.click || (mode !== ACTION_MODE.point && mode !== ACTION_MODE.percent)) {
+      clickPointSourceState.value = 'fixed';
+      return;
+    }
+    if (String(pointExpr).trim()) {
+      clickPointSourceState.value = 'expr';
+      return;
+    }
+    if (clickPointSourceState.value !== 'expr') {
+      clickPointSourceState.value = 'fixed';
+    }
+  },
+  { immediate: true },
+);
 
 watch(
   () => [
@@ -844,6 +1022,56 @@ watch(
   },
   { immediate: true },
 );
+
+const launchPackageSource = computed(() =>
+  launchPackageSourceState.value,
+);
+const launchActivitySource = computed(() =>
+  launchActivitySourceState.value,
+);
+const clickPointSource = computed(() =>
+  clickPointSourceState.value,
+);
+
+const updateLaunchPackageSource = (value: string) => {
+  launchPackageSourceState.value = value === 'expr' ? 'expr' : 'fixed';
+  if (value === 'expr') {
+    const fallbackValue =
+      props.selectedAction.ac === ACTION_TYPE.launchApp || props.selectedAction.ac === ACTION_TYPE.stopApp
+        ? props.selectedAction.pkg_name_expr?.trim() || resolvedLaunchPackageVariableOptions.value[0]?.value || ''
+        : '';
+    emit('update-text-field', 'pkg_name_expr', fallbackValue);
+    return;
+  }
+  emit('update-text-field', 'pkg_name_expr', '');
+};
+
+const updateLaunchActivitySource = (value: string) => {
+  launchActivitySourceState.value = value === 'expr' ? 'expr' : 'fixed';
+  if (value === 'expr') {
+    const fallbackValue =
+      props.selectedAction.ac === ACTION_TYPE.launchApp
+        ? props.selectedAction.activity_name_expr?.trim() || resolvedLaunchActivityVariableOptions.value[0]?.value || ''
+        : '';
+    emit('update-text-field', 'activity_name_expr', fallbackValue);
+    return;
+  }
+  emit('update-text-field', 'activity_name_expr', '');
+};
+
+const updateClickPointSource = (value: string) => {
+  clickPointSourceState.value = value === 'expr' ? 'expr' : 'fixed';
+  if (value === 'expr') {
+    const fallbackValue =
+      props.selectedAction.ac === ACTION_TYPE.click &&
+      (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+        ? props.selectedAction.p_expr?.trim() || resolvedClickPointVariableOptions.value[0]?.value || ''
+        : '';
+    emit('update-text-field', 'p_expr', fallbackValue);
+    return;
+  }
+  emit('update-text-field', 'p_expr', '');
+};
 
 const updateClickTextFilterSource = (value: string) => {
   clickTextFilterSourceState.value = value === 'expr' ? 'expr' : 'fixed';

@@ -60,11 +60,15 @@
                 :result-catalog-variable-options="resultCatalogVariableOptions"
                 :text-variable-options="textVariableOptions"
                 :number-variable-options="numberVariableOptions"
+                :json-variable-options="resultCatalogVariableOptions"
                 :label-index-options="labelIndexOptions"
                 :label-select-placeholder="labelSelectPlaceholder"
                 :label-select-hint="labelSelectHint"
                 :selected-capture-output-target="selectedCaptureOutputTarget"
                 :selected-action-input-target="selectedActionInputTarget"
+                :selected-launch-package-target="selectedLaunchPackageTarget"
+                :selected-launch-activity-target="selectedLaunchActivityTarget"
+                :selected-click-point-target="selectedClickPointTarget"
                 :selected-click-text-target="selectedClickTextTarget"
                 :selected-click-label-target="selectedClickLabelTarget"
                 :selected-swipe-from-text-target="selectedSwipeFromTextTarget"
@@ -709,6 +713,29 @@ const selectedCaptureOutputTarget = computed(() =>
 const selectedActionInputTarget = computed(() =>
   currentActionInputName.value ? props.variableOptions.find((item) => item.key === currentActionInputName.value) ?? null : null,
 );
+const currentLaunchPackageName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.launchApp || selectedAction.value?.ac === ACTION_TYPE.stopApp
+    ? selectedAction.value.pkg_name_expr?.trim() ?? ''
+    : '',
+);
+const currentLaunchActivityName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.launchApp ? selectedAction.value.activity_name_expr?.trim() ?? '' : '',
+);
+const currentClickPointName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.click &&
+  (selectedAction.value.mode === ACTION_MODE.point || selectedAction.value.mode === ACTION_MODE.percent)
+    ? selectedAction.value.p_expr?.trim() ?? ''
+    : '',
+);
+const selectedLaunchPackageTarget = computed(() =>
+  currentLaunchPackageName.value ? props.variableOptions.find((item) => item.key === currentLaunchPackageName.value) ?? null : null,
+);
+const selectedLaunchActivityTarget = computed(() =>
+  currentLaunchActivityName.value ? props.variableOptions.find((item) => item.key === currentLaunchActivityName.value) ?? null : null,
+);
+const selectedClickPointTarget = computed(() =>
+  currentClickPointName.value ? props.variableOptions.find((item) => item.key === currentClickPointName.value) ?? null : null,
+);
 const currentClickTextName = computed(() =>
   selectedAction.value?.ac === ACTION_TYPE.click && selectedAction.value.mode === ACTION_MODE.txt ? selectedAction.value.txt_expr?.trim() ?? '' : '',
 );
@@ -937,13 +964,13 @@ const createClickAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.p
     : { offset_x: 0, offset_y: 0 };
   switch (mode) {
     case ACTION_MODE.percent:
-      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 } };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.percent, p: { x: 0.5, y: 0.5 }, p_expr: null };
     case ACTION_MODE.txt:
       return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.txt, input_var: currentActionInputName.value || 'runtime.searchHits', txt: '开始', txt_expr: null, enable_filter: true };
     case ACTION_MODE.labelIdx:
       return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.labelIdx, input_var: currentActionInputName.value || 'runtime.detResults', idx: 0, idx_expr: null, enable_filter: true };
     default:
-      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.point, p: { x: 640, y: 360 } };
+      return { ac: ACTION_TYPE.click, ...offset, mode: ACTION_MODE.point, p: { x: 640, y: 360 }, p_expr: null };
   }
 };
 
@@ -1255,39 +1282,86 @@ const handleJumpToDataVariable = (option: EditorVariableOption) => {
   props.jumpToVariable?.(option);
 };
 
-const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText') => {
+const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText' | 'launchPackage' | 'launchActivity' | 'clickPoint') => {
   if (!props.createVariable) {
     return;
   }
 
-  if (target === 'clickText' || target === 'swipeFromText' || target === 'swipeToText') {
+  if (target === 'clickText' || target === 'swipeFromText' || target === 'swipeToText' || target === 'launchPackage' || target === 'launchActivity') {
     const key = await props.createVariable('input', 'string', {
-      preferredKey: target === 'clickText' ? 'targetText' : target === 'swipeFromText' ? 'swipeFromText' : 'swipeToText',
-      name: target === 'clickText' ? '目标文字' : target === 'swipeFromText' ? '滑动起点文字' : '滑动终点文字',
+      preferredKey:
+        target === 'clickText'
+          ? 'targetText'
+          : target === 'swipeFromText'
+            ? 'swipeFromText'
+            : target === 'swipeToText'
+              ? 'swipeToText'
+              : target === 'launchPackage'
+                ? 'packageName'
+                : 'activityName',
+      name:
+        target === 'clickText'
+          ? '目标文字'
+          : target === 'swipeFromText'
+            ? '滑动起点文字'
+            : target === 'swipeToText'
+              ? '滑动终点文字'
+              : target === 'launchPackage'
+                ? '包名'
+                : 'Activity',
       focusEditor: true,
     });
     if (!key) {
       return;
     }
 
-      updateActionTextField(target === 'clickText' ? 'txt_expr' : target === 'swipeFromText' ? 'from_expr' : 'to_expr', key);
+    updateActionTextField(
+      target === 'clickText'
+        ? 'txt_expr'
+        : target === 'swipeFromText'
+          ? 'from_expr'
+          : target === 'swipeToText'
+            ? 'to_expr'
+            : target === 'launchPackage'
+              ? 'pkg_name_expr'
+              : 'activity_name_expr',
+      key,
+    );
+    return;
+  }
+
+  if (target === 'clickLabel') {
+    const key = await props.createVariable('input', 'int', {
+      preferredKey: 'targetLabel',
+      name: '目标标签',
+      focusEditor: true,
+    });
+    if (!key) {
       return;
     }
+    updateActionTextField('idx_expr', key);
+    return;
+  }
 
-    if (target === 'clickLabel') {
-      const key = await props.createVariable('input', 'int', {
-        preferredKey: 'targetLabel',
-        name: '目标标签',
-        focusEditor: true,
-      });
-      if (!key) {
-        return;
-      }
-      updateActionTextField('idx_expr', key);
+  if (target === 'clickPoint') {
+    const pointMode =
+      selectedAction.value?.ac === ACTION_TYPE.click &&
+      (selectedAction.value.mode === ACTION_MODE.point || selectedAction.value.mode === ACTION_MODE.percent)
+        ? selectedAction.value.mode
+        : ACTION_MODE.point;
+    const key = await props.createVariable('input', 'json', {
+      preferredKey: pointMode === ACTION_MODE.percent ? 'tapPercent' : 'tapPoint',
+      name: pointMode === ACTION_MODE.percent ? '点击百分比点位' : '点击坐标点位',
+      focusEditor: true,
+    });
+    if (!key) {
       return;
     }
+    updateActionTextField('p_expr', key);
+    return;
+  }
 
-    if (target === 'actionInput') {
+  if (target === 'actionInput') {
     const preferredMode =
       selectedAction.value?.ac === ACTION_TYPE.click || selectedAction.value?.ac === ACTION_TYPE.swipe
         ? selectedAction.value.mode

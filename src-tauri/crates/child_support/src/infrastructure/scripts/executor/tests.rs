@@ -1,11 +1,12 @@
 use super::ScriptExecutor;
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
 use crate::domain::devices::device_schedule::TaskCycle;
-use crate::domain::scripts::nodes::action::Action;
+use crate::domain::scripts::nodes::action::{Action, ClickMode};
 use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
 use crate::domain::scripts::nodes::flow_control::{ConditionNode, FlowControl};
 use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
+use crate::domain::scripts::point::PointU16;
 use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
 use crate::domain::scripts::script_decision::{Step, StepKind};
 use crate::domain::scripts::script_task::{
@@ -1073,7 +1074,9 @@ async fn action_prepare_path_triggers_timeout_detector() {
             0,
             &Action::LaunchApp {
                 pkg_name: String::new(),
+                pkg_name_expr: None,
                 activity_name: String::new(),
+                activity_name_expr: None,
             },
         )
         .await
@@ -1096,7 +1099,9 @@ async fn compile_action_sequence_includes_launch_app() {
             exec_max: 0,
             a: Action::LaunchApp {
                 pkg_name: "com.demo.app".to_string(),
+                pkg_name_expr: None,
                 activity_name: "com.demo.app.MainActivity".to_string(),
+                activity_name_expr: None,
             },
         },
     }];
@@ -1110,6 +1115,64 @@ async fn compile_action_sequence_includes_launch_app() {
     assert!(matches!(
         compiled[0].operation,
         DeviceOperation::LaunchApp { .. }
+    ));
+}
+
+#[tokio::test]
+async fn compile_action_sequence_rejects_bound_launch_app() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("启动应用变量".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::LaunchApp {
+                pkg_name: String::new(),
+                pkg_name_expr: Some("input.pkgName".to_string()),
+                activity_name: String::new(),
+                activity_name_expr: Some("input.activityName".to_string()),
+            },
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Unsupported(blocker) = compiled else {
+        panic!("bound launch app should be rejected from sequence fast path");
+    };
+    assert!(blocker.reason.contains("变量绑定"));
+}
+
+#[tokio::test]
+async fn click_point_expr_reads_json_point_variable() {
+    let mut executor = build_executor();
+    executor
+        .set_runtime_var(
+            "input.tapPoint",
+            to_dynamic(json!({ "x": 321, "y": 654 })).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let planned = executor
+        .plan_click_action(
+            &ClickMode::Point {
+                p: PointU16 { x: 1, y: 2 },
+                p_expr: Some("input.tapPoint".to_string()),
+            },
+            0,
+            0,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(planned.operations.len(), 1);
+    assert!(matches!(
+        &planned.operations[0],
+        DeviceOperation::Click(point) if point.x == 321 && point.y == 654
     ));
 }
 
