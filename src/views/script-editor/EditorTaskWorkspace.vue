@@ -6,7 +6,6 @@
         :selected-input-entry="selectedInputEntry"
         :selected-input-index="selectedInputIndex"
         @update-input="forwardUpdateInput"
-        @remove-input="$emit('remove-input', $event)"
       />
 
       <div v-else-if="activePanel === 'ui'" class="flex min-h-0 flex-1 flex-col gap-4">

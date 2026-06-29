@@ -9,6 +9,7 @@ export const visionLabPreferencesKey = 'visionLabPreferences';
 export const visionLabLaunchPresetKey = 'visionLabLaunchPreset';
 export const visionLabActiveTabKey = 'visionLabActiveTab';
 export const logsSelectedDeviceKey = 'logsSelectedDevice';
+export const scriptEditorViewStateKey = 'scriptEditorViewState';
 
 export const deviceKey = 'editorDevice';
 export async function getFromStore<T>(key: string): Promise<T | null | undefined> {

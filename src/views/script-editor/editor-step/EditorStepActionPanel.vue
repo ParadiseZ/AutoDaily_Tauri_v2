@@ -16,39 +16,22 @@
 
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出名称</span>
-          <EditorSelectField
-            :model-value="selectedAction.output_var || null"
-            :options="resolvedCaptureOutputOptions"
-            :show-description="true"
-            placeholder="选择或创建输出变量"
-            test-id="editor-capture-output-var"
-            @update:model-value="$emit('update-field', 'output_var', String($event || ''))"
-          />
-        </label>
-        <div v-if="createVariable || (selectedCaptureOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
-          <button
-            v-if="createVariable"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            data-testid="editor-capture-output-create"
-            @click="$emit('create-variable', 'captureOutput')"
-          >
-            <AppIcon name="plus" :size="14" />
-            新建 Runtime 变量
-          </button>
-          <button
-            v-if="selectedCaptureOutputTarget && jumpToVariable"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            data-testid="editor-capture-output-locate"
-            @click="$emit('jump-to-variable', selectedCaptureOutputTarget)"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位变量
-          </button>
-        </div>
+        <EditorVariableBindingField
+          label="输出名称"
+          :model-value="selectedAction.output_var || null"
+          :options="resolvedCaptureOutputOptions"
+          placeholder="选择或创建输出变量"
+          test-id="editor-capture-output-var"
+          create-label="新建 Runtime 变量"
+          create-test-id="editor-capture-output-create"
+          locate-test-id="editor-capture-output-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedCaptureOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedCaptureOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'output_var', String($event || ''))"
+          @create="$emit('create-variable', 'captureOutput')"
+          @locate="selectedCaptureOutputTarget ? $emit('jump-to-variable', selectedCaptureOutputTarget) : undefined"
+        />
         <p class="text-xs leading-5 text-(--app-text-faint)">
           当前运行时会把截图图像对象写入 runtime 变量，不再默认转成字符串或文件路径。
         </p>
@@ -212,37 +195,21 @@
       </div>
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果变量</span>
-          <EditorSelectField
-            :model-value="selectedActionInput || null"
-            :options="resolvedActionInputOptions"
-            :show-description="true"
-            placeholder="选择 OCR / 检测 / 处理结果变量"
-            test-id="editor-action-click-input-var"
-            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-          />
-        </label>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-if="createVariable && !(selectedAction.ac === ACTION_TYPE.click && (selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx))"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            @click="$emit('create-variable', 'actionInput')"
-          >
-            <AppIcon name="plus" :size="14" />
-            新建结果变量
-          </button>
-          <button
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            :disabled="!selectedActionInputTarget || !jumpToVariable"
-            @click="selectedActionInputTarget ? $emit('jump-to-variable', selectedActionInputTarget) : undefined"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位变量
-          </button>
-        </div>
+        <EditorVariableBindingField
+          label="输入结果变量"
+          :model-value="selectedActionInput || null"
+          :options="resolvedActionInputOptions"
+          placeholder="选择 OCR / 检测 / 处理结果变量"
+          test-id="editor-action-click-input-var"
+          create-label="新建结果变量"
+          locate-test-id="editor-action-click-input-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedActionInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedActionInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          @create="$emit('create-variable', 'actionInput')"
+          @locate="selectedActionInputTarget ? $emit('jump-to-variable', selectedActionInputTarget) : undefined"
+        />
       </template>
 
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-3">
@@ -255,8 +222,8 @@
             @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
           />
           <div class="space-y-1">
-            <p class="text-sm font-medium text-(--app-text-strong)">筛选后按“多目标时选择第几个”点击</p>
-            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按“多目标时选择第几个”点击。</p>
+            <p class="text-sm font-medium text-(--app-text-strong)">筛选后点击</p>
+            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启，按"多目标时选择第几个"点击，若不在策略中则默认第一个</p>
           </div>
         </label>
         <template v-if="selectedAction.enable_filter ?? true">
@@ -274,17 +241,21 @@
             <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
             <input :value="String(selectedAction.txt ?? '')" class="app-input" @input="$emit('update-text-field', 'txt', ($event.target as HTMLInputElement).value)" />
           </label>
-          <label v-else class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">用户定义变量</span>
-            <EditorSelectField
+            <EditorVariableBindingField
+              v-else
+              label="目标变量"
               :model-value="selectedAction.txt_expr || null"
               :options="resolvedClickTextVariableOptions"
-              :show-description="true"
               placeholder="绑定 input 文本变量"
               test-id="editor-action-click-text-var"
+              create-label="新建文字变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedClickTextTarget && jumpToVariable)"
+              :locate-disabled="!selectedClickTextTarget || !jumpToVariable"
               @update:model-value="$emit('update-text-field', 'txt_expr', String($event || ''))"
+              @create="$emit('create-variable', 'clickText')"
+              @locate="selectedClickTextTarget ? $emit('jump-to-variable', selectedClickTextTarget) : undefined"
             />
-          </label>
         </template>
       </div>
 
@@ -299,9 +270,9 @@
               @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
             />
             <div class="space-y-1">
-              <p class="text-sm font-medium text-(--app-text-strong)">筛选后按“多目标时选择第几个”点击</p>
-              <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按“多目标时选择第几个”点击。</p>
-            </div>
+            <p class="text-sm font-medium text-(--app-text-strong)">筛选后点击</p>
+            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启，按"多目标时选择第几个"点击，若不在策略中则默认第一个</p>
+          </div>
           </label>
           <template v-if="selectedAction.enable_filter ?? true">
             <label class="space-y-2">
@@ -326,17 +297,21 @@
               />
               <p v-if="labelSelectHint" class="text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
             </div>
-            <label v-else class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">用户定义变量</span>
-              <EditorSelectField
+              <EditorVariableBindingField
+                v-else
+                label="目标变量"
                 :model-value="selectedAction.idx_expr || null"
                 :options="resolvedClickLabelVariableOptions"
-                :show-description="true"
-                placeholder="绑定 input 整数变量"
+                placeholder="请选择"
                 test-id="editor-action-click-label-var"
+                create-label="新建整数变量"
+                :show-create="Boolean(createVariable)"
+                :show-locate="Boolean(selectedClickLabelTarget && jumpToVariable)"
+                :locate-disabled="!selectedClickLabelTarget || !jumpToVariable"
                 @update:model-value="$emit('update-text-field', 'idx_expr', String($event || ''))"
+                @create="$emit('create-variable', 'clickLabel')"
+                @locate="selectedClickLabelTarget ? $emit('jump-to-variable', selectedClickLabelTarget) : undefined"
               />
-            </label>
           </template>
         </div>
       </div>
@@ -360,32 +335,20 @@
       </div>
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果变量</span>
-          <EditorSelectField
-            :model-value="selectedActionInput || null"
-            :options="resolvedActionInputOptions"
-            :show-description="true"
-            placeholder="选择 OCR / 检测 / 处理结果变量"
-            test-id="editor-action-swipe-input-var"
-            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-          />
-        </label>
-        <div class="flex flex-wrap gap-2">
-          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'actionInput')">
-            <AppIcon name="plus" :size="14" />
-            新建结果变量
-          </button>
-          <button
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            :disabled="!selectedActionInputTarget || !jumpToVariable"
-            @click="selectedActionInputTarget ? $emit('jump-to-variable', selectedActionInputTarget) : undefined"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位变量
-          </button>
-        </div>
+        <EditorVariableBindingField
+          label="输入结果变量"
+          :model-value="selectedActionInput || null"
+          :options="resolvedActionInputOptions"
+          placeholder="选择 OCR / 检测 / 处理结果变量"
+          test-id="editor-action-swipe-input-var"
+          create-label="新建结果变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedActionInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedActionInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          @create="$emit('create-variable', 'actionInput')"
+          @locate="selectedActionInputTarget ? $emit('jump-to-variable', selectedActionInputTarget) : undefined"
+        />
       </template>
 
       <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-compact-grid editor-compact-grid--quad">
@@ -440,38 +403,34 @@
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">固定终点文字</span>
           <input :value="String(selectedAction.to ?? '')" class="app-input" @input="$emit('update-text-field', 'to', ($event.target as HTMLInputElement).value)" />
         </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">起点文字变量</span>
-          <EditorSelectField
-            :model-value="selectedAction.from_expr || null"
-            :options="resolvedSwipeFromTextVariableOptions"
-            :show-description="true"
-            placeholder="绑定文字变量"
-            test-id="editor-action-swipe-from-text-var"
-            @update:model-value="$emit('update-text-field', 'from_expr', String($event || ''))"
-          />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">终点文字变量</span>
-          <EditorSelectField
-            :model-value="selectedAction.to_expr || null"
-            :options="resolvedSwipeToTextVariableOptions"
-            :show-description="true"
-            placeholder="绑定文字变量"
-            test-id="editor-action-swipe-to-text-var"
-            @update:model-value="$emit('update-text-field', 'to_expr', String($event || ''))"
-          />
-        </label>
-        <div v-if="createVariable" class="flex flex-wrap gap-2 md:col-span-2">
-          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'swipeFromText')">
-            <AppIcon name="plus" :size="14" />
-            新建起点文字变量
-          </button>
-          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'swipeToText')">
-            <AppIcon name="plus" :size="14" />
-            新建终点文字变量
-          </button>
-        </div>
+        <EditorVariableBindingField
+          label="起点文字变量"
+          :model-value="selectedAction.from_expr || null"
+          :options="resolvedSwipeFromTextVariableOptions"
+          placeholder="绑定文字变量"
+          test-id="editor-action-swipe-from-text-var"
+          create-label="新建起点文字变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedSwipeFromTextTarget && jumpToVariable)"
+          :locate-disabled="!selectedSwipeFromTextTarget || !jumpToVariable"
+          @update:model-value="$emit('update-text-field', 'from_expr', String($event || ''))"
+          @create="$emit('create-variable', 'swipeFromText')"
+          @locate="selectedSwipeFromTextTarget ? $emit('jump-to-variable', selectedSwipeFromTextTarget) : undefined"
+        />
+        <EditorVariableBindingField
+          label="终点文字变量"
+          :model-value="selectedAction.to_expr || null"
+          :options="resolvedSwipeToTextVariableOptions"
+          placeholder="绑定文字变量"
+          test-id="editor-action-swipe-to-text-var"
+          create-label="新建终点文字变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedSwipeToTextTarget && jumpToVariable)"
+          :locate-disabled="!selectedSwipeToTextTarget || !jumpToVariable"
+          @update:model-value="$emit('update-text-field', 'to_expr', String($event || ''))"
+          @create="$emit('create-variable', 'swipeToText')"
+          @locate="selectedSwipeToTextTarget ? $emit('jump-to-variable', selectedSwipeToTextTarget) : undefined"
+        />
       </div>
 
       <div v-else-if="selectedAction.mode === ACTION_MODE.labelIdx" class="grid gap-3 md:grid-cols-2">
@@ -532,6 +491,7 @@ import { computed, defineComponent, h, ref, watch, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { Action } from '@/types/bindings/Action';
 import { ACTION_MODE, ACTION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import type { EditorReferenceOption, EditorTaskUiVariableOption } from '@/views/script-editor/editorReferences';
@@ -553,6 +513,10 @@ const props = defineProps<{
   labelSelectHint?: string | null;
   selectedCaptureOutputTarget?: EditorVariableOption | null;
   selectedActionInputTarget?: EditorVariableOption | null;
+  selectedClickTextTarget?: EditorVariableOption | null;
+  selectedClickLabelTarget?: EditorVariableOption | null;
+  selectedSwipeFromTextTarget?: EditorVariableOption | null;
+  selectedSwipeToTextTarget?: EditorVariableOption | null;
   policyReferenceOptions?: EditorReferenceOption[];
   taskReferenceOptions?: EditorReferenceOption[];
   taskUiVariableOptions?: EditorTaskUiVariableOption[];
@@ -574,7 +538,7 @@ const emit = defineEmits<{
   'update-number-field': [field: string, value: string];
   'update-text-field': [field: string, value: string];
   'update-swipe-target-field': [target: 'from' | 'to', field: string, value: string | number | null];
-  'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'swipeFromText' | 'swipeToText'];
+  'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText'];
   'jump-to-variable': [option: EditorVariableOption];
   'create-policy-target': [];
   'jump-policy-target': [id: string];
@@ -599,8 +563,8 @@ const swipeTargetSourceOptions = [
 ];
 
 const filterSourceOptions = [
-  { label: '固定值', value: 'fixed', description: '使用步骤里填写的目标文字或目标标签。' },
-  { label: '用户定义', value: 'expr', description: '绑定 input 变量，由普通用户填写。' },
+  { label: '预设', value: 'fixed', description: '使用步骤里填写的目标文字或目标标签。' },
+  { label: '绑定变量', value: 'expr', description: '绑定变量' },
 ];
 
 const MixedSwipeTargetEditor = defineComponent({
@@ -656,7 +620,7 @@ const withCurrentVariableOption = (options: SelectOption[], value: string) => {
 
   return [
     {
-      label: `当前绑定不存在：${trimmedValue}`,
+      label: `（不存在）：${trimmedValue}`,
       value: trimmedValue,
       description: '变量目录里找不到该绑定，保存时仍会保留当前值。',
     },

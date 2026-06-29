@@ -497,7 +497,7 @@ import { buildDeviceTableFromForm } from '@/views/device-list/deviceEditorShared
 import { useScriptStore } from '@/store/script';
 import { useDeviceStore } from '@/store/device';
 import { useSettingsStore } from '@/store/settings';
-import { deviceKey, getFromStore, setToStore } from '@/store/store';
+import { deviceKey, getFromStore, scriptEditorViewStateKey, setToStore } from '@/store/store';
 import { deviceService } from '@/services/deviceService';
 import { runtimeService } from '@/services/runtimeService';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
@@ -718,6 +718,22 @@ interface EditorConsoleEntry {
   level: EditorConsoleLevel;
 }
 
+interface ScriptEditorPersistedViewState {
+  activeMode?: EditorModeId;
+  selectedTaskId?: string | null;
+  selectedPolicyId?: string | null;
+  selectedPolicyGroupId?: string | null;
+  selectedPolicySetId?: string | null;
+  activePanel?: EditorPanelId;
+  activePolicyPanel?: PolicyEditorPanelId;
+  selectedStepPath?: StepPath | null;
+  activeBranchPath?: StepBranchPath;
+  selectedPolicyStepPathBefore?: StepPath | null;
+  activePolicyBranchPathBefore?: StepBranchPath;
+  selectedPolicyStepPathAfter?: StepPath | null;
+  activePolicyBranchPathAfter?: StepBranchPath;
+}
+
 const taskName = ref('');
 const taskRowType = ref<TaskRowType>(TASK_ROW_TYPE.task);
 const taskTriggerMode = ref<TaskTriggerMode>(TASK_TRIGGER_MODE.linkOnly);
@@ -738,6 +754,68 @@ const hydratingTaskMeta = ref(false);
 const hydratingTaskPanels = ref(false);
 
 const scriptId = computed(() => (typeof route.query.scriptId === 'string' ? route.query.scriptId : ''));
+const editorViewStateStoreKey = computed(() => `${scriptEditorViewStateKey}:${scriptId.value}`);
+
+const isEditorModeId = (value: unknown): value is EditorModeId =>
+  value === 'task' || value === 'policy' || value === 'policyGroup' || value === 'policySet';
+
+const isEditorPanelId = (value: unknown): value is EditorPanelId =>
+  value === 'basic' || value === 'inputs' || value === 'ui' || value === 'steps';
+
+const isPolicyEditorPanelId = (value: unknown): value is PolicyEditorPanelId =>
+  value === 'basic' || value === 'inputs' || value === 'before' || value === 'after';
+
+const isStepPathLike = (value: unknown): value is StepPath =>
+  Array.isArray(value)
+  && value.every(
+    (segment) =>
+      Boolean(segment)
+      && typeof segment === 'object'
+      && typeof (segment as { branch?: unknown }).branch === 'string'
+      && typeof (segment as { index?: unknown }).index === 'number',
+  );
+
+const isStepBranchPathLike = (value: unknown): value is StepBranchPath =>
+  Boolean(value)
+  && typeof value === 'object'
+  && typeof (value as StepBranchPath).branch === 'string';
+
+const loadEditorViewState = async (): Promise<ScriptEditorPersistedViewState | null> => {
+  if (!scriptId.value) {
+    return null;
+  }
+
+  const stored = await getFromStore<ScriptEditorPersistedViewState>(editorViewStateStoreKey.value).catch(() => null);
+  return stored && typeof stored === 'object' ? stored : null;
+};
+
+const persistEditorViewState = async () => {
+  if (!scriptId.value || isLoading.value || loadError.value) {
+    return;
+  }
+
+  const nextState: ScriptEditorPersistedViewState = {
+    activeMode: activeMode.value,
+    selectedTaskId: selectedTaskId.value,
+    selectedPolicyId: selectedPolicyId.value,
+    selectedPolicyGroupId: selectedPolicyGroupId.value,
+    selectedPolicySetId: selectedPolicySetId.value,
+    activePanel: activePanel.value,
+    activePolicyPanel: activePolicyPanel.value,
+    selectedStepPath: activeMode.value === 'task' && activePanel.value === 'steps' ? selectedStepPath.value : null,
+    activeBranchPath: activeMode.value === 'task' && activePanel.value === 'steps' ? activeBranchPath.value : ROOT_BRANCH_PATH,
+    selectedPolicyStepPathBefore:
+      activeMode.value === 'policy' && activePolicyPanel.value === 'before' ? selectedPolicyStepPathBefore.value : null,
+    activePolicyBranchPathBefore:
+      activeMode.value === 'policy' && activePolicyPanel.value === 'before' ? activePolicyBranchPathBefore.value : ROOT_BRANCH_PATH,
+    selectedPolicyStepPathAfter:
+      activeMode.value === 'policy' && activePolicyPanel.value === 'after' ? selectedPolicyStepPathAfter.value : null,
+    activePolicyBranchPathAfter:
+      activeMode.value === 'policy' && activePolicyPanel.value === 'after' ? activePolicyBranchPathAfter.value : ROOT_BRANCH_PATH,
+  };
+
+  await setToStore(editorViewStateStoreKey.value, nextState);
+};
 
 const buildConsoleTimestamp = () =>
   new Date().toLocaleTimeString('zh-CN', {
@@ -3682,13 +3760,40 @@ const loadEditor = async () => {
     sourceGroupPoliciesSnapshot.value = stableStringify(groupPolicyIdsByGroupId.value);
     sourceSetGroupsSnapshot.value = stableStringify(setGroupIdsBySetId.value);
 
-    selectedTaskId.value = draftTasks.value[0]?.id ?? null;
-    selectedPolicyId.value = draftPolicies.value[0]?.id ?? null;
-    selectedPolicyGroupId.value = draftPolicyGroups.value[0]?.id ?? null;
-    selectedPolicySetId.value = draftPolicySets.value[0]?.id ?? null;
-    activeBranchPath.value = ROOT_BRANCH_PATH;
-    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
-    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
+    const persistedViewState = await loadEditorViewState();
+    activeMode.value = isEditorModeId(persistedViewState?.activeMode) ? persistedViewState.activeMode : 'task';
+    activePanel.value = isEditorPanelId(persistedViewState?.activePanel) ? persistedViewState.activePanel : 'basic';
+    activePolicyPanel.value = isPolicyEditorPanelId(persistedViewState?.activePolicyPanel) ? persistedViewState.activePolicyPanel : 'basic';
+    selectedTaskId.value =
+      persistedViewState?.selectedTaskId && draftTasks.value.some((task) => task.id === persistedViewState.selectedTaskId)
+        ? persistedViewState.selectedTaskId
+        : draftTasks.value[0]?.id ?? null;
+    selectedPolicyId.value =
+      persistedViewState?.selectedPolicyId && draftPolicies.value.some((policy) => policy.id === persistedViewState.selectedPolicyId)
+        ? persistedViewState.selectedPolicyId
+        : draftPolicies.value[0]?.id ?? null;
+    selectedPolicyGroupId.value =
+      persistedViewState?.selectedPolicyGroupId && draftPolicyGroups.value.some((group) => group.id === persistedViewState.selectedPolicyGroupId)
+        ? persistedViewState.selectedPolicyGroupId
+        : draftPolicyGroups.value[0]?.id ?? null;
+    selectedPolicySetId.value =
+      persistedViewState?.selectedPolicySetId && draftPolicySets.value.some((set) => set.id === persistedViewState.selectedPolicySetId)
+        ? persistedViewState.selectedPolicySetId
+        : draftPolicySets.value[0]?.id ?? null;
+    selectedStepPath.value = isStepPathLike(persistedViewState?.selectedStepPath) ? cloneStepPath(persistedViewState.selectedStepPath) : null;
+    activeBranchPath.value = isStepBranchPathLike(persistedViewState?.activeBranchPath) ? cloneJson(persistedViewState.activeBranchPath) : ROOT_BRANCH_PATH;
+    selectedPolicyStepPathBefore.value = isStepPathLike(persistedViewState?.selectedPolicyStepPathBefore)
+      ? cloneStepPath(persistedViewState.selectedPolicyStepPathBefore)
+      : null;
+    activePolicyBranchPathBefore.value = isStepBranchPathLike(persistedViewState?.activePolicyBranchPathBefore)
+      ? cloneJson(persistedViewState.activePolicyBranchPathBefore)
+      : ROOT_BRANCH_PATH;
+    selectedPolicyStepPathAfter.value = isStepPathLike(persistedViewState?.selectedPolicyStepPathAfter)
+      ? cloneStepPath(persistedViewState.selectedPolicyStepPathAfter)
+      : null;
+    activePolicyBranchPathAfter.value = isStepBranchPathLike(persistedViewState?.activePolicyBranchPathAfter)
+      ? cloneJson(persistedViewState.activePolicyBranchPathAfter)
+      : ROOT_BRANCH_PATH;
     saveTime.value = sourceScript.data.updateTime || null;
     hydrateTaskEditors();
     appendConsoleLine(`已载入脚本：${sourceScript.data.name}`);
@@ -3816,6 +3921,28 @@ watch(activeMode, (value) => {
   }
   selectedPolicySetId.value = selectedPolicySetId.value ?? draftPolicySets.value[0]?.id ?? null;
 });
+
+watch(
+  [
+    activeMode,
+    activePanel,
+    activePolicyPanel,
+    selectedTaskId,
+    selectedPolicyId,
+    selectedPolicyGroupId,
+    selectedPolicySetId,
+    selectedStepPath,
+    activeBranchPath,
+    selectedPolicyStepPathBefore,
+    activePolicyBranchPathBefore,
+    selectedPolicyStepPathAfter,
+    activePolicyBranchPathAfter,
+  ],
+  () => {
+    void persistEditorViewState();
+  },
+  { deep: true },
+);
 
 watch(taskName, (value) => {
   if (!currentTask.value || hydratingTaskMeta.value) {

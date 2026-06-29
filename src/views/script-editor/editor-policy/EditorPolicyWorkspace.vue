@@ -24,7 +24,7 @@
       </div>
 
       <EditorStepWorkspace
-        v-else
+        v-else-if="activePanel === 'before' || activePanel === 'after'"
         :steps="steps"
         :selected-step-path="selectedStepPath"
         :active-branch-path="activeBranchPath"

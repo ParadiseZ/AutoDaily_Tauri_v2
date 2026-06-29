@@ -2,105 +2,69 @@
   <div class="space-y-4">
     <template v-if="selectedVision.type === VISION_TYPE.detect || selectedVision.type === VISION_TYPE.ocr">
       <div class="space-y-3">
-        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入图像变量</span>
-            <EditorSelectField
-              :model-value="selectedVision.input_var || null"
-              :options="resolvedVisionInputOptions"
-              :show-description="true"
-              placeholder="选择截图或图像变量"
-              :test-id="selectedVision.type === VISION_TYPE.detect ? 'editor-vision-detect-input-var' : 'editor-vision-ocr-input-var'"
-              @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable" class="flex flex-wrap gap-2">
-            <button
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('create-variable', 'visionInput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建图像变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输入图像变量"
+          :model-value="selectedVision.input_var || null"
+          :options="resolvedVisionInputOptions"
+          placeholder="选择截图或图像变量"
+          :test-id="selectedVision.type === VISION_TYPE.detect ? 'editor-vision-detect-input-var' : 'editor-vision-ocr-input-var'"
+          create-label="新建图像变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionInput')"
+          @locate="selectedVisionInputTarget ? $emit('jump-to-variable', selectedVisionInputTarget) : undefined"
+        />
 
-        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出结果变量</span>
-            <EditorSelectField
-              :model-value="selectedVision.out_var || null"
-              :options="resolvedVisionOutputOptions"
-              :show-description="true"
-              placeholder="选择或创建结果变量"
-              :test-id="selectedVision.type === VISION_TYPE.detect ? 'editor-vision-detect-output-var' : 'editor-vision-ocr-output-var'"
-              @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable" class="flex flex-wrap gap-2">
-            <button
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('create-variable', 'visionOutput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建结果变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输出结果变量"
+          :model-value="selectedVision.out_var || null"
+          :options="resolvedVisionOutputOptions"
+          placeholder="选择或创建结果变量"
+          :test-id="selectedVision.type === VISION_TYPE.detect ? 'editor-vision-detect-output-var' : 'editor-vision-ocr-output-var'"
+          create-label="新建结果变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionOutput')"
+          @locate="selectedVisionOutputTarget ? $emit('jump-to-variable', selectedVisionOutputTarget) : undefined"
+        />
       </div>
     </template>
 
     <template v-else-if="selectedVision.type === VISION_TYPE.countCompare">
       <div class="space-y-3">
-        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果变量</span>
-            <EditorSelectField
-              :model-value="selectedVision.input_var || null"
-              :options="resolvedVisionReadableOptions"
-              :show-description="true"
-              placeholder="选择检测结果或 OCR 结果变量"
-              test-id="editor-vision-count-compare-input-var"
-              @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable" class="flex flex-wrap gap-2">
-            <button
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('create-variable', 'visionInput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建结果变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输入结果变量"
+          :model-value="selectedVision.input_var || null"
+          :options="resolvedVisionReadableOptions"
+          placeholder="选择检测结果或 OCR 结果变量"
+          test-id="editor-vision-count-compare-input-var"
+          create-label="新建结果变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionInput')"
+          @locate="selectedVisionInputTarget ? $emit('jump-to-variable', selectedVisionInputTarget) : undefined"
+        />
 
-        <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出布尔变量</span>
-            <EditorSelectField
-              :model-value="selectedVision.out_var || null"
-              :options="resolvedVisionBoolOutputOptions"
-              :show-description="true"
-              placeholder="未配置"
-              test-id="editor-vision-count-compare-output-var"
-              @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable" class="flex flex-wrap gap-2">
-            <button
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              @click="$emit('create-variable', 'visionOutput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建布尔变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输出布尔变量"
+          :model-value="selectedVision.out_var || null"
+          :options="resolvedVisionBoolOutputOptions"
+          placeholder="未配置"
+          test-id="editor-vision-count-compare-output-var"
+          create-label="新建布尔变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionOutput')"
+          @locate="selectedVisionOutputTarget ? $emit('jump-to-variable', selectedVisionOutputTarget) : undefined"
+        />
       </div>
 
       <div class="grid gap-3 md:grid-cols-3">
@@ -160,137 +124,82 @@
 
     <template v-else>
       <div class="grid gap-3 xl:grid-cols-2">
-        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">OCR 结果输入</span>
-            <EditorSelectField
-              :model-value="selectedVision.ocr_res_var || null"
-              :options="resolvedVisionSearchOcrInputOptions"
-              :show-description="true"
-              placeholder="未绑定时使用当前 OCR 结果"
-              test-id="editor-vision-search-ocr-input-var"
-              @update:model-value="$emit('update-nullable-field', 'ocr_res_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedVisionOcrInputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
-            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchOcrInput')">
-              <AppIcon name="plus" :size="14" />
-              新建 OCR 变量
-            </button>
-            <button v-if="selectedVisionOcrInputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionOcrInputTarget)">
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="OCR 结果输入"
+          :model-value="selectedVision.ocr_res_var || null"
+          :options="resolvedVisionSearchOcrInputOptions"
+          placeholder="未绑定时使用当前 OCR 结果"
+          test-id="editor-vision-search-ocr-input-var"
+          create-label="新建 OCR 变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionOcrInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionOcrInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-nullable-field', 'ocr_res_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionSearchOcrInput')"
+          @locate="selectedVisionOcrInputTarget ? $emit('jump-to-variable', selectedVisionOcrInputTarget) : undefined"
+        />
 
-        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">检测结果输入</span>
-            <EditorSelectField
-              :model-value="selectedVision.det_res_var || null"
-              :options="resolvedVisionSearchDetInputOptions"
-              :show-description="true"
-              placeholder="未绑定时使用当前检测结果"
-              test-id="editor-vision-search-det-input-var"
-              @update:model-value="$emit('update-nullable-field', 'det_res_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedVisionDetInputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
-            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchDetInput')">
-              <AppIcon name="plus" :size="14" />
-              新建检测变量
-            </button>
-            <button v-if="selectedVisionDetInputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionDetInputTarget)">
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="检测结果输入"
+          :model-value="selectedVision.det_res_var || null"
+          :options="resolvedVisionSearchDetInputOptions"
+          placeholder="未绑定时使用当前检测结果"
+          test-id="editor-vision-search-det-input-var"
+          create-label="新建检测变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionDetInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionDetInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-nullable-field', 'det_res_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionSearchDetInput')"
+          @locate="selectedVisionDetInputTarget ? $emit('jump-to-variable', selectedVisionDetInputTarget) : undefined"
+        />
 
-        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">SearchHit 输出</span>
-            <EditorSelectField
-              :model-value="selectedVision.out_var || null"
-              :options="resolvedVisionOutputOptions"
-              :show-description="true"
-              placeholder="选择或创建 SearchHit 结果变量"
-              test-id="editor-vision-output-var"
-              @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedVisionOutputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
-            <button
-              v-if="createVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-vision-output-create"
-              @click="$emit('create-variable', 'visionOutput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建 SearchHit 变量
-            </button>
-            <button
-              v-if="selectedVisionOutputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-vision-output-locate"
-              @click="$emit('jump-to-variable', selectedVisionOutputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="SearchHit 输出"
+          :model-value="selectedVision.out_var || null"
+          :options="resolvedVisionOutputOptions"
+          placeholder="选择或创建 SearchHit 结果变量"
+          test-id="editor-vision-output-var"
+          create-label="新建 SearchHit 变量"
+          create-test-id="editor-vision-output-create"
+          locate-test-id="editor-vision-output-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionOutput')"
+          @locate="selectedVisionOutputTarget ? $emit('jump-to-variable', selectedVisionOutputTarget) : undefined"
+        />
 
-        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">检测筛选输出</span>
-            <EditorSelectField
-              :model-value="selectedVision.out_det_var || null"
-              :options="resolvedVisionSearchDetOutputOptions"
-              :show-description="true"
-              placeholder="未绑定时不输出检测筛选结果"
-              test-id="editor-vision-search-det-output-var"
-              @update:model-value="$emit('update-nullable-field', 'out_det_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedVisionDetOutputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
-            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchDetOutput')">
-              <AppIcon name="plus" :size="14" />
-              新建检测输出
-            </button>
-            <button v-if="selectedVisionDetOutputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionDetOutputTarget)">
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="检测筛选输出"
+          :model-value="selectedVision.out_det_var || null"
+          :options="resolvedVisionSearchDetOutputOptions"
+          placeholder="未绑定时不输出检测筛选结果"
+          test-id="editor-vision-search-det-output-var"
+          create-label="新建检测输出"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionDetOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionDetOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-nullable-field', 'out_det_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionSearchDetOutput')"
+          @locate="selectedVisionDetOutputTarget ? $emit('jump-to-variable', selectedVisionDetOutputTarget) : undefined"
+        />
 
-        <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">OCR 筛选输出</span>
-            <EditorSelectField
-              :model-value="selectedVision.out_ocr_var || null"
-              :options="resolvedVisionSearchOcrOutputOptions"
-              :show-description="true"
-              placeholder="未绑定时不输出 OCR 筛选结果"
-              test-id="editor-vision-search-ocr-output-var"
-              @update:model-value="$emit('update-nullable-field', 'out_ocr_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedVisionOcrOutputTarget && jumpToVariable)" class="mt-3 flex flex-wrap gap-2">
-            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('create-variable', 'visionSearchOcrOutput')">
-              <AppIcon name="plus" :size="14" />
-              新建 OCR 输出
-            </button>
-            <button v-if="selectedVisionOcrOutputTarget && jumpToVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('jump-to-variable', selectedVisionOcrOutputTarget)">
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="OCR 筛选输出"
+          :model-value="selectedVision.out_ocr_var || null"
+          :options="resolvedVisionSearchOcrOutputOptions"
+          placeholder="未绑定时不输出 OCR 筛选结果"
+          test-id="editor-vision-search-ocr-output-var"
+          create-label="新建 OCR 输出"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedVisionOcrOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedVisionOcrOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-nullable-field', 'out_ocr_var', String($event || ''))"
+          @create="$emit('create-variable', 'visionSearchOcrOutput')"
+          @locate="selectedVisionOcrOutputTarget ? $emit('jump-to-variable', selectedVisionOcrOutputTarget) : undefined"
+        />
 
         <div class="rounded-[16px] border border-(--app-border) bg-white/40 px-4 py-4 xl:col-span-2">
           <div class="editor-inline-grid">
@@ -331,8 +240,8 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { CompareOp } from '@/types/bindings/CompareOp';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { Step } from '@/types/bindings/Step';

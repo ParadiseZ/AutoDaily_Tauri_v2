@@ -13,29 +13,37 @@
           />
         </label>
 
-        <label v-if="waitBindingMode === 'input'" class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入变量</span>
-          <EditorSelectField
-            :model-value="selectedFlow.input_var || null"
-            :options="resolvedWaitInputOptions"
-            :show-description="true"
-            placeholder="绑定输入毫秒变量"
-            test-id="editor-flow-wait-input-var"
-            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-          />
-        </label>
+        <EditorVariableBindingField
+          v-if="waitBindingMode === 'input'"
+          label="输入变量"
+          :model-value="selectedFlow.input_var || null"
+          :options="resolvedWaitInputOptions"
+          placeholder="绑定输入毫秒变量"
+          test-id="editor-flow-wait-input-var"
+          create-label="新建毫秒变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedWaitInputOption && jumpToVariable)"
+          :locate-disabled="!selectedWaitInputOption || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          @create="createWaitInputVariable"
+          @locate="jumpToSelectedWaitInputVariable"
+        />
 
-        <label v-else-if="waitBindingMode === 'runtime'" class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">运行时变量</span>
-          <EditorSelectField
-            :model-value="selectedFlow.runtime_var || null"
-            :options="resolvedWaitRuntimeOptions"
-            :show-description="true"
-            placeholder="绑定 OCR 结果变量"
-            test-id="editor-flow-wait-runtime-var"
-            @update:model-value="$emit('update-field', 'runtime_var', String($event || ''))"
-          />
-        </label>
+        <EditorVariableBindingField
+          v-else-if="waitBindingMode === 'runtime'"
+          label="运行时变量"
+          :model-value="selectedFlow.runtime_var || null"
+          :options="resolvedWaitRuntimeOptions"
+          placeholder="绑定 OCR 结果变量"
+          test-id="editor-flow-wait-runtime-var"
+          create-label="新建 OCR 变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedWaitRuntimeOption && jumpToVariable)"
+          :locate-disabled="!selectedWaitRuntimeOption || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'runtime_var', String($event || ''))"
+          @create="createWaitRuntimeVariable"
+          @locate="jumpToSelectedWaitRuntimeVariable"
+        />
 
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">兜底等待毫秒</span>
@@ -227,41 +235,35 @@
         </div>
 
         <div class="space-y-4">
-          <div class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入图像变量</span>
-            <EditorSelectField
-              :model-value="selectedFlowInput || null"
-              :options="resolvedFlowInputOptions"
-              :show-description="true"
-              placeholder="选择截图或图像变量"
-              :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-input-var' : 'editor-flow-policy-input-var'"
-              @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-            />
-            <div class="flex flex-wrap gap-2">
-              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createFlowInputVariable">
-                <AppIcon name="plus" :size="14" />
-                新建图像变量
-              </button>
-            </div>
-          </div>
+          <EditorVariableBindingField
+            label="输入图像变量"
+            :model-value="selectedFlowInput || null"
+            :options="resolvedFlowInputOptions"
+            placeholder="选择截图或图像变量"
+            :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-input-var' : 'editor-flow-policy-input-var'"
+            create-label="新建图像变量"
+            :show-create="Boolean(createVariable)"
+            :show-locate="Boolean(selectedFlowInputOption && jumpToVariable)"
+            :locate-disabled="!selectedFlowInputOption || !jumpToVariable"
+            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+            @create="createFlowInputVariable"
+            @locate="jumpToFlowInputVariable"
+          />
 
-          <div class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出结果变量</span>
-            <EditorSelectField
-              :model-value="selectedFlowOutput || null"
-              :options="resolvedFlowOutputOptions"
-              :show-description="true"
-              placeholder="选择 JSON 结果变量"
-              :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-out-var' : 'editor-flow-policy-out-var'"
-              @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
-            />
-            <div class="flex flex-wrap gap-2">
-              <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createFlowOutputVariable">
-                <AppIcon name="plus" :size="14" />
-                新建结果变量
-              </button>
-            </div>
-          </div>
+          <EditorVariableBindingField
+            label="输出结果变量"
+            :model-value="selectedFlowOutput || null"
+            :options="resolvedFlowOutputOptions"
+            placeholder="选择 JSON 结果变量"
+            :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-out-var' : 'editor-flow-policy-out-var'"
+            create-label="新建结果变量"
+            :show-create="Boolean(createVariable)"
+            :show-locate="Boolean(selectedFlowOutputOption && jumpToVariable)"
+            :locate-disabled="!selectedFlowOutputOption || !jumpToVariable"
+            @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
+            @create="createFlowOutputVariable"
+            @locate="jumpToFlowOutputVariable"
+          />
         </div>
 
         <div class="rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-xs leading-6 text-(--app-text-soft)">
@@ -285,17 +287,20 @@
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.forEach">
       <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">结果集变量</span>
-          <EditorSelectField
-            :model-value="selectedFlow.input_var || null"
-            :options="resolvedForEachInputOptions"
-            :show-description="true"
-            placeholder="绑定要遍历的结果集变量"
-            test-id="editor-flow-for-each-input-var"
-            @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
-          />
-        </label>
+        <EditorVariableBindingField
+          label="结果集变量"
+          :model-value="selectedFlow.input_var || null"
+          :options="resolvedForEachInputOptions"
+          placeholder="绑定要遍历的结果集变量"
+          test-id="editor-flow-for-each-input-var"
+          create-label="新建结果集变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedForEachInputOption && jumpToVariable)"
+          :locate-disabled="!selectedForEachInputOption || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'input_var', String($event || ''))"
+          @create="createForEachInputVariable"
+          @locate="jumpToSelectedForEachInputVariable"
+        />
 
         <div class="grid gap-3 md:grid-cols-2">
           <label class="space-y-2">
@@ -321,27 +326,20 @@
 
     <template v-else-if="selectedFlow.type === FLOW_TYPE.repeat">
       <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">次数变量</span>
-          <EditorSelectField
-            :model-value="selectedFlow.count_expr || null"
-            :options="resolvedRepeatCountOptions"
-            :show-description="true"
-            placeholder="绑定数字变量"
-            test-id="editor-flow-repeat-count-var"
-            @update:model-value="$emit('update-field', 'count_expr', String($event || ''))"
-          />
-        </label>
-
-        <button
-          v-if="createVariable"
-          class="app-button app-button-ghost app-toolbar-button"
-          type="button"
-          @click="createRepeatCountVariable"
-        >
-          <AppIcon name="plus" :size="14" />
-          新建次数变量
-        </button>
+        <EditorVariableBindingField
+          label="次数变量"
+          :model-value="selectedFlow.count_expr || null"
+          :options="resolvedRepeatCountOptions"
+          placeholder="绑定数字变量"
+          test-id="editor-flow-repeat-count-var"
+          create-label="新建次数变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedRepeatCountOption && jumpToVariable)"
+          :locate-disabled="!selectedRepeatCountOption || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'count_expr', String($event || ''))"
+          @create="createRepeatCountVariable"
+          @locate="jumpToSelectedRepeatCountVariable"
+        />
 
         <label class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">索引变量</span>
@@ -422,6 +420,7 @@
 import { computed, ref } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { FlowControl } from '@/types/bindings/FlowControl';
 import EditorConditionBuilder from '@/views/script-editor/EditorConditionBuilder.vue';
@@ -653,6 +652,42 @@ const selectedFlowInputOption = computed(() =>
 const selectedFlowOutputOption = computed(() =>
   props.variableReferenceOptions.find((option) => option.key === selectedFlowOutput.value) ?? null,
 );
+const selectedWaitInputOption = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.waitMs) {
+    return null;
+  }
+  return flow.input_var
+    ? props.variableReferenceOptions.find((option) => option.key === flow.input_var) ?? null
+    : null;
+});
+const selectedWaitRuntimeOption = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.waitMs) {
+    return null;
+  }
+  return flow.runtime_var
+    ? props.variableReferenceOptions.find((option) => option.key === flow.runtime_var) ?? null
+    : null;
+});
+const selectedForEachInputOption = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.forEach) {
+    return null;
+  }
+  return flow.input_var
+    ? props.variableReferenceOptions.find((option) => option.key === flow.input_var) ?? null
+    : null;
+});
+const selectedRepeatCountOption = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.repeat) {
+    return null;
+  }
+  return flow.count_expr
+    ? props.variableReferenceOptions.find((option) => option.key === flow.count_expr) ?? null
+    : null;
+});
 const resolvedFlowInputOptions = computed(() => {
   if (!selectedFlowInput.value || imageVariableOptions.value.some((option) => option.value === selectedFlowInput.value)) {
     return imageVariableOptions.value;
@@ -866,6 +901,48 @@ const createRepeatCountVariable = async () => {
   }
 };
 
+const createWaitInputVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.waitMs) {
+    return;
+  }
+  const key = await props.createVariable('input', 'int', {
+    preferredKey: 'waitMs',
+    name: '等待毫秒',
+    focusEditor: true,
+  });
+  if (key) {
+    emit('update-field', 'input_var', key);
+  }
+};
+
+const createWaitRuntimeVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.waitMs) {
+    return;
+  }
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: 'ocrResults',
+    name: 'OCR结果',
+    focusEditor: true,
+  });
+  if (key) {
+    emit('update-field', 'runtime_var', key);
+  }
+};
+
+const createForEachInputVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.forEach) {
+    return;
+  }
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: 'items',
+    name: '结果集',
+    focusEditor: true,
+  });
+  if (key) {
+    emit('update-field', 'input_var', key);
+  }
+};
+
 const updateWaitBindingMode = (mode: string) => {
   if (props.selectedFlow.type !== FLOW_TYPE.waitMs) {
     return;
@@ -944,6 +1021,30 @@ const jumpToFlowOutputVariable = () => {
     return;
   }
   props.jumpToVariable(selectedFlowOutputOption.value);
+};
+const jumpToSelectedWaitInputVariable = () => {
+  if (!selectedWaitInputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedWaitInputOption.value);
+};
+const jumpToSelectedWaitRuntimeVariable = () => {
+  if (!selectedWaitRuntimeOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedWaitRuntimeOption.value);
+};
+const jumpToSelectedForEachInputVariable = () => {
+  if (!selectedForEachInputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedForEachInputOption.value);
+};
+const jumpToSelectedRepeatCountVariable = () => {
+  if (!selectedRepeatCountOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedRepeatCountOption.value);
 };
 </script>
 

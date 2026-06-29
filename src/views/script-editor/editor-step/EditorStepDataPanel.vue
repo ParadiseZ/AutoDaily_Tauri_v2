@@ -2,27 +2,21 @@
   <div class="space-y-3">
     <template v-if="selectedData.type === DATA_TYPE.setVar">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">目标名称</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="selectedData.name || null"
-              :options="writableCatalogVariableOptions"
-              :show-description="true"
-              placeholder="从变量列表中选择"
-              test-id="editor-set-var-name"
-              @update:model-value="$emit('update-set-var-target', String($event || ''))"
-            />
-          </div>
-        </div>
-
-        <div v-if="createVariable" class="flex flex-wrap gap-2">
-          <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" data-testid="editor-set-var-create" @click="$emit('create-variable', 'setVar')">
-            <AppIcon name="plus" :size="14" />
-            新建变量
-          </button>
-        </div>
-
+        <EditorVariableBindingField
+          label="目标名称"
+          :model-value="selectedData.name || null"
+          :options="writableCatalogVariableOptions"
+          placeholder="从变量列表中选择"
+          test-id="editor-set-var-name"
+          create-test-id="editor-set-var-create"
+          locate-test-id="editor-set-var-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedSetVarTarget && jumpToVariable)"
+          :locate-disabled="!selectedSetVarTarget || !jumpToVariable"
+          @update:model-value="$emit('update-set-var-target', String($event || ''))"
+          @create="$emit('create-variable', 'setVar')"
+          @locate="selectedSetVarTarget ? $emit('jump-to-variable', selectedSetVarTarget) : undefined"
+        />
       </div>
 
       <div v-if="selectedSetVarTarget && setVarCanSwitchMode" class="flex justify-end">
@@ -87,37 +81,21 @@
 
     <template v-else-if="selectedData.type === DATA_TYPE.getVar">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">读取名称</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="selectedData.name || null"
-              :options="readableCatalogVariableOptions"
-              :show-description="true"
-              placeholder="从变量列表中选择"
-              test-id="editor-get-var-name"
-              @update:model-value="$emit('update-data-field', 'name', String($event || ''))"
-            />
-          </div>
-        </div>
-
-        <div v-if="createVariable || (selectedGetVarTarget && jumpToVariable)" class="flex flex-wrap gap-2">
-          <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" data-testid="editor-get-var-create" @click="$emit('create-variable', 'getVar')">
-            <AppIcon name="plus" :size="14" />
-            新建变量
-          </button>
-          <button
-            v-if="selectedGetVarTarget && jumpToVariable"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            data-testid="editor-get-var-locate"
-            @click="$emit('jump-to-variable', selectedGetVarTarget)"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位变量
-          </button>
-        </div>
-
+        <EditorVariableBindingField
+          label="读取名称"
+          :model-value="selectedData.name || null"
+          :options="readableCatalogVariableOptions"
+          placeholder="从变量列表中选择"
+          test-id="editor-get-var-name"
+          create-test-id="editor-get-var-create"
+          locate-test-id="editor-get-var-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedGetVarTarget && jumpToVariable)"
+          :locate-disabled="!selectedGetVarTarget || !jumpToVariable"
+          @update:model-value="$emit('update-data-field', 'name', String($event || ''))"
+          @create="$emit('create-variable', 'getVar')"
+          @locate="selectedGetVarTarget ? $emit('jump-to-variable', selectedGetVarTarget) : undefined"
+        />
       </div>
       <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
         <input
@@ -168,42 +146,22 @@
 
     <template v-else-if="selectedData.type === DATA_TYPE.rhai">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">输出变量</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="selectedData.out_var || null"
-              :options="resolvedRhaiOutputOptions"
-              :show-description="true"
-              placeholder="可选，接收代码块最后返回值"
-              test-id="editor-rhai-output-var"
-              @update:model-value="$emit('update-data-nullable-field', 'out_var', String($event || ''))"
-            />
-          </div>
-        </div>
-
-        <div v-if="createVariable || (selectedRhaiOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
-          <button
-            v-if="createVariable"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            data-testid="editor-rhai-output-create"
-            @click="$emit('create-variable', 'rhaiOutput')"
-          >
-            <AppIcon name="plus" :size="14" />
-            新建 Runtime 变量
-          </button>
-          <button
-            v-if="selectedRhaiOutputTarget && jumpToVariable"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            data-testid="editor-rhai-output-locate"
-            @click="$emit('jump-to-variable', selectedRhaiOutputTarget)"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位变量
-          </button>
-        </div>
+        <EditorVariableBindingField
+          label="输出变量"
+          :model-value="selectedData.out_var || null"
+          :options="resolvedRhaiOutputOptions"
+          placeholder="可选，接收代码块最后返回值"
+          test-id="editor-rhai-output-var"
+          create-label="新建 Runtime 变量"
+          create-test-id="editor-rhai-output-create"
+          locate-test-id="editor-rhai-output-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedRhaiOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedRhaiOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-data-nullable-field', 'out_var', String($event || ''))"
+          @create="$emit('create-variable', 'rhaiOutput')"
+          @locate="selectedRhaiOutputTarget ? $emit('jump-to-variable', selectedRhaiOutputTarget) : undefined"
+        />
       </div>
 
       <div class="space-y-2">
@@ -223,77 +181,38 @@
 
     <template v-else-if="selectedData.type === DATA_TYPE.filter">
       <div class="grid gap-3 md:grid-cols-2">
-        <div class="space-y-3">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入名称</span>
-            <EditorSelectField
-              :model-value="selectedData.input_var || null"
-              :options="resolvedFilterInputOptions"
-              :show-description="true"
-              placeholder="从变量列表中选择"
-              test-id="editor-filter-input-var"
-              @update:model-value="$emit('update-data-field', 'input_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedFilterInputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
-            <button
-              v-if="createVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-filter-input-create"
-              @click="$emit('create-variable', 'filterInput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建变量
-            </button>
-            <button
-              v-if="selectedFilterInputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-filter-input-locate"
-              @click="$emit('jump-to-variable', selectedFilterInputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输入名称"
+          :model-value="selectedData.input_var || null"
+          :options="resolvedFilterInputOptions"
+          placeholder="从变量列表中选择"
+          test-id="editor-filter-input-var"
+          create-test-id="editor-filter-input-create"
+          locate-test-id="editor-filter-input-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedFilterInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedFilterInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-data-field', 'input_var', String($event || ''))"
+          @create="$emit('create-variable', 'filterInput')"
+          @locate="selectedFilterInputTarget ? $emit('jump-to-variable', selectedFilterInputTarget) : undefined"
+        />
 
-        <div class="space-y-3">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出名称</span>
-            <EditorSelectField
-              :model-value="selectedData.out_name || null"
-              :options="resolvedFilterOutputOptions"
-              :show-description="true"
-              placeholder="选择或创建输出变量"
-              test-id="editor-filter-output-var"
-              @update:model-value="$emit('update-data-field', 'out_name', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedFilterOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
-            <button
-              v-if="createVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-filter-output-create"
-              @click="$emit('create-variable', 'filterOutput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建 Runtime 变量
-            </button>
-            <button
-              v-if="selectedFilterOutputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-filter-output-locate"
-              @click="$emit('jump-to-variable', selectedFilterOutputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输出名称"
+          :model-value="selectedData.out_name || null"
+          :options="resolvedFilterOutputOptions"
+          placeholder="选择或创建输出变量"
+          test-id="editor-filter-output-var"
+          create-label="新建 Runtime 变量"
+          create-test-id="editor-filter-output-create"
+          locate-test-id="editor-filter-output-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedFilterOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedFilterOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-data-field', 'out_name', String($event || ''))"
+          @create="$emit('create-variable', 'filterOutput')"
+          @locate="selectedFilterOutputTarget ? $emit('jump-to-variable', selectedFilterOutputTarget) : undefined"
+        />
         <div class="editor-inline-grid">
           <div class="editor-inline-label">过滤模式</div>
           <div class="editor-inline-content">
@@ -345,77 +264,38 @@
 
     <template v-else-if="selectedData.type === DATA_TYPE.colorCompare">
       <div class="grid gap-3 md:grid-cols-2">
-        <div class="space-y-3">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入结果集</span>
-            <EditorSelectField
-              :model-value="selectedData.input_var || null"
-              :options="resolvedColorCompareInputOptions"
-              :show-description="true"
-              placeholder="选择 OCR 或过滤结果变量"
-              test-id="editor-color-compare-input-var"
-              @update:model-value="$emit('update-data-field', 'input_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedColorCompareInputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
-            <button
-              v-if="createVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-color-compare-input-create"
-              @click="$emit('create-variable', 'colorCompareInput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建变量
-            </button>
-            <button
-              v-if="selectedColorCompareInputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-color-compare-input-locate"
-              @click="$emit('jump-to-variable', selectedColorCompareInputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输入结果集"
+          :model-value="selectedData.input_var || null"
+          :options="resolvedColorCompareInputOptions"
+          placeholder="选择 OCR 或过滤结果变量"
+          test-id="editor-color-compare-input-var"
+          create-test-id="editor-color-compare-input-create"
+          locate-test-id="editor-color-compare-input-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedColorCompareInputTarget && jumpToVariable)"
+          :locate-disabled="!selectedColorCompareInputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-data-field', 'input_var', String($event || ''))"
+          @create="$emit('create-variable', 'colorCompareInput')"
+          @locate="selectedColorCompareInputTarget ? $emit('jump-to-variable', selectedColorCompareInputTarget) : undefined"
+        />
 
-        <div class="space-y-3">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输出结果集</span>
-            <EditorSelectField
-              :model-value="selectedData.out_var || null"
-              :options="resolvedColorCompareOutputOptions"
-              :show-description="true"
-              placeholder="选择或创建输出变量"
-              test-id="editor-color-compare-output-var"
-              @update:model-value="$emit('update-data-field', 'out_var', String($event || ''))"
-            />
-          </label>
-          <div v-if="createVariable || (selectedColorCompareOutputTarget && jumpToVariable)" class="flex flex-wrap gap-2">
-            <button
-              v-if="createVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-color-compare-output-create"
-              @click="$emit('create-variable', 'colorCompareOutput')"
-            >
-              <AppIcon name="plus" :size="14" />
-              新建 Runtime 变量
-            </button>
-            <button
-              v-if="selectedColorCompareOutputTarget && jumpToVariable"
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              data-testid="editor-color-compare-output-locate"
-              @click="$emit('jump-to-variable', selectedColorCompareOutputTarget)"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位变量
-            </button>
-          </div>
-        </div>
+        <EditorVariableBindingField
+          label="输出结果集"
+          :model-value="selectedData.out_var || null"
+          :options="resolvedColorCompareOutputOptions"
+          placeholder="选择或创建输出变量"
+          test-id="editor-color-compare-output-var"
+          create-label="新建 Runtime 变量"
+          create-test-id="editor-color-compare-output-create"
+          locate-test-id="editor-color-compare-output-locate"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedColorCompareOutputTarget && jumpToVariable)"
+          :locate-disabled="!selectedColorCompareOutputTarget || !jumpToVariable"
+          @update:model-value="$emit('update-data-field', 'out_var', String($event || ''))"
+          @create="$emit('create-variable', 'colorCompareOutput')"
+          @locate="selectedColorCompareOutputTarget ? $emit('jump-to-variable', selectedColorCompareOutputTarget) : undefined"
+        />
 
         <label class="space-y-2 md:col-span-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标文字</span>
@@ -529,9 +409,9 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, h, type PropType } from 'vue';
-import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorCodeField from '@/views/script-editor/EditorCodeField.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
 import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { varValueTypeOptions, type VarValueDraft, type VarValueKind } from '@/views/script-editor/editorVarValue';

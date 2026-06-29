@@ -65,6 +65,10 @@
                 :label-select-hint="labelSelectHint"
                 :selected-capture-output-target="selectedCaptureOutputTarget"
                 :selected-action-input-target="selectedActionInputTarget"
+                :selected-click-text-target="selectedClickTextTarget"
+                :selected-click-label-target="selectedClickLabelTarget"
+                :selected-swipe-from-text-target="selectedSwipeFromTextTarget"
+                :selected-swipe-to-text-target="selectedSwipeToTextTarget"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
                 :task-ui-variable-options="taskUiVariableOptions"
@@ -705,6 +709,30 @@ const selectedCaptureOutputTarget = computed(() =>
 const selectedActionInputTarget = computed(() =>
   currentActionInputName.value ? props.variableOptions.find((item) => item.key === currentActionInputName.value) ?? null : null,
 );
+const currentClickTextName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.click && selectedAction.value.mode === ACTION_MODE.txt ? selectedAction.value.txt_expr?.trim() ?? '' : '',
+);
+const currentClickLabelName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.click && selectedAction.value.mode === ACTION_MODE.labelIdx ? selectedAction.value.idx_expr?.trim() ?? '' : '',
+);
+const currentSwipeFromTextName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.swipe && selectedAction.value.mode === ACTION_MODE.txt ? selectedAction.value.from_expr?.trim() ?? '' : '',
+);
+const currentSwipeToTextName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.swipe && selectedAction.value.mode === ACTION_MODE.txt ? selectedAction.value.to_expr?.trim() ?? '' : '',
+);
+const selectedClickTextTarget = computed(() =>
+  currentClickTextName.value ? props.variableOptions.find((item) => item.key === currentClickTextName.value) ?? null : null,
+);
+const selectedClickLabelTarget = computed(() =>
+  currentClickLabelName.value ? props.variableOptions.find((item) => item.key === currentClickLabelName.value) ?? null : null,
+);
+const selectedSwipeFromTextTarget = computed(() =>
+  currentSwipeFromTextName.value ? props.variableOptions.find((item) => item.key === currentSwipeFromTextName.value) ?? null : null,
+);
+const selectedSwipeToTextTarget = computed(() =>
+  currentSwipeToTextName.value ? props.variableOptions.find((item) => item.key === currentSwipeToTextName.value) ?? null : null,
+);
 const currentFilterInputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.input_var : ''));
 const currentFilterOutputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.out_name : ''));
 const currentColorCompareInputName = computed(() =>
@@ -1176,14 +1204,14 @@ const handleCreateDataVariable = async (
 
   const key =
     target === 'rhaiOutput' || target === 'filterOutput' || target === 'colorCompareOutput'
-      ? await props.createVariable('runtime', 'json')
+      ? await props.createVariable('runtime', 'json', { focusEditor: true })
       : target === 'colorCompareInput'
-        ? await props.createVariable('runtime', 'json')
+        ? await props.createVariable('runtime', 'json', { focusEditor: true })
         : target === 'filterInput'
-        ? await props.createVariable('input', 'json')
-        : await props.createVariable('input', 'int', {
-            preferredKey: 'newVar',
-            name: '新变量',
+          ? await props.createVariable('input', 'json', { focusEditor: true })
+          : await props.createVariable('input', 'int', {
+              preferredKey: 'newVar',
+              name: '新变量',
             focusEditor: true,
           });
   if (!key) {
@@ -1227,7 +1255,7 @@ const handleJumpToDataVariable = (option: EditorVariableOption) => {
   props.jumpToVariable?.(option);
 };
 
-const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput' | 'clickText' | 'swipeFromText' | 'swipeToText') => {
+const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText') => {
   if (!props.createVariable) {
     return;
   }
@@ -1242,11 +1270,24 @@ const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput
       return;
     }
 
-    updateActionTextField(target === 'clickText' ? 'txt_expr' : target === 'swipeFromText' ? 'from_expr' : 'to_expr', key);
-    return;
-  }
+      updateActionTextField(target === 'clickText' ? 'txt_expr' : target === 'swipeFromText' ? 'from_expr' : 'to_expr', key);
+      return;
+    }
 
-  if (target === 'actionInput') {
+    if (target === 'clickLabel') {
+      const key = await props.createVariable('input', 'int', {
+        preferredKey: 'targetLabel',
+        name: '目标标签',
+        focusEditor: true,
+      });
+      if (!key) {
+        return;
+      }
+      updateActionTextField('idx_expr', key);
+      return;
+    }
+
+    if (target === 'actionInput') {
     const preferredMode =
       selectedAction.value?.ac === ACTION_TYPE.click || selectedAction.value?.ac === ACTION_TYPE.swipe
         ? selectedAction.value.mode
