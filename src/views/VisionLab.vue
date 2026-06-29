@@ -1,10 +1,14 @@
 <template>
-  <div class="vision-lab-shell h-svh overflow-hidden px-4 py-4 lg:px-6 lg:py-5">
-    <div class="mx-auto flex h-full max-w-[1900px] flex-col gap-4">
+  <div class="vision-lab-shell h-svh overflow-hidden">
+    <div class="mx-auto flex h-full max-w-full flex-col gap-4">
       <EditorWindowTitlebar
         class="vision-lab-titlebar"
-        title="视觉测试工作台"
-      />
+        title="视觉测试"
+      >
+      <template #prefix>
+        <AppIcon name="logo" type="custom" :size="24" class="text-(--app-accent) drop-shadow-md" />
+      </template>
+    </EditorWindowTitlebar>
 
       <header class="vision-lab-header rounded-[28px] border border-(--app-border) px-5 py-4 lg:px-6">
         <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -15,7 +19,6 @@
               </span>
             </div>
             <div class="space-y-1">
-              <h1 class="text-2xl font-semibold tracking-[-0.05em] text-(--app-text-strong) lg:text-3xl">视觉测试工作台</h1>
               <p class="text-sm text-(--app-text-soft)">{{ selectedItem?.name || '未选择图像' }}</p>
             </div>
           </div>
@@ -1742,10 +1745,32 @@ onMounted(async () => {
 
 :deep(.vision-lab-titlebar.editor-window-titlebar) {
   min-height: 48px;
-  border-radius: 20px;
-  border: 1px solid color-mix(in srgb, var(--app-border) 92%, transparent);
-  padding: 0 0.75rem 0 1rem;
+  gap: 0.5rem;
+  border-radius: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 92%, transparent);
+  padding: 0 0 0 1rem !important;
 }
+
+:deep(.vision-lab-titlebar .editor-window-titlebar__prefix),
+:deep(.vision-lab-titlebar .editor-window-titlebar__title-actions),
+:deep(.vision-lab-titlebar .editor-window-titlebar__actions) {
+  gap: 0.375rem;
+}
+
+:deep(.vision-lab-titlebar .editor-window-titlebar__title) {
+  font-size: 0.95rem;
+}
+
+:deep(.vision-lab-titlebar .editor-window-titlebar__window-button) {
+  width: 2.25rem;
+  min-height: 2rem;
+}
+
+:deep(.vision-lab-titlebar .editor-window-titlebar__window-controls) {
+  margin-left: 1rem;
+  margin-right: -0.75rem;
+}
+
 
 .vision-side-panel {
   box-shadow: var(--app-shadow-soft);

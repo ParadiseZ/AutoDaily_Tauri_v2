@@ -63,7 +63,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 
 const props = withDefaults(
   defineProps<{
-    title: string;
+    title?: string;
     meta?: string | null;
     statusLabel?: string | null;
     statusTone?: 'info' | 'success' | 'warning' | 'danger';
@@ -75,7 +75,7 @@ const props = withDefaults(
     statusLabel: null,
     statusTone: 'info',
     requestClose: undefined,
-    showWindowControls: false,
+    showWindowControls: true,
   },
 );
 
