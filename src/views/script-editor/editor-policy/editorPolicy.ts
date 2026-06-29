@@ -15,6 +15,17 @@ export interface EditorNamedItem {
   badge?: string;
 }
 
+export type EditorCollectionMoveAction =
+  | {
+      kind: 'current';
+      position: 'top' | 'bottom';
+    }
+  | {
+      kind: 'item';
+      itemId: string;
+      position: 'top' | 'bottom';
+    };
+
 export const editorModeOptions: Array<{ id: EditorModeId; label: string }> = [
   { id: 'task', label: '任务' },
   { id: 'policySet', label: '策略集' },

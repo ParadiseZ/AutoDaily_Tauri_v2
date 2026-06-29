@@ -152,6 +152,7 @@
             @select="selectedPolicyId = $event"
             @remove="removePolicy"
             @reorder="reorderPolicies"
+            @move-item="movePolicyByMenu"
           >
             <template #mode-switch>
               <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
@@ -172,6 +173,7 @@
             @select="selectedPolicyGroupId = $event"
             @remove="removePolicyGroup"
             @reorder="reorderPolicyGroups"
+            @move-item="movePolicyGroupByMenu"
           >
             <template #mode-switch>
               <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
@@ -192,6 +194,7 @@
             @select="selectedPolicySetId = $event"
             @remove="removePolicySet"
             @reorder="reorderPolicySets"
+            @move-item="movePolicySetByMenu"
           >
             <template #mode-switch>
               <EditorModeSwitch v-model="activeMode" :options="editorModeOptions" :collapsed="leftSidebarCollapsed" @toggle-collapsed="leftSidebarCollapsed = !leftSidebarCollapsed" />
@@ -556,6 +559,7 @@ import {
   normalizePolicyGroup,
   normalizePolicySet,
   reorderCollection,
+  type EditorCollectionMoveAction,
   type EditorModeId,
   type EditorNamedItem,
   type PolicyEditorPanelId,
@@ -1921,6 +1925,37 @@ const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
   draftTasks.value = nextTasks.map((task, index) => normalizeTask(task, index));
 };
 
+const moveCollectionByMenu = <T extends { id: string }>(
+  items: T[],
+  itemId: string,
+  action: EditorCollectionMoveAction,
+  normalize: (item: T, index: number) => T,
+) => {
+  const fromIndex = items.findIndex((item) => item.id === itemId);
+  if (fromIndex < 0) {
+    return items;
+  }
+
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  if (!movedItem) {
+    return items;
+  }
+
+  if (action.kind === 'current') {
+    nextItems.splice(action.position === 'top' ? 0 : nextItems.length, 0, movedItem);
+    return nextItems.map((item, index) => normalize(item, index));
+  }
+
+  const targetIndex = nextItems.findIndex((item) => item.id === action.itemId);
+  if (targetIndex < 0) {
+    return items;
+  }
+
+  nextItems.splice(action.position === 'top' ? targetIndex : targetIndex + 1, 0, movedItem);
+  return nextItems.map((item, index) => normalize(item, index));
+};
+
 const createPolicy = async () => {
   const nextPolicy = await buildPolicyDraft();
   draftPolicies.value = [...draftPolicies.value, nextPolicy].map((policy, index) => normalizePolicy(policy, index));
@@ -2683,6 +2718,10 @@ const reorderPolicies = (draggedId: string, targetId: string) => {
   draftPolicies.value = reorderCollection(draftPolicies.value, fromIndex, toIndex).map((item, index) => normalizePolicy(item, index));
 };
 
+const movePolicyByMenu = (policyId: string, action: EditorCollectionMoveAction) => {
+  draftPolicies.value = moveCollectionByMenu(draftPolicies.value, policyId, action, normalizePolicy);
+};
+
 const reorderPolicyGroups = (draggedId: string, targetId: string) => {
   const fromIndex = draftPolicyGroups.value.findIndex((item) => item.id === draggedId);
   const toIndex = draftPolicyGroups.value.findIndex((item) => item.id === targetId);
@@ -2690,11 +2729,19 @@ const reorderPolicyGroups = (draggedId: string, targetId: string) => {
   draftPolicyGroups.value = reorderCollection(draftPolicyGroups.value, fromIndex, toIndex).map((item, index) => normalizePolicyGroup(item, index));
 };
 
+const movePolicyGroupByMenu = (groupId: string, action: EditorCollectionMoveAction) => {
+  draftPolicyGroups.value = moveCollectionByMenu(draftPolicyGroups.value, groupId, action, normalizePolicyGroup);
+};
+
 const reorderPolicySets = (draggedId: string, targetId: string) => {
   const fromIndex = draftPolicySets.value.findIndex((item) => item.id === draggedId);
   const toIndex = draftPolicySets.value.findIndex((item) => item.id === targetId);
   if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
   draftPolicySets.value = reorderCollection(draftPolicySets.value, fromIndex, toIndex).map((item, index) => normalizePolicySet(item, index));
+};
+
+const movePolicySetByMenu = (setId: string, action: EditorCollectionMoveAction) => {
+  draftPolicySets.value = moveCollectionByMenu(draftPolicySets.value, setId, action, normalizePolicySet);
 };
 
 const updatePolicyTextField = (field: 'name' | 'note' | 'logPrint', value: string) => {

@@ -134,6 +134,15 @@ const openTaskContextMenuWithShift = async (page: Page, taskId: string) => {
   });
 };
 
+const openCollectionContextMenu = async (page: Page, prefix: string, itemId: string) => {
+  await page.getByTestId(`${prefix}-item-${itemId}`).dispatchEvent('contextmenu', {
+    button: 2,
+    clientX: 240,
+    clientY: 240,
+  });
+  await expect(page.getByTestId(`${prefix}-context-menu`)).toBeVisible();
+};
+
 test('edits script tasks with visual task editor and persists payload', async ({ page }) => {
   const scriptId = 'script-editor-1';
   const script: StoredScriptTable = {
@@ -1276,6 +1285,127 @@ test('collapses task groups and moves tasks from context menu', async ({ page })
   const movedReward = state?.scriptTasks[scriptId].find((task) => task.id === 'task-receive-reward');
   expect(movedSign?.sectionId).toBe('title-global-settings');
   expect(movedReward?.sectionId).toBe('title-global-settings');
+});
+
+test('moves policy collections from context menu', async ({ page }) => {
+  const scriptId = 'script-editor-policy-context-move';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略列表菜单脚本',
+      description: '验证策略、策略组、策略集右键移动菜单',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await page.goto(`/editor?scriptId=${script.id}`);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    const makePolicy = (id: string, orderIndex: number, name: string): PolicyTable => ({
+      id,
+      scriptId: seedScript.id,
+      orderIndex,
+      data: {
+        name,
+        note: `${name}备注`,
+        logPrint: null,
+        curPos: 0,
+        skipFlag: false,
+        execCur: 0,
+        execMax: 1,
+        beforeAction: [],
+        cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+        afterAction: [],
+      },
+    });
+    const makeGroup = (id: string, orderIndex: number, name: string): PolicyGroupTable => ({
+      id,
+      scriptId: seedScript.id,
+      orderIndex,
+      data: {
+        name,
+        note: `${name}备注`,
+      },
+    });
+    const makeSet = (id: string, orderIndex: number, name: string): PolicySetTable => ({
+      id,
+      scriptId: seedScript.id,
+      orderIndex,
+      data: {
+        name,
+        note: `${name}备注`,
+      },
+    });
+
+    window.__AUTODAILY_MOCK__.reset();
+    window.__AUTODAILY_MOCK__.seed({
+      scripts: [seedScript],
+      scriptTasks: {},
+      policies: [
+        makePolicy('policy-a', 0, '登录策略'),
+        makePolicy('policy-b', 1, '领奖策略'),
+        makePolicy('policy-c', 2, '商店策略'),
+      ],
+      policyGroups: [
+        makeGroup('group-a', 0, '基础策略组'),
+        makeGroup('group-b', 1, '扩展策略组'),
+        makeGroup('group-c', 2, '收尾策略组'),
+      ],
+      policySets: [
+        makeSet('set-a', 0, '主策略集'),
+        makeSet('set-b', 1, '副策略集'),
+        makeSet('set-c', 2, '回退策略集'),
+      ],
+      groupPolicies: {},
+      setGroups: {},
+    });
+  }, script);
+  await page.reload();
+
+  await selectEditorMode(page, 'policy');
+  await openCollectionContextMenu(page, 'editor-policy', 'policy-a');
+  await page.getByTestId('editor-policy-move-current-bottom').evaluate((element: HTMLElement) => element.click());
+
+  await selectEditorMode(page, 'policyGroup');
+  await openCollectionContextMenu(page, 'editor-policy-group', 'group-c');
+  await page.getByTestId('editor-policy-group-move-item').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-policy-group-move-item-group-a').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-policy-group-move-item-group-a-top').evaluate((element: HTMLElement) => element.click());
+
+  await selectEditorMode(page, 'policySet');
+  await openCollectionContextMenu(page, 'editor-policy-set', 'set-a');
+  await page.getByTestId('editor-policy-set-move-item').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-policy-set-move-item-set-b').dispatchEvent('mouseenter');
+  await page.getByTestId('editor-policy-set-move-item-set-b-bottom').evaluate((element: HTMLElement) => element.click());
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.policies.map((item) => item.id)).toEqual(['policy-b', 'policy-c', 'policy-a']);
+  expect(state?.policyGroups.map((item) => item.id)).toEqual(['group-c', 'group-a', 'group-b']);
+  expect(state?.policySets.map((item) => item.id)).toEqual(['set-b', 'set-a', 'set-c']);
 });
 
 test('persists varCompare conditions and nested branch steps', async ({ page }) => {
