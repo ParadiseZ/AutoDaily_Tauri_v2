@@ -568,12 +568,12 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'add-policies',
     icon: genSvg(SVG_ICONS.policySet),
-    label: '策略集绑定',
-    description: '把源策略集里的策略组按顺序插入目标策略集。',
+    label: '追加策略集',
+    description: '把源策略集里的策略组按顺序追加到目标策略集。',
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '策略集绑定',
+        label: '追加策略集',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.addPolicies,
@@ -587,12 +587,12 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'bind-policy-group',
     icon: genSvg(SVG_ICONS.policySet),
-    label: '策略组绑定',
-    description: '把一个策略组插入目标策略集，可控制顶部插入和逆序。',
+    label: '绑定策略组',
+    description: '把一个策略组绑定到目标策略集，可控制顶部插入和逆序。',
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '策略组绑定',
+        label: '绑定策略组',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.bindPolicyGroup,
@@ -604,14 +604,33 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
-    id: 'bind-policy',
-    icon: genSvg(SVG_ICONS.policy),
-    label: '策略绑定',
-    description: '把一个策略插入目标策略组，可控制顶部插入和逆序。',
+    id: 'add-policy-groups',
+    icon: genSvg(SVG_ICONS.policyGroup),
+    label: '追加策略组',
+    description: '把一个策略组里的策略插入目标策略组，可控制顶部插入和逆序。',
     group: '流程',
     create: () =>
       createBaseStep({
-        label: '策略绑定',
+        label: '追加策略组',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.addPolicyGroups,
+          source: '',
+          target: '',
+          top: false,
+          reverse: false,
+        },
+      }),
+  },
+  {
+    id: 'bind-policy',
+    icon: genSvg(SVG_ICONS.policy),
+    label: '绑定策略',
+    description: '把一个策略绑定到目标策略组，可控制顶部插入和逆序。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '绑定策略',
         op: STEP_OP.flowControl,
         a: {
           type: FLOW_TYPE.bindPolicy,
@@ -933,9 +952,10 @@ export const describeStepTitle = (step: Step) => {
   if (step.op === STEP_OP.flowControl) {
     if (step.a.type === FLOW_TYPE.waitMs) return '等待';
     if (step.a.type === FLOW_TYPE.link) return '跳转任务';
-    if (step.a.type === FLOW_TYPE.addPolicies) return '策略集绑定';
-    if (step.a.type === FLOW_TYPE.bindPolicyGroup) return '策略组绑定';
-    if (step.a.type === FLOW_TYPE.bindPolicy) return '策略绑定';
+    if (step.a.type === FLOW_TYPE.addPolicies) return '追加策略集';
+    if (step.a.type === FLOW_TYPE.bindPolicyGroup) return '绑定策略组';
+    if (step.a.type === FLOW_TYPE.addPolicyGroups) return '追加策略组';
+    if (step.a.type === FLOW_TYPE.bindPolicy) return '绑定策略';
     if (step.a.type === FLOW_TYPE.handlePolicySet) return '处理策略集';
     if (step.a.type === FLOW_TYPE.handlePolicy) return '处理策略';
     if (step.a.type === FLOW_TYPE.if) return '条件分支';
@@ -1023,6 +1043,8 @@ export const describeStepMeta = (step: Step) => {
         return `策略集 ${step.a.source || '未指定'} -> ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
       case FLOW_TYPE.bindPolicyGroup:
         return `策略组 ${step.a.source || '未指定'} -> 策略集 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+      case FLOW_TYPE.addPolicyGroups:
+        return `策略组 ${step.a.source || '未指定'} -> 策略组 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
       case FLOW_TYPE.bindPolicy:
         return `策略 ${step.a.source || '未指定'} -> 策略组 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
       case FLOW_TYPE.continue:

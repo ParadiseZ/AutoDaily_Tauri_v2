@@ -107,6 +107,7 @@
       v-else-if="
         selectedFlow.type === FLOW_TYPE.addPolicies ||
         selectedFlow.type === FLOW_TYPE.bindPolicyGroup ||
+        selectedFlow.type === FLOW_TYPE.addPolicyGroups ||
         selectedFlow.type === FLOW_TYPE.bindPolicy
       "
     >
@@ -451,7 +452,7 @@ import { getVariableOptionSummary, type EditorInputEntry, type EditorInputType, 
 
 type BindingFlow = Extract<
   FlowControl,
-  { type: 'addPolicies' } | { type: 'bindPolicyGroup' } | { type: 'bindPolicy' }
+  { type: 'addPolicies' } | { type: 'bindPolicyGroup' } | { type: 'addPolicyGroups' } | { type: 'bindPolicy' }
 >;
 
 defineOptions({ name: 'EditorStepFlowPanel' });
@@ -555,6 +556,7 @@ const isBindingFlow = computed(
   () =>
     props.selectedFlow.type === FLOW_TYPE.addPolicies ||
     props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup ||
+    props.selectedFlow.type === FLOW_TYPE.addPolicyGroups ||
     props.selectedFlow.type === FLOW_TYPE.bindPolicy,
 );
 const bindingFlow = computed<BindingFlow | null>(() =>
@@ -563,12 +565,14 @@ const bindingFlow = computed<BindingFlow | null>(() =>
 const bindingSourceKind = computed<EditorReferenceKind | null>(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'policySet';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'policyGroup';
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'policyGroup';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'policy';
   return null;
 });
 const bindingTargetKind = computed<EditorReferenceKind | null>(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'policySet';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'policySet';
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'policyGroup';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'policyGroup';
   return null;
 });
@@ -578,11 +582,11 @@ const bindingTopValue = computed(() => Boolean(bindingFlow.value?.top));
 const bindingReverseValue = computed(() => Boolean(bindingFlow.value?.reverse));
 const bindingSourceTitle = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return '源策略集';
-  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return '源策略组';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup || props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return '源策略组';
   return '源策略';
 });
 const bindingTargetTitle = computed(() => {
-  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return '目标策略组';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy || props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return '目标策略组';
   return '目标策略集';
 });
 const bindingSourcePlaceholder = computed(() => `选择${bindingSourceTitle.value}`);
@@ -590,21 +594,25 @@ const bindingTargetPlaceholder = computed(() => `选择${bindingTargetTitle.valu
 const bindingSourceTestId = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-source';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-source';
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'editor-flow-add-policy-groups-source';
   return 'editor-flow-bind-policy-source';
 });
 const bindingTargetTestId = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-target';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-target';
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'editor-flow-add-policy-groups-target';
   return 'editor-flow-bind-policy-target';
 });
 const bindingTopTestId = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-top';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-top';
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'editor-flow-add-policy-groups-top';
   return 'editor-flow-bind-policy-top';
 });
 const bindingReverseTestId = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-reverse';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-reverse';
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'editor-flow-add-policy-groups-reverse';
   return 'editor-flow-bind-policy-reverse';
 });
 const bindingReverseDescription = computed(() => {
@@ -614,6 +622,9 @@ const bindingReverseDescription = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) {
     return '单个策略组本身不会变成多个对象，但保留这个开关以统一绑定语义。';
   }
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) {
+    return '会先按源策略组当前顺序展开策略，再整体反转后插入目标策略组。';
+  }
   return '单个策略本身不会变成多个对象，但保留这个开关以统一绑定语义。';
 });
 const bindingHelpText = computed(() => {
@@ -622,6 +633,9 @@ const bindingHelpText = computed(() => {
   }
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) {
     return '运行时会把源策略组插入目标策略集。若源策略组之后又被追加了策略，目标策略集在执行时也会读到最新顺序。';
+  }
+  if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) {
+    return '运行时会读取源策略组当前可见的策略顺序，再按 top / reverse 规则插入到目标策略组。后续处理引用该策略组的策略集时，会使用插入后的最终策略顺序。';
   }
   return '运行时会把源策略插入目标策略组。后续处理引用该策略组的策略集时，会使用插入后的最终策略顺序。';
 });

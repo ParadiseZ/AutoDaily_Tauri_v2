@@ -1157,6 +1157,7 @@ const updateFlowBooleanField = (field: string, value: boolean) => {
     if (
       step.a.type !== FLOW_TYPE.addPolicies &&
       step.a.type !== FLOW_TYPE.bindPolicyGroup &&
+      step.a.type !== FLOW_TYPE.addPolicyGroups &&
       step.a.type !== FLOW_TYPE.bindPolicy
     ) {
       return;

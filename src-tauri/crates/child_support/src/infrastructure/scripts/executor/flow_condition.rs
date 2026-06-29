@@ -253,7 +253,7 @@ impl ScriptExecutor {
         reverse: bool,
     ) {
         let binding = PolicyGroupBindingOp {
-            source,
+            source: PolicyGroupBindingSource::Policy(source),
             top,
             reverse,
         };
@@ -262,7 +262,29 @@ impl ScriptExecutor {
         entry.retain(|item| item.source != binding.source);
         entry.push(binding);
         Log::info(&format!(
-            "[ executor ] 记录策略绑定: source_policy={}, target_group={}, top={}, reverse={}",
+            "[ executor ] 记录绑定策略: source_policy={}, target_group={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+    }
+
+    async fn add_policy_group_to_group(
+        &self,
+        source: PolicyGroupId,
+        target: PolicyGroupId,
+        top: bool,
+        reverse: bool,
+    ) {
+        let binding = PolicyGroupBindingOp {
+            source: PolicyGroupBindingSource::PolicyGroup(source),
+            top,
+            reverse,
+        };
+        let mut ctx = self.runtime_ctx.write().await;
+        let entry = ctx.execution.policy_group_bindings.entry(target).or_default();
+        entry.retain(|item| item.source != binding.source);
+        entry.push(binding);
+        Log::info(&format!(
+            "[ executor ] 记录追加策略组: source_group={}, target_group={}, top={}, reverse={}",
             source, target, top, reverse
         ));
     }
@@ -333,6 +355,43 @@ impl ScriptExecutor {
         Ok(())
     }
 
+    async fn execute_add_policy_groups_step(
+        &self,
+        source: PolicyGroupId,
+        target: PolicyGroupId,
+        top: bool,
+        reverse: bool,
+    ) -> ExecuteResult<()> {
+        if source == target {
+            return Err(Self::execute_error(
+                "flow.addPolicyGroups",
+                format!("源策略组[{}]与目标策略组[{}]不能相同", source, target),
+            ));
+        }
+
+        let bundle = self.load_policy_bundle("flow.addPolicyGroups").await?;
+        if !bundle.policy_groups.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.addPolicyGroups",
+                format!("源策略组[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_groups.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.addPolicyGroups",
+                format!("目标策略组[{}]不存在", target),
+            ));
+        }
+
+        Log::info(&format!(
+            "[ executor ] 执行追加策略组: source_group={}, target_group={}, top={}, reverse={}",
+            source, target, top, reverse
+        ));
+        self.add_policy_group_to_group(source, target, top, reverse)
+            .await;
+        Ok(())
+    }
+
     async fn execute_bind_policy_step(
         &self,
         source: PolicyId,
@@ -355,7 +414,7 @@ impl ScriptExecutor {
         }
 
         Log::info(&format!(
-            "[ executor ] 执行策略绑定: source_policy={}, target_group={}, top={}, reverse={}",
+            "[ executor ] 执行绑定策略: source_policy={}, target_group={}, top={}, reverse={}",
             source, target, top, reverse
         ));
         self.bind_policy_to_group(source, target, top, reverse).await;

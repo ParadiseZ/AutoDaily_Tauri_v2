@@ -537,7 +537,7 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
     id: scriptId,
     data: {
       name: '策略绑定脚本',
-      description: '验证策略集绑定、策略组绑定和策略绑定步骤保存',
+      description: '验证追加策略集、绑定策略组、追加策略组和绑定策略步骤保存',
       userId: 'tester',
       userName: 'Tester',
       runtimeType: 'rhai',
@@ -659,6 +659,7 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-add-policies').click();
   await page.getByTestId('editor-step-template-bind-policy-group').click();
+  await page.getByTestId('editor-step-template-add-policy-groups').click();
   await page.getByTestId('editor-step-template-bind-policy').click();
 
   await page.getByTestId('editor-step-card-0').click();
@@ -673,6 +674,12 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
   await page.getByTestId('editor-flow-bind-policy-group-top').check();
 
   await page.getByTestId('editor-step-card-2').click();
+  await selectOptionByValue(page, 'editor-flow-add-policy-groups-source', 'group-b');
+  await selectOptionByValue(page, 'editor-flow-add-policy-groups-target', 'group-a');
+  await page.getByTestId('editor-flow-add-policy-groups-top').check();
+  await page.getByTestId('editor-flow-add-policy-groups-reverse').check();
+
+  await page.getByTestId('editor-step-card-3').click();
   await selectOptionByValue(page, 'editor-flow-bind-policy-source', 'policy-b');
   await selectOptionByValue(page, 'editor-flow-bind-policy-target', 'group-a');
   await page.getByTestId('editor-flow-bind-policy-reverse').check();
@@ -702,6 +709,16 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
     },
   });
   expect(task.data.steps[2]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'addPolicyGroups',
+      source: 'group-b',
+      target: 'group-a',
+      top: true,
+      reverse: true,
+    },
+  });
+  expect(task.data.steps[3]).toMatchObject({
     op: 'flowControl',
     a: {
       type: 'bindPolicy',

@@ -195,6 +195,16 @@ impl ScriptExecutor {
                     .await?;
                 Ok(ControlFlow::Next)
             }
+            FlowControl::AddPolicyGroups {
+                source,
+                target,
+                top,
+                reverse,
+            } => {
+                self.execute_add_policy_groups_step(*source, *target, *top, *reverse)
+                    .await?;
+                Ok(ControlFlow::Next)
+            }
             FlowControl::BindPolicy {
                 source,
                 target,

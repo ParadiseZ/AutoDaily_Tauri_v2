@@ -28,8 +28,8 @@ use crate::domain::vision::ocr_search::{
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{
-    PolicyGroupBindingOp, PolicySetBindingOp, PolicySetBindingSource, SharedRuntimeContext,
-    TaskState,
+    PolicyGroupBindingOp, PolicyGroupBindingSource, PolicySetBindingOp, PolicySetBindingSource,
+    SharedRuntimeContext, TaskState,
 };
 use crate::infrastructure::core::{
     AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId,

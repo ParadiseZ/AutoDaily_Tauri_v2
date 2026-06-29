@@ -57,6 +57,14 @@ pub enum FlowControl {
         #[serde(default)]
         reverse: bool,
     },
+    AddPolicyGroups {
+        source: PolicyGroupId,
+        target: PolicyGroupId,
+        #[serde(default)]
+        top: bool,
+        #[serde(default)]
+        reverse: bool,
+    },
     BindPolicy {
         source: PolicyId,
         target: PolicyGroupId,

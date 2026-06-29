@@ -79,8 +79,14 @@ pub struct PolicySetBindingOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolicyGroupBindingSource {
+    Policy(PolicyId),
+    PolicyGroup(PolicyGroupId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PolicyGroupBindingOp {
-    pub source: PolicyId,
+    pub source: PolicyGroupBindingSource,
     pub top: bool,
     pub reverse: bool,
 }

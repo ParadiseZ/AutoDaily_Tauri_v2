@@ -105,6 +105,7 @@ impl ScriptExecutor {
                     &group_map,
                     &group_policy_map,
                     &group_bindings,
+                    &mut Vec::new(),
                 )?;
                 Log::debug(&format!(
                     "[ executor ] 策略组[{}]展开后的策略顺序: {}",
@@ -245,6 +246,7 @@ impl ScriptExecutor {
             &group_map,
             &group_policy_map,
             &group_bindings,
+            &mut Vec::new(),
         )?;
         Log::debug(&format!(
             "[ executor ] 策略组[{}]展开后的策略顺序: {}",
@@ -281,6 +283,7 @@ impl ScriptExecutor {
         group_map: &HashMap<PolicyGroupId, PolicyGroupTable>,
         group_policy_map: &HashMap<PolicyGroupId, Vec<PolicyId>>,
         group_bindings: &HashMap<PolicyGroupId, Vec<PolicyGroupBindingOp>>,
+        visiting: &mut Vec<PolicyGroupId>,
     ) -> ExecuteResult<Vec<PolicyId>> {
         if !group_map.contains_key(&group_id) {
             return Err(Self::execute_error(
@@ -288,18 +291,36 @@ impl ScriptExecutor {
                 format!("目标策略组[{}]不存在", group_id),
             ));
         }
+        if visiting.contains(&group_id) {
+            let mut chain = visiting.iter().map(ToString::to_string).collect::<Vec<_>>();
+            chain.push(group_id.to_string());
+            return Err(Self::execute_error(
+                step_type,
+                format!("策略组绑定存在循环: {}", chain.join(" -> ")),
+            ));
+        }
 
+        visiting.push(group_id);
         let mut policy_ids = group_policy_map.get(&group_id).cloned().unwrap_or_default();
         if let Some(bindings) = group_bindings.get(&group_id) {
             for binding in bindings {
-                Self::merge_bound_items(
-                    &mut policy_ids,
-                    vec![binding.source],
-                    binding.top,
-                    binding.reverse,
-                );
+                let source_ids = match binding.source {
+                    PolicyGroupBindingSource::Policy(source_policy_id) => vec![source_policy_id],
+                    PolicyGroupBindingSource::PolicyGroup(source_group_id) => {
+                        Self::resolve_policy_group_policy_ids(
+                            step_type,
+                            source_group_id,
+                            group_map,
+                            group_policy_map,
+                            group_bindings,
+                            visiting,
+                        )?
+                    }
+                };
+                Self::merge_bound_items(&mut policy_ids, source_ids, binding.top, binding.reverse);
             }
         }
+        visiting.pop();
 
         Ok(policy_ids)
     }
@@ -520,38 +541,48 @@ mod policy_binding_resolution_tests {
     #[test]
     fn resolves_policy_group_bindings_with_top_and_reverse() {
         let group_a = group_id();
+        let group_b = group_id();
         let policy_a = policy_id();
         let policy_b = policy_id();
         let policy_c = policy_id();
+        let policy_d = policy_id();
 
         let mut group_map = HashMap::new();
-        group_map.insert(
-            group_a,
-            PolicyGroupTable {
-                id: group_a,
-                script_id: ScriptId::new_v7(),
-                order_index: 0,
-                data: SqlJson(crate::domain::scripts::policy::PolicyGroupInfo {
-                    name: "G".to_string(),
-                    note: String::new(),
-                }),
-            },
-        );
+        for (id, order_index, name) in [(group_a, 0, "A"), (group_b, 1, "B")] {
+            group_map.insert(
+                id,
+                PolicyGroupTable {
+                    id,
+                    script_id: ScriptId::new_v7(),
+                    order_index,
+                    data: SqlJson(crate::domain::scripts::policy::PolicyGroupInfo {
+                        name: name.to_string(),
+                        note: String::new(),
+                    }),
+                },
+            );
+        }
 
         let mut group_policy_map = HashMap::new();
         group_policy_map.insert(group_a, vec![policy_a]);
+        group_policy_map.insert(group_b, vec![policy_c, policy_d]);
 
         let mut bindings = HashMap::new();
         bindings.insert(
             group_a,
             vec![
                 PolicyGroupBindingOp {
-                    source: policy_b,
+                    source: PolicyGroupBindingSource::Policy(policy_b),
                     top: false,
                     reverse: false,
                 },
                 PolicyGroupBindingOp {
-                    source: policy_c,
+                    source: PolicyGroupBindingSource::Policy(policy_c),
+                    top: true,
+                    reverse: true,
+                },
+                PolicyGroupBindingOp {
+                    source: PolicyGroupBindingSource::PolicyGroup(group_b),
                     top: true,
                     reverse: true,
                 },
@@ -564,9 +595,63 @@ mod policy_binding_resolution_tests {
             &group_map,
             &group_policy_map,
             &bindings,
+            &mut Vec::new(),
         )
         .expect("policy group bindings should resolve");
 
-        assert_eq!(resolved, vec![policy_c, policy_a, policy_b]);
+        assert_eq!(resolved, vec![policy_d, policy_c, policy_c, policy_a, policy_b]);
+    }
+
+    #[test]
+    fn detects_policy_group_binding_cycle() {
+        let group_a = group_id();
+        let group_b = group_id();
+
+        let mut group_map = HashMap::new();
+        for (id, order_index, name) in [(group_a, 0, "A"), (group_b, 1, "B")] {
+            group_map.insert(
+                id,
+                PolicyGroupTable {
+                    id,
+                    script_id: ScriptId::new_v7(),
+                    order_index,
+                    data: SqlJson(crate::domain::scripts::policy::PolicyGroupInfo {
+                        name: name.to_string(),
+                        note: String::new(),
+                    }),
+                },
+            );
+        }
+
+        let group_policy_map = HashMap::new();
+        let mut bindings = HashMap::new();
+        bindings.insert(
+            group_a,
+            vec![PolicyGroupBindingOp {
+                source: PolicyGroupBindingSource::PolicyGroup(group_b),
+                top: false,
+                reverse: false,
+            }],
+        );
+        bindings.insert(
+            group_b,
+            vec![PolicyGroupBindingOp {
+                source: PolicyGroupBindingSource::PolicyGroup(group_a),
+                top: false,
+                reverse: false,
+            }],
+        );
+
+        let error = ScriptExecutor::resolve_policy_group_policy_ids(
+            "test.policyGroup",
+            group_a,
+            &group_map,
+            &group_policy_map,
+            &bindings,
+            &mut Vec::new(),
+        )
+        .expect_err("cycle should be rejected");
+
+        assert!(error.to_string().contains("策略组绑定存在循环"));
     }
 }

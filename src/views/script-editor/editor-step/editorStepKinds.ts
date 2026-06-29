@@ -68,6 +68,7 @@ export const FLOW_TYPES = [
   'link',
   'addPolicies',
   'bindPolicyGroup',
+  'addPolicyGroups',
   'bindPolicy',
   'handlePolicySet',
   'handlePolicy',
@@ -84,9 +85,10 @@ export const FLOW_TYPE = {
   link: FLOW_TYPES[8],
   addPolicies: FLOW_TYPES[9],
   bindPolicyGroup: FLOW_TYPES[10],
-  bindPolicy: FLOW_TYPES[11],
-  handlePolicySet: FLOW_TYPES[12],
-  handlePolicy: FLOW_TYPES[13],
+  addPolicyGroups: FLOW_TYPES[11],
+  bindPolicy: FLOW_TYPES[12],
+  handlePolicySet: FLOW_TYPES[13],
+  handlePolicy: FLOW_TYPES[14],
 } as const;
 
 export const DATA_TYPES = ['setVar', 'getVar', 'filter', 'colorCompare', 'relativeFilter', 'rhai'] as const satisfies readonly DataHanding['type'][];
