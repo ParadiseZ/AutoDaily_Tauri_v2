@@ -224,6 +224,7 @@
                 :title-options="titleTaskOptions"
                 :input-entries="inputEntries"
                 :input-error="inputError"
+                :entry-reference-state="inputEntryReferenceState"
                 :ui-schema="uiSchema"
                 :selected-input-id="selectedInputId"
                 :selected-ui-field-id="selectedUiFieldId"
@@ -266,6 +267,10 @@
                 :policy-log-print="currentPolicy?.data.logPrint ?? null"
                 :input-entries="inputEntries"
                 :selected-input-id="selectedInputId"
+                :entry-reference-state="inputEntryReferenceState"
+                :condition-count="currentPolicyConditionCount"
+                :before-count="currentPolicy?.data.beforeAction.length ?? 0"
+                :after-count="currentPolicy?.data.afterAction.length ?? 0"
                 :restrict-sequence-templates="activePolicyBranchPath.branch === 'sequence'"
                 @update:active-panel="activePolicyPanel = $event"
                 @update:policy-name="updatePolicyTextField('name', $event)"
@@ -558,6 +563,7 @@ import {
 } from '@/views/script-editor/editor-policy/editorPolicy';
 import {
   createStepFromTemplate,
+  describeStep,
   isActionSequenceTemplateId,
 } from '@/views/script-editor/editor-step/editorStepTemplates';
 import {
@@ -597,7 +603,6 @@ import { parseTaskCycleValue } from '@/views/script-editor/editorTaskMeta';
 import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import { inputEntryToVariableOption } from '@/views/script-editor/editorInputVariableOptions';
 import {
-  buildInputJson,
   createInputEntry,
   listAllVariableOptions,
   listVariableOptions,
@@ -1153,6 +1158,10 @@ const currentPolicySteps = computed<Step[]>(() => {
   }
   return currentPolicyStepTarget.value === 'before' ? currentPolicy.value.data.beforeAction : currentPolicy.value.data.afterAction;
 });
+const currentPolicyConditionCount = computed(() => {
+  const condition = currentPolicy.value?.data.cond ?? createSearchRule('group');
+  return condition.type === 'group' ? condition.items.length : 1;
+});
 const selectedPolicyStepPath = computed<StepPath | null>(() =>
   currentPolicyStepTarget.value === 'before' ? selectedPolicyStepPathBefore.value : selectedPolicyStepPathAfter.value,
 );
@@ -1164,6 +1173,45 @@ const policyVariableOptions = computed(() =>
 );
 const policyCatalogVariableOptions = computed(() =>
   listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicyAllSteps.value, 'read', false),
+);
+const variableUsageMap = computed(() => {
+  const bucket: VariableUsage[] = [];
+
+  for (const task of draftTasks.value) {
+    collectVariableUsagesFromSteps(task.data.steps as Step[], `任务「${task.name}」`, bucket);
+    const taskUiSchema = parseUiSchema(task.data.uiData ?? {});
+    for (const field of taskUiSchema.fields) {
+      if (field.inputKey?.trim()) {
+        bucket.push({
+          key: buildVariableReferenceKey('input', field.inputKey),
+          label: `任务「${task.name}」的界面字段「${field.label || field.inputKey}」`,
+        });
+      }
+    }
+  }
+
+  for (const policy of draftPolicies.value) {
+    collectVariableUsagesFromSteps(policy.data.beforeAction as Step[], `策略「${policy.data.name}」的全局行为`, bucket);
+    collectVariableUsagesFromSteps(policy.data.afterAction as Step[], `策略「${policy.data.name}」的命中行为`, bucket);
+  }
+
+  return bucket.reduce<Record<string, string[]>>((map, usage) => {
+    if (!map[usage.key]) {
+      map[usage.key] = [];
+    }
+    if (!map[usage.key].includes(usage.label)) {
+      map[usage.key].push(usage.label);
+    }
+    return map;
+  }, {});
+});
+const inputEntryReferenceState = computed<Record<string, { referenced: boolean }>>(() =>
+  inputEntries.value.reduce<Record<string, { referenced: boolean }>>((map, entry) => {
+    map[entry.id] = {
+      referenced: Boolean(variableUsageMap.value[buildVariableReferenceKey(entry.namespace, entry.key)]?.length),
+    };
+    return map;
+  }, {}),
 );
 
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
@@ -1481,9 +1529,9 @@ const hydrateTaskEditors = () => {
     showEnabledToggle.value = true;
     defaultEnabled.value = true;
     taskTone.value = TASK_TONE.normal;
-    inputEntries.value = [];
+    inputEntries.value = parseInputEntries(draftScript.value?.data.variableCatalog, null, {});
     inputError.value = null;
-    selectedInputId.value = null;
+    selectedInputId.value = inputEntries.value.find((entry) => entry.id === selectedInputId.value)?.id ?? inputEntries.value[0]?.id ?? null;
     uiSchema.value = createUiSchema();
     selectedStepPath.value = null;
     activeBranchPath.value = ROOT_BRANCH_PATH;
@@ -1501,7 +1549,7 @@ const hydrateTaskEditors = () => {
     showEnabledToggle.value = currentTask.value.showEnabledToggle;
     defaultEnabled.value = currentTask.value.defaultEnabled;
     taskTone.value = currentTask.value.taskTone;
-    inputEntries.value = parseInputEntries(draftScript.value?.data.variableCatalog, currentTask.value.id, currentTask.value.data.variables ?? {});
+    inputEntries.value = parseInputEntries(draftScript.value?.data.variableCatalog, null, {});
     inputError.value = null;
     selectedInputId.value = inputEntries.value.find((entry) => entry.id === selectedInputId.value)?.id ?? inputEntries.value[0]?.id ?? null;
     uiSchema.value = parseUiSchema(currentTask.value.data.uiData ?? {});
@@ -2072,16 +2120,130 @@ const collectConditionVariableReferences = (condition: ConditionNode, bucket: Se
 
 };
 
+type VariableUsage = { key: string; label: string };
+
+const pushVariableUsage = (bucket: VariableUsage[], key: string | null | undefined, label: string) => {
+  const trimmed = key?.trim();
+  if (!trimmed) {
+    return;
+  }
+  bucket.push({ key: trimmed, label });
+};
+
+const collectVariableUsagesFromCondition = (condition: ConditionNode, scopeLabel: string, bucket: VariableUsage[]) => {
+  if (condition.type === 'group') {
+    condition.items.forEach((item) => collectVariableUsagesFromCondition(item, scopeLabel, bucket));
+    return;
+  }
+  if (condition.type === 'varCompare') {
+    pushVariableUsage(bucket, condition.var_name, `${scopeLabel}的条件`);
+    return;
+  }
+  if (condition.type === 'policySetResult') {
+    pushVariableUsage(bucket, condition.result_var, `${scopeLabel}的条件`);
+  }
+};
+
+const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string, bucket: VariableUsage[]) => {
+  for (const step of steps) {
+    const stepLabel = `${scopeLabel}的步骤「${describeStep(step)}」`;
+
+    if (step.op === 'sequence') {
+      collectVariableUsagesFromSteps(step.steps, scopeLabel, bucket);
+      continue;
+    }
+
+    if (step.op === 'action') {
+      if (step.a.ac === 'capture') {
+        pushVariableUsage(bucket, step.a.output_var, stepLabel);
+        continue;
+      }
+      if ((step.a.ac === 'click' || step.a.ac === 'swipe') && (step.a.mode === 'txt' || step.a.mode === 'labelIdx')) {
+        pushVariableUsage(bucket, step.a.input_var, stepLabel);
+      }
+      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'txt') {
+        pushVariableUsage(bucket, step.a.txt_expr, stepLabel);
+      }
+      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'labelIdx') {
+        pushVariableUsage(bucket, step.a.idx_expr, stepLabel);
+      }
+      if (step.a.ac === 'swipe' && step.a.mode === 'txt') {
+        pushVariableUsage(bucket, step.a.from_expr, stepLabel);
+        pushVariableUsage(bucket, step.a.to_expr, stepLabel);
+      }
+    }
+
+    if (step.op === 'dataHanding') {
+      if (step.a.type === 'setVar' || step.a.type === 'getVar') {
+        pushVariableUsage(bucket, step.a.name, stepLabel);
+        continue;
+      }
+      if (step.a.type === 'filter') {
+        pushVariableUsage(bucket, step.a.input_var, stepLabel);
+        pushVariableUsage(bucket, step.a.out_name, stepLabel);
+        collectVariableUsagesFromSteps(step.a.then_steps, scopeLabel, bucket);
+        continue;
+      }
+      if (step.a.type === 'colorCompare') {
+        pushVariableUsage(bucket, step.a.input_var, stepLabel);
+        pushVariableUsage(bucket, step.a.out_var, stepLabel);
+        continue;
+      }
+    }
+
+    if (step.op === 'vision' && step.a.type === 'visionSearch') {
+      pushVariableUsage(bucket, step.a.det_res_var, stepLabel);
+      pushVariableUsage(bucket, step.a.ocr_res_var, stepLabel);
+      pushVariableUsage(bucket, step.a.out_var, stepLabel);
+      pushVariableUsage(bucket, step.a.out_det_var, stepLabel);
+      pushVariableUsage(bucket, step.a.out_ocr_var, stepLabel);
+      collectVariableUsagesFromSteps(step.a.then_steps, scopeLabel, bucket);
+      continue;
+    }
+
+    if (step.op === 'flowControl') {
+      if (step.a.type === 'handlePolicySet' || step.a.type === 'handlePolicy') {
+        pushVariableUsage(bucket, step.a.input_var, stepLabel);
+        pushVariableUsage(bucket, step.a.out_var, stepLabel);
+        continue;
+      }
+      if (step.a.type === 'if' || step.a.type === 'while') {
+        collectVariableUsagesFromCondition(step.a.con, stepLabel, bucket);
+      }
+      if (step.a.type === 'if') {
+        collectVariableUsagesFromSteps(step.a.then, scopeLabel, bucket);
+        collectVariableUsagesFromSteps(step.a.else_steps ?? [], scopeLabel, bucket);
+        continue;
+      }
+      if (step.a.type === 'forEach') {
+        pushVariableUsage(bucket, step.a.input_var, stepLabel);
+      }
+      if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
+        collectVariableUsagesFromSteps(step.a.flow, scopeLabel, bucket);
+      }
+    }
+  }
+};
+
 type VariableCreateOptions = {
   preferredKey?: string;
   name?: string;
   select?: boolean;
   silent?: boolean;
   sourceStepId?: string | null;
+  focusEditor?: boolean;
 };
 
 const createEditorStepId = () =>
   globalThis.crypto?.randomUUID?.() ?? `step-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const focusVariableEditor = () => {
+  if (activeMode.value === 'policy') {
+    activePolicyPanel.value = 'inputs';
+    return;
+  }
+  activePanel.value = 'inputs';
+};
 
 const createUniqueVariableStorageKey = (namespace: EditorInputEntry['namespace'], preferredKey?: string) => {
   const existingKeys = new Set(inputEntries.value.map((entry) => entry.key.trim()).filter(Boolean));
@@ -2116,6 +2278,9 @@ const createVariableEntry = (
       if (options.select !== false) {
         selectedInputId.value = existingEntry.id;
       }
+      if (options.focusEditor) {
+        focusVariableEditor();
+      }
       return buildVariableReferenceKey(namespace, trimmedPreferred);
     }
   }
@@ -2132,6 +2297,9 @@ const createVariableEntry = (
   inputEntries.value = [...inputEntries.value, nextEntry];
   if (options.select !== false) {
     selectedInputId.value = nextEntry.id;
+  }
+  if (options.focusEditor) {
+    focusVariableEditor();
   }
   if (!options.silent) {
     showToast(`已创建变量：${namespace}.${nextKey}`, 'success');
@@ -2328,11 +2496,6 @@ const createVariableResource = async (
   inputType: EditorInputType = namespace === 'runtime' ? 'json' : 'int',
   options: VariableCreateOptions = {},
 ) => {
-  if (!currentTask.value) {
-    showToast('当前没有选中任务，无法创建变量。', 'warning');
-    return '';
-  }
-
   return createVariableEntry(namespace, inputType, options);
 };
 
@@ -2807,6 +2970,23 @@ const updateInput = (
 };
 
 const removeInput = (entryId: string) => {
+  const targetEntry = inputEntries.value.find((entry) => entry.id === entryId) ?? null;
+  if (!targetEntry) {
+    return;
+  }
+
+  const references = variableUsageMap.value[buildVariableReferenceKey(targetEntry.namespace, targetEntry.key)] ?? [];
+  if (references.length) {
+    void requestAppConfirm({
+      title: '无法删除变量',
+      message: `该变量被${references[0]}引用，无法删除。若要删除请先删除该步骤。`,
+      confirmText: '知道了',
+      cancelText: '关闭',
+      tone: 'warning',
+    });
+    return;
+  }
+
   inputEntries.value = inputEntries.value.filter((entry) => entry.id !== entryId);
   if (selectedInputId.value === entryId) {
     selectedInputId.value = inputEntries.value[0]?.id ?? null;
@@ -3110,33 +3290,7 @@ const reorderSteps = (fromIndex: number, toIndex: number) => {
 };
 
 const removeStep = (index: number) => {
-  const removedStep = getBranchSteps(parsedSteps.value, activeBranchPath.value)[index] ?? null;
   const nextSteps = updateBranchSteps(parsedSteps.value, activeBranchPath.value, (steps) => steps.filter((_, stepIndex) => stepIndex !== index));
-  if (removedStep) {
-    const removedSourceStepIds = collectStepTreeIds(removedStep);
-    if (removedSourceStepIds.size) {
-      const remainingReferences = collectVariableReferencesFromSteps(nextSteps);
-      for (const field of uiSchema.value.fields) {
-        if (field.inputKey?.trim()) {
-          remainingReferences.add(buildVariableReferenceKey('input', field.inputKey));
-        }
-      }
-
-      const removableEntryIds = new Set(
-        inputEntries.value
-          .filter((entry) => entry.sourceStepId && removedSourceStepIds.has(entry.sourceStepId))
-          .filter((entry) => !remainingReferences.has(buildVariableReferenceKey(entry.namespace, entry.key)))
-          .map((entry) => entry.id),
-      );
-
-      if (removableEntryIds.size) {
-        inputEntries.value = inputEntries.value.filter((entry) => !removableEntryIds.has(entry.id));
-        if (selectedInputId.value && removableEntryIds.has(selectedInputId.value)) {
-          selectedInputId.value = inputEntries.value[0]?.id ?? null;
-        }
-      }
-    }
-  }
   setCurrentTaskSteps(nextSteps);
   selectedStepPath.value = createSiblingSelection(activeBranchPath.value, getBranchSteps(nextSteps, activeBranchPath.value).length, index);
 };
@@ -3807,18 +3961,13 @@ watch(taskTone, (value) => {
 watch(
   inputEntries,
   (entries) => {
-    if (!currentTask.value || hydratingTaskPanels.value) {
+    if (hydratingTaskPanels.value) {
       return;
     }
 
     try {
-      const nextVariables = buildInputJson(entries);
-      const nextCatalog = syncInputVariableCatalog(draftScript.value?.data.variableCatalog, currentTask.value.id, entries);
+      const nextCatalog = syncInputVariableCatalog(draftScript.value?.data.variableCatalog, null, entries);
       inputError.value = null;
-      replaceTask(currentTask.value.id, (task) => {
-        task.data.variables = nextVariables;
-        return task;
-      });
       if (draftScript.value) {
         draftScript.value = {
           ...draftScript.value,
@@ -3834,6 +3983,9 @@ watch(
           .filter((entry) => entry.namespace === 'input' && entry.key.trim())
           .map((entry) => [entry.id, entry.key.trim()]),
       );
+      if (!currentTask.value) {
+        return;
+      }
       let changedUiBinding = false;
       const syncedFields = uiSchema.value.fields.map((field) => {
         const nextInputKey = field.variableId ? inputKeyById.get(field.variableId) : null;

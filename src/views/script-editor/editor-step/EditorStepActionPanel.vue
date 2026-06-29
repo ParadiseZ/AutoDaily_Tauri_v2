@@ -255,8 +255,8 @@
             @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
           />
           <div class="space-y-1">
-            <p class="text-sm font-medium text-(--app-text-strong)">筛选后按策略序号点击</p>
-            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按当前策略序号点击。</p>
+            <p class="text-sm font-medium text-(--app-text-strong)">筛选后按“多目标时选择第几个”点击</p>
+            <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按“多目标时选择第几个”点击。</p>
           </div>
         </label>
         <template v-if="selectedAction.enable_filter ?? true">
@@ -299,8 +299,8 @@
               @change="$emit('update-field', 'enable_filter', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
             />
             <div class="space-y-1">
-              <p class="text-sm font-medium text-(--app-text-strong)">筛选后按策略序号点击</p>
-              <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按当前策略序号点击。</p>
+              <p class="text-sm font-medium text-(--app-text-strong)">筛选后按“多目标时选择第几个”点击</p>
+              <p class="text-xs leading-5 text-(--app-text-soft)">默认开启。多个目标会先按从上到下、从左到右排序，再按“多目标时选择第几个”点击。</p>
             </div>
           </label>
           <template v-if="selectedAction.enable_filter ?? true">
@@ -844,7 +844,17 @@ watch(
     props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt ? props.selectedAction.txt_expr ?? '' : '',
   ],
   ([ac, mode, txtExpr]) => {
-    clickTextFilterSourceState.value = ac === ACTION_TYPE.click && mode === ACTION_MODE.txt && String(txtExpr).trim() ? 'expr' : 'fixed';
+    if (ac !== ACTION_TYPE.click || mode !== ACTION_MODE.txt) {
+      clickTextFilterSourceState.value = 'fixed';
+      return;
+    }
+    if (String(txtExpr).trim()) {
+      clickTextFilterSourceState.value = 'expr';
+      return;
+    }
+    if (clickTextFilterSourceState.value !== 'expr') {
+      clickTextFilterSourceState.value = 'fixed';
+    }
   },
   { immediate: true },
 );
@@ -856,7 +866,17 @@ watch(
     props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.labelIdx ? props.selectedAction.idx_expr ?? '' : '',
   ],
   ([ac, mode, idxExpr]) => {
-    clickLabelFilterSourceState.value = ac === ACTION_TYPE.click && mode === ACTION_MODE.labelIdx && String(idxExpr).trim() ? 'expr' : 'fixed';
+    if (ac !== ACTION_TYPE.click || mode !== ACTION_MODE.labelIdx) {
+      clickLabelFilterSourceState.value = 'fixed';
+      return;
+    }
+    if (String(idxExpr).trim()) {
+      clickLabelFilterSourceState.value = 'expr';
+      return;
+    }
+    if (clickLabelFilterSourceState.value !== 'expr') {
+      clickLabelFilterSourceState.value = 'fixed';
+    }
   },
   { immediate: true },
 );

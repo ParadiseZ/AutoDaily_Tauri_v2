@@ -3,7 +3,7 @@
     <div class="overflow-x-auto">
       <div class="editor-panel-tabs min-w-max">
         <button
-          v-for="tab in policyPanelTabs"
+          v-for="tab in tabs"
           :key="tab.id"
           type="button"
           class="editor-panel-tab"
@@ -36,9 +36,9 @@
 
           <div class="grid gap-3 sm:grid-cols-2">
             <label class="space-y-2">
-              <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">当前位置</span>
+              <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">多目标时选择第几个</span>
               <input :value="String(policy.data.curPos)" class="app-input" type="number" @input="$emit('update:number-field', 'curPos', ($event.target as HTMLInputElement).value)" />
-              <span class="text-xs leading-5 text-(--app-text-faint)">多个目标会先按从上到下、从左到右排序，再按这个序号点击；`999` 表示最后一个。</span>
+              <span class="text-xs leading-5 text-(--app-text-faint)">注：按从上到下、从左到右排序后再按此序号点击；999 即最后一个。</span>
             </label>
 
             <label class="space-y-2">
@@ -58,17 +58,11 @@
           </div>
         </div>
 
-        <div v-else-if="activePanel === 'condition'" class="space-y-4">
-          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-            <p class="text-sm font-semibold text-(--app-text-strong)">命中条件</p>
-            <p class="mt-2 text-xs leading-5 text-(--app-text-faint)">策略命中依赖搜索规则；根节点固定为逻辑组，规则和子组都在组内维护。</p>
-          </div>
-        </div>
-
         <EditorVariableListPanel
           v-else-if="activePanel === 'inputs'"
           :entries="inputEntries"
           :selected-input-id="selectedInputId"
+          :entry-reference-state="entryReferenceState"
           @add="$emit('add-input')"
           @select="$emit('select-input', $event)"
           @remove="$emit('remove-input', $event)"
@@ -86,11 +80,12 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import EditorStepTemplateLibrary from '@/views/script-editor/EditorStepTemplateLibrary.vue';
 import EditorVariableListPanel from '@/views/script-editor/EditorVariableListPanel.vue';
-import { policyPanelTabs, type PolicyEditorPanelId } from '@/views/script-editor/editor-policy/editorPolicy';
+import type { PolicyEditorPanelId } from '@/views/script-editor/editor-policy/editorPolicy';
 import type { EditorInputEntry } from '@/views/script-editor/editorVariables';
 
 const props = defineProps<{
@@ -101,6 +96,10 @@ const props = defineProps<{
   policyLogPrint: string | null;
   inputEntries: EditorInputEntry[];
   selectedInputId: string | null;
+  entryReferenceState?: Record<string, { referenced: boolean }>;
+  conditionCount: number;
+  beforeCount: number;
+  afterCount: number;
   restrictSequenceTemplates?: boolean;
 }>();
 
@@ -116,4 +115,11 @@ defineEmits<{
   'select-input': [entryId: string];
   'remove-input': [entryId: string];
 }>();
+
+const tabs = computed<Array<{ id: PolicyEditorPanelId; label: string }>>(() => [
+  { id: 'basic', label: `基本 ${props.conditionCount}` },
+  { id: 'inputs', label: `变量 ${props.inputEntries.length}` },
+  { id: 'after', label: `命中行为 ${props.afterCount}` },
+  { id: 'before', label: `全局行为 ${props.beforeCount}` },
+]);
 </script>

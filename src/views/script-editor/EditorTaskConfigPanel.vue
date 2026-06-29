@@ -47,6 +47,7 @@
           :entries="inputEntries"
           :selected-input-id="selectedInputId"
           :input-error="inputError"
+          :entry-reference-state="entryReferenceState"
           @add="$emit('add-input')"
           @select="$emit('select-input', $event)"
           @remove="$emit('remove-input', $event)"
@@ -157,6 +158,7 @@ const props = defineProps<{
   titleOptions: Array<{ label: string; value: string | null; description?: string; disabled?: boolean }>;
   inputEntries: EditorInputEntry[];
   inputError: string | null;
+  entryReferenceState?: Record<string, { referenced: boolean }>;
   uiSchema: EditorUiSchema;
   selectedInputId: string | null;
   selectedUiFieldId: string | null;

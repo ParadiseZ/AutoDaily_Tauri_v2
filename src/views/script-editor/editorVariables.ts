@@ -68,6 +68,12 @@ export const getVariableDisplayKey = (key: string, namespace: ScriptVariableName
   return trimmed.startsWith(prefix) ? trimmed.slice(prefix.length) : trimmed;
 };
 
+export const getVariableNamespaceLabel = (namespace: ScriptVariableNamespace) => {
+  if (namespace === 'runtime') return '运行时';
+  if (namespace === 'system') return '系统';
+  return '输入';
+};
+
 export const buildVariableCatalogKey = (key: string, namespace: ScriptVariableNamespace) => `${NAMESPACE_PREFIX[namespace]}${key.trim()}`;
 
 const inferInputType = (value: JsonValue): EditorInputType => {
@@ -192,7 +198,7 @@ const parseInputValue = (entry: EditorInputEntry): JsonValue => {
   return entry.stringValue;
 };
 
-const buildVariableDef = (entry: EditorInputEntry, ownerTaskId: string): ScriptVariableDef => {
+const buildVariableDef = (entry: EditorInputEntry, ownerTaskId: string | null): ScriptVariableDef => {
   const storageKey = entry.key.trim();
   const rules = getNamespaceRules(entry.namespace, entry.type);
   const defaultValue = entry.namespace === 'input' ? parseInputValue(entry) : null;
@@ -218,6 +224,15 @@ const buildVariableDef = (entry: EditorInputEntry, ownerTaskId: string): ScriptV
 const compareVariables = (left: ScriptVariableDef, right: ScriptVariableDef) =>
   left.namespace.localeCompare(right.namespace) || left.name.localeCompare(right.name) || left.key.localeCompare(right.key);
 
+const RUNTIME_VARIABLE_DISPLAY_NAMES: Record<string, string> = {
+  'runtime.captureResult': '截图结果',
+  'runtime.detResults': '检测结果',
+  'runtime.ocrResults': 'OCR结果',
+  'runtime.searchHits': '搜索结果',
+  'runtime.policySetResult': '策略集结果',
+  'runtime.policyResult': '策略结果',
+};
+
 const createDerivedRuntimeVariable = (
   key: string,
   valueType: ScriptVariableValueType,
@@ -226,7 +241,7 @@ const createDerivedRuntimeVariable = (
 ): ScriptVariableDef => ({
   id: `derived-${key}`,
   key,
-  name: key.replace(/^runtime\./, ''),
+  name: RUNTIME_VARIABLE_DISPLAY_NAMES[key] ?? key.replace(/^runtime\./, ''),
   namespace: 'runtime',
   valueType,
   ownerTaskId,
@@ -351,12 +366,20 @@ export const createInputEntry = (type: EditorInputType = 'int'): EditorInputEntr
 
 export const parseInputEntries = (
   catalog: ScriptVariableCatalog | null | undefined,
-  ownerTaskId: string,
+  ownerTaskId: string | null,
   value: JsonValue,
 ): EditorInputEntry[] => {
   const catalogValue = catalog ?? createEmptyCatalog();
   const variables = isRecord(value) ? value : {};
-  const defs = catalogValue.variables.filter((item) => item.sourceType === 'manual' && item.ownerTaskId === ownerTaskId);
+  const defs = Array.from(
+    catalogValue.variables
+      .filter((item) => item.sourceType === 'manual' && (ownerTaskId === null || item.ownerTaskId === ownerTaskId || item.ownerTaskId === null))
+      .reduce((bucket, item) => {
+        bucket.set(toStorageKey(item.key), item);
+        return bucket;
+      }, new Map<string, ScriptVariableDef>())
+      .values(),
+  );
   const matchedKeys = new Set<string>();
   const entries: EditorInputEntry[] = [];
 
@@ -415,14 +438,23 @@ export const buildInputJson = (entries: EditorInputEntry[]): Record<string, Json
 
 export const syncInputVariableCatalog = (
   catalog: ScriptVariableCatalog | null | undefined,
-  ownerTaskId: string,
+  ownerTaskId: string | null,
   entries: EditorInputEntry[],
 ): ScriptVariableCatalog => {
   const currentCatalog = catalog ?? createEmptyCatalog();
-  const preserved = currentCatalog.variables.filter((item) => !(item.sourceType === 'manual' && item.ownerTaskId === ownerTaskId));
   const nextDefs = entries
     .filter((entry) => entry.key.trim())
     .map((entry) => buildVariableDef(entry, ownerTaskId));
+  const nextKeys = new Set(nextDefs.map((item) => item.key));
+  const preserved = currentCatalog.variables.filter((item) => {
+    if (item.sourceType !== 'manual') {
+      return !nextKeys.has(item.key);
+    }
+    if (ownerTaskId === null) {
+      return false;
+    }
+    return item.ownerTaskId !== ownerTaskId && !nextKeys.has(item.key);
+  });
 
   return {
     version: currentCatalog.version || 1,
@@ -437,7 +469,12 @@ const createVariableOptions = (
   variables: ScriptVariableDef[],
   capability: 'read' | 'write' | 'ui',
 ) =>
-  variables
+  Array.from(
+    variables.reduce((bucket, item) => {
+      bucket.set(item.key, item);
+      return bucket;
+    }, new Map<string, ScriptVariableDef>()).values(),
+  )
     .filter((item) => {
       if (capability === 'write') return item.writable;
       if (capability === 'ui') return item.uiBindable;
@@ -541,4 +578,12 @@ export const getVariableValueTypeLabel = (valueType: ScriptVariableValueType) =>
     default:
       return '文本';
   }
+};
+
+export const getVariableOptionSummary = (option: Pick<EditorVariableOption, 'key' | 'label' | 'namespace' | 'valueType'>) => {
+  const keyLabel = getVariableDisplayKey(option.key, option.namespace);
+  const shouldShowKey = keyLabel && keyLabel !== option.label;
+  return [shouldShowKey ? keyLabel : null, getVariableNamespaceLabel(option.namespace), getVariableValueTypeLabel(option.valueType)]
+    .filter(Boolean)
+    .join(' * ');
 };

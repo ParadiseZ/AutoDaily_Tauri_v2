@@ -525,7 +525,7 @@ const props = withDefaults(
     policySetReferenceOptions?: EditorReferenceOption[];
     createReference?: (kind: EditorReferenceKind) => Promise<string>;
     jumpToReference?: (kind: EditorReferenceKind, id: string) => void;
-    createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType) => Promise<string>;
+    createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean; focusEditor?: boolean }) => Promise<string>;
     jumpToVariable?: (option: EditorVariableOption) => void;
   }>(),
   {
@@ -906,7 +906,7 @@ const updateVarCompareField = (field: 'var_name' | 'op', value: string) => {
 
 const createVarCompareVariable = async () => {
   if (props.modelValue.type !== 'varCompare' || !props.createVariable) return;
-  const key = await props.createVariable('input', 'int');
+  const key = await props.createVariable('input', 'int', { focusEditor: true });
   if (key) {
     updateVarCompareField('var_name', key);
   }
@@ -998,7 +998,7 @@ const updatePolicySetResultValueId = (value: string) => {
 
 const createPolicySetResultVariable = async () => {
   if (props.modelValue.type !== 'policySetResult' || !props.createVariable) return;
-  const key = await props.createVariable('runtime', 'json');
+  const key = await props.createVariable('runtime', 'json', { focusEditor: true });
   if (key) {
     updatePolicySetResultField('result_var', key);
   }

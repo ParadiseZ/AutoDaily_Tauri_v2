@@ -18,7 +18,12 @@
       >
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ entry.name || entry.key || '未命名变量' }}</p>
+            <p
+              class="truncate text-sm font-semibold"
+              :class="entryReferenceState[entry.id]?.referenced ? 'text-emerald-600' : 'text-red-600'"
+            >
+              {{ entry.name || entry.key || '未命名变量' }}
+            </p>
             <p class="mt-1 text-xs text-(--app-text-faint)">{{ entry.key || '未设置键' }} · {{ getScopeLabel(entry.namespace) }} · {{ getInputTypeLabel(entry.type) }}</p>
           </div>
           <button
@@ -55,10 +60,12 @@ const props = withDefaults(
     selectedInputId: string | null;
     inputError?: string | null;
     removeTitle?: string;
+    entryReferenceState?: Record<string, { referenced: boolean }>;
   }>(),
   {
     inputError: null,
     removeTitle: '删除',
+    entryReferenceState: () => ({}),
   },
 );
 
@@ -81,8 +88,8 @@ const filteredEntries = computed(() => {
 });
 
 const getScopeLabel = (scope: EditorInputEntry['namespace']) => {
-  if (scope === 'runtime') return 'Runtime';
-  if (scope === 'system') return 'System';
-  return 'Input';
+  if (scope === 'runtime') return '运行时';
+  if (scope === 'system') return '系统';
+  return '输入';
 };
 </script>

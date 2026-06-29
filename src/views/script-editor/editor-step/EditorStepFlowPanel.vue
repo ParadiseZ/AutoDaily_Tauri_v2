@@ -383,7 +383,7 @@
 
             <button
               v-if="flowWithCondition.type === FLOW_TYPE.if"
-              class="app-button app-button-ghost app-toolbar-button"
+              class="app-button app-button-primary app-toolbar-button justify-center"
               type="button"
               @click="$emit('toggle-else-branch')"
             >
@@ -429,7 +429,7 @@ import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-
 import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
 import { FLOW_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { isSameBranchPath, type StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
-import type { EditorInputEntry, EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
+import { getVariableOptionSummary, type EditorInputEntry, type EditorInputType, type EditorVariableOption } from '@/views/script-editor/editorVariables';
 
 type BindingFlow = Extract<
   FlowControl,
@@ -467,7 +467,7 @@ const props = defineProps<{
   policySetReferenceOptions: EditorReferenceOption[];
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
-  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean }) => Promise<string>;
+  createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean; focusEditor?: boolean }) => Promise<string>;
   jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 
@@ -481,22 +481,22 @@ const pendingTargetId = ref('');
 const jsonVariableOptions = computed(() =>
   props.variableReferenceOptions
     .filter((option) => ['json', 'object', 'list'].includes(option.valueType))
-    .map((option) => ({ label: option.label, value: option.key, description: option.description })),
+    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
 );
 const numberVariableOptions = computed(() =>
   props.variableReferenceOptions
     .filter((option) => ['int', 'float', 'string'].includes(option.valueType))
-    .map((option) => ({ label: option.label, value: option.key, description: option.description })),
+    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
 );
 const imageVariableOptions = computed(() =>
   props.variableReferenceOptions
     .filter((option) => option.valueType === 'image')
-    .map((option) => ({ label: option.label, value: option.key, description: option.description })),
+    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
 );
 const runtimeWaitVariableOptions = computed(() => {
   const options = props.variableReferenceOptions
     .filter((option) => option.namespace === 'runtime' && ['json', 'list', 'object'].includes(option.valueType))
-    .map((option) => ({ label: option.label, value: option.key, description: option.description }));
+    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) }));
 
   if (options.some((option) => option.value === 'runtime.ocrResults')) {
     return options;
@@ -859,6 +859,7 @@ const createRepeatCountVariable = async () => {
   const key = await props.createVariable('input', 'int', {
     preferredKey: 'repeatCount',
     name: '循环次数',
+    focusEditor: true,
   });
   if (key) {
     emit('update-field', 'count_expr', key);
@@ -907,6 +908,7 @@ const createFlowInputVariable = async () => {
   const key = await props.createVariable('runtime', 'image', {
     preferredKey: 'captureResult',
     name: '截图结果',
+    focusEditor: true,
   });
   if (!key) {
     return;
@@ -922,6 +924,7 @@ const createFlowOutputVariable = async () => {
   const key = await props.createVariable('runtime', 'json', {
     preferredKey: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'policySetResult' : 'policyResult',
     name: props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '策略集结果' : '策略结果',
+    focusEditor: true,
   });
   if (!key) {
     return;

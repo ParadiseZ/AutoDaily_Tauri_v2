@@ -5,7 +5,7 @@ import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import { cloneJson } from '@/views/script-editor/editorSchema';
 
 export type EditorModeId = 'task' | 'policy' | 'policyGroup' | 'policySet';
-export type PolicyEditorPanelId = 'basic' | 'inputs' | 'condition' | 'before' | 'after';
+export type PolicyEditorPanelId = 'basic' | 'inputs' | 'before' | 'after';
 export type RelationEditorPanelId = 'basic' | 'relations';
 
 export interface EditorNamedItem {
@@ -20,14 +20,6 @@ export const editorModeOptions: Array<{ id: EditorModeId; label: string }> = [
   { id: 'policySet', label: '策略集' },
   { id: 'policyGroup', label: '策略组' },
   { id: 'policy', label: '策略' },
-];
-
-export const policyPanelTabs: Array<{ id: PolicyEditorPanelId; label: string }> = [
-  { id: 'basic', label: '信息' },
-  { id: 'inputs', label: '变量' },
-  { id: 'condition', label: '命中条件' },
-  { id: 'after', label: '命中行为' },
-  { id: 'before', label: '全局行为' },
 ];
 
 export const relationPanelTabs: Array<{ id: RelationEditorPanelId; label: string }> = [

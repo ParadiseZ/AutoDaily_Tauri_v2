@@ -8,55 +8,19 @@
         @update-input="(entryId, field, value) => $emit('update-input', entryId, field, value)"
       />
 
-      <div class="flex items-start justify-between gap-3">
-      </div>
       <div v-if="activePanel === 'basic'" class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-        <div class="grid gap-4 xl:grid-cols-2">
-          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-            <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">当前位置</p>
-            <input
-              :value="String(policy.data.curPos)"
-              class="app-input mt-2"
-              type="number"
-              @input="$emit('update:number-field', 'curPos', ($event.target as HTMLInputElement).value)"
-            />
-            <p class="mt-2 text-xs leading-5 text-(--app-text-faint)">多个目标会先按从上到下、从左到右排序，再按这个序号点击；`999` 表示最后一个。</p>
-          </div>
-
-          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-            <label class="flex items-center gap-3 text-sm text-(--app-text-soft)">
-              <input
-                :checked="policy.data.skipFlag"
-                class="h-4 w-4 accent-(--app-accent)"
-                type="checkbox"
-                @change="$emit('update:boolean-field', 'skipFlag', ($event.target as HTMLInputElement).checked)"
-              />
-              <span>命中后跳过后续执行</span>
-            </label>
-          </div>
-
-          <div class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-            <p class="text-xs uppercase tracking-[0.12em] text-(--app-text-faint)">最大执行次数</p>
-            <input
-              :value="String(policy.data.execMax)"
-              class="app-input mt-2"
-              type="number"
-              @input="$emit('update:number-field', 'execMax', ($event.target as HTMLInputElement).value)"
-            />
-          </div>
+        <div class="space-y-3">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">命中条件</span>
+          <EditorSearchRuleBuilder
+            :model-value="policy.data.cond"
+            force-group-root
+            test-id-prefix="editor-policy-condition"
+            :label-index-options="labelIndexOptions"
+            :label-select-placeholder="labelSelectPlaceholder"
+            :label-select-hint="labelSelectHint"
+            @update:model-value="$emit('update:condition', $event)"
+          />
         </div>
-      </div>
-
-      <div v-else-if="activePanel === 'condition'" class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-        <EditorSearchRuleBuilder
-          :model-value="policy.data.cond"
-          force-group-root
-          test-id-prefix="editor-policy-condition"
-          :label-index-options="labelIndexOptions"
-          :label-select-placeholder="labelSelectPlaceholder"
-          :label-select-hint="labelSelectHint"
-          @update:model-value="$emit('update:condition', $event)"
-        />
       </div>
 
       <EditorStepWorkspace
@@ -90,7 +54,7 @@
     <EmptyState
       v-else
       title="没有选中策略"
-      description="先从左侧选择策略，右侧才会显示策略信息、命中条件和行为步骤。"
+      description="先从左侧选择策略，右侧才会显示策略变量、命中条件和行为步骤。"
     />
   </SurfacePanel>
 </template>

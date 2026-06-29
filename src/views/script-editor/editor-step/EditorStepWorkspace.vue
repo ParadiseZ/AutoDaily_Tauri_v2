@@ -314,8 +314,8 @@ import {
 import {
   buildVariableCatalogKey,
   getInputTypeLabel,
-  getVariableDisplayKey,
-  getVariableValueTypeLabel,
+  getVariableNamespaceLabel,
+  getVariableOptionSummary,
   type EditorInputEntry,
   type EditorInputType,
   type EditorVariableOption,
@@ -368,7 +368,7 @@ const props = withDefaults(
     createVariable?: (
       namespace?: 'input' | 'runtime',
       inputType?: EditorInputType,
-      options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean },
+      options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean; focusEditor?: boolean },
     ) => Promise<string>;
     jumpToVariable?: (option: EditorVariableOption) => void;
     updateInput?: (
@@ -403,19 +403,11 @@ type VariableSelectOption = {
   description: string;
   disabled?: boolean;
 };
-const formatVariableScopeLabel = (namespace: EditorVariableOption['namespace']) => {
-  if (namespace === 'runtime') return 'Runtime';
-  if (namespace === 'system') return 'System';
-  return 'Input';
-};
 const createVariableSelectOption = (item: EditorVariableOption): VariableSelectOption => {
-  const keyLabel = getVariableDisplayKey(item.key, item.namespace);
-  const shouldShowKey = keyLabel && keyLabel !== item.label;
-  const parts = [shouldShowKey ? keyLabel : null, formatVariableScopeLabel(item.namespace), getVariableValueTypeLabel(item.valueType)].filter(Boolean);
   return {
     label: item.label || item.key,
     value: item.key,
-    description: parts.join(' · '),
+    description: getVariableOptionSummary(item),
   };
 };
 const createDraftVariableSelectOption = (
@@ -430,7 +422,7 @@ const createDraftVariableSelectOption = (
   const hasKey = Boolean(trimmedKey);
   const parts = [
     hasKey && entry.name && entry.name !== trimmedKey ? trimmedKey : !hasKey ? '未设置键' : null,
-    formatVariableScopeLabel(entry.namespace),
+    getVariableNamespaceLabel(entry.namespace),
     getInputTypeLabel(entry.type),
     !hasKey ? '需先填写键' : null,
   ].filter(Boolean);
@@ -438,7 +430,7 @@ const createDraftVariableSelectOption = (
   return {
     label: entry.name || trimmedKey || '未命名变量',
     value: hasKey ? buildVariableCatalogKey(trimmedKey, entry.namespace) : `__draft__${entry.id}`,
-    description: parts.join(' · '),
+    description: parts.join(' * '),
     disabled: !hasKey,
   };
 };
@@ -1192,6 +1184,7 @@ const handleCreateDataVariable = async (
         : await props.createVariable('input', 'int', {
             preferredKey: 'newVar',
             name: '新变量',
+            focusEditor: true,
           });
   if (!key) {
     return;
@@ -1243,6 +1236,7 @@ const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput
     const key = await props.createVariable('input', 'string', {
       preferredKey: target === 'clickText' ? 'targetText' : target === 'swipeFromText' ? 'swipeFromText' : 'swipeToText',
       name: target === 'clickText' ? '目标文字' : target === 'swipeFromText' ? '滑动起点文字' : '滑动终点文字',
+      focusEditor: true,
     });
     if (!key) {
       return;
@@ -1260,6 +1254,7 @@ const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput
     const key = await props.createVariable('runtime', 'json', {
       preferredKey: preferredMode === ACTION_MODE.labelIdx ? 'detResults' : 'ocrResults',
       name: preferredMode === ACTION_MODE.labelIdx ? '检测结果' : 'OCR结果',
+      focusEditor: true,
     });
     if (!key) {
       return;
@@ -1273,7 +1268,7 @@ const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput
     return;
   }
 
-  const key = await props.createVariable('runtime', 'image');
+  const key = await props.createVariable('runtime', 'image', { focusEditor: true });
   if (!key) {
     return;
   }
@@ -1623,7 +1618,7 @@ const handleCreateVisionVariable = async (
       : selectedVision.value?.type === VISION_TYPE.countCompare
         ? 'bool'
         : 'json',
-    createOptions,
+    createOptions ? { ...createOptions, focusEditor: true } : { focusEditor: true },
   );
   if (!key) {
     return;

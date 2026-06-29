@@ -4,7 +4,7 @@
       title="设备列表"
     >
       <template #actions>
-        <button class="app-button app-button-primary shadow-lg shadow-(--app-accent-soft)" type="button" @click="openEditor(null)">
+        <button class="app-button app-button-primary app-toolbar-button justify-center" type="button" @click="openEditor(null)">
           <AppIcon name="plus" :size="18" />
           添加设备
         </button>
