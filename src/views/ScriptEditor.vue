@@ -490,7 +490,6 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { listen } from '@tauri-apps/api/event';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
@@ -507,13 +506,10 @@ import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsServi
 import { requestAppConfirm } from '@/services/appDialogService';
 import { scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
-import type { DeviceFormState, JsonValue, ScriptTableRecord } from '@/types/app/domain';
-import type { DetectorType } from '@/types/bindings/DetectorType';
+import type { DeviceFormState, ScriptTableRecord } from '@/types/app/domain';
 import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
 import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
-import type { ConditionNode } from '@/types/bindings/ConditionNode';
-import type { RunTarget } from '@/types/bindings/RunTarget';
 import type { SearchRule } from '@/types/bindings/SearchRule';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
@@ -521,7 +517,6 @@ import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { TaskRowType } from '@/types/bindings/TaskRowType';
 import type { TaskTone } from '@/types/bindings/TaskTone';
 import type { TaskTriggerMode } from '@/types/bindings/TaskTriggerMode';
-import type { YoloDet } from '@/types/bindings/YoloDet';
 import { showToast } from '@/utils/toast';
 import { toErrorText } from '@/utils/api';
 import { formatCaptureMethod, formatConnectLabel } from '@/utils/presenters';
@@ -567,7 +562,6 @@ import {
 } from '@/views/script-editor/editor-policy/editorPolicy';
 import {
   createStepFromTemplate,
-  describeStep,
   isActionSequenceTemplateId,
 } from '@/views/script-editor/editor-step/editorStepTemplates';
 import {
@@ -596,7 +590,6 @@ import {
   cloneJson,
   createUiField,
   createUiSchema,
-  parseUiSchema,
   stableStringify,
   type EditorPanelId,
   type EditorUiSchema,
@@ -607,6 +600,20 @@ import { parseTaskCycleValue } from '@/views/script-editor/editorTaskMeta';
 import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import { inputEntryToVariableOption } from '@/views/script-editor/editorInputVariableOptions';
 import {
+  buildPolicyGroupSavePayload,
+  buildPolicySavePayload,
+  buildPolicySetSavePayload,
+  buildTaskDraft as createTaskDraft,
+  buildTaskSavePayload,
+  normalizeTask as normalizeTaskDraft,
+} from '@/views/script-editor/helpers/scriptEditorTaskDrafts';
+import {
+  buildVariableUsageMap,
+  collectVariableReferencesFromSteps,
+  renameInputKeyReferencesInUiData,
+  renameVariableReferencesInSteps,
+} from '@/views/script-editor/helpers/scriptEditorVariableRefs';
+import {
   createInputEntry,
   listAllVariableOptions,
   listVariableOptions,
@@ -616,6 +623,97 @@ import {
   type EditorInputEntry,
   type EditorVariableOption,
 } from '@/views/script-editor/editorVariables';
+import {
+  buildPersistedEditorViewState,
+  hydratePolicyStepEditorState,
+  hydrateTaskEditorState,
+  resolvePersistedEditorViewState,
+  type ScriptEditorPersistedViewState,
+} from '@/views/script-editor/helpers/scriptEditorViewState';
+import {
+  buildScriptEditorSnapshots,
+  hasDirtyScriptEditorState,
+  loadScriptEditorData,
+  removeDeletedScriptEditorData,
+  savePrimaryScriptEditorData,
+  updateScriptEditorRelations,
+} from '@/views/script-editor/helpers/scriptEditorPersistence';
+import {
+  applyTaskDefaultEnabled,
+  applyTaskDefaultTaskCycle,
+  applyTaskExecMax,
+  applyTaskHidden,
+  applyTaskIndentLevel,
+  applyTaskName,
+  applyTaskRecordSchedule,
+  applyTaskRowType,
+  applyTaskSectionId,
+  applyTaskShowEnabledToggle,
+  applyTaskTone,
+  applyTaskTriggerMode,
+  applyTaskUiSchema,
+  shouldSkipTaskMetaSync,
+  syncTaskInputEntries,
+} from '@/views/script-editor/helpers/scriptEditorTaskMeta';
+import {
+  appendConsoleEntry,
+  attachScriptEditorRuntimeListeners,
+  buildConsoleTimestamp,
+  findStepPathById,
+  type EditorConsoleEntry,
+  type EditorConsoleLevel,
+  normalizeConsoleLevel,
+  resolveNextPreviewDeviceId,
+} from '@/views/script-editor/helpers/scriptEditorRuntime';
+import {
+  appendRelationId,
+  removeRelationId,
+  removeRelationIdFromAllOwners,
+  removeRelationOwner,
+  reorderRelationIds,
+  reverseRelationIds,
+} from '@/views/script-editor/helpers/scriptEditorRelations';
+import {
+  buildActiveRunTarget,
+  buildRunTargetKey,
+  buildRunTargetSelectOptions,
+  extractYoloDetector,
+  getImgDetLabelSelectPlaceholder,
+  getRunSelectionDisabledReason,
+  loadImgDetLabelState,
+  resolveCurrentEditorRunTargetKey,
+} from '@/views/script-editor/helpers/scriptEditorRunTarget';
+import {
+  buildRawDialogText,
+  formatRawDialogText,
+  getRawDialogDescription,
+  getRawDialogTitle,
+  parseRawDialogValue,
+  resolveRawEditorSection,
+} from '@/views/script-editor/helpers/scriptEditorRawDialog';
+import {
+  moveCollectionByMenuAction,
+  moveTaskByMenuAction,
+  reorderItemsById,
+} from '@/views/script-editor/helpers/scriptEditorMoves';
+import {
+  buildVariableReferenceKey,
+  createEditorStepId,
+  createUniqueVariableStorageKey,
+} from '@/views/script-editor/helpers/scriptEditorVariables';
+import {
+  buildAssignedRelationItems,
+  buildPolicyGroupItems,
+  buildPolicyGroupReferenceOptions,
+  buildPolicyItems,
+  buildPolicyReferenceOptions,
+  buildPolicySetItems,
+  buildPolicySetReferenceOptions,
+  buildTaskReferenceOptions,
+  buildTaskUiVariableOptions,
+  buildUnassignedRelationItems,
+} from '@/views/script-editor/helpers/scriptEditorOptions';
+import { selectCurrentItem } from '@/views/script-editor/helpers/scriptEditorSelections';
 
 const route = useRoute();
 const router = useRouter();
@@ -710,33 +808,8 @@ const stopResize = () => {
   isResizingSidebar.value = false;
   isResizingConfigPanel.value = false;
 };
-const MAX_CONSOLE_LINES = 300;
 let detachChildLogListener: null | (() => void) = null;
 let detachDeviceProgressListener: null | (() => void) = null;
-
-type EditorConsoleLevel = 'info' | 'warning' | 'error' | 'debug';
-
-interface EditorConsoleEntry {
-  time: string;
-  message: string;
-  level: EditorConsoleLevel;
-}
-
-interface ScriptEditorPersistedViewState {
-  activeMode?: EditorModeId;
-  selectedTaskId?: string | null;
-  selectedPolicyId?: string | null;
-  selectedPolicyGroupId?: string | null;
-  selectedPolicySetId?: string | null;
-  activePanel?: EditorPanelId;
-  activePolicyPanel?: PolicyEditorPanelId;
-  selectedStepPath?: StepPath | null;
-  activeBranchPath?: StepBranchPath;
-  selectedPolicyStepPathBefore?: StepPath | null;
-  activePolicyBranchPathBefore?: StepBranchPath;
-  selectedPolicyStepPathAfter?: StepPath | null;
-  activePolicyBranchPathAfter?: StepBranchPath;
-}
 
 const taskName = ref('');
 const taskRowType = ref<TaskRowType>(TASK_ROW_TYPE.task);
@@ -760,30 +833,6 @@ const hydratingTaskPanels = ref(false);
 const scriptId = computed(() => (typeof route.query.scriptId === 'string' ? route.query.scriptId : ''));
 const editorViewStateStoreKey = computed(() => `${scriptEditorViewStateKey}:${scriptId.value}`);
 
-const isEditorModeId = (value: unknown): value is EditorModeId =>
-  value === 'task' || value === 'policy' || value === 'policyGroup' || value === 'policySet';
-
-const isEditorPanelId = (value: unknown): value is EditorPanelId =>
-  value === 'basic' || value === 'inputs' || value === 'ui' || value === 'steps';
-
-const isPolicyEditorPanelId = (value: unknown): value is PolicyEditorPanelId =>
-  value === 'basic' || value === 'inputs' || value === 'before' || value === 'after';
-
-const isStepPathLike = (value: unknown): value is StepPath =>
-  Array.isArray(value)
-  && value.every(
-    (segment) =>
-      Boolean(segment)
-      && typeof segment === 'object'
-      && typeof (segment as { branch?: unknown }).branch === 'string'
-      && typeof (segment as { index?: unknown }).index === 'number',
-  );
-
-const isStepBranchPathLike = (value: unknown): value is StepBranchPath =>
-  Boolean(value)
-  && typeof value === 'object'
-  && typeof (value as StepBranchPath).branch === 'string';
-
 const loadEditorViewState = async (): Promise<ScriptEditorPersistedViewState | null> => {
   if (!scriptId.value) {
     return null;
@@ -798,7 +847,7 @@ const persistEditorViewState = async () => {
     return;
   }
 
-  const nextState: ScriptEditorPersistedViewState = {
+  const nextState = buildPersistedEditorViewState({
     activeMode: activeMode.value,
     selectedTaskId: selectedTaskId.value,
     selectedPolicyId: selectedPolicyId.value,
@@ -806,41 +855,15 @@ const persistEditorViewState = async () => {
     selectedPolicySetId: selectedPolicySetId.value,
     activePanel: activePanel.value,
     activePolicyPanel: activePolicyPanel.value,
-    selectedStepPath: activeMode.value === 'task' && activePanel.value === 'steps' ? selectedStepPath.value : null,
-    activeBranchPath: activeMode.value === 'task' && activePanel.value === 'steps' ? activeBranchPath.value : ROOT_BRANCH_PATH,
-    selectedPolicyStepPathBefore:
-      activeMode.value === 'policy' && activePolicyPanel.value === 'before' ? selectedPolicyStepPathBefore.value : null,
-    activePolicyBranchPathBefore:
-      activeMode.value === 'policy' && activePolicyPanel.value === 'before' ? activePolicyBranchPathBefore.value : ROOT_BRANCH_PATH,
-    selectedPolicyStepPathAfter:
-      activeMode.value === 'policy' && activePolicyPanel.value === 'after' ? selectedPolicyStepPathAfter.value : null,
-    activePolicyBranchPathAfter:
-      activeMode.value === 'policy' && activePolicyPanel.value === 'after' ? activePolicyBranchPathAfter.value : ROOT_BRANCH_PATH,
-  };
-
-  await setToStore(editorViewStateStoreKey.value, nextState);
-};
-
-const buildConsoleTimestamp = () =>
-  new Date().toLocaleTimeString('zh-CN', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+    selectedStepPath: selectedStepPath.value,
+    activeBranchPath: activeBranchPath.value,
+    selectedPolicyStepPathBefore: selectedPolicyStepPathBefore.value,
+    activePolicyBranchPathBefore: activePolicyBranchPathBefore.value,
+    selectedPolicyStepPathAfter: selectedPolicyStepPathAfter.value,
+    activePolicyBranchPathAfter: activePolicyBranchPathAfter.value,
   });
 
-const normalizeConsoleLevel = (value: unknown): EditorConsoleLevel => {
-  const level = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (level === 'error') {
-    return 'error';
-  }
-  if (level === 'warn' || level === 'warning') {
-    return 'warning';
-  }
-  if (level === 'debug' || level === 'trace') {
-    return 'debug';
-  }
-  return 'info';
+  await setToStore(editorViewStateStoreKey.value, nextState);
 };
 
 const appendConsoleLine = (
@@ -848,153 +871,7 @@ const appendConsoleLine = (
   level: EditorConsoleLevel = 'info',
   time = buildConsoleTimestamp(),
 ) => {
-  consoleEntries.value = [...consoleEntries.value, { time, message, level }].slice(-MAX_CONSOLE_LINES);
-};
-
-const visitStepTree = (steps: Step[], visitor: (step: Step) => string | null): string | null => {
-  for (const step of steps) {
-    const matched = visitor(step);
-    if (matched) {
-      return matched;
-    }
-
-    if (step.op === 'sequence') {
-      const nested = visitStepTree(step.steps, visitor);
-      if (nested) {
-        return nested;
-      }
-    }
-  }
-
-  return null;
-};
-
-const findStepPathById = (steps: Step[], stepId: string, branch: StepBranchPath = ROOT_BRANCH_PATH): StepPath | null => {
-  for (let index = 0; index < steps.length; index += 1) {
-    const step = steps[index];
-    const path = buildStepPath(branch, index);
-    if (step.id === stepId) {
-      return path;
-    }
-
-    if (step.op === 'sequence') {
-      const nested = findStepPathById(step.steps, stepId, { parentStepPath: path, branch: 'sequence' });
-      if (nested) {
-        return nested;
-      }
-      continue;
-    }
-
-    if (step.op === 'flowControl') {
-      if (step.a.type === 'if') {
-        const thenPath = findStepPathById(step.a.then, stepId, { parentStepPath: path, branch: 'then' });
-        if (thenPath) {
-          return thenPath;
-        }
-        const elsePath = findStepPathById(step.a.else_steps ?? [], stepId, { parentStepPath: path, branch: 'else' });
-        if (elsePath) {
-          return elsePath;
-        }
-        continue;
-      }
-
-      if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
-        const flowPath = findStepPathById(step.a.flow, stepId, { parentStepPath: path, branch: 'flow' });
-        if (flowPath) {
-          return flowPath;
-        }
-      }
-      continue;
-    }
-
-    if (step.op === 'vision' && (step.a.type === 'visionSearch' || step.a.type === 'countCompare')) {
-      const visionPath = findStepPathById(step.a.then_steps, stepId, { parentStepPath: path, branch: 'visionThen' });
-      if (visionPath) {
-        return visionPath;
-      }
-      continue;
-    }
-
-    if (step.op === 'dataHanding' && (step.a.type === 'filter' || step.a.type === 'colorCompare' || step.a.type === 'relativeFilter')) {
-      const filterPath = findStepPathById(step.a.then_steps ?? [], stepId, { parentStepPath: path, branch: 'filterThen' });
-      if (filterPath) {
-        return filterPath;
-      }
-    }
-  }
-
-  return null;
-};
-
-const resolveTaskNameForConsole = (taskId: string | null | undefined) => {
-  if (!taskId) {
-    return null;
-  }
-  return draftTasks.value.find((task) => task.id === taskId)?.name ?? null;
-};
-
-const resolveStepNameForConsole = (stepId: string | null | undefined) => {
-  if (!stepId) {
-    return null;
-  }
-
-  for (const task of draftTasks.value) {
-    const matched = visitStepTree(task.data.steps as Step[], (step) =>
-      step.id === stepId ? step.label?.trim() || '未命名步骤' : null,
-    );
-    if (matched) {
-      return matched;
-    }
-  }
-
-  for (const policy of draftPolicies.value) {
-    const beforeMatched = visitStepTree(policy.data.beforeAction as Step[], (step) =>
-      step.id === stepId ? step.label?.trim() || '未命名步骤' : null,
-    );
-    if (beforeMatched) {
-      return beforeMatched;
-    }
-
-    const afterMatched = visitStepTree(policy.data.afterAction as Step[], (step) =>
-      step.id === stepId ? step.label?.trim() || '未命名步骤' : null,
-    );
-    if (afterMatched) {
-      return afterMatched;
-    }
-  }
-
-  return null;
-};
-
-const buildProgressConsoleMessage = (payload: Record<string, unknown>) => {
-  if (payload.phase !== 'executing') {
-    return null;
-  }
-
-  const payloadScriptId = typeof payload.scriptId === 'string' ? payload.scriptId : null;
-  if (!payloadScriptId || payloadScriptId !== scriptId.value) {
-    return null;
-  }
-
-  const rawMessage = typeof payload.message === 'string' ? payload.message.trim() : '';
-  if (rawMessage.startsWith('开始执行步骤:')) {
-    return `步骤：${rawMessage.slice('开始执行步骤:'.length).trim()}`;
-  }
-  if (rawMessage.startsWith('开始执行任务:')) {
-    return `任务：${rawMessage.slice('开始执行任务:'.length).trim()}`;
-  }
-
-  const stepName = resolveStepNameForConsole(typeof payload.stepId === 'string' ? payload.stepId : null);
-  if (stepName) {
-    return `步骤：${stepName}`;
-  }
-
-  const taskName = resolveTaskNameForConsole(typeof payload.taskId === 'string' ? payload.taskId : null);
-  if (taskName) {
-    return `任务：${taskName}`;
-  }
-
-  return null;
+  consoleEntries.value = appendConsoleEntry(consoleEntries.value, message, level, time);
 };
 
 const clearConsole = () => {
@@ -1010,44 +887,21 @@ const hideConsole = () => {
 };
 
 const currentTask = computed<ScriptTaskTable | null>(() => {
-  const tasks = draftTasks.value as ScriptTaskTable[];
-  const selected = selectedTaskId.value;
-  if (!selected) {
-    return tasks[0] ?? null;
-  }
-
-  const matched = tasks.find((task) => task.id === selected) ?? null;
-  return matched ?? tasks[0] ?? null;
+  return selectCurrentItem(draftTasks.value as ScriptTaskTable[], selectedTaskId.value);
 });
-const currentRawEditorSection = computed<RawEditorSection>(() => {
-  if (activePanel.value === 'steps') return 'steps';
-  if (activePanel.value === 'ui') return 'ui';
-  return 'inputs';
-});
+const currentRawEditorSection = computed<RawEditorSection>(() => resolveRawEditorSection(activePanel.value));
 const canOpenCurrentRawEditor = computed(() => activeMode.value === 'task' && Boolean(currentTask.value));
 
 const currentPolicy = computed<PolicyTable | null>(() => {
-  const selected = selectedPolicyId.value;
-  if (!selected) {
-    return draftPolicies.value[0] ?? null;
-  }
-  return draftPolicies.value.find((item) => item.id === selected) ?? draftPolicies.value[0] ?? null;
+  return selectCurrentItem(draftPolicies.value, selectedPolicyId.value);
 });
 
 const currentPolicyGroup = computed<PolicyGroupTable | null>(() => {
-  const selected = selectedPolicyGroupId.value;
-  if (!selected) {
-    return draftPolicyGroups.value[0] ?? null;
-  }
-  return draftPolicyGroups.value.find((item) => item.id === selected) ?? draftPolicyGroups.value[0] ?? null;
+  return selectCurrentItem(draftPolicyGroups.value, selectedPolicyGroupId.value);
 });
 
 const currentPolicySet = computed<PolicySetTable | null>(() => {
-  const selected = selectedPolicySetId.value;
-  if (!selected) {
-    return draftPolicySets.value[0] ?? null;
-  }
-  return draftPolicySets.value.find((item) => item.id === selected) ?? draftPolicySets.value[0] ?? null;
+  return selectCurrentItem(draftPolicySets.value, selectedPolicySetId.value);
 });
 
 const editingDevice = computed(() => deviceStore.devices.find((device) => device.id === editingDeviceId.value) ?? null);
@@ -1069,85 +923,33 @@ const deviceSelectOptions = computed(() =>
   })),
 );
 
-const extractYoloDetector = (model: DetectorType | null | undefined): YoloDet | null => {
-  if (!model) {
-    return null;
-  }
-  if ('Yolo11' in model) {
-    return model.Yolo11;
-  }
-  if ('Yolo26' in model) {
-    return model.Yolo26;
-  }
-  return null;
-};
-
 const imgDetLabelPath = computed(() => extractYoloDetector(draftScript.value?.data.imgDetModel)?.labelPath?.trim() || '');
-const imgDetLabelSelectPlaceholder = computed(() => {
-  if (imgDetLabelLoading.value) {
-    return '正在加载标签...';
-  }
-  if (imgDetLabelOptions.value.length) {
-    return '选择标签';
-  }
-  return '请先设置图像检测模型标签文件';
-});
-
-const buildRunTargetKey = (
-  kind: 'fullScript' | 'task' | 'policy' | 'policyGroup' | 'policySet',
-  id?: string | null,
-) => `${kind}:${id ?? ''}`;
+const imgDetLabelSelectPlaceholder = computed(() =>
+  getImgDetLabelSelectPlaceholder(imgDetLabelLoading.value, imgDetLabelOptions.value.length),
+);
 
 const runTargetSelectPlaceholder = computed(() => '选择运行目标');
 
-const runTargetSelectOptions = computed(() => {
-  const options: Array<{ label: string; value: string; description?: string }> = [];
+const runTargetSelectOptions = computed(() =>
+  buildRunTargetSelectOptions({
+    scriptName: draftScript.value?.data.name,
+    scriptId: scriptId.value,
+    tasks: draftTasks.value,
+    policyItems: policyItems.value,
+    policySetItems: policySetItems.value,
+  }),
+);
 
-  options.push({
-      label: `脚本 · ${draftScript.value?.data.name || '(空)'}`,
-      value: buildRunTargetKey('fullScript', scriptId.value),
-      //description: '调试运行整个脚本',
-    });
-
-  options.push(
-      ...draftTasks.value.filter((task) => task.rowType=== TASK_ROW_TYPE.task).map((task) => ({
-        label: `任务 · ${task.name}`,
-        value: buildRunTargetKey('task', task.id),
-        //description: `${task.rowType === TASK_ROW_TYPE.title ? '标题行' : '任务行'} · ${task.index + 1}`,
-      })),
-    );
-  options.push(
-      ...policyItems.value.map((item) => ({
-        label: `策略 · ${item.title}`,
-        value: buildRunTargetKey('policy', item.id),
-        //description: item.subtitle,
-      })),
-    );
-  options.push(
-      ...policySetItems.value.map((item) => ({
-        label: `策略集 · ${item.title}`,
-        value: buildRunTargetKey('policySet', item.id),
-        //description: item.subtitle,
-      })),
-    );
-  return options;
-});
-
-const currentEditorRunTargetKey = computed(() => {
-  if (!scriptId.value) {
-    return null;
-  }
-  if (activeMode.value === 'policy') {
-    return selectedPolicyId.value ? buildRunTargetKey('policy', selectedPolicyId.value) : null;
-  }
-  if (activeMode.value === 'policyGroup') {
-    return selectedPolicyGroupId.value ? buildRunTargetKey('policyGroup', selectedPolicyGroupId.value) : null;
-  }
-  if (activeMode.value === 'policySet') {
-    return selectedPolicySetId.value ? buildRunTargetKey('policySet', selectedPolicySetId.value) : null;
-  }
-  return selectedTaskId.value ? buildRunTargetKey('task', selectedTaskId.value) : buildRunTargetKey('fullScript', scriptId.value);
-});
+const currentEditorRunTargetKey = computed(() =>
+  resolveCurrentEditorRunTargetKey({
+    scriptId: scriptId.value,
+    activeMode: activeMode.value,
+    selectedTaskId: selectedTaskId.value,
+    selectedPolicyId: selectedPolicyId.value,
+    selectedPolicyGroupId: selectedPolicyGroupId.value,
+    selectedPolicySetId: selectedPolicySetId.value,
+  }),
+);
 
 const selectedRunTargetOption = computed(
   () => runTargetSelectOptions.value.find((option) => option.value === selectedRunTargetKey.value) ?? null,
@@ -1164,13 +966,13 @@ const scriptRecoveryTaskOptions = computed(() =>
     })),
 );
 
-const runSelectionDisabledReason = computed(() => {
-  if (!selectedPreviewDeviceId.value || !selectedRunTargetKey.value) {
-    return '请先选择设备和目标对象。';
-  }
-
-  return selectedPreviewDeviceRuntimeError.value;
-});
+const runSelectionDisabledReason = computed(() =>
+  getRunSelectionDisabledReason(
+    selectedPreviewDeviceId.value,
+    selectedRunTargetKey.value,
+    selectedPreviewDeviceRuntimeError.value,
+  ),
+);
 
 const canRunSelection = computed(() => !runSelectionDisabledReason.value);
 
@@ -1256,37 +1058,7 @@ const policyVariableOptions = computed(() =>
 const policyCatalogVariableOptions = computed(() =>
   listAllVariableOptions(draftScript.value?.data.variableCatalog, currentPolicyAllSteps.value, 'read', false),
 );
-const variableUsageMap = computed(() => {
-  const bucket: VariableUsage[] = [];
-
-  for (const task of draftTasks.value) {
-    collectVariableUsagesFromSteps(task.data.steps as Step[], `任务「${task.name}」`, bucket);
-    const taskUiSchema = parseUiSchema(task.data.uiData ?? {});
-    for (const field of taskUiSchema.fields) {
-      if (field.inputKey?.trim()) {
-        bucket.push({
-          key: buildVariableReferenceKey('input', field.inputKey),
-          label: `任务「${task.name}」的界面字段「${field.label || field.inputKey}」`,
-        });
-      }
-    }
-  }
-
-  for (const policy of draftPolicies.value) {
-    collectVariableUsagesFromSteps(policy.data.beforeAction as Step[], `策略「${policy.data.name}」的全局行为`, bucket);
-    collectVariableUsagesFromSteps(policy.data.afterAction as Step[], `策略「${policy.data.name}」的命中行为`, bucket);
-  }
-
-  return bucket.reduce<Record<string, string[]>>((map, usage) => {
-    if (!map[usage.key]) {
-      map[usage.key] = [];
-    }
-    if (!map[usage.key].includes(usage.label)) {
-      map[usage.key].push(usage.label);
-    }
-    return map;
-  }, {});
-});
+const variableUsageMap = computed(() => buildVariableUsageMap(draftTasks.value, draftPolicies.value));
 const inputEntryReferenceState = computed<Record<string, { referenced: boolean }>>(() =>
   inputEntries.value.reduce<Record<string, { referenced: boolean }>>((map, entry) => {
     map[entry.id] = {
@@ -1298,165 +1070,69 @@ const inputEntryReferenceState = computed<Record<string, { referenced: boolean }
 
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
 const hasValidationErrors = computed(() => Boolean(inputError.value));
-const policyItems = computed<EditorNamedItem[]>(() =>
-  draftPolicies.value.map((policy) => ({
-    id: policy.id,
-    title: policy.data.name,
-    subtitle: `${policy.data.afterAction.length} 个命中步骤 · ${policy.data.beforeAction.length} 个全局步骤`,
-    badge: String(policy.orderIndex + 1),
-  })),
+const policyItems = computed<EditorNamedItem[]>(() => buildPolicyItems(draftPolicies.value));
+const policyGroupItems = computed<EditorNamedItem[]>(() => buildPolicyGroupItems(draftPolicyGroups.value, groupPolicyIdsByGroupId.value));
+const policySetItems = computed<EditorNamedItem[]>(() => buildPolicySetItems(draftPolicySets.value, setGroupIdsBySetId.value));
+const taskReferenceOptions = computed<EditorReferenceOption[]>(() => buildTaskReferenceOptions(draftTasks.value));
+const taskUiVariableOptions = computed<EditorTaskUiVariableOption[]>(() =>
+  buildTaskUiVariableOptions(draftTasks.value, draftScript.value?.data.variableCatalog),
 );
-const policyGroupItems = computed<EditorNamedItem[]>(() =>
-  draftPolicyGroups.value.map((group) => ({
-    id: group.id,
-    title: group.data.name,
-    subtitle: `${(groupPolicyIdsByGroupId.value[group.id] ?? []).length} 个策略`,
-    badge: String(group.orderIndex + 1),
-  })),
-);
-const policySetItems = computed<EditorNamedItem[]>(() =>
-  draftPolicySets.value.map((set) => ({
-    id: set.id,
-    title: set.data.name,
-    subtitle: `${(setGroupIdsBySetId.value[set.id] ?? []).length} 个策略组`,
-    badge: String(set.orderIndex + 1),
-  })),
-);
-const describeTaskReferenceTriggerMode = (mode: TaskTriggerMode) => {
-  switch (mode) {
-    case TASK_TRIGGER_MODE.linkOnly:
-      return '仅跳转';
-    case TASK_TRIGGER_MODE.rootAndLink:
-      return '循环 + 跳转';
-    default:
-      return '仅循环';
-  }
-};
-const taskReferenceOptions = computed<EditorReferenceOption[]>(() =>
-  draftTasks.value
-    .filter((task) => task.rowType === TASK_ROW_TYPE.task)
-    .map((task) => ({
-      label: task.name,
-      value: task.id,
-      description: `${describeTaskReferenceTriggerMode(task.triggerMode)} · ${task.defaultEnabled ? '默认启用' : '默认关闭'}`,
-    })),
-);
-const taskUiVariableOptions = computed<EditorTaskUiVariableOption[]>(() => {
-  const variables = new Map((draftScript.value?.data.variableCatalog.variables ?? []).map((variable) => [variable.id, variable]));
-  const result: EditorTaskUiVariableOption[] = [];
-
-  for (const task of draftTasks.value.filter((item) => item.rowType === TASK_ROW_TYPE.task && !item.isDeleted)) {
-    const uiSchema = parseUiSchema(task.data.uiData ?? {});
-    for (const field of uiSchema.fields) {
-      if (field.control !== 'select' && field.control !== 'radio') {
-        continue;
-      }
-      const variableId = field.variableId?.trim();
-      if (!variableId) {
-        continue;
-      }
-      const variable = variables.get(variableId);
-      if (!variable || variable.namespace !== 'input' || !variable.persisted) {
-        continue;
-      }
-      const options = field.optionsText
-        .split('\n')
-        .map((item) => item.trim())
-        .filter(Boolean);
-      if (!options.length) {
-        continue;
-      }
-      result.push({
-        taskId: task.id,
-        taskLabel: task.name || '未命名任务',
-        variableId,
-        label: `${task.name || '未命名任务'} · ${field.label || variable.name || variable.key}`,
-        description: `${variable.name || variable.key} · ${field.control === 'select' ? 'Select' : 'Radio'} · ${options.length} 个选项`,
-        options,
-      });
-    }
-  }
-
-  return result;
-});
-const policyReferenceOptions = computed<EditorReferenceOption[]>(() =>
-  draftPolicies.value.map((policy) => ({
-    label: policy.data.name,
-    value: policy.id,
-    description: `${policy.data.afterAction.length} 个命中步骤 · ${policy.data.beforeAction.length} 个全局步骤`,
-  })),
-);
+const policyReferenceOptions = computed<EditorReferenceOption[]>(() => buildPolicyReferenceOptions(draftPolicies.value));
 const policyGroupReferenceOptions = computed<EditorReferenceOption[]>(() =>
-  draftPolicyGroups.value.map((group) => ({
-    label: group.data.name,
-    value: group.id,
-    description: `${(groupPolicyIdsByGroupId.value[group.id] ?? []).length} 个策略`,
-  })),
+  buildPolicyGroupReferenceOptions(draftPolicyGroups.value, groupPolicyIdsByGroupId.value),
 );
 const policySetReferenceOptions = computed<EditorReferenceOption[]>(() =>
-  draftPolicySets.value.map((set) => ({
-    label: set.data.name,
-    value: set.id,
-    description: `${(setGroupIdsBySetId.value[set.id] ?? []).length} 个策略组`,
-  })),
+  buildPolicySetReferenceOptions(draftPolicySets.value, setGroupIdsBySetId.value),
 );
-const assignedPolicies = computed<EditorNamedItem[]>(() => {
-  const assignedIds = currentPolicyGroup.value ? groupPolicyIdsByGroupId.value[currentPolicyGroup.value.id] ?? [] : [];
-  return assignedIds
-    .map((id) => draftPolicies.value.find((item) => item.id === id))
-    .filter((item): item is PolicyTable => Boolean(item))
-    .map((item) => ({
-      id: item.id,
-      title: item.data.name,
-      subtitle: item.data.note || '未填写备注',
-    }));
-});
-const unassignedPolicies = computed<EditorNamedItem[]>(() => {
-  const assigned = new Set(currentPolicyGroup.value ? groupPolicyIdsByGroupId.value[currentPolicyGroup.value.id] ?? [] : []);
-  return draftPolicies.value
-    .filter((item) => !assigned.has(item.id))
-    .map((item) => ({
-      id: item.id,
-      title: item.data.name,
-      subtitle: item.data.note || '未填写备注',
-    }));
-});
-const assignedGroups = computed<EditorNamedItem[]>(() => {
-  const assignedIds = currentPolicySet.value ? setGroupIdsBySetId.value[currentPolicySet.value.id] ?? [] : [];
-  return assignedIds
-    .map((id) => draftPolicyGroups.value.find((item) => item.id === id))
-    .filter((item): item is PolicyGroupTable => Boolean(item))
-    .map((item) => ({
-      id: item.id,
-      title: item.data.name,
-      subtitle: item.data.note || '未填写备注',
-    }));
-});
-const unassignedGroups = computed<EditorNamedItem[]>(() => {
-  const assigned = new Set(currentPolicySet.value ? setGroupIdsBySetId.value[currentPolicySet.value.id] ?? [] : []);
-  return draftPolicyGroups.value
-    .filter((item) => !assigned.has(item.id))
-    .map((item) => ({
-      id: item.id,
-      title: item.data.name,
-      subtitle: item.data.note || '未填写备注',
-    }));
-});
+const assignedPolicies = computed<EditorNamedItem[]>(() =>
+  buildAssignedRelationItems(
+    draftPolicies.value,
+    currentPolicyGroup.value ? groupPolicyIdsByGroupId.value[currentPolicyGroup.value.id] ?? [] : [],
+  ),
+);
+const unassignedPolicies = computed<EditorNamedItem[]>(() =>
+  buildUnassignedRelationItems(
+    draftPolicies.value,
+    currentPolicyGroup.value ? groupPolicyIdsByGroupId.value[currentPolicyGroup.value.id] ?? [] : [],
+  ),
+);
+const assignedGroups = computed<EditorNamedItem[]>(() =>
+  buildAssignedRelationItems(
+    draftPolicyGroups.value,
+    currentPolicySet.value ? setGroupIdsBySetId.value[currentPolicySet.value.id] ?? [] : [],
+  ),
+);
+const unassignedGroups = computed<EditorNamedItem[]>(() =>
+  buildUnassignedRelationItems(
+    draftPolicyGroups.value,
+    currentPolicySet.value ? setGroupIdsBySetId.value[currentPolicySet.value.id] ?? [] : [],
+  ),
+);
 
 const dirty = computed(() => {
   if (!draftScript.value) {
     return false;
   }
 
-  return (
-    stableStringify(draftScript.value) !== sourceScriptSnapshot.value ||
-    stableStringify(draftTasks.value) !== sourceTasksSnapshot.value ||
-    stableStringify(draftPolicies.value) !== sourcePoliciesSnapshot.value ||
-    stableStringify(draftPolicyGroups.value) !== sourcePolicyGroupsSnapshot.value ||
-    stableStringify(draftPolicySets.value) !== sourcePolicySetsSnapshot.value ||
-    stableStringify(groupPolicyIdsByGroupId.value) !== sourceGroupPoliciesSnapshot.value ||
-    stableStringify(setGroupIdsBySetId.value) !== sourceSetGroupsSnapshot.value
-  );
+  return hasDirtyScriptEditorState({
+    script: draftScript.value,
+    tasks: draftTasks.value,
+    policies: draftPolicies.value,
+    policyGroups: draftPolicyGroups.value,
+    policySets: draftPolicySets.value,
+    groupPolicyIdsByGroupId: groupPolicyIdsByGroupId.value,
+    setGroupIdsBySetId: setGroupIdsBySetId.value,
+    snapshots: {
+      script: sourceScriptSnapshot.value,
+      tasks: sourceTasksSnapshot.value,
+      policies: sourcePoliciesSnapshot.value,
+      policyGroups: sourcePolicyGroupsSnapshot.value,
+      policySets: sourcePolicySetsSnapshot.value,
+      groupPolicies: sourceGroupPoliciesSnapshot.value,
+      setGroups: sourceSetGroupsSnapshot.value,
+    },
+    stableStringify,
+  });
 });
 
 const formattedSaveTime = computed(() => {
@@ -1498,91 +1174,19 @@ const handleNavigateBack = async () => {
 
 const handleRequestCloseWindow = async () => confirmDiscardUnsavedChanges();
 
-const rawDialogTitle = computed(() => {
-  switch (rawDialogSection.value) {
-    case 'inputs':
-      return '输入变量 JSON';
-    case 'ui':
-      return 'UI Schema JSON';
-    default:
-      return '步骤 JSON';
-  }
-});
+const rawDialogTitle = computed(() => getRawDialogTitle(rawDialogSection.value));
 
-const rawDialogDescription = computed(() => {
-  switch (rawDialogSection.value) {
-    case 'inputs':
-      return '这里是 input.* 的底层结构，作为调试入口保留。';
-    case 'ui':
-      return '这里是 UI schema 的底层结构，优先在可视化面板里编辑。';
-    default:
-      return '这里是任务步骤的底层结构，优先在可视化工作区里查看和调整。';
-  }
-});
+const rawDialogDescription = computed(() => getRawDialogDescription(rawDialogSection.value));
 
-const normalizeTask = (task: ScriptTaskTable, index: number): ScriptTaskTable => {
-  const rowType = task.rowType ?? TASK_ROW_TYPE.task;
-  const isTitle = rowType === TASK_ROW_TYPE.title;
-  return {
-    ...task,
-    scriptId: task.scriptId || scriptId.value,
-    name: task.name ?? `任务 ${index + 1}`,
-    rowType,
-    triggerMode: task.triggerMode ?? TASK_TRIGGER_MODE.linkOnly,
-    recordSchedule: isTitle ? false : task.recordSchedule ?? true,
-    sectionId: isTitle ? null : task.sectionId ?? null,
-    indentLevel: isTitle ? 0 : Math.max(0, Math.min(8, Number(task.indentLevel ?? 1))),
-    defaultTaskCycle: task.defaultTaskCycle ?? TASK_CYCLE_VALUE.everyRun,
-    execMax: isTitle ? 0 : Math.max(0, Number(task.execMax ?? 0)),
-    showEnabledToggle: isTitle ? false : task.showEnabledToggle ?? true,
-    defaultEnabled: task.defaultEnabled ?? true,
-    taskTone: isTitle ? TASK_TONE.normal : task.taskTone ?? TASK_TONE.normal,
-    isHidden: Boolean(task.isHidden),
-    index,
-    createdAt: task.createdAt || new Date().toISOString(),
-    updatedAt: task.updatedAt || new Date().toISOString(),
-    deletedAt: task.deletedAt ?? null,
-    isDeleted: Boolean(task.isDeleted),
-    data: {
-      uiData: task.data?.uiData ?? {},
-      variables: task.data?.variables ?? {},
-      steps: Array.isArray(task.data?.steps) ? task.data.steps : createStepList(),
-    },
-  };
-};
+const normalizeTask = (task: ScriptTaskTable, index: number) => normalizeTaskDraft(task, index, scriptId.value);
 
-const buildTaskDraft = async (name?: string): Promise<ScriptTaskTable> => {
-  const index = draftTasks.value.length;
-  return normalizeTask(
-    {
-      id: await taskService.requestUuid(),
-      scriptId: scriptId.value,
-      name: name || `新任务 ${index + 1}`,
-      rowType: TASK_ROW_TYPE.task,
-      triggerMode: TASK_TRIGGER_MODE.linkOnly,
-      recordSchedule: true,
-      sectionId: draftTasks.value.filter((task) => task.rowType === TASK_ROW_TYPE.title).at(-1)?.id ?? null,
-      indentLevel: 1,
-      defaultTaskCycle: TASK_CYCLE_VALUE.everyRun,
-      execMax: 0,
-      showEnabledToggle: true,
-      defaultEnabled: true,
-      taskTone: TASK_TONE.normal,
-      isHidden: false,
-      data: {
-        uiData: {},
-        variables: {},
-        steps: createStepList(),
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      deletedAt: null,
-      isDeleted: false,
-      index,
-    },
-    index,
-  );
-};
+const buildTaskDraft = (name?: string) =>
+  createTaskDraft({
+    name,
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    tasks: draftTasks.value,
+  });
 
 const replaceTask = (taskId: string, updater: (task: ScriptTaskTable) => ScriptTaskTable) => {
   draftTasks.value = draftTasks.value.map((task, index) => {
@@ -1597,56 +1201,36 @@ const replaceTask = (taskId: string, updater: (task: ScriptTaskTable) => ScriptT
 const hydrateTaskEditors = () => {
   hydratingTaskMeta.value = true;
   hydratingTaskPanels.value = true;
+  const hydrated = hydrateTaskEditorState({
+    currentTask: currentTask.value,
+    draftScript: draftScript.value,
+    selectedInputId: selectedInputId.value,
+    selectedUiFieldId: selectedUiFieldId.value,
+    selectedStepPath: selectedStepPath.value,
+    activeBranchPath: activeBranchPath.value,
+  });
 
-  if (!currentTask.value) {
-    taskName.value = '';
-    taskRowType.value = TASK_ROW_TYPE.task;
-    taskTriggerMode.value = TASK_TRIGGER_MODE.linkOnly;
-    taskHidden.value = false;
-    recordSchedule.value = true;
-    sectionId.value = null;
-    indentLevel.value = 1;
-    defaultTaskCycle.value = TASK_CYCLE_VALUE.everyRun;
-    taskExecMax.value = 0;
-    showEnabledToggle.value = true;
-    defaultEnabled.value = true;
-    taskTone.value = TASK_TONE.normal;
-    inputEntries.value = parseInputEntries(draftScript.value?.data.variableCatalog, null, {});
-    inputError.value = null;
-    selectedInputId.value = inputEntries.value.find((entry) => entry.id === selectedInputId.value)?.id ?? inputEntries.value[0]?.id ?? null;
-    uiSchema.value = createUiSchema();
-    selectedStepPath.value = null;
-    activeBranchPath.value = ROOT_BRANCH_PATH;
-    selectedUiFieldId.value = null;
-  } else {
-    taskName.value = currentTask.value.name;
-    taskRowType.value = currentTask.value.rowType;
-    taskTriggerMode.value = currentTask.value.triggerMode;
-    taskHidden.value = currentTask.value.isHidden;
-    recordSchedule.value = currentTask.value.recordSchedule;
-    sectionId.value = currentTask.value.sectionId;
-    indentLevel.value = currentTask.value.indentLevel;
-    defaultTaskCycle.value = currentTask.value.defaultTaskCycle;
-    taskExecMax.value = currentTask.value.execMax;
-    showEnabledToggle.value = currentTask.value.showEnabledToggle;
-    defaultEnabled.value = currentTask.value.defaultEnabled;
-    taskTone.value = currentTask.value.taskTone;
-    inputEntries.value = parseInputEntries(draftScript.value?.data.variableCatalog, null, {});
-    inputError.value = null;
-    selectedInputId.value = inputEntries.value.find((entry) => entry.id === selectedInputId.value)?.id ?? inputEntries.value[0]?.id ?? null;
-    uiSchema.value = parseUiSchema(currentTask.value.data.uiData ?? {});
-    if (currentTask.value.rowType === TASK_ROW_TYPE.title) {
-      activePanel.value = 'basic';
-    }
-    if (!currentTask.value.data.steps.length) {
-      selectedStepPath.value = null;
-      activeBranchPath.value = ROOT_BRANCH_PATH;
-    } else if (!selectedStepPath.value || !getStepByPath(currentTask.value.data.steps, selectedStepPath.value)) {
-      selectedStepPath.value = buildStepPath(ROOT_BRANCH_PATH, 0);
-      activeBranchPath.value = ROOT_BRANCH_PATH;
-    }
-    selectedUiFieldId.value =
-      uiSchema.value.fields.find((field) => field.id === selectedUiFieldId.value)?.id ?? uiSchema.value.fields[0]?.id ?? null;
+  taskName.value = hydrated.taskName;
+  taskRowType.value = hydrated.taskRowType;
+  taskTriggerMode.value = hydrated.taskTriggerMode;
+  taskHidden.value = hydrated.taskHidden;
+  recordSchedule.value = hydrated.recordSchedule;
+  sectionId.value = hydrated.sectionId;
+  indentLevel.value = hydrated.indentLevel;
+  defaultTaskCycle.value = hydrated.defaultTaskCycle;
+  taskExecMax.value = hydrated.taskExecMax;
+  showEnabledToggle.value = hydrated.showEnabledToggle;
+  defaultEnabled.value = hydrated.defaultEnabled;
+  taskTone.value = hydrated.taskTone;
+  inputEntries.value = hydrated.inputEntries;
+  inputError.value = hydrated.inputError;
+  selectedInputId.value = hydrated.selectedInputId;
+  uiSchema.value = hydrated.uiSchema;
+  selectedStepPath.value = hydrated.selectedStepPath;
+  activeBranchPath.value = hydrated.activeBranchPath;
+  selectedUiFieldId.value = hydrated.selectedUiFieldId;
+  if (hydrated.forceBasicPanel) {
+    activePanel.value = 'basic';
   }
 
   queueMicrotask(() => {
@@ -1837,123 +1421,11 @@ const toggleTaskHidden = (taskId: string) => {
 };
 
 const reorderTasks = (draggedTaskId: string, targetTaskId: string) => {
-  const fromIndex = draftTasks.value.findIndex((task) => task.id === draggedTaskId);
-  const toIndex = draftTasks.value.findIndex((task) => task.id === targetTaskId);
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
-    return;
-  }
-
-  draftTasks.value = reorderCollection(draftTasks.value, fromIndex, toIndex).map((task, index) => normalizeTask(task, index));
+  draftTasks.value = reorderItemsById(draftTasks.value, draggedTaskId, targetTaskId, normalizeTask);
 };
 
 const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
-  const fromIndex = draftTasks.value.findIndex((task) => task.id === taskId);
-  if (fromIndex < 0) {
-    return;
-  }
-
-  const nextTasks = [...draftTasks.value];
-  const sourceTask = nextTasks[fromIndex];
-  if (!sourceTask) {
-    return;
-  }
-
-  if (action.kind === 'current') {
-    if (sourceTask.rowType === TASK_ROW_TYPE.title) {
-      const blockIds = new Set([
-        sourceTask.id,
-        ...nextTasks.filter((task) => task.rowType === TASK_ROW_TYPE.task && task.sectionId === sourceTask.id).map((task) => task.id),
-      ]);
-      const block = nextTasks.filter((task) => blockIds.has(task.id));
-      const remainder = nextTasks.filter((task) => !blockIds.has(task.id));
-      nextTasks.splice(
-        0,
-        nextTasks.length,
-        ...(action.position === 'top' ? [...block, ...remainder] : [...remainder, ...block]),
-      );
-      draftTasks.value = nextTasks.map((task, index) => normalizeTask(task, index));
-      return;
-    }
-
-    const [movedTask] = nextTasks.splice(fromIndex, 1);
-    if (!movedTask) {
-      return;
-    }
-    movedTask.sectionId = null;
-    nextTasks.splice(action.position === 'top' ? 0 : nextTasks.length, 0, movedTask);
-    draftTasks.value = nextTasks.map((task, index) => normalizeTask(task, index));
-    return;
-  }
-
-  const [movedTask] = nextTasks.splice(fromIndex, 1);
-  if (!movedTask) {
-    return;
-  }
-
-  const insertBySection = (sectionId: string, position: 'top' | 'bottom') => {
-      const sectionTaskIndexes = nextTasks.reduce<number[]>((indexes, task, index) => {
-      if (task.rowType === TASK_ROW_TYPE.task && task.sectionId === sectionId) {
-        indexes.push(index);
-      }
-      return indexes;
-    }, []);
-    const titleIndex = nextTasks.findIndex((task) => task.id === sectionId);
-    const anchorIndex = titleIndex >= 0 ? titleIndex + 1 : nextTasks.length;
-    const insertIndex =
-      position === 'top'
-        ? sectionTaskIndexes[0] ?? anchorIndex
-        : (sectionTaskIndexes[sectionTaskIndexes.length - 1] ?? titleIndex) + 1;
-
-    movedTask.sectionId = sectionId;
-    nextTasks.splice(insertIndex, 0, movedTask);
-  };
-
-  if (action.kind === 'section') {
-    insertBySection(action.sectionId, action.position);
-  } else {
-    const targetIndex = nextTasks.findIndex((task) => task.id === action.taskId);
-    const targetTask = targetIndex >= 0 ? nextTasks[targetIndex] : null;
-    if (!targetTask) {
-      nextTasks.splice(fromIndex, 0, movedTask);
-      return;
-    }
-
-    movedTask.sectionId = targetTask.sectionId ?? null;
-    nextTasks.splice(action.position === 'top' ? targetIndex : targetIndex + 1, 0, movedTask);
-  }
-
-  draftTasks.value = nextTasks.map((task, index) => normalizeTask(task, index));
-};
-
-const moveCollectionByMenu = <T extends { id: string }>(
-  items: T[],
-  itemId: string,
-  action: EditorCollectionMoveAction,
-  normalize: (item: T, index: number) => T,
-) => {
-  const fromIndex = items.findIndex((item) => item.id === itemId);
-  if (fromIndex < 0) {
-    return items;
-  }
-
-  const nextItems = [...items];
-  const [movedItem] = nextItems.splice(fromIndex, 1);
-  if (!movedItem) {
-    return items;
-  }
-
-  if (action.kind === 'current') {
-    nextItems.splice(action.position === 'top' ? 0 : nextItems.length, 0, movedItem);
-    return nextItems.map((item, index) => normalize(item, index));
-  }
-
-  const targetIndex = nextItems.findIndex((item) => item.id === action.itemId);
-  if (targetIndex < 0) {
-    return items;
-  }
-
-  nextItems.splice(action.position === 'top' ? targetIndex : targetIndex + 1, 0, movedItem);
-  return nextItems.map((item, index) => normalize(item, index));
+  draftTasks.value = moveTaskByMenuAction(draftTasks.value, taskId, action, normalizeTask);
 };
 
 const createPolicy = async () => {
@@ -2059,304 +1531,6 @@ const jumpToReferenceResource = (kind: EditorReferenceKind, id: string) => {
   activePolicySetPanel.value = 'basic';
 };
 
-const buildVariableReferenceKey = (namespace: EditorInputEntry['namespace'], key: string) => {
-  const trimmed = key.trim();
-  if (!trimmed) {
-    return '';
-  }
-  return `${namespace}.${trimmed}`;
-};
-
-const collectStepTreeIds = (step: Step, bucket = new Set<string>()) => {
-  if (step.id) {
-    bucket.add(step.id);
-  }
-
-  if (step.op === 'sequence') {
-    step.steps.forEach((child) => collectStepTreeIds(child, bucket));
-    return bucket;
-  }
-
-  if (step.op === 'dataHanding' && step.a.type === 'filter') {
-    step.a.then_steps.forEach((child) => collectStepTreeIds(child, bucket));
-    return bucket;
-  }
-
-  if (step.op === 'vision' && step.a.type === 'visionSearch') {
-    step.a.then_steps.forEach((child) => collectStepTreeIds(child, bucket));
-    return bucket;
-  }
-
-  if (step.op === 'flowControl') {
-    if (step.a.type === 'if') {
-      step.a.then.forEach((child) => collectStepTreeIds(child, bucket));
-      (step.a.else_steps ?? []).forEach((child) => collectStepTreeIds(child, bucket));
-      return bucket;
-    }
-
-    if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
-      step.a.flow.forEach((child) => collectStepTreeIds(child, bucket));
-    }
-  }
-
-  return bucket;
-};
-
-const collectVariableReferencesFromSteps = (steps: Step[], bucket = new Set<string>()) => {
-  for (const step of steps) {
-    if (step.op === 'sequence') {
-      collectVariableReferencesFromSteps(step.steps, bucket);
-      continue;
-    }
-
-    if (step.op === 'action') {
-      if (step.a.ac === 'capture' && step.a.output_var?.trim()) {
-        bucket.add(step.a.output_var.trim());
-        continue;
-      }
-
-      if ((step.a.ac === 'click' || step.a.ac === 'swipe') && (step.a.mode === 'txt' || step.a.mode === 'labelIdx') && step.a.input_var?.trim()) {
-        bucket.add(step.a.input_var.trim());
-      }
-      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'txt' && step.a.txt_expr?.trim()) {
-        bucket.add(step.a.txt_expr.trim());
-      }
-      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'labelIdx' && step.a.idx_expr?.trim()) {
-        bucket.add(step.a.idx_expr.trim());
-      }
-      if (step.a.ac === 'swipe' && step.a.mode === 'txt') {
-        if (step.a.from_expr?.trim()) {
-          bucket.add(step.a.from_expr.trim());
-        }
-        if (step.a.to_expr?.trim()) {
-          bucket.add(step.a.to_expr.trim());
-        }
-      }
-    }
-
-    if (step.op === 'dataHanding') {
-      if ((step.a.type === 'setVar' || step.a.type === 'getVar') && step.a.name?.trim()) {
-        bucket.add(step.a.name.trim());
-        continue;
-      }
-
-      if (step.a.type === 'filter') {
-        if (step.a.input_var?.trim()) {
-          bucket.add(step.a.input_var.trim());
-        }
-        if (step.a.out_name?.trim()) {
-          bucket.add(step.a.out_name.trim());
-        }
-        collectVariableReferencesFromSteps(step.a.then_steps, bucket);
-        continue;
-      }
-
-      if (step.a.type === 'colorCompare') {
-        if (step.a.input_var?.trim()) {
-          bucket.add(step.a.input_var.trim());
-        }
-        if (step.a.out_var?.trim()) {
-          bucket.add(step.a.out_var.trim());
-        }
-        continue;
-      }
-    }
-
-    if (step.op === 'vision' && step.a.type === 'visionSearch') {
-      if (step.a.det_res_var?.trim()) {
-        bucket.add(step.a.det_res_var.trim());
-      }
-      if (step.a.ocr_res_var?.trim()) {
-        bucket.add(step.a.ocr_res_var.trim());
-      }
-      if (step.a.out_var?.trim()) {
-        bucket.add(step.a.out_var.trim());
-      }
-      if (step.a.out_det_var?.trim()) {
-        bucket.add(step.a.out_det_var.trim());
-      }
-      if (step.a.out_ocr_var?.trim()) {
-        bucket.add(step.a.out_ocr_var.trim());
-      }
-      collectVariableReferencesFromSteps(step.a.then_steps, bucket);
-      continue;
-    }
-
-    if (step.op === 'flowControl') {
-      if (step.a.type === 'handlePolicySet') {
-        if (step.a.det_input_var?.trim()) {
-          bucket.add(step.a.det_input_var.trim());
-        }
-        if (step.a.ocr_input_var?.trim()) {
-          bucket.add(step.a.ocr_input_var.trim());
-        }
-        if (step.a.out_var?.trim()) {
-          bucket.add(step.a.out_var.trim());
-        }
-        continue;
-      }
-
-      if (step.a.type === 'handlePolicy') {
-        if (step.a.input_var?.trim()) {
-          bucket.add(step.a.input_var.trim());
-        }
-        if (step.a.out_var?.trim()) {
-          bucket.add(step.a.out_var.trim());
-        }
-        continue;
-      }
-
-      if (step.a.type === 'if' || step.a.type === 'while') {
-        collectConditionVariableReferences(step.a.con, bucket);
-      }
-
-      if (step.a.type === 'if') {
-        collectVariableReferencesFromSteps(step.a.then, bucket);
-        collectVariableReferencesFromSteps(step.a.else_steps ?? [], bucket);
-        continue;
-      }
-
-      if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
-        if (step.a.type === 'forEach' && step.a.input_var?.trim()) {
-          bucket.add(step.a.input_var.trim());
-        }
-        collectVariableReferencesFromSteps(step.a.flow, bucket);
-      }
-    }
-  }
-
-  return bucket;
-};
-
-const collectConditionVariableReferences = (condition: ConditionNode, bucket: Set<string>) => {
-  if (condition.type === 'group') {
-    condition.items.forEach((item: ConditionNode) => collectConditionVariableReferences(item, bucket));
-    return;
-  }
-
-  if (condition.type === 'varCompare' && condition.var_name?.trim()) {
-    bucket.add(condition.var_name.trim());
-    return;
-  }
-
-  if (condition.type === 'policySetResult' && condition.result_var?.trim()) {
-    bucket.add(condition.result_var.trim());
-    return;
-  }
-
-};
-
-type VariableUsage = { key: string; label: string };
-
-const pushVariableUsage = (bucket: VariableUsage[], key: string | null | undefined, label: string) => {
-  const trimmed = key?.trim();
-  if (!trimmed) {
-    return;
-  }
-  bucket.push({ key: trimmed, label });
-};
-
-const collectVariableUsagesFromCondition = (condition: ConditionNode, scopeLabel: string, bucket: VariableUsage[]) => {
-  if (condition.type === 'group') {
-    condition.items.forEach((item) => collectVariableUsagesFromCondition(item, scopeLabel, bucket));
-    return;
-  }
-  if (condition.type === 'varCompare') {
-    pushVariableUsage(bucket, condition.var_name, `${scopeLabel}的条件`);
-    return;
-  }
-  if (condition.type === 'policySetResult') {
-    pushVariableUsage(bucket, condition.result_var, `${scopeLabel}的条件`);
-  }
-};
-
-const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string, bucket: VariableUsage[]) => {
-  for (const step of steps) {
-    const stepLabel = `${scopeLabel}的步骤「${describeStep(step)}」`;
-
-    if (step.op === 'sequence') {
-      collectVariableUsagesFromSteps(step.steps, scopeLabel, bucket);
-      continue;
-    }
-
-    if (step.op === 'action') {
-      if (step.a.ac === 'capture') {
-        pushVariableUsage(bucket, step.a.output_var, stepLabel);
-        continue;
-      }
-      if ((step.a.ac === 'click' || step.a.ac === 'swipe') && (step.a.mode === 'txt' || step.a.mode === 'labelIdx')) {
-        pushVariableUsage(bucket, step.a.input_var, stepLabel);
-      }
-      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'txt') {
-        pushVariableUsage(bucket, step.a.txt_expr, stepLabel);
-      }
-      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'labelIdx') {
-        pushVariableUsage(bucket, step.a.idx_expr, stepLabel);
-      }
-      if (step.a.ac === 'swipe' && step.a.mode === 'txt') {
-        pushVariableUsage(bucket, step.a.from_expr, stepLabel);
-        pushVariableUsage(bucket, step.a.to_expr, stepLabel);
-      }
-    }
-
-    if (step.op === 'dataHanding') {
-      if (step.a.type === 'setVar' || step.a.type === 'getVar') {
-        pushVariableUsage(bucket, step.a.name, stepLabel);
-        continue;
-      }
-      if (step.a.type === 'filter') {
-        pushVariableUsage(bucket, step.a.input_var, stepLabel);
-        pushVariableUsage(bucket, step.a.out_name, stepLabel);
-        collectVariableUsagesFromSteps(step.a.then_steps, scopeLabel, bucket);
-        continue;
-      }
-      if (step.a.type === 'colorCompare') {
-        pushVariableUsage(bucket, step.a.input_var, stepLabel);
-        pushVariableUsage(bucket, step.a.out_var, stepLabel);
-        continue;
-      }
-    }
-
-    if (step.op === 'vision' && step.a.type === 'visionSearch') {
-      pushVariableUsage(bucket, step.a.det_res_var, stepLabel);
-      pushVariableUsage(bucket, step.a.ocr_res_var, stepLabel);
-      pushVariableUsage(bucket, step.a.out_var, stepLabel);
-      pushVariableUsage(bucket, step.a.out_det_var, stepLabel);
-      pushVariableUsage(bucket, step.a.out_ocr_var, stepLabel);
-      collectVariableUsagesFromSteps(step.a.then_steps, scopeLabel, bucket);
-      continue;
-    }
-
-    if (step.op === 'flowControl') {
-      if (step.a.type === 'handlePolicySet') {
-        pushVariableUsage(bucket, step.a.det_input_var, `${stepLabel}的检测输入`);
-        pushVariableUsage(bucket, step.a.ocr_input_var, `${stepLabel}的OCR输入`);
-        pushVariableUsage(bucket, step.a.out_var, stepLabel);
-        continue;
-      }
-      if (step.a.type === 'handlePolicy') {
-        pushVariableUsage(bucket, step.a.input_var, stepLabel);
-        pushVariableUsage(bucket, step.a.out_var, stepLabel);
-        continue;
-      }
-      if (step.a.type === 'if' || step.a.type === 'while') {
-        collectVariableUsagesFromCondition(step.a.con, stepLabel, bucket);
-      }
-      if (step.a.type === 'if') {
-        collectVariableUsagesFromSteps(step.a.then, scopeLabel, bucket);
-        collectVariableUsagesFromSteps(step.a.else_steps ?? [], scopeLabel, bucket);
-        continue;
-      }
-      if (step.a.type === 'forEach') {
-        pushVariableUsage(bucket, step.a.input_var, stepLabel);
-      }
-      if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
-        collectVariableUsagesFromSteps(step.a.flow, scopeLabel, bucket);
-      }
-    }
-  }
-};
-
 type VariableCreateOptions = {
   preferredKey?: string;
   name?: string;
@@ -2366,36 +1540,12 @@ type VariableCreateOptions = {
   focusEditor?: boolean;
 };
 
-const createEditorStepId = () =>
-  globalThis.crypto?.randomUUID?.() ?? `step-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-
 const focusVariableEditor = () => {
   if (activeMode.value === 'policy') {
     activePolicyPanel.value = 'inputs';
     return;
   }
   activePanel.value = 'inputs';
-};
-
-const createUniqueVariableStorageKey = (namespace: EditorInputEntry['namespace'], preferredKey?: string) => {
-  const existingKeys = new Set(inputEntries.value.map((entry) => entry.key.trim()).filter(Boolean));
-  const trimmedPreferred = preferredKey?.trim().replace(/^(input|runtime|system)\./, '') ?? '';
-  const defaultPrefix = namespace === 'runtime' ? 'runtimeVar' : 'newVar';
-  const baseSeed = trimmedPreferred || `${defaultPrefix}${inputEntries.value.length + 1}`;
-
-  if (!existingKeys.has(baseSeed)) {
-    return baseSeed;
-  }
-
-  const matched = baseSeed.match(/^(.*?)(\d+)$/);
-  const prefix = matched?.[1] || `${baseSeed}_`;
-  let seed = matched ? Number(matched[2]) : 1;
-  let nextKey = baseSeed;
-  while (existingKeys.has(nextKey)) {
-    seed += 1;
-    nextKey = `${prefix}${seed}`;
-  }
-  return nextKey;
 };
 
 const createVariableEntry = (
@@ -2417,7 +1567,7 @@ const createVariableEntry = (
     }
   }
 
-  const nextKey = createUniqueVariableStorageKey(namespace, options.preferredKey);
+  const nextKey = createUniqueVariableStorageKey(inputEntries.value, namespace, options.preferredKey);
   const nextEntry: EditorInputEntry = {
     ...createInputEntry(inputType),
     key: nextKey,
@@ -2439,158 +1589,6 @@ const createVariableEntry = (
   return `${namespace}.${nextKey}`;
 };
 
-const renameVariableReferencesInSteps = (steps: Step[], previousKey: string, nextKey: string): Step[] =>
-  steps.map((step) => {
-    const nextStep = cloneJson(step);
-
-    if (nextStep.op === 'sequence') {
-      nextStep.steps = renameVariableReferencesInSteps(nextStep.steps, previousKey, nextKey);
-      return nextStep;
-    }
-
-    if (nextStep.op === 'dataHanding') {
-      if (nextStep.a.type === 'setVar' || nextStep.a.type === 'getVar') {
-        if (nextStep.a.name === previousKey) {
-          nextStep.a.name = nextKey;
-        }
-        return nextStep;
-      }
-
-      if (nextStep.a.type === 'filter') {
-        if (nextStep.a.input_var === previousKey) {
-          nextStep.a.input_var = nextKey;
-        }
-        if (nextStep.a.out_name === previousKey) {
-          nextStep.a.out_name = nextKey;
-        }
-        nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
-        return nextStep;
-      }
-
-      if (nextStep.a.type === 'colorCompare') {
-        if (nextStep.a.input_var === previousKey) {
-          nextStep.a.input_var = nextKey;
-        }
-        if (nextStep.a.out_var === previousKey) {
-          nextStep.a.out_var = nextKey;
-        }
-        return nextStep;
-      }
-
-      return nextStep;
-    }
-
-    if (nextStep.op === 'flowControl') {
-      if (nextStep.a.type === 'if' || nextStep.a.type === 'while') {
-        nextStep.a.con = renameConditionVariableReferences(nextStep.a.con, previousKey, nextKey);
-      }
-
-      if (nextStep.a.type === 'handlePolicySet') {
-        if (nextStep.a.det_input_var === previousKey) {
-          nextStep.a.det_input_var = nextKey;
-        }
-        if (nextStep.a.ocr_input_var === previousKey) {
-          nextStep.a.ocr_input_var = nextKey;
-        }
-        if (nextStep.a.out_var === previousKey) {
-          nextStep.a.out_var = nextKey;
-        }
-        return nextStep;
-      }
-
-      if (nextStep.a.type === 'handlePolicy') {
-        if (nextStep.a.input_var === previousKey) {
-          nextStep.a.input_var = nextKey;
-        }
-        if (nextStep.a.out_var === previousKey) {
-          nextStep.a.out_var = nextKey;
-        }
-        return nextStep;
-      }
-
-      if (nextStep.a.type === 'if') {
-        nextStep.a.then = renameVariableReferencesInSteps(nextStep.a.then, previousKey, nextKey);
-        nextStep.a.else_steps = nextStep.a.else_steps
-          ? renameVariableReferencesInSteps(nextStep.a.else_steps, previousKey, nextKey)
-          : nextStep.a.else_steps;
-        return nextStep;
-      }
-
-      if (nextStep.a.type === 'forEach') {
-        if (nextStep.a.input_var === previousKey) {
-          nextStep.a.input_var = nextKey;
-        }
-        nextStep.a.flow = renameVariableReferencesInSteps(nextStep.a.flow, previousKey, nextKey);
-        return nextStep;
-      }
-
-      if (nextStep.a.type === 'while' || nextStep.a.type === 'repeat') {
-        nextStep.a.flow = renameVariableReferencesInSteps(nextStep.a.flow, previousKey, nextKey);
-        return nextStep;
-      }
-
-      return nextStep;
-    }
-
-    if (nextStep.op === 'action') {
-      if (nextStep.a.ac === 'capture') {
-        if (nextStep.a.output_var === previousKey) {
-          nextStep.a.output_var = nextKey;
-        }
-        return nextStep;
-      }
-
-      if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'swipe') && (nextStep.a.mode === 'txt' || nextStep.a.mode === 'labelIdx') && nextStep.a.input_var === previousKey) {
-        nextStep.a.input_var = nextKey;
-      }
-      if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'longClick') && nextStep.a.mode === 'txt' && nextStep.a.txt_expr === previousKey) {
-        nextStep.a.txt_expr = nextKey;
-      }
-      if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'longClick') && nextStep.a.mode === 'labelIdx' && nextStep.a.idx_expr === previousKey) {
-        nextStep.a.idx_expr = nextKey;
-      }
-      if (nextStep.a.ac === 'swipe' && nextStep.a.mode === 'txt') {
-        if (nextStep.a.from_expr === previousKey) {
-          nextStep.a.from_expr = nextKey;
-        }
-        if (nextStep.a.to_expr === previousKey) {
-          nextStep.a.to_expr = nextKey;
-        }
-      }
-      return nextStep;
-    }
-
-    if (nextStep.op === 'vision' && nextStep.a.type === 'visionSearch') {
-      if (nextStep.a.out_var === previousKey) {
-        nextStep.a.out_var = nextKey;
-      }
-      nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
-    }
-
-    return nextStep;
-  });
-
-const renameConditionVariableReferences = (condition: ConditionNode, previousKey: string, nextKey: string): ConditionNode => {
-  const nextCondition = cloneJson(condition) as ConditionNode;
-
-  if (nextCondition.type === 'group') {
-    nextCondition.items = nextCondition.items.map((item: ConditionNode) => renameConditionVariableReferences(item, previousKey, nextKey));
-    return nextCondition;
-  }
-
-  if (nextCondition.type === 'varCompare' && nextCondition.var_name === previousKey) {
-    nextCondition.var_name = nextKey;
-    return nextCondition;
-  }
-
-  if (nextCondition.type === 'policySetResult' && nextCondition.result_var === previousKey) {
-    nextCondition.result_var = nextKey;
-    return nextCondition;
-  }
-
-  return nextCondition;
-};
-
 const syncVariableReferenceRename = (previousKey: string, nextKey: string) => {
   if (!previousKey || !nextKey || previousKey === nextKey) {
     return;
@@ -2603,18 +1601,7 @@ const syncVariableReferenceRename = (previousKey: string, nextKey: string) => {
         data: {
           ...cloneJson(task.data),
           steps: renameVariableReferencesInSteps(task.data.steps as Step[], previousKey, nextKey),
-          uiData:
-            task.data?.uiData && typeof task.data.uiData === 'object' && !Array.isArray(task.data.uiData)
-              ? {
-                  ...task.data.uiData,
-                  fields: Array.isArray((task.data.uiData as { fields?: unknown[] }).fields)
-                    ? ((task.data.uiData as { fields: Array<Record<string, unknown>> }).fields).map((field) => ({
-                        ...field,
-                        ...(field.inputKey === previousKey.replace(/^input\./, '') ? { inputKey: nextKey.replace(/^input\./, '') } : {}),
-                      }))
-                    : (task.data.uiData as { fields?: unknown[] }).fields,
-                }
-              : task.data.uiData,
+          uiData: renameInputKeyReferencesInUiData(task.data.uiData, previousKey, nextKey),
         },
       },
       index,
@@ -2712,9 +1699,7 @@ const jumpToVariableResource = (option: EditorVariableOption) => {
 
 const removePolicy = (policyId: string) => {
   draftPolicies.value = draftPolicies.value.filter((item) => item.id !== policyId).map((item, index) => normalizePolicy(item, index));
-  groupPolicyIdsByGroupId.value = Object.fromEntries(
-    Object.entries(groupPolicyIdsByGroupId.value).map(([groupId, policyIds]) => [groupId, policyIds.filter((id) => id !== policyId)]),
-  );
+  groupPolicyIdsByGroupId.value = removeRelationIdFromAllOwners(groupPolicyIdsByGroupId.value, policyId);
   if (selectedPolicyId.value === policyId) {
     selectedPolicyId.value = draftPolicies.value[0]?.id ?? null;
   }
@@ -2722,12 +1707,8 @@ const removePolicy = (policyId: string) => {
 
 const removePolicyGroup = (groupId: string) => {
   draftPolicyGroups.value = draftPolicyGroups.value.filter((item) => item.id !== groupId).map((item, index) => normalizePolicyGroup(item, index));
-  const nextGroupPolicies = { ...groupPolicyIdsByGroupId.value };
-  delete nextGroupPolicies[groupId];
-  groupPolicyIdsByGroupId.value = nextGroupPolicies;
-  setGroupIdsBySetId.value = Object.fromEntries(
-    Object.entries(setGroupIdsBySetId.value).map(([setId, groupIds]) => [setId, groupIds.filter((id) => id !== groupId)]),
-  );
+  groupPolicyIdsByGroupId.value = removeRelationOwner(groupPolicyIdsByGroupId.value, groupId);
+  setGroupIdsBySetId.value = removeRelationIdFromAllOwners(setGroupIdsBySetId.value, groupId);
   if (selectedPolicyGroupId.value === groupId) {
     selectedPolicyGroupId.value = draftPolicyGroups.value[0]?.id ?? null;
   }
@@ -2735,45 +1716,34 @@ const removePolicyGroup = (groupId: string) => {
 
 const removePolicySet = (setId: string) => {
   draftPolicySets.value = draftPolicySets.value.filter((item) => item.id !== setId).map((item, index) => normalizePolicySet(item, index));
-  const nextSetGroups = { ...setGroupIdsBySetId.value };
-  delete nextSetGroups[setId];
-  setGroupIdsBySetId.value = nextSetGroups;
+  setGroupIdsBySetId.value = removeRelationOwner(setGroupIdsBySetId.value, setId);
   if (selectedPolicySetId.value === setId) {
     selectedPolicySetId.value = draftPolicySets.value[0]?.id ?? null;
   }
 };
 
 const reorderPolicies = (draggedId: string, targetId: string) => {
-  const fromIndex = draftPolicies.value.findIndex((item) => item.id === draggedId);
-  const toIndex = draftPolicies.value.findIndex((item) => item.id === targetId);
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-  draftPolicies.value = reorderCollection(draftPolicies.value, fromIndex, toIndex).map((item, index) => normalizePolicy(item, index));
+  draftPolicies.value = reorderItemsById(draftPolicies.value, draggedId, targetId, normalizePolicy);
 };
 
 const movePolicyByMenu = (policyId: string, action: EditorCollectionMoveAction) => {
-  draftPolicies.value = moveCollectionByMenu(draftPolicies.value, policyId, action, normalizePolicy);
+  draftPolicies.value = moveCollectionByMenuAction(draftPolicies.value, policyId, action, normalizePolicy);
 };
 
 const reorderPolicyGroups = (draggedId: string, targetId: string) => {
-  const fromIndex = draftPolicyGroups.value.findIndex((item) => item.id === draggedId);
-  const toIndex = draftPolicyGroups.value.findIndex((item) => item.id === targetId);
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-  draftPolicyGroups.value = reorderCollection(draftPolicyGroups.value, fromIndex, toIndex).map((item, index) => normalizePolicyGroup(item, index));
+  draftPolicyGroups.value = reorderItemsById(draftPolicyGroups.value, draggedId, targetId, normalizePolicyGroup);
 };
 
 const movePolicyGroupByMenu = (groupId: string, action: EditorCollectionMoveAction) => {
-  draftPolicyGroups.value = moveCollectionByMenu(draftPolicyGroups.value, groupId, action, normalizePolicyGroup);
+  draftPolicyGroups.value = moveCollectionByMenuAction(draftPolicyGroups.value, groupId, action, normalizePolicyGroup);
 };
 
 const reorderPolicySets = (draggedId: string, targetId: string) => {
-  const fromIndex = draftPolicySets.value.findIndex((item) => item.id === draggedId);
-  const toIndex = draftPolicySets.value.findIndex((item) => item.id === targetId);
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-  draftPolicySets.value = reorderCollection(draftPolicySets.value, fromIndex, toIndex).map((item, index) => normalizePolicySet(item, index));
+  draftPolicySets.value = reorderItemsById(draftPolicySets.value, draggedId, targetId, normalizePolicySet);
 };
 
 const movePolicySetByMenu = (setId: string, action: EditorCollectionMoveAction) => {
-  draftPolicySets.value = moveCollectionByMenu(draftPolicySets.value, setId, action, normalizePolicySet);
+  draftPolicySets.value = moveCollectionByMenuAction(draftPolicySets.value, setId, action, normalizePolicySet);
 };
 
 const updatePolicyTextField = (field: 'name' | 'note' | 'logPrint', value: string) => {
@@ -2845,25 +1815,16 @@ const updateRelationNote = (mode: 'policyGroup' | 'policySet', value: string) =>
 };
 
 const loadImgDetLabels = async (path: string) => {
-  const trimmedPath = path.trim();
-  if (!trimmedPath) {
-    imgDetLabelOptions.value = [];
-    imgDetLabelHint.value = '当前脚本未设置图像检测模型的标签文件，请先在“编辑脚本信息 > 模型信息 > 目标检测”里配置标签路径。';
-    appendConsoleLine('图像检测标签文件未配置。', 'warning');
-    return;
-  }
-
   imgDetLabelLoading.value = true;
 
   try {
-    const labels = await scriptService.getYoloLabels(trimmedPath);
-    imgDetLabelOptions.value = labels.map((item) => ({
-      label: `${item.index}: ${item.label}`,
-      value: item.index,
-      description: `idx ${item.index}`,
-    }));
-    imgDetLabelHint.value = labels.length ? null : '标签文件已读取，但未解析出任何 names 标签。';
-    appendConsoleLine(`已加载图像检测标签 ${labels.length} 项：${trimmedPath}`);
+    const nextState = await loadImgDetLabelState({
+      path,
+      getYoloLabels: scriptService.getYoloLabels,
+    });
+    imgDetLabelOptions.value = nextState.options;
+    imgDetLabelHint.value = nextState.hint;
+    appendConsoleLine(nextState.logMessage, nextState.logLevel);
   } catch (error) {
     console.error(error);
     imgDetLabelOptions.value = [];
@@ -2898,41 +1859,6 @@ const savePreviewDevice = async (form: DeviceFormState) => {
   }
 };
 
-const buildActiveRunTarget = (): RunTarget | null => {
-  if (!scriptId.value || !selectedRunTargetKey.value) {
-    return null;
-  }
-
-  const [kind, rawId] = selectedRunTargetKey.value.split(':', 2);
-  const targetId = rawId?.trim() || '';
-
-  if (kind === 'fullScript') {
-    return createFullScriptRunTarget(scriptId.value);
-  }
-
-  if (!targetId) {
-    return null;
-  }
-
-  if (kind === 'policy') {
-    return createPolicyRunTarget(scriptId.value, targetId);
-  }
-
-  if (kind === 'policyGroup') {
-    return createPolicyGroupRunTarget(scriptId.value, targetId);
-  }
-
-  if (kind === 'policySet') {
-    return createPolicySetRunTarget(scriptId.value, targetId);
-  }
-
-  if (kind === 'task') {
-    return createTaskRunTarget(scriptId.value, targetId);
-  }
-
-  return null;
-};
-
 const handleRunSelection = async () => {
   if (!selectedPreviewDevice.value || !selectedPreviewDeviceId.value || !selectedRunTargetKey.value) {
     showToast('请先选择设备和目标对象。', 'warning');
@@ -2945,7 +1871,15 @@ const handleRunSelection = async () => {
     return;
   }
 
-  const runTarget = buildActiveRunTarget();
+  const runTarget = buildActiveRunTarget({
+    scriptId: scriptId.value,
+    selectedRunTargetKey: selectedRunTargetKey.value,
+    createFullScriptRunTarget,
+    createPolicyRunTarget,
+    createPolicyGroupRunTarget,
+    createPolicySetRunTarget,
+    createTaskRunTarget,
+  });
   if (!runTarget) {
     showToast('当前目标对象无法转换为运行目标。', 'error');
     return;
@@ -2992,77 +1926,42 @@ const handleRunSelection = async () => {
 
 const linkPolicyToGroup = (policyId: string) => {
   if (!currentPolicyGroup.value) return;
-  const groupId = currentPolicyGroup.value.id;
-  const assigned = groupPolicyIdsByGroupId.value[groupId] ?? [];
-  if (assigned.includes(policyId)) return;
-  groupPolicyIdsByGroupId.value = {
-    ...groupPolicyIdsByGroupId.value,
-    [groupId]: [...assigned, policyId],
-  };
+  groupPolicyIdsByGroupId.value = appendRelationId(groupPolicyIdsByGroupId.value, currentPolicyGroup.value.id, policyId);
 };
 
 const unlinkPolicyFromGroup = (policyId: string) => {
   if (!currentPolicyGroup.value) return;
-  const groupId = currentPolicyGroup.value.id;
-  groupPolicyIdsByGroupId.value = {
-    ...groupPolicyIdsByGroupId.value,
-    [groupId]: (groupPolicyIdsByGroupId.value[groupId] ?? []).filter((id) => id !== policyId),
-  };
+  groupPolicyIdsByGroupId.value = removeRelationId(groupPolicyIdsByGroupId.value, currentPolicyGroup.value.id, policyId);
 };
 
 const reorderGroupPolicies = (draggedId: string, targetId: string) => {
   if (!currentPolicyGroup.value) return;
-  const groupId = currentPolicyGroup.value.id;
-  const currentIds = groupPolicyIdsByGroupId.value[groupId] ?? [];
-  const fromIndex = currentIds.indexOf(draggedId);
-  const toIndex = currentIds.indexOf(targetId);
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-  groupPolicyIdsByGroupId.value = {
-    ...groupPolicyIdsByGroupId.value,
-    [groupId]: reorderCollection(currentIds, fromIndex, toIndex),
-  };
+  groupPolicyIdsByGroupId.value = reorderRelationIds(
+    groupPolicyIdsByGroupId.value,
+    currentPolicyGroup.value.id,
+    draggedId,
+    targetId,
+  );
 };
 
 const reverseGroupPolicies = () => {
   if (!currentPolicyGroup.value) return;
-  const groupId = currentPolicyGroup.value.id;
-  groupPolicyIdsByGroupId.value = {
-    ...groupPolicyIdsByGroupId.value,
-    [groupId]: [...(groupPolicyIdsByGroupId.value[groupId] ?? [])].reverse(),
-  };
+  groupPolicyIdsByGroupId.value = reverseRelationIds(groupPolicyIdsByGroupId.value, currentPolicyGroup.value.id);
 };
 
 const linkGroupToSet = (groupId: string) => {
   if (!currentPolicySet.value) return;
-  const setId = currentPolicySet.value.id;
-  const assigned = setGroupIdsBySetId.value[setId] ?? [];
-  if (assigned.includes(groupId)) return;
-  setGroupIdsBySetId.value = {
-    ...setGroupIdsBySetId.value,
-    [setId]: [...assigned, groupId],
-  };
+  setGroupIdsBySetId.value = appendRelationId(setGroupIdsBySetId.value, currentPolicySet.value.id, groupId);
 };
 
 const unlinkGroupFromSet = (groupId: string) => {
   if (!currentPolicySet.value) return;
-  const setId = currentPolicySet.value.id;
-  setGroupIdsBySetId.value = {
-    ...setGroupIdsBySetId.value,
-    [setId]: (setGroupIdsBySetId.value[setId] ?? []).filter((id) => id !== groupId),
-  };
+  setGroupIdsBySetId.value = removeRelationId(setGroupIdsBySetId.value, currentPolicySet.value.id, groupId);
 };
 
 const reorderSetGroups = (draggedId: string, targetId: string) => {
   if (!currentPolicySet.value) return;
-  const setId = currentPolicySet.value.id;
-  const currentIds = setGroupIdsBySetId.value[setId] ?? [];
-  const fromIndex = currentIds.indexOf(draggedId);
-  const toIndex = currentIds.indexOf(targetId);
-  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
-  setGroupIdsBySetId.value = {
-    ...setGroupIdsBySetId.value,
-    [setId]: reorderCollection(currentIds, fromIndex, toIndex),
-  };
+  setGroupIdsBySetId.value = reorderRelationIds(setGroupIdsBySetId.value, currentPolicySet.value.id, draggedId, targetId);
 };
 
 const addInput = () => {
@@ -3585,13 +2484,7 @@ const openRawEditor = (section: RawEditorSection) => {
 
   rawDialogSection.value = section;
   rawDialogError.value = null;
-  rawDialogText.value = stableStringify(
-    section === 'inputs'
-      ? currentTask.value.data.variables ?? {}
-      : section === 'ui'
-        ? currentTask.value.data.uiData ?? {}
-        : currentTask.value.data.steps ?? [],
-  );
+  rawDialogText.value = buildRawDialogText(section, currentTask.value);
   rawDialogOpen.value = true;
 };
 
@@ -3604,7 +2497,7 @@ const openCurrentRawEditor = () => {
 
 const formatRawEditor = () => {
   try {
-    rawDialogText.value = stableStringify(JSON.parse(rawDialogText.value) as JsonValue);
+    rawDialogText.value = formatRawDialogText(rawDialogText.value);
     rawDialogError.value = null;
   } catch (error) {
     rawDialogError.value = error instanceof Error ? error.message : 'JSON 结构无效';
@@ -3617,10 +2510,7 @@ const applyRawEditor = () => {
   }
 
   try {
-    const parsed = JSON.parse(rawDialogText.value) as JsonValue;
-    if (rawDialogSection.value === 'steps' && !Array.isArray(parsed)) {
-      throw new Error('步骤 JSON 顶层必须是数组。');
-    }
+    const parsed = parseRawDialogValue(rawDialogSection.value, rawDialogText.value);
 
     replaceTask(currentTask.value.id, (task) => {
       if (rawDialogSection.value === 'inputs') {
@@ -3677,33 +2567,13 @@ const handleOpenVisionLab = async () => {
   }
 };
 
-const buildSavePayload = () =>
-  draftTasks.value.map((task, index) => ({
-    ...cloneJson(task),
-    scriptId: scriptId.value,
-    index,
-  }));
+const buildSavePayload = () => buildTaskSavePayload(draftTasks.value, scriptId.value);
 
-const buildPolicyPayload = () =>
-  draftPolicies.value.map((policy, index) => ({
-    ...cloneJson(policy),
-    scriptId: scriptId.value,
-    orderIndex: index,
-  }));
+const buildPolicyPayload = () => buildPolicySavePayload(draftPolicies.value, scriptId.value);
 
-const buildPolicyGroupPayload = () =>
-  draftPolicyGroups.value.map((group, index) => ({
-    ...cloneJson(group),
-    scriptId: scriptId.value,
-    orderIndex: index,
-  }));
+const buildPolicyGroupPayload = () => buildPolicyGroupSavePayload(draftPolicyGroups.value, scriptId.value);
 
-const buildPolicySetPayload = () =>
-  draftPolicySets.value.map((set, index) => ({
-    ...cloneJson(set),
-    scriptId: scriptId.value,
-    orderIndex: index,
-  }));
+const buildPolicySetPayload = () => buildPolicySetSavePayload(draftPolicySets.value, scriptId.value);
 
 const saveEditor = async () => {
   let taskPoliciesGroupSet = false,policiesRelationship = false,scriptFlag = false;
@@ -3734,33 +2604,40 @@ const saveEditor = async () => {
         updateTime: nextSaveTime,
       },
     };
-    const sourcePolicyIds = new Set(((JSON.parse(sourcePoliciesSnapshot.value || '[]') as PolicyTable[]) ?? []).map((item) => item.id));
-    const sourcePolicyGroupIds = new Set(
-      ((JSON.parse(sourcePolicyGroupsSnapshot.value || '[]') as PolicyGroupTable[]) ?? []).map((item) => item.id),
-    );
-    const sourcePolicySetIds = new Set(((JSON.parse(sourcePolicySetsSnapshot.value || '[]') as PolicySetTable[]) ?? []).map((item) => item.id));
-    const nextPolicyIds = new Set(policies.map((item) => item.id));
-    const nextPolicyGroupIds = new Set(policyGroups.map((item) => item.id));
-    const nextPolicySetIds = new Set(policySets.map((item) => item.id));
-
-    await Promise.all([
-      scriptStore.saveScriptTasks(script.id, tasks),
-      ...policies.map((policy) => scriptService.savePolicy(policy)),
-      ...policyGroups.map((group) => scriptService.savePolicyGroup(group)),
-      ...policySets.map((set) => scriptService.savePolicySet(set)),
-    ]);
+    await savePrimaryScriptEditorData({
+      scriptId: script.id,
+      script,
+      tasks,
+      policies,
+      policyGroups,
+      policySets,
+      saveScriptTasks: scriptStore.saveScriptTasks,
+      savePolicy: scriptService.savePolicy,
+      savePolicyGroup: scriptService.savePolicyGroup,
+      savePolicySet: scriptService.savePolicySet,
+    });
     taskPoliciesGroupSet = true;
 
-    await Promise.all([
-      ...Array.from(sourcePolicyIds).filter((id) => !nextPolicyIds.has(id)).map((id) => scriptService.removePolicy(id)),
-      ...Array.from(sourcePolicyGroupIds).filter((id) => !nextPolicyGroupIds.has(id)).map((id) => scriptService.removePolicyGroup(id)),
-      ...Array.from(sourcePolicySetIds).filter((id) => !nextPolicySetIds.has(id)).map((id) => scriptService.removePolicySet(id)),
-    ]);
+    await removeDeletedScriptEditorData({
+      sourcePolicySnapshot: sourcePoliciesSnapshot.value,
+      sourcePolicyGroupSnapshot: sourcePolicyGroupsSnapshot.value,
+      sourcePolicySetSnapshot: sourcePolicySetsSnapshot.value,
+      policies,
+      policyGroups,
+      policySets,
+      removePolicy: scriptService.removePolicy,
+      removePolicyGroup: scriptService.removePolicyGroup,
+      removePolicySet: scriptService.removePolicySet,
+    });
 
-    await Promise.all([
-      ...policyGroups.map((group) => scriptService.updateGroupPolicies(group.id, groupPolicyIdsByGroupId.value[group.id] ?? [])),
-      ...policySets.map((set) => scriptService.updateSetGroups(set.id, setGroupIdsBySetId.value[set.id] ?? [])),
-    ]);
+    await updateScriptEditorRelations({
+      policyGroups,
+      policySets,
+      groupPolicyIdsByGroupId: groupPolicyIdsByGroupId.value,
+      setGroupIdsBySetId: setGroupIdsBySetId.value,
+      updateGroupPolicies: scriptService.updateGroupPolicies,
+      updateSetGroups: scriptService.updateSetGroups,
+    });
     policiesRelationship = true;
 
     await scriptStore.saveScript(script);
@@ -3771,13 +2648,23 @@ const saveEditor = async () => {
     draftPolicyGroups.value = policyGroups;
     draftPolicySets.value = policySets;
     draftScript.value = script;
-    sourceTasksSnapshot.value = stableStringify(tasks);
-    sourcePoliciesSnapshot.value = stableStringify(policies);
-    sourcePolicyGroupsSnapshot.value = stableStringify(policyGroups);
-    sourcePolicySetsSnapshot.value = stableStringify(policySets);
-    sourceGroupPoliciesSnapshot.value = stableStringify(groupPolicyIdsByGroupId.value);
-    sourceSetGroupsSnapshot.value = stableStringify(setGroupIdsBySetId.value);
-    sourceScriptSnapshot.value = stableStringify(script);
+    const snapshots = buildScriptEditorSnapshots({
+      script,
+      tasks,
+      policies,
+      policyGroups,
+      policySets,
+      groupPolicyIdsByGroupId: groupPolicyIdsByGroupId.value,
+      setGroupIdsBySetId: setGroupIdsBySetId.value,
+      stableStringify,
+    });
+    sourceTasksSnapshot.value = snapshots.tasks;
+    sourcePoliciesSnapshot.value = snapshots.policies;
+    sourcePolicyGroupsSnapshot.value = snapshots.policyGroups;
+    sourcePolicySetsSnapshot.value = snapshots.policySets;
+    sourceGroupPoliciesSnapshot.value = snapshots.groupPolicies;
+    sourceSetGroupsSnapshot.value = snapshots.setGroups;
+    sourceScriptSnapshot.value = snapshots.script;
     saveTime.value = nextSaveTime;
     appendConsoleLine(`脚本结构已保存：${script.data.name || script.id}`);
     showToast('脚本编辑结果已保存', 'success');
@@ -3809,78 +2696,59 @@ const loadEditor = async () => {
       throw new Error('当前脚本不存在，可能已被删除或尚未加载到本地列表。');
     }
 
-    draftScript.value = cloneJson(sourceScript);
-    sourceScriptSnapshot.value = stableStringify(draftScript.value);
-
-    const [loadedTasks, loadedPolicies, loadedPolicyGroups, loadedPolicySets] = await Promise.all([
-      scriptStore.loadScriptTasks(sourceScript.id),
-      scriptService.listPolicies(sourceScript.id),
-      scriptService.listPolicyGroups(sourceScript.id),
-      scriptService.listPolicySets(sourceScript.id),
-    ]);
-    if (loadedTasks.length) {
-      draftTasks.value = loadedTasks.map((task, index) => normalizeTask(task, index));
-      sourceTasksSnapshot.value = stableStringify(draftTasks.value);
-    } else {
-      draftTasks.value = [await buildTaskDraft('主任务 1')];
-      sourceTasksSnapshot.value = stableStringify([]);
-    }
-
-    draftPolicies.value = loadedPolicies.map((policy, index) => normalizePolicy(policy, index));
-    draftPolicyGroups.value = loadedPolicyGroups.map((group, index) => normalizePolicyGroup(group, index));
-    draftPolicySets.value = loadedPolicySets.map((set, index) => normalizePolicySet(set, index));
-
-    const [groupRelations, setRelations] = await Promise.all([
-      Promise.all(
-        draftPolicyGroups.value.map(async (group) => [group.id, await scriptService.getGroupPolicies(group.id)] as const),
-      ),
-      Promise.all(
-        draftPolicySets.value.map(async (set) => [set.id, await scriptService.getSetGroups(set.id)] as const),
-      ),
-    ]);
-    groupPolicyIdsByGroupId.value = Object.fromEntries(groupRelations);
-    setGroupIdsBySetId.value = Object.fromEntries(setRelations);
-    sourcePoliciesSnapshot.value = stableStringify(draftPolicies.value);
-    sourcePolicyGroupsSnapshot.value = stableStringify(draftPolicyGroups.value);
-    sourcePolicySetsSnapshot.value = stableStringify(draftPolicySets.value);
-    sourceGroupPoliciesSnapshot.value = stableStringify(groupPolicyIdsByGroupId.value);
-    sourceSetGroupsSnapshot.value = stableStringify(setGroupIdsBySetId.value);
+    const loaded = await loadScriptEditorData({
+      sourceScript,
+      loadScriptTasks: scriptStore.loadScriptTasks,
+      listPolicies: scriptService.listPolicies,
+      listPolicyGroups: scriptService.listPolicyGroups,
+      listPolicySets: scriptService.listPolicySets,
+      getGroupPolicies: scriptService.getGroupPolicies,
+      getSetGroups: scriptService.getSetGroups,
+      normalizeTask,
+      buildTaskDraft,
+      normalizePolicy,
+      normalizePolicyGroup,
+      normalizePolicySet,
+      cloneScript: cloneJson,
+      stableStringify,
+    });
+    draftScript.value = loaded.draftScript;
+    draftTasks.value = loaded.draftTasks;
+    draftPolicies.value = loaded.draftPolicies;
+    draftPolicyGroups.value = loaded.draftPolicyGroups;
+    draftPolicySets.value = loaded.draftPolicySets;
+    groupPolicyIdsByGroupId.value = loaded.groupPolicyIdsByGroupId;
+    setGroupIdsBySetId.value = loaded.setGroupIdsBySetId;
+    sourceScriptSnapshot.value = loaded.snapshots.script;
+    sourceTasksSnapshot.value = loaded.snapshots.tasks;
+    sourcePoliciesSnapshot.value = loaded.snapshots.policies;
+    sourcePolicyGroupsSnapshot.value = loaded.snapshots.policyGroups;
+    sourcePolicySetsSnapshot.value = loaded.snapshots.policySets;
+    sourceGroupPoliciesSnapshot.value = loaded.snapshots.groupPolicies;
+    sourceSetGroupsSnapshot.value = loaded.snapshots.setGroups;
 
     const persistedViewState = await loadEditorViewState();
-    activeMode.value = isEditorModeId(persistedViewState?.activeMode) ? persistedViewState.activeMode : 'task';
-    activePanel.value = isEditorPanelId(persistedViewState?.activePanel) ? persistedViewState.activePanel : 'basic';
-    activePolicyPanel.value = isPolicyEditorPanelId(persistedViewState?.activePolicyPanel) ? persistedViewState.activePolicyPanel : 'basic';
-    selectedTaskId.value =
-      persistedViewState?.selectedTaskId && draftTasks.value.some((task) => task.id === persistedViewState.selectedTaskId)
-        ? persistedViewState.selectedTaskId
-        : draftTasks.value[0]?.id ?? null;
-    selectedPolicyId.value =
-      persistedViewState?.selectedPolicyId && draftPolicies.value.some((policy) => policy.id === persistedViewState.selectedPolicyId)
-        ? persistedViewState.selectedPolicyId
-        : draftPolicies.value[0]?.id ?? null;
-    selectedPolicyGroupId.value =
-      persistedViewState?.selectedPolicyGroupId && draftPolicyGroups.value.some((group) => group.id === persistedViewState.selectedPolicyGroupId)
-        ? persistedViewState.selectedPolicyGroupId
-        : draftPolicyGroups.value[0]?.id ?? null;
-    selectedPolicySetId.value =
-      persistedViewState?.selectedPolicySetId && draftPolicySets.value.some((set) => set.id === persistedViewState.selectedPolicySetId)
-        ? persistedViewState.selectedPolicySetId
-        : draftPolicySets.value[0]?.id ?? null;
-    selectedStepPath.value = isStepPathLike(persistedViewState?.selectedStepPath) ? cloneStepPath(persistedViewState.selectedStepPath) : null;
-    activeBranchPath.value = isStepBranchPathLike(persistedViewState?.activeBranchPath) ? cloneJson(persistedViewState.activeBranchPath) : ROOT_BRANCH_PATH;
-    selectedPolicyStepPathBefore.value = isStepPathLike(persistedViewState?.selectedPolicyStepPathBefore)
-      ? cloneStepPath(persistedViewState.selectedPolicyStepPathBefore)
-      : null;
-    activePolicyBranchPathBefore.value = isStepBranchPathLike(persistedViewState?.activePolicyBranchPathBefore)
-      ? cloneJson(persistedViewState.activePolicyBranchPathBefore)
-      : ROOT_BRANCH_PATH;
-    selectedPolicyStepPathAfter.value = isStepPathLike(persistedViewState?.selectedPolicyStepPathAfter)
-      ? cloneStepPath(persistedViewState.selectedPolicyStepPathAfter)
-      : null;
-    activePolicyBranchPathAfter.value = isStepBranchPathLike(persistedViewState?.activePolicyBranchPathAfter)
-      ? cloneJson(persistedViewState.activePolicyBranchPathAfter)
-      : ROOT_BRANCH_PATH;
-    saveTime.value = sourceScript.data.updateTime || null;
+    const restoredViewState = resolvePersistedEditorViewState({
+      persistedViewState,
+      draftTasks: draftTasks.value,
+      draftPolicies: draftPolicies.value,
+      draftPolicyGroups: draftPolicyGroups.value,
+      draftPolicySets: draftPolicySets.value,
+    });
+    activeMode.value = restoredViewState.activeMode;
+    activePanel.value = restoredViewState.activePanel;
+    activePolicyPanel.value = restoredViewState.activePolicyPanel;
+    selectedTaskId.value = restoredViewState.selectedTaskId;
+    selectedPolicyId.value = restoredViewState.selectedPolicyId;
+    selectedPolicyGroupId.value = restoredViewState.selectedPolicyGroupId;
+    selectedPolicySetId.value = restoredViewState.selectedPolicySetId;
+    selectedStepPath.value = restoredViewState.selectedStepPath;
+    activeBranchPath.value = restoredViewState.activeBranchPath;
+    selectedPolicyStepPathBefore.value = restoredViewState.selectedPolicyStepPathBefore;
+    activePolicyBranchPathBefore.value = restoredViewState.activePolicyBranchPathBefore;
+    selectedPolicyStepPathAfter.value = restoredViewState.selectedPolicyStepPathAfter;
+    activePolicyBranchPathAfter.value = restoredViewState.activePolicyBranchPathAfter;
+    saveTime.value = loaded.saveTime;
     hydrateTaskEditors();
     appendConsoleLine(`已载入脚本：${sourceScript.data.name}`);
   } catch (error) {
@@ -3902,35 +2770,17 @@ const handleKeydown = (event: KeyboardEvent) => {
 };
 
 const hydratePolicyStepEditors = () => {
-  if (!currentPolicy.value) {
-    selectedPolicyStepPathBefore.value = null;
-    selectedPolicyStepPathAfter.value = null;
-    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
-    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
-    return;
-  }
-
-  if (!currentPolicy.value.data.beforeAction.length) {
-    selectedPolicyStepPathBefore.value = null;
-    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
-  } else if (
-    !selectedPolicyStepPathBefore.value ||
-    !getStepByPath(currentPolicy.value.data.beforeAction, selectedPolicyStepPathBefore.value)
-  ) {
-    selectedPolicyStepPathBefore.value = buildStepPath(ROOT_BRANCH_PATH, 0);
-    activePolicyBranchPathBefore.value = ROOT_BRANCH_PATH;
-  }
-
-  if (!currentPolicy.value.data.afterAction.length) {
-    selectedPolicyStepPathAfter.value = null;
-    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
-  } else if (
-    !selectedPolicyStepPathAfter.value ||
-    !getStepByPath(currentPolicy.value.data.afterAction, selectedPolicyStepPathAfter.value)
-  ) {
-    selectedPolicyStepPathAfter.value = buildStepPath(ROOT_BRANCH_PATH, 0);
-    activePolicyBranchPathAfter.value = ROOT_BRANCH_PATH;
-  }
+  const hydrated = hydratePolicyStepEditorState({
+    currentPolicy: currentPolicy.value,
+    selectedPolicyStepPathBefore: selectedPolicyStepPathBefore.value,
+    selectedPolicyStepPathAfter: selectedPolicyStepPathAfter.value,
+    activePolicyBranchPathBefore: activePolicyBranchPathBefore.value,
+    activePolicyBranchPathAfter: activePolicyBranchPathAfter.value,
+  });
+  selectedPolicyStepPathBefore.value = hydrated.selectedPolicyStepPathBefore;
+  activePolicyBranchPathBefore.value = hydrated.activePolicyBranchPathBefore;
+  selectedPolicyStepPathAfter.value = hydrated.selectedPolicyStepPathAfter;
+  activePolicyBranchPathAfter.value = hydrated.activePolicyBranchPathAfter;
 };
 
 watch(
@@ -3970,14 +2820,11 @@ watch(
   () => deviceStore.devices.map((device) => device.id).join('|'),
   async () => {
     const storedDeviceId = await getFromStore<string>(deviceKey).catch(() => null);
-    if (!selectedPreviewDeviceId.value && storedDeviceId && deviceStore.devices.some((device) => device.id === storedDeviceId)) {
-      selectedPreviewDeviceId.value = storedDeviceId;
-      return;
-    }
-    if (selectedPreviewDeviceId.value && deviceStore.devices.some((device) => device.id === selectedPreviewDeviceId.value)) {
-      return;
-    }
-    selectedPreviewDeviceId.value = deviceStore.devices[0]?.id ?? null;
+    selectedPreviewDeviceId.value = resolveNextPreviewDeviceId({
+      currentSelectedDeviceId: selectedPreviewDeviceId.value,
+      storedDeviceId,
+      availableDeviceIds: deviceStore.devices.map((device) => device.id),
+    });
   },
   { immediate: true },
 );
@@ -4031,143 +2878,171 @@ watch(
 );
 
 watch(taskName, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value) {
+  if (shouldSkipTaskMetaSync({ hasCurrentTask: Boolean(currentTask.value), hydrating: hydratingTaskMeta.value })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.name = value.trim();
-    return task;
+    return applyTaskName(task, value);
   });
 });
 
 watch(taskRowType, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value) {
+  if (shouldSkipTaskMetaSync({ hasCurrentTask: Boolean(currentTask.value), hydrating: hydratingTaskMeta.value })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.rowType = value;
-    if (value === TASK_ROW_TYPE.title) {
+    const next = applyTaskRowType(task, value);
+    if (next.forceBasicPanel) {
       activePanel.value = 'basic';
-      task.recordSchedule = false;
-      task.sectionId = null;
-      task.indentLevel = 0;
-      task.execMax = 0;
-      task.showEnabledToggle = false;
-      task.taskTone = TASK_TONE.normal;
     }
-    return task;
+    return next.task;
   });
 });
 
 watch(taskTriggerMode, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.triggerMode = value;
-    return task;
+    return applyTaskTriggerMode(task, value);
   });
 });
 
 watch(taskHidden, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value) {
+  if (shouldSkipTaskMetaSync({ hasCurrentTask: Boolean(currentTask.value), hydrating: hydratingTaskMeta.value })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.isHidden = value;
-    return task;
+    return applyTaskHidden(task, value);
   });
 });
 
 watch(recordSchedule, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.recordSchedule = value;
-    return task;
+    return applyTaskRecordSchedule(task, value);
   });
 });
 
 watch(sectionId, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.sectionId = value;
-    return task;
+    return applyTaskSectionId(task, value);
   });
 });
 
 watch(indentLevel, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.indentLevel = Math.max(0, Math.min(8, Number(value || 0)));
-    return task;
+    return applyTaskIndentLevel(task, value);
   });
 });
 
 watch(defaultTaskCycle, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.defaultTaskCycle = value;
-    return task;
+    return applyTaskDefaultTaskCycle(task, value);
   });
 });
 
 watch(taskExecMax, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.execMax = Math.max(0, Number(value) || 0);
-    return task;
+    return applyTaskExecMax(task, value);
   });
 });
 
 watch(showEnabledToggle, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.showEnabledToggle = value;
-    return task;
+    return applyTaskShowEnabledToggle(task, value);
   });
 });
 
 watch(defaultEnabled, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.defaultEnabled = value;
-    return task;
+    return applyTaskDefaultEnabled(task, value);
   });
 });
 
 watch(taskTone, (value) => {
-  if (!currentTask.value || hydratingTaskMeta.value || taskRowType.value === TASK_ROW_TYPE.title) {
+  if (shouldSkipTaskMetaSync({
+    hasCurrentTask: Boolean(currentTask.value),
+    hydrating: hydratingTaskMeta.value,
+    rowType: taskRowType.value,
+    allowTitle: false,
+  })) {
     return;
   }
 
   replaceTask(currentTask.value.id, (task) => {
-    task.taskTone = value;
-    return task;
+    return applyTaskTone(task, value);
   });
 });
 
@@ -4179,45 +3054,15 @@ watch(
     }
 
     try {
-      const nextCatalog = syncInputVariableCatalog(draftScript.value?.data.variableCatalog, null, entries);
-      inputError.value = null;
-      if (draftScript.value) {
-        draftScript.value = {
-          ...draftScript.value,
-          data: {
-            ...draftScript.value.data,
-            variableCatalog: nextCatalog,
-          },
-        };
-      }
-
-      const inputKeyById = new Map(
-        entries
-          .filter((entry) => entry.namespace === 'input' && entry.key.trim())
-          .map((entry) => [entry.id, entry.key.trim()]),
-      );
-      if (!currentTask.value) {
-        return;
-      }
-      let changedUiBinding = false;
-      const syncedFields = uiSchema.value.fields.map((field) => {
-        const nextInputKey = field.variableId ? inputKeyById.get(field.variableId) : null;
-        if (!nextInputKey || field.inputKey === nextInputKey) {
-          return field;
-        }
-        changedUiBinding = true;
-        return {
-          ...field,
-          inputKey: nextInputKey,
-          key: field.key === field.inputKey ? nextInputKey : field.key,
-        };
+      const nextState = syncTaskInputEntries({
+        draftScript: draftScript.value,
+        currentTask: currentTask.value,
+        uiSchema: uiSchema.value,
+        entries,
       });
-      if (changedUiBinding) {
-        uiSchema.value = {
-          ...uiSchema.value,
-          fields: syncedFields,
-        };
-      }
+      inputError.value = null;
+      draftScript.value = nextState.draftScript;
+      uiSchema.value = nextState.uiSchema;
     } catch (error) {
       inputError.value = error instanceof Error ? error.message : '输入变量结构无效';
     }
@@ -4233,8 +3078,7 @@ watch(
     }
 
     replaceTask(currentTask.value.id, (task) => {
-      task.data.uiData = buildUiData(value);
-      return task;
+      return applyTaskUiSchema(task, value);
     });
   },
   { deep: true },
@@ -4274,38 +3118,15 @@ onMounted(() => {
   window.addEventListener('mouseup', stopResize);
   void deviceStore.initIpcListeners();
   void Promise.all([deviceStore.refreshAll(), settingsStore.loadPreferences()]);
-  void listen('child-log', (event) => {
-    const payload = event.payload as Record<string, unknown> | null;
-    if (!payload || typeof payload.deviceId !== 'string' || typeof payload.message !== 'string') {
-      return;
-    }
-    if (!selectedPreviewDeviceId.value || payload.deviceId !== selectedPreviewDeviceId.value) {
-      return;
-    }
-    const rawLevel = typeof payload.level === 'string' ? payload.level : 'Info';
-    const time = typeof payload.time === 'string' ? payload.time : buildConsoleTimestamp();
-    appendConsoleLine(`[child:${rawLevel}] ${payload.message}`, normalizeConsoleLevel(rawLevel), time);
-  }).then((unlisten) => {
-    detachChildLogListener = unlisten;
-  });
-  void listen('device-progress', (event) => {
-    const payload = event.payload as Record<string, unknown> | null;
-    if (!payload || typeof payload.deviceId !== 'string') {
-      return;
-    }
-    if (!selectedPreviewDeviceId.value || payload.deviceId !== selectedPreviewDeviceId.value) {
-      return;
-    }
-
-    const message = buildProgressConsoleMessage(payload);
-    if (!message) {
-      return;
-    }
-
-    const time = typeof payload.at === 'string' ? buildConsoleTimestamp() : buildConsoleTimestamp();
-    appendConsoleLine(message, 'debug', time);
-  }).then((unlisten) => {
-    detachDeviceProgressListener = unlisten;
+  void attachScriptEditorRuntimeListeners({
+    getSelectedPreviewDeviceId: () => selectedPreviewDeviceId.value,
+    getScriptId: () => scriptId.value,
+    getDraftTasks: () => draftTasks.value,
+    getDraftPolicies: () => draftPolicies.value,
+    appendConsoleLine,
+  }).then((listeners) => {
+    detachChildLogListener = listeners.detachChildLogListener;
+    detachDeviceProgressListener = listeners.detachDeviceProgressListener;
   });
 });
 
