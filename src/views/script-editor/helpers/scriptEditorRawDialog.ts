@@ -1,6 +1,5 @@
 import type { JsonValue } from '@/types/app/domain';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
-import type { Step } from '@/types/bindings/Step';
 import { stableStringify, type EditorPanelId, type RawEditorSection } from '@/views/script-editor/editorSchema';
 
 export const resolveRawEditorSection = (activePanel: EditorPanelId): RawEditorSection => {
@@ -47,5 +46,5 @@ export const parseRawDialogValue = (section: RawEditorSection, text: string) => 
   if (section === 'steps' && !Array.isArray(parsed)) {
     throw new Error('步骤 JSON 顶层必须是数组。');
   }
-  return parsed as JsonValue | Step[];
+  return parsed;
 };

@@ -4,7 +4,7 @@ import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type { Step } from '@/types/bindings/Step';
 import { buildStepPath, type StepBranchPath, type StepPath, ROOT_BRANCH_PATH } from '@/views/script-editor/editor-step/editorStepTree';
 
-const MAX_CONSOLE_LINES = 300;
+export const MAX_CONSOLE_LINES = 300;
 
 export type EditorConsoleLevel = 'info' | 'warning' | 'error' | 'debug';
 

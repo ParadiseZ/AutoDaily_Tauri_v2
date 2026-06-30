@@ -660,6 +660,7 @@ import {
   attachScriptEditorRuntimeListeners,
   buildConsoleTimestamp,
   findStepPathById,
+  MAX_CONSOLE_LINES,
   type EditorConsoleEntry,
   type EditorConsoleLevel,
   normalizeConsoleLevel,
@@ -931,6 +932,7 @@ const imgDetLabelSelectPlaceholder = computed(() =>
 const runTargetSelectPlaceholder = computed(() => '选择运行目标');
 
 const runTargetSelectOptions = computed(() =>
+  //@ts-ignore
   buildRunTargetSelectOptions({
     scriptName: draftScript.value?.data.name,
     scriptId: scriptId.value,
@@ -1181,6 +1183,7 @@ const rawDialogDescription = computed(() => getRawDialogDescription(rawDialogSec
 const normalizeTask = (task: ScriptTaskTable, index: number) => normalizeTaskDraft(task, index, scriptId.value);
 
 const buildTaskDraft = (name?: string) =>
+  //@ts-ignore
   createTaskDraft({
     name,
     requestUuid: taskService.requestUuid,
@@ -1196,6 +1199,14 @@ const replaceTask = (taskId: string, updater: (task: ScriptTaskTable) => ScriptT
 
     return normalizeTask(updater(cloneJson(task)), index);
   });
+};
+
+const replaceCurrentTask = (updater: (task: ScriptTaskTable) => ScriptTaskTable) => {
+  const task = currentTask.value;
+  if (!task) {
+    return;
+  }
+  replaceTask(task.id, updater);
 };
 
 const hydrateTaskEditors = () => {
@@ -1244,7 +1255,7 @@ const setCurrentTaskSteps = (steps: Step[]) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     task.data.steps = steps;
     return task;
   });
@@ -2512,7 +2523,7 @@ const applyRawEditor = () => {
   try {
     const parsed = parseRawDialogValue(rawDialogSection.value, rawDialogText.value);
 
-    replaceTask(currentTask.value.id, (task) => {
+    replaceCurrentTask((task) => {
       if (rawDialogSection.value === 'inputs') {
         task.data.variables = parsed;
       } else if (rawDialogSection.value === 'ui') {
@@ -2822,7 +2833,7 @@ watch(
     const storedDeviceId = await getFromStore<string>(deviceKey).catch(() => null);
     selectedPreviewDeviceId.value = resolveNextPreviewDeviceId({
       currentSelectedDeviceId: selectedPreviewDeviceId.value,
-      storedDeviceId,
+      storedDeviceId: storedDeviceId ?? null,
       availableDeviceIds: deviceStore.devices.map((device) => device.id),
     });
   },
@@ -2882,7 +2893,7 @@ watch(taskName, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskName(task, value);
   });
 });
@@ -2892,7 +2903,7 @@ watch(taskRowType, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     const next = applyTaskRowType(task, value);
     if (next.forceBasicPanel) {
       activePanel.value = 'basic';
@@ -2911,7 +2922,7 @@ watch(taskTriggerMode, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskTriggerMode(task, value);
   });
 });
@@ -2921,7 +2932,7 @@ watch(taskHidden, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskHidden(task, value);
   });
 });
@@ -2936,7 +2947,7 @@ watch(recordSchedule, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskRecordSchedule(task, value);
   });
 });
@@ -2951,7 +2962,7 @@ watch(sectionId, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskSectionId(task, value);
   });
 });
@@ -2966,7 +2977,7 @@ watch(indentLevel, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskIndentLevel(task, value);
   });
 });
@@ -2981,7 +2992,7 @@ watch(defaultTaskCycle, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskDefaultTaskCycle(task, value);
   });
 });
@@ -2996,7 +3007,7 @@ watch(taskExecMax, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskExecMax(task, value);
   });
 });
@@ -3011,7 +3022,7 @@ watch(showEnabledToggle, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskShowEnabledToggle(task, value);
   });
 });
@@ -3026,7 +3037,7 @@ watch(defaultEnabled, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskDefaultEnabled(task, value);
   });
 });
@@ -3041,7 +3052,7 @@ watch(taskTone, (value) => {
     return;
   }
 
-  replaceTask(currentTask.value.id, (task) => {
+  replaceCurrentTask((task) => {
     return applyTaskTone(task, value);
   });
 });
@@ -3077,7 +3088,7 @@ watch(
       return;
     }
 
-    replaceTask(currentTask.value.id, (task) => {
+    replaceCurrentTask((task) => {
       return applyTaskUiSchema(task, value);
     });
   },
@@ -3141,75 +3152,4 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped>
-.editor-shell {
-  background:
-    radial-gradient(circle at 10% 12%, rgba(70, 110, 255, 0.12), transparent 24%),
-    radial-gradient(circle at 88% 14%, rgba(87, 196, 255, 0.15), transparent 22%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0)),
-    transparent;
-}
-
-.editor-main-grid {
-  grid-template-columns: 340px minmax(0, 1fr);
-}
-
-.editor-main-grid-collapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
-}
-
-@media (max-width: 1279px) {
-  .editor-main-grid,
-  .editor-main-grid-collapsed {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-:deep(.app-panel) {
-  border-radius: 0 !important;
-  border: none !important;
-}
-
-:deep(.script-editor-titlebar.editor-window-titlebar) {
-  min-height: 48px;
-  gap: 0.5rem;
-  padding: 0 !important;
-}
-
-:deep(.script-editor-titlebar .editor-window-titlebar__prefix),
-:deep(.script-editor-titlebar .editor-window-titlebar__title-actions),
-:deep(.script-editor-titlebar .editor-window-titlebar__actions) {
-  gap: 0.375rem;
-}
-
-:deep(.script-editor-titlebar .editor-window-titlebar__title) {
-  font-size: 0.95rem;
-}
-
-:deep(.script-editor-titlebar .editor-window-titlebar__status) {
-  display: inline-flex;
-  align-items: center;
-  padding: 0 !important;
-}
-
-:deep(.script-editor-titlebar .editor-window-titlebar__window-button) {
-  width: 2.25rem;
-  min-height: 2rem;
-}
-
-:deep(.script-editor-titlebar .editor-window-titlebar__window-controls) {
-  margin-left: 1rem;
-}
-
-:deep(.script-editor-titlebar .app-select) {
-  min-height: 2rem;
-  height: 2rem;
-  padding: 0 !important;
-}
-
-:deep(.script-editor-titlebar .app-select-trigger) {
-  min-height: 2rem;
-  height: 2rem;
-  padding: 0 !important;
-}
-</style>
+<style scoped src="./script-editor/ScriptEditor.css"></style>
