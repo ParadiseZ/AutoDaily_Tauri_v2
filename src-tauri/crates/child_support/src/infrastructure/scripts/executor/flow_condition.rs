@@ -218,7 +218,7 @@ impl ScriptExecutor {
         entry.retain(|item| item.source != binding.source);
         entry.push(binding);
         Log::info(&format!(
-            "[ executor ] 记录策略集绑定: source_set={}, target_set={}, top={}, reverse={}",
+            "[ executor ] 绑定：策略集➡️策略集,source_set={}, target_set={}, top={}, reverse={}",
             source, target, top, reverse
         ));
     }
@@ -240,7 +240,7 @@ impl ScriptExecutor {
         entry.retain(|item| item.source != binding.source);
         entry.push(binding);
         Log::info(&format!(
-            "[ executor ] 记录策略组绑定: source_group={}, target_set={}, top={}, reverse={}",
+            "[ executor ] 绑定：策略组➡️策略集,source_group={}, target_set={}, top={}, reverse={}",
             source, target, top, reverse
         ));
     }
@@ -262,7 +262,7 @@ impl ScriptExecutor {
         entry.retain(|item| item.source != binding.source);
         entry.push(binding);
         Log::info(&format!(
-            "[ executor ] 记录绑定策略: source_policy={}, target_group={}, top={}, reverse={}",
+            "[ executor ] 绑定：策略➡️策略组,source_policy={}, target_group={}, top={}, reverse={}",
             source, target, top, reverse
         ));
     }
@@ -284,7 +284,7 @@ impl ScriptExecutor {
         entry.retain(|item| item.source != binding.source);
         entry.push(binding);
         Log::info(&format!(
-            "[ executor ] 记录追加策略组: source_group={}, target_group={}, top={}, reverse={}",
+            "[ executor ] 追加：策略组➡️策略组,source_group={}, target_group={}, top={}, reverse={}",
             source, target, top, reverse
         ));
     }

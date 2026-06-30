@@ -684,6 +684,11 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
   await selectOptionByValue(page, 'editor-flow-bind-policy-target', 'group-a');
   await page.getByTestId('editor-flow-bind-policy-reverse').check();
 
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('主策略集 -> 备用策略集');
+  await expect(page.getByTestId('editor-step-card-1')).toContainText('基础策略组 -> 策略集 备用策略集');
+  await expect(page.getByTestId('editor-step-card-2')).toContainText('扩展策略组 -> 策略组 基础策略组');
+  await expect(page.getByTestId('editor-step-card-3')).toContainText('领奖策略 -> 策略组 基础策略组');
+
   await page.getByTestId('editor-save').click();
 
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());

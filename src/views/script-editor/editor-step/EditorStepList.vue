@@ -62,7 +62,7 @@ import AppIcon from '@/components/shared/AppIcon.vue';
 import type { Step } from '@/types/bindings/Step';
 import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
 import type { EditorReferenceOption } from '@/views/script-editor/editorReferences';
-import { FLOW_TYPE, STEP_OP, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import { ACTION_TYPE, FLOW_TYPE, STEP_OP, TASK_CONTROL_TYPE, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { Trash2 } from 'lucide-vue-next';
 
 const props = withDefaults(defineProps<{
@@ -71,10 +71,16 @@ const props = withDefaults(defineProps<{
   allowRemove?: boolean;
   allowReorder?: boolean;
   taskReferenceOptions?: EditorReferenceOption[];
+  policyReferenceOptions?: EditorReferenceOption[];
+  policyGroupReferenceOptions?: EditorReferenceOption[];
+  policySetReferenceOptions?: EditorReferenceOption[];
 }>(), {
   allowRemove: true,
   allowReorder: true,
   taskReferenceOptions: () => [],
+  policyReferenceOptions: () => [],
+  policyGroupReferenceOptions: () => [],
+  policySetReferenceOptions: () => [],
 });
 
 const emit = defineEmits<{
@@ -128,15 +134,55 @@ const nestedSummary = (step: Step) => {
   return '';
 };
 
-const describeStepMetaText = (step: Step) => {
-  if (step.op === STEP_OP.flowControl && step.a.type === FLOW_TYPE.link) {
-    const target = step.a.target?.trim();
-    if (!target) {
-      return '跳转➡️[未指定]';
-    }
-    const taskName = props.taskReferenceOptions.find((option) => option.value === target)?.label || target;
-    return `跳转➡️[${taskName}]`;
+const resolveReferenceLabel = (
+  id: string | null | undefined,
+  options: EditorReferenceOption[],
+  fallback = '未指定',
+) => {
+  const value = id?.trim();
+  if (!value) {
+    return fallback;
   }
+  return options.find((option) => option.value === value)?.label || value;
+};
+
+const describeStepMetaText = (step: Step) => {
+  if (step.op === STEP_OP.action) {
+    if (step.a.ac === ACTION_TYPE.posAdd) {
+      return `调整策略 ${resolveReferenceLabel(step.a.target, props.policyReferenceOptions)} · +1`;
+    }
+    if (step.a.ac === ACTION_TYPE.posMinus) {
+      return `调整策略 ${resolveReferenceLabel(step.a.target, props.policyReferenceOptions)} · -1`;
+    }
+    if (step.a.ac === ACTION_TYPE.dropSetNext) {
+      return `任务 ${resolveReferenceLabel(step.a.task, props.taskReferenceOptions)} · 变量 ${step.a.variable_id || '未指定'}`;
+    }
+  }
+
+  if (step.op === STEP_OP.flowControl) {
+    if (step.a.type === FLOW_TYPE.link) {
+      return `跳转➡️[${resolveReferenceLabel(step.a.target, props.taskReferenceOptions)}]`;
+    }
+    if (step.a.type === FLOW_TYPE.addPolicies) {
+      return `策略集 ${resolveReferenceLabel(step.a.source, props.policySetReferenceOptions)} -> ${resolveReferenceLabel(step.a.target, props.policySetReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+    }
+    if (step.a.type === FLOW_TYPE.bindPolicyGroup) {
+      return `策略组 ${resolveReferenceLabel(step.a.source, props.policyGroupReferenceOptions)} -> 策略集 ${resolveReferenceLabel(step.a.target, props.policySetReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+    }
+    if (step.a.type === FLOW_TYPE.addPolicyGroups) {
+      return `策略组 ${resolveReferenceLabel(step.a.source, props.policyGroupReferenceOptions)} -> 策略组 ${resolveReferenceLabel(step.a.target, props.policyGroupReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+    }
+    if (step.a.type === FLOW_TYPE.bindPolicy) {
+      return `策略 ${resolveReferenceLabel(step.a.source, props.policyReferenceOptions)} -> 策略组 ${resolveReferenceLabel(step.a.target, props.policyGroupReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+    }
+  }
+
+  if (step.op === STEP_OP.taskControl && step.a.type === TASK_CONTROL_TYPE.setState) {
+    return `设置状态 · ${step.a.target.type}:${step.a.target.type === 'task'
+      ? resolveReferenceLabel(step.a.target.id, props.taskReferenceOptions)
+      : resolveReferenceLabel(step.a.target.id, props.policyReferenceOptions)}`;
+  }
+
   return describeStepMeta(step);
 };
 
