@@ -550,5 +550,4 @@ mod tests {
         assert_eq!(hits[0].pattern, "Hello");
         assert_eq!(hits[0].ocr_index, 0);
     }
-
 }

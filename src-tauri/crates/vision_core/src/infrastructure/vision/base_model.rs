@@ -119,10 +119,10 @@ impl BaseModel {
             PathBuf::from("resources").join("models").join(&relative),
         ];
 
-            if let Ok(current_exe) = std::env::current_exe() {
-                if let Some(exe_dir) = current_exe.parent() {
-                    candidates.push(exe_dir.join("models").join(&relative));
-                    candidates.push(exe_dir.join("resources").join("models").join(&relative));
+        if let Ok(current_exe) = std::env::current_exe() {
+            if let Some(exe_dir) = current_exe.parent() {
+                candidates.push(exe_dir.join("models").join(&relative));
+                candidates.push(exe_dir.join("resources").join("models").join(&relative));
             }
         }
 

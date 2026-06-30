@@ -663,26 +663,15 @@ impl TextDetector for YoloDet {
     }
 }
 
-fn intersection(box1: &YoloCandidate, box2: &YoloCandidate) -> f32 {
-    let [x1_a, y1_a, x2_a, y2_a] = YoloDet::candidate_xyxy(box1);
-    let [x1_b, y1_b, x2_b, y2_b] = YoloDet::candidate_xyxy(box2);
-
-    (x2_a.min(x2_b) - x1_a.max(x1_b)).max(0.0) * (y2_a.min(y2_b) - y1_a.max(y1_b)).max(0.0)
-}
-
-fn union(box1: &YoloCandidate, box2: &YoloCandidate) -> f32 {
-    let [x1_a, y1_a, x2_a, y2_a] = YoloDet::candidate_xyxy(box1);
-    let [x1_b, y1_b, x2_b, y2_b] = YoloDet::candidate_xyxy(box2);
-
-    ((x2_a - x1_a).max(0.0) * (y2_a - y1_a).max(0.0))
-        + ((x2_b - x1_b).max(0.0) * (y2_b - y1_b).max(0.0))
-        - intersection(box1, box2)
-}
-
 /// 计算两个模型坐标候选框的 IoU。
 fn calculate_iou(box1: &YoloCandidate, box2: &YoloCandidate) -> f32 {
-    let intersection_area = intersection(box1, box2);
-    let union_area = union(box1, box2);
+    let [x1_a, y1_a, x2_a, y2_a] = YoloDet::candidate_xyxy(box1);
+    let [x1_b, y1_b, x2_b, y2_b] = YoloDet::candidate_xyxy(box2);
+    let intersection_area =
+        (x2_a.min(x2_b) - x1_a.max(x1_b)).max(0.0) * (y2_a.min(y2_b) - y1_a.max(y1_b)).max(0.0);
+    let union_area = ((x2_a - x1_a).max(0.0) * (y2_a - y1_a).max(0.0))
+        + ((x2_b - x1_b).max(0.0) * (y2_b - y1_b).max(0.0))
+        - intersection_area;
 
     if union_area <= 0.0 {
         return 0.0;

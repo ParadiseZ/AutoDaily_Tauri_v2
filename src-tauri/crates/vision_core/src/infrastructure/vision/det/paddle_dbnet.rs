@@ -2,12 +2,14 @@ use crate::domain::vision::result::{BoundingBox, DetResult};
 use crate::infrastructure::core::{Deserialize, Serialize};
 use crate::infrastructure::vision::base_model::BaseModel;
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
-use crate::infrastructure::vision::vision_error::VisionResult;
+use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
+use image::imageops::FilterType;
 use image::{DynamicImage, GenericImageView, ImageBuffer};
 use imageproc::contours::find_contours;
 use imageproc::point::Point;
 
-use ndarray::{s, Array3, ArrayD, ArrayView2, ArrayViewD, Axis};
+use ndarray::{s, Array4, ArrayD, ArrayView2, ArrayView4, ArrayViewD};
+use std::sync::Mutex;
 
 /// dbNet通常值
 const MIN_AREA: f32 = 3.0;
@@ -23,6 +25,69 @@ pub struct PaddleDetDbNet {
     pub db_box_thresh: f32,
     pub unclip_ratio: f32,
     pub use_dilation: bool,
+    #[serde(skip, default = "PaddleDetDbNet::default_preprocess_buffer")]
+    #[ts(skip)]
+    preprocess_buffer: Mutex<Vec<f32>>,
+}
+
+const INV_255: f32 = 1.0 / 255.0;
+const DBNET_R_SCALE: f32 = INV_255 / 0.229;
+const DBNET_G_SCALE: f32 = INV_255 / 0.224;
+const DBNET_B_SCALE: f32 = INV_255 / 0.225;
+const DBNET_R_PAD: f32 = -0.485 / 0.229;
+const DBNET_G_PAD: f32 = -0.456 / 0.224;
+const DBNET_B_PAD: f32 = -0.406 / 0.225;
+
+impl PaddleDetDbNet {
+    fn default_preprocess_buffer() -> Mutex<Vec<f32>> {
+        Mutex::new(Vec::new())
+    }
+
+    fn input_geometry(&self, image: &DynamicImage) -> (u32, u32, f32, [u32; 2]) {
+        let (origin_w, origin_h) = image.dimensions();
+        let scale = self.get_target_height() as f32 / origin_h as f32;
+        let width = (origin_w as f32 * scale).round() as u32;
+        let target_width = width.next_multiple_of(32);
+
+        (width, target_width, scale, [origin_h, origin_w])
+    }
+
+    fn fill_chw_buffer(
+        &self,
+        image: &DynamicImage,
+        resized_width: u32,
+        padded_width: u32,
+        input_buffer: &mut [f32],
+    ) {
+        let target_height = self.get_target_height();
+        let target_height_usize = target_height as usize;
+        let resized_width_usize = resized_width as usize;
+        let padded_width_usize = padded_width as usize;
+        let plane_len = target_height_usize * padded_width_usize;
+        let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
+        let (g_plane, b_plane) = rest.split_at_mut(plane_len);
+
+        r_plane.fill(DBNET_R_PAD);
+        g_plane.fill(DBNET_G_PAD);
+        b_plane.fill(DBNET_B_PAD);
+
+        let resized_img = image
+            .resize_exact(resized_width, target_height, FilterType::Triangle)
+            .to_rgb8();
+        for (y, row) in resized_img
+            .as_raw()
+            .chunks_exact(resized_width_usize * 3)
+            .enumerate()
+        {
+            let row_offset = y * padded_width_usize;
+            for (x, pixel) in row.chunks_exact(3).enumerate() {
+                let idx = row_offset + x;
+                r_plane[idx] = pixel[0] as f32 * DBNET_R_SCALE + DBNET_R_PAD;
+                g_plane[idx] = pixel[1] as f32 * DBNET_G_SCALE + DBNET_G_PAD;
+                b_plane[idx] = pixel[2] as f32 * DBNET_B_SCALE + DBNET_B_PAD;
+            }
+        }
+    }
 }
 
 impl ModelHandler for PaddleDetDbNet {
@@ -34,61 +99,21 @@ impl ModelHandler for PaddleDetDbNet {
     }
 
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
-        // 实现DBNet特有的预处理逻辑
-        // 1. 图像解码
-        // 2. 尺寸调整 (保持长宽比, padding)
-        // 3. 归一化 (ImageNet标准化)
-        // 4. 通道顺序调整 (HWC -> CHW)
-        // 获取原始图像尺寸
-        let (origin_w, origin_h) = (image.width(), image.height());
-        let origin_shape = [origin_h, origin_w];
+        let (width, target_width, scale, origin_shape) = self.input_geometry(image);
+        let target_height_usize = self.get_target_height() as usize;
+        let target_width_usize = target_width as usize;
+        let mut input_buffer = vec![0.0; 3 * target_height_usize * target_width_usize];
+        self.fill_chw_buffer(image, width, target_width, input_buffer.as_mut_slice());
+        let input = Array4::from_shape_vec(
+            (1, 3, target_height_usize, target_width_usize),
+            input_buffer,
+        )
+        .map_err(|e| VisionError::DataProcessingErr {
+            method: "dbnet_preprocess".to_string(),
+            e: e.to_string(),
+        })?;
 
-        // 计算调整大小比例
-        let scale = self.get_target_height() as f32 / origin_h as f32;
-        let width = (origin_w as f32 * scale).round() as u32;
-
-        // DBNet要求输入宽度为32的倍数
-        let target_width = if width % 32 != 0 {
-            (width / 32 + 1) * 32
-        } else {
-            width
-        };
-
-        // 调整图像大小
-        let resized_img = image.resize_exact(
-            width,
-            self.get_target_height(),
-            image::imageops::FilterType::Triangle,
-        );
-
-        // 初始化输入数组 (使用带填充的宽度)
-        let mut input =
-            Array3::<f32>::zeros((3, self.get_target_height() as usize, target_width as usize));
-
-        // 转换图像格式并归一化
-        for y in 0..self.get_target_height() {
-            for x in 0..width {
-                let pixel = resized_img.get_pixel(x, y);
-                // 标准化: (pixel / 255.0 - mean) / std
-                // PaddleOCR使用的标准均值和标准差
-                input[[0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.485) / 0.229;
-                input[[1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.456) / 0.224;
-                input[[2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.406) / 0.225;
-            }
-            // 对多余的宽度部分进行填充 (padding)
-            // 使用归一化后的0值填充
-            for x in width..target_width {
-                input[[0, y as usize, x as usize]] = -0.485 / 0.229;
-                input[[1, y as usize, x as usize]] = -0.456 / 0.224;
-                input[[2, y as usize, x as usize]] = -0.406 / 0.225;
-            }
-        }
-
-        // 扩展到批次维度 (1, C, H, W)
-        let input = input.insert_axis(Axis(0));
-        let scale_factor = [scale, scale]; // [h_scale, w_scale]
-
-        Ok((input.into_dyn(), scale_factor, origin_shape))
+        Ok((input.into_dyn(), [scale, scale], origin_shape))
     }
 
     fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
@@ -118,6 +143,40 @@ impl ModelHandler for PaddleDetDbNet {
 }
 
 impl TextDetector for PaddleDetDbNet {
+    fn detect(&self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
+        let (width, target_width, scale, origin_shape) = self.input_geometry(image);
+        let target_height_usize = self.get_target_height() as usize;
+        let target_width_usize = target_width as usize;
+        let input_len = 3 * target_height_usize * target_width_usize;
+        let mut input_buffer =
+            self.preprocess_buffer
+                .lock()
+                .map_err(|_| VisionError::DataProcessingErr {
+                    method: "dbnet_detect".to_string(),
+                    e: "获取DBNet预处理缓存失败".to_string(),
+                })?;
+        if input_buffer.len() < input_len {
+            input_buffer.resize(input_len, 0.0);
+        }
+        let input_buffer = &mut input_buffer[..input_len];
+        self.fill_chw_buffer(image, width, target_width, input_buffer);
+        let input_view = ArrayView4::from_shape(
+            (1, 3, target_height_usize, target_width_usize),
+            input_buffer,
+        )
+        .map_err(|e| VisionError::DataProcessingErr {
+            method: "dbnet_detect".to_string(),
+            e: e.to_string(),
+        })?;
+
+        self.base_model.inference_with_output_view(
+            input_view.into_dyn(),
+            self.get_input_node_name(),
+            self.get_output_node_name(),
+            |output| self.postprocess(output, [scale, scale], origin_shape),
+        )
+    }
+
     fn postprocess(
         &self,
         output: ArrayViewD<f32>,
