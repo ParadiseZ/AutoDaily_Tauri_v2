@@ -258,12 +258,45 @@
         </div>
 
         <div class="space-y-4">
+          <template v-if="selectedFlow.type === FLOW_TYPE.handlePolicySet">
+            <EditorVariableBindingField
+              label="目标检测结果集"
+              :model-value="selectedPolicySetDetInput || null"
+              :options="resolvedPolicySetDetInputOptions"
+              placeholder="选择目标检测结果变量"
+              test-id="editor-flow-policy-set-det-input-var"
+              create-label="新建检测结果变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedPolicySetDetInputOption && jumpToVariable)"
+              :locate-disabled="!selectedPolicySetDetInputOption || !jumpToVariable"
+              @update:model-value="$emit('update-field', 'det_input_var', String($event || ''))"
+              @create="createPolicySetDetInputVariable"
+              @locate="jumpToPolicySetDetInputVariable"
+            />
+
+            <EditorVariableBindingField
+              label="OCR结果集"
+              :model-value="selectedPolicySetOcrInput || null"
+              :options="resolvedPolicySetOcrInputOptions"
+              placeholder="选择 OCR 结果变量"
+              test-id="editor-flow-policy-set-ocr-input-var"
+              create-label="新建 OCR 结果变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedPolicySetOcrInputOption && jumpToVariable)"
+              :locate-disabled="!selectedPolicySetOcrInputOption || !jumpToVariable"
+              @update:model-value="$emit('update-field', 'ocr_input_var', String($event || ''))"
+              @create="createPolicySetOcrInputVariable"
+              @locate="jumpToPolicySetOcrInputVariable"
+            />
+          </template>
+
           <EditorVariableBindingField
+            v-else
             label="输入图像变量"
             :model-value="selectedFlowInput || null"
             :options="resolvedFlowInputOptions"
             placeholder="选择截图或图像变量"
-            :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-input-var' : 'editor-flow-policy-input-var'"
+            test-id="editor-flow-policy-input-var"
             create-label="新建图像变量"
             :show-create="Boolean(createVariable)"
             :show-locate="Boolean(selectedFlowInputOption && jumpToVariable)"
@@ -277,7 +310,7 @@
             label="输出结果变量"
             :model-value="selectedFlowOutput || null"
             :options="resolvedFlowOutputOptions"
-            placeholder="选择 JSON 结果变量"
+            :placeholder="selectedFlow.type === FLOW_TYPE.handlePolicySet ? '选择策略集结果变量' : '选择 JSON 结果变量'"
             :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-out-var' : 'editor-flow-policy-out-var'"
             create-label="新建结果变量"
             :show-create="Boolean(createVariable)"
@@ -290,8 +323,15 @@
         </div>
 
         <div class="rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-xs leading-6 text-(--app-text-soft)">
+          <template v-if="selectedFlow.type === FLOW_TYPE.handlePolicySet">
+            处理策略集会直接使用绑定的 `DET` / `OCR` 结果集做策略匹配，不再读取截图输入变量。
+            输出 JSON 约定：顶层摘要字段为 `matched`、`policySetId`、`policyGroupId`、`policyId`，逐轮明细写入 `rounds`。
+            每个 round 内再保存 `pageFingerprints`、`actionSignatures`、`actions`，其中 `actions` 按 `actionIndex` 标识单轮中的动作顺序。
+          </template>
+          <template v-else>
           输出 JSON 约定：顶层摘要字段为 `matched`、`policySetId`、`policyGroupId`、`policyId`，逐轮明细写入 `rounds`。
           每个 round 内再保存 `pageFingerprints`、`actionSignatures`、`actions`，其中 `actions` 按 `actionIndex` 标识单轮中的动作顺序。
+          </template>
         </div>
       </div>
     </template>
@@ -532,23 +572,45 @@ const imageVariableOptions = computed(() =>
     .filter((option) => option.valueType === 'image')
     .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
 );
+const ensureRuntimeResultOption = (
+  options: Array<{ label: string; value: string; description: string }>,
+  value: string,
+  label: string,
+  description: string,
+) => {
+  if (options.some((option) => option.value === value)) {
+    return options;
+  }
+
+  return [{ label, value, description }, ...options];
+};
+const policySetDetVariableOptions = computed(() =>
+  ensureRuntimeResultOption(
+    jsonVariableOptions.value,
+    'runtime.detResults',
+    '检测结果',
+    '默认目标检测输出变量，处理策略集会直接读取这里的检测结果。',
+  ),
+);
+const policySetOcrVariableOptions = computed(() =>
+  ensureRuntimeResultOption(
+    jsonVariableOptions.value,
+    'runtime.ocrResults',
+    'OCR结果',
+    '默认 OCR 输出变量，处理策略集会直接读取这里的 OCR 结果。',
+  ),
+);
 const runtimeWaitVariableOptions = computed(() => {
   const options = props.variableReferenceOptions
     .filter((option) => option.namespace === 'runtime' && ['json', 'list', 'object'].includes(option.valueType))
     .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) }));
 
-  if (options.some((option) => option.value === 'runtime.ocrResults')) {
-    return options;
-  }
-
-  return [
-    {
-      label: 'OCR 结果',
-      value: 'runtime.ocrResults',
-      description: '默认 OCR 输出变量，WaitMs 会从其中提取 00:00 或 00:00:00。',
-    },
-    ...options,
-  ];
+  return ensureRuntimeResultOption(
+    options,
+    'runtime.ocrResults',
+    'OCR 结果',
+    '默认 OCR 输出变量，WaitMs 会从其中提取 00:00 或 00:00:00。',
+  );
 });
 const presetBindingModeOptions = [
   { label: '预设', value: 'fixed', description: '使用步骤里填写的固定值。' },
@@ -742,11 +804,23 @@ const bindingTargetReferenceOptions = computed(() => {
   }
   return [];
 });
+const selectedPolicySetDetInput = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? props.selectedFlow.det_input_var : '',
+);
+const selectedPolicySetOcrInput = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? props.selectedFlow.ocr_input_var : '',
+);
 const selectedFlowInput = computed(() =>
-  props.selectedFlow.type === FLOW_TYPE.handlePolicySet || props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.input_var : '',
+  props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.input_var : '',
 );
 const selectedFlowOutput = computed(() =>
   props.selectedFlow.type === FLOW_TYPE.handlePolicySet || props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.out_var : '',
+);
+const selectedPolicySetDetInputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedPolicySetDetInput.value) ?? null,
+);
+const selectedPolicySetOcrInputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedPolicySetOcrInput.value) ?? null,
 );
 const selectedFlowInputOption = computed(() =>
   props.variableReferenceOptions.find((option) => option.key === selectedFlowInput.value) ?? null,
@@ -789,6 +863,34 @@ const selectedRepeatCountOption = computed(() => {
   return flow.count_expr
     ? props.variableReferenceOptions.find((option) => option.key === flow.count_expr) ?? null
     : null;
+});
+const resolvedPolicySetDetInputOptions = computed(() => {
+  if (!selectedPolicySetDetInput.value || policySetDetVariableOptions.value.some((option) => option.value === selectedPolicySetDetInput.value)) {
+    return policySetDetVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `当前绑定不存在：${selectedPolicySetDetInput.value}`,
+      value: selectedPolicySetDetInput.value,
+      description: '变量目录里找不到该检测结果绑定，保存时仍会保留当前值。',
+    },
+    ...policySetDetVariableOptions.value,
+  ];
+});
+const resolvedPolicySetOcrInputOptions = computed(() => {
+  if (!selectedPolicySetOcrInput.value || policySetOcrVariableOptions.value.some((option) => option.value === selectedPolicySetOcrInput.value)) {
+    return policySetOcrVariableOptions.value;
+  }
+
+  return [
+    {
+      label: `当前绑定不存在：${selectedPolicySetOcrInput.value}`,
+      value: selectedPolicySetOcrInput.value,
+      description: '变量目录里找不到该 OCR 结果绑定，保存时仍会保留当前值。',
+    },
+    ...policySetOcrVariableOptions.value,
+  ];
 });
 const resolvedFlowInputOptions = computed(() => {
   if (!selectedFlowInput.value || imageVariableOptions.value.some((option) => option.value === selectedFlowInput.value)) {
@@ -1110,6 +1212,38 @@ const createFlowInputVariable = async () => {
   emit('update-field', 'input_var', key);
 };
 
+const createPolicySetDetInputVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.handlePolicySet) {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: 'detResults',
+    name: '检测结果',
+    focusEditor: true,
+  });
+  if (!key) {
+    return;
+  }
+  emit('update-field', 'det_input_var', key);
+};
+
+const createPolicySetOcrInputVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.handlePolicySet) {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: 'ocrResults',
+    name: 'OCR结果',
+    focusEditor: true,
+  });
+  if (!key) {
+    return;
+  }
+  emit('update-field', 'ocr_input_var', key);
+};
+
 const createFlowOutputVariable = async () => {
   if (!props.createVariable) {
     return;
@@ -1131,6 +1265,20 @@ const jumpToFlowInputVariable = () => {
     return;
   }
   props.jumpToVariable(selectedFlowInputOption.value);
+};
+
+const jumpToPolicySetDetInputVariable = () => {
+  if (!selectedPolicySetDetInputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedPolicySetDetInputOption.value);
+};
+
+const jumpToPolicySetOcrInputVariable = () => {
+  if (!selectedPolicySetOcrInputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedPolicySetOcrInputOption.value);
 };
 
 const jumpToFlowOutputVariable = () => {

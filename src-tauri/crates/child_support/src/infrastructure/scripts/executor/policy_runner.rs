@@ -39,7 +39,8 @@ impl ScriptExecutor {
     async fn execute_handle_policy_set(
         &mut self,
         target: &[PolicySetId],
-        input_var: &str,
+        det_input_var: &str,
+        ocr_input_var: &str,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
         if let Some(timeout_flow) = self
@@ -51,7 +52,11 @@ impl ScriptExecutor {
         {
             return Ok(timeout_flow);
         }
-        self.activate_image_var("flow.handlePolicySet", input_var)
+        self.activate_runtime_results_context(
+            "flow.handlePolicySet",
+            det_input_var,
+            ocr_input_var,
+        )
             .await?;
         let bundle = self.load_policy_bundle("flow.handlePolicySet").await?;
         let candidates = self

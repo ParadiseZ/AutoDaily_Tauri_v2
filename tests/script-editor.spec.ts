@@ -494,6 +494,8 @@ test('persists handle policy set flow and policy-set-result condition with ids o
   await selectOptionByValue(page, 'editor-flow-policy-set-pending', 'set-a');
   await page.getByTestId('editor-flow-policy-set-add').click();
   await expect(page.getByTestId('editor-flow-policy-set-target-set-a')).toContainText('主策略集');
+  await expect(page.getByTestId('editor-flow-policy-set-det-input-var')).toContainText('检测结果');
+  await expect(page.getByTestId('editor-flow-policy-set-ocr-input-var')).toContainText('OCR结果');
 
   await page.getByTestId('editor-step-card-1').click();
   await selectOptionByValue(page, 'editor-condition-type', 'policySetResult');
@@ -511,7 +513,8 @@ test('persists handle policy set flow and policy-set-result condition with ids o
     a: {
       type: 'handlePolicySet',
       target: ['set-a'],
-      input_var: 'runtime.policySetImage',
+      det_input_var: 'runtime.detResults',
+      ocr_input_var: 'runtime.ocrResults',
       out_var: 'runtime.policySetResult',
     },
   });

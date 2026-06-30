@@ -189,12 +189,6 @@ impl ScriptExecutor {
             self.set_runtime_var(output_var, Dynamic::from(image.clone()))
                 .await?;
         }
-        self.set_runtime_var("runtime.captureResult", Dynamic::from(image.clone()))
-            .await?;
-        self.set_runtime_var("runtime.detResults", Dynamic::from(Array::new()))
-            .await?;
-        self.set_runtime_var("runtime.ocrResults", Dynamic::from(Array::new()))
-            .await?;
 
         let mut ctx = self.runtime_ctx.write().await;
         ctx.observation.last_capture_image = Some(image);
@@ -210,6 +204,56 @@ impl ScriptExecutor {
     async fn activate_image_var(&mut self, step_type: &str, input_var: &str) -> ExecuteResult<()> {
         let image = self.read_runtime_image_var(input_var, step_type).await?;
         self.activate_image_context(step_type, image, None).await
+    }
+
+    async fn activate_runtime_results_context(
+        &mut self,
+        step_type: &str,
+        det_input_var: &str,
+        ocr_input_var: &str,
+    ) -> ExecuteResult<()> {
+        let det_results = self
+            .read_runtime_result_vec::<DetResult>(det_input_var, step_type, "检测")
+            .await?;
+        let ocr_results = self
+            .read_runtime_result_vec::<OcrResult>(ocr_input_var, step_type, "OCR")
+            .await?;
+        let grid_size = {
+            let ctx = self.runtime_ctx.read().await;
+            ctx.observation.vision_signature_grid_size
+        };
+        let snapshot = VisionSnapshot::new(
+            ocr_results.clone(),
+            det_results.clone(),
+            None,
+            grid_size,
+        )
+        .map_err(|error| {
+            Self::execute_error(step_type, format!("构建视觉快照失败: {}", error))
+        })?;
+        let fingerprint = Self::build_page_fingerprint(&snapshot);
+
+        self.set_runtime_var(
+            "runtime.detResults",
+            Self::results_to_dynamic(step_type, "检测", &det_results)?,
+        )
+        .await?;
+        self.set_runtime_var(
+            "runtime.ocrResults",
+            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
+        )
+        .await?;
+
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.observation.last_det_results = det_results;
+        ctx.observation.last_ocr_results = ocr_results;
+        ctx.observation.last_vision_input_signature = None;
+        ctx.observation.last_snapshot = Some(snapshot);
+        ctx.observation.last_hits.clear();
+        drop(ctx);
+
+        self.push_active_policy_page_fingerprint(fingerprint);
+        Ok(())
     }
 
     async fn execute_detect_step(

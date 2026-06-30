@@ -713,7 +713,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
     id: 'handle-policy-set',
     icon: genSvg(SVG_ICONS.policySet),
     label: '处理策略集',
-    description: '执行策略集匹配并把命中结果输出为 JSON 变量。',
+    description: '使用 DET / OCR 结果集执行策略集匹配，并把命中结果输出为 JSON 变量。',
     group: '流程',
     create: () =>
       createBaseStep({
@@ -722,7 +722,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         a: {
           type: FLOW_TYPE.handlePolicySet,
           target: createStringList(),
-          input_var: 'runtime.latestCapture',
+          det_input_var: 'runtime.detResults',
+          ocr_input_var: 'runtime.ocrResults',
           out_var: 'runtime.policySetResult',
         },
       }),
@@ -1134,7 +1135,7 @@ export const describeStepMeta = (step: Step) => {
       case FLOW_TYPE.stopScript:
         return '结束当前脚本执行';
       case FLOW_TYPE.handlePolicySet:
-        return `处理 ${step.a.target.length} 个策略集 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
+        return `处理 ${step.a.target.length} 个策略集 · DET ${step.a.det_input_var || '未指定'} · OCR ${step.a.ocr_input_var || '未指定'} -> ${step.a.out_var || '未指定输出'}`;
       case FLOW_TYPE.handlePolicy:
         return `处理 ${step.a.target.length} 个策略 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
       default:
