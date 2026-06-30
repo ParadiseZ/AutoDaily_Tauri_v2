@@ -166,14 +166,26 @@ const describeStepMetaText = (step: Step) => {
     if (step.a.type === FLOW_TYPE.addPolicies) {
       return `策略集 ${resolveReferenceLabel(step.a.source, props.policySetReferenceOptions)} -> ${resolveReferenceLabel(step.a.target, props.policySetReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
     }
+    if (step.a.type === FLOW_TYPE.removePolicies) {
+      return `移除策略集 ${resolveReferenceLabel(step.a.source, props.policySetReferenceOptions)} -> ${resolveReferenceLabel(step.a.target, props.policySetReferenceOptions)}`;
+    }
     if (step.a.type === FLOW_TYPE.bindPolicyGroup) {
       return `策略组 ${resolveReferenceLabel(step.a.source, props.policyGroupReferenceOptions)} -> 策略集 ${resolveReferenceLabel(step.a.target, props.policySetReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+    }
+    if (step.a.type === FLOW_TYPE.removePolicyGroup) {
+      return `移除策略组 ${resolveReferenceLabel(step.a.source, props.policyGroupReferenceOptions)} -> 策略集 ${resolveReferenceLabel(step.a.target, props.policySetReferenceOptions)}`;
     }
     if (step.a.type === FLOW_TYPE.addPolicyGroups) {
       return `策略组 ${resolveReferenceLabel(step.a.source, props.policyGroupReferenceOptions)} -> 策略组 ${resolveReferenceLabel(step.a.target, props.policyGroupReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
     }
+    if (step.a.type === FLOW_TYPE.unloadPolicyGroup) {
+      return `卸载策略组 ${resolveReferenceLabel(step.a.source, props.policyGroupReferenceOptions)} -> 策略组 ${resolveReferenceLabel(step.a.target, props.policyGroupReferenceOptions)}`;
+    }
     if (step.a.type === FLOW_TYPE.bindPolicy) {
       return `策略 ${resolveReferenceLabel(step.a.source, props.policyReferenceOptions)} -> 策略组 ${resolveReferenceLabel(step.a.target, props.policyGroupReferenceOptions)}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+    }
+    if (step.a.type === FLOW_TYPE.unloadPolicy) {
+      return `卸载策略 ${resolveReferenceLabel(step.a.source, props.policyReferenceOptions)} -> 策略组 ${resolveReferenceLabel(step.a.target, props.policyGroupReferenceOptions)}`;
     }
   }
 

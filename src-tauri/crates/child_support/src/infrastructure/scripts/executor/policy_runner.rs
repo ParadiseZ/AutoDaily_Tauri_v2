@@ -1,4 +1,41 @@
 impl ScriptExecutor {
+    fn policy_set_candidate_cache_key(target: &[PolicySetId]) -> String {
+        target
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+
+    async fn resolve_cached_policy_set_candidates(
+        &self,
+        bundle: &PolicyBundle,
+        target: &[PolicySetId],
+    ) -> ExecuteResult<Vec<PolicyCandidate>> {
+        let cache_key = Self::policy_set_candidate_cache_key(target);
+        {
+            let ctx = self.runtime_ctx.read().await;
+            if ctx.execution.policy_set_candidate_cache_ready {
+                if let Some(cached) = ctx.execution.policy_set_candidate_cache.get(&cache_key) {
+                    Log::debug(&format!(
+                        "[ executor ] HandlePolicySet 复用候选缓存: key={}, candidate_count={}",
+                        cache_key,
+                        cached.len()
+                    ));
+                    return Ok(cached.clone());
+                }
+            }
+        }
+
+        let candidates = self.resolve_policy_set_candidates(bundle, target).await?;
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.execution
+            .policy_set_candidate_cache
+            .insert(cache_key, candidates.clone());
+        ctx.execution.policy_set_candidate_cache_ready = true;
+        Ok(candidates)
+    }
+
     async fn execute_handle_policy_set(
         &mut self,
         target: &[PolicySetId],
@@ -17,7 +54,9 @@ impl ScriptExecutor {
         self.activate_image_var("flow.handlePolicySet", input_var)
             .await?;
         let bundle = self.load_policy_bundle("flow.handlePolicySet").await?;
-        let candidates = self.resolve_policy_set_candidates(&bundle, target).await?;
+        let candidates = self
+            .resolve_cached_policy_set_candidates(&bundle, target)
+            .await?;
         Log::debug(&format!(
             "[ executor ] HandlePolicySet 候选展开完成: target_count={}, candidate_count={}, out_var={}",
             target.len(),

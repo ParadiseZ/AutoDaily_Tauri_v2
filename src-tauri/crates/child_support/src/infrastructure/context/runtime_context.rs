@@ -1,4 +1,5 @@
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
+use crate::domain::scripts::policy::PolicyTable;
 use crate::domain::scripts::script_info::ScriptInfo;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::vision::ocr_search::{SearchHit, VisionSnapshot};
@@ -91,6 +92,15 @@ pub struct PolicyGroupBindingOp {
     pub reverse: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct PolicyCandidate {
+    pub policy_set_id: Option<PolicySetId>,
+    pub policy_set_name: Option<String>,
+    pub policy_group_id: Option<PolicyGroupId>,
+    pub policy_group_name: Option<String>,
+    pub policy: PolicyTable,
+}
+
 #[derive(Debug)]
 pub struct ExecutionState {
     pub current_execution_id: Option<ExecutionId>,
@@ -125,6 +135,12 @@ pub struct ExecutionState {
 
     /// 运行时策略组绑定：把策略插入到目标策略组。
     pub policy_group_bindings: HashMap<PolicyGroupId, Vec<PolicyGroupBindingOp>>,
+
+    /// 策略集候选缓存是否可复用。false 表示 overlay 已变更，需要在下次 handlePolicySet 时重建。
+    pub policy_set_candidate_cache_ready: bool,
+
+    /// 已展开的策略集候选缓存，按目标策略集 id 顺序组合后的 key 复用。
+    pub policy_set_candidate_cache: HashMap<String, Vec<PolicyCandidate>>,
 }
 
 impl ExecutionState {
@@ -148,6 +164,8 @@ impl ExecutionState {
             action_states: HashMap::new(),
             policy_set_bindings: HashMap::new(),
             policy_group_bindings: HashMap::new(),
+            policy_set_candidate_cache_ready: false,
+            policy_set_candidate_cache: HashMap::new(),
         }
     }
 }

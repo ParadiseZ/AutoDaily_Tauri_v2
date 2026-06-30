@@ -373,17 +373,31 @@ impl ScriptExecutor {
 
     fn merge_bound_items<T>(target: &mut Vec<T>, mut source: Vec<T>, top: bool, reverse: bool)
     where
-        T: Copy,
+        T: Copy + PartialEq,
     {
         if reverse {
             source.reverse();
         }
         if top {
-            source.extend(target.iter().copied());
-            *target = source;
+            let mut merged = Vec::new();
+            for item in source {
+                if !merged.contains(&item) {
+                    merged.push(item);
+                }
+            }
+            for item in target.iter().copied() {
+                if !merged.contains(&item) {
+                    merged.push(item);
+                }
+            }
+            *target = merged;
             return;
         }
-        target.extend(source);
+        for item in source {
+            if !target.contains(&item) {
+                target.push(item);
+            }
+        }
     }
 
     fn format_id_list<T>(items: &[T]) -> String
@@ -599,7 +613,7 @@ mod policy_binding_resolution_tests {
         )
         .expect("policy group bindings should resolve");
 
-        assert_eq!(resolved, vec![policy_d, policy_c, policy_c, policy_a, policy_b]);
+        assert_eq!(resolved, vec![policy_d, policy_c, policy_a, policy_b]);
     }
 
     #[test]

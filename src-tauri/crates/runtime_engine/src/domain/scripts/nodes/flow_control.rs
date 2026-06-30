@@ -49,6 +49,10 @@ pub enum FlowControl {
         #[serde(default)]
         reverse: bool,
     },
+    RemovePolicies {
+        source: PolicySetId,
+        target: PolicySetId,
+    },
     BindPolicyGroup {
         source: PolicyGroupId,
         target: PolicySetId,
@@ -56,6 +60,10 @@ pub enum FlowControl {
         top: bool,
         #[serde(default)]
         reverse: bool,
+    },
+    RemovePolicyGroup {
+        source: PolicyGroupId,
+        target: PolicySetId,
     },
     AddPolicyGroups {
         source: PolicyGroupId,
@@ -65,6 +73,10 @@ pub enum FlowControl {
         #[serde(default)]
         reverse: bool,
     },
+    UnloadPolicyGroup {
+        source: PolicyGroupId,
+        target: PolicyGroupId,
+    },
     BindPolicy {
         source: PolicyId,
         target: PolicyGroupId,
@@ -72,6 +84,10 @@ pub enum FlowControl {
         top: bool,
         #[serde(default)]
         reverse: bool,
+    },
+    UnloadPolicy {
+        source: PolicyId,
+        target: PolicyGroupId,
     },
     HandlePolicySet {
         target: Vec<PolicySetId>,

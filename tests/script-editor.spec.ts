@@ -537,7 +537,7 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
     id: scriptId,
     data: {
       name: '策略绑定脚本',
-      description: '验证追加策略集、绑定策略组、追加策略组和绑定策略步骤保存',
+      description: '验证策略绑定、追加与移除步骤保存',
       userId: 'tester',
       userName: 'Tester',
       runtimeType: 'rhai',
@@ -658,9 +658,13 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
 
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-add-policies').click();
+  await page.getByTestId('editor-step-template-remove-policies').click();
   await page.getByTestId('editor-step-template-bind-policy-group').click();
+  await page.getByTestId('editor-step-template-remove-policy-group').click();
   await page.getByTestId('editor-step-template-add-policy-groups').click();
+  await page.getByTestId('editor-step-template-unload-policy-group').click();
   await page.getByTestId('editor-step-template-bind-policy').click();
+  await page.getByTestId('editor-step-template-unload-policy').click();
 
   await page.getByTestId('editor-step-card-0').click();
   await selectOptionByValue(page, 'editor-flow-add-policies-source', 'set-a');
@@ -669,25 +673,45 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
   await page.getByTestId('editor-flow-add-policies-reverse').check();
 
   await page.getByTestId('editor-step-card-1').click();
+  await selectOptionByValue(page, 'editor-flow-remove-policies-source', 'set-a');
+  await selectOptionByValue(page, 'editor-flow-remove-policies-target', 'set-b');
+
+  await page.getByTestId('editor-step-card-2').click();
   await selectOptionByValue(page, 'editor-flow-bind-policy-group-source', 'group-a');
   await selectOptionByValue(page, 'editor-flow-bind-policy-group-target', 'set-b');
   await page.getByTestId('editor-flow-bind-policy-group-top').check();
 
-  await page.getByTestId('editor-step-card-2').click();
+  await page.getByTestId('editor-step-card-3').click();
+  await selectOptionByValue(page, 'editor-flow-remove-policy-group-source', 'group-a');
+  await selectOptionByValue(page, 'editor-flow-remove-policy-group-target', 'set-b');
+
+  await page.getByTestId('editor-step-card-4').click();
   await selectOptionByValue(page, 'editor-flow-add-policy-groups-source', 'group-b');
   await selectOptionByValue(page, 'editor-flow-add-policy-groups-target', 'group-a');
   await page.getByTestId('editor-flow-add-policy-groups-top').check();
   await page.getByTestId('editor-flow-add-policy-groups-reverse').check();
 
-  await page.getByTestId('editor-step-card-3').click();
+  await page.getByTestId('editor-step-card-5').click();
+  await selectOptionByValue(page, 'editor-flow-unload-policy-group-source', 'group-b');
+  await selectOptionByValue(page, 'editor-flow-unload-policy-group-target', 'group-a');
+
+  await page.getByTestId('editor-step-card-6').click();
   await selectOptionByValue(page, 'editor-flow-bind-policy-source', 'policy-b');
   await selectOptionByValue(page, 'editor-flow-bind-policy-target', 'group-a');
   await page.getByTestId('editor-flow-bind-policy-reverse').check();
 
+  await page.getByTestId('editor-step-card-7').click();
+  await selectOptionByValue(page, 'editor-flow-unload-policy-source', 'policy-b');
+  await selectOptionByValue(page, 'editor-flow-unload-policy-target', 'group-a');
+
   await expect(page.getByTestId('editor-step-card-0')).toContainText('主策略集 -> 备用策略集');
-  await expect(page.getByTestId('editor-step-card-1')).toContainText('基础策略组 -> 策略集 备用策略集');
-  await expect(page.getByTestId('editor-step-card-2')).toContainText('扩展策略组 -> 策略组 基础策略组');
-  await expect(page.getByTestId('editor-step-card-3')).toContainText('领奖策略 -> 策略组 基础策略组');
+  await expect(page.getByTestId('editor-step-card-1')).toContainText('移除策略集 主策略集 -> 备用策略集');
+  await expect(page.getByTestId('editor-step-card-2')).toContainText('基础策略组 -> 策略集 备用策略集');
+  await expect(page.getByTestId('editor-step-card-3')).toContainText('移除策略组 基础策略组 -> 策略集 备用策略集');
+  await expect(page.getByTestId('editor-step-card-4')).toContainText('扩展策略组 -> 策略组 基础策略组');
+  await expect(page.getByTestId('editor-step-card-5')).toContainText('卸载策略组 扩展策略组 -> 策略组 基础策略组');
+  await expect(page.getByTestId('editor-step-card-6')).toContainText('领奖策略 -> 策略组 基础策略组');
+  await expect(page.getByTestId('editor-step-card-7')).toContainText('卸载策略 领奖策略 -> 策略组 基础策略组');
 
   await page.getByTestId('editor-save').click();
 
@@ -706,6 +730,14 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
   expect(task.data.steps[1]).toMatchObject({
     op: 'flowControl',
     a: {
+      type: 'removePolicies',
+      source: 'set-a',
+      target: 'set-b',
+    },
+  });
+  expect(task.data.steps[2]).toMatchObject({
+    op: 'flowControl',
+    a: {
       type: 'bindPolicyGroup',
       source: 'group-a',
       target: 'set-b',
@@ -713,7 +745,15 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
       reverse: false,
     },
   });
-  expect(task.data.steps[2]).toMatchObject({
+  expect(task.data.steps[3]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'removePolicyGroup',
+      source: 'group-a',
+      target: 'set-b',
+    },
+  });
+  expect(task.data.steps[4]).toMatchObject({
     op: 'flowControl',
     a: {
       type: 'addPolicyGroups',
@@ -723,7 +763,15 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
       reverse: true,
     },
   });
-  expect(task.data.steps[3]).toMatchObject({
+  expect(task.data.steps[5]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'unloadPolicyGroup',
+      source: 'group-b',
+      target: 'group-a',
+    },
+  });
+  expect(task.data.steps[6]).toMatchObject({
     op: 'flowControl',
     a: {
       type: 'bindPolicy',
@@ -731,6 +779,14 @@ test('persists policy binding flow steps with top and reverse flags', async ({ p
       target: 'group-a',
       top: false,
       reverse: true,
+    },
+  });
+  expect(task.data.steps[7]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'unloadPolicy',
+      source: 'policy-b',
+      target: 'group-a',
     },
   });
 });

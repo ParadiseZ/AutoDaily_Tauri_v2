@@ -364,6 +364,8 @@ impl ScriptScheduler {
             ctx.execution.action_states.clear();
             ctx.execution.policy_set_bindings.clear();
             ctx.execution.policy_group_bindings.clear();
+            ctx.execution.policy_set_candidate_cache_ready = false;
+            ctx.execution.policy_set_candidate_cache.clear();
             ctx.observation.last_capture_image = None;
             ctx.observation.last_snapshot = None;
             ctx.observation.last_hits.clear();

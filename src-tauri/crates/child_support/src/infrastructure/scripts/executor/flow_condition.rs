@@ -223,6 +223,12 @@ impl ScriptExecutor {
         ));
     }
 
+    async fn invalidate_policy_set_candidate_cache(&self) {
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.execution.policy_set_candidate_cache_ready = false;
+        ctx.execution.policy_set_candidate_cache.clear();
+    }
+
     async fn bind_policy_group_to_set(
         &self,
         source: PolicyGroupId,
@@ -242,6 +248,34 @@ impl ScriptExecutor {
         Log::info(&format!(
             "[ executor ] 绑定：策略组➡️策略集,source_group={}, target_set={}, top={}, reverse={}",
             source, target, top, reverse
+        ));
+    }
+
+    async fn remove_policy_set_from_set(&self, source: PolicySetId, target: PolicySetId) {
+        let mut ctx = self.runtime_ctx.write().await;
+        if let Some(entry) = ctx.execution.policy_set_bindings.get_mut(&target) {
+            entry.retain(|item| item.source != PolicySetBindingSource::PolicySet(source));
+            if entry.is_empty() {
+                ctx.execution.policy_set_bindings.remove(&target);
+            }
+        }
+        Log::info(&format!(
+            "[ executor ] 移除：策略集➡️策略集,source_set={}, target_set={}",
+            source, target
+        ));
+    }
+
+    async fn remove_policy_group_from_set(&self, source: PolicyGroupId, target: PolicySetId) {
+        let mut ctx = self.runtime_ctx.write().await;
+        if let Some(entry) = ctx.execution.policy_set_bindings.get_mut(&target) {
+            entry.retain(|item| item.source != PolicySetBindingSource::PolicyGroup(source));
+            if entry.is_empty() {
+                ctx.execution.policy_set_bindings.remove(&target);
+            }
+        }
+        Log::info(&format!(
+            "[ executor ] 移除：策略组➡️策略集,source_group={}, target_set={}",
+            source, target
         ));
     }
 
@@ -267,6 +301,20 @@ impl ScriptExecutor {
         ));
     }
 
+    async fn unload_policy_from_group(&self, source: PolicyId, target: PolicyGroupId) {
+        let mut ctx = self.runtime_ctx.write().await;
+        if let Some(entry) = ctx.execution.policy_group_bindings.get_mut(&target) {
+            entry.retain(|item| item.source != PolicyGroupBindingSource::Policy(source));
+            if entry.is_empty() {
+                ctx.execution.policy_group_bindings.remove(&target);
+            }
+        }
+        Log::info(&format!(
+            "[ executor ] 卸载：策略➡️策略组,source_policy={}, target_group={}",
+            source, target
+        ));
+    }
+
     async fn add_policy_group_to_group(
         &self,
         source: PolicyGroupId,
@@ -286,6 +334,20 @@ impl ScriptExecutor {
         Log::info(&format!(
             "[ executor ] 追加：策略组➡️策略组,source_group={}, target_group={}, top={}, reverse={}",
             source, target, top, reverse
+        ));
+    }
+
+    async fn unload_policy_group_from_group(&self, source: PolicyGroupId, target: PolicyGroupId) {
+        let mut ctx = self.runtime_ctx.write().await;
+        if let Some(entry) = ctx.execution.policy_group_bindings.get_mut(&target) {
+            entry.retain(|item| item.source != PolicyGroupBindingSource::PolicyGroup(source));
+            if entry.is_empty() {
+                ctx.execution.policy_group_bindings.remove(&target);
+            }
+        }
+        Log::info(&format!(
+            "[ executor ] 卸载：策略组➡️策略组,source_group={}, target_group={}",
+            source, target
         ));
     }
 
@@ -322,6 +384,31 @@ impl ScriptExecutor {
             source, target, top, reverse
         ));
         self.bind_policy_set(source, target, top, reverse).await;
+        self.invalidate_policy_set_candidate_cache().await;
+        Ok(())
+    }
+
+    async fn execute_remove_policies_step(
+        &self,
+        source: PolicySetId,
+        target: PolicySetId,
+    ) -> ExecuteResult<()> {
+        let bundle = self.load_policy_bundle("flow.removePolicies").await?;
+        if !bundle.policy_sets.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.removePolicies",
+                format!("源策略集[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_sets.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.removePolicies",
+                format!("目标策略集[{}]不存在", target),
+            ));
+        }
+
+        self.remove_policy_set_from_set(source, target).await;
+        self.invalidate_policy_set_candidate_cache().await;
         Ok(())
     }
 
@@ -352,6 +439,31 @@ impl ScriptExecutor {
         ));
         self.bind_policy_group_to_set(source, target, top, reverse)
             .await;
+        self.invalidate_policy_set_candidate_cache().await;
+        Ok(())
+    }
+
+    async fn execute_remove_policy_group_step(
+        &self,
+        source: PolicyGroupId,
+        target: PolicySetId,
+    ) -> ExecuteResult<()> {
+        let bundle = self.load_policy_bundle("flow.removePolicyGroup").await?;
+        if !bundle.policy_groups.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.removePolicyGroup",
+                format!("源策略组[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_sets.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.removePolicyGroup",
+                format!("目标策略集[{}]不存在", target),
+            ));
+        }
+
+        self.remove_policy_group_from_set(source, target).await;
+        self.invalidate_policy_set_candidate_cache().await;
         Ok(())
     }
 
@@ -389,6 +501,31 @@ impl ScriptExecutor {
         ));
         self.add_policy_group_to_group(source, target, top, reverse)
             .await;
+        self.invalidate_policy_set_candidate_cache().await;
+        Ok(())
+    }
+
+    async fn execute_unload_policy_group_step(
+        &self,
+        source: PolicyGroupId,
+        target: PolicyGroupId,
+    ) -> ExecuteResult<()> {
+        let bundle = self.load_policy_bundle("flow.unloadPolicyGroup").await?;
+        if !bundle.policy_groups.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.unloadPolicyGroup",
+                format!("源策略组[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_groups.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.unloadPolicyGroup",
+                format!("目标策略组[{}]不存在", target),
+            ));
+        }
+
+        self.unload_policy_group_from_group(source, target).await;
+        self.invalidate_policy_set_candidate_cache().await;
         Ok(())
     }
 
@@ -418,6 +555,31 @@ impl ScriptExecutor {
             source, target, top, reverse
         ));
         self.bind_policy_to_group(source, target, top, reverse).await;
+        self.invalidate_policy_set_candidate_cache().await;
+        Ok(())
+    }
+
+    async fn execute_unload_policy_step(
+        &self,
+        source: PolicyId,
+        target: PolicyGroupId,
+    ) -> ExecuteResult<()> {
+        let bundle = self.load_policy_bundle("flow.unloadPolicy").await?;
+        if !bundle.policies.iter().any(|item| item.id == source) {
+            return Err(Self::execute_error(
+                "flow.unloadPolicy",
+                format!("源策略[{}]不存在", source),
+            ));
+        }
+        if !bundle.policy_groups.iter().any(|item| item.id == target) {
+            return Err(Self::execute_error(
+                "flow.unloadPolicy",
+                format!("目标策略组[{}]不存在", target),
+            ));
+        }
+
+        self.unload_policy_from_group(source, target).await;
+        self.invalidate_policy_set_candidate_cache().await;
         Ok(())
     }
 

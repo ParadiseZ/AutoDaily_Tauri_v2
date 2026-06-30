@@ -585,6 +585,23 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'remove-policies',
+    icon: genSvg(SVG_ICONS.policySet),
+    label: '移除策略集',
+    description: '从目标策略集中移除运行时追加的源策略集。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '移除策略集',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.removePolicies,
+          source: '',
+          target: '',
+        },
+      }),
+  },
+  {
     id: 'bind-policy-group',
     icon: genSvg(SVG_ICONS.policySet),
     label: '绑定策略组',
@@ -600,6 +617,23 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           target: '',
           top: false,
           reverse: false,
+        },
+      }),
+  },
+  {
+    id: 'remove-policy-group',
+    icon: genSvg(SVG_ICONS.policySet),
+    label: '移除策略组',
+    description: '从目标策略集中移除运行时绑定的源策略组。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '移除策略组',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.removePolicyGroup,
+          source: '',
+          target: '',
         },
       }),
   },
@@ -623,6 +657,23 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'unload-policy-group',
+    icon: genSvg(SVG_ICONS.policyGroup),
+    label: '卸载策略组',
+    description: '从目标策略组中移除运行时追加的源策略组。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '卸载策略组',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.unloadPolicyGroup,
+          source: '',
+          target: '',
+        },
+      }),
+  },
+  {
     id: 'bind-policy',
     icon: genSvg(SVG_ICONS.policy),
     label: '绑定策略',
@@ -638,6 +689,23 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           target: '',
           top: false,
           reverse: false,
+        },
+      }),
+  },
+  {
+    id: 'unload-policy',
+    icon: genSvg(SVG_ICONS.policy),
+    label: '卸载策略',
+    description: '从目标策略组中移除运行时绑定的源策略。',
+    group: '流程',
+    create: () =>
+      createBaseStep({
+        label: '卸载策略',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.unloadPolicy,
+          source: '',
+          target: '',
         },
       }),
   },
@@ -953,9 +1021,13 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === FLOW_TYPE.waitMs) return '等待';
     if (step.a.type === FLOW_TYPE.link) return '跳转任务';
     if (step.a.type === FLOW_TYPE.addPolicies) return '追加策略集';
+    if (step.a.type === FLOW_TYPE.removePolicies) return '移除策略集';
     if (step.a.type === FLOW_TYPE.bindPolicyGroup) return '绑定策略组';
+    if (step.a.type === FLOW_TYPE.removePolicyGroup) return '移除策略组';
     if (step.a.type === FLOW_TYPE.addPolicyGroups) return '追加策略组';
+    if (step.a.type === FLOW_TYPE.unloadPolicyGroup) return '卸载策略组';
     if (step.a.type === FLOW_TYPE.bindPolicy) return '绑定策略';
+    if (step.a.type === FLOW_TYPE.unloadPolicy) return '卸载策略';
     if (step.a.type === FLOW_TYPE.handlePolicySet) return '处理策略集';
     if (step.a.type === FLOW_TYPE.handlePolicy) return '处理策略';
     if (step.a.type === FLOW_TYPE.if) return '条件分支';
@@ -1041,12 +1113,20 @@ export const describeStepMeta = (step: Step) => {
         return `跳转➡️[${step.a.target || '未指定'}]`;
       case FLOW_TYPE.addPolicies:
         return `策略集 ${step.a.source || '未指定'} -> ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+      case FLOW_TYPE.removePolicies:
+        return `移除策略集 ${step.a.source || '未指定'} -> ${step.a.target || '未指定'}`;
       case FLOW_TYPE.bindPolicyGroup:
         return `策略组 ${step.a.source || '未指定'} -> 策略集 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+      case FLOW_TYPE.removePolicyGroup:
+        return `移除策略组 ${step.a.source || '未指定'} -> 策略集 ${step.a.target || '未指定'}`;
       case FLOW_TYPE.addPolicyGroups:
         return `策略组 ${step.a.source || '未指定'} -> 策略组 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+      case FLOW_TYPE.unloadPolicyGroup:
+        return `卸载策略组 ${step.a.source || '未指定'} -> 策略组 ${step.a.target || '未指定'}`;
       case FLOW_TYPE.bindPolicy:
         return `策略 ${step.a.source || '未指定'} -> 策略组 ${step.a.target || '未指定'}${step.a.top ? ' · 顶部插入' : ' · 底部插入'}${step.a.reverse ? ' · 逆序' : ''}`;
+      case FLOW_TYPE.unloadPolicy:
+        return `卸载策略 ${step.a.source || '未指定'} -> 策略组 ${step.a.target || '未指定'}`;
       case FLOW_TYPE.continue:
         return '继续下一轮循环';
       case FLOW_TYPE.break:

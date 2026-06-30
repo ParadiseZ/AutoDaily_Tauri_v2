@@ -28,8 +28,8 @@ use crate::domain::vision::ocr_search::{
 };
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{
-    PolicyGroupBindingOp, PolicyGroupBindingSource, PolicySetBindingOp, PolicySetBindingSource,
-    SharedRuntimeContext, TaskState,
+    PolicyCandidate, PolicyGroupBindingOp, PolicyGroupBindingSource, PolicySetBindingOp,
+    PolicySetBindingSource, SharedRuntimeContext, TaskState,
 };
 use crate::infrastructure::core::{
     AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId,
@@ -128,15 +128,6 @@ struct PolicyBundle {
     policy_sets: Vec<PolicySetTable>,
     group_policies: Vec<GroupPolicyRelation>,
     set_groups: Vec<SetGroupRelation>,
-}
-
-#[derive(Debug, Clone)]
-struct PolicyCandidate {
-    policy_set_id: Option<PolicySetId>,
-    policy_set_name: Option<String>,
-    policy_group_id: Option<PolicyGroupId>,
-    policy_group_name: Option<String>,
-    policy: PolicyTable,
 }
 
 #[derive(Debug, Default, Clone)]

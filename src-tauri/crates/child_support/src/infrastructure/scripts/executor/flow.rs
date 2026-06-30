@@ -185,6 +185,10 @@ impl ScriptExecutor {
                     .await?;
                 Ok(ControlFlow::Next)
             }
+            FlowControl::RemovePolicies { source, target } => {
+                self.execute_remove_policies_step(*source, *target).await?;
+                Ok(ControlFlow::Next)
+            }
             FlowControl::BindPolicyGroup {
                 source,
                 target,
@@ -192,6 +196,11 @@ impl ScriptExecutor {
                 reverse,
             } => {
                 self.execute_bind_policy_group_step(*source, *target, *top, *reverse)
+                    .await?;
+                Ok(ControlFlow::Next)
+            }
+            FlowControl::RemovePolicyGroup { source, target } => {
+                self.execute_remove_policy_group_step(*source, *target)
                     .await?;
                 Ok(ControlFlow::Next)
             }
@@ -205,6 +214,11 @@ impl ScriptExecutor {
                     .await?;
                 Ok(ControlFlow::Next)
             }
+            FlowControl::UnloadPolicyGroup { source, target } => {
+                self.execute_unload_policy_group_step(*source, *target)
+                    .await?;
+                Ok(ControlFlow::Next)
+            }
             FlowControl::BindPolicy {
                 source,
                 target,
@@ -213,6 +227,10 @@ impl ScriptExecutor {
             } => {
                 self.execute_bind_policy_step(*source, *target, *top, *reverse)
                     .await?;
+                Ok(ControlFlow::Next)
+            }
+            FlowControl::UnloadPolicy { source, target } => {
+                self.execute_unload_policy_step(*source, *target).await?;
                 Ok(ControlFlow::Next)
             }
             FlowControl::HandlePolicySet {

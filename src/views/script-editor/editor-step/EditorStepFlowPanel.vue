@@ -106,9 +106,13 @@
     <template
       v-else-if="
         selectedFlow.type === FLOW_TYPE.addPolicies ||
+        selectedFlow.type === FLOW_TYPE.removePolicies ||
         selectedFlow.type === FLOW_TYPE.bindPolicyGroup ||
+        selectedFlow.type === FLOW_TYPE.removePolicyGroup ||
         selectedFlow.type === FLOW_TYPE.addPolicyGroups ||
-        selectedFlow.type === FLOW_TYPE.bindPolicy
+        selectedFlow.type === FLOW_TYPE.unloadPolicyGroup ||
+        selectedFlow.type === FLOW_TYPE.bindPolicy ||
+        selectedFlow.type === FLOW_TYPE.unloadPolicy
       "
     >
       <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
@@ -166,7 +170,7 @@
           </div>
         </div>
 
-        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
+        <label v-if="bindingSupportsInsertOptions" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
           <input
             :checked="bindingTopValue"
             type="checkbox"
@@ -181,7 +185,7 @@
           </div>
         </label>
 
-        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
+        <label v-if="bindingSupportsInsertOptions" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
           <input
             :checked="bindingReverseValue"
             type="checkbox"
@@ -449,10 +453,26 @@ import { withResolvedReferenceOption } from '@/views/script-editor/editorReferen
 import { FLOW_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { isSameBranchPath, type StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
 import { getVariableOptionSummary, type EditorInputEntry, type EditorInputType, type EditorVariableOption } from '@/views/script-editor/editorVariables';
+import { Trash2 } from 'lucide-vue-next';
 
 type BindingFlow = Extract<
   FlowControl,
-  { type: 'addPolicies' } | { type: 'bindPolicyGroup' } | { type: 'addPolicyGroups' } | { type: 'bindPolicy' }
+  | { type: 'addPolicies' }
+  | { type: 'removePolicies' }
+  | { type: 'bindPolicyGroup' }
+  | { type: 'removePolicyGroup' }
+  | { type: 'addPolicyGroups' }
+  | { type: 'unloadPolicyGroup' }
+  | { type: 'bindPolicy' }
+  | { type: 'unloadPolicy' }
+>;
+
+type InsertBindingFlow = Extract<
+  FlowControl,
+  | { type: 'addPolicies' }
+  | { type: 'bindPolicyGroup' }
+  | { type: 'addPolicyGroups' }
+  | { type: 'bindPolicy' }
 >;
 
 defineOptions({ name: 'EditorStepFlowPanel' });
@@ -555,53 +575,85 @@ const waitVariableMode = computed(() => (waitBindingMode.value === 'runtime' ? '
 const isBindingFlow = computed(
   () =>
     props.selectedFlow.type === FLOW_TYPE.addPolicies ||
+    props.selectedFlow.type === FLOW_TYPE.removePolicies ||
     props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup ||
+    props.selectedFlow.type === FLOW_TYPE.removePolicyGroup ||
     props.selectedFlow.type === FLOW_TYPE.addPolicyGroups ||
-    props.selectedFlow.type === FLOW_TYPE.bindPolicy,
+    props.selectedFlow.type === FLOW_TYPE.unloadPolicyGroup ||
+    props.selectedFlow.type === FLOW_TYPE.bindPolicy ||
+    props.selectedFlow.type === FLOW_TYPE.unloadPolicy,
 );
 const bindingFlow = computed<BindingFlow | null>(() =>
   isBindingFlow.value ? (props.selectedFlow as BindingFlow) : null,
 );
+const bindingSupportsInsertOptions = computed(
+  () =>
+    props.selectedFlow.type === FLOW_TYPE.addPolicies ||
+    props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup ||
+    props.selectedFlow.type === FLOW_TYPE.addPolicyGroups ||
+    props.selectedFlow.type === FLOW_TYPE.bindPolicy,
+);
+const bindingInsertFlow = computed<InsertBindingFlow | null>(() =>
+  bindingSupportsInsertOptions.value ? (props.selectedFlow as InsertBindingFlow) : null,
+);
 const bindingSourceKind = computed<EditorReferenceKind | null>(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'policySet';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicies) return 'policySet';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'policyGroup';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicyGroup) return 'policyGroup';
   if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'policyGroup';
+  if (props.selectedFlow.type === FLOW_TYPE.unloadPolicyGroup) return 'policyGroup';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'policy';
+  if (props.selectedFlow.type === FLOW_TYPE.unloadPolicy) return 'policy';
   return null;
 });
 const bindingTargetKind = computed<EditorReferenceKind | null>(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'policySet';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicies) return 'policySet';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'policySet';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicyGroup) return 'policySet';
   if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'policyGroup';
+  if (props.selectedFlow.type === FLOW_TYPE.unloadPolicyGroup) return 'policyGroup';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'policyGroup';
+  if (props.selectedFlow.type === FLOW_TYPE.unloadPolicy) return 'policyGroup';
   return null;
 });
 const bindingSourceId = computed(() => bindingFlow.value?.source ?? '');
 const bindingTargetId = computed(() => bindingFlow.value?.target ?? '');
-const bindingTopValue = computed(() => Boolean(bindingFlow.value?.top));
-const bindingReverseValue = computed(() => Boolean(bindingFlow.value?.reverse));
+const bindingTopValue = computed(() => Boolean(bindingInsertFlow.value?.top));
+const bindingReverseValue = computed(() => Boolean(bindingInsertFlow.value?.reverse));
 const bindingSourceTitle = computed(() => {
-  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return '源策略集';
-  if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup || props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return '源策略组';
-  return '源策略';
+  if (bindingSourceKind.value === 'policySet') return '源策略集';
+  if (bindingSourceKind.value === 'policyGroup') return '源策略组';
+  if (bindingSourceKind.value === 'policy') return '源策略';
+  return '源对象';
 });
 const bindingTargetTitle = computed(() => {
-  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy || props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return '目标策略组';
-  return '目标策略集';
+  if (bindingTargetKind.value === 'policySet') return '目标策略集';
+  if (bindingTargetKind.value === 'policyGroup') return '目标策略组';
+  return '目标对象';
 });
 const bindingSourcePlaceholder = computed(() => `选择${bindingSourceTitle.value}`);
 const bindingTargetPlaceholder = computed(() => `选择${bindingTargetTitle.value}`);
 const bindingSourceTestId = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-source';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicies) return 'editor-flow-remove-policies-source';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-source';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicyGroup) return 'editor-flow-remove-policy-group-source';
   if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'editor-flow-add-policy-groups-source';
-  return 'editor-flow-bind-policy-source';
+  if (props.selectedFlow.type === FLOW_TYPE.unloadPolicyGroup) return 'editor-flow-unload-policy-group-source';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'editor-flow-bind-policy-source';
+  return 'editor-flow-unload-policy-source';
 });
 const bindingTargetTestId = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-target';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicies) return 'editor-flow-remove-policies-target';
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) return 'editor-flow-bind-policy-group-target';
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicyGroup) return 'editor-flow-remove-policy-group-target';
   if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) return 'editor-flow-add-policy-groups-target';
-  return 'editor-flow-bind-policy-target';
+  if (props.selectedFlow.type === FLOW_TYPE.unloadPolicyGroup) return 'editor-flow-unload-policy-group-target';
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) return 'editor-flow-bind-policy-target';
+  return 'editor-flow-unload-policy-target';
 });
 const bindingTopTestId = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) return 'editor-flow-add-policies-top';
@@ -631,13 +683,25 @@ const bindingHelpText = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) {
     return '运行时会读取源策略集当前可见的策略组顺序，再按 top / reverse 规则插入到目标策略集。后续处理目标策略集时会直接使用这份展开结果。';
   }
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicies) {
+    return '运行时只会移除目标策略集中由这个源策略集追加出来的覆盖关系，不会改动策略集本身保存的原始策略组列表。';
+  }
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) {
     return '运行时会把源策略组插入目标策略集。若源策略组之后又被追加了策略，目标策略集在执行时也会读到最新顺序。';
+  }
+  if (props.selectedFlow.type === FLOW_TYPE.removePolicyGroup) {
+    return '运行时只会移除目标策略集中由这个源策略组绑定出来的覆盖关系，不会改动策略集本身保存的原始策略组列表。';
   }
   if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) {
     return '运行时会读取源策略组当前可见的策略顺序，再按 top / reverse 规则插入到目标策略组。后续处理引用该策略组的策略集时，会使用插入后的最终策略顺序。';
   }
-  return '运行时会把源策略插入目标策略组。后续处理引用该策略组的策略集时，会使用插入后的最终策略顺序。';
+  if (props.selectedFlow.type === FLOW_TYPE.unloadPolicyGroup) {
+    return '运行时只会移除目标策略组中由这个源策略组追加出来的覆盖关系，不会改动策略组本身保存的原始策略列表。';
+  }
+  if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) {
+    return '运行时会把源策略插入目标策略组。后续处理引用该策略组的策略集时，会使用插入后的最终策略顺序。';
+  }
+  return '运行时只会移除目标策略组中由这个源策略绑定出来的覆盖关系，不会改动策略组本身保存的原始策略列表。';
 });
 const resolveReferenceOptions = (
   currentId: string,

@@ -149,7 +149,7 @@ impl ScriptExecutor {
             self.set_runtime_var(output_var, Dynamic::from(image.clone()))
                 .await?;
         }
-        self.set_runtime_var("runtime.latestCapture", Dynamic::from(image.clone()))
+        self.set_runtime_var("runtime.captureResult", Dynamic::from(image.clone()))
             .await?;
         self.set_runtime_var(
             "runtime.detResults",
@@ -189,7 +189,7 @@ impl ScriptExecutor {
             self.set_runtime_var(output_var, Dynamic::from(image.clone()))
                 .await?;
         }
-        self.set_runtime_var("runtime.latestCapture", Dynamic::from(image.clone()))
+        self.set_runtime_var("runtime.captureResult", Dynamic::from(image.clone()))
             .await?;
         self.set_runtime_var("runtime.detResults", Dynamic::from(Array::new()))
             .await?;
