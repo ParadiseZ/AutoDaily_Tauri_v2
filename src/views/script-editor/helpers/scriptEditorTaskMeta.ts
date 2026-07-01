@@ -25,6 +25,11 @@ export const applyTaskName = (task: ScriptTaskTable, value: string) => {
   return task;
 };
 
+export const applyTaskDescription = (task: ScriptTaskTable, value: string) => {
+  task.description = value.trim();
+  return task;
+};
+
 export const applyTaskRowType = (task: ScriptTaskTable, value: TaskRowType) => {
   task.rowType = value;
   const forceBasicPanel = value === TASK_ROW_TYPE.title;

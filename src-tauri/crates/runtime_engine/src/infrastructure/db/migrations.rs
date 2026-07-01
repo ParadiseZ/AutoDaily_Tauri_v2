@@ -2,6 +2,7 @@ use super::schema::SCHEMA_MIGRATIONS_TABLE_SQL;
 use sqlx::{Pool, Sqlite};
 
 const DEVICE_LOG_CONFIG_DEFAULTS_MIGRATION_VERSION: &str = "2026-06-10_device_log_config_defaults";
+const SCRIPT_TASK_DESCRIPTION_MIGRATION_VERSION: &str = "2026-07-01_script_task_description";
 
 async fn has_migration(pool: &Pool<Sqlite>, version: &str) -> Result<bool, String> {
     let count =
@@ -58,6 +59,14 @@ pub(crate) async fn run_schema_migrations(pool: &Pool<Sqlite>) -> Result<(), Str
                 SET data = json_set(data, '$.logToFile', json('true'))
               WHERE COALESCE(json_type(data, '$.logToFile'), 'null') = 'null'",
         ],
+    )
+    .await?;
+
+    apply_migration(
+        pool,
+        SCRIPT_TASK_DESCRIPTION_MIGRATION_VERSION,
+        "add description column to script_tasks",
+        &["ALTER TABLE script_tasks ADD COLUMN description TEXT NOT NULL DEFAULT ''"],
     )
     .await?;
 

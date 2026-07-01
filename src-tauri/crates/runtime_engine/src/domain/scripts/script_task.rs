@@ -44,6 +44,8 @@ pub struct ScriptTaskTable {
     pub id: TaskId,
     pub script_id: ScriptId,
     pub name: String,
+    #[serde(default)]
+    pub description: String,
     pub row_type: TaskRowType,
     #[serde(default = "default_trigger_mode")]
     pub trigger_mode: TaskTriggerMode,

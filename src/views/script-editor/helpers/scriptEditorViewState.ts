@@ -164,6 +164,7 @@ export const hydrateTaskEditorState = ({
   activeBranchPath: StepBranchPath;
 }): {
   taskName: string;
+  taskDescription: string;
   taskRowType: TaskRowType;
   taskTriggerMode: TaskTriggerMode;
   taskHidden: boolean;
@@ -190,6 +191,7 @@ export const hydrateTaskEditorState = ({
   if (!currentTask) {
     return {
       taskName: '',
+      taskDescription: '',
       taskRowType: TASK_ROW_TYPE.task,
       taskTriggerMode: TASK_TRIGGER_MODE.linkOnly,
       taskHidden: false,
@@ -222,6 +224,7 @@ export const hydrateTaskEditorState = ({
 
   return {
     taskName: currentTask.name,
+    taskDescription: currentTask.description || '',
     taskRowType: currentTask.rowType,
     taskTriggerMode: currentTask.triggerMode,
     taskHidden: currentTask.isHidden,

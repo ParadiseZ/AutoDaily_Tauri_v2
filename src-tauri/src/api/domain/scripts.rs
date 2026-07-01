@@ -136,13 +136,14 @@ pub async fn save_script_tasks_cmd(
     // 插入新任务
     for task in tasks {
         let insert_query = format!(
-            "INSERT INTO {} (id, script_id, name, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, exec_max, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO {} (id, script_id, name, description, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, exec_max, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             SCRIPT_TASK_TABLE
         );
         sqlx::query(&insert_query)
             .bind(task.id.to_string())
             .bind(script.id.to_string())
             .bind(&task.name)
+            .bind(&task.description)
             .bind(task.row_type)
             .bind(task.trigger_mode)
             .bind(task.record_schedule)

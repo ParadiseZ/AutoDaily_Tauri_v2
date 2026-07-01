@@ -268,6 +268,45 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
 
+test('persists task description from basic config panel', async ({ page }) => {
+  const scriptId = 'script-editor-task-description';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '任务说明保存脚本',
+      description: '验证任务说明字段保存',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-task-description').fill('用于说明任务执行前置条件');
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.scriptTasks[scriptId]?.[0]?.description).toBe('用于说明任务执行前置条件');
+});
+
 test('allows clearing task and title row names without auto-filling text', async ({ page }) => {
   const scriptId = 'script-editor-empty-name';
   const script: StoredScriptTable = {
@@ -1149,6 +1188,82 @@ test('renders script-level task preview with title groups and task metadata', as
   await expect(page.getByText('未分组任务')).toBeVisible();
   await expect(page.getByText('每日').first()).toBeVisible();
   await expect(page.locator('.editor-ui-task-name', { hasText: '签到' })).toBeVisible();
+});
+
+test('renders task description on second line in ui preview', async ({ page }) => {
+  const scriptId = 'script-editor-preview-description';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '任务说明预览脚本',
+      description: '验证预览中的任务说明',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'task-preview-description',
+        scriptId: currentScriptId,
+        name: '体力领取',
+        description: '午间和晚间各执行一次',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'daily',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await page.getByTestId('editor-tab-ui').click();
+  await page.getByRole('button', { name: 'UI 预览' }).click();
+
+  await expect(page.locator('.editor-ui-task-name', { hasText: '体力领取' })).toBeVisible();
+  await expect(page.locator('.editor-ui-task-description', { hasText: '午间和晚间各执行一次' })).toBeVisible();
 });
 
 test('collapses task groups and moves tasks from context menu', async ({ page }) => {

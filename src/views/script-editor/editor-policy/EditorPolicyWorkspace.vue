@@ -36,9 +36,12 @@
         :label-select-hint="labelSelectHint"
         :task-reference-options="taskReferenceOptions"
         :policy-reference-options="policyReferenceOptions"
+        :policy-note-map="policyNoteMap"
         :task-ui-variable-options="taskUiVariableOptions"
         :policy-group-reference-options="policyGroupReferenceOptions"
+        :policy-group-note-map="policyGroupNoteMap"
         :policy-set-reference-options="policySetReferenceOptions"
+        :policy-set-note-map="policySetNoteMap"
         :create-reference="createReference"
         :jump-to-reference="jumpToReference"
         :create-variable="createVariable"
@@ -89,9 +92,12 @@ const props = defineProps<{
   labelSelectHint?: string | null;
   taskReferenceOptions: EditorReferenceOption[];
   policyReferenceOptions: EditorReferenceOption[];
+  policyNoteMap: Record<string, string>;
   taskUiVariableOptions?: EditorTaskUiVariableOption[];
   policyGroupReferenceOptions: EditorReferenceOption[];
+  policyGroupNoteMap: Record<string, string>;
   policySetReferenceOptions: EditorReferenceOption[];
+  policySetNoteMap: Record<string, string>;
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
   createVariable?: (

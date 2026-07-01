@@ -21,7 +21,10 @@
         />
       </label>
 
-      <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
+      <div class="editor-ui-task-copy">
+        <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
+        <span v-if="taskDescription?.trim()" class="editor-ui-task-description">{{ taskDescription }}</span>
+      </div>
 
       <div class="editor-ui-preview-fields">
         <div
@@ -187,6 +190,7 @@ defineOptions({ name: 'EditorUiPreviewPanel' });
 
 const props = withDefaults(defineProps<{
   taskName: string;
+  taskDescription?: string;
   defaultTaskCycle: TaskCycle;
   defaultTaskCycleValue?: string;
   defaultTaskCycleMode?: 'named' | 'weekDay' | 'monthDay';
@@ -454,10 +458,17 @@ watch(
 }
 
 .editor-ui-task-name {
-  flex: 0 0 auto;
   color: var(--app-text-strong);
   font-size: 1rem;
   font-weight: 700;
+}
+
+.editor-ui-task-copy {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.18rem;
 }
 
 .editor-ui-task-name-warning {
@@ -466,6 +477,13 @@ watch(
 
 .editor-ui-task-name-danger {
   color: #b91c1c;
+}
+
+.editor-ui-task-description {
+  max-width: 18rem;
+  color: var(--app-text-soft);
+  font-size: 0.76rem;
+  line-height: 1.25;
 }
 
 .editor-ui-preview-fields {

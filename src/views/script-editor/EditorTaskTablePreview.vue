@@ -17,6 +17,7 @@
           >
             <EditorUiPreviewPanel
               :task-name="task.name"
+              :task-description="task.description || ''"
               :default-task-cycle="resolveTaskCycle(task)"
               :default-task-cycle-value="resolveTaskCycleValue(task)"
               :default-task-cycle-mode="resolveTaskCycleMode(task)"
@@ -64,6 +65,7 @@
             >
               <EditorUiPreviewPanel
                 :task-name="task.name"
+                :task-description="task.description || ''"
                 :default-task-cycle="resolveTaskCycle(task)"
                 :default-task-cycle-value="resolveTaskCycleValue(task)"
                 :default-task-cycle-mode="resolveTaskCycleMode(task)"

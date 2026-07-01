@@ -122,7 +122,10 @@
             <EditorSelectField
               :model-value="bindingSourceId || null"
               :options="bindingSourceReferenceOptions"
+              show-description
+              searchable
               :placeholder="bindingSourcePlaceholder"
+              search-placeholder="按名称 / 备注搜索"
               :test-id="bindingSourceTestId"
               @update:model-value="$emit('update-field', 'source', String($event || ''))"
             />
@@ -148,7 +151,10 @@
             <EditorSelectField
               :model-value="bindingTargetId || null"
               :options="bindingTargetReferenceOptions"
+              show-description
+              searchable
               :placeholder="bindingTargetPlaceholder"
+              search-placeholder="按名称 / 备注搜索"
               :test-id="bindingTargetTestId"
               @update:model-value="$emit('update-field', 'target', String($event || ''))"
             />
@@ -542,8 +548,11 @@ const props = defineProps<{
   variableReferenceOptions: EditorVariableOption[];
   taskReferenceOptions: EditorReferenceOption[];
   policyReferenceOptions: EditorReferenceOption[];
+  policyNoteMap: Record<string, string>;
   policyGroupReferenceOptions: EditorReferenceOption[];
+  policyGroupNoteMap: Record<string, string>;
   policySetReferenceOptions: EditorReferenceOption[];
+  policySetNoteMap: Record<string, string>;
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean; focusEditor?: boolean }) => Promise<string>;
@@ -783,24 +792,44 @@ const resolveReferenceOptions = (
     ...options,
   ];
 };
+const replaceOptionDescriptions = (options: EditorReferenceOption[], noteMap: Record<string, string>) =>
+  options.map((option) => ({
+    ...option,
+    description: noteMap[option.value] || option.description || '未填写备注',
+  }));
 const bindingSourceReferenceOptions = computed(() => {
   if (bindingSourceKind.value === 'policySet') {
-    return resolveReferenceOptions(bindingSourceId.value, props.policySetReferenceOptions, '策略集目录里找不到该源绑定，保存时仍会保留当前值。');
+    return replaceOptionDescriptions(
+      resolveReferenceOptions(bindingSourceId.value, props.policySetReferenceOptions, '策略集目录里找不到该源绑定，保存时仍会保留当前值。'),
+      props.policySetNoteMap,
+    );
   }
   if (bindingSourceKind.value === 'policyGroup') {
-    return resolveReferenceOptions(bindingSourceId.value, props.policyGroupReferenceOptions, '策略组目录里找不到该源绑定，保存时仍会保留当前值。');
+    return replaceOptionDescriptions(
+      resolveReferenceOptions(bindingSourceId.value, props.policyGroupReferenceOptions, '策略组目录里找不到该源绑定，保存时仍会保留当前值。'),
+      props.policyGroupNoteMap,
+    );
   }
   if (bindingSourceKind.value === 'policy') {
-    return resolveReferenceOptions(bindingSourceId.value, props.policyReferenceOptions, '策略目录里找不到该源绑定，保存时仍会保留当前值。');
+    return replaceOptionDescriptions(
+      resolveReferenceOptions(bindingSourceId.value, props.policyReferenceOptions, '策略目录里找不到该源绑定，保存时仍会保留当前值。'),
+      props.policyNoteMap,
+    );
   }
   return [];
 });
 const bindingTargetReferenceOptions = computed(() => {
   if (bindingTargetKind.value === 'policySet') {
-    return resolveReferenceOptions(bindingTargetId.value, props.policySetReferenceOptions, '策略集目录里找不到该目标绑定，保存时仍会保留当前值。');
+    return replaceOptionDescriptions(
+      resolveReferenceOptions(bindingTargetId.value, props.policySetReferenceOptions, '策略集目录里找不到该目标绑定，保存时仍会保留当前值。'),
+      props.policySetNoteMap,
+    );
   }
   if (bindingTargetKind.value === 'policyGroup') {
-    return resolveReferenceOptions(bindingTargetId.value, props.policyGroupReferenceOptions, '策略组目录里找不到该目标绑定，保存时仍会保留当前值。');
+    return replaceOptionDescriptions(
+      resolveReferenceOptions(bindingTargetId.value, props.policyGroupReferenceOptions, '策略组目录里找不到该目标绑定，保存时仍会保留当前值。'),
+      props.policyGroupNoteMap,
+    );
   }
   return [];
 });

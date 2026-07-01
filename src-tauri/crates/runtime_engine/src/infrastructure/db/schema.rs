@@ -109,6 +109,7 @@ pub(crate) fn script_tasks_table_sql(table_name: &str) -> String {
             id TEXT PRIMARY KEY,
             script_id TEXT NOT NULL,
             `name` TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
             row_type TEXT NOT NULL DEFAULT 'task',
             trigger_mode TEXT NOT NULL DEFAULT 'rootOnly',
             record_schedule BOOLEAN NOT NULL DEFAULT 1,

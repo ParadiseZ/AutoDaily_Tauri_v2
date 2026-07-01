@@ -39,6 +39,8 @@
     :disabled="disabled"
     :align="align"
     :show-description="showDescription"
+    :searchable="searchable"
+    :search-placeholder="searchPlaceholder"
     :test-id="testId"
     @update:model-value="$emit('update:modelValue', $event)"
   />
@@ -65,6 +67,8 @@ const props = withDefaults(
     disabled?: boolean;
     align?: 'left' | 'right';
     showDescription?: boolean;
+    searchable?: boolean;
+    searchPlaceholder?: string;
     testId?: string;
   }>(),
   {
@@ -72,6 +76,8 @@ const props = withDefaults(
     disabled: false,
     align: 'left',
     showDescription: false,
+    searchable: false,
+    searchPlaceholder: '搜索',
     testId: undefined,
   },
 );

@@ -19,6 +19,18 @@
     <template v-if="task">
       <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
         <div v-if="activePanel === 'basic'" class="grid gap-3 md:grid-cols-2">
+          <div class="grid gap-2 md:col-span-2">
+            <p class="text-xs font-medium uppercase tracking-[0.14em]">任务说明</p>
+            <input
+              :value="taskDescription"
+              class="app-input"
+              type="text"
+              placeholder="选填，用于补充任务说明"
+              data-testid="editor-task-description"
+              @input="$emit('update:task-description', ($event.target as HTMLInputElement).value)"
+            />
+          </div>
+
           <div class="grid gap-3 md:col-span-2 md:grid-cols-[72px_minmax(0,1fr)] md:items-center">
             <p class="text-xs font-medium uppercase tracking-[0.14em]">行类型</p>
             <EditorSelectField
@@ -142,6 +154,7 @@ const props = defineProps<{
   task: ScriptTaskTable | null;
   activePanel: EditorPanelId;
   taskName: string;
+  taskDescription: string;
   taskRowType: TaskRowType;
   taskTriggerMode: TaskTriggerMode;
   taskHidden: boolean;
@@ -168,6 +181,7 @@ const props = defineProps<{
 defineEmits<{
   'update:active-panel': [panel: EditorPanelId];
   'update:task-name': [value: string];
+  'update:task-description': [value: string];
   'update:task-row-type': [value: TaskRowType];
   'update:task-trigger-mode': [value: TaskTriggerMode];
   'update:task-hidden': [value: boolean];

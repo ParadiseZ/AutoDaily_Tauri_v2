@@ -211,6 +211,7 @@
                 :task="currentTask"
                 :active-panel="activePanel"
                 :task-name="taskName"
+                :task-description="taskDescription"
                 :task-row-type="taskRowType"
                 :task-trigger-mode="taskTriggerMode"
                 :task-hidden="taskHidden"
@@ -234,6 +235,7 @@
                 :restrict-sequence-templates="activeBranchPath.branch === 'sequence'"
                 @update:active-panel="activePanel = $event"
                 @update:task-name="taskName = $event"
+                @update:task-description="taskDescription = $event"
                 @update:task-row-type="taskRowType = $event"
                 @update:task-trigger-mode="taskTriggerMode = $event"
                 @update:task-hidden="taskHidden = $event"
@@ -340,9 +342,12 @@
                 :label-select-hint="imgDetLabelHint"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
+                :policy-note-map="policyNoteMap"
                 :task-ui-variable-options="taskUiVariableOptions"
                 :policy-group-reference-options="policyGroupReferenceOptions"
+                :policy-group-note-map="policyGroupNoteMap"
                 :policy-set-reference-options="policySetReferenceOptions"
+                :policy-set-note-map="policySetNoteMap"
                 :create-reference="createReferenceResource"
                 :jump-to-reference="jumpToReferenceResource"
                 :create-variable="createVariableResource"
@@ -395,9 +400,12 @@
                 :label-select-hint="imgDetLabelHint"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
+                :policy-note-map="policyNoteMap"
                 :task-ui-variable-options="taskUiVariableOptions"
                 :policy-group-reference-options="policyGroupReferenceOptions"
+                :policy-group-note-map="policyGroupNoteMap"
                 :policy-set-reference-options="policySetReferenceOptions"
+                :policy-set-note-map="policySetNoteMap"
                 :create-reference="createReferenceResource"
                 :jump-to-reference="jumpToReferenceResource"
                 :create-variable="createVariableResource"
@@ -639,6 +647,7 @@ import {
   updateScriptEditorRelations,
 } from '@/views/script-editor/helpers/scriptEditorPersistence';
 import {
+  applyTaskDescription,
   applyTaskDefaultEnabled,
   applyTaskDefaultTaskCycle,
   applyTaskExecMax,
@@ -813,6 +822,7 @@ let detachChildLogListener: null | (() => void) = null;
 let detachDeviceProgressListener: null | (() => void) = null;
 
 const taskName = ref('');
+const taskDescription = ref('');
 const taskRowType = ref<TaskRowType>(TASK_ROW_TYPE.task);
 const taskTriggerMode = ref<TaskTriggerMode>(TASK_TRIGGER_MODE.linkOnly);
 const taskHidden = ref(false);
@@ -1080,11 +1090,20 @@ const taskUiVariableOptions = computed<EditorTaskUiVariableOption[]>(() =>
   buildTaskUiVariableOptions(draftTasks.value, draftScript.value?.data.variableCatalog),
 );
 const policyReferenceOptions = computed<EditorReferenceOption[]>(() => buildPolicyReferenceOptions(draftPolicies.value));
+const policyNoteMap = computed<Record<string, string>>(() =>
+  Object.fromEntries(draftPolicies.value.map((policy) => [policy.id, policy.data.note?.trim() || '未填写备注'])),
+);
 const policyGroupReferenceOptions = computed<EditorReferenceOption[]>(() =>
   buildPolicyGroupReferenceOptions(draftPolicyGroups.value, groupPolicyIdsByGroupId.value),
 );
+const policyGroupNoteMap = computed<Record<string, string>>(() =>
+  Object.fromEntries(draftPolicyGroups.value.map((group) => [group.id, group.data.note?.trim() || '未填写备注'])),
+);
 const policySetReferenceOptions = computed<EditorReferenceOption[]>(() =>
   buildPolicySetReferenceOptions(draftPolicySets.value, setGroupIdsBySetId.value),
+);
+const policySetNoteMap = computed<Record<string, string>>(() =>
+  Object.fromEntries(draftPolicySets.value.map((set) => [set.id, set.data.note?.trim() || '未填写备注'])),
 );
 const assignedPolicies = computed<EditorNamedItem[]>(() =>
   buildAssignedRelationItems(
@@ -1222,6 +1241,7 @@ const hydrateTaskEditors = () => {
   });
 
   taskName.value = hydrated.taskName;
+  taskDescription.value = hydrated.taskDescription;
   taskRowType.value = hydrated.taskRowType;
   taskTriggerMode.value = hydrated.taskTriggerMode;
   taskHidden.value = hydrated.taskHidden;
@@ -2895,6 +2915,16 @@ watch(taskName, (value) => {
 
   replaceCurrentTask((task) => {
     return applyTaskName(task, value);
+  });
+});
+
+watch(taskDescription, (value) => {
+  if (shouldSkipTaskMetaSync({ hasCurrentTask: Boolean(currentTask.value), hydrating: hydratingTaskMeta.value })) {
+    return;
+  }
+
+  replaceCurrentTask((task) => {
+    return applyTaskDescription(task, value);
   });
 });
 
