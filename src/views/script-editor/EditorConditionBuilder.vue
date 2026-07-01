@@ -435,43 +435,6 @@
         </div>
       </template>
 
-      <template v-else-if="modelValue.type === 'colorCompare'">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">OCR 目标文本</span>
-          <input
-            :value="modelValue.txt_target"
-            class="app-input"
-            @input="updateColorField('txt_target', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-
-        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
-          <input
-            :checked="modelValue.is_font"
-            type="checkbox"
-            class="h-4 w-4"
-            style="accent-color: var(--app-accent)"
-            @change="updateColorField('is_font', ($event.target as HTMLInputElement).checked)"
-          />
-          <span class="text-sm text-(--app-text-soft)">比较字体颜色</span>
-        </label>
-
-        <div class="grid gap-3 md:grid-cols-3">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">R</span>
-            <input :value="String(modelValue.r)" class="app-input" type="number" min="0" max="255" @input="updateColorNumber('r', ($event.target as HTMLInputElement).value)" />
-          </label>
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">G</span>
-            <input :value="String(modelValue.g)" class="app-input" type="number" min="0" max="255" @input="updateColorNumber('g', ($event.target as HTMLInputElement).value)" />
-          </label>
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">B</span>
-            <input :value="String(modelValue.b)" class="app-input" type="number" min="0" max="255" @input="updateColorNumber('b', ($event.target as HTMLInputElement).value)" />
-          </label>
-        </div>
-      </template>
-
       <div v-else class="rounded-[14px] border border-(--app-border) bg-white/40 px-3 py-3 text-sm text-(--app-text-soft)">
         当前条件类型暂未提供专用表单。
       </div>
@@ -1009,21 +972,6 @@ const jumpToPolicySetResultVariable = () => {
   props.jumpToVariable(selectedPolicySetResultVarOption.value);
 };
 
-const updateColorField = (field: 'txt_target' | 'is_font', value: string | boolean) => {
-  if (props.modelValue.type !== 'colorCompare') return;
-  replaceNode({
-    ...props.modelValue,
-    [field]: value,
-  } as ConditionNode);
-};
-
-const updateColorNumber = (field: 'r' | 'g' | 'b', value: string) => {
-  if (props.modelValue.type !== 'colorCompare') return;
-  replaceNode({
-    ...props.modelValue,
-    [field]: Math.max(0, Math.min(255, Number(value) || 0)),
-  } as ConditionNode);
-};
 </script>
 
 <style scoped>

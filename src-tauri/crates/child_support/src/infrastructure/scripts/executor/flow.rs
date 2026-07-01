@@ -237,9 +237,16 @@ impl ScriptExecutor {
                 target,
                 det_input_var,
                 ocr_input_var,
+                search_hits_var,
                 out_var,
             } => {
-                self.execute_handle_policy_set(target, det_input_var, ocr_input_var, out_var)
+                self.execute_handle_policy_set(
+                    target,
+                    det_input_var,
+                    ocr_input_var,
+                    search_hits_var,
+                    out_var,
+                )
                     .await
             }
             FlowControl::HandlePolicy {

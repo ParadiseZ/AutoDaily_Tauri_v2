@@ -294,6 +294,21 @@
               @create="createPolicySetOcrInputVariable"
               @locate="jumpToPolicySetOcrInputVariable"
             />
+
+            <EditorVariableBindingField
+              label="搜索命中输出"
+              :model-value="selectedPolicySetSearchHitsOutput || null"
+              :options="resolvedPolicySetSearchHitsOutputOptions"
+              placeholder="选择 SearchHit[] 输出变量"
+              test-id="editor-flow-policy-set-search-hits-var"
+              create-label="新建命中结果变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedPolicySetSearchHitsOutputOption && jumpToVariable)"
+              :locate-disabled="!selectedPolicySetSearchHitsOutputOption || !jumpToVariable"
+              @update:model-value="$emit('update-field', 'search_hits_var', String($event || ''))"
+              @create="createPolicySetSearchHitsVariable"
+              @locate="jumpToPolicySetSearchHitsVariable"
+            />
           </template>
 
           <EditorVariableBindingField
@@ -331,6 +346,7 @@
         <div class="rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-xs leading-6 text-(--app-text-soft)">
           <template v-if="selectedFlow.type === FLOW_TYPE.handlePolicySet">
             处理策略集会直接使用绑定的 `DET` / `OCR` 结果集做策略匹配，不再读取截图输入变量。
+            搜索命中结果会以 `SearchHit[]` 写入输出变量，可直接复用到点击文字等依赖搜索结果的动作。
             输出 JSON 约定：顶层摘要字段为 `matched`、`policySetId`、`policyGroupId`、`policyId`，逐轮明细写入 `rounds`。
             每个 round 内再保存 `pageFingerprints`、`actionSignatures`、`actions`，其中 `actions` 按 `actionIndex` 标识单轮中的动作顺序。
           </template>
@@ -372,23 +388,35 @@
         />
 
         <div class="grid gap-3 md:grid-cols-2">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">元素变量</span>
-            <input
-              :value="selectedFlow.item_var || ''"
-              class="app-input"
-              @input="$emit('update-field', 'item_var', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
+          <EditorVariableBindingField
+            label="元素变量"
+            :model-value="selectedFlow.item_var || null"
+            :options="resolvedForEachItemOptions"
+            placeholder="绑定当前元素变量"
+            test-id="editor-flow-for-each-item-var"
+            create-label="新建元素变量"
+            :show-create="Boolean(createVariable)"
+            :show-locate="Boolean(selectedForEachItemOption && jumpToVariable)"
+            :locate-disabled="!selectedForEachItemOption || !jumpToVariable"
+            @update:model-value="$emit('update-field', 'item_var', String($event || ''))"
+            @create="createForEachItemVariable"
+            @locate="jumpToSelectedForEachItemVariable"
+          />
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">索引变量</span>
-            <input
-              :value="selectedFlow.index_var || ''"
-              class="app-input"
-              @input="$emit('update-field', 'index_var', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
+          <EditorVariableBindingField
+            label="索引变量"
+            :model-value="selectedFlow.index_var || null"
+            :options="resolvedForEachIndexOptions"
+            placeholder="绑定当前索引变量"
+            test-id="editor-flow-for-each-index-var"
+            create-label="新建索引变量"
+            :show-create="Boolean(createVariable)"
+            :show-locate="Boolean(selectedForEachIndexOption && jumpToVariable)"
+            :locate-disabled="!selectedForEachIndexOption || !jumpToVariable"
+            @update:model-value="$emit('update-field', 'index_var', String($event || ''))"
+            @create="createForEachIndexVariable"
+            @locate="jumpToSelectedForEachIndexVariable"
+          />
         </div>
       </div>
     </template>
@@ -410,15 +438,20 @@
           @locate="jumpToSelectedRepeatCountVariable"
         />
 
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">索引变量</span>
-          <input
-            :value="selectedFlow.index_var || ''"
-            class="app-input"
-            placeholder="runtime.repeatIndex"
-            @input="$emit('update-field', 'index_var', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
+        <EditorVariableBindingField
+          label="索引变量"
+          :model-value="selectedFlow.index_var || null"
+          :options="resolvedRepeatIndexOptions"
+          placeholder="绑定循环索引变量"
+          test-id="editor-flow-repeat-index-var"
+          create-label="新建索引变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedRepeatIndexOption && jumpToVariable)"
+          :locate-disabled="!selectedRepeatIndexOption || !jumpToVariable"
+          @update:model-value="$emit('update-field', 'index_var', String($event || ''))"
+          @create="createRepeatIndexVariable"
+          @locate="jumpToSelectedRepeatIndexVariable"
+        />
       </div>
     </template>
 
@@ -581,6 +614,35 @@ const imageVariableOptions = computed(() =>
     .filter((option) => option.valueType === 'image')
     .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
 );
+const runtimeWritableVariableOptions = computed(() =>
+  props.variableReferenceOptions
+    .filter((option) => option.namespace === 'runtime')
+    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
+);
+const runtimeNumberVariableOptions = computed(() =>
+  props.variableReferenceOptions
+    .filter((option) => option.namespace === 'runtime' && ['int', 'float'].includes(option.valueType))
+    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
+);
+const withCurrentVariableOption = (
+  options: Array<{ label: string; value: string; description: string }>,
+  value: string | null | undefined,
+  description: string,
+) => {
+  const trimmedValue = value?.trim() ?? '';
+  if (!trimmedValue || options.some((option) => option.value === trimmedValue)) {
+    return options;
+  }
+
+  return [
+    {
+      label: `当前绑定不存在：${trimmedValue}`,
+      value: trimmedValue,
+      description,
+    },
+    ...options,
+  ];
+};
 const ensureRuntimeResultOption = (
   options: Array<{ label: string; value: string; description: string }>,
   value: string,
@@ -839,6 +901,9 @@ const selectedPolicySetDetInput = computed(() =>
 const selectedPolicySetOcrInput = computed(() =>
   props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? props.selectedFlow.ocr_input_var : '',
 );
+const selectedPolicySetSearchHitsOutput = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? props.selectedFlow.search_hits_var : '',
+);
 const selectedFlowInput = computed(() =>
   props.selectedFlow.type === FLOW_TYPE.handlePolicy ? props.selectedFlow.input_var : '',
 );
@@ -850,6 +915,9 @@ const selectedPolicySetDetInputOption = computed(() =>
 );
 const selectedPolicySetOcrInputOption = computed(() =>
   props.variableReferenceOptions.find((option) => option.key === selectedPolicySetOcrInput.value) ?? null,
+);
+const selectedPolicySetSearchHitsOutputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedPolicySetSearchHitsOutput.value) ?? null,
 );
 const selectedFlowInputOption = computed(() =>
   props.variableReferenceOptions.find((option) => option.key === selectedFlowInput.value) ?? null,
@@ -884,6 +952,24 @@ const selectedForEachInputOption = computed(() => {
     ? props.variableReferenceOptions.find((option) => option.key === flow.input_var) ?? null
     : null;
 });
+const selectedForEachItemOption = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.forEach) {
+    return null;
+  }
+  return flow.item_var
+    ? props.variableReferenceOptions.find((option) => option.key === flow.item_var) ?? null
+    : null;
+});
+const selectedForEachIndexOption = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.forEach) {
+    return null;
+  }
+  return flow.index_var
+    ? props.variableReferenceOptions.find((option) => option.key === flow.index_var) ?? null
+    : null;
+});
 const selectedRepeatCountOption = computed(() => {
   const flow = props.selectedFlow;
   if (flow.type !== FLOW_TYPE.repeat) {
@@ -893,137 +979,78 @@ const selectedRepeatCountOption = computed(() => {
     ? props.variableReferenceOptions.find((option) => option.key === flow.count_expr) ?? null
     : null;
 });
-const resolvedPolicySetDetInputOptions = computed(() => {
-  if (!selectedPolicySetDetInput.value || policySetDetVariableOptions.value.some((option) => option.value === selectedPolicySetDetInput.value)) {
-    return policySetDetVariableOptions.value;
+const selectedRepeatIndexOption = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.repeat) {
+    return null;
   }
-
-  return [
-    {
-      label: `当前绑定不存在：${selectedPolicySetDetInput.value}`,
-      value: selectedPolicySetDetInput.value,
-      description: '变量目录里找不到该检测结果绑定，保存时仍会保留当前值。',
-    },
-    ...policySetDetVariableOptions.value,
-  ];
+  return flow.index_var
+    ? props.variableReferenceOptions.find((option) => option.key === flow.index_var) ?? null
+    : null;
+});
+const resolvedPolicySetDetInputOptions = computed(() => {
+  return withCurrentVariableOption(policySetDetVariableOptions.value, selectedPolicySetDetInput.value, '变量目录里找不到该检测结果绑定，保存时仍会保留当前值。');
 });
 const resolvedPolicySetOcrInputOptions = computed(() => {
-  if (!selectedPolicySetOcrInput.value || policySetOcrVariableOptions.value.some((option) => option.value === selectedPolicySetOcrInput.value)) {
-    return policySetOcrVariableOptions.value;
+  return withCurrentVariableOption(policySetOcrVariableOptions.value, selectedPolicySetOcrInput.value, '变量目录里找不到该 OCR 结果绑定，保存时仍会保留当前值。');
+});
+const resolvedPolicySetSearchHitsOutputOptions = computed(() =>
+  withCurrentVariableOption(jsonVariableOptions.value, selectedPolicySetSearchHitsOutput.value, '变量目录里找不到该命中结果绑定，保存时仍会保留当前值。'),
+);
+const resolvedForEachItemOptions = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.forEach) {
+    return runtimeWritableVariableOptions.value;
   }
-
-  return [
-    {
-      label: `当前绑定不存在：${selectedPolicySetOcrInput.value}`,
-      value: selectedPolicySetOcrInput.value,
-      description: '变量目录里找不到该 OCR 结果绑定，保存时仍会保留当前值。',
-    },
-    ...policySetOcrVariableOptions.value,
-  ];
+  return withCurrentVariableOption(runtimeWritableVariableOptions.value, flow.item_var, '变量目录里找不到该元素变量绑定，保存时仍会保留当前值。');
+});
+const resolvedForEachIndexOptions = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.forEach) {
+    return runtimeNumberVariableOptions.value;
+  }
+  return withCurrentVariableOption(runtimeNumberVariableOptions.value, flow.index_var, '变量目录里找不到该索引变量绑定，保存时仍会保留当前值。');
+});
+const resolvedRepeatIndexOptions = computed(() => {
+  const flow = props.selectedFlow;
+  if (flow.type !== FLOW_TYPE.repeat) {
+    return runtimeNumberVariableOptions.value;
+  }
+  return withCurrentVariableOption(runtimeNumberVariableOptions.value, flow.index_var, '变量目录里找不到该循环索引绑定，保存时仍会保留当前值。');
 });
 const resolvedFlowInputOptions = computed(() => {
-  if (!selectedFlowInput.value || imageVariableOptions.value.some((option) => option.value === selectedFlowInput.value)) {
-    return imageVariableOptions.value;
-  }
-
-  return [
-    {
-      label: `当前绑定不存在：${selectedFlowInput.value}`,
-      value: selectedFlowInput.value,
-      description: '变量目录里找不到该绑定，保存时仍会保留当前值。',
-    },
-    ...imageVariableOptions.value,
-  ];
+  return withCurrentVariableOption(imageVariableOptions.value, selectedFlowInput.value, '变量目录里找不到该绑定，保存时仍会保留当前值。');
 });
 const resolvedFlowOutputOptions = computed(() => {
-  if (!selectedFlowOutput.value || jsonVariableOptions.value.some((option) => option.value === selectedFlowOutput.value)) {
-    return jsonVariableOptions.value;
-  }
-
-  return [
-    {
-      label: `当前绑定不存在：${selectedFlowOutput.value}`,
-      value: selectedFlowOutput.value,
-      description: '变量目录里找不到该绑定，保存时仍会保留当前值。',
-    },
-    ...jsonVariableOptions.value,
-  ];
+  return withCurrentVariableOption(jsonVariableOptions.value, selectedFlowOutput.value, '变量目录里找不到该绑定，保存时仍会保留当前值。');
 });
 const resolvedForEachInputOptions = computed(() => {
   const flow = props.selectedFlow;
   if (flow.type !== FLOW_TYPE.forEach) {
     return jsonVariableOptions.value;
   }
-
-  if (!flow.input_var || jsonVariableOptions.value.some((option) => option.value === flow.input_var)) {
-    return jsonVariableOptions.value;
-  }
-
-  return [
-    {
-      label: `当前绑定不存在：${flow.input_var}`,
-      value: flow.input_var,
-      description: '变量目录里找不到该结果集绑定，保存时仍会保留当前值。',
-    },
-    ...jsonVariableOptions.value,
-  ];
+  return withCurrentVariableOption(jsonVariableOptions.value, flow.input_var, '变量目录里找不到该结果集绑定，保存时仍会保留当前值。');
 });
 const resolvedRepeatCountOptions = computed(() => {
   const flow = props.selectedFlow;
   if (flow.type !== FLOW_TYPE.repeat) {
     return numberVariableOptions.value;
   }
-
-  if (!flow.count_expr || numberVariableOptions.value.some((option) => option.value === flow.count_expr)) {
-    return numberVariableOptions.value;
-  }
-
-  return [
-    {
-      label: `当前绑定不存在：${flow.count_expr}`,
-      value: flow.count_expr,
-      description: '变量目录里找不到该次数绑定，保存时仍会保留当前值。',
-    },
-    ...numberVariableOptions.value,
-  ];
+  return withCurrentVariableOption(numberVariableOptions.value, flow.count_expr, '变量目录里找不到该次数绑定，保存时仍会保留当前值。');
 });
 const resolvedWaitInputOptions = computed(() => {
   const flow = props.selectedFlow;
   if (flow.type !== FLOW_TYPE.waitMs) {
     return numberVariableOptions.value;
   }
-
-  if (!flow.input_var || numberVariableOptions.value.some((option) => option.value === flow.input_var)) {
-    return numberVariableOptions.value;
-  }
-
-  return [
-    {
-      label: `当前绑定不存在：${flow.input_var}`,
-      value: flow.input_var,
-      description: '变量目录里找不到该输入绑定，保存时仍会保留当前值。',
-    },
-    ...numberVariableOptions.value,
-  ];
+  return withCurrentVariableOption(numberVariableOptions.value, flow.input_var, '变量目录里找不到该输入绑定，保存时仍会保留当前值。');
 });
 const resolvedWaitRuntimeOptions = computed(() => {
   const flow = props.selectedFlow;
   if (flow.type !== FLOW_TYPE.waitMs) {
     return runtimeWaitVariableOptions.value;
   }
-
-  if (!flow.runtime_var || runtimeWaitVariableOptions.value.some((option) => option.value === flow.runtime_var)) {
-    return runtimeWaitVariableOptions.value;
-  }
-
-  return [
-    {
-      label: `当前绑定不存在：${flow.runtime_var}`,
-      value: flow.runtime_var,
-      description: '变量目录里找不到该运行时绑定，保存时仍会保留当前值。',
-    },
-    ...runtimeWaitVariableOptions.value,
-  ];
+  return withCurrentVariableOption(runtimeWaitVariableOptions.value, flow.runtime_var, '变量目录里找不到该运行时绑定，保存时仍会保留当前值。');
 });
 const availableTargetReferenceOptions = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
@@ -1175,6 +1202,45 @@ const createForEachInputVariable = async () => {
     emit('update-field', 'input_var', key);
   }
 };
+const createForEachItemVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.forEach) {
+    return;
+  }
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: 'item',
+    name: '当前元素',
+    focusEditor: true,
+  });
+  if (key) {
+    emit('update-field', 'item_var', key);
+  }
+};
+const createForEachIndexVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.forEach) {
+    return;
+  }
+  const key = await props.createVariable('runtime', 'int', {
+    preferredKey: 'itemIndex',
+    name: '当前索引',
+    focusEditor: true,
+  });
+  if (key) {
+    emit('update-field', 'index_var', key);
+  }
+};
+const createRepeatIndexVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.repeat) {
+    return;
+  }
+  const key = await props.createVariable('runtime', 'int', {
+    preferredKey: 'repeatIndex',
+    name: '循环索引',
+    focusEditor: true,
+  });
+  if (key) {
+    emit('update-field', 'index_var', key);
+  }
+};
 
 const updateWaitVariableMode = async (mode: string) => {
   if (props.selectedFlow.type !== FLOW_TYPE.waitMs) {
@@ -1272,6 +1338,21 @@ const createPolicySetOcrInputVariable = async () => {
   }
   emit('update-field', 'ocr_input_var', key);
 };
+const createPolicySetSearchHitsVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.handlePolicySet) {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: 'searchHits',
+    name: '搜索命中',
+    focusEditor: true,
+  });
+  if (!key) {
+    return;
+  }
+  emit('update-field', 'search_hits_var', key);
+};
 
 const createFlowOutputVariable = async () => {
   if (!props.createVariable) {
@@ -1309,6 +1390,12 @@ const jumpToPolicySetOcrInputVariable = () => {
   }
   props.jumpToVariable(selectedPolicySetOcrInputOption.value);
 };
+const jumpToPolicySetSearchHitsVariable = () => {
+  if (!selectedPolicySetSearchHitsOutputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedPolicySetSearchHitsOutputOption.value);
+};
 
 const jumpToFlowOutputVariable = () => {
   if (!selectedFlowOutputOption.value || !props.jumpToVariable) {
@@ -1334,11 +1421,29 @@ const jumpToSelectedForEachInputVariable = () => {
   }
   props.jumpToVariable(selectedForEachInputOption.value);
 };
+const jumpToSelectedForEachItemVariable = () => {
+  if (!selectedForEachItemOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedForEachItemOption.value);
+};
+const jumpToSelectedForEachIndexVariable = () => {
+  if (!selectedForEachIndexOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedForEachIndexOption.value);
+};
 const jumpToSelectedRepeatCountVariable = () => {
   if (!selectedRepeatCountOption.value || !props.jumpToVariable) {
     return;
   }
   props.jumpToVariable(selectedRepeatCountOption.value);
+};
+const jumpToSelectedRepeatIndexVariable = () => {
+  if (!selectedRepeatIndexOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedRepeatIndexOption.value);
 };
 </script>
 

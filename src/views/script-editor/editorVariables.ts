@@ -228,7 +228,7 @@ const RUNTIME_VARIABLE_DISPLAY_NAMES: Record<string, string> = {
   'runtime.captureResult': '截图结果',
   'runtime.detResults': '检测结果',
   'runtime.ocrResults': 'OCR结果',
-  'runtime.searchHits': '搜索结果',
+  'runtime.searchHits': '搜索命中',
   'runtime.policySetResult': '策略集结果',
   'runtime.policyResult': '策略结果',
 };
@@ -327,6 +327,10 @@ const collectDerivedRuntimeVariables = (
     if (step.op === 'flowControl') {
       if ((step.a.type === 'handlePolicySet' || step.a.type === 'handlePolicy') && step.a.out_var?.trim()) {
         const key = step.a.out_var.trim();
+        bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
+      }
+      if (step.a.type === 'handlePolicySet' && step.a.search_hits_var?.trim()) {
+        const key = step.a.search_hits_var.trim();
         bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
       }
 

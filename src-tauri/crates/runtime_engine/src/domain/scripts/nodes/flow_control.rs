@@ -14,6 +14,10 @@ fn default_policy_set_ocr_input_var() -> String {
     "runtime.ocrResults".to_string()
 }
 
+fn default_policy_set_search_hits_var() -> String {
+    "runtime.searchHits".to_string()
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -103,6 +107,8 @@ pub enum FlowControl {
         det_input_var: String,
         #[serde(default = "default_policy_set_ocr_input_var")]
         ocr_input_var: String,
+        #[serde(default = "default_policy_set_search_hits_var")]
+        search_hits_var: String,
         out_var: String,
     },
     HandlePolicy {

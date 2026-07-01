@@ -2192,7 +2192,7 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
     });
     nextStep.a.out_var = await createVariableResource('runtime', 'json', {
       preferredKey: 'colorMatchedResults',
-      name: '颜色命中结果',
+      name: '颜色筛选结果',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,

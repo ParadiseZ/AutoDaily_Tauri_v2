@@ -725,6 +725,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           target: createStringList(),
           det_input_var: 'runtime.detResults',
           ocr_input_var: 'runtime.ocrResults',
+          search_hits_var: 'runtime.searchHits',
           out_var: 'runtime.policySetResult',
         },
       }),
@@ -828,12 +829,12 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   {
     id: 'color-compare',
     icon: genSvg(SVG_ICONS.color),
-    label: '颜色比较',
-    description: '按 OCR 结果区域比较字体色或背景色，并输出命中结果集。',
+    label: '颜色筛选',
+    description: '按 OCR 结果区域筛选字体色或背景色，并输出命中结果集。',
     group: '数据',
     create: () =>
       createBaseStep({
-        label: '颜色比较',
+        label: '颜色筛选',
         op: STEP_OP.dataHanding,
         a: {
           type: DATA_TYPE.colorCompare,
@@ -1047,7 +1048,7 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === DATA_TYPE.getVar) return '读取变量';
     if (step.a.type === DATA_TYPE.rhai) return 'Rhai 代码';
     if (step.a.type === DATA_TYPE.filter) return '过滤变量';
-    if (step.a.type === DATA_TYPE.colorCompare) return '颜色比较';
+    if (step.a.type === DATA_TYPE.colorCompare) return '颜色筛选';
     if (step.a.type === DATA_TYPE.relativeFilter) return '相对位置筛选';
     return '数据处理';
   }
@@ -1136,7 +1137,7 @@ export const describeStepMeta = (step: Step) => {
       case FLOW_TYPE.stopScript:
         return '结束当前脚本执行';
       case FLOW_TYPE.handlePolicySet:
-        return `处理 ${step.a.target.length} 个策略集 · DET ${step.a.det_input_var || '未指定'} · OCR ${step.a.ocr_input_var || '未指定'} -> ${step.a.out_var || '未指定输出'}`;
+        return `处理 ${step.a.target.length} 个策略集 · DET ${step.a.det_input_var || '未指定'} · OCR ${step.a.ocr_input_var || '未指定'} · Hits ${step.a.search_hits_var || '未指定'} -> ${step.a.out_var || '未指定输出'}`;
       case FLOW_TYPE.handlePolicy:
         return `处理 ${step.a.target.length} 个策略 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
       default:
@@ -1157,7 +1158,7 @@ export const describeStepMeta = (step: Step) => {
       case DATA_TYPE.filter:
         return `过滤 ${step.a.input_var || '未命名输入'} -> ${step.a.out_name || '未命名输出'}`;
       case DATA_TYPE.colorCompare:
-        return `颜色比较 ${step.a.input_var || '未命名输入'} -> ${step.a.out_var || '未命名输出'}`;
+        return `颜色筛选 ${step.a.input_var || '未命名输入'} -> ${step.a.out_var || '未命名输出'}`;
       case DATA_TYPE.relativeFilter:
         return `相对位置 ${step.a.input_var || '未命名输入'} -> ${step.a.out_var || '未命名输出'}`;
       default:

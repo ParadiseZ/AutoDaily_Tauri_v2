@@ -41,6 +41,7 @@ impl ScriptExecutor {
         target: &[PolicySetId],
         det_input_var: &str,
         ocr_input_var: &str,
+        search_hits_var: &str,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
         if let Some(timeout_flow) = self
@@ -63,13 +64,19 @@ impl ScriptExecutor {
             .resolve_cached_policy_set_candidates(&bundle, target)
             .await?;
         Log::debug(&format!(
-            "[ executor ] HandlePolicySet 候选展开完成: target_count={}, candidate_count={}, out_var={}",
+            "[ executor ] HandlePolicySet 候选展开完成: target_count={}, candidate_count={}, search_hits_var={}, out_var={}",
             target.len(),
             candidates.len(),
+            search_hits_var,
             out_var
         ));
-        self.execute_policy_candidates("flow.handlePolicySet", candidates, out_var)
-            .await
+        self.execute_policy_candidates(
+            "flow.handlePolicySet",
+            candidates,
+            Some(search_hits_var),
+            out_var,
+        )
+        .await
     }
 
     async fn debug_execute_policy_candidates(
@@ -95,7 +102,7 @@ impl ScriptExecutor {
             ));
         }
 
-        self.execute_policy_candidates("debug.policy", candidates, "runtime.policyDebugResult")
+        self.execute_policy_candidates("debug.policy", candidates, None, "runtime.policyDebugResult")
             .await?;
         let value = self.read_runtime_var("runtime.policyDebugResult").await.ok_or_else(|| {
             Self::execute_error(
@@ -139,7 +146,7 @@ impl ScriptExecutor {
             candidates.len(),
             out_var
         ));
-        self.execute_policy_candidates("flow.handlePolicy", candidates, out_var)
+        self.execute_policy_candidates("flow.handlePolicy", candidates, None, out_var)
             .await
     }
 
@@ -147,6 +154,7 @@ impl ScriptExecutor {
         &mut self,
         step_type: &str,
         candidates: Vec<PolicyCandidate>,
+        search_hits_var: Option<&str>,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
         if let Some(timeout_flow) = self
@@ -167,6 +175,7 @@ impl ScriptExecutor {
             policy_id: None,
             rounds: Vec::new(),
         };
+        let mut last_search_hits = Vec::new();
 
         for (index, candidate) in candidates.into_iter().enumerate() {
             if let Some(timeout_flow) = self
@@ -223,9 +232,10 @@ impl ScriptExecutor {
                     before_action.as_slice(),
                 )
                 .await?;
-                let matched = self
+                let (matched, hits) = self
                     .evaluate_policy_match(step_type, &candidate.policy.data.0.cond)
                     .await?;
+                last_search_hits = hits;
                 if !matched {
                     return Ok::<bool, crate::infrastructure::scripts::script_error::ScriptError>(false);
                 }
@@ -258,6 +268,13 @@ impl ScriptExecutor {
             result.policy_id = Some(candidate.policy.id);
             result.rounds.push(round);
 
+            if let Some(search_hits_var) = search_hits_var {
+                self.set_runtime_var(
+                    search_hits_var,
+                    Self::results_to_dynamic(step_type, "搜索命中", &last_search_hits)?,
+                )
+                .await?;
+            }
             self.set_runtime_var(
                 out_var,
                 Self::results_to_dynamic(step_type, "策略执行", &result)?,
@@ -266,6 +283,13 @@ impl ScriptExecutor {
             return Ok(ControlFlow::Next);
         }
 
+        if let Some(search_hits_var) = search_hits_var {
+            self.set_runtime_var(
+                search_hits_var,
+                Self::results_to_dynamic(step_type, "搜索命中", &last_search_hits)?,
+            )
+            .await?;
+        }
         self.set_runtime_var(
             out_var,
             Self::results_to_dynamic(step_type, "策略执行", &result)?,
@@ -278,7 +302,7 @@ impl ScriptExecutor {
         &self,
         step_type: &str,
         rule: &SearchRule,
-    ) -> ExecuteResult<bool> {
+    ) -> ExecuteResult<(bool, Vec<SearchHit>)> {
         let ctx = self.runtime_ctx.read().await;
         let snapshot = ctx.observation.last_snapshot.as_ref().ok_or_else(|| {
             Self::execute_error(
@@ -288,7 +312,7 @@ impl ScriptExecutor {
         })?;
         let searcher = OcrSearcher::new(std::slice::from_ref(rule));
         let hits = searcher.search(snapshot);
-        Ok(rule.evaluate(&hits, &snapshot.det_items))
+        Ok((rule.evaluate(&hits, &snapshot.det_items), hits))
     }
 
     async fn execute_policy_steps(

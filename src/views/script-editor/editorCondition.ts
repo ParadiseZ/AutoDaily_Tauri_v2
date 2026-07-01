@@ -32,7 +32,6 @@ export const conditionTypeOptions = [
   { label: '当前任务', value: CONDITION_TYPE.currentTaskIn, description: '判断当前执行任务是否属于指定列表。' },
   { label: '变量比较', value: CONDITION_TYPE.varCompare, description: '比较运行时变量或输入变量。' },
   { label: '策略集结果', value: CONDITION_TYPE.policySetResult, description: '按策略集处理步骤输出的结果对象判断。' },
-  { label: '颜色比较', value: CONDITION_TYPE.colorCompare, description: '比较 OCR 文本的字体色或背景色。' },
 ];
 
 export const logicOpOptions = [
