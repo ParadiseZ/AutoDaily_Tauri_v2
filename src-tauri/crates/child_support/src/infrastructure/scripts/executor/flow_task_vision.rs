@@ -154,6 +154,23 @@ impl ScriptExecutor {
         op: &CompareOp,
         expected_count: i32,
     ) -> ExecuteResult<bool> {
+        let matched = self
+            .match_vision_count_compare(step_type, input_var, target_value, op, expected_count)
+            .await?;
+        if !out_var.trim().is_empty() {
+            self.set_runtime_var(out_var, Dynamic::from_bool(matched)).await?;
+        }
+        Ok(matched)
+    }
+
+    async fn match_vision_count_compare(
+        &self,
+        step_type: &str,
+        input_var: &str,
+        target_value: Option<&str>,
+        op: &CompareOp,
+        expected_count: i32,
+    ) -> ExecuteResult<bool> {
         let value = self.read_runtime_var(input_var).await.ok_or_else(|| {
             Self::execute_error(
                 step_type,
@@ -174,13 +191,11 @@ impl ScriptExecutor {
                 format!("输入变量[{}]不是兼容的检测结果或 OCR 结果集", input_var),
             ));
         };
-        let matched = Self::compare_dynamic(
+        Ok(Self::compare_dynamic(
             &Dynamic::from_int(actual_count.into()),
             op,
             &Dynamic::from_int(expected_count.into()),
-        );
-        self.set_runtime_var(out_var, Dynamic::from_bool(matched)).await?;
-        Ok(matched)
+        ))
     }
 
     async fn execute_vision_search_step(

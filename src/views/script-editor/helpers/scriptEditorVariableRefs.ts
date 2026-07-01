@@ -20,6 +20,11 @@ const collectConditionVariableReferences = (condition: ConditionNode, bucket: Se
     return;
   }
 
+  if (condition.type === 'visionCountCompare' && condition.input_var?.trim()) {
+    bucket.add(condition.input_var.trim());
+    return;
+  }
+
   if (condition.type === 'policySetResult' && condition.result_var?.trim()) {
     bucket.add(condition.result_var.trim());
   }
@@ -83,6 +88,17 @@ export const collectVariableReferencesFromSteps = (steps: Step[], bucket = new S
         }
         continue;
       }
+    }
+
+    if (step.op === 'vision' && step.a.type === 'countCompare') {
+      if (step.a.input_var?.trim()) {
+        bucket.add(step.a.input_var.trim());
+      }
+      if (step.a.out_var?.trim()) {
+        bucket.add(step.a.out_var.trim());
+      }
+      collectVariableReferencesFromSteps(step.a.then_steps, bucket);
+      continue;
     }
 
     if (step.op === 'vision' && step.a.type === 'visionSearch') {
@@ -168,6 +184,10 @@ const collectVariableUsagesFromCondition = (condition: ConditionNode, scopeLabel
     pushVariableUsage(bucket, condition.var_name, `${scopeLabel}的条件`);
     return;
   }
+  if (condition.type === 'visionCountCompare') {
+    pushVariableUsage(bucket, condition.input_var, `${scopeLabel}的条件`);
+    return;
+  }
   if (condition.type === 'policySetResult') {
     pushVariableUsage(bucket, condition.result_var, `${scopeLabel}的条件`);
   }
@@ -218,6 +238,13 @@ export const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string
         pushVariableUsage(bucket, step.a.out_var, stepLabel);
         continue;
       }
+    }
+
+    if (step.op === 'vision' && step.a.type === 'countCompare') {
+      pushVariableUsage(bucket, step.a.input_var, stepLabel);
+      pushVariableUsage(bucket, step.a.out_var, stepLabel);
+      collectVariableUsagesFromSteps(step.a.then_steps, scopeLabel, bucket);
+      continue;
     }
 
     if (step.op === 'vision' && step.a.type === 'visionSearch') {
@@ -302,6 +329,11 @@ const renameConditionVariableReferences = (condition: ConditionNode, previousKey
 
   if (nextCondition.type === 'varCompare' && nextCondition.var_name === previousKey) {
     nextCondition.var_name = nextKey;
+    return nextCondition;
+  }
+
+  if (nextCondition.type === 'visionCountCompare' && nextCondition.input_var === previousKey) {
+    nextCondition.input_var = nextKey;
     return nextCondition;
   }
 
@@ -428,6 +460,17 @@ export const renameVariableReferencesInSteps = (steps: Step[], previousKey: stri
           nextStep.a.to_expr = nextKey;
         }
       }
+      return nextStep;
+    }
+
+    if (nextStep.op === 'vision' && nextStep.a.type === 'countCompare') {
+      if (nextStep.a.input_var === previousKey) {
+        nextStep.a.input_var = nextKey;
+      }
+      if (nextStep.a.out_var === previousKey) {
+        nextStep.a.out_var = nextKey;
+      }
+      nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
       return nextStep;
     }
 

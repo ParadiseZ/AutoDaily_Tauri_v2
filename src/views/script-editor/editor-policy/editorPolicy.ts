@@ -42,7 +42,7 @@ export const normalizePolicy = (policy: PolicyTable, index: number): PolicyTable
   ...policy,
   orderIndex: index,
   data: {
-    name: policy.data?.name || `策略 ${index + 1}`,
+    name: policy.data?.name ?? `策略 ${index + 1}`,
     note: policy.data?.note || '',
     logPrint: policy.data?.logPrint ?? null,
     curPos: policy.data?.curPos ?? 0,
@@ -67,7 +67,7 @@ export const normalizePolicySet = (set: PolicySetTable, index: number): PolicySe
   ...set,
   orderIndex: index,
   data: {
-    name: set.data?.name || `策略集 ${index + 1}`,
+    name: set.data?.name ?? `策略集 ${index + 1}`,
     note: set.data?.note || '',
   },
 });

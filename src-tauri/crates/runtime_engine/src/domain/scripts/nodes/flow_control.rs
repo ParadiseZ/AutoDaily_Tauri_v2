@@ -150,6 +150,14 @@ pub enum ConditionNode {
         value: VarValue,
     },
 
+    /// 统计检测标签或 OCR 文字的匹配数量，并和指定数量比较
+    VisionCountCompare {
+        input_var: String,
+        target_value: Option<String>,
+        op: CompareOp,
+        expected_count: i32,
+    },
+
     /// 策略集处理结果判断
     PolicySetResult {
         result_var: String,

@@ -354,6 +354,72 @@
         </label>
       </template>
 
+      <template v-else-if="modelValue.type === 'visionCountCompare'">
+        <div class="editor-compact-grid">
+          <label class="space-y-2 md:col-span-2">
+            <span class="text-xs font-medium text-(--app-text-faint)">结果变量</span>
+            <EditorSelectField
+              :model-value="modelValue.input_var || null"
+              :options="resolvedVisionCountCompareInputOptions"
+              placeholder="选择检测结果或 OCR 结果变量"
+              :test-id="rootTestId('vision-count-compare-input-var')"
+              @update:model-value="updateVisionCountCompareField('input_var', String($event || ''))"
+            />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-medium text-(--app-text-faint)">比较</span>
+            <EditorSelectField
+              :model-value="modelValue.op"
+              :options="countCompareConditionOpOptions"
+              placeholder="比较方式"
+              :test-id="rootTestId('vision-count-compare-op')"
+              @update:model-value="updateVisionCountCompareField('op', String($event || 'ge'))"
+            />
+          </label>
+        </div>
+
+        <div v-if="createVariable || (selectedVisionCountCompareInputOption && jumpToVariable)" class="flex flex-wrap gap-2">
+          <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createVisionCountCompareVariable">
+            <AppIcon name="plus" :size="14" />
+            新建结果变量
+          </button>
+          <button
+            v-if="selectedVisionCountCompareInputOption && jumpToVariable"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            @click="jumpToVisionCountCompareVariable"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位变量
+          </button>
+        </div>
+
+        <div class="editor-compact-grid">
+          <label class="space-y-2 md:col-span-2">
+            <span class="text-xs font-medium text-(--app-text-faint)">目标标签 / 文字</span>
+            <input
+              :value="modelValue.target_value ?? ''"
+              class="app-input"
+              placeholder="留空则统计全部结果"
+              :data-testid="rootTestId('vision-count-compare-target-value')"
+              @input="updateVisionCountCompareNullableField('target_value', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+
+          <label class="space-y-2">
+            <span class="text-xs font-medium text-(--app-text-faint)">指定数量</span>
+            <input
+              :value="String(modelValue.expected_count ?? 0)"
+              class="app-input"
+              type="number"
+              :data-testid="rootTestId('vision-count-compare-expected-count')"
+              @input="updateVisionCountCompareNumberField('expected_count', ($event.target as HTMLInputElement).value)"
+            />
+          </label>
+        </div>
+      </template>
+
       <template v-else-if="modelValue.type === 'policySetResult'">
         <div class="editor-inline-grid">
           <div class="editor-inline-label">结果变量</div>
@@ -535,6 +601,9 @@ const resolvedExecTargetOptions = computed(() =>
 const execCompareOpOptions = computed(() =>
   compareOpOptions.filter((option) => ['eq', 'ne', 'lt', 'le', 'gt', 'ge'].includes(option.value)),
 );
+const countCompareConditionOpOptions = computed(() =>
+  compareOpOptions.filter((option) => ['eq', 'ne', 'lt', 'le', 'gt', 'ge'].includes(option.value)),
+);
 const resolvedTaskStatusTargetOptions = computed(() =>
   props.modelValue.type === 'taskStatus'
     ? withResolvedReferenceOption(
@@ -592,6 +661,39 @@ const selectedVarCompareInputEntry = computed(() => {
   }
 
   return props.variableInputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === option.key) ?? null;
+});
+const resolvedVisionCountCompareInputOptions = computed(() => {
+  const inputOptions = props.variableReferenceOptions
+    .filter((option) => option.valueType === 'json' || option.valueType === 'object' || option.valueType === 'list')
+    .map((option) => ({
+      label: option.label,
+      value: option.key,
+      description: option.description,
+    }));
+
+  if (props.modelValue.type !== 'visionCountCompare') {
+    return inputOptions;
+  }
+
+  if (!props.modelValue.input_var || inputOptions.some((option) => option.value === props.modelValue.input_var)) {
+    return inputOptions;
+  }
+
+  return [
+    {
+      label: `未解析变量 ${props.modelValue.input_var}`,
+      value: props.modelValue.input_var,
+      description: `保留历史变量 ${props.modelValue.input_var}`,
+    },
+    ...inputOptions,
+  ];
+});
+const selectedVisionCountCompareInputOption = computed(() => {
+  if (props.modelValue.type !== 'visionCountCompare') {
+    return null;
+  }
+
+  return props.variableReferenceOptions.find((option) => option.key === props.modelValue.input_var) ?? null;
 });
 const selectedPolicySetResultVarOption = computed(() => {
   const node = props.modelValue;
@@ -916,6 +1018,44 @@ const updateVarCompareBool = (value: boolean) => {
       textValue: value ? 'true' : 'false',
     }),
   });
+};
+
+const updateVisionCountCompareField = (field: 'input_var' | 'op', value: string) => {
+  if (props.modelValue.type !== 'visionCountCompare') return;
+  replaceNode({
+    ...props.modelValue,
+    [field]: value,
+  } as ConditionNode);
+};
+
+const updateVisionCountCompareNullableField = (field: 'target_value', value: string) => {
+  if (props.modelValue.type !== 'visionCountCompare') return;
+  replaceNode({
+    ...props.modelValue,
+    [field]: value.trim() ? value : null,
+  } as ConditionNode);
+};
+
+const updateVisionCountCompareNumberField = (field: 'expected_count', value: string) => {
+  if (props.modelValue.type !== 'visionCountCompare') return;
+  const parsed = Number.parseInt(value, 10);
+  replaceNode({
+    ...props.modelValue,
+    [field]: Number.isFinite(parsed) ? parsed : 0,
+  } as ConditionNode);
+};
+
+const createVisionCountCompareVariable = async () => {
+  if (props.modelValue.type !== 'visionCountCompare' || !props.createVariable) return;
+  const key = await props.createVariable('runtime', 'json', { focusEditor: true });
+  if (key) {
+    updateVisionCountCompareField('input_var', key);
+  }
+};
+
+const jumpToVisionCountCompareVariable = () => {
+  if (!selectedVisionCountCompareInputOption.value || !props.jumpToVariable) return;
+  props.jumpToVariable(selectedVisionCountCompareInputOption.value);
 };
 
 const updatePolicySetResultField = (field: 'result_var', value: string) => {

@@ -889,27 +889,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
-    id: 'vision-count-compare',
-    icon: genSvg(SVG_ICONS.count),
-    label: '判断数量大小',
-    description: '统计检测标签或 OCR 文字的匹配数量，并和指定数量比较。',
-    group: '视觉',
-    create: () =>
-      createBaseStep({
-        label: '判断数量大小',
-        op: STEP_OP.vision,
-        a: {
-          type: VISION_TYPE.countCompare,
-          input_var: 'runtime.ocrResults',
-          out_var: '',
-          target_value: null,
-          op: 'ge',
-          expected_count: 1,
-          then_steps: createStepList(),
-        },
-      }),
-  },
-  {
     id: 'vision-search',
     icon: genSvg(SVG_ICONS.search),
     label: '视觉搜索',

@@ -31,6 +31,7 @@ export const conditionTypeOptions = [
   { label: '任务状态', value: CONDITION_TYPE.taskStatus, description: '按任务或策略完成/跳过状态判断。' },
   { label: '当前任务', value: CONDITION_TYPE.currentTaskIn, description: '判断当前执行任务是否属于指定列表。' },
   { label: '变量比较', value: CONDITION_TYPE.varCompare, description: '比较运行时变量或输入变量。' },
+  { label: '判断数量大小', value: CONDITION_TYPE.visionCountCompare, description: '统计检测标签或 OCR 文字的匹配数量，并和指定数量比较。' },
   { label: '策略集结果', value: CONDITION_TYPE.policySetResult, description: '按策略集处理步骤输出的结果对象判断。' },
 ];
 
@@ -118,6 +119,14 @@ export const createConditionNode = (type: ConditionNode['type'] = CONDITION_TYPE
           boolValue: false,
         }),
       });
+    case CONDITION_TYPE.visionCountCompare:
+      return castCondition({
+        type: CONDITION_TYPE.visionCountCompare,
+        input_var: 'runtime.ocrResults',
+        target_value: null,
+        op: COMPARE_OP.ge satisfies CompareOp,
+        expected_count: 1,
+      });
     case CONDITION_TYPE.policySetResult:
       return castCondition({
         type: CONDITION_TYPE.policySetResult,
@@ -160,6 +169,8 @@ export const describeConditionNode = (node: ConditionNode) => {
       return `${node.is_font ? '字体色' : '背景色'} · ${node.txt_target || '未指定目标'}`;
     case 'varCompare':
       return `变量 ${node.var_name || '未命名'} · ${node.op}`;
+    case 'visionCountCompare':
+      return `数量比较 · ${node.input_var || '未绑定变量'} · ${node.op} ${node.expected_count}`;
     case 'policySetResult':
       return `策略集结果 · ${node.field}`;
     case 'colorCompare':

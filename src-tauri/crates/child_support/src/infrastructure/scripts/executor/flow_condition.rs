@@ -42,6 +42,21 @@ impl ScriptExecutor {
                     let rhs = Self::var_value_to_dynamic(value);
                     Ok(Self::compare_dynamic(&lhs, op, &rhs))
                 }
+                ConditionNode::VisionCountCompare {
+                    input_var,
+                    target_value,
+                    op,
+                    expected_count,
+                } => {
+                    self.match_vision_count_compare(
+                        "condition.visionCountCompare",
+                        input_var,
+                        target_value.as_deref(),
+                        op,
+                        *expected_count,
+                    )
+                    .await
+                }
                 ConditionNode::TaskStatus { a } => self.match_state_status(a).await,
                 ConditionNode::CurrentTaskIn { targets } => Ok(self.current_task_in(targets).await),
                 ConditionNode::ExecNumCompare { target, op } => {

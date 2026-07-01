@@ -72,6 +72,7 @@
         :label-select-placeholder="labelSelectPlaceholder"
         :label-select-hint="labelSelectHint"
         :task-reference-options="taskReferenceOptions"
+        :task-description-map="taskDescriptionMap"
         :policy-reference-options="policyReferenceOptions"
         :policy-note-map="policyNoteMap"
         :task-ui-variable-options="taskUiVariableOptions"
@@ -177,6 +178,7 @@ const props = defineProps<{
   labelSelectPlaceholder: string;
   labelSelectHint?: string | null;
   taskReferenceOptions: EditorReferenceOption[];
+  taskDescriptionMap: Record<string, string>;
   policyReferenceOptions: EditorReferenceOption[];
   policyNoteMap: Record<string, string>;
   taskUiVariableOptions?: EditorTaskUiVariableOption[];

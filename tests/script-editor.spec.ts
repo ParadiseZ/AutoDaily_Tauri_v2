@@ -1684,6 +1684,80 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
   });
 });
 
+test('persists visionCountCompare as an if condition with nested branch steps', async ({ page }) => {
+  const scriptId = 'script-editor-vision-count-condition';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '数量条件脚本',
+      description: '验证判断数量大小改为 if 条件后仍可保存分支步骤',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-add').click();
+  await page.getByTestId('editor-input-key-0').fill('ocrResults');
+  await selectOptionByValue(page, 'editor-input-type-0', 'json');
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-if').click();
+
+  await selectOptionByValue(page, 'editor-condition-type', 'visionCountCompare');
+  await selectOptionByValue(page, 'editor-condition-vision-count-compare-input-var', 'input.ocrResults');
+  await page.getByTestId('editor-condition-vision-count-compare-target-value').fill('领取');
+  await page.getByTestId('editor-condition-vision-count-compare-expected-count').fill('2');
+  await page.getByTestId('editor-branch-then').click();
+  await page.getByTestId('editor-step-template-wait').click();
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'if',
+      con: {
+        type: 'visionCountCompare',
+        input_var: 'input.ocrResults',
+        target_value: '领取',
+        op: 'ge',
+        expected_count: 2,
+      },
+      then: [
+        {
+          op: 'flowControl',
+          a: {
+            type: 'waitMs',
+          },
+        },
+      ],
+    },
+  });
+});
+
 test('persists action sequence, vision rule, and task state forms', async ({ page }) => {
   const scriptId = 'script-editor-leaf-forms';
   const script: StoredScriptTable = {
@@ -2912,6 +2986,51 @@ test('creates policies and persists search rule with before and after actions', 
       ],
     },
   });
+});
+
+test('allows clearing policy name without forcing default text back', async ({ page }) => {
+  const scriptId = 'script-editor-policy-empty-name';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略空名脚本',
+      description: '验证策略名称清空后不会被默认值回填',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await selectEditorMode(page, 'policy');
+  await page.getByTestId('editor-policy-create').click();
+  await expect(page.getByTestId('editor-policy-name')).toHaveValue('策略 1');
+
+  await page.getByTestId('editor-policy-name').fill('');
+  await expect(page.getByTestId('editor-policy-name')).toHaveValue('');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.policies[0]?.data.name).toBe('');
 });
 
 test('loads img-det labels for policy condition label rules and saves idx', async ({ page }) => {

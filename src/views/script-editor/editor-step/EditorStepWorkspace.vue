@@ -194,7 +194,9 @@
                 :state-target-type-options="stateTargetTypeOptions"
                 :state-status-type-options="filteredStateStatusTypeOptions"
                 :task-reference-options="taskReferenceOptions"
+                :task-description-map="taskDescriptionMap"
                 :policy-reference-options="policyReferenceOptions"
+                :policy-note-map="policyNoteMap"
                 :create-reference="createReference"
                 :jump-to-reference="jumpToReference"
                 @update-type="updateTaskControlType"
@@ -373,6 +375,7 @@ const props = withDefaults(
     labelSelectPlaceholder?: string;
     labelSelectHint?: string | null;
     taskReferenceOptions: EditorReferenceOption[];
+    taskDescriptionMap: Record<string, string>;
     policyReferenceOptions: EditorReferenceOption[];
     policyNoteMap: Record<string, string>;
     taskUiVariableOptions?: EditorTaskUiVariableOption[];

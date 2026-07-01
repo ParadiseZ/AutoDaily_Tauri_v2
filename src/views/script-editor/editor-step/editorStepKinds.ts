@@ -196,7 +196,7 @@ export const TASK_CYCLE_VALUE = {
   monthDay: 'monthDay',
 } as const;
 
-export const CONDITION_TYPES = ['rawExpr', 'group', 'execNumCompare', 'taskStatus', 'currentTaskIn', 'varCompare', 'policySetResult', 'colorCompare'] as const satisfies readonly ConditionNode['type'][];
+export const CONDITION_TYPES = ['rawExpr', 'group', 'execNumCompare', 'taskStatus', 'currentTaskIn', 'varCompare', 'visionCountCompare', 'policySetResult', 'colorCompare'] as const satisfies readonly ConditionNode['type'][];
 export const CONDITION_TYPE = {
   rawExpr: CONDITION_TYPES[0],
   group: CONDITION_TYPES[1],
@@ -204,8 +204,9 @@ export const CONDITION_TYPE = {
   taskStatus: CONDITION_TYPES[3],
   currentTaskIn: CONDITION_TYPES[4],
   varCompare: CONDITION_TYPES[5],
-  policySetResult: CONDITION_TYPES[6],
-  colorCompare: CONDITION_TYPES[7],
+  visionCountCompare: CONDITION_TYPES[6],
+  policySetResult: CONDITION_TYPES[7],
+  colorCompare: CONDITION_TYPES[8],
 } as const;
 
 export const POLICY_SET_RESULT_FIELDS = ['matched', 'policySetId', 'policyGroupId', 'policyId'] as const satisfies readonly PolicySetResultField[];

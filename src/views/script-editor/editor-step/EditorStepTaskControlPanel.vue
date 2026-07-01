@@ -1,17 +1,7 @@
 <template>
-  <div class="grid gap-3 xl:grid-cols-2">
+  <div class="space-y-3">
     <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-      <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">目标</p>
-      <div class="grid gap-3 xl:grid-cols-[78px_minmax(0,1fr)_78px_minmax(0,1fr)] xl:items-center">
-        <div class="editor-inline-label">动作类型</div>
-        <div>
-          <EditorSelectField
-            :model-value="selectedTaskControl.type"
-            :options="taskControlTypeOptions"
-            placeholder="动作类型"
-            @update:model-value="$emit('update-type', String($event || TASK_CONTROL_TYPE.setState))"
-          />
-        </div>
+      <div class="editor-form-grid">
 
         <div class="editor-inline-label">目标类型</div>
         <div>
@@ -24,11 +14,14 @@
         </div>
 
         <div class="editor-inline-label">添加目标</div>
-        <div class="xl:col-span-3 space-y-3">
+        <div class="space-y-3">
           <EditorSelectField
             :model-value="null"
             :options="resolvedTargetOptions"
-            placeholder="搜索任务或策略后添加"
+            placeholder="请选择"
+            searchable
+            show-description
+            search-placeholder="按名称 / 备注搜索"
             test-id="editor-task-control-target"
             @update:model-value="addTarget(String($event || ''))"
           />
@@ -63,8 +56,7 @@
     </div>
 
     <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-      <p class="text-[11px] uppercase tracking-[0.12em] text-(--app-text-faint)">状态</p>
-      <div class="grid gap-3 xl:grid-cols-[78px_minmax(0,1fr)] xl:items-center">
+      <div class="editor-form-grid">
         <div class="editor-inline-label">状态类型</div>
         <div>
           <EditorSelectField
@@ -74,17 +66,19 @@
             @update:model-value="$emit('update-status-type', String($event || STATE_STATUS_TYPE.done))"
           />
         </div>
+
+        <div class="editor-inline-label">状态值</div>
+        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+          <input
+            :checked="Boolean(selectedTaskControl.status.value)"
+            type="checkbox"
+            class="h-4 w-4"
+            style="accent-color: var(--app-accent)"
+            @change="$emit('update-status-value', ($event.target as HTMLInputElement).checked)"
+          />
+          <span class="text-sm text-(--app-text-soft)">状态值为真</span>
+        </label>
       </div>
-      <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
-        <input
-          :checked="Boolean(selectedTaskControl.status.value)"
-          type="checkbox"
-          class="h-4 w-4"
-          style="accent-color: var(--app-accent)"
-          @change="$emit('update-status-value', ($event.target as HTMLInputElement).checked)"
-        />
-        <span class="text-sm text-(--app-text-soft)">状态值为真</span>
-      </label>
     </div>
   </div>
 </template>
@@ -107,7 +101,9 @@ const props = defineProps<{
   stateTargetTypeOptions: Array<{ label: string; value: string; description: string }>;
   stateStatusTypeOptions: Array<{ label: string; value: string; description: string }>;
   taskReferenceOptions: EditorReferenceOption[];
+  taskDescriptionMap: Record<string, string>;
   policyReferenceOptions: EditorReferenceOption[];
+  policyNoteMap: Record<string, string>;
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
 }>();
@@ -128,11 +124,25 @@ const selectedTargets = computed<StateTarget[]>(() =>
       ? [props.selectedTaskControl.target]
       : [],
 );
+const replaceOptionDescriptions = (
+  options: EditorReferenceOption[],
+  descriptionMap: Record<string, string>,
+  fallback: string,
+) =>
+  options.map((option) => ({
+    ...option,
+    description: descriptionMap[option.value] || fallback,
+  }));
+
 const resolvedTargetOptions = computed(() =>
-  withResolvedReferenceOption(
-    props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? props.taskReferenceOptions : props.policyReferenceOptions,
-    null,
-    props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? 'task' : 'policy',
+  replaceOptionDescriptions(
+    withResolvedReferenceOption(
+      props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? props.taskReferenceOptions : props.policyReferenceOptions,
+      null,
+      props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? 'task' : 'policy',
+    ),
+    props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? props.taskDescriptionMap : props.policyNoteMap,
+    props.selectedTaskControl.target.type === STATE_TARGET_TYPE.task ? '未填写说明' : '未填写备注',
   ).filter((option) => !selectedTargets.value.some((target) => target.id === option.value)),
 );
 const selectedTargetOptions = computed(() => {
@@ -171,12 +181,28 @@ const jumpToTargetReference = () => {
 </script>
 
 <style scoped>
+.editor-form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
 .editor-inline-label {
   color: var(--app-text-faint);
   font-size: 0.74rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+@media (min-width: 768px) {
+  .editor-form-grid {
+    align-items: start;
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .editor-inline-label {
+    padding-top: 0.8rem;
+  }
 }
 
 .editor-target-list {

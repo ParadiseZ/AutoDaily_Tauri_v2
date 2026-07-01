@@ -341,6 +341,7 @@
                 :label-select-placeholder="imgDetLabelSelectPlaceholder"
                 :label-select-hint="imgDetLabelHint"
                 :task-reference-options="taskReferenceOptions"
+                :task-description-map="taskDescriptionMap"
                 :policy-reference-options="policyReferenceOptions"
                 :policy-note-map="policyNoteMap"
                 :task-ui-variable-options="taskUiVariableOptions"
@@ -399,6 +400,7 @@
                 :label-select-placeholder="imgDetLabelSelectPlaceholder"
                 :label-select-hint="imgDetLabelHint"
                 :task-reference-options="taskReferenceOptions"
+                :task-description-map="taskDescriptionMap"
                 :policy-reference-options="policyReferenceOptions"
                 :policy-note-map="policyNoteMap"
                 :task-ui-variable-options="taskUiVariableOptions"
@@ -1088,6 +1090,9 @@ const policySetItems = computed<EditorNamedItem[]>(() => buildPolicySetItems(dra
 const taskReferenceOptions = computed<EditorReferenceOption[]>(() => buildTaskReferenceOptions(draftTasks.value));
 const taskUiVariableOptions = computed<EditorTaskUiVariableOption[]>(() =>
   buildTaskUiVariableOptions(draftTasks.value, draftScript.value?.data.variableCatalog),
+);
+const taskDescriptionMap = computed<Record<string, string>>(() =>
+  Object.fromEntries(draftTasks.value.map((task) => [task.id, task.description?.trim() || '未填写说明'])),
 );
 const policyReferenceOptions = computed<EditorReferenceOption[]>(() => buildPolicyReferenceOptions(draftPolicies.value));
 const policyNoteMap = computed<Record<string, string>>(() =>
@@ -2244,18 +2249,6 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
       silent: true,
       sourceStepId: nextStep.id,
     });
-    return nextStep;
-  }
-
-  if (templateId === 'vision-count-compare' && nextStep.op === 'vision' && nextStep.a.type === 'countCompare') {
-    nextStep.a.input_var = await createVariableResource('runtime', 'json', {
-      preferredKey: 'ocrResults',
-      name: 'OCR结果',
-      select: false,
-      silent: true,
-      sourceStepId: nextStep.id,
-    });
-    nextStep.a.out_var = '';
     return nextStep;
   }
 
