@@ -1,18 +1,5 @@
 <template>
   <div class="space-y-4">
-    <div class="editor-config-strip">
-      <EditorOverviewField label="执行次数" width="compact">
-        <input
-          :value="String(actionExecMax)"
-          class="app-input"
-          type="number"
-          min="0"
-          data-testid="editor-action-exec-max"
-          @input="$emit('update-exec-max', ($event.target as HTMLInputElement).value)"
-          placeholder="0表示无限次"
-        />
-      </EditorOverviewField>
-    </div>
 
     <template v-if="selectedAction.ac === ACTION_TYPE.capture">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
@@ -191,87 +178,6 @@
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.click">
-      <div class="editor-compact-grid editor-compact-grid--triple">
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">点击方式</span>
-          <EditorSelectField
-            :model-value="String(selectedAction.mode || ACTION_MODE.point)"
-            :options="clickModeOptions"
-            placeholder="点击方式"
-            @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
-          />
-        </label>
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">偏移 X</span>
-          <input
-            :value="String(selectedAction.offset_x ?? 0)"
-            class="app-input"
-            type="number"
-            @input="$emit('update-number-field', 'offset_x', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">偏移 Y</span>
-          <input
-            :value="String(selectedAction.offset_y ?? 0)"
-            class="app-input"
-            type="number"
-            @input="$emit('update-number-field', 'offset_y', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-      </div>
-
-      <EditorPresetBindingSection
-        v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent"
-        :label="selectedAction.mode === ACTION_MODE.point ? '坐标来源' : '百分比来源'"
-        :model-value="clickPointSource"
-        :options="presetBindingModeOptions"
-        placeholder="选择点位来源"
-        test-id="editor-action-click-point-source"
-        @update:model-value="updateClickPointSource(String($event || 'fixed'))"
-      >
-        <template #fixed>
-          <div class="editor-compact-grid">
-            <label class="editor-compact-field">
-              <span class="editor-compact-field__label">X</span>
-              <input
-                :value="String((selectedAction.p as { x?: number })?.x ?? '')"
-                class="app-input"
-                type="number"
-                @input="$emit('update-point-field', 'p', 'x', ($event.target as HTMLInputElement).value)"
-              />
-            </label>
-            <label class="editor-compact-field">
-              <span class="editor-compact-field__label">Y</span>
-              <input
-                :value="String((selectedAction.p as { y?: number })?.y ?? '')"
-                class="app-input"
-                type="number"
-                @input="$emit('update-point-field', 'p', 'y', ($event.target as HTMLInputElement).value)"
-              />
-            </label>
-          </div>
-        </template>
-        <template #binding>
-          <EditorVariableBindingField
-            label="点位变量"
-            :model-value="selectedAction.p_expr || null"
-            :options="resolvedClickPointVariableOptions"
-            placeholder="绑定 JSON 点位变量"
-            test-id="editor-action-click-point-var"
-            create-label="新建点位变量"
-            :show-create="Boolean(createVariable)"
-            :show-locate="Boolean(selectedClickPointTarget && jumpToVariable)"
-            :locate-disabled="!selectedClickPointTarget || !jumpToVariable"
-            @update:model-value="$emit('update-text-field', 'p_expr', String($event || ''))"
-            @create="$emit('create-variable', 'clickPoint')"
-            @locate="selectedClickPointTarget ? $emit('jump-to-variable', selectedClickPointTarget) : undefined"
-          />
-          <p class="text-xs leading-5 text-(--app-text-soft)">
-            变量值使用 JSON `{ "x": ..., "y": ... }`。坐标模式读绝对值；百分比模式读 0 到 1。
-          </p>
-        </template>
-      </EditorPresetBindingSection>
 
       <template v-if="selectedAction.mode === ACTION_MODE.txt || selectedAction.mode === ACTION_MODE.labelIdx">
         <EditorVariableBindingField
@@ -280,7 +186,7 @@
           :options="resolvedActionInputOptions"
           placeholder="选择 OCR / 检测 / 处理结果变量"
           test-id="editor-action-click-input-var"
-          create-label="新建结果变量"
+          create-label="新建"
           locate-test-id="editor-action-click-input-locate"
           :show-create="Boolean(createVariable)"
           :show-locate="Boolean(selectedActionInputTarget && jumpToVariable)"
@@ -291,6 +197,8 @@
         />
       </template>
 
+      <div class="border-1"></div>
+      
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-3">
         <label class="md:col-span-2 flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
           <input
@@ -398,6 +306,90 @@
           </template>
         </div>
       </div>
+      <div class="border-1"></div>
+      <div class="editor-compact-grid editor-compact-grid--triple">
+        <!-- <label class="editor-compact-field">
+          <span class="editor-compact-field__label">点击方式</span>
+          <EditorSelectField
+            :model-value="String(selectedAction.mode || ACTION_MODE.point)"
+            :options="clickModeOptions"
+            placeholder="点击方式"
+            @update:model-value="$emit('update-mode', String($event || ACTION_MODE.point))"
+          />
+        </label> -->
+
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">偏移 X</span>
+          <input
+            :value="String(selectedAction.offset_x ?? 0)"
+            class="app-input"
+            type="number"
+            @input="$emit('update-number-field', 'offset_x', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+        <label class="editor-compact-field">
+          <span class="editor-compact-field__label">偏移 Y</span>
+          <input
+            :value="String(selectedAction.offset_y ?? 0)"
+            class="app-input"
+            type="number"
+            @input="$emit('update-number-field', 'offset_y', ($event.target as HTMLInputElement).value)"
+          />
+        </label>
+      </div>
+
+      <EditorPresetBindingSection
+        v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent"
+        :label="selectedAction.mode === ACTION_MODE.point ? '坐标来源' : '百分比来源'"
+        :model-value="clickPointSource"
+        :options="presetBindingModeOptions"
+        placeholder="选择点位来源"
+        test-id="editor-action-click-point-source"
+        @update:model-value="updateClickPointSource(String($event || 'fixed'))"
+      >
+        <template #fixed>
+          <div class="editor-compact-grid">
+            <label class="editor-compact-field">
+              <span class="editor-compact-field__label">X</span>
+              <input
+                :value="String((selectedAction.p as { x?: number })?.x ?? '')"
+                class="app-input"
+                type="number"
+                @input="$emit('update-point-field', 'p', 'x', ($event.target as HTMLInputElement).value)"
+              />
+            </label>
+            <label class="editor-compact-field">
+              <span class="editor-compact-field__label">Y</span>
+              <input
+                :value="String((selectedAction.p as { y?: number })?.y ?? '')"
+                class="app-input"
+                type="number"
+                @input="$emit('update-point-field', 'p', 'y', ($event.target as HTMLInputElement).value)"
+              />
+            </label>
+          </div>
+        </template>
+        <template #binding>
+          <EditorVariableBindingField
+            label="点位变量"
+            :model-value="selectedAction.p_expr || null"
+            :options="resolvedClickPointVariableOptions"
+            placeholder="绑定 JSON 点位变量"
+            test-id="editor-action-click-point-var"
+            create-label="新建点位变量"
+            :show-create="Boolean(createVariable)"
+            :show-locate="Boolean(selectedClickPointTarget && jumpToVariable)"
+            :locate-disabled="!selectedClickPointTarget || !jumpToVariable"
+            @update:model-value="$emit('update-text-field', 'p_expr', String($event || ''))"
+            @create="$emit('create-variable', 'clickPoint')"
+            @locate="selectedClickPointTarget ? $emit('jump-to-variable', selectedClickPointTarget) : undefined"
+          />
+          <p class="text-xs leading-5 text-(--app-text-soft)">
+            变量值使用 JSON `{ "x": ..., "y": ... }`。坐标模式读绝对值；百分比模式读 0 到 1。
+          </p>
+        </template>
+      </EditorPresetBindingSection>
+
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.swipe">
@@ -566,6 +558,19 @@
         <p v-if="labelSelectHint" class="md:col-span-2 text-xs leading-5 text-amber-700">{{ labelSelectHint }}</p>
       </div>
     </template>
+
+    <div class="border-1"></div>
+    <EditorOverviewField label="执行次数" width="compact">
+      <input
+        :value="String(actionExecMax)"
+        class="app-input"
+        type="number"
+        min="0"
+        data-testid="editor-action-exec-max"
+        @input="$emit('update-exec-max', ($event.target as HTMLInputElement).value)"
+        placeholder="0表示无限次"
+      />
+    </EditorOverviewField>
   </div>
 </template>
 
@@ -573,6 +578,7 @@
 import { computed, defineComponent, h, ref, watch, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
+import EditorOverviewSection from '@/views/script-editor/EditorOverviewSection.vue';
 import EditorPresetBindingSection from '@/views/script-editor/EditorPresetBindingSection.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
@@ -1127,7 +1133,7 @@ const updateClickLabelFilterSource = (value: string) => {
   gap: 0.75rem;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 300px) {
   .editor-compact-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

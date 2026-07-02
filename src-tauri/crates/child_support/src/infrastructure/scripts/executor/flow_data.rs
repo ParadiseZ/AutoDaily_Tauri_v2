@@ -192,15 +192,13 @@ impl ScriptExecutor {
                     return Ok(timeout_flow);
                 }
 
-                let result = self.eval_rhai_block(code, "data.rhai")?;
-                self.sync_scope_root_to_runtime_var_map("input").await;
-                self.sync_scope_root_to_runtime_var_map("runtime").await;
+                let (result, flow) = self.execute_rhai_block(code, "data.rhai").await?;
 
                 if let Some(target) = out_var.as_ref().filter(|value| !value.trim().is_empty()) {
                     self.set_runtime_var(target, result).await?;
                 }
 
-                Ok(ControlFlow::Next)
+                Ok(flow)
             }
         }
     }

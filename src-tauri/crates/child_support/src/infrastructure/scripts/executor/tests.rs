@@ -4,7 +4,7 @@ use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::nodes::action::{Action, ClickMode};
 use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
-use crate::domain::scripts::nodes::flow_control::{ConditionNode, FlowControl};
+use crate::domain::scripts::nodes::flow_control::{ConditionNode, CurrentTaskRule, FlowControl};
 use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
 use crate::domain::scripts::point::PointU16;
 use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
@@ -17,6 +17,7 @@ use crate::domain::scripts::script_variable::{
     ScriptVariableValueType,
 };
 use crate::domain::vision::ocr_search::{SearchRule, VisionSnapshot};
+use crate::domain::vision::ocr_search::LogicOp;
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::RuntimeContext;
 use crate::infrastructure::core::{PolicyId, TaskId, UuidV7};
@@ -516,6 +517,65 @@ async fn rhai_step_executes_compiled_block_and_syncs_runtime_roots() {
         5
     );
     assert_eq!(executor.compiled_rhai_blocks.len(), 1);
+}
+
+#[tokio::test]
+async fn rhai_task_helper_updates_runtime_state() {
+    let mut executor = build_executor();
+    let task_id = UuidV7::new_v7();
+    let task_name = "Rhai 名称任务";
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.execution.current_task = Some(ScriptTaskTable {
+            id: task_id,
+            script_id: UuidV7(1),
+            name: task_name.to_string(),
+            description: String::new(),
+            row_type: TaskRowType::Task,
+            trigger_mode: TaskTriggerMode::RootOnly,
+            record_schedule: false,
+            section_id: None,
+            indent_level: 0,
+            default_task_cycle: Json(TaskCycle::EveryRun),
+            exec_max: 0,
+            show_enabled_toggle: true,
+            default_enabled: true,
+            task_tone: TaskTone::Normal,
+            is_hidden: false,
+            data: Json(ScriptTask {
+                ui_data: Value::Null,
+                variables: Value::Null,
+                steps: Vec::new(),
+            }),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            deleted_at: None,
+            is_deleted: false,
+            index: 0,
+        });
+    }
+    let code = format!(
+        r#"
+            set_task_done("{}", true);
+            0
+        "#,
+        task_name
+    );
+
+    executor
+        .execute(&[build_rhai_step(&code, None)])
+        .await
+        .unwrap();
+
+    let done = {
+        let ctx = executor.runtime_ctx.read().await;
+        ctx.execution
+            .task_states
+            .get(&task_id)
+            .map(|state| state.done_flag)
+            .unwrap_or(false)
+    };
+    assert!(done);
 }
 
 fn build_policy_table(
@@ -1310,13 +1370,66 @@ async fn current_task_condition_matches_target_list() {
 
     let matched = executor
         .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            op: LogicOp::Or,
+            items: Vec::new(),
             targets: vec![UuidV7(709), task_id],
         })
         .await
         .unwrap();
     let unmatched = executor
         .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            op: LogicOp::Or,
+            items: Vec::new(),
             targets: vec![UuidV7(711)],
+        })
+        .await
+        .unwrap();
+
+    assert!(matched);
+    assert!(!unmatched);
+}
+
+#[tokio::test]
+async fn current_task_condition_supports_nested_logic_groups() {
+    let mut executor = build_executor();
+    let task_id = UuidV7(720);
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.execution.current_task = Some(build_task_with_variables(task_id, json!({})));
+    }
+
+    let matched = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            op: LogicOp::And,
+            items: vec![
+                CurrentTaskRule::Group {
+                    op: LogicOp::Or,
+                    items: vec![
+                        CurrentTaskRule::Task { target: UuidV7(719) },
+                        CurrentTaskRule::Task { target: task_id },
+                    ],
+                },
+                CurrentTaskRule::Group {
+                    op: LogicOp::Not,
+                    items: vec![CurrentTaskRule::Task { target: UuidV7(721) }],
+                },
+            ],
+            targets: Vec::new(),
+        })
+        .await
+        .unwrap();
+
+    let unmatched = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            op: LogicOp::And,
+            items: vec![
+                CurrentTaskRule::Task { target: task_id },
+                CurrentTaskRule::Group {
+                    op: LogicOp::Not,
+                    items: vec![CurrentTaskRule::Task { target: task_id }],
+                },
+            ],
+            targets: Vec::new(),
         })
         .await
         .unwrap();

@@ -65,7 +65,9 @@ fn validate_capture_request(
         CaptureMethod::Window => match &device_conf.cap_method {
             CapMethod::Window { title } => {
                 if !device_conf.supports_window_capture() {
-                    return Err("当前连接通道不支持窗口截图，只有模拟器连接可使用窗口截图".to_string());
+                    return Err(
+                        "当前连接通道不支持窗口截图，只有模拟器连接可使用窗口截图".to_string()
+                    );
                 }
                 let title = title.trim();
                 if title.is_empty() {

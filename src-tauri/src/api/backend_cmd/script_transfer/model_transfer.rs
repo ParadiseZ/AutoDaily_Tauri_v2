@@ -168,9 +168,7 @@ pub(super) fn normalize_model_type(value: &str) -> Result<ModelTypeSpec, String>
         "img_det_model" | "img-det-model" | "imgdetmodel" | "det" => Ok(IMG_DET_MODEL),
         "txt_det_model" | "txt-det-model" | "txtdetmodel" | "txt-det" => Ok(TXT_DET_MODEL),
         "txt_rec_model" | "txt-rec-model" | "txtrecmodel" | "rec" => Ok(TXT_REC_MODEL),
-        "txt_rec_dict" | "txt-rec-dict" | "txtrecdict" | "rec-dict" | "dict" => {
-            Ok(TXT_REC_DICT)
-        }
+        "txt_rec_dict" | "txt-rec-dict" | "txtrecdict" | "rec-dict" | "dict" => Ok(TXT_REC_DICT),
         other => Err(format!("不支持的模型类型: {}", other)),
     }
 }

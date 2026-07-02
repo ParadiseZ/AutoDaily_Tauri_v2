@@ -11,11 +11,9 @@ use crate::infrastructure::logging::log_trait::Log;
 use sqlx::Acquire;
 use tauri::{command, Manager};
 
-async fn resolve_device_log_label(
-    app_handle: &tauri::AppHandle,
-    device_id: DeviceId,
-) -> String {
-    if let Ok(Some(device)) = DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string()).await
+async fn resolve_device_log_label(app_handle: &tauri::AppHandle, device_id: DeviceId) -> String {
+    if let Ok(Some(device)) =
+        DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string()).await
     {
         let name = device.data.0.device_name.trim().to_string();
         if !name.is_empty() {

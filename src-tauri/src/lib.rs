@@ -47,9 +47,9 @@ use crate::api::infrastructure::config::email::{
     get_email_config_cmd, send_test_email_cmd, set_email_config_cmd,
 };
 use crate::api::infrastructure::config::log_api::{
-    clean_logs_now_cmd, clear_today_device_logs_cmd, get_log_config_cmd, read_today_device_logs_cmd,
-    update_child_log_level_cmd, update_log_dir_cmd, update_log_level_cmd,
-    update_retention_days_cmd,
+    clean_logs_now_cmd, clear_today_device_logs_cmd, get_log_config_cmd,
+    read_today_device_logs_cmd, update_child_log_level_cmd, update_log_dir_cmd,
+    update_log_level_cmd, update_retention_days_cmd,
 };
 use crate::api::infrastructure::config::sys_conf::set_system_settings_cmd;
 use crate::api::infrastructure::config::vision_cache::{

@@ -228,47 +228,15 @@
       </template>
 
       <template v-else-if="modelValue.type === 'currentTaskIn'">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">添加任务</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="null"
-              :options="availableCurrentTaskOptions"
-              placeholder="搜索任务后添加"
-              :test-id="rootTestId('current-task-target')"
-              @update:model-value="addCurrentTaskTarget(String($event || ''))"
-            />
-          </div>
-        </div>
-
-        <div v-if="selectedCurrentTaskOptions.length" class="editor-target-list">
-          <div v-for="target in selectedCurrentTaskOptions" :key="target.value" class="editor-target-chip">
-            <span class="min-w-0 flex-1 truncate">{{ target.label }}</span>
-            <button class="editor-target-remove" type="button" @click="removeCurrentTaskTarget(target.value)">
-              <AppIcon name="x" :size="13" />
-            </button>
-          </div>
-        </div>
-        <div v-else class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-faint)">
-          尚未选择任务。
-        </div>
-
-        <div class="flex flex-wrap gap-2">
-          <button v-if="createReference" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createCurrentTaskTarget">
-            <AppIcon name="plus" :size="14" />
-            新建任务
-          </button>
-          <button
-            v-if="jumpToReference"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            :disabled="modelValue.targets.length !== 1"
-            @click="jumpToCurrentTaskTarget"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位编辑
-          </button>
-        </div>
+        <EditorCurrentTaskRuleBuilder
+          :model-value="currentTaskRuleRoot"
+          force-group-root
+          :test-id-prefix="rootTestId('current-task')"
+          :task-reference-options="taskReferenceOptions"
+          :create-reference="createReference"
+          :jump-to-reference="jumpToReference"
+          @update:model-value="updateCurrentTaskRuleRoot"
+        />
       </template>
 
       <template v-else-if="modelValue.type === 'varCompare'">
@@ -512,6 +480,7 @@
 import { computed, ref, watch } from 'vue';
 import { Trash2 } from 'lucide-vue-next';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import EditorCurrentTaskRuleBuilder from '@/views/script-editor/EditorCurrentTaskRuleBuilder.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
@@ -531,6 +500,7 @@ import {
   taskControlTypeOptions,
   varValueTypeOptions,
 } from '@/views/script-editor/editorCondition';
+import { buildCurrentTaskRuleRoot, serializeCurrentTaskRuleRoot } from '@/views/script-editor/editorCurrentTaskRule';
 import type { VarValueKind } from '@/views/script-editor/editorCondition';
 
 defineOptions({ name: 'EditorConditionBuilder' });
@@ -663,6 +633,7 @@ const selectedVarCompareInputEntry = computed(() => {
   return props.variableInputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === option.key) ?? null;
 });
 const resolvedVisionCountCompareInputOptions = computed(() => {
+  const node = props.modelValue;
   const inputOptions = props.variableReferenceOptions
     .filter((option) => option.valueType === 'json' || option.valueType === 'object' || option.valueType === 'list')
     .map((option) => ({
@@ -671,29 +642,30 @@ const resolvedVisionCountCompareInputOptions = computed(() => {
       description: option.description,
     }));
 
-  if (props.modelValue.type !== 'visionCountCompare') {
+  if (node.type !== 'visionCountCompare') {
     return inputOptions;
   }
 
-  if (!props.modelValue.input_var || inputOptions.some((option) => option.value === props.modelValue.input_var)) {
+  if (!node.input_var || inputOptions.some((option) => option.value === node.input_var)) {
     return inputOptions;
   }
 
   return [
     {
-      label: `未解析变量 ${props.modelValue.input_var}`,
-      value: props.modelValue.input_var,
-      description: `保留历史变量 ${props.modelValue.input_var}`,
+      label: `未解析变量 ${node.input_var}`,
+      value: node.input_var,
+      description: `保留历史变量 ${node.input_var}`,
     },
     ...inputOptions,
   ];
 });
 const selectedVisionCountCompareInputOption = computed(() => {
-  if (props.modelValue.type !== 'visionCountCompare') {
+  const node = props.modelValue;
+  if (node.type !== 'visionCountCompare') {
     return null;
   }
 
-  return props.variableReferenceOptions.find((option) => option.key === props.modelValue.input_var) ?? null;
+  return props.variableReferenceOptions.find((option) => option.key === node.input_var) ?? null;
 });
 const selectedPolicySetResultVarOption = computed(() => {
   const node = props.modelValue;
@@ -703,27 +675,16 @@ const selectedPolicySetResultVarOption = computed(() => {
 
   return props.variableReferenceOptions.find((option) => option.key === node.result_var) ?? null;
 });
-const selectedCurrentTaskOptions = computed(() => {
-  if (props.modelValue.type !== 'currentTaskIn') {
-    return [];
-  }
-
-  return props.modelValue.targets.map((targetId) => {
-    const resolved = props.taskReferenceOptions.find((option) => option.value === targetId);
-    return {
-      label: resolved?.label ?? `未解析任务 ${targetId}`,
-      value: targetId,
-    };
-  });
-});
-const availableCurrentTaskOptions = computed(() => {
-  const node = props.modelValue;
-  if (node.type !== 'currentTaskIn') {
-    return props.taskReferenceOptions;
-  }
-
-  return props.taskReferenceOptions.filter((option) => !node.targets.includes(option.value));
-});
+const currentTaskRuleRoot = computed(() =>
+  props.modelValue.type === 'currentTaskIn'
+    ? buildCurrentTaskRuleRoot(props.modelValue)
+    : buildCurrentTaskRuleRoot({
+        type: 'currentTaskIn',
+        op: 'Or',
+        items: [],
+        targets: [],
+      }),
+);
 const resolvedPolicySetResultTargetOptions = computed(() => {
   if (props.modelValue.type !== 'policySetResult') {
     return [];
@@ -933,32 +894,12 @@ const updateTaskStatusValue = (value: boolean) => {
   } as ConditionNode);
 };
 
-const addCurrentTaskTarget = (id: string) => {
-  if (props.modelValue.type !== 'currentTaskIn') return;
-  const targetId = id.trim();
-  if (!targetId || props.modelValue.targets.includes(targetId)) return;
+const updateCurrentTaskRuleRoot = (value: import('@/types/bindings/CurrentTaskRule').CurrentTaskRule) => {
+  if (props.modelValue.type !== 'currentTaskIn' || value.type !== 'group') return;
   replaceNode({
     ...props.modelValue,
-    targets: [...props.modelValue.targets, targetId],
+    ...serializeCurrentTaskRuleRoot(value),
   });
-};
-
-const removeCurrentTaskTarget = (id: string) => {
-  if (props.modelValue.type !== 'currentTaskIn') return;
-  replaceNode({
-    ...props.modelValue,
-    targets: props.modelValue.targets.filter((targetId) => targetId !== id),
-  });
-};
-
-const createCurrentTaskTarget = async () => {
-  if (props.modelValue.type !== 'currentTaskIn' || !props.createReference) return;
-  addCurrentTaskTarget(await props.createReference('task'));
-};
-
-const jumpToCurrentTaskTarget = () => {
-  if (props.modelValue.type !== 'currentTaskIn' || !props.jumpToReference || props.modelValue.targets.length !== 1) return;
-  props.jumpToReference('task', props.modelValue.targets[0]);
 };
 
 const updateVarCompareField = (field: 'var_name' | 'op', value: string) => {

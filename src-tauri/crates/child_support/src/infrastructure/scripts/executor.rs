@@ -4,7 +4,8 @@ use crate::domain::scripts::nodes::data_handing::{
     ColorCompareMethod, ColorRgb, DataHanding, FilterMode, RegionPoint, VarValue,
 };
 use crate::domain::scripts::nodes::flow_control::{
-    CompareOp, ConditionNode, FlowControl, PolicySetResultCompareOp, PolicySetResultField,
+    CompareOp, ConditionNode, CurrentTaskRule, FlowControl, PolicySetResultCompareOp,
+    PolicySetResultField,
 };
 use crate::domain::scripts::nodes::policy_execution::{
     PolicyActionKind, PolicyActionSource, PolicyActionTarget, PolicyActionTargetRole,
@@ -50,7 +51,7 @@ use crate::infrastructure::session::runtime_session::{
 use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{DynamicImage, RgbaImage};
 use rhai::serde::{from_dynamic, to_dynamic};
-use rhai::{Array, Dynamic, Engine, Map, Scope, AST, FLOAT, INT};
+use rhai::{Array, Dynamic, Engine, EvalAltResult, Map, Scope, AST, FLOAT, INT};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
@@ -59,7 +60,7 @@ use sqlx::types::Json as SqlJson;
 use std::future::Future;
 use std::hash::Hasher;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use std::time::Instant;
 use tokio::sync::Mutex;
 use tokio::time::Duration;
@@ -94,6 +95,7 @@ include!("executor/flow_data_color.rs");
 include!("executor/flow_task_vision.rs");
 include!("executor/flow.rs");
 include!("executor/runtime.rs");
+include!("executor/rhai_bridge.rs");
 
 #[cfg(test)]
 mod tests;
@@ -183,12 +185,87 @@ struct RuntimeTemplateValuesSnapshot {
     variables: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Debug, Clone)]
+enum QueuedRhaiOp {
+    Step(Step),
+    LinkTaskByName {
+        task_name: String,
+    },
+    SetTaskStateByName {
+        task_name: String,
+        status: StateStatus,
+    },
+    SetPolicyStateByName {
+        policy_name: String,
+        status: StateStatus,
+    },
+    AddPoliciesByName {
+        source_name: String,
+        target_name: String,
+        top: bool,
+        reverse: bool,
+    },
+    RemovePoliciesByName {
+        source_name: String,
+        target_name: String,
+    },
+    BindPolicyGroupByName {
+        source_name: String,
+        target_name: String,
+        top: bool,
+        reverse: bool,
+    },
+    RemovePolicyGroupByName {
+        source_name: String,
+        target_name: String,
+    },
+    AddPolicyGroupsByName {
+        source_name: String,
+        target_name: String,
+        top: bool,
+        reverse: bool,
+    },
+    UnloadPolicyGroupByName {
+        source_name: String,
+        target_name: String,
+    },
+    BindPolicyByName {
+        source_name: String,
+        target_name: String,
+        top: bool,
+        reverse: bool,
+    },
+    UnloadPolicyByName {
+        source_name: String,
+        target_name: String,
+    },
+    HandlePolicySetByName {
+        target_names: Vec<String>,
+        det_input_var: String,
+        ocr_input_var: String,
+        search_hits_var: String,
+        out_var: String,
+    },
+    HandlePolicyByName {
+        target_names: Vec<String>,
+        input_var: String,
+        out_var: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+struct QueuedRhaiStep {
+    helper_name: &'static str,
+    op: QueuedRhaiOp,
+}
+
 pub struct ScriptExecutor {
     pub engine: Engine,
     pub scope: Scope<'static>,
     pub runtime_ctx: SharedRuntimeContext,
     pub node_indices: HashMap<StepId, usize>,
     compiled_rhai_blocks: HashMap<u64, AST>,
+    rhai_step_queue: Arc<StdMutex<Vec<Vec<QueuedRhaiStep>>>>,
     active_policy_round: Option<ActivePolicyRoundTrace>,
     active_policy_context: Option<ActivePolicyContext>,
     last_progress_probe: Option<ProgressProbe>,
@@ -196,16 +273,20 @@ pub struct ScriptExecutor {
 
 impl ScriptExecutor {
     pub fn new(runtime_ctx: SharedRuntimeContext) -> Self {
-        Self {
+        let rhai_step_queue = Arc::new(StdMutex::new(Vec::new()));
+        let mut executor = Self {
             engine: Engine::new(),
             scope: Scope::new(),
             runtime_ctx,
             node_indices: HashMap::new(),
             compiled_rhai_blocks: HashMap::new(),
+            rhai_step_queue,
             active_policy_round: None,
             active_policy_context: None,
             last_progress_probe: None,
-        }
+        };
+        executor.register_rhai_step_helpers();
+        executor
     }
 
     pub fn reset_node_indices(&mut self) {

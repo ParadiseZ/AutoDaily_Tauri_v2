@@ -167,11 +167,11 @@
       <div class="space-y-2">
         <div class="flex items-center justify-between gap-3">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">Rhai 代码</span>
-          <span class="text-xs text-(--app-text-faint)">可直接读取 `input` / `runtime`，最后一行作为返回值</span>
+          <span class="text-xs text-(--app-text-faint)">可读写 `input` / `runtime`；动作与视觉等能力请调用 `click(point(...))`、`wait_ms(...)`、`detect(...)` 这类内建函数</span>
         </div>
         <EditorCodeField
           :model-value="selectedData.code"
-          placeholder="// 例如：\nruntime.count = (runtime.count ?? 0) + 1;\nruntime.count"
+          placeholder="// 例如：\nruntime.count = (runtime.count ?? 0) + 1;\nclick(point(120, 320));\nwait_ms(1000);\nruntime.count"
           :min-height="260"
           test-id="editor-rhai-code"
           @update:model-value="$emit('update-data-field', 'code', $event)"

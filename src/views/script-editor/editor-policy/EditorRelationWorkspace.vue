@@ -4,7 +4,11 @@
       <div class="space-y-1">
       </div>
 
-      <div class="grid min-h-0 gap-4 xl:grid-rows-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div
+        ref="relationPane"
+        class="grid min-h-0 flex-1 overflow-hidden"
+        :style="relationPaneStyle"
+      >
         <section class="flex min-h-0 flex-col rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="space-y-3">
             <div class="flex flex-wrap items-center gap-3">
@@ -80,6 +84,13 @@
           </div>
         </section>
 
+        <div
+          class="editor-relation-resize"
+          title="拖动调整上下区域高度"
+          data-testid="editor-relation-resize"
+          @mousedown.prevent="startPaneResize"
+        />
+
         <section class="flex min-h-0 flex-col rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
           <div class="space-y-3">
             <div class="flex flex-wrap items-center gap-3">
@@ -152,7 +163,14 @@ const assignedSearch = ref('');
 const unassignedSearch = ref('');
 const draggingAssignedId = ref<string | null>(null);
 const overAssignedId = ref<string | null>(null);
+const relationPane = ref<HTMLElement | null>(null);
+const relationPaneRatio = ref(0.5);
+const resizingPane = ref(false);
+const paneResizeStartY = ref(0);
+const paneResizeStartRatio = ref(relationPaneRatio.value);
 const selectedTitleText = computed(() => props.selectedTitle?.trim() || '当前集合');
+const RELATION_PANE_HANDLE_HEIGHT = 10;
+const RELATION_PANE_MIN_HEIGHT = 140;
 
 const matchesSearch = (item: EditorNamedItem, keyword: string) =>
   `${item.title} ${item.subtitle}`.toLowerCase().includes(keyword);
@@ -168,6 +186,20 @@ const filteredUnassigned = computed(() => {
   if (!keyword) return props.unassignedItems;
   return props.unassignedItems.filter((item) => matchesSearch(item, keyword));
 });
+
+const relationPaneStyle = computed(() => ({
+  gridTemplateRows: `minmax(0, ${relationPaneRatio.value}fr) ${RELATION_PANE_HANDLE_HEIGHT}px minmax(0, ${1 - relationPaneRatio.value}fr)`,
+}));
+
+const clampRelationPaneRatio = (value: number) => {
+  const height = relationPane.value?.getBoundingClientRect().height ?? 0;
+  const availableHeight = height - RELATION_PANE_HANDLE_HEIGHT;
+  if (availableHeight <= RELATION_PANE_MIN_HEIGHT * 2) {
+    return 0.5;
+  }
+  const minRatio = RELATION_PANE_MIN_HEIGHT / availableHeight;
+  return Math.min(1 - minRatio, Math.max(minRatio, value));
+};
 
 const resetAssignedDrag = () => {
   draggingAssignedId.value = null;
@@ -244,18 +276,71 @@ const handleWindowMouseMove = (event: MouseEvent) => {
   handleAssignedHover(targetId);
 };
 
+const stopPaneResize = () => {
+  if (!resizingPane.value) {
+    return;
+  }
+  resizingPane.value = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+};
+
+const handlePaneResize = (event: MouseEvent) => {
+  if (!resizingPane.value || !relationPane.value) {
+    return;
+  }
+  const availableHeight = relationPane.value.getBoundingClientRect().height - RELATION_PANE_HANDLE_HEIGHT;
+  if (availableHeight <= 0) {
+    return;
+  }
+  const deltaRatio = (event.clientY - paneResizeStartY.value) / availableHeight;
+  relationPaneRatio.value = clampRelationPaneRatio(paneResizeStartRatio.value + deltaRatio);
+};
+
+const startPaneResize = (event: MouseEvent) => {
+  if (!relationPane.value) {
+    return;
+  }
+  resizingPane.value = true;
+  paneResizeStartY.value = event.clientY;
+  paneResizeStartRatio.value = relationPaneRatio.value;
+  document.body.style.cursor = 'ns-resize';
+  document.body.style.userSelect = 'none';
+};
+
 onMounted(() => {
   window.addEventListener('mousemove', handleWindowMouseMove);
   window.addEventListener('mouseup', handleWindowMouseUp);
+  window.addEventListener('mousemove', handlePaneResize);
+  window.addEventListener('mouseup', stopPaneResize);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleWindowMouseMove);
   window.removeEventListener('mouseup', handleWindowMouseUp);
+  window.removeEventListener('mousemove', handlePaneResize);
+  window.removeEventListener('mouseup', stopPaneResize);
+  stopPaneResize();
 });
 </script>
 
 <style scoped>
+.editor-relation-resize {
+  cursor: ns-resize;
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0,
+      transparent 4px,
+      color-mix(in srgb, var(--app-border) 70%, transparent) 4px,
+      color-mix(in srgb, var(--app-border) 70%, transparent) 6px,
+      transparent 6px
+    );
+}
+
+.editor-relation-resize:hover {
+  background-color: rgba(70, 110, 255, 0.96);
+}
 
 .editor-dragging-item {
   border-color: rgba(70, 110, 255, 0.24);

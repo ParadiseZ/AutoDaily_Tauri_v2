@@ -143,7 +143,9 @@ pub async fn batch_insert_script_related(
         for chunk in tasks.chunks(50) {
             let placeholders: Vec<String> = chunk
                 .iter()
-                .map(|_| "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string())
+                .map(|_| {
+                    "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)".to_string()
+                })
                 .collect();
             let sql = format!(
                 "INSERT INTO script_tasks (id, script_id, name, description, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, exec_max, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES {}",

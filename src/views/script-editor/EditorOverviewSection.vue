@@ -1,6 +1,6 @@
 <template>
   <section class="editor-overview-section">
-    <div class="editor-overview-section-header">
+    <div v-if="title" class="editor-overview-section-header">
       <div class="min-w-0">
         <slot name="header">
           <component :is="headingTag" class="editor-overview-section-title">{{ title }}</component>
@@ -25,7 +25,7 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    title: string;
+    title?: string;
     headingTag?: 'h1' | 'h2' | 'h3';
     width?: 'default' | 'wide';
     description?: string;
@@ -46,9 +46,12 @@ defineOptions({ name: 'EditorOverviewSection' });
 .editor-overview-section {
   @apply rounded-[16px] border border-(--app-border) bg-(--app-panel) px-5 py-5 shadow-[0_4px_12px_rgba(15,23,42,0.03)];
 }
-
+/* 
 .editor-overview-section-header {
   @apply mb-4 flex items-start justify-between gap-3 border-b border-(--app-border) pb-3;
+} */
+ .editor-overview-section-header {
+  @apply mb-4 flex items-start justify-between gap-3  pb-1;
 }
 
 .editor-overview-section-title {

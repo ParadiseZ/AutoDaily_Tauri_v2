@@ -36,7 +36,7 @@
 
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         <EditorOverviewPanel v-if="selectedStep">
-          <EditorOverviewSection title="步骤概览" heading-tag="h1" width="wide">
+          <EditorOverviewSection heading-tag="h1" width="wide">
             <div class="step-badge-row">
               <span class="step-badge step-badge-strong">{{ selectedStepKindLabel }}</span>
               <span class="step-badge">{{ `当前层级第 ${currentSelectedIndexDisplay} 步` }}</span>
@@ -49,7 +49,6 @@
           </EditorOverviewSection>
 
           <EditorOverviewSection
-            :title="selectedStepConfigTitle"
             :description="selectedStepConfigDescription"
             width="wide"
           >

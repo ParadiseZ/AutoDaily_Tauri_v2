@@ -118,8 +118,8 @@ defineEmits<{
 
 const tabs = computed<Array<{ id: PolicyEditorPanelId; label: string }>>(() => [
   { id: 'basic', label: `基本 ${props.conditionCount}` },
-  { id: 'inputs', label: `变量 ${props.inputEntries.length}` },
   { id: 'after', label: `命中行为 ${props.afterCount}` },
-  { id: 'before', label: `全局行为 ${props.beforeCount}` },
+  { id: 'inputs', label: `变量 ${props.inputEntries.length}` },
+  { id: 'before', label: `前置行为 ${props.beforeCount}` },
 ]);
 </script>

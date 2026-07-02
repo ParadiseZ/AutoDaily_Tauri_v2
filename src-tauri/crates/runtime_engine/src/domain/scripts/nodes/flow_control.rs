@@ -18,6 +18,10 @@ fn default_policy_set_search_hits_var() -> String {
     "runtime.searchHits".to_string()
 }
 
+fn default_current_task_logic_op() -> LogicOp {
+    LogicOp::Or
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
@@ -121,6 +125,19 @@ pub enum FlowControl {
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "type")]
+pub enum CurrentTaskRule {
+    Task { target: TaskId },
+    Group {
+        #[serde(default = "default_current_task_logic_op")]
+        op: LogicOp,
+        #[serde(default)]
+        items: Vec<CurrentTaskRule>,
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase", tag = "type")]
 pub enum ConditionNode {
     /// rhai表达式
     RawExpr { expr: String },
@@ -131,8 +148,15 @@ pub enum ConditionNode {
     /// 策略/任务状态是否完成/跳过
     TaskStatus { a: TaskControl },
 
-    /// 当前正在执行的任务是否属于指定集合
-    CurrentTaskIn { targets: Vec<TaskId> },
+    /// 当前正在执行的任务是否命中指定逻辑组
+    CurrentTaskIn {
+        #[serde(default = "default_current_task_logic_op")]
+        op: LogicOp,
+        #[serde(default)]
+        items: Vec<CurrentTaskRule>,
+        #[serde(default)]
+        targets: Vec<TaskId>,
+    },
 
     /// ocr字体颜色/背景色判断
     ColorCompare {

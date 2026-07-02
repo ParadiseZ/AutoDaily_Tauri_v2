@@ -404,26 +404,21 @@ pub(super) async fn request_child_connection_action(
         return Ok(());
     };
 
-    let mut connection_rx = connection_rx
-        .take()
-        .ok_or_else(|| {
-            format!(
-                "设备[{}]连接状态订阅初始化失败",
-                device_log_label(app_handle, device_id)
-            )
-        })?;
+    let mut connection_rx = connection_rx.take().ok_or_else(|| {
+        format!(
+            "设备[{}]连接状态订阅初始化失败",
+            device_log_label(app_handle, device_id)
+        )
+    })?;
 
     let wait_result = tokio::time::timeout(timeout, async {
         loop {
-            connection_rx
-                .changed()
-                .await
-                .map_err(|_| {
-                    format!(
-                        "设备[{}]连接状态通知已关闭",
-                        device_log_label(app_handle, device_id)
-                    )
-                })?;
+            connection_rx.changed().await.map_err(|_| {
+                format!(
+                    "设备[{}]连接状态通知已关闭",
+                    device_log_label(app_handle, device_id)
+                )
+            })?;
             let state = connection_rx.borrow().clone();
             match state.connection.status {
                 ConnectionStatusKind::DeviceConnected
@@ -455,7 +450,10 @@ pub(super) async fn request_child_connection_action(
             return Err(error);
         }
         Err(_) => {
-            let error = format!("设备[{}]连接准备超时", device_log_label(app_handle, device_id));
+            let error = format!(
+                "设备[{}]连接准备超时",
+                device_log_label(app_handle, device_id)
+            );
             let _ = set_connection_status(
                 app_handle,
                 device_id,
@@ -471,7 +469,10 @@ pub(super) async fn request_child_connection_action(
         ConnectionStatusKind::DeviceConnected => Ok(()),
         ConnectionStatusKind::DeviceDisconnected => {
             let message = message.unwrap_or_else(|| {
-                format!("设备[{}]连接准备失败", device_log_label(app_handle, device_id))
+                format!(
+                    "设备[{}]连接准备失败",
+                    device_log_label(app_handle, device_id)
+                )
             });
             let _ = set_connection_status(
                 app_handle,
@@ -487,7 +488,10 @@ pub(super) async fn request_child_connection_action(
         | ConnectionStatusKind::ShellProbeChecking
         | ConnectionStatusKind::EmulatorStarting
         | ConnectionStatusKind::EmulatorWaiting => {
-            let message = format!("设备[{}]连接状态未知", device_log_label(app_handle, device_id));
+            let message = format!(
+                "设备[{}]连接状态未知",
+                device_log_label(app_handle, device_id)
+            );
             let _ = set_connection_status(
                 app_handle,
                 device_id,
