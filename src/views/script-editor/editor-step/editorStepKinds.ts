@@ -99,14 +99,15 @@ export const FLOW_TYPE = {
   handlePolicy: FLOW_TYPES[18],
 } as const;
 
-export const DATA_TYPES = ['setVar', 'getVar', 'filter', 'colorCompare', 'relativeFilter', 'rhai'] as const satisfies readonly DataHanding['type'][];
+export const DATA_TYPES = ['setVar', 'clearVars', 'getVar', 'filter', 'colorCompare', 'relativeFilter', 'rhai'] as const satisfies readonly DataHanding['type'][];
 export const DATA_TYPE = {
   setVar: DATA_TYPES[0],
-  getVar: DATA_TYPES[1],
-  filter: DATA_TYPES[2],
-  colorCompare: DATA_TYPES[3],
-  relativeFilter: DATA_TYPES[4],
-  rhai: DATA_TYPES[5],
+  clearVars: DATA_TYPES[1],
+  getVar: DATA_TYPES[2],
+  filter: DATA_TYPES[3],
+  colorCompare: DATA_TYPES[4],
+  relativeFilter: DATA_TYPES[5],
+  rhai: DATA_TYPES[6],
 } as const;
 
 export const COLOR_COMPARE_METHOD_TYPES = ['oklabDistance'] as const satisfies readonly ColorCompareMethod['type'][];

@@ -9,6 +9,7 @@ use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, Task
 use crate::domain::scripts::point::PointU16;
 use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
 use crate::domain::scripts::script_decision::{Step, StepKind};
+use crate::domain::scripts::script_info::ScriptInfo;
 use crate::domain::scripts::script_task::{
     ScriptTask, ScriptTaskTable, TaskRowType, TaskTone, TaskTriggerMode,
 };
@@ -306,6 +307,7 @@ fn build_task_with_variables(task_id: TaskId, variables: Value) -> ScriptTaskTab
         id: task_id,
         script_id: UuidV7(1),
         name: "task".to_string(),
+        description: String::new(),
         row_type: TaskRowType::Task,
         trigger_mode: TaskTriggerMode::RootOnly,
         record_schedule: false,
@@ -458,6 +460,7 @@ fn build_set_var_step(name: &str, expr: &str) -> Step {
             a: crate::domain::scripts::nodes::data_handing::DataHanding::SetVar {
                 name: name.to_string(),
                 val: None,
+                json_val: None,
                 expr: Some(expr.to_string()),
             },
         },
@@ -517,6 +520,158 @@ async fn rhai_step_executes_compiled_block_and_syncs_runtime_roots() {
         5
     );
     assert_eq!(executor.compiled_rhai_blocks.len(), 1);
+}
+
+#[tokio::test]
+async fn set_var_accepts_json_payload_for_structured_variables() {
+    let mut executor = build_executor();
+
+    executor
+        .execute_data_handling_step(
+            &crate::domain::scripts::nodes::data_handing::DataHanding::SetVar {
+                name: "runtime.payload".to_string(),
+                val: None,
+                json_val: Some(json!({
+                    "items": [1, 2],
+                    "enabled": true
+                })),
+                expr: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    let value = executor.read_runtime_var("runtime.payload").await.unwrap();
+    let payload = ScriptExecutor::deserialize_dynamic_value::<Value>(&value).unwrap();
+    assert_eq!(
+        payload,
+        json!({
+            "items": [1, 2],
+            "enabled": true
+        })
+    );
+}
+
+#[tokio::test]
+async fn clear_vars_resets_values_by_declared_type() {
+    let mut executor = build_executor();
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        let mut script_info = ScriptInfo::default();
+        script_info.variable_catalog.variables = vec![
+            ScriptVariableDef {
+                id: "input_counter".to_string(),
+                key: "input.counter".to_string(),
+                name: "计数".to_string(),
+                namespace: ScriptVariableNamespace::Input,
+                value_type: ScriptVariableValueType::Int,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: true,
+                ui_bindable: true,
+                default_value: None,
+                description: String::new(),
+            },
+            ScriptVariableDef {
+                id: "runtime_items".to_string(),
+                key: "runtime.items".to_string(),
+                name: "条目".to_string(),
+                namespace: ScriptVariableNamespace::Runtime,
+                value_type: ScriptVariableValueType::List,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: false,
+                ui_bindable: false,
+                default_value: None,
+                description: String::new(),
+            },
+            ScriptVariableDef {
+                id: "runtime_flag".to_string(),
+                key: "runtime.flag".to_string(),
+                name: "标记".to_string(),
+                namespace: ScriptVariableNamespace::Runtime,
+                value_type: ScriptVariableValueType::Bool,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: false,
+                ui_bindable: false,
+                default_value: None,
+                description: String::new(),
+            },
+            ScriptVariableDef {
+                id: "runtime_capture".to_string(),
+                key: "runtime.capture".to_string(),
+                name: "截图".to_string(),
+                namespace: ScriptVariableNamespace::Runtime,
+                value_type: ScriptVariableValueType::Image,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: false,
+                ui_bindable: false,
+                default_value: None,
+                description: String::new(),
+            },
+        ];
+        ctx.execution.script_info = Some(script_info);
+    }
+
+    executor
+        .set_runtime_var("input.counter", Dynamic::from_int(9))
+        .await
+        .unwrap();
+    executor
+        .set_runtime_var("runtime.items", to_dynamic(vec![1, 2, 3]).unwrap())
+        .await
+        .unwrap();
+    executor
+        .set_runtime_var("runtime.flag", Dynamic::from_bool(true))
+        .await
+        .unwrap();
+    executor
+        .set_runtime_var("runtime.capture", Dynamic::from("image-ref".to_string()))
+        .await
+        .unwrap();
+
+    executor
+        .execute_data_handling_step(
+            &crate::domain::scripts::nodes::data_handing::DataHanding::ClearVars {
+                names: vec![
+                    "input.counter".to_string(),
+                    "runtime.items".to_string(),
+                    "runtime.flag".to_string(),
+                    "runtime.capture".to_string(),
+                ],
+            },
+        )
+        .await
+        .unwrap();
+
+    let counter = executor.read_runtime_var("input.counter").await.unwrap();
+    let items = executor.read_runtime_var("runtime.items").await.unwrap();
+    let flag = executor.read_runtime_var("runtime.flag").await.unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<i64>(&counter).unwrap(),
+        0
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<Value>(&items).unwrap(),
+        json!([])
+    );
+    assert!(!ScriptExecutor::deserialize_dynamic_value::<bool>(&flag).unwrap());
+    assert!(executor.read_runtime_var("runtime.capture").await.is_none());
 }
 
 #[tokio::test]
@@ -784,7 +939,12 @@ async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration
     };
 
     let flow = executor
-        .execute_policy_candidates("debug.policy", vec![candidate], "runtime.policyDebugResult")
+        .execute_policy_candidates(
+            "debug.policy",
+            vec![candidate],
+            None,
+            "runtime.policyDebugResult",
+        )
         .await
         .unwrap();
 
@@ -852,7 +1012,12 @@ async fn policy_before_action_runs_even_when_condition_misses() {
     };
 
     executor
-        .execute_policy_candidates("debug.policy", vec![candidate], "runtime.policyDebugResult")
+        .execute_policy_candidates(
+            "debug.policy",
+            vec![candidate],
+            None,
+            "runtime.policyDebugResult",
+        )
         .await
         .unwrap();
 
@@ -1023,6 +1188,7 @@ async fn data_set_var_path_triggers_timeout_detector() {
             &crate::domain::scripts::nodes::data_handing::DataHanding::SetVar {
                 name: "runtime.timeoutProbe".to_string(),
                 val: None,
+                json_val: None,
                 expr: Some("1 + 1".to_string()),
             },
         )

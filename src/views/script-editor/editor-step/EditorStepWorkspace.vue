@@ -140,23 +140,21 @@
                 v-else-if="selectedStep.op === STEP_OP.dataHanding && selectedData"
                 :selected-data="selectedData"
                 :selected-set-var-target="selectedSetVarTarget"
-                :selected-set-var-input-entry="selectedSetVarInputEntry"
                 :selected-get-var-target="selectedGetVarTarget"
-                :selected-get-var-input-entry="selectedGetVarInputEntry"
                 :selected-rhai-output-target="selectedRhaiOutputTarget"
                 :selected-filter-input-target="selectedFilterInputTarget"
                 :selected-filter-output-target="selectedFilterOutputTarget"
                 :selected-color-compare-input-target="selectedColorCompareInputTarget"
                 :selected-color-compare-output-target="selectedColorCompareOutputTarget"
-                :selected-set-var-kind="selectedSetVarKind"
-                :set-var-uses-expression="setVarUsesExpression"
-                :set-var-can-switch-mode="setVarCanSwitchMode"
-                :effective-set-var-kind="effectiveSetVarKind"
                 :set-var-draft="setVarDraft"
+                :set-var-json-text="setVarJsonText"
+                :set-var-json-error="setVarJsonError"
                 :get-var-has-default="getVarHasDefault"
                 :get-var-draft="getVarDraft"
-                :writable-catalog-variable-options="writableCatalogVariableOptions"
+                :writable-catalog-variable-options="setVarVariableOptions"
                 :readable-catalog-variable-options="readableCatalogVariableOptions"
+                :clearable-variable-options="clearableVariableOptions"
+                :selected-clear-var-names="selectedClearVarNames"
                 :filter-mode-options="filterModeOptions"
                 :color-compare-method-options="colorCompareMethodOptions"
                 :filter-branch-target="filterBranchTarget"
@@ -165,10 +163,10 @@
                 :jump-to-variable="jumpToVariable"
                 @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-set-var-target="updateSetVarTarget"
-                @update-set-var-mode="updateSetVarMode"
-                @update-set-var-type="updateSetVarType"
                 @update-set-var-text="updateSetVarText"
                 @update-set-var-bool="updateSetVarBool"
+                @update-set-var-json="updateSetVarJson"
+                @toggle-clear-var="toggleClearVar"
                 @update-data-field="updateDataField"
                 @update-data-nullable-field="updateDataNullableField"
                 @toggle-get-var-default="toggleGetVarDefault"
@@ -474,6 +472,20 @@ const buildVariableSelectOptions = (capability: 'read' | 'write') => {
 };
 const readableCatalogVariableOptions = computed(() => buildVariableSelectOptions('read'));
 const writableCatalogVariableOptions = computed(() => buildVariableSelectOptions('write'));
+const findVariableOptionByKey = (key: string) => props.variableOptions.find((item) => item.key === key) ?? null;
+const findDraftEntryByKey = (key: string) =>
+  props.inputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === key) ?? null;
+const setVarVariableOptions = computed(() =>
+  writableCatalogVariableOptions.value.filter((option) => {
+    const variable = findVariableOptionByKey(option.value);
+    if (variable) {
+      return variable.valueType !== 'image';
+    }
+    const draft = findDraftEntryByKey(option.value);
+    return draft?.type !== 'image';
+  }),
+);
+const clearableVariableOptions = computed(() => writableCatalogVariableOptions.value);
 const resultCatalogVariableOptions = computed(() =>
   props.variableOptions
     .filter((item) => item.readable && ['json', 'list', 'object'].includes(item.valueType))
@@ -651,6 +663,8 @@ const filteredStateStatusTypeOptions = computed(() =>
 );
 const setVarKindPreference = ref<VarValueKind | null>(null);
 const getVarKindPreference = ref<VarValueKind | null>(null);
+const setVarJsonText = ref('{}');
+const setVarJsonError = ref<string | null>(null);
 const setVarDraft = computed(() =>
   selectedData.value?.type === DATA_TYPE.setVar
     ? parseVarValueDraft(selectedData.value.val, setVarKindPreference.value ?? undefined)
@@ -676,6 +690,12 @@ const mapVariableTypeToVarKind = (valueType: EditorVariableOption['valueType']):
       return null;
   }
 };
+const isStructuredVariableType = (valueType: EditorVariableOption['valueType']) =>
+  valueType === 'json' || valueType === 'list' || valueType === 'object';
+const defaultStructuredValueForType = (valueType: EditorVariableOption['valueType']) =>
+  valueType === 'list' ? [] : {};
+const formatStructuredValue = (value: unknown, valueType: EditorVariableOption['valueType']) =>
+  JSON.stringify(value ?? defaultStructuredValueForType(valueType), null, 2);
 const createDefaultVarValueDraft = (kind: VarValueKind) =>
   parseVarValueDraft(kind === 'string' ? '' : kind === 'bool' ? false : 0, kind);
 const isVarValueKind = (value: string): value is VarValueKind =>
@@ -700,8 +720,6 @@ const selectedRhaiOutputTarget = computed(() =>
 );
 const findInputEntryByVariableKey = (key: string) =>
   props.inputEntries.find((entry) => buildVariableCatalogKey(entry.key, entry.namespace) === key) ?? null;
-const selectedSetVarInputEntry = computed(() => (selectedSetVarTarget.value ? findInputEntryByVariableKey(selectedSetVarTarget.value.key) : null));
-const selectedGetVarInputEntry = computed(() => (selectedGetVarTarget.value ? findInputEntryByVariableKey(selectedGetVarTarget.value.key) : null));
 const currentCaptureOutputName = computed(() =>
   selectedAction.value?.ac === ACTION_TYPE.capture ? selectedAction.value.output_var ?? '' : '',
 );
@@ -845,25 +863,33 @@ const selectedVisionOcrOutputTarget = computed(() =>
   },
 );
 const selectedSetVarKind = computed(() => (selectedSetVarTarget.value ? mapVariableTypeToVarKind(selectedSetVarTarget.value.valueType) : null));
-const setVarUsesExpression = computed(() => {
-  if (selectedData.value?.type !== DATA_TYPE.setVar) {
-    return false;
-  }
-
-  if (selectedSetVarTarget.value && !selectedSetVarKind.value) {
-    return true;
-  }
-
-  return Boolean(selectedData.value.expr);
-});
 const effectiveSetVarKind = computed<VarValueKind>(() => selectedSetVarKind.value ?? setVarDraft.value.kind);
-const setVarCanSwitchMode = computed(() => Boolean(selectedSetVarTarget.value && selectedSetVarKind.value));
 
 watch(
   () => props.selectedStepPath?.map((segment) => `${segment.branch}:${segment.index}`).join('/') ?? '',
   () => {
     setVarKindPreference.value = null;
     getVarKindPreference.value = null;
+  },
+  { immediate: true },
+);
+
+watch(
+  [selectedData, selectedSetVarTarget],
+  ([data, target]) => {
+    if (data?.type !== DATA_TYPE.setVar || !target || !isStructuredVariableType(target.valueType)) {
+      setVarJsonText.value = '{}';
+      setVarJsonError.value = null;
+      return;
+    }
+
+    const nextValue =
+      data.json_val ??
+      (data.val
+        ? null
+        : defaultStructuredValueForType(target.valueType));
+    setVarJsonText.value = formatStructuredValue(nextValue, target.valueType);
+    setVarJsonError.value = null;
   },
   { immediate: true },
 );
@@ -1217,25 +1243,29 @@ const updateDataRegionPoint = (field: 'region_top_left' | 'region_bottom_right',
 const getSetVarDraftForKind = (kind: VarValueKind) => (setVarDraft.value.kind === kind ? setVarDraft.value : createDefaultVarValueDraft(kind));
 
 const updateSetVarTarget = (value: string) => {
-  const matched = props.variableOptions.find((item) => item.key === value) ?? null;
+  const matched = findVariableOptionByKey(value);
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
 
     const nextKind = matched ? mapVariableTypeToVarKind(matched.valueType) : null;
-    const nextExpr = matched && !nextKind ? step.a.expr ?? '' : step.a.expr;
-    const nextVal = nextKind ? buildVarValue(getSetVarDraftForKind(nextKind)) : nextKind === null && matched ? null : step.a.val;
+    const nextVal = nextKind ? buildVarValue(getSetVarDraftForKind(nextKind)) : null;
+    const nextJsonVal =
+      matched && isStructuredVariableType(matched.valueType)
+        ? step.a.json_val ?? defaultStructuredValueForType(matched.valueType)
+        : null;
 
     step.a = {
       ...step.a,
       name: value,
-      val: nextExpr ? null : nextVal,
-      expr: matched && !nextKind ? nextExpr : step.a.expr,
+      val: matched ? nextVal : step.a.val,
+      json_val: matched ? nextJsonVal : step.a.json_val,
+      expr: null,
     };
   });
 };
 
 const handleCreateDataVariable = async (
-  target: 'setVar' | 'getVar' | 'rhaiOutput' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput',
+  target: 'getVar' | 'rhaiOutput' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput',
 ) => {
   if (!props.createVariable) {
     return;
@@ -1254,11 +1284,6 @@ const handleCreateDataVariable = async (
             focusEditor: true,
           });
   if (!key) {
-    return;
-  }
-
-  if (target === 'setVar') {
-    updateSetVarTarget(key);
     return;
   }
 
@@ -1403,35 +1428,6 @@ const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput
   updateActionField('output_var', key);
 };
 
-const updateSetVarMode = (mode: string) => {
-  updateSelectedStep((step) => {
-    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
-    const forcedKind = selectedSetVarKind.value;
-    const nextDraft = forcedKind ? getSetVarDraftForKind(forcedKind) : setVarDraft.value;
-    step.a = {
-      ...step.a,
-      val: mode === 'expr' ? null : buildVarValue(nextDraft),
-      expr: mode === 'expr' ? (step.a.expr || 'true') : null,
-    };
-  });
-};
-
-const updateSetVarType = (kind: string) => {
-  if (!isVarValueKind(kind)) {
-    return;
-  }
-  setVarKindPreference.value = kind;
-  updateSelectedStep((step) => {
-    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
-    const nextDraft = createDefaultVarValueDraft(kind);
-    step.a = {
-      ...step.a,
-      val: buildVarValue(nextDraft),
-      expr: null,
-    };
-  });
-};
-
 const updateSetVarText = (value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
@@ -1442,6 +1438,7 @@ const updateSetVarText = (value: string) => {
         ...getSetVarDraftForKind(nextKind),
         textValue: value,
       }),
+      json_val: null,
       expr: null,
     };
   });
@@ -1459,7 +1456,59 @@ const updateSetVarBool = (value: boolean) => {
         boolValue: value,
         textValue: value ? 'true' : 'false',
       }),
+      json_val: null,
       expr: null,
+    };
+  });
+};
+
+const updateSetVarJson = (value: string) => {
+  setVarJsonText.value = value;
+  const target = selectedSetVarTarget.value;
+  if (!target || !isStructuredVariableType(target.valueType)) {
+    setVarJsonError.value = '当前目标变量不是 JSON / 列表 / 对象类型。';
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (target.valueType === 'list' && !Array.isArray(parsed)) {
+      setVarJsonError.value = '列表变量必须填写 JSON 数组。';
+      return;
+    }
+    if (target.valueType === 'object' && (!parsed || Array.isArray(parsed) || typeof parsed !== 'object')) {
+      setVarJsonError.value = '对象变量必须填写 JSON 对象。';
+      return;
+    }
+
+    setVarJsonError.value = null;
+    updateSelectedStep((step) => {
+      if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.setVar) return;
+      step.a = {
+        ...step.a,
+        val: null,
+        json_val: parsed,
+        expr: null,
+      };
+    });
+  } catch {
+    setVarJsonError.value = '请输入合法的 JSON。';
+  }
+};
+
+const selectedClearVarNames = computed(() =>
+  selectedData.value?.type === DATA_TYPE.clearVars ? selectedData.value.names : [],
+);
+
+const toggleClearVar = (value: string, checked: boolean) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.clearVars) return;
+    const nextNames = checked
+      ? Array.from(new Set([...step.a.names, value]))
+      : step.a.names.filter((name) => name !== value);
+    step.a = {
+      ...step.a,
+      names: nextNames,
     };
   });
 };

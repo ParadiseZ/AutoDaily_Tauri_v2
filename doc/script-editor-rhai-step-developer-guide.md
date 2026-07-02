@@ -32,6 +32,9 @@ if runtime.retry > 3 {
 - 设备动作
 - 显式等待
 - 任务跳转 / 停止脚本
+- 获取当前任务、执行次数、最大执行次数、任务状态、策略状态
+- 获取策略执行结果
+- 统计数量 / 做颜色比较
 - 任务状态 / 策略状态修改
 - 视觉能力
 - 策略绑定与策略执行
@@ -191,6 +194,73 @@ link_task("领取奖励");
 
 ## 6. 任务与策略状态函数
 
+### 直接读取当前任务
+
+```rhai
+let task_name = current_task();
+
+if is_current_task("签到任务") {
+  runtime.tag = "sign";
+}
+```
+
+说明：
+
+- `current_task()`
+  - 返回当前任务名称。
+  - 如果当前没有任务上下文，返回空字符串。
+- `is_current_task(task_name)`
+  - 判断当前任务名称是否命中指定名称。
+
+### 获取任务执行次数 / 最大执行次数
+
+```rhai
+let exec_count = task_exec_count("签到任务");
+let exec_max = task_exec_max("签到任务");
+
+if exec_max > 0 && exec_count >= exec_max {
+  stop_script();
+}
+```
+
+说明：
+
+- `task_exec_count(task_name)`
+  - 返回当前运行态里这个任务已经执行了多少次。
+- `task_exec_max(task_name)`
+  - 返回任务配置里的最大执行次数。
+  - `0` 表示不限次。
+
+### 获取任务状态
+
+最小版：
+
+```rhai
+let enabled = task_enabled("签到任务");
+let skipped = task_skip("签到任务");
+let done = task_done("签到任务");
+```
+
+完整状态对象：
+
+```rhai
+let status = task_status("签到任务");
+
+if status.done == true {
+  runtime.next = "finished";
+}
+```
+
+`task_status(task_name)` 返回字段：
+
+- `name`
+- `enabled`
+- `skip`
+- `done`
+- `execCount`
+- `execMax`
+- `isCurrent`
+
 任务状态：
 
 ```rhai
@@ -202,6 +272,13 @@ set_task_done("签到任务", true);
 策略状态：
 
 ```rhai
+let policy_count = policy_exec_count("弹窗关闭策略");
+let policy_max = policy_exec_max("弹窗关闭策略");
+
+let skipped = policy_skip("弹窗关闭策略");
+let done = policy_done("弹窗关闭策略");
+let policy_status_info = policy_status("弹窗关闭策略");
+
 set_policy_skip("弹窗关闭策略", true);
 set_policy_done("弹窗关闭策略", true);
 ```
@@ -210,6 +287,13 @@ set_policy_done("弹窗关闭策略", true);
 
 - 参数统一传名称。
 - 后台会先按当前脚本 bundle 查名称，再进入内部执行器。
+- `policy_exec_max(policy_name)` 没有限制时同样返回 `0`。
+- `policy_status(policy_name)` 返回字段：
+  - `name`
+  - `skip`
+  - `done`
+  - `execCount`
+  - `execMax`
 
 ## 7. 视觉函数
 
@@ -226,6 +310,52 @@ capture("runtime.capture");
 ocr("runtime.capture", "runtime.ocrResults");
 click_text("runtime.ocrResults", "开始");
 ```
+
+### 获取数量大小
+
+如果你只想统计数量，不需要专门再走 If 条件节点，可以直接在 Rhai 里取：
+
+```rhai
+let total = item_count("runtime.ocrResults");
+let start_count = item_count("runtime.ocrResults", "开始");
+let enemy_count = item_count("runtime.detResults", "enemy");
+```
+
+说明：
+
+- `item_count(var_name)`
+  - 对 OCR / 检测 / 普通数组返回总数量。
+- `item_count(var_name, target_value)`
+  - 对 OCR 结果按文字统计。
+  - 对检测结果按 label 统计。
+
+### 颜色比较
+
+颜色比较已经支持直接在 Rhai 里调用。
+
+筛选颜色命中的 OCR 结果：
+
+```rhai
+let red_items = filter_ocr_by_color("runtime.ocrResults", rgb(255, 0, 0), true);
+let start_red_items = filter_ocr_by_color("runtime.ocrResults", "开始", rgb(255, 0, 0), true);
+let loose_items = filter_ocr_by_color("runtime.ocrResults", "开始", rgb(255, 0, 0), true, 0.08);
+```
+
+统计颜色命中的数量：
+
+```rhai
+let red_count = count_ocr_by_color("runtime.ocrResults", rgb(255, 0, 0), true);
+let start_red_count = count_ocr_by_color("runtime.ocrResults", "开始", rgb(255, 0, 0), true);
+```
+
+说明：
+
+- `is_font = true`
+  - 比较字体色。
+- `is_font = false`
+  - 比较背景色。
+- 颜色比较依赖当前最近一次截图。
+  - 调用前应先有可用 `capture(...)` 结果或其它有效图像上下文。
 
 ## 8. 策略绑定与执行函数
 
@@ -285,6 +415,37 @@ handle_policy_set(
 handle_policy(["关闭弹窗策略"], "runtime.searchHits", "runtime.policyResult");
 ```
 
+### 获取策略处理结果
+
+`handle_policy_set(...)` 或 `handle_policy(...)` 执行完后，可以在后续 Rhai 步骤里读取结果：
+
+```rhai
+let result = policy_result("runtime.policySetResult");
+
+if result.matched == true {
+  runtime.hit_policy = result.policyName;
+}
+```
+
+最简版布尔读取：
+
+```rhai
+if policy_result_matched("runtime.policySetResult") {
+  runtime.should_continue = true;
+}
+```
+
+`policy_result(var_name)` 当前返回字段：
+
+- `matched`
+- `policySetId`
+- `policySetName`
+- `policyGroupId`
+- `policyGroupName`
+- `policyId`
+- `policyName`
+- `rounds`
+
 ## 9. 变量与数据传递规则
 
 Rhai 步骤中最重要的一点，是函数调用和普通 Rhai 语句不是同一个时机执行。
@@ -337,7 +498,11 @@ runtime.button_text = input.action_button_text ?? "开始";
 
 capture("runtime.capture");
 ocr("runtime.capture", "runtime.ocrResults");
-click_text("runtime.ocrResults", runtime.button_text);
+let red_count = count_ocr_by_color("runtime.ocrResults", runtime.button_text, rgb(255, 0, 0), true);
+
+if red_count > 0 {
+  click_text("runtime.ocrResults", runtime.button_text);
+}
 ```
 
 ### 控制逻辑优先用原生 Rhai
@@ -453,8 +618,19 @@ runtime.retry < 3
 - 某轮策略集是否命中
 - 命中的到底是哪条策略 / 哪个策略组 / 哪个策略集
 
-### 当前不建议使用的旧条件
+### 颜色判断怎么接进 If / While
 
-内部还存在 `ColorCompare` 条件结构，但当前编辑器条件类型面板没有把它作为公开可选项。
+当前编辑器条件类型面板还没有把 `ColorCompare` 单独做成公开条件项。
 
-如果要做颜色判断，当前应优先使用独立步骤能力，再把结果写入变量后用 If / While 条件继续判断。
+现阶段推荐写法是：
+
+1. 在 Rhai 里先做 `filter_ocr_by_color(...)` 或 `count_ocr_by_color(...)`
+2. 把结果写进 `runtime.xxx`
+3. 再用 `If / While` 的表达式或变量比较条件继续判断
+
+示例：
+
+```rhai
+runtime.red_start_count = count_ocr_by_color("runtime.ocrResults", "开始", rgb(255, 0, 0), true);
+runtime.red_start_count
+```

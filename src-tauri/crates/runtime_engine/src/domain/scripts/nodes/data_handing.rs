@@ -4,6 +4,7 @@ use crate::domain::vision::ocr_search::{
     RelativeAnchorType, RelativeDirection, RelativeTargetKind,
 };
 use crate::infrastructure::core::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
@@ -28,7 +29,11 @@ pub enum DataHanding {
     SetVar {
         name: String,
         val: Option<VarValue>, // 如果有提供，则设置静态值
+        json_val: Option<Value>, // JSON / 列表 / 对象变量使用结构化值
         expr: Option<String>,  // 否则通过执行 rhai 表达式获取值
+    },
+    ClearVars {
+        names: Vec<String>,
     },
     GetVar {
         name: String,

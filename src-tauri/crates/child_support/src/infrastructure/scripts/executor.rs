@@ -30,7 +30,7 @@ use crate::domain::vision::ocr_search::{
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::{
     PolicyCandidate, PolicyGroupBindingOp, PolicyGroupBindingSource, PolicySetBindingOp,
-    PolicySetBindingSource, SharedRuntimeContext, TaskState,
+    PolicySetBindingSource, RuntimeContext, SharedRuntimeContext, TaskState,
 };
 use crate::infrastructure::core::{
     AccountId, AssignmentId, DeviceId, ExecutionId, HashMap, PolicyGroupId, PolicyId, PolicySetId,
@@ -40,13 +40,13 @@ use crate::infrastructure::db::get_pool;
 use crate::infrastructure::devices::device_ctx::get_device_ctx;
 use crate::infrastructure::devices::device_runtime::DeviceOperation;
 use crate::infrastructure::ipc::message::{
-    RunTarget, RuntimeLifecyclePhase, RuntimeProgressPhase, TimeoutAction,
+    RunTarget, RuntimeLifecyclePhase, RuntimeProgressPhase, ScriptBundleSnapshot, TimeoutAction,
 };
 use crate::infrastructure::ipc::runtime_reporter::{emit_lifecycle_event, emit_progress_event};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::infrastructure::session::runtime_session::{
-    get_runtime_execution_policy, get_script_bundle_snapshot,
+    get_runtime_execution_policy, get_runtime_session_store, get_script_bundle_snapshot,
 };
 use crate::infrastructure::vision::ocr_service::OcrService;
 use image::{DynamicImage, RgbaImage};

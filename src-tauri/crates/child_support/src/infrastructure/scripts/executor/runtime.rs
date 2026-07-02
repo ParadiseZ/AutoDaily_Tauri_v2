@@ -302,6 +302,80 @@ impl ScriptExecutor {
         }
     }
 
+    fn json_value_to_dynamic(
+        step_type: &str,
+        label: &str,
+        value: &serde_json::Value,
+    ) -> ExecuteResult<Dynamic> {
+        to_dynamic(value).map_err(|error| {
+            Self::execute_error(
+                step_type,
+                format!("{}转换为运行时变量失败: {}", label, error),
+            )
+        })
+    }
+
+    async fn resolve_variable_definition(
+        &self,
+        name: &str,
+    ) -> Option<crate::domain::scripts::script_variable::ScriptVariableDef> {
+        let ctx = self.runtime_ctx.read().await;
+        ctx.execution
+            .script_info
+            .as_ref()
+            .and_then(|script_info| {
+                script_info
+                    .variable_catalog
+                    .variables
+                    .iter()
+                    .find(|variable| variable.key == name)
+            })
+            .cloned()
+    }
+
+    async fn clear_runtime_var_value(&mut self, name: &str) -> ExecuteResult<()> {
+        use crate::domain::scripts::script_variable::ScriptVariableValueType;
+
+        let Some(variable) = self.resolve_variable_definition(name).await else {
+            self.remove_runtime_var(name).await;
+            return Ok(());
+        };
+
+        match variable.value_type {
+            ScriptVariableValueType::Int => {
+                self.set_runtime_var(name, Dynamic::from_int(0)).await?
+            }
+            ScriptVariableValueType::Float => {
+                self.set_runtime_var(name, Dynamic::from_float(0.0)).await?
+            }
+            ScriptVariableValueType::Bool => {
+                self.set_runtime_var(name, Dynamic::from_bool(false)).await?
+            }
+            ScriptVariableValueType::String => {
+                self.set_runtime_var(name, Dynamic::from(String::new())).await?
+            }
+            ScriptVariableValueType::Json | ScriptVariableValueType::Object => {
+                let empty = Self::json_value_to_dynamic(
+                    "data.clearVars",
+                    "空对象",
+                    &serde_json::Value::Object(serde_json::Map::new()),
+                )?;
+                self.set_runtime_var(name, empty).await?;
+            }
+            ScriptVariableValueType::List => {
+                let empty = Self::json_value_to_dynamic(
+                    "data.clearVars",
+                    "空数组",
+                    &serde_json::Value::Array(Vec::new()),
+                )?;
+                self.set_runtime_var(name, empty).await?;
+            }
+            ScriptVariableValueType::Image => self.remove_runtime_var(name).await,
+        }
+
+        Ok(())
+    }
+
     fn compare_dynamic(lhs: &Dynamic, op: &CompareOp, rhs: &Dynamic) -> bool {
         match op {
             CompareOp::Contains => Self::dynamic_to_string(lhs)

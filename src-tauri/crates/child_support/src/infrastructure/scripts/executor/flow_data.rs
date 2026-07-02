@@ -4,22 +4,43 @@ impl ScriptExecutor {
         data: &DataHanding,
     ) -> ExecuteResult<ControlFlow> {
         match data {
-            DataHanding::SetVar { name, val, expr } => {
+            DataHanding::SetVar {
+                name,
+                val,
+                json_val,
+                expr,
+            } => {
                 if let Some(timeout_flow) = self
                     .record_progress_evidence("data.setVar", format!("SetVar 写入变量 {}", name))
                     .await?
                 {
                     return Ok(timeout_flow);
                 }
-                let value =
-                    if let Some(expr) = expr.as_ref().filter(|value| !value.trim().is_empty()) {
-                        self.eval_dynamic(expr, "data.setVar")?
-                    } else if let Some(val) = val {
-                        Self::var_value_to_dynamic(val)
-                    } else {
-                        Dynamic::UNIT
-                    };
+                let value = if let Some(json_val) = json_val {
+                    Self::json_value_to_dynamic("data.setVar", "JSON值", json_val)?
+                } else if let Some(expr) = expr.as_ref().filter(|value| !value.trim().is_empty()) {
+                    self.eval_dynamic(expr, "data.setVar")?
+                } else if let Some(val) = val {
+                    Self::var_value_to_dynamic(val)
+                } else {
+                    Dynamic::UNIT
+                };
                 self.set_runtime_var(name, value).await?;
+                Ok(ControlFlow::Next)
+            }
+            DataHanding::ClearVars { names } => {
+                if let Some(timeout_flow) = self
+                    .record_progress_evidence(
+                        "data.clearVars",
+                        format!("ClearVars 清空 {} 个变量", names.len()),
+                    )
+                    .await?
+                {
+                    return Ok(timeout_flow);
+                }
+                for name in names.iter().filter(|name| !name.trim().is_empty()) {
+                    self.clear_runtime_var_value(name).await?;
+                }
                 Ok(ControlFlow::Next)
             }
             DataHanding::GetVar { name, default_val } => {

@@ -40,6 +40,341 @@ impl ScriptExecutor {
             },
         );
 
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine
+            .register_fn("current_task", move || -> Result<String, Box<EvalAltResult>> {
+                ScriptExecutor::current_task_name_now(&runtime_ctx, "current_task")
+            });
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "is_current_task",
+            move |task_name: String| -> Result<bool, Box<EvalAltResult>> {
+                Ok(ScriptExecutor::current_task_name_now(
+                    &runtime_ctx,
+                    "is_current_task",
+                )? == task_name)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "task_exec_count",
+            move |task_name: String| -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::task_exec_count_now(&runtime_ctx, "task_exec_count", &task_name)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "task_exec_max",
+            move |task_name: String| -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::task_exec_max_now(&runtime_ctx, "task_exec_max", &task_name)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "task_enabled",
+            move |task_name: String| -> Result<bool, Box<EvalAltResult>> {
+                ScriptExecutor::task_status_field_now(
+                    &runtime_ctx,
+                    "task_enabled",
+                    &task_name,
+                    "enabled",
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "task_skip",
+            move |task_name: String| -> Result<bool, Box<EvalAltResult>> {
+                ScriptExecutor::task_status_field_now(
+                    &runtime_ctx,
+                    "task_skip",
+                    &task_name,
+                    "skip",
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "task_done",
+            move |task_name: String| -> Result<bool, Box<EvalAltResult>> {
+                ScriptExecutor::task_status_field_now(
+                    &runtime_ctx,
+                    "task_done",
+                    &task_name,
+                    "done",
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "task_status",
+            move |task_name: String| -> Result<Dynamic, Box<EvalAltResult>> {
+                ScriptExecutor::task_status_now(&runtime_ctx, "task_status", &task_name)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "policy_exec_count",
+            move |policy_name: String| -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::policy_exec_count_now(
+                    &runtime_ctx,
+                    "policy_exec_count",
+                    &policy_name,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "policy_exec_max",
+            move |policy_name: String| -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::policy_exec_max_now(&runtime_ctx, "policy_exec_max", &policy_name)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "policy_skip",
+            move |policy_name: String| -> Result<bool, Box<EvalAltResult>> {
+                ScriptExecutor::policy_status_field_now(
+                    &runtime_ctx,
+                    "policy_skip",
+                    &policy_name,
+                    "skip",
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "policy_done",
+            move |policy_name: String| -> Result<bool, Box<EvalAltResult>> {
+                ScriptExecutor::policy_status_field_now(
+                    &runtime_ctx,
+                    "policy_done",
+                    &policy_name,
+                    "done",
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "policy_status",
+            move |policy_name: String| -> Result<Dynamic, Box<EvalAltResult>> {
+                ScriptExecutor::policy_status_now(&runtime_ctx, "policy_status", &policy_name)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "policy_result",
+            move |var_name: String| -> Result<Dynamic, Box<EvalAltResult>> {
+                ScriptExecutor::policy_result_now(&runtime_ctx, "policy_result", &var_name)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "policy_result_matched",
+            move |var_name: String| -> Result<bool, Box<EvalAltResult>> {
+                ScriptExecutor::policy_result_matched_now(
+                    &runtime_ctx,
+                    "policy_result_matched",
+                    &var_name,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "item_count",
+            move |var_name: String| -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::item_count_now(&runtime_ctx, "item_count", &var_name, None)
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "item_count",
+            move |var_name: String, target_value: String| -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::item_count_now(
+                    &runtime_ctx,
+                    "item_count",
+                    &var_name,
+                    Some(target_value.as_str()),
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "filter_ocr_by_color",
+            move |input_var: String,
+                  color: Dynamic,
+                  is_font: bool|
+                  -> Result<Dynamic, Box<EvalAltResult>> {
+                ScriptExecutor::filter_ocr_by_color_now(
+                    &runtime_ctx,
+                    "filter_ocr_by_color",
+                    &input_var,
+                    None,
+                    &color,
+                    is_font,
+                    0.0,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "filter_ocr_by_color",
+            move |input_var: String,
+                  target_text: String,
+                  color: Dynamic,
+                  is_font: bool|
+                  -> Result<Dynamic, Box<EvalAltResult>> {
+                ScriptExecutor::filter_ocr_by_color_now(
+                    &runtime_ctx,
+                    "filter_ocr_by_color",
+                    &input_var,
+                    Some(target_text.as_str()),
+                    &color,
+                    is_font,
+                    0.0,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "filter_ocr_by_color",
+            move |input_var: String,
+                  color: Dynamic,
+                  is_font: bool,
+                  threshold: FLOAT|
+                  -> Result<Dynamic, Box<EvalAltResult>> {
+                ScriptExecutor::filter_ocr_by_color_now(
+                    &runtime_ctx,
+                    "filter_ocr_by_color",
+                    &input_var,
+                    None,
+                    &color,
+                    is_font,
+                    threshold as f32,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "filter_ocr_by_color",
+            move |input_var: String,
+                  target_text: String,
+                  color: Dynamic,
+                  is_font: bool,
+                  threshold: FLOAT|
+                  -> Result<Dynamic, Box<EvalAltResult>> {
+                ScriptExecutor::filter_ocr_by_color_now(
+                    &runtime_ctx,
+                    "filter_ocr_by_color",
+                    &input_var,
+                    Some(target_text.as_str()),
+                    &color,
+                    is_font,
+                    threshold as f32,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "count_ocr_by_color",
+            move |input_var: String,
+                  color: Dynamic,
+                  is_font: bool|
+                  -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::count_ocr_by_color_now(
+                    &runtime_ctx,
+                    "count_ocr_by_color",
+                    &input_var,
+                    None,
+                    &color,
+                    is_font,
+                    0.0,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "count_ocr_by_color",
+            move |input_var: String,
+                  target_text: String,
+                  color: Dynamic,
+                  is_font: bool|
+                  -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::count_ocr_by_color_now(
+                    &runtime_ctx,
+                    "count_ocr_by_color",
+                    &input_var,
+                    Some(target_text.as_str()),
+                    &color,
+                    is_font,
+                    0.0,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "count_ocr_by_color",
+            move |input_var: String,
+                  color: Dynamic,
+                  is_font: bool,
+                  threshold: FLOAT|
+                  -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::count_ocr_by_color_now(
+                    &runtime_ctx,
+                    "count_ocr_by_color",
+                    &input_var,
+                    None,
+                    &color,
+                    is_font,
+                    threshold as f32,
+                )
+            },
+        );
+
+        let runtime_ctx = self.runtime_ctx.clone();
+        self.engine.register_fn(
+            "count_ocr_by_color",
+            move |input_var: String,
+                  target_text: String,
+                  color: Dynamic,
+                  is_font: bool,
+                  threshold: FLOAT|
+                  -> Result<INT, Box<EvalAltResult>> {
+                ScriptExecutor::count_ocr_by_color_now(
+                    &runtime_ctx,
+                    "count_ocr_by_color",
+                    &input_var,
+                    Some(target_text.as_str()),
+                    &color,
+                    is_font,
+                    threshold as f32,
+                )
+            },
+        );
+
         let queue = self.rhai_step_queue.clone();
         self.engine.register_fn(
             "click",
@@ -926,6 +1261,454 @@ impl ScriptExecutor {
         from_dynamic(config).map_err(|error| {
             Self::rhai_helper_error(format!("{}() 参数解析失败: {}", helper_name, error))
         })
+    }
+
+    fn runtime_ctx_read_now<'a>(
+        runtime_ctx: &'a SharedRuntimeContext,
+        helper_name: &'static str,
+    ) -> Result<tokio::sync::RwLockReadGuard<'a, RuntimeContext>, Box<EvalAltResult>> {
+        runtime_ctx.try_read().map_err(|_| {
+            Self::rhai_helper_error(format!(
+                "{}() 当前无法读取运行时上下文，请稍后重试",
+                helper_name
+            ))
+        })
+    }
+
+    fn load_bundle_snapshot_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+    ) -> Result<ScriptBundleSnapshot, Box<EvalAltResult>> {
+        let script_id = {
+            let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+            ctx.execution.script_id
+        };
+        let store = get_runtime_session_store();
+        let guard = store.try_read().map_err(|_| {
+            Self::rhai_helper_error(format!(
+                "{}() 当前无法读取脚本 bundle，请稍后重试",
+                helper_name
+            ))
+        })?;
+        let Some(session) = guard.as_ref() else {
+            return Err(Self::rhai_helper_error(format!(
+                "{}() 当前运行时没有已加载的脚本 session",
+                helper_name
+            )));
+        };
+        session.bundle(script_id).ok_or_else(|| {
+            Self::rhai_helper_error(format!(
+                "{}() 找不到脚本[{}]的 bundle",
+                helper_name, script_id
+            ))
+        })
+    }
+
+    fn parse_bundle_json_now<T>(
+        helper_name: &'static str,
+        field_name: &'static str,
+        json: &str,
+    ) -> Result<T, Box<EvalAltResult>>
+    where
+        T: DeserializeOwned,
+    {
+        serde_json::from_str(json).map_err(|error| {
+            Self::rhai_helper_error(format!(
+                "{}() 解析 {} 失败: {}",
+                helper_name, field_name, error
+            ))
+        })
+    }
+
+    fn load_tasks_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+    ) -> Result<Vec<ScriptTaskTable>, Box<EvalAltResult>> {
+        let snapshot = Self::load_bundle_snapshot_now(runtime_ctx, helper_name)?;
+        Self::parse_bundle_json_now(helper_name, "tasks_json", &snapshot.tasks_json)
+    }
+
+    fn load_policies_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+    ) -> Result<Vec<PolicyTable>, Box<EvalAltResult>> {
+        let snapshot = Self::load_bundle_snapshot_now(runtime_ctx, helper_name)?;
+        Self::parse_bundle_json_now(helper_name, "policies_json", &snapshot.policies_json)
+    }
+
+    fn load_policy_groups_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+    ) -> Result<Vec<PolicyGroupTable>, Box<EvalAltResult>> {
+        let snapshot = Self::load_bundle_snapshot_now(runtime_ctx, helper_name)?;
+        Self::parse_bundle_json_now(
+            helper_name,
+            "policy_groups_json",
+            &snapshot.policy_groups_json,
+        )
+    }
+
+    fn load_policy_sets_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+    ) -> Result<Vec<PolicySetTable>, Box<EvalAltResult>> {
+        let snapshot = Self::load_bundle_snapshot_now(runtime_ctx, helper_name)?;
+        Self::parse_bundle_json_now(helper_name, "policy_sets_json", &snapshot.policy_sets_json)
+    }
+
+    fn current_task_name_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+    ) -> Result<String, Box<EvalAltResult>> {
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        Ok(ctx
+            .execution
+            .current_task
+            .as_ref()
+            .map(|task| task.name.clone())
+            .unwrap_or_default())
+    }
+
+    fn read_runtime_var_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        name: &str,
+    ) -> Result<Option<Dynamic>, Box<EvalAltResult>> {
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        Ok(ctx.execution.var_map.get(name).cloned())
+    }
+
+    fn find_task_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        task_name: &str,
+    ) -> Result<ScriptTaskTable, Box<EvalAltResult>> {
+        Self::load_tasks_now(runtime_ctx, helper_name)?
+            .into_iter()
+            .find(|task| task.name == task_name)
+            .ok_or_else(|| {
+                Self::rhai_helper_error(format!(
+                    "{}() 找不到任务「{}」",
+                    helper_name, task_name
+                ))
+            })
+    }
+
+    fn find_policy_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        policy_name: &str,
+    ) -> Result<PolicyTable, Box<EvalAltResult>> {
+        Self::load_policies_now(runtime_ctx, helper_name)?
+            .into_iter()
+            .find(|policy| policy.data.0.name == policy_name)
+            .ok_or_else(|| {
+                Self::rhai_helper_error(format!(
+                    "{}() 找不到策略「{}」",
+                    helper_name, policy_name
+                ))
+            })
+    }
+
+    fn task_exec_count_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        task_name: &str,
+    ) -> Result<INT, Box<EvalAltResult>> {
+        let task = Self::find_task_now(runtime_ctx, helper_name, task_name)?;
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        Ok(ctx
+            .execution
+            .task_states
+            .get(&task.id)
+            .map(|state| state.exec_cur as INT)
+            .unwrap_or(0))
+    }
+
+    fn task_exec_max_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        task_name: &str,
+    ) -> Result<INT, Box<EvalAltResult>> {
+        let task = Self::find_task_now(runtime_ctx, helper_name, task_name)?;
+        Ok(task.exec_max as INT)
+    }
+
+    fn task_status_field_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        task_name: &str,
+        field: &'static str,
+    ) -> Result<bool, Box<EvalAltResult>> {
+        let task = Self::find_task_now(runtime_ctx, helper_name, task_name)?;
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        let current_task_id = ctx.execution.current_task.as_ref().map(|item| item.id);
+        let state = ctx.execution.task_states.get(&task.id);
+        Ok(match field {
+            "enabled" => state.map(|item| item.enabled_flag).unwrap_or(task.default_enabled),
+            "skip" => state.map(|item| item.skip_flag).unwrap_or(false),
+            "done" => state.map(|item| item.done_flag).unwrap_or(false),
+            "current" => current_task_id.is_some_and(|id| id == task.id),
+            _ => false,
+        })
+    }
+
+    fn task_status_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        task_name: &str,
+    ) -> Result<Dynamic, Box<EvalAltResult>> {
+        let task = Self::find_task_now(runtime_ctx, helper_name, task_name)?;
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        let current_task_id = ctx.execution.current_task.as_ref().map(|item| item.id);
+        let state = ctx.execution.task_states.get(&task.id);
+        Self::to_rhai_dynamic(
+            helper_name,
+            &json!({
+                "name": task.name,
+                "enabled": state.map(|item| item.enabled_flag).unwrap_or(task.default_enabled),
+                "skip": state.map(|item| item.skip_flag).unwrap_or(false),
+                "done": state.map(|item| item.done_flag).unwrap_or(false),
+                "execCount": state.map(|item| item.exec_cur).unwrap_or(0),
+                "execMax": task.exec_max,
+                "isCurrent": current_task_id.is_some_and(|id| id == task.id),
+            }),
+        )
+    }
+
+    fn policy_exec_count_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        policy_name: &str,
+    ) -> Result<INT, Box<EvalAltResult>> {
+        let policy = Self::find_policy_now(runtime_ctx, helper_name, policy_name)?;
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        Ok(ctx
+            .execution
+            .policy_states
+            .get(&policy.id)
+            .map(|state| state.exec_cur as INT)
+            .unwrap_or(0))
+    }
+
+    fn policy_exec_max_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        policy_name: &str,
+    ) -> Result<INT, Box<EvalAltResult>> {
+        let policy = Self::find_policy_now(runtime_ctx, helper_name, policy_name)?;
+        Ok(INT::from(policy.data.0.exec_max))
+    }
+
+    fn policy_status_field_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        policy_name: &str,
+        field: &'static str,
+    ) -> Result<bool, Box<EvalAltResult>> {
+        let policy = Self::find_policy_now(runtime_ctx, helper_name, policy_name)?;
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        let state = ctx.execution.policy_states.get(&policy.id);
+        Ok(match field {
+            "skip" => state.map(|item| item.skip_flag).unwrap_or(false),
+            "done" => state.map(|item| item.done_flag).unwrap_or(false),
+            _ => false,
+        })
+    }
+
+    fn policy_status_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        policy_name: &str,
+    ) -> Result<Dynamic, Box<EvalAltResult>> {
+        let policy = Self::find_policy_now(runtime_ctx, helper_name, policy_name)?;
+        let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+        let state = ctx.execution.policy_states.get(&policy.id);
+        Self::to_rhai_dynamic(
+            helper_name,
+            &json!({
+                "name": policy.data.0.name,
+                "skip": state.map(|item| item.skip_flag).unwrap_or(false),
+                "done": state.map(|item| item.done_flag).unwrap_or(false),
+                "execCount": state.map(|item| item.exec_cur).unwrap_or(0),
+                "execMax": policy.data.0.exec_max,
+            }),
+        )
+    }
+
+    fn policy_result_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        var_name: &str,
+    ) -> Result<Dynamic, Box<EvalAltResult>> {
+        let value = Self::read_runtime_var_now(runtime_ctx, helper_name, var_name)?.ok_or_else(|| {
+            Self::rhai_helper_error(format!(
+                "{}() 找不到变量 {}",
+                helper_name, var_name
+            ))
+        })?;
+        let result = Self::deserialize_dynamic_value::<PolicyExecutionResult>(&value).map_err(
+            |error| {
+                Self::rhai_helper_error(format!(
+                    "{}() 变量 {} 不是合法的策略执行结果: {}",
+                    helper_name, var_name, error
+                ))
+            },
+        )?;
+        let policies = Self::load_policies_now(runtime_ctx, helper_name)?;
+        let policy_groups = Self::load_policy_groups_now(runtime_ctx, helper_name)?;
+        let policy_sets = Self::load_policy_sets_now(runtime_ctx, helper_name)?;
+        let policy_name = result.policy_id.and_then(|id| {
+            policies
+                .iter()
+                .find(|item| item.id == id)
+                .map(|item| item.data.0.name.clone())
+        });
+        let policy_group_name = result.policy_group_id.and_then(|id| {
+            policy_groups
+                .iter()
+                .find(|item| item.id == id)
+                .map(|item| item.data.0.name.clone())
+        });
+        let policy_set_name = result.policy_set_id.and_then(|id| {
+            policy_sets
+                .iter()
+                .find(|item| item.id == id)
+                .map(|item| item.data.0.name.clone())
+        });
+        Self::to_rhai_dynamic(
+            helper_name,
+            &json!({
+                "matched": result.matched,
+                "policySetId": result.policy_set_id.map(|id| id.to_string()),
+                "policySetName": policy_set_name,
+                "policyGroupId": result.policy_group_id.map(|id| id.to_string()),
+                "policyGroupName": policy_group_name,
+                "policyId": result.policy_id.map(|id| id.to_string()),
+                "policyName": policy_name,
+                "rounds": result.rounds,
+            }),
+        )
+    }
+
+    fn policy_result_matched_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        var_name: &str,
+    ) -> Result<bool, Box<EvalAltResult>> {
+        let value = Self::read_runtime_var_now(runtime_ctx, helper_name, var_name)?.ok_or_else(|| {
+            Self::rhai_helper_error(format!(
+                "{}() 找不到变量 {}",
+                helper_name, var_name
+            ))
+        })?;
+        Self::deserialize_dynamic_value::<PolicyExecutionResult>(&value)
+            .map(|result| result.matched)
+            .map_err(|error| {
+                Self::rhai_helper_error(format!(
+                    "{}() 变量 {} 不是合法的策略执行结果: {}",
+                    helper_name, var_name, error
+                ))
+            })
+    }
+
+    fn item_count_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        var_name: &str,
+        target_value: Option<&str>,
+    ) -> Result<INT, Box<EvalAltResult>> {
+        let value = Self::read_runtime_var_now(runtime_ctx, helper_name, var_name)?.ok_or_else(|| {
+            Self::rhai_helper_error(format!(
+                "{}() 找不到变量 {}",
+                helper_name, var_name
+            ))
+        })?;
+        if let Ok(items) = Self::deserialize_dynamic_value::<Vec<DetResult>>(&value) {
+            return Ok(Self::count_det_items(&items, target_value) as INT);
+        }
+        if let Ok(items) = Self::deserialize_dynamic_value::<Vec<OcrResult>>(&value) {
+            return Ok(Self::count_ocr_items(&items, target_value) as INT);
+        }
+        if target_value.is_none() {
+            if let Some(items) = value.clone().try_cast::<Array>() {
+                return Ok(items.len() as INT);
+            }
+        }
+        Err(Self::rhai_helper_error(format!(
+            "{}() 变量 {} 不是可计数的 OCR / 检测 / 数组结果",
+            helper_name, var_name
+        )))
+    }
+
+    fn filter_ocr_by_color_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        input_var: &str,
+        target_text: Option<&str>,
+        color: &Dynamic,
+        is_font: bool,
+        threshold: f32,
+    ) -> Result<Dynamic, Box<EvalAltResult>> {
+        let target_color = Self::deserialize_rhai_helper::<ColorRgb>(helper_name, color)?;
+        let value = Self::read_runtime_var_now(runtime_ctx, helper_name, input_var)?.ok_or_else(|| {
+            Self::rhai_helper_error(format!(
+                "{}() 找不到变量 {}",
+                helper_name, input_var
+            ))
+        })?;
+        let items = Self::deserialize_dynamic_value::<Vec<OcrResult>>(&value).map_err(|error| {
+            Self::rhai_helper_error(format!(
+                "{}() 变量 {} 不是兼容的 OCR 结果集: {}",
+                helper_name, input_var, error
+            ))
+        })?;
+        let capture = {
+            let ctx = Self::runtime_ctx_read_now(runtime_ctx, helper_name)?;
+            ctx.observation.last_capture_image.clone().ok_or_else(|| {
+                Self::rhai_helper_error(format!(
+                    "{}() 当前没有可用截图，请先执行 Capture",
+                    helper_name
+                ))
+            })?
+        };
+        let method = ColorCompareMethod::OklabDistance { threshold };
+        let target_lab = Self::rgb_to_oklab(&target_color);
+        let matched: Vec<OcrResult> = Self::filter_ocr_items_for_color_compare(&items, target_text)
+            .into_iter()
+            .filter(|item| {
+                Self::ocr_item_matches_color(
+                    capture.as_ref(),
+                    item,
+                    is_font,
+                    target_lab,
+                    &method,
+                )
+            })
+            .cloned()
+            .collect();
+        Self::to_rhai_dynamic(helper_name, &matched)
+    }
+
+    fn count_ocr_by_color_now(
+        runtime_ctx: &SharedRuntimeContext,
+        helper_name: &'static str,
+        input_var: &str,
+        target_text: Option<&str>,
+        color: &Dynamic,
+        is_font: bool,
+        threshold: f32,
+    ) -> Result<INT, Box<EvalAltResult>> {
+        let matched = Self::filter_ocr_by_color_now(
+            runtime_ctx,
+            helper_name,
+            input_var,
+            target_text,
+            color,
+            is_font,
+            threshold,
+        )?;
+        Ok(matched.try_cast::<Array>().map(|items| items.len() as INT).unwrap_or(0))
     }
 
     fn int_to_u8(

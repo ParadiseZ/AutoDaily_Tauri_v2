@@ -3,43 +3,20 @@
     <template v-if="selectedData.type === DATA_TYPE.setVar">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <EditorVariableBindingField
-          label="目标名称"
+          label="目标变量"
           :model-value="selectedData.name || null"
-          :options="writableCatalogVariableOptions"
+          :options="resolvedSetVarOptions"
           placeholder="从变量列表中选择"
           test-id="editor-set-var-name"
-          create-test-id="editor-set-var-create"
           locate-test-id="editor-set-var-locate"
-          :show-create="Boolean(createVariable)"
           :show-locate="Boolean(selectedSetVarTarget && jumpToVariable)"
           :locate-disabled="!selectedSetVarTarget || !jumpToVariable"
           @update:model-value="$emit('update-set-var-target', String($event || ''))"
-          @create="$emit('create-variable', 'setVar')"
           @locate="selectedSetVarTarget ? $emit('jump-to-variable', selectedSetVarTarget) : undefined"
         />
       </div>
 
-      <div v-if="selectedSetVarTarget && setVarCanSwitchMode" class="flex justify-end">
-        <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="$emit('update-set-var-mode', setVarUsesExpression ? 'value' : 'expr')">
-          {{ setVarUsesExpression ? '改为直接值' : '改用表达式' }}
-        </button>
-      </div>
-
-      <template v-if="selectedSetVarTarget && !setVarUsesExpression">
-        <div v-if="!selectedSetVarKind" class="editor-inline-grid">
-          <div class="editor-inline-label">值类型</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="effectiveSetVarKind"
-              :options="varValueTypeOptions"
-              placeholder="值类型"
-              test-id="editor-set-var-type"
-              @update:model-value="$emit('update-set-var-type', String($event || 'string'))"
-            />
-          </div>
-        </div>
-
-        <label v-if="effectiveSetVarKind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
+      <label v-if="selectedSetVarTarget?.valueType === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
           <input
             :checked="setVarDraft.boolValue"
             type="checkbox"
@@ -50,33 +27,81 @@
           />
           <span class="text-sm text-(--app-text-soft)">值为真</span>
         </label>
-        <label v-else class="space-y-2">
+        <label
+          v-else-if="selectedSetVarTarget && ['string', 'int', 'float'].includes(selectedSetVarTarget.valueType)"
+          class="space-y-2"
+        >
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">值</span>
           <input
             :value="setVarDraft.textValue"
             class="app-input"
-            :type="effectiveSetVarKind === 'string' ? 'text' : 'number'"
+            :type="selectedSetVarTarget.valueType === 'string' ? 'text' : 'number'"
             data-testid="editor-set-var-value"
             @input="$emit('update-set-var-text', ($event.target as HTMLInputElement).value)"
           />
         </label>
-      </template>
+        <div v-else-if="selectedSetVarTarget && ['json', 'list', 'object'].includes(selectedSetVarTarget.valueType)" class="space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">JSON 值</span>
+            <span class="text-xs text-(--app-text-faint)">列表必须是 `[]`，对象必须是 `{}`。</span>
+          </div>
+          <EditorCodeField
+            :model-value="setVarJsonText"
+            placeholder="请输入 JSON"
+            :min-height="180"
+            test-id="editor-set-var-json"
+            @update:model-value="$emit('update-set-var-json', $event)"
+          />
+          <div
+            v-if="setVarJsonError"
+            class="rounded-[14px] border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200"
+            data-testid="editor-set-var-json-error"
+          >
+            {{ setVarJsonError }}
+          </div>
+        </div>
+        <div
+          v-else-if="selectedSetVarTarget"
+          class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
+        >
+          当前变量类型不支持在这里直接赋值。
+        </div>
+    </template>
 
-      <div
-        v-else-if="selectedSetVarTarget && !selectedSetVarKind"
-        class="rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft)"
-      >
-        当前变量类型不适合直接写固定值，请使用表达式。
+    <template v-else-if="selectedData.type === DATA_TYPE.clearVars">
+      <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+        <div class="space-y-1">
+          <p class="text-sm font-semibold text-(--app-text-strong)">要清空的变量</p>
+          <p class="text-sm leading-6 text-(--app-text-soft)">
+            Input / Runtime 都可以选。图像变量会移除当前引用；列表会清成 `[]`；对象和通用 JSON 会清成 `{}`。
+          </p>
+        </div>
+
+        <div v-if="clearableVariableOptions.length" class="clear-var-grid">
+          <label
+            v-for="option in clearableVariableOptions"
+            :key="option.value"
+            class="clear-var-option"
+            :data-testid="`editor-clear-vars-option-${option.value}`"
+          >
+            <input
+              :checked="selectedClearVarNames.includes(option.value)"
+              type="checkbox"
+              class="h-4 w-4"
+              style="accent-color: var(--app-accent)"
+              @change="$emit('toggle-clear-var', option.value, ($event.target as HTMLInputElement).checked)"
+            />
+            <span class="clear-var-copy">
+              <span class="clear-var-label">{{ option.label }}</span>
+              <span class="clear-var-description">{{ option.description }}</span>
+            </span>
+          </label>
+        </div>
+
+        <div v-else class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
+          当前没有可清空的变量。
+        </div>
       </div>
-
-      <label v-if="selectedSetVarTarget && setVarUsesExpression" class="space-y-2">
-        <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">表达式</span>
-        <input
-          :value="selectedData.expr ?? ''"
-          class="app-input"
-          @input="$emit('update-data-nullable-field', 'expr', ($event.target as HTMLInputElement).value)"
-        />
-      </label>
     </template>
 
     <template v-else-if="selectedData.type === DATA_TYPE.getVar">
@@ -414,7 +439,7 @@ import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
 import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
-import { varValueTypeOptions, type VarValueDraft, type VarValueKind } from '@/views/script-editor/editorVarValue';
+import { varValueTypeOptions, type VarValueDraft } from '@/views/script-editor/editorVarValue';
 import type { StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
 import type { EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
 
@@ -429,15 +454,15 @@ const props = defineProps<{
   selectedFilterOutputTarget?: EditorVariableOption | null;
   selectedColorCompareInputTarget?: EditorVariableOption | null;
   selectedColorCompareOutputTarget?: EditorVariableOption | null;
-  selectedSetVarKind: VarValueKind | null;
-  setVarUsesExpression: boolean;
-  setVarCanSwitchMode: boolean;
-  effectiveSetVarKind: VarValueKind;
   setVarDraft: VarValueDraft;
+  setVarJsonText: string;
+  setVarJsonError: string | null;
   getVarHasDefault: boolean;
   getVarDraft: VarValueDraft;
   writableCatalogVariableOptions: Array<{ label: string; value: string; description: string }>;
   readableCatalogVariableOptions: Array<{ label: string; value: string; description: string }>;
+  clearableVariableOptions: Array<{ label: string; value: string; description: string }>;
+  selectedClearVarNames: string[];
   filterModeOptions: Array<{ label: string; value: string; description: string }>;
   colorCompareMethodOptions: Array<{ label: string; value: string; description: string }>;
   filterBranchTarget: { count: number; path: StepBranchPath } | null;
@@ -448,10 +473,10 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update-set-var-target': [value: string];
-  'update-set-var-mode': [mode: string];
-  'update-set-var-type': [kind: string];
   'update-set-var-text': [value: string];
   'update-set-var-bool': [value: boolean];
+  'update-set-var-json': [value: string];
+  'toggle-clear-var': [value: string, checked: boolean];
   'update-data-field': [field: string, value: string];
   'update-data-nullable-field': [field: string, value: string];
   'update-region-point': [field: 'region_top_left' | 'region_bottom_right', key: 'mode' | 'x' | 'y', value: string];
@@ -465,7 +490,7 @@ const emit = defineEmits<{
   'update-color-compare-method': [value: string];
   'update-color-compare-boolean': [field: 'is_font', value: boolean];
   'navigate-branch': [branchPath: StepBranchPath];
-  'create-variable': [target: 'setVar' | 'getVar' | 'rhaiOutput' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput'];
+  'create-variable': [target: 'getVar' | 'rhaiOutput' | 'filterInput' | 'filterOutput' | 'colorCompareInput' | 'colorCompareOutput'];
   'jump-to-variable': [option: EditorVariableOption];
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
@@ -537,6 +562,12 @@ const resolvedFilterInputOptions = computed(() =>
     : props.readableCatalogVariableOptions,
 );
 
+const resolvedSetVarOptions = computed(() =>
+  props.selectedData.type === DATA_TYPE.setVar
+    ? withCurrentVariableOption(props.writableCatalogVariableOptions, props.selectedData.name)
+    : props.writableCatalogVariableOptions,
+);
+
 const resolvedRhaiOutputOptions = computed(() =>
   props.selectedData.type === DATA_TYPE.rhai
     ? withCurrentVariableOption(props.writableCatalogVariableOptions, props.selectedData.out_var ?? '')
@@ -588,5 +619,40 @@ const resolvedColorCompareOutputOptions = computed(() =>
 
 .editor-inline-content {
   min-height: 44px;
+}
+
+.clear-var-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.clear-var-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  border: 1px solid var(--app-border);
+  border-radius: 14px;
+  padding: 0.85rem 0.95rem;
+  background: color-mix(in srgb, var(--app-panel-muted) 86%, white 14%);
+}
+
+.clear-var-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.clear-var-label {
+  color: var(--app-text-strong);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.clear-var-description {
+  color: var(--app-text-faint);
+  font-size: 0.76rem;
+  line-height: 1.4;
 }
 </style>

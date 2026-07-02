@@ -293,7 +293,43 @@ test('persists task description from basic config panel', async ({ page }) => {
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
-      variableCatalog: emptyVariableCatalog,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'input-counter',
+            key: 'input.counter',
+            name: '计数器',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 3,
+            description: 'Input · 整数',
+          },
+          {
+            id: 'runtime-items',
+            key: 'runtime.items',
+            name: '结果集',
+            namespace: 'runtime',
+            valueType: 'list',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: 'Runtime · 列表',
+          },
+        ],
+      },
       cloudId: null,
     },
   };
@@ -1217,7 +1253,43 @@ test('renders task description on second line in ui preview', async ({ page }) =
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
-      variableCatalog: emptyVariableCatalog,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'input-counter',
+            key: 'input.counter',
+            name: '计数器',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 3,
+            description: 'Input · 整数',
+          },
+          {
+            id: 'runtime-items',
+            key: 'runtime.items',
+            name: '结果集',
+            namespace: 'runtime',
+            valueType: 'list',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: 'Runtime · 列表',
+          },
+        ],
+      },
       cloudId: null,
     },
   };
@@ -1709,7 +1781,43 @@ test('persists visionCountCompare as an if condition with nested branch steps', 
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
-      variableCatalog: emptyVariableCatalog,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'input-counter',
+            key: 'input.counter',
+            name: '计数器',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 3,
+            description: 'Input · 整数',
+          },
+          {
+            id: 'runtime-items',
+            key: 'runtime.items',
+            name: '结果集',
+            namespace: 'runtime',
+            valueType: 'list',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: 'Runtime · 列表',
+          },
+        ],
+      },
       cloudId: null,
     },
   };
@@ -2447,13 +2555,13 @@ test('persists rhai code step from editor panel', async ({ page }) => {
   });
 });
 
-test('creates variable from setVar template and persists catalog binding', async ({ page }) => {
-  const scriptId = 'script-editor-setvar-create';
+test('persists clearVars selection from variable list', async ({ page }) => {
+  const scriptId = 'script-editor-clear-vars';
   const script: StoredScriptTable = {
     id: scriptId,
     data: {
-      name: '变量创建脚本',
-      description: '验证 setVar 内联创建变量并保存',
+      name: '清空变量脚本',
+      description: '验证 clearVars 从变量列表选择并保存',
       userId: 'tester',
       userName: 'Tester',
       runtimeType: 'rhai',
@@ -2472,7 +2580,43 @@ test('creates variable from setVar template and persists catalog binding', async
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
-      variableCatalog: emptyVariableCatalog,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'input-counter',
+            key: 'input.counter',
+            name: '计数器',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 3,
+            description: 'Input · 整数',
+          },
+          {
+            id: 'runtime-items',
+            key: 'runtime.items',
+            name: '结果集',
+            namespace: 'runtime',
+            valueType: 'list',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: 'Runtime · 列表',
+          },
+        ],
+      },
       cloudId: null,
     },
   };
@@ -2480,33 +2624,21 @@ test('creates variable from setVar template and persists catalog binding', async
   await seedEditorState(page, script);
 
   await page.getByTestId('editor-tab-steps').click();
-  await page.getByTestId('editor-step-template-set-var').click();
+  await page.getByTestId('editor-step-template-clear-vars').click();
   await page.getByTestId('editor-step-card-0').click();
-  await page.getByTestId('editor-set-var-value').fill('7');
+  await page.getByTestId('editor-clear-vars-option-input.counter').click();
+  await page.getByTestId('editor-clear-vars-option-runtime.items').click();
 
   await page.getByTestId('editor-save').click();
 
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
-  const savedScript = state!.scripts.find((item) => item.id === scriptId);
   const [task] = state!.scriptTasks[scriptId];
 
-  expect(savedScript?.data.variableCatalog.variables).toHaveLength(1);
-  expect(savedScript?.data.variableCatalog.variables[0]).toMatchObject({
-    key: 'input.newVar1',
-    name: 'newVar1',
-    namespace: 'input',
-    valueType: 'int',
-  });
   expect(task.data.steps[0]).toMatchObject({
     op: 'dataHanding',
     a: {
-      type: 'setVar',
-      name: 'input.newVar1',
-      val: {
-        type: 'int',
-        value: 7,
-      },
-      expr: null,
+      type: 'clearVars',
+      names: ['input.counter', 'runtime.items'],
     },
   });
 });
@@ -2536,7 +2668,27 @@ test('renames input variable and syncs setVar reference', async ({ page }) => {
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
-      variableCatalog: emptyVariableCatalog,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'rename-me',
+            key: 'input.oldVar',
+            name: 'oldVar',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 0,
+            description: '',
+          },
+        ],
+      },
       cloudId: null,
     },
   };
@@ -2546,6 +2698,7 @@ test('renames input variable and syncs setVar reference', async ({ page }) => {
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-set-var').click();
   await page.getByTestId('editor-step-card-0').click();
+  await selectOptionByValue(page, 'editor-set-var-name', 'input.oldVar');
   await page.getByTestId('editor-set-var-locate').click();
   await page.getByTestId('editor-input-key-0').fill('renamedVar');
   await page.getByTestId('editor-tab-steps').click();
@@ -2563,6 +2716,83 @@ test('renames input variable and syncs setVar reference', async ({ page }) => {
       val: {
         type: 'int',
         value: 0,
+      },
+      expr: null,
+    },
+  });
+});
+
+test('persists structured json value for setVar', async ({ page }) => {
+  const scriptId = 'script-editor-setvar-json';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: 'JSON 变量脚本',
+      description: '验证 setVar 对对象变量保存结构化 JSON',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'runtime-payload',
+            key: 'runtime.payload',
+            name: '负载',
+            namespace: 'runtime',
+            valueType: 'object',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: null,
+            description: 'Runtime · 对象',
+          },
+        ],
+      },
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-set-var').click();
+  await page.getByTestId('editor-step-card-0').click();
+  await selectOptionByValue(page, 'editor-set-var-name', 'runtime.payload');
+  await fillCodeEditor(page, 'editor-set-var-json', '{\n  "enabled": true,\n  "items": [1, 2]\n}');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'setVar',
+      name: 'runtime.payload',
+      val: null,
+      json_val: {
+        enabled: true,
+        items: [1, 2],
       },
       expr: null,
     },
@@ -3013,7 +3243,27 @@ test('allows clearing policy name without forcing default text back', async ({ p
       scriptType: 'dev',
       isValid: true,
       allowClone: true,
-      variableCatalog: emptyVariableCatalog,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'rename-me',
+            key: 'input.oldVar',
+            name: 'oldVar',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 0,
+            description: '',
+          },
+        ],
+      },
       cloudId: null,
     },
   };

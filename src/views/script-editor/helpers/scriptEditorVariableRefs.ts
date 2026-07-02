@@ -67,6 +67,14 @@ export const collectVariableReferencesFromSteps = (steps: Step[], bucket = new S
         bucket.add(step.a.name.trim());
         continue;
       }
+      if (step.a.type === 'clearVars') {
+        step.a.names.forEach((name) => {
+          if (name.trim()) {
+            bucket.add(name.trim());
+          }
+        });
+        continue;
+      }
 
       if (step.a.type === 'filter') {
         if (step.a.input_var?.trim()) {
@@ -227,6 +235,10 @@ export const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string
         pushVariableUsage(bucket, step.a.name, stepLabel);
         continue;
       }
+      if (step.a.type === 'clearVars') {
+        step.a.names.forEach((name) => pushVariableUsage(bucket, name, stepLabel));
+        continue;
+      }
       if (step.a.type === 'filter') {
         pushVariableUsage(bucket, step.a.input_var, stepLabel);
         pushVariableUsage(bucket, step.a.out_name, stepLabel);
@@ -358,6 +370,10 @@ export const renameVariableReferencesInSteps = (steps: Step[], previousKey: stri
         if (nextStep.a.name === previousKey) {
           nextStep.a.name = nextKey;
         }
+        return nextStep;
+      }
+      if (nextStep.a.type === 'clearVars') {
+        nextStep.a.names = nextStep.a.names.map((name) => (name === previousKey ? nextKey : name));
         return nextStep;
       }
 

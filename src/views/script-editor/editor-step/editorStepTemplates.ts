@@ -752,7 +752,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
     id: 'set-var',
     icon: genSvg(SVG_ICONS.setVar),
     label: '设置变量',
-    description: '向任务上下文写入一个变量。',
+    description: '给已声明变量写入固定值。',
     group: '数据',
     create: () =>
       createBaseStep({
@@ -766,7 +766,24 @@ export const editorStepTemplates: EditorStepTemplate[] = [
             textValue: '0',
             boolValue: false,
           }),
+          json_val: null,
           expr: null,
+        },
+      }),
+  },
+  {
+    id: 'clear-vars',
+    icon: genSvg(SVG_ICONS.minus),
+    label: '清空变量',
+    description: '按变量类型写入空值或移除图像引用。',
+    group: '数据',
+    create: () =>
+      createBaseStep({
+        label: '清空变量',
+        op: STEP_OP.dataHanding,
+        a: {
+          type: DATA_TYPE.clearVars,
+          names: createStringList(),
         },
       }),
   },
@@ -1024,6 +1041,7 @@ export const describeStepTitle = (step: Step) => {
 
   if (step.op === STEP_OP.dataHanding) {
     if (step.a.type === DATA_TYPE.setVar) return '设置变量';
+    if (step.a.type === DATA_TYPE.clearVars) return '清空变量';
     if (step.a.type === DATA_TYPE.getVar) return '读取变量';
     if (step.a.type === DATA_TYPE.rhai) return 'Rhai 代码';
     if (step.a.type === DATA_TYPE.filter) return '过滤变量';
@@ -1128,6 +1146,8 @@ export const describeStepMeta = (step: Step) => {
     switch (step.a.type) {
       case DATA_TYPE.setVar:
         return `写入变量 ${step.a.name || '未命名变量'}`;
+      case DATA_TYPE.clearVars:
+        return step.a.names.length ? `清空 ${step.a.names.length} 个变量` : '清空变量列表';
       case DATA_TYPE.getVar:
         return `读取变量 ${step.a.name || '未命名变量'}`;
       case DATA_TYPE.rhai:
