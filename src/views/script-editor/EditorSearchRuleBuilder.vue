@@ -199,7 +199,7 @@ const resolvedLabelIndexOptions = computed(() => {
     ...props.labelIndexOptions,
   ];
 });
-const addableRuleTypes = computed(() => searchRuleTypeOptions.filter((option) => option.value !== SEARCH_RULE_TYPE.group || props.depth < 2));
+const addableRuleTypes = computed(() => searchRuleTypeOptions.filter((option) => option.value !== SEARCH_RULE_TYPE.group || props.depth < 4));
 const rootTestId = (suffix: string) => (props.testIdPrefix ? `${props.testIdPrefix}-${suffix}` : undefined);
 
 const replaceRule = (value: SearchRule) => {

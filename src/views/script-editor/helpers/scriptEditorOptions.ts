@@ -13,7 +13,7 @@ export const buildPolicyItems = (policies: PolicyTable[]): EditorNamedItem[] =>
   policies.map((policy) => ({
     id: policy.id,
     title: policy.data.name,
-    subtitle: `${policy.data.afterAction.length} 个命中步骤 · ${policy.data.beforeAction.length} 个全局步骤`,
+    subtitle: policy.data.note?.trim() || '未填写备注',
     badge: String(policy.orderIndex + 1),
   }));
 
@@ -24,7 +24,7 @@ export const buildPolicyGroupItems = (
   groups.map((group) => ({
     id: group.id,
     title: group.data.name,
-    subtitle: `${(groupPolicyIdsByGroupId[group.id] ?? []).length} 个策略`,
+    subtitle: group.data.note?.trim() || '未填写备注',
     badge: String(group.orderIndex + 1),
   }));
 
@@ -35,7 +35,7 @@ export const buildPolicySetItems = (
   sets.map((set) => ({
     id: set.id,
     title: set.data.name,
-    subtitle: `${(setGroupIdsBySetId[set.id] ?? []).length} 个策略组`,
+    subtitle: set.data.note?.trim() || '未填写备注',
     badge: String(set.orderIndex + 1),
   }));
 

@@ -44,7 +44,7 @@
                   {{ item.badge }}
                 </span>
               </div>
-              <p class="mt-2 text-xs text-(--app-text-faint)">{{ item.subtitle }}</p>
+              <p class="mt-2 truncate text-xs text-(--app-text-faint)">{{ item.subtitle }}</p>
             </div>
           </div>
 
