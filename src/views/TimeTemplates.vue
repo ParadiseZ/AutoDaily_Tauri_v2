@@ -6,12 +6,10 @@
       <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-sm font-semibold text-(--app-text-strong)">模板定义</p>
-            <p class="text-xs text-(--app-text-faint)">这里管理时间窗口本身。</p>
+            <p class="text-sm font-semibold text-(--app-text-strong)">模板</p>
           </div>
           <button class="app-button app-button-primary" type="button" @click="openCreateTemplateDialog">
             <AppIcon name="plus" :size="16" class="stroke-current" />
-            新增模板
           </button>
         </div>
 
@@ -59,11 +57,10 @@
       <SurfacePanel class="flex h-full min-h-0 flex-col gap-4">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <p class="text-sm font-semibold text-(--app-text-strong)">模板作用域</p>
-            <p class="text-xs text-(--app-text-faint)">这里管理哪些设备队列项挂在当前模板下。</p>
+            <p class="text-sm font-semibold text-(--app-text-strong)">作用列表</p>
           </div>
-          <button class="app-button app-button-ghost" type="button" :disabled="!selectedTemplate" @click="bindingDialogOpen = true">
-            追加作用域
+          <button class="app-button app-button-primary" type="button" :disabled="!selectedTemplate" @click="bindingDialogOpen = true">
+            <AppIcon name="plus" :size="16" class="stroke-current" />
           </button>
         </div>
 
@@ -132,18 +129,17 @@
 
     <AppDialog
       :open="templateDialogOpen"
-      :title="editingTemplateId ? '编辑时间模板' : '新增时间模板'"
-      description="时间模板只定义窗口本身，具体变量值在右侧作用域里配置。"
+      :title="editingTemplateId ? '编辑' : '新增'"
       width-class="max-w-lg"
       @close="closeTemplateDialog"
     >
       <div class="space-y-4">
         <label class="space-y-2 text-sm text-(--app-text-soft)">
           <span>模板名称</span>
-          <input v-model.trim="templateForm.name" class="app-input" type="text" placeholder="例如：早班 / 晚班" />
+          <input v-model.trim="templateForm.name" class="app-input" type="text" placeholder="早上/晚上" />
         </label>
 
-        <div class="grid gap-3 md:grid-cols-2">
+        <div class="grid gap-3 md:grid-cols-2 pt-4">
           <label class="space-y-2 text-sm text-(--app-text-soft)">
             <span>开始时间</span>
             <input v-model="templateForm.startTime" class="app-input" type="time" />
@@ -163,8 +159,8 @@
 
     <AppDialog
       :open="bindingDialogOpen"
-      title="追加模板作用域"
-      description="这里会直接向设备总队列追加一条脚本分配，并挂上当前模板。"
+      title="添加到总队列"
+      description="向设备总队列分配该脚本"
       width-class="max-w-lg"
       @close="closeBindingDialog"
     >
@@ -179,10 +175,10 @@
           <AppSelect v-model="bindingForm.scriptId" :options="bindingScriptOptions" placeholder="选择脚本" />
         </label>
 
-        <div class="flex justify-end gap-2">
+        <div class="flex justify-end gap-2 pt-4">
           <button class="app-button app-button-ghost" type="button" @click="closeBindingDialog">取消</button>
           <button class="app-button app-button-primary" type="button" :disabled="!selectedTemplate" @click="handleCreateScope">
-            追加到总队列
+            追加
           </button>
         </div>
       </div>

@@ -26,7 +26,7 @@
             恢复默认
           </button>
           <button class="app-button app-button-primary" type="button" :disabled="saving" @click="saveValues">
-            {{ saving ? '保存中...' : '保存模板变量' }}
+            {{ saving ? '保存中...' : '保存' }}
           </button>
         </div>
       </div>
@@ -62,7 +62,7 @@
         当前脚本没有可预览任务。
       </div>
 
-      <div
+      <!-- <div
         v-if="unboundEntries.length"
         class="rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4"
       >
@@ -116,7 +116,7 @@
             />
           </div>
         </div>
-      </div>
+      </div> -->
     </template>
   </div>
 </template>

@@ -75,7 +75,7 @@
     </div>
 
     <div class="grid min-h-0 flex-1 gap-1 xl:grid-cols-[1.35fr_1.35fr]">
-      <SurfacePanel tone="muted" padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
+      <SurfacePanel padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
         <div class="editor-panel-tabs min-w-max">
           <button
             v-for="tab in modeTabs"
@@ -345,7 +345,7 @@
         </template>
       </SurfacePanel>
 
-      <SurfacePanel tone="muted" padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
+      <SurfacePanel padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
         <div class="flex items-center justify-between">
           <div>
             <p class="text-sm font-semibold text-(--app-text-strong)">最近运行记录</p>

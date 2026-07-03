@@ -10,8 +10,9 @@
     <div class="editor-ui-preview-flow" :style="{ paddingLeft: `${Math.max(0, indentLevel ?? 0) * 1.05}rem` }">
       <span class="editor-ui-tone-bar" :class="toneBarClass" />
 
-      <label v-if="showEnabledToggle" class="editor-ui-toggle-chip" @click.stop>
-        <input
+      <input
+          v-if="showEnabledToggle"
+          class="hover:cursor-pointer"
           type="checkbox"
           :checked="taskEnabledPreview"
           :disabled="readonly"
@@ -19,10 +20,10 @@
           @click.stop
           @change="handleTaskEnabledEvent"
         />
-      </label>
 
-      <div class="editor-ui-task-copy">
-        <span class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
+      <div class="editor-ui-task-copy hover:cursor-pointer">
+        <span v-if="showEnabledToggle"  class="editor-ui-task-name" :class="taskToneClass" @click="updateTaskEnabled(!taskEnabledPreview)">{{ taskName }}</span>
+        <span v-else class="editor-ui-task-name" :class="taskToneClass">{{ taskName }}</span>
         <span v-if="taskDescription?.trim()" class="editor-ui-task-description">{{ taskDescription }}</span>
       </div>
 
@@ -400,8 +401,8 @@ watch(
 <style scoped>
 .editor-ui-preview-shell {
   border-radius: 16px;
-  border: 1px solid var(--app-border);
-  background: var(--app-panel-muted);
+/*   border: 1px solid var(--app-border); */
+/*   background: var(--app-panel-muted); */
   padding: 0.82rem 1rem;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }

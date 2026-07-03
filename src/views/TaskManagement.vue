@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-full min-h-0 flex-col gap-4">
     <div class="flex min-w-0 flex-nowrap items-center gap-3">
-      <div v-if="deviceIds.length" class="editor-panel-tabs task-device-tabs">
+      <div v-if="deviceIds.length" class="editor-panel-tabs task-device-tabs px-2">
         <button
           v-for="device in orderedDevices"
           :key="device.id"
@@ -10,7 +10,7 @@
           :class="{ 'editor-panel-tab-active': device.id === activeDevice?.id }"
           @click="deviceStore.selectedDeviceId = device.id"
         >
-          <span class="min-w-0 flex-1 truncate font-semibold">{{ device.data.deviceName }}</span>
+          <span class="min-w-0 truncate font-semibold">{{ device.data.deviceName }}</span>
           <StatusBadge
             :label="getTaskConnectionBadge(device.id).label"
             :tone="getTaskConnectionBadge(device.id).tone"

@@ -45,56 +45,74 @@
         </template>
       </div>
 
-      <div v-for="title in titleRows" :key="title.id" class="space-y-2">
+      <div v-for="title in titleRows" :key="title.id">
         <button
           type="button"
           class="preview-title-row"
           :class="{ 'preview-title-row-active': selectedTaskId === title.id }"
-          @click="$emit('select-task', title.id)"
+          :data-testid="`editor-task-preview-title-${title.id}`"
+          :aria-expanded="!isTitleCollapsed(title.id)"
+          @click="handleTitleClick(title.id)"
         >
-          <span class="preview-title-dot" />
-          <span>{{ title.name }}</span>
+          <span class="preview-title-row-main">
+            <span class="preview-title-dot" />
+            <span class="preview-title-label">{{ title.name }}</span>
+          </span>
+          <ChevronDown
+            class="preview-title-chevron"
+            :class="{ 'preview-title-chevron-collapsed': isTitleCollapsed(title.id) }"
+          />
         </button>
 
-        <div v-if="groupedTasksByTitle[title.id]?.length" class="space-y-2">
-          <template v-for="task in groupedTasksByTitle[title.id]" :key="task.id">
-            <div
-              class="preview-task-wrap"
-              :class="{ 'preview-task-wrap-clickable': selectedTaskId !== task.id }"
-              @click="selectedTaskId !== task.id && $emit('select-task', task.id)"
-            >
-              <EditorUiPreviewPanel
-                :task-name="task.name"
-                :task-description="task.description || ''"
-                :default-task-cycle="resolveTaskCycle(task)"
-                :default-task-cycle-value="resolveTaskCycleValue(task)"
-                :default-task-cycle-mode="resolveTaskCycleMode(task)"
-                :default-task-cycle-day="resolveTaskCycleDay(task)"
-                :editable-cycle="editAllTasks || selectedTaskId === task.id"
-                :show-enabled-toggle="task.showEnabledToggle"
-                :default-enabled="resolveTaskEnabled(task)"
-                :task-tone="task.taskTone"
-                :require-bound-input="requireBoundInput"
-                :show-task-cycle="showTaskCycle"
-                :embedded="true"
-                :readonly="!editAllTasks && selectedTaskId !== task.id"
-                :active="selectedTaskId === task.id"
-                :indent-level="task.indentLevel"
-                :ui-schema="selectedTaskId === task.id && !editAllTasks ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
-                :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
-                :input-entries="selectedTaskId === task.id && !editAllTasks ? selectedTaskInputEntries : sharedInputEntries"
-                @select-ui-field="$emit('select-ui-field', $event)"
-                @update-input="forwardUpdateInput"
-                @update:default-enabled="forwardTaskEnabled(task.id, $event)"
-                @update:default-task-cycle-value="forwardTaskCycleValue(task.id, $event)"
-                @update:default-task-cycle-day="forwardTaskCycleDay(task.id, $event)"
-              />
-            </div>
-          </template>
-        </div>
+        <div
+          class="preview-title-panel"
+          :class="{ 'preview-title-panel-collapsed': isTitleCollapsed(title.id) }"
+          :data-testid="`editor-task-preview-panel-${title.id}`"
+        >
+          <div class="preview-title-panel-inner">
+            <div class="preview-title-panel-content">
+              <div v-if="groupedTasksByTitle[title.id]?.length" class="space-y-2">
+                <template v-for="task in groupedTasksByTitle[title.id]" :key="task.id">
+                  <div
+                    class="preview-task-wrap"
+                    :class="{ 'preview-task-wrap-clickable': selectedTaskId !== task.id }"
+                    @click="selectedTaskId !== task.id && $emit('select-task', task.id)"
+                  >
+                    <EditorUiPreviewPanel
+                      :task-name="task.name"
+                      :task-description="task.description || ''"
+                      :default-task-cycle="resolveTaskCycle(task)"
+                      :default-task-cycle-value="resolveTaskCycleValue(task)"
+                      :default-task-cycle-mode="resolveTaskCycleMode(task)"
+                      :default-task-cycle-day="resolveTaskCycleDay(task)"
+                      :editable-cycle="editAllTasks || selectedTaskId === task.id"
+                      :show-enabled-toggle="task.showEnabledToggle"
+                      :default-enabled="resolveTaskEnabled(task)"
+                      :task-tone="task.taskTone"
+                      :require-bound-input="requireBoundInput"
+                      :show-task-cycle="showTaskCycle"
+                      :embedded="true"
+                      :readonly="!editAllTasks && selectedTaskId !== task.id"
+                      :active="selectedTaskId === task.id"
+                      :indent-level="task.indentLevel"
+                      :ui-schema="selectedTaskId === task.id && !editAllTasks ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
+                      :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
+                      :input-entries="selectedTaskId === task.id && !editAllTasks ? selectedTaskInputEntries : sharedInputEntries"
+                      @select-ui-field="$emit('select-ui-field', $event)"
+                      @update-input="forwardUpdateInput"
+                      @update:default-enabled="forwardTaskEnabled(task.id, $event)"
+                      @update:default-task-cycle-value="forwardTaskCycleValue(task.id, $event)"
+                      @update:default-task-cycle-day="forwardTaskCycleDay(task.id, $event)"
+                    />
+                  </div>
+                </template>
+              </div>
 
-        <div v-else class="rounded-[16px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
-          当前标题下还没有任务。
+              <div v-else class="rounded-[16px] border border-dashed border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft)">
+                当前标题下还没有任务。
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -106,7 +124,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { ChevronDown } from 'lucide-vue-next';
 import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import { parseUiSchema, type EditorUiSchema } from '@/views/script-editor/editorSchema';
@@ -158,6 +177,7 @@ const visibleTasks = computed(() =>
 );
 const sortedTasks = computed(() => [...visibleTasks.value].sort((left, right) => left.index - right.index));
 const titleRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'title'));
+const collapsedTitleIds = ref<string[]>([]);
 const groupedTasksByTitle = computed<Record<string, ScriptTaskTable[]>>(() =>
   Object.fromEntries(
     titleRows.value.map((title) => [
@@ -171,6 +191,7 @@ const ungroupedTasks = computed(() =>
   sortedTasks.value.filter((task) => task.rowType === 'task' && !groupedTaskIds.value.has(task.id)),
 );
 const taskCount = computed(() => visibleTasks.value.filter((task) => task.rowType === 'task').length);
+const isTitleCollapsed = (titleId: string) => collapsedTitleIds.value.includes(titleId);
 
 const resolveTaskEnabled = (task: ScriptTaskTable) =>
   Object.prototype.hasOwnProperty.call(props.taskEnabledById, task.id)
@@ -253,6 +274,36 @@ const forwardTaskCycleDay = (taskId: string, value: number) => {
   }
 };
 
+const toggleTitleCollapsed = (titleId: string) => {
+  collapsedTitleIds.value = isTitleCollapsed(titleId)
+    ? collapsedTitleIds.value.filter((id) => id !== titleId)
+    : [...collapsedTitleIds.value, titleId];
+};
+
+const handleTitleClick = (titleId: string) => {
+  emit('select-task', titleId);
+  toggleTitleCollapsed(titleId);
+};
+
+watch(titleRows, (titles) => {
+  const nextIds = new Set(titles.map((title) => title.id));
+  collapsedTitleIds.value = collapsedTitleIds.value.filter((id) => nextIds.has(id));
+}, { immediate: true });
+
+watch(() => props.selectedTaskId, (taskId) => {
+  if (!taskId) {
+    return;
+  }
+
+  const selectedTask = sortedTasks.value.find((task) => task.id === taskId && task.rowType === 'task');
+  const titleId = selectedTask?.sectionId;
+  if (!titleId || !isTitleCollapsed(titleId)) {
+    return;
+  }
+
+  collapsedTitleIds.value = collapsedTitleIds.value.filter((id) => id !== titleId);
+});
+
 </script>
 
 <style scoped>
@@ -260,7 +311,7 @@ const forwardTaskCycleDay = (taskId: string, value: number) => {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.65rem;
+  justify-content: space-between;
   border-radius: 16px;
   border: 1px solid var(--app-border);
   background: var(--app-panel-muted);
@@ -271,9 +322,23 @@ const forwardTaskCycleDay = (taskId: string, value: number) => {
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
 
+.preview-title-row-main {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+}
+
 .preview-title-row-active {
   border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.preview-title-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .preview-title-dot {
@@ -282,6 +347,42 @@ const forwardTaskCycleDay = (taskId: string, value: number) => {
   border-radius: 999px;
   background: color-mix(in srgb, var(--app-accent) 78%, white);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 14%, transparent);
+}
+
+.preview-title-chevron {
+  flex-shrink: 0;
+  color: var(--app-text-faint);
+  transition: transform 0.2s ease, color 0.16s ease;
+}
+
+.preview-title-row:hover .preview-title-chevron,
+.preview-title-row-active .preview-title-chevron {
+  color: var(--app-text-strong);
+}
+
+.preview-title-chevron-collapsed {
+  transform: rotate(-90deg);
+}
+
+.preview-title-panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.22s ease, opacity 0.18s ease;
+}
+
+.preview-title-panel-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.preview-title-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview-title-panel-content {
+  padding-top: 0.5rem;
 }
 
 .preview-task-wrap-clickable {
