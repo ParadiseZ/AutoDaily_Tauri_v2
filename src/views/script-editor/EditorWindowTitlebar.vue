@@ -191,7 +191,7 @@ onBeforeUnmount(() => {
   box-shadow: var(--app-shadow-soft);
   backdrop-filter: blur(16px);
   /* padding: 0.2rem 0rem 0.2rem 1rem; */
-  padding:0 0 0 0rem;
+  padding:0 0 0 0.75rem;
 }
 
 .editor-window-titlebar__prefix,

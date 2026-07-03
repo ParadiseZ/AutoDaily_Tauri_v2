@@ -52,20 +52,12 @@ onMounted(async () => {
 
 <style scoped>
 :deep(.main-app-titlebar.editor-window-titlebar) {
-  min-height: 48px;
-  max-height: 48px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 0.5rem;
+  min-height: 40px;
+  max-height: 40px;
   border-radius: 0;
-  padding: 0 0 0 1rem !important;
+  padding: 0 0 0 0.75rem !important;
 }
 
-:deep(.main-app-titlebar .editor-window-titlebar__window-button) {
-  width: 2.25rem;
-  min-height: 2rem;
-}
-
-:deep(.main-app-titlebar .editor-window-titlebar__window-controls) {
-  margin-left: 1rem;
-  margin-right: 0;
-}
 </style>
