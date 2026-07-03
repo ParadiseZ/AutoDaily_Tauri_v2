@@ -1,5 +1,5 @@
 <template>
-  <header class="app-page-header">
+  <header class="app-page-header px-4">
     <div class="space-y-2">
       <p v-if="eyebrow" class="app-eyebrow">{{ eyebrow }}</p>
       <div class="space-y-1">

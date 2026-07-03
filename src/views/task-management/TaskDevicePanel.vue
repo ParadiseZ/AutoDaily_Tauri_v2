@@ -1,12 +1,12 @@
 <template>
-  <SurfacePanel class="flex h-full min-h-0 flex-col gap-5 overflow-hidden">
-    <div class="flex flex-wrap items-start justify-between gap-4">
+  <SurfacePanel class="flex h-full min-h-0 flex-col gap-1 overflow-hidden px-2">
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="min-w-0 flex-1">
-        <div class="flex items-start gap-3">
-          <div class="min-w-0 flex-1 space-y-2">
+        <div class="flex gap-3">
+          <div class="min-w-0 flex-1 space-y-3">
             <div class="flex flex-wrap gap-2 text-sm text-(--app-text-soft)">
-              <span>{{ formatPlatformLabel(device.data.platform) }}</span>
-              <span>·</span>
+              <!-- <span>{{ formatPlatformLabel(device.data.platform) }}</span>
+              <span>·</span> -->
               <span>{{ formatConnectLabel(device.data) }}</span>
               <span>·</span>
               <span>{{ taskConnectionBadge.label }}</span>
@@ -30,7 +30,7 @@
         </div>
       </div>
 
-      <div v-if="showRuntimeActionButton" class="flex flex-wrap gap-2">
+      <div v-if="showRuntimeActionButton" class="flex flex-wrap gap-2 pr-3">
         <button v-if="!runtimeView.controls.showStopButton" class="app-button app-button-primary shadow-md shadow-blue-500/20" type="button" :disabled="deviceBusy" @click="$emit('start', device.id)">
           <AppIcon name="play" :size="16" class="fill-current" />
           运行
@@ -42,7 +42,7 @@
       </div>
     </div>
 
-    <div class="grid gap-3 xl:grid-cols-3">
+    <div class="grid gap-1 xl:grid-cols-3">
       <div class="runtime-result-block">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs font-semibold text-(--app-text-faint)">当前进度</p>
@@ -74,7 +74,7 @@
       </div>
     </div>
 
-    <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[1.35fr_0.95fr]">
+    <div class="grid min-h-0 flex-1 gap-1 xl:grid-cols-[1.35fr_1.35fr]">
       <SurfacePanel tone="muted" padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
         <div class="editor-panel-tabs min-w-max">
           <button
@@ -92,19 +92,19 @@
         <template v-if="activeMode === 'queue'">
           <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
             <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm font-semibold text-(--app-text-strong)">待运行队列</p>
+              <div class="flex justify-between items-center grap-2">
+                <p class="px-1 text-sm font-semibold text-(--app-text-strong)">待运行队列</p>
+                <StatusBadge :label="`${queuedAssignments.length} 条`" tone="neutral" />
               </div>
-              <StatusBadge :label="`${queuedAssignments.length} 条`" tone="neutral" />
-            </div>
-
-            <div class="grid gap-3 lg:grid-cols-[1fr_220px_auto]">
-              <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择要追加的脚本" />
-              <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
-              <button class="app-button app-button-ghost group" type="button" @click="handleAddScript">
-                <AppIcon name="list-plus" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
-                追加
-              </button>
+              
+              <div class="flex">
+                <AppSelect v-model="selectedScriptId" :options="scriptOptions" placeholder="选择脚本" />
+                <AppSelect v-model="selectedTemplateId" :options="templateOptions" placeholder="选择时间模板" />
+                <button class="app-button app-button-ghost group" type="button" @click="handleAddScript">
+                  <AppIcon name="list-plus" :size="16" class="text-(--app-text-faint) group-hover:text-(--app-accent) transition-colors" />
+                  追加
+                </button>
+              </div>
             </div>
             <p v-if="!scriptOptions.length" class="text-xs text-(--app-text-faint)">
               没有匹配脚本：{{ formatPlatformLabel(device.data.platform) }}
@@ -191,11 +191,7 @@
                 </span>
               </div>
 
-              <div v-if="!todayDueAssignments.length" class="text-sm text-(--app-text-soft)">
-                当前没有已到期的队列项。
-              </div>
-
-              <div v-else class="min-h-0 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
+              <div v-if="todayDueAssignments.length" class="min-h-0 space-y-2 overflow-y-auto pr-1 custom-scrollbar">
                 <div
                   v-for="assignment in todayDueAssignments"
                   :key="assignment.id"

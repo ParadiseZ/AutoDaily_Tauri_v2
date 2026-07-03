@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col gap-4">
+  <div class="flex h-full min-h-0 flex-col gap-1">
     <AppPageHeader
       title="脚本市场"
     >
@@ -39,7 +39,7 @@
     </SurfacePanel>
 
     <template v-else>
-    <SurfacePanel class="grid gap-3 lg:grid-cols-[1.2fr_1fr_220px_120px]">
+    <SurfacePanel class="grid gap-0 lg:grid-cols-[1.2fr_1fr_220px_120px]">
       <input v-model.trim="filters.keyword" class="app-input" placeholder="按脚本名称" :disabled="scriptStore.marketLoading" />
       <input v-model.trim="filters.author" class="app-input" placeholder="按作者" :disabled="scriptStore.marketLoading" />
       <AppSelect v-model="filters.runtimeType" :options="runtimeOptions" placeholder="运行时" :disabled="scriptStore.marketLoading" />
@@ -49,7 +49,7 @@
     </SurfacePanel>
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-    <div class="grid min-h-full gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+    <div class="grid min-h-full gap-0 xl:grid-cols-[360px_minmax(0,1fr)]">
       <SurfacePanel class="space-y-3">
         <div class="flex items-center justify-between">
           <div>

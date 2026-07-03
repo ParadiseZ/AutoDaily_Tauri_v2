@@ -26,8 +26,8 @@
             <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ script.data.name }}</p>
             <p class="mt-1 truncate text-xs text-(--app-text-faint)">版本：{{ script.data.verName }}</p>
           </div>
-          <span class="shrink-0 rounded-full bg-(--app-panel-muted) px-2 py-1 text-[11px] text-(--app-text-soft)">
-            {{ script.data.scriptType === 'published' ? '云端' : '本地' }}
+          <span v-if="script.data.scriptType === 'published'" class="shrink-0 rounded-full bg-green-100 px-2 py-1 text-[11px] text-(--app-text-strong) font-semibold">
+            云
           </span>
         </div>
       </button>

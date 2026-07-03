@@ -12,12 +12,12 @@
     </AppPageHeader>
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-    <SurfacePanel v-if="deviceStore.devices.length" class="overflow-hidden p-0">
+    <SurfacePanel v-if="deviceStore.devices.length" class="overflow-hidden p-0 h-full">
       <table class="app-table">
         <thead>
           <tr>
             <th>设备</th>
-            <th>平台</th>
+            <!-- <th>平台</th> -->
             <th>连接方式</th>
             <th>截图方式</th>
             <th>CPU</th>
@@ -30,10 +30,9 @@
             <td>
               <div class="space-y-1">
                 <p class="font-medium text-(--app-text-strong)">{{ device.data.deviceName }}</p>
-                <p class="text-xs text-(--app-text-faint)">{{ device.id }}</p>
               </div>
             </td>
-            <td>{{ formatPlatformLabel(device.data.platform) }}</td>
+            <!-- <td>{{ formatPlatformLabel(device.data.platform) }}</td> -->
             <td>{{ formatConnectLabel(device.data) }}</td>
             <td>{{ formatCaptureMethod(device.data.capMethod) }}</td>
             <td>{{ device.data.cores.length ? device.data.cores.join(', ') : '未绑定' }}</td>
@@ -77,13 +76,13 @@
                     {{ deviceStore.getDeviceRuntimeView(device.id).progress.label }} · {{ deviceStore.getDeviceRuntimeView(device.id).connectionLabel }}
                   </p>
                   <p class="max-w-[280px] truncate text-(--app-text-faint)">
-                    {{ deviceStore.getDeviceRuntimeView(device.id).progress.message || '暂无运行进度' }}
+                    {{ deviceStore.getDeviceRuntimeView(device.id).progress.message || '' }}
                   </p>
                 </div>
               </div>
             </td>
             <td>
-              <div class="flex justify-end gap-2">
+              <div class="flex gap-2">
                 <button
                   class="app-button app-button-ghost h-9 px-3 group text-sm"
                   type="button"
@@ -91,7 +90,6 @@
                   @click="openEditor(device.id)"
                 >
                   <AppIcon name="edit-3" :size="16" class="text-(--app-text-soft) transition-colors group-hover:text-(--app-accent)" />
-                  编辑
                 </button>
                 <button
                   class="app-button app-button-danger h-9 px-3 group text-sm"
@@ -100,7 +98,6 @@
                   @click="removeDevice(device.id)"
                 >
                   <AppIcon name="trash-2" :size="16" class="opacity-70 transition-opacity group-hover:opacity-100" />
-                  删除
                 </button>
               </div>
             </td>

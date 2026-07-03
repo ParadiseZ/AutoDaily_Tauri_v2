@@ -94,7 +94,7 @@
     </aside>
 
     <main class="min-w-0 flex-1 overflow-hidden">
-      <div class="h-full min-h-0 overflow-hidden px-4 pb-4 pt-6 lg:px-8">
+      <div class="h-full min-h-0 overflow-hidden pt-4">
         <router-view v-slot="{ Component }">
           <transition name="shell-fade" mode="out-in">
             <component :is="Component" />
@@ -103,7 +103,7 @@
       </div>
     </main>
 
-    <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2">
+    <!-- <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2">
       <button
         class="inline-flex items-center gap-2 rounded-full border border-(--app-border) bg-(--app-panel) px-4 py-2 text-sm font-semibold text-(--app-text-strong) shadow-lg shadow-slate-900/10 transition hover:border-(--app-accent) hover:text-(--app-accent)"
         type="button"
@@ -122,7 +122,7 @@
         <AppIcon name="bug" :size="16" />
         开发者工具
       </button>
-    </div>
+    </div> -->
   </div>
 </template>
 

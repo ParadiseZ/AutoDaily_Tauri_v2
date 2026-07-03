@@ -19,7 +19,7 @@
         </button>
       </div>
 
-      <div v-if="deviceIds.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      <div v-if="deviceIds.length" class="flex shrink-0 flex-wrap items-center justify-end gap-2 pr-4">
         <button class="app-button app-button-warning shadow-md shadow-amber-500/10" type="button" @click="handleStopAllDevices">
           <AppIcon name="square" :size="14" class="fill-current" />
           {{ bulkActionLabel.stop }}

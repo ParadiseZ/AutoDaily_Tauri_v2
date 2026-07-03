@@ -8,7 +8,7 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    label: string;
+    label?: string;
     tone?: 'neutral' | 'info' | 'success' | 'warning' | 'danger';
   }>(),
   {

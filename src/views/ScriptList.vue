@@ -20,7 +20,7 @@
     </AppPageHeader>
 
     
-    <div class="grid flex-1 min-h-0 gap-4 overflow-hidden xl:grid-cols-[300px_minmax(0,1fr)_420px]">
+    <div class="grid flex-1 min-h-0 gap-0 overflow-hidden xl:grid-cols-[300px_minmax(0,1fr)_420px]">
       <ScriptListSidebar
         v-model:search-query="searchQuery"
         :scripts="filteredScripts"

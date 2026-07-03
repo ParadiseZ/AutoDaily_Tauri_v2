@@ -130,6 +130,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppLoadingState from '@/components/shared/AppLoadingState.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';

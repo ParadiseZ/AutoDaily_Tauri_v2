@@ -5,35 +5,36 @@
         <div class="min-w-0 flex-1 space-y-2">
           <div class="flex flex-wrap items-center gap-2">
             <h2 class="truncate text-xl font-semibold text-(--app-text-strong)">{{ script.data.name }}</h2>
-            <StatusBadge :label="formatScriptType(script)" :tone="script.data.scriptType === 'published' ? 'info' : 'success'" />
           </div>
           <p class="max-w-2xl text-sm leading-6 text-(--app-text-soft)">
             {{ script.data.description }}
           </p>
         </div>
 
-        <div class="flex shrink-0 flex-col items-stretch gap-2">
+        <div class="flex shrink-0 items-stretch gap-2 pt-1">
           <button
             v-if="canEditScript"
             class="app-button app-button-primary justify-center shadow-none"
             type="button"
             @click="$emit('open-editor', script.id)"
+            title="编辑逻辑"
           >
-            <AppIcon name="square-pen" :size="16" />
-            打开编辑器
+            <AppIcon name="pencil-line" :size="16" />
+            逻辑
           </button>
           <button
             v-if="canEditScript"
             class="app-button app-button-ghost justify-center"
             type="button"
             @click="$emit('edit-info', script.id)"
+            title="编辑信息"
           >
             <AppIcon name="pencil-line" :size="16" />
-            编辑信息
+            信息
           </button>
-          <p v-if="!canEditScript" class="max-w-56 text-xs leading-5 text-(--app-text-faint)">
+          <!-- <p v-if="!canEditScript" class="max-w-56 text-xs leading-5 text-(--app-text-faint)">
             云端脚本需先克隆为本地脚本后，才能编辑或再次上传。
-          </p>
+          </p> -->
         </div>
       </div>
 
@@ -45,6 +46,7 @@
             type="button"
             :disabled="uploadPending"
             @click="$emit('upload', script.id)"
+            title="上传到云端"
           >
             <AppIcon name="cloud-upload" :size="14" />
             {{ uploadButtonLabel }}
@@ -54,17 +56,18 @@
             class="app-button app-button-ghost app-toolbar-button"
             type="button"
             @click="$emit('clone', script.id)"
+            title="克隆"
           >
             <AppIcon name="copy" :size="14" />
-            {{ cloneButtonLabel }}
+              克隆
           </button>
         </div>
         <div class="flex flex-wrap gap-2">
-          <button class="app-button app-button-warning app-toolbar-button shadow-none" type="button" @click="$emit('clear-logs', script.id)">
+          <button class="app-button app-button-warning app-toolbar-button shadow-none" type="button" @click="$emit('clear-logs', script.id)" title="清除任务运行记录">
             <AppIcon name="eraser" :size="14" />
-            清理记录
+            记录  
           </button>
-          <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('delete', script.id)">
+          <button class="app-button app-button-danger app-toolbar-button" type="button" @click="$emit('delete', script.id)" title="删除脚本">
             <AppIcon name="trash-2" :size="14" />
             删除
           </button>
@@ -141,7 +144,6 @@ import {
   formatNumberLike,
   formatPlatformLabel,
   formatRuntimeLabel,
-  formatScriptType,
 } from '@/utils/presenters';
 
 const props = defineProps<{
@@ -164,7 +166,6 @@ const canCloneScript = computed(() => {
     props.script.data.userId === props.currentUserId
   );
 });
-const cloneButtonLabel = computed(() => (props.script?.data.scriptType === 'published' ? '克隆' : '克隆'));
 const uploadButtonLabel = computed(() => props.uploadPendingLabel?.trim() || '上传');
 
 defineEmits<{

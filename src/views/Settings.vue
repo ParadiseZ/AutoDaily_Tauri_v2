@@ -5,8 +5,8 @@
     />
 
     <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-    <div class="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-      <div class="space-y-4">
+    <div class="grid gap-0 xl:grid-cols-[1.05fr_0.95fr] pr-3">
+      <div>
         <SettingsSection icon="user" title="用户信息" :right-info="userStore.userProfile?.email">
           <div v-if="!userStore.isLoggedIn" class="flex items-center justify-between gap-4 rounded-[20px] border border-(--app-border) px-4 py-4">
             <div>
@@ -67,7 +67,7 @@
         </SettingsSection>
 
         <SettingsSection icon="monitor" title="界面与启动" description="这些偏工作流的偏好写入本地 Store，并且主题会立即反馈到桌面界面。">
-          <div class="grid gap-4 md:grid-cols-2">
+          <div class="grid gap-1 md:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-sm text-(--app-text-soft)">主题</span>
               <AppSelect v-model="settingsStore.preferences.appTheme" :options="themeOptions" @update:model-value="handleThemeChange" />
@@ -199,7 +199,7 @@
         </SettingsSection>
       </div>
 
-      <div class="space-y-4">
+      <div>
         <SettingsSection icon="file-clock" title="日志设置" description="主进程日志由 Tauri 命令即时修改，日志路径和保留天数都在这里维护。">
           <div class="grid gap-4 md:grid-cols-2">
             <label class="grid gap-2">
