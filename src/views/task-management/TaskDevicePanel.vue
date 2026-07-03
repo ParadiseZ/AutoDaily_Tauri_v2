@@ -65,7 +65,7 @@
 
       <div class="runtime-result-block" :class="runtimeResult.latestTimeout ? 'runtime-result-block-warning' : ''">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-xs font-semibold text-(--app-text-faint)">Timeout</p>
+          <p class="text-xs font-semibold text-(--app-text-faint)">超时事件</p>
           <StatusBadge :label="runtimeTimeoutLabel" :tone="runtimeTimeoutTone" />
         </div>
         <p class="mt-2 line-clamp-2 text-sm text-(--app-text-strong)">
@@ -74,7 +74,7 @@
       </div>
     </div>
 
-    <div class="grid min-h-0 flex-1 gap-1 xl:grid-cols-[1.35fr_1.35fr]">
+    <div class="grid min-h-0 flex-1 gap-0 xl:grid-cols-[1.35fr_1.35fr]">
       <SurfacePanel padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
         <div class="editor-panel-tabs min-w-max">
           <button
@@ -346,7 +346,7 @@
       </SurfacePanel>
 
       <SurfacePanel padding="sm" class="flex min-h-0 flex-col gap-4 overflow-hidden">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between px-1">
           <div>
             <p class="text-sm font-semibold text-(--app-text-strong)">最近运行记录</p>
           </div>

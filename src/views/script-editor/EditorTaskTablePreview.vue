@@ -1,55 +1,92 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col rounded-[22px] border border-(--app-border) bg-(--app-panel) px-5 py-5 shadow-(--app-shadow-soft)">
+  <div class="flex h-full min-h-0 flex-col rounded-[22px] py-5 ">
     <div v-if="showHeader" class="flex items-center justify-between gap-3">
       <span class="rounded-full border border-(--app-border) bg-(--app-panel-muted) px-3 py-1 text-xs text-(--app-text-faint)">
         {{ taskCount }} 个任务行
       </span>
     </div>
 
-    <div class="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1 custom-scrollbar" :class="showHeader ? 'mt-4' : ''">
+    <div class="preview-scroll-shell min-h-0 flex-1" :class="showHeader ? 'mt-4' : ''">
+      <div class="preview-scroll-body space-y-4 overflow-y-auto custom-scrollbar">
       <div v-if="ungroupedTasks.length" class="space-y-2">
-        <p class="text-[11px] uppercase tracking-[0.14em] text-(--app-text-faint)">未分组任务</p>
-        <template v-for="task in ungroupedTasks" :key="task.id">
-          <div
-            class="preview-task-wrap"
-            :class="{ 'preview-task-wrap-clickable': selectedTaskId !== task.id }"
-            @click="selectedTaskId !== task.id && $emit('select-task', task.id)"
-          >
-            <EditorUiPreviewPanel
-              :task-name="task.name"
-              :task-description="task.description || ''"
-              :default-task-cycle="resolveTaskCycle(task)"
-              :default-task-cycle-value="resolveTaskCycleValue(task)"
-              :default-task-cycle-mode="resolveTaskCycleMode(task)"
-              :default-task-cycle-day="resolveTaskCycleDay(task)"
-              :editable-cycle="editAllTasks || selectedTaskId === task.id"
-              :show-enabled-toggle="task.showEnabledToggle"
-              :default-enabled="resolveTaskEnabled(task)"
-              :task-tone="task.taskTone"
-              :require-bound-input="requireBoundInput"
-              :show-task-cycle="showTaskCycle"
-              :embedded="true"
-              :readonly="!editAllTasks && selectedTaskId !== task.id"
-              :active="selectedTaskId === task.id"
-              :indent-level="task.indentLevel"
-              :ui-schema="selectedTaskId === task.id && !editAllTasks ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
-              :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
-              :input-entries="selectedTaskId === task.id && !editAllTasks ? selectedTaskInputEntries : sharedInputEntries"
-              @select-ui-field="$emit('select-ui-field', $event)"
-              @update-input="forwardUpdateInput"
-              @update:default-enabled="forwardTaskEnabled(task.id, $event)"
-              @update:default-task-cycle-value="forwardTaskCycleValue(task.id, $event)"
-              @update:default-task-cycle-day="forwardTaskCycleDay(task.id, $event)"
-            />
+        <button
+          type="button"
+          class="preview-title-row"
+          :class="{
+            'preview-title-row-active': selectedTaskId === ungroupedTitileId,
+            'preview-title-row-expanded': !isTitleCollapsed(ungroupedTitileId),
+          }"
+          :data-testid="`editor-task-preview-title-${ungroupedTitileId}`"
+          :aria-expanded="!isTitleCollapsed(ungroupedTitileId)"
+          @click="handleTitleClick(ungroupedTitileId)"
+        >
+          <span class="preview-title-row-main">
+            <span class="preview-title-dot" />
+            <span class="preview-title-label">未分组任务</span>
+          </span>
+          <ChevronDown
+            class="preview-title-chevron"
+            :class="{ 'preview-title-chevron-collapsed': isTitleCollapsed(ungroupedTitileId) }"
+          />
+        </button>
+
+        <div
+          class="preview-title-panel"
+          :class="{ 'preview-title-panel-collapsed': isTitleCollapsed(ungroupedTitileId) }"
+          :data-testid="`editor-task-preview-panel-${ungroupedTitileId}`"
+        >
+          <div class="preview-title-panel-inner">
+            <div class="preview-title-panel-content">
+              <template v-for="task in ungroupedTasks" :key="task.id">
+                <div
+                  class="preview-task-wrap"
+                  :class="{
+                    'preview-task-wrap-clickable': selectedTaskId !== task.id,
+                    'preview-task-wrap-active': selectedTaskId === task.id,
+                  }"
+                  @click="selectedTaskId !== task.id && $emit('select-task', task.id)"
+                >
+                  <EditorUiPreviewPanel
+                    :task-name="task.name"
+                    :task-description="task.description || ''"
+                    :default-task-cycle="resolveTaskCycle(task)"
+                    :default-task-cycle-value="resolveTaskCycleValue(task)"
+                    :default-task-cycle-mode="resolveTaskCycleMode(task)"
+                    :default-task-cycle-day="resolveTaskCycleDay(task)"
+                    :editable-cycle="editAllTasks || selectedTaskId === task.id"
+                    :show-enabled-toggle="task.showEnabledToggle"
+                    :default-enabled="resolveTaskEnabled(task)"
+                    :task-tone="task.taskTone"
+                    :require-bound-input="requireBoundInput"
+                    :show-task-cycle="showTaskCycle"
+                    :embedded="true"
+                    :readonly="!editAllTasks && selectedTaskId !== task.id"
+                    :active="selectedTaskId === task.id"
+                    :indent-level="task.indentLevel"
+                    :ui-schema="selectedTaskId === task.id && !editAllTasks ? selectedTaskUiSchema : parseUiSchema(task.data.uiData ?? {})"
+                    :selected-ui-field-id="selectedTaskId === task.id ? selectedUiFieldId : null"
+                    :input-entries="selectedTaskId === task.id && !editAllTasks ? selectedTaskInputEntries : sharedInputEntries"
+                    @select-ui-field="$emit('select-ui-field', $event)"
+                    @update-input="forwardUpdateInput"
+                    @update:default-enabled="forwardTaskEnabled(task.id, $event)"
+                    @update:default-task-cycle-value="forwardTaskCycleValue(task.id, $event)"
+                    @update:default-task-cycle-day="forwardTaskCycleDay(task.id, $event)"
+                  />
+                </div>
+              </template>
+            </div>
           </div>
-        </template>
+        </div>
       </div>
 
       <div v-for="title in titleRows" :key="title.id">
         <button
           type="button"
           class="preview-title-row"
-          :class="{ 'preview-title-row-active': selectedTaskId === title.id }"
+          :class="{
+            'preview-title-row-active': selectedTaskId === title.id,
+            'preview-title-row-expanded': !isTitleCollapsed(title.id),
+          }"
           :data-testid="`editor-task-preview-title-${title.id}`"
           :aria-expanded="!isTitleCollapsed(title.id)"
           @click="handleTitleClick(title.id)"
@@ -75,7 +112,10 @@
                 <template v-for="task in groupedTasksByTitle[title.id]" :key="task.id">
                   <div
                     class="preview-task-wrap"
-                    :class="{ 'preview-task-wrap-clickable': selectedTaskId !== task.id }"
+                    :class="{
+                      'preview-task-wrap-clickable': selectedTaskId !== task.id,
+                      'preview-task-wrap-active': selectedTaskId === task.id,
+                    }"
                     @click="selectedTaskId !== task.id && $emit('select-task', task.id)"
                   >
                     <EditorUiPreviewPanel
@@ -118,6 +158,7 @@
 
       <div v-if="!titleRows.length && !ungroupedTasks.length" class="rounded-[16px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
         还没有任务可预览。
+      </div>
       </div>
     </div>
   </div>
@@ -172,12 +213,18 @@ const emit = defineEmits<{
   'update:task-cycle': [taskId: string, value: TaskCycle];
 }>();
 
+const ungroupedTitileId = '844533e9-03b7-4ac2-a423-6d608ba94e10';
+
 const visibleTasks = computed(() =>
   props.tasks.filter((task) => !task.isDeleted && !task.isHidden),
 );
 const sortedTasks = computed(() => [...visibleTasks.value].sort((left, right) => left.index - right.index));
 const titleRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'title'));
 const collapsedTitleIds = ref<string[]>([]);
+const collapsibleTitleIds = computed(() => [
+  ...titleRows.value.map((title) => title.id),
+  ...(ungroupedTasks.value.length ? [ungroupedTitileId] : []),
+]);
 const groupedTasksByTitle = computed<Record<string, ScriptTaskTable[]>>(() =>
   Object.fromEntries(
     titleRows.value.map((title) => [
@@ -285,8 +332,8 @@ const handleTitleClick = (titleId: string) => {
   toggleTitleCollapsed(titleId);
 };
 
-watch(titleRows, (titles) => {
-  const nextIds = new Set(titles.map((title) => title.id));
+watch(collapsibleTitleIds, (titleIds) => {
+  const nextIds = new Set(titleIds);
   collapsedTitleIds.value = collapsedTitleIds.value.filter((id) => nextIds.has(id));
 }, { immediate: true });
 
@@ -296,8 +343,12 @@ watch(() => props.selectedTaskId, (taskId) => {
   }
 
   const selectedTask = sortedTasks.value.find((task) => task.id === taskId && task.rowType === 'task');
-  const titleId = selectedTask?.sectionId;
-  if (!titleId || !isTitleCollapsed(titleId)) {
+  if (!selectedTask) {
+    return;
+  }
+
+  const titleId = selectedTask.sectionId ?? ungroupedTitileId;
+  if (!isTitleCollapsed(titleId)) {
     return;
   }
 
@@ -307,6 +358,33 @@ watch(() => props.selectedTaskId, (taskId) => {
 </script>
 
 <style scoped>
+.preview-scroll-shell {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview-scroll-body {
+  height: 100%;
+  padding-right: 0.65rem;
+  margin-right: -0.65rem;
+  scrollbar-gutter: stable;
+  scrollbar-width: 14pxs;
+}
+
+.preview-scroll-body::-webkit-scrollbar {
+  width: 14px;
+}
+
+.preview-scroll-body::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+}
+
+.preview-scroll-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 .preview-title-row {
   display: flex;
   width: 100%;
@@ -315,11 +393,17 @@ watch(() => props.selectedTaskId, (taskId) => {
   border-radius: 16px;
   border: 1px solid var(--app-border);
   background: var(--app-panel-muted);
-  padding: 0.85rem 1rem;
+  padding: 1rem 1rem;
   text-align: left;
   font-weight: 700;
   color: var(--app-text-strong);
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.preview-title-row-expanded {
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+  color: var(--color-primary-content);
 }
 
 .preview-title-row-main {
@@ -332,6 +416,11 @@ watch(() => props.selectedTaskId, (taskId) => {
 .preview-title-row-active {
   border-color: color-mix(in srgb, var(--app-accent) 34%, var(--app-border));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.preview-title-row-expanded.preview-title-row-active {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, white 20%, transparent);
 }
 
 .preview-title-label {
@@ -349,6 +438,11 @@ watch(() => props.selectedTaskId, (taskId) => {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 14%, transparent);
 }
 
+.preview-title-row-expanded .preview-title-dot {
+  background: currentColor;
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 18%, transparent);
+}
+
 .preview-title-chevron {
   flex-shrink: 0;
   color: var(--app-text-faint);
@@ -358,6 +452,14 @@ watch(() => props.selectedTaskId, (taskId) => {
 .preview-title-row:hover .preview-title-chevron,
 .preview-title-row-active .preview-title-chevron {
   color: var(--app-text-strong);
+}
+
+.preview-title-row-expanded .preview-title-chevron,
+.preview-title-row-expanded:hover .preview-title-chevron,
+.preview-title-row-expanded.preview-title-row-active .preview-title-chevron {
+  /* color: var(--color-primary-content); */
+  color: var(--app-accent);
+  color: var(--color-primary-content);
 }
 
 .preview-title-chevron-collapsed {
@@ -386,6 +488,18 @@ watch(() => props.selectedTaskId, (taskId) => {
 }
 
 .preview-task-wrap-clickable {
+  border-radius: 18px;
   cursor: pointer;
+  transition: background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.preview-task-wrap-clickable:hover {
+  background: color-mix(in srgb, var(--app-accent) 8%, var(--app-panel-muted));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 14%, transparent);
+}
+
+.preview-task-wrap-active {
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--app-accent) 10%, transparent);
 }
 </style>

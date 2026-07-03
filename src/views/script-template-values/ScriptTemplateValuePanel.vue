@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col gap-4">
+  <div class="flex h-full min-h-0 flex-col gap-0">
     <div v-if="loading" class="flex min-h-0 flex-1 items-center rounded-[18px] border border-(--app-border) px-4 py-8 text-sm text-(--app-text-soft)">
       正在读取模板变量...
     </div>
@@ -9,27 +9,31 @@
     </div>
 
     <template v-else>
-      <div class="flex flex-wrap items-center justify-between gap-3 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
-        <div class="flex flex-wrap items-center gap-2 text-xs text-(--app-text-faint)">
-          <span class="rounded-full border border-(--app-border) px-3 py-1">{{ entries.length }} 个变量</span>
-          <span v-if="recordUpdatedAt" class="rounded-full border border-(--app-border) px-3 py-1">上次保存 {{ recordUpdatedAt }}</span>
-          <span
-            class="rounded-full px-3 py-1"
-            :class="hasDirtyChanges ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
-          >
-            {{ hasDirtyChanges ? '未保存' : '已同步' }}
-          </span>
-        </div>
+      <div class="flex">
+        <div class="flex flex-1 items-center justify-between gap-3 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3">
+          <div class="flex flex-wrap items-center gap-2 text-xs text-(--app-text-faint)">
+            <span class="rounded-full border border-(--app-border) px-3 py-1">{{ entries.length }} 个变量</span>
+            <span v-if="recordUpdatedAt" class="rounded-full border border-(--app-border) px-3 py-1">上次保存 {{ recordUpdatedAt }}</span>
+            <span
+              class="rounded-full px-3 py-1"
+              :class="hasDirtyChanges ? 'bg-amber-500/12 text-amber-700' : 'bg-emerald-500/12 text-emerald-700'"
+            >
+              {{ hasDirtyChanges ? '未保存' : '已同步' }}
+            </span>
+          </div>
 
-        <div class="flex flex-wrap gap-2">
-          <button class="app-button app-button-ghost" type="button" :disabled="saving" @click="resetToDefaults">
-            恢复默认
-          </button>
-          <button class="app-button app-button-primary" type="button" :disabled="saving" @click="saveValues">
-            {{ saving ? '保存中...' : '保存' }}
-          </button>
+          <div class="flex flex-wrap gap-2">
+            <button class="app-button app-button-ghost" type="button" :disabled="saving" @click="resetToDefaults">
+              恢复默认
+            </button>
+            <button class="app-button app-button-primary" type="button" :disabled="saving" @click="saveValues">
+              {{ saving ? '保存中...' : '保存' }}
+            </button>
+          </div>
         </div>
+        <div class="flex w-3"></div>
       </div>
+      
 
       <EditorTaskTablePreview
         v-if="previewTasks.length"
