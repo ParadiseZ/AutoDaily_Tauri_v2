@@ -1,5 +1,8 @@
 <template>
   <header class="editor-window-titlebar">
+    <div v-if="props.icon">
+      <AppIcon  name="logo" type="custom" :size="16" class="drop-shadow-md text-(--app-accent)" />
+    </div>
     <div v-if="$slots.prefix" class="editor-window-titlebar__prefix">
       <slot name="prefix" />
     </div>
@@ -7,9 +10,9 @@
     <div class="editor-window-titlebar__drag" @mousedown.left.prevent="handleStartDragging">
       <div class="space-y-1">
         <div class="editor-window-titlebar__title-row">
-          <h6 class="editor-window-titlebar__title">
+          <p class="editor-window-titlebar__title">
             {{ title }}
-          </h6>
+          </p>
           <span
             v-if="statusLabel"
             class="editor-window-titlebar__status rounded-full text-xs font-medium"
@@ -65,6 +68,7 @@ const props = withDefaults(
   defineProps<{
     title?: string;
     meta?: string | null;
+    icon?: boolean | null;
     statusLabel?: string | null;
     statusTone?: 'info' | 'success' | 'warning' | 'danger';
     requestClose?: () => boolean | Promise<boolean>;
@@ -177,7 +181,8 @@ onBeforeUnmount(() => {
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 0.75rem;
-  min-height: 64px;
+  min-height: 48px;
+  max-height: 48px;
   border-bottom: 1px solid color-mix(in srgb, var(--app-border) 92%, transparent);
   background:
     radial-gradient(circle at 10% 14%, rgba(70, 110, 255, 0.14), transparent 24%),
@@ -185,7 +190,8 @@ onBeforeUnmount(() => {
     var(--app-toolbar-bg);
   box-shadow: var(--app-shadow-soft);
   backdrop-filter: blur(16px);
-  padding: 0.65rem 0.75rem 0.65rem 1rem;
+  /* padding: 0.2rem 0rem 0.2rem 1rem; */
+  padding:0 0 0 0rem;
 }
 
 .editor-window-titlebar__prefix,
@@ -194,7 +200,7 @@ onBeforeUnmount(() => {
 .editor-window-titlebar__window-controls {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0rem;
 }
 
 .editor-window-titlebar__drag {
@@ -203,11 +209,7 @@ onBeforeUnmount(() => {
 
 .editor-window-titlebar__title {
   margin: 0;
-  color: var(--app-text-strong);
-  font-size: 1rem;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1;
+  font-size: 14px;
 }
 
 .editor-window-titlebar__title-row,
@@ -262,4 +264,5 @@ onBeforeUnmount(() => {
     grid-row: 1;
   }
 }
+
 </style>
