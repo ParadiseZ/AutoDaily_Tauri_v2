@@ -10,7 +10,13 @@
       </div>
     </div>
 
-    <div v-if="!collapsed" class="min-h-0 flex-1 overflow-y-auto custom-scrollbar" @scroll="closeContextMenu">
+    <div
+      v-if="!collapsed"
+      ref="scrollRoot"
+      class="min-h-0 flex-1 overflow-y-auto custom-scrollbar"
+      :data-testid="`${testIdPrefix}-sidebar-scroll`"
+      @scroll="closeContextMenu"
+    >
       <div v-if="filteredItems.length" class="space-y-2 pr-1">
         <article
           v-for="item in filteredItems"
@@ -147,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorCollectionMoveAction, EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';
@@ -197,6 +203,7 @@ const activeLeafAnchor = ref<MenuRect | null>(null);
 const contextMenuRoot = ref<HTMLElement | null>(null);
 const targetMenuRoot = ref<HTMLElement | null>(null);
 const actionMenuRoot = ref<HTMLElement | null>(null);
+const scrollRoot = ref<HTMLElement | null>(null);
 
 const filteredItems = computed(() => {
   const keyword = search.value.trim().toLowerCase();
@@ -209,6 +216,7 @@ const testIdPrefix = computed(() => props.itemTestIdPrefix.replace(/-item$/, '')
 const currentContextItem = computed(() => props.items.find((item) => item.id === contextMenu.value?.itemId) ?? null);
 const targetItems = computed(() => filteredItems.value.filter((item) => item.id !== contextMenu.value?.itemId));
 const activeTarget = computed(() => props.items.find((item) => item.id === activeTargetId.value) ?? null);
+const visibleItemSignature = computed(() => filteredItems.value.map((item) => item.id).join('|'));
 
 const resetDrag = () => {
   draggingId.value = null;
@@ -342,6 +350,17 @@ const selectItem = (id: string) => {
   emit('select', id);
 };
 
+const scrollSelectedItemIntoView = async () => {
+  if (props.collapsed || !props.selectedId) {
+    return;
+  }
+
+  await nextTick();
+  scrollRoot.value
+    ?.querySelector<HTMLElement>(`[data-testid="${props.itemTestIdPrefix}-${props.selectedId}"]`)
+    ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+};
+
 const handleItemContextMenu = (event: MouseEvent, itemId: string) => {
   const allowNativeContextMenu = import.meta.env.DEV && event.shiftKey;
   if (allowNativeContextMenu) {
@@ -425,6 +444,14 @@ watch(
       closeContextMenu();
     }
   },
+);
+
+watch(
+  [() => props.selectedId, () => props.collapsed, visibleItemSignature],
+  () => {
+    void scrollSelectedItemIntoView();
+  },
+  { immediate: true },
 );
 
 onMounted(() => {

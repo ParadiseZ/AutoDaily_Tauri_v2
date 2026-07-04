@@ -4,7 +4,7 @@ use crate::domain::devices::device_schedule::TaskCycle;
 use crate::domain::scripts::nodes::action::{Action, ClickMode};
 use crate::domain::scripts::nodes::data_handing::{ColorCompareMethod, ColorRgb};
 use crate::domain::scripts::nodes::flow_control::PolicySetResultCompareOp;
-use crate::domain::scripts::nodes::flow_control::{ConditionNode, CurrentTaskRule, FlowControl};
+use crate::domain::scripts::nodes::flow_control::{ConditionNode, FlowControl};
 use crate::domain::scripts::nodes::task_control::{StateStatus, StateTarget, TaskControl};
 use crate::domain::scripts::point::PointU16;
 use crate::domain::scripts::policy::{PolicyInfo, PolicyTable};
@@ -18,7 +18,6 @@ use crate::domain::scripts::script_variable::{
     ScriptVariableValueType,
 };
 use crate::domain::vision::ocr_search::{SearchRule, VisionSnapshot};
-use crate::domain::vision::ocr_search::LogicOp;
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult};
 use crate::infrastructure::context::runtime_context::RuntimeContext;
 use crate::infrastructure::core::{PolicyId, TaskId, UuidV7};
@@ -1526,7 +1525,7 @@ async fn task_control_set_state_applies_multiple_targets() {
 }
 
 #[tokio::test]
-async fn current_task_condition_matches_target_list() {
+async fn current_task_condition_matches_target_and_expected_value() {
     let mut executor = build_executor();
     let task_id = UuidV7(710);
     {
@@ -1536,72 +1535,71 @@ async fn current_task_condition_matches_target_list() {
 
     let matched = executor
         .evaluate_condition(&ConditionNode::CurrentTaskIn {
-            op: LogicOp::Or,
-            items: Vec::new(),
-            targets: vec![UuidV7(709), task_id],
+            current: crate::domain::scripts::nodes::flow_control::CurrentTaskCondition {
+                target: Some(task_id),
+                expected: true,
+            },
         })
         .await
         .unwrap();
     let unmatched = executor
         .evaluate_condition(&ConditionNode::CurrentTaskIn {
-            op: LogicOp::Or,
-            items: Vec::new(),
-            targets: vec![UuidV7(711)],
+            current: crate::domain::scripts::nodes::flow_control::CurrentTaskCondition {
+                target: Some(UuidV7(711)),
+                expected: true,
+            },
+        })
+        .await
+        .unwrap();
+    let negated = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            current: crate::domain::scripts::nodes::flow_control::CurrentTaskCondition {
+                target: Some(UuidV7(711)),
+                expected: false,
+            },
+        })
+        .await
+        .unwrap();
+    let empty_target = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            current: crate::domain::scripts::nodes::flow_control::CurrentTaskCondition {
+                target: None,
+                expected: true,
+            },
         })
         .await
         .unwrap();
 
     assert!(matched);
     assert!(!unmatched);
+    assert!(negated);
+    assert!(!empty_target);
 }
 
-#[tokio::test]
-async fn current_task_condition_supports_nested_logic_groups() {
-    let mut executor = build_executor();
-    let task_id = UuidV7(720);
-    {
-        let mut ctx = executor.runtime_ctx.write().await;
-        ctx.execution.current_task = Some(build_task_with_variables(task_id, json!({})));
+#[test]
+fn current_task_condition_deserializes_legacy_shape() {
+    let parsed: ConditionNode = serde_json::from_value(json!({
+        "type": "currentTaskIn",
+        "op": "And",
+        "items": [
+            {
+                "type": "group",
+                "items": [
+                    { "type": "task", "target": UuidV7(720).to_string() }
+                ]
+            }
+        ],
+        "targets": [UuidV7(721).to_string()]
+    }))
+    .unwrap();
+
+    match parsed {
+        ConditionNode::CurrentTaskIn { current } => {
+            assert_eq!(current.target, Some(UuidV7(721)));
+            assert!(current.expected);
+        }
+        other => panic!("unexpected node: {:?}", other),
     }
-
-    let matched = executor
-        .evaluate_condition(&ConditionNode::CurrentTaskIn {
-            op: LogicOp::And,
-            items: vec![
-                CurrentTaskRule::Group {
-                    op: LogicOp::Or,
-                    items: vec![
-                        CurrentTaskRule::Task { target: UuidV7(719) },
-                        CurrentTaskRule::Task { target: task_id },
-                    ],
-                },
-                CurrentTaskRule::Group {
-                    op: LogicOp::Not,
-                    items: vec![CurrentTaskRule::Task { target: UuidV7(721) }],
-                },
-            ],
-            targets: Vec::new(),
-        })
-        .await
-        .unwrap();
-
-    let unmatched = executor
-        .evaluate_condition(&ConditionNode::CurrentTaskIn {
-            op: LogicOp::And,
-            items: vec![
-                CurrentTaskRule::Task { target: task_id },
-                CurrentTaskRule::Group {
-                    op: LogicOp::Not,
-                    items: vec![CurrentTaskRule::Task { target: task_id }],
-                },
-            ],
-            targets: Vec::new(),
-        })
-        .await
-        .unwrap();
-
-    assert!(matched);
-    assert!(!unmatched);
 }
 
 #[test]

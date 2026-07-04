@@ -21,7 +21,6 @@ export type { CompareOp } from './CompareOp';
 export type { ConditionNode } from './ConditionNode';
 export type { ConnectionStatusEvent } from './ConnectionStatusEvent';
 export type { ConnectionStatusKind } from './ConnectionStatusKind';
-export type { CurrentTaskRule } from './CurrentTaskRule';
 export type { DataHanding } from './DataHanding';
 export type { DetResult } from './DetResult';
 export type { DetectorType } from './DetectorType';

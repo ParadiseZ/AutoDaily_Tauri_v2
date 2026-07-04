@@ -18,8 +18,8 @@ fn default_policy_set_search_hits_var() -> String {
     "runtime.searchHits".to_string()
 }
 
-fn default_current_task_logic_op() -> LogicOp {
-    LogicOp::Or
+fn default_current_task_expected() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
@@ -122,17 +122,59 @@ pub enum FlowControl {
     },
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
-#[ts(export)]
-#[serde(rename_all = "camelCase", tag = "type")]
-pub enum CurrentTaskRule {
-    Task { target: TaskId },
-    Group {
-        #[serde(default = "default_current_task_logic_op")]
-        op: LogicOp,
-        #[serde(default)]
-        items: Vec<CurrentTaskRule>,
-    },
+#[derive(Debug, Serialize, Clone, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+pub struct CurrentTaskCondition {
+    #[serde(default)]
+    pub target: Option<TaskId>,
+    #[serde(default = "default_current_task_expected")]
+    pub expected: bool,
+}
+
+impl<'de> Deserialize<'de> for CurrentTaskCondition {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct CurrentTaskConditionCompat {
+            #[serde(default)]
+            target: Option<TaskId>,
+            #[serde(default = "default_current_task_expected")]
+            expected: bool,
+            #[serde(default)]
+            targets: Vec<TaskId>,
+            #[serde(default)]
+            items: Vec<LegacyCurrentTaskRule>,
+        }
+
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase", tag = "type")]
+        enum LegacyCurrentTaskRule {
+            Task { target: TaskId },
+            Group {
+                #[serde(default)]
+                items: Vec<LegacyCurrentTaskRule>,
+            },
+        }
+
+        fn first_legacy_target(items: &[LegacyCurrentTaskRule]) -> Option<TaskId> {
+            items.iter().find_map(|item| match item {
+                LegacyCurrentTaskRule::Task { target } => Some(*target),
+                LegacyCurrentTaskRule::Group { items } => first_legacy_target(items),
+            })
+        }
+
+        let compat = CurrentTaskConditionCompat::deserialize(deserializer)?;
+        Ok(Self {
+            target: compat
+                .target
+                .or_else(|| compat.targets.into_iter().next())
+                .or_else(|| first_legacy_target(&compat.items)),
+            expected: compat.expected,
+        })
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, ts_rs::TS)]
@@ -148,14 +190,10 @@ pub enum ConditionNode {
     /// 策略/任务状态是否完成/跳过
     TaskStatus { a: TaskControl },
 
-    /// 当前正在执行的任务是否命中指定逻辑组
+    /// 当前正在执行的任务是否等于指定任务
     CurrentTaskIn {
-        #[serde(default = "default_current_task_logic_op")]
-        op: LogicOp,
-        #[serde(default)]
-        items: Vec<CurrentTaskRule>,
-        #[serde(default)]
-        targets: Vec<TaskId>,
+        #[serde(flatten)]
+        current: CurrentTaskCondition,
     },
 
     /// ocr字体颜色/背景色判断

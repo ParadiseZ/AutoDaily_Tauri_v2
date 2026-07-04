@@ -58,8 +58,8 @@ impl ScriptExecutor {
                     .await
                 }
                 ConditionNode::TaskStatus { a } => self.match_state_status(a).await,
-                ConditionNode::CurrentTaskIn { op, items, targets } => {
-                    Ok(self.match_current_task_rule(op, items, targets).await)
+                ConditionNode::CurrentTaskIn { current } => {
+                    Ok(self.match_current_task_condition(current).await)
                 }
                 ConditionNode::ExecNumCompare { target, op } => {
                     self.match_exec_num_compare(target, op).await
@@ -174,52 +174,16 @@ impl ScriptExecutor {
         Ok(true)
     }
 
-    async fn match_current_task_rule(
-        &self,
-        op: &crate::domain::vision::ocr_search::LogicOp,
-        items: &[CurrentTaskRule],
-        legacy_targets: &[TaskId],
-    ) -> bool {
+    async fn match_current_task_condition(&self, condition: &CurrentTaskCondition) -> bool {
         let current_task_id = {
             let ctx = self.runtime_ctx.read().await;
             ctx.execution.current_task.as_ref().map(|task| task.id)
         };
 
-        if !items.is_empty() {
-            return Self::evaluate_current_task_rule_items(current_task_id, op, items);
-        }
-
-        current_task_id.is_some_and(|task_id| legacy_targets.contains(&task_id))
-    }
-
-    fn evaluate_current_task_rule_items(
-        current_task_id: Option<TaskId>,
-        op: &crate::domain::vision::ocr_search::LogicOp,
-        items: &[CurrentTaskRule],
-    ) -> bool {
-        match op {
-            crate::domain::vision::ocr_search::LogicOp::And => items
-                .iter()
-                .all(|item| Self::evaluate_current_task_rule(current_task_id, item)),
-            crate::domain::vision::ocr_search::LogicOp::Or => items
-                .iter()
-                .any(|item| Self::evaluate_current_task_rule(current_task_id, item)),
-            crate::domain::vision::ocr_search::LogicOp::Not => items
-                .first()
-                .is_none_or(|item| !Self::evaluate_current_task_rule(current_task_id, item)),
-        }
-    }
-
-    fn evaluate_current_task_rule(
-        current_task_id: Option<TaskId>,
-        rule: &CurrentTaskRule,
-    ) -> bool {
-        match rule {
-            CurrentTaskRule::Task { target } => current_task_id.is_some_and(|task_id| task_id == *target),
-            CurrentTaskRule::Group { op, items } => {
-                Self::evaluate_current_task_rule_items(current_task_id, op, items)
-            }
-        }
+        let Some(target) = condition.target else {
+            return false;
+        };
+        current_task_id.is_some_and(|task_id| (task_id == target) == condition.expected)
     }
 
     async fn match_state_value(&self, target: &StateTarget, status: &StateStatus) -> bool {

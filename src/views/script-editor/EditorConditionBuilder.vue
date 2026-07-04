@@ -228,15 +228,49 @@
       </template>
 
       <template v-else-if="modelValue.type === 'currentTaskIn'">
-        <EditorCurrentTaskRuleBuilder
-          :model-value="currentTaskRuleRoot"
-          force-group-root
-          :test-id-prefix="rootTestId('current-task')"
-          :task-reference-options="taskReferenceOptions"
-          :create-reference="createReference"
-          :jump-to-reference="jumpToReference"
-          @update:model-value="updateCurrentTaskRuleRoot"
-        />
+        <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+          <label class="space-y-2">
+            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标任务</span>
+            <EditorSelectField
+              :model-value="modelValue.target || null"
+              :options="resolvedCurrentTaskTargetOptions"
+              placeholder="选择任务"
+              :test-id="rootTestId('current-task-target')"
+              @update:model-value="updateCurrentTaskTarget(String($event || ''))"
+            />
+          </label>
+
+          <div class="flex flex-wrap gap-2">
+            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createCurrentTaskTargetReference">
+              <AppIcon name="plus" :size="14" />
+              新建任务
+            </button>
+            <button
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              :disabled="!modelValue.target"
+              @click="jumpToCurrentTaskTargetReference"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位编辑
+            </button>
+          </div>
+
+          <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
+            <input
+              :checked="modelValue.expected"
+              type="checkbox"
+              class="h-4 w-4"
+              :data-testid="rootTestId('current-task-expected')"
+              style="accent-color: var(--app-accent)"
+              @change="updateCurrentTaskExpected(($event.target as HTMLInputElement).checked)"
+            />
+            <div class="space-y-1">
+              <p class="text-sm font-medium text-(--app-text-strong)">{{ modelValue.expected ? '是' : '不是' }}</p>
+              <p class="text-xs leading-6 text-(--app-text-soft)">勾选表示当前任务必须是所选任务；取消勾选表示当前任务必须不是所选任务。</p>
+            </div>
+          </label>
+        </div>
       </template>
 
       <template v-else-if="modelValue.type === 'varCompare'">
@@ -480,7 +514,6 @@
 import { computed, ref, watch } from 'vue';
 import { Trash2 } from 'lucide-vue-next';
 import AppIcon from '@/components/shared/AppIcon.vue';
-import EditorCurrentTaskRuleBuilder from '@/views/script-editor/EditorCurrentTaskRuleBuilder.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
@@ -500,7 +533,6 @@ import {
   taskControlTypeOptions,
   varValueTypeOptions,
 } from '@/views/script-editor/editorCondition';
-import { buildCurrentTaskRuleRoot, serializeCurrentTaskRuleRoot } from '@/views/script-editor/editorCurrentTaskRule';
 import type { VarValueKind } from '@/views/script-editor/editorCondition';
 
 defineOptions({ name: 'EditorConditionBuilder' });
@@ -582,6 +614,11 @@ const resolvedTaskStatusTargetOptions = computed(() =>
         props.modelValue.a.target.type === 'task' ? 'task' : 'policy',
       )
     : [],
+);
+const resolvedCurrentTaskTargetOptions = computed(() =>
+  props.modelValue.type === 'currentTaskIn'
+    ? withResolvedReferenceOption(props.taskReferenceOptions, props.modelValue.target, 'task')
+    : props.taskReferenceOptions,
 );
 const resolvedPolicySetResultVarOptions = computed(() => {
   const resultVarOptions = props.variableReferenceOptions
@@ -675,16 +712,6 @@ const selectedPolicySetResultVarOption = computed(() => {
 
   return props.variableReferenceOptions.find((option) => option.key === node.result_var) ?? null;
 });
-const currentTaskRuleRoot = computed(() =>
-  props.modelValue.type === 'currentTaskIn'
-    ? buildCurrentTaskRuleRoot(props.modelValue)
-    : buildCurrentTaskRuleRoot({
-        type: 'currentTaskIn',
-        op: 'Or',
-        items: [],
-        targets: [],
-      }),
-);
 const resolvedPolicySetResultTargetOptions = computed(() => {
   if (props.modelValue.type !== 'policySetResult') {
     return [];
@@ -894,12 +921,30 @@ const updateTaskStatusValue = (value: boolean) => {
   } as ConditionNode);
 };
 
-const updateCurrentTaskRuleRoot = (value: import('@/types/bindings/CurrentTaskRule').CurrentTaskRule) => {
-  if (props.modelValue.type !== 'currentTaskIn' || value.type !== 'group') return;
+const updateCurrentTaskTarget = (target: string) => {
+  if (props.modelValue.type !== 'currentTaskIn') return;
   replaceNode({
     ...props.modelValue,
-    ...serializeCurrentTaskRuleRoot(value),
+    target: target.trim() ? target : null,
   });
+};
+
+const updateCurrentTaskExpected = (expected: boolean) => {
+  if (props.modelValue.type !== 'currentTaskIn') return;
+  replaceNode({
+    ...props.modelValue,
+    expected,
+  });
+};
+
+const createCurrentTaskTargetReference = async () => {
+  if (props.modelValue.type !== 'currentTaskIn' || !props.createReference) return;
+  updateCurrentTaskTarget(await props.createReference('task'));
+};
+
+const jumpToCurrentTaskTargetReference = () => {
+  if (props.modelValue.type !== 'currentTaskIn' || !props.jumpToReference || !props.modelValue.target) return;
+  props.jumpToReference('task', props.modelValue.target);
 };
 
 const updateVarCompareField = (field: 'var_name' | 'op', value: string) => {

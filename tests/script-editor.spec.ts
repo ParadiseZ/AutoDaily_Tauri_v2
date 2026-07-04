@@ -143,6 +143,40 @@ const openCollectionContextMenu = async (page: Page, prefix: string, itemId: str
   await expect(page.getByTestId(`${prefix}-context-menu`)).toBeVisible();
 };
 
+const expectItemVisibleInScrollArea = async (page: Page, scrollTestId: string, itemTestId: string) => {
+  await expect.poll(async () => page.evaluate(({ scrollTestId: nextScrollTestId, itemTestId: nextItemTestId }) => {
+    const scrollRoot = document.querySelector(`[data-testid="${nextScrollTestId}"]`) as HTMLElement | null;
+    const item = document.querySelector(`[data-testid="${nextItemTestId}"]`) as HTMLElement | null;
+    if (!scrollRoot || !item) {
+      return false;
+    }
+
+    const rootRect = scrollRoot.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    return itemRect.bottom > rootRect.top && itemRect.top < rootRect.bottom;
+  }, { scrollTestId, itemTestId })).toBe(true);
+};
+
+const setEditorViewState = async (
+  page: Page,
+  scriptId: string,
+  viewState: Record<string, unknown>,
+) => {
+  await page.evaluate(({ currentScriptId, nextViewState }) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    const state = window.__AUTODAILY_MOCK__.getState();
+    window.__AUTODAILY_MOCK__.seed({
+      store: {
+        ...state.store,
+        [`scriptEditorViewState:${currentScriptId}`]: nextViewState,
+      },
+    });
+  }, { currentScriptId: scriptId, nextViewState: viewState });
+};
+
 test('edits script tasks with visual task editor and persists payload', async ({ page }) => {
   const scriptId = 'script-editor-1';
   const script: StoredScriptTable = {
@@ -266,6 +300,155 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-ui-field-label-0')).toHaveValue('扫荡活动');
   await page.getByTestId('editor-tab-steps').click();
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
+});
+
+test('restores selected sidebar items into scroll view after reload', async ({ page }) => {
+  const scriptId = 'script-editor-scroll-restore';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '滚动恢复脚本',
+      description: '验证刷新后侧栏会滚动到选中项',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await page.goto(`/editor?scriptId=${script.id}`);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    const makeTask = (index: number): ScriptTaskTable => ({
+      id: `task-${index}`,
+      scriptId: seedScript.id,
+      name: `任务 ${index + 1}`,
+      rowType: 'task',
+      triggerMode: 'rootOnly',
+      recordSchedule: true,
+      sectionId: null,
+      indentLevel: 0,
+      defaultTaskCycle: 'everyRun',
+      showEnabledToggle: true,
+      defaultEnabled: true,
+      taskTone: 'normal',
+      isHidden: false,
+      data: {
+        uiData: {},
+        variables: {},
+        steps: [],
+      },
+      createdAt: '2026-03-26T08:00:00.000Z',
+      updatedAt: '2026-03-26T08:00:00.000Z',
+      deletedAt: null,
+      isDeleted: false,
+      index,
+    });
+
+    const makePolicy = (index: number): PolicyTable => ({
+      id: `policy-${index}`,
+      scriptId: seedScript.id,
+      orderIndex: index,
+      data: {
+        name: `策略 ${index + 1}`,
+        note: `策略 ${index + 1} 备注`,
+        logPrint: null,
+        curPos: 0,
+        skipFlag: false,
+        execCur: 0,
+        execMax: 1,
+        beforeAction: [],
+        cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+        afterAction: [],
+      },
+    });
+
+    const makeGroup = (index: number): PolicyGroupTable => ({
+      id: `group-${index}`,
+      scriptId: seedScript.id,
+      orderIndex: index,
+      data: {
+        name: `策略组 ${index + 1}`,
+        note: `策略组 ${index + 1} 备注`,
+      },
+    });
+
+    const makeSet = (index: number): PolicySetTable => ({
+      id: `set-${index}`,
+      scriptId: seedScript.id,
+      orderIndex: index,
+      data: {
+        name: `策略集 ${index + 1}`,
+        note: `策略集 ${index + 1} 备注`,
+      },
+    });
+
+    window.__AUTODAILY_MOCK__.reset();
+    window.__AUTODAILY_MOCK__.seed({
+      scripts: [seedScript],
+      scriptTasks: {
+        [seedScript.id]: Array.from({ length: 28 }, (_, index) => makeTask(index)),
+      },
+      policies: Array.from({ length: 28 }, (_, index) => makePolicy(index)),
+      policyGroups: Array.from({ length: 28 }, (_, index) => makeGroup(index)),
+      policySets: Array.from({ length: 28 }, (_, index) => makeSet(index)),
+    });
+  }, script);
+
+  await setEditorViewState(page, scriptId, {
+    activeMode: 'task',
+    selectedTaskId: 'task-27',
+    activePanel: 'basic',
+    activePolicyPanel: 'basic',
+  });
+  await page.reload();
+  await expectItemVisibleInScrollArea(page, 'editor-task-sidebar-scroll', 'editor-task-item-task-27');
+
+  await setEditorViewState(page, scriptId, {
+    activeMode: 'policy',
+    selectedPolicyId: 'policy-27',
+    activePanel: 'basic',
+    activePolicyPanel: 'basic',
+  });
+  await page.reload();
+  await expectItemVisibleInScrollArea(page, 'editor-policy-sidebar-scroll', 'editor-policy-item-policy-27');
+
+  await setEditorViewState(page, scriptId, {
+    activeMode: 'policyGroup',
+    selectedPolicyGroupId: 'group-27',
+    activePanel: 'basic',
+    activePolicyPanel: 'basic',
+  });
+  await page.reload();
+  await expectItemVisibleInScrollArea(page, 'editor-policy-group-sidebar-scroll', 'editor-policy-group-item-group-27');
+
+  await setEditorViewState(page, scriptId, {
+    activeMode: 'policySet',
+    selectedPolicySetId: 'set-27',
+    activePanel: 'basic',
+    activePolicyPanel: 'basic',
+  });
+  await page.reload();
+  await expectItemVisibleInScrollArea(page, 'editor-policy-set-sidebar-scroll', 'editor-policy-set-item-set-27');
 });
 
 test('persists task description from basic config panel', async ({ page }) => {
@@ -468,6 +651,61 @@ test('persists flow conditions and action forms from step workspace', async ({ p
       p: {
         x: 128,
         y: 256,
+      },
+    },
+  });
+});
+
+test('persists current-task condition with target and expected flag', async ({ page }) => {
+  const scriptId = 'script-editor-current-task-condition';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '当前任务条件脚本',
+      description: '验证当前任务条件保存为单任务匹配结构',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-if').click();
+  await selectOptionByValue(page, 'editor-condition-type', 'currentTaskIn');
+  await selectOptionByLabel(page, 'editor-condition-current-task-target', '主任务 1');
+  await page.getByTestId('editor-condition-current-task-expected').uncheck();
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'if',
+      con: {
+        type: 'currentTaskIn',
+        target: task.id,
+        expected: false,
       },
     },
   });

@@ -15,13 +15,11 @@ import {
   createStateStatus,
   createStateTarget,
   createStateTargetList,
-  createStringList,
   POLICY_SET_RESULT_COMPARE_OP,
   POLICY_SET_RESULT_FIELD,
   STATE_STATUS_TYPE,
   TASK_CONTROL_TYPE,
 } from '@/views/script-editor/editor-step/editorStepKinds';
-import { buildCurrentTaskRuleRoot, countCurrentTaskRuleTasks } from '@/views/script-editor/editorCurrentTaskRule';
 
 const castCondition = (value: unknown) => value as ConditionNode;
 
@@ -107,9 +105,8 @@ export const createConditionNode = (type: ConditionNode['type'] = CONDITION_TYPE
     case CONDITION_TYPE.currentTaskIn:
       return castCondition({
         type: CONDITION_TYPE.currentTaskIn,
-        op: 'Or' satisfies LogicOp,
-        items: [],
-        targets: createStringList(),
+        target: null,
+        expected: true,
       });
     case CONDITION_TYPE.varCompare:
       return castCondition({
@@ -167,7 +164,7 @@ export const describeConditionNode = (node: ConditionNode) => {
     case 'taskStatus':
       return `状态匹配 · ${node.a.target.type}:${node.a.target.id || '未指定'}`;
     case 'currentTaskIn':
-      return `当前任务 · ${countCurrentTaskRuleTasks(buildCurrentTaskRuleRoot(node))} 项`;
+      return `当前任务 · ${node.expected ? '是' : '不是'} · ${node.target || '未指定'}`;
     case 'colorCompare':
       return `${node.is_font ? '字体色' : '背景色'} · ${node.txt_target || '未指定目标'}`;
     case 'varCompare':

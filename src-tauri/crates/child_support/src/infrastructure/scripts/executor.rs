@@ -4,7 +4,7 @@ use crate::domain::scripts::nodes::data_handing::{
     ColorCompareMethod, ColorRgb, DataHanding, FilterMode, RegionPoint, VarValue,
 };
 use crate::domain::scripts::nodes::flow_control::{
-    CompareOp, ConditionNode, CurrentTaskRule, FlowControl, PolicySetResultCompareOp,
+    CompareOp, ConditionNode, CurrentTaskCondition, FlowControl, PolicySetResultCompareOp,
     PolicySetResultField,
 };
 use crate::domain::scripts::nodes::policy_execution::{

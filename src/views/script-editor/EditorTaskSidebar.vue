@@ -32,7 +32,13 @@
       </div>
     </div>
 
-    <div v-if="!collapsed" class="min-h-0 flex-1 overflow-y-auto custom-scrollbar" @scroll="closeContextMenu">
+    <div
+      v-if="!collapsed"
+      ref="scrollRoot"
+      class="min-h-0 flex-1 overflow-y-auto custom-scrollbar"
+      data-testid="editor-task-sidebar-scroll"
+      @scroll="closeContextMenu"
+    >
       <div v-if="hasVisibleRows" class="space-y-3 pr-1">
         <div v-if="ungroupedTasks.length" class="space-y-2">
           <EditorTaskSidebarTaskCard
@@ -243,7 +249,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ChevronRight, Plus } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
@@ -296,6 +302,7 @@ const contextMenuRoot = ref<HTMLElement | null>(null);
 const sectionMenuRoot = ref<HTMLElement | null>(null);
 const taskMenuRoot = ref<HTMLElement | null>(null);
 const actionMenuRoot = ref<HTMLElement | null>(null);
+const scrollRoot = ref<HTMLElement | null>(null);
 
 const keyword = computed(() => search.value.trim().toLowerCase());
 const sortedTasks = computed(() => [...props.tasks].sort((left, right) => left.index - right.index));
@@ -333,6 +340,15 @@ const taskMenuTargets = computed(() =>
 );
 const activeSectionTarget = computed(() => titleRows.value.find((title) => title.id === activeSectionTargetId.value) ?? null);
 const activeTaskTarget = computed(() => taskRows.value.find((task) => task.id === activeTaskTargetId.value) ?? null);
+const visibleRowSignature = computed(() =>
+  [
+    ...ungroupedTasks.value.map((task) => task.id),
+    ...visibleTitleRows.value.flatMap((title) => [
+      title.id,
+      ...(isTitleExpanded(title.id) ? (groupedTasksByTitle.value[title.id] ?? []).map((task) => task.id) : []),
+    ]),
+  ].join('|'),
+);
 const clampHorizontalPosition = (x: number, width: number) =>
   Math.max(VIEWPORT_PADDING, Math.min(x, window.innerWidth - width - VIEWPORT_PADDING));
 
@@ -430,6 +446,17 @@ const isTitleExpanded = (titleId: string) => keyword.value.length > 0 || !collap
 const selectTask = (taskId: string) => {
   closeContextMenu();
   emit('select', taskId);
+};
+
+const scrollSelectedTaskIntoView = async () => {
+  if (props.collapsed || !props.selectedTaskId) {
+    return;
+  }
+
+  await nextTick();
+  scrollRoot.value
+    ?.querySelector<HTMLElement>(`[data-testid="editor-task-item-${props.selectedTaskId}"]`)
+    ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 };
 
 const toggleTitleCollapsed = (titleId: string) => {
@@ -587,6 +614,14 @@ watch(titleRows, (titles) => {
   const nextIds = new Set(titles.map((task) => task.id));
   collapsedTitleIds.value = collapsedTitleIds.value.filter((id) => nextIds.has(id));
 }, { immediate: true });
+
+watch(
+  [() => props.selectedTaskId, () => props.collapsed, visibleRowSignature],
+  () => {
+    void scrollSelectedTaskIntoView();
+  },
+  { immediate: true },
+);
 
 watch(
   () => props.collapsed,
