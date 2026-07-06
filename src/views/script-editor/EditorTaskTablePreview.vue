@@ -458,7 +458,6 @@ watch(() => props.selectedTaskId, (taskId) => {
 .preview-title-row-expanded:hover .preview-title-chevron,
 .preview-title-row-expanded.preview-title-row-active .preview-title-chevron {
   /* color: var(--color-primary-content); */
-  color: var(--app-accent);
   color: var(--color-primary-content);
 }
 

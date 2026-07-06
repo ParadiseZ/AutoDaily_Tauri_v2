@@ -140,7 +140,7 @@
 
           <EditorCollectionSidebar
             v-else-if="activeMode === 'policy'"
-            search-placeholder="按名称或备注检索策略"
+            search-placeholder="按名称、备注或日志检索策略"
             :items="policyItems"
             :selected-id="selectedPolicyId"
             empty-title="没有可编辑的策略"
@@ -150,6 +150,7 @@
             :collapsed="leftSidebarCollapsed"
             @create="createPolicy"
             @select="selectedPolicyId = $event"
+            @duplicate="duplicatePolicy"
             @remove="removePolicy"
             @reorder="reorderPolicies"
             @move-item="movePolicyByMenu"
@@ -171,6 +172,7 @@
             :collapsed="leftSidebarCollapsed"
             @create="createPolicyGroup"
             @select="selectedPolicyGroupId = $event"
+            @duplicate="duplicatePolicyGroup"
             @remove="removePolicyGroup"
             @reorder="reorderPolicyGroups"
             @move-item="movePolicyGroupByMenu"
@@ -192,6 +194,7 @@
             :collapsed="leftSidebarCollapsed"
             @create="createPolicySet"
             @select="selectedPolicySetId = $event"
+            @duplicate="duplicatePolicySet"
             @remove="removePolicySet"
             @reorder="reorderPolicySets"
             @move-item="movePolicySetByMenu"
@@ -610,11 +613,18 @@ import { parseTaskCycleValue } from '@/views/script-editor/editorTaskMeta';
 import { createSearchRule } from '@/views/script-editor/editorSearchRule';
 import { inputEntryToVariableOption } from '@/views/script-editor/editorInputVariableOptions';
 import {
-  buildPolicyGroupSavePayload,
+  buildPolicyDraft,
+  buildPolicyGroupDraft,
   buildPolicySavePayload,
+  buildPolicySetDraft,
   buildPolicySetSavePayload,
+  buildPolicyGroupSavePayload,
   buildTaskDraft as createTaskDraft,
   buildTaskSavePayload,
+  duplicatePolicyDraft,
+  duplicatePolicyGroupDraft,
+  duplicatePolicySetDraft,
+  duplicateTaskDraft,
   normalizeTask as normalizeTaskDraft,
 } from '@/views/script-editor/helpers/scriptEditorTaskDrafts';
 import {
@@ -1085,8 +1095,8 @@ const inputEntryReferenceState = computed<Record<string, { referenced: boolean }
 const parsedSteps = computed<Step[]>(() => (currentTask.value?.data.steps as Step[] | undefined) ?? []);
 const hasValidationErrors = computed(() => Boolean(inputError.value));
 const policyItems = computed<EditorNamedItem[]>(() => buildPolicyItems(draftPolicies.value));
-const policyGroupItems = computed<EditorNamedItem[]>(() => buildPolicyGroupItems(draftPolicyGroups.value, groupPolicyIdsByGroupId.value));
-const policySetItems = computed<EditorNamedItem[]>(() => buildPolicySetItems(draftPolicySets.value, setGroupIdsBySetId.value));
+const policyGroupItems = computed<EditorNamedItem[]>(() => buildPolicyGroupItems(draftPolicyGroups.value));
+const policySetItems = computed<EditorNamedItem[]>(() => buildPolicySetItems(draftPolicySets.value));
 const taskReferenceOptions = computed<EditorReferenceOption[]>(() => buildTaskReferenceOptions(draftTasks.value));
 const taskUiVariableOptions = computed<EditorTaskUiVariableOption[]>(() =>
   buildTaskUiVariableOptions(draftTasks.value, draftScript.value?.data.variableCatalog),
@@ -1318,55 +1328,6 @@ const replacePolicySet = (setId: string, updater: (set: PolicySetTable) => Polic
   });
 };
 
-const buildPolicyDraft = async (name?: string): Promise<PolicyTable> =>
-  normalizePolicy(
-    {
-      id: await taskService.requestUuid(),
-      scriptId: scriptId.value,
-      orderIndex: draftPolicies.value.length,
-      data: {
-        name: name || `策略 ${draftPolicies.value.length + 1}`,
-        note: '',
-        logPrint: null,
-        curPos: 0,
-        skipFlag: false,
-        execMax: 1,
-        beforeAction: createStepList(),
-        cond: createSearchRule('group'),
-        afterAction: createStepList(),
-      },
-    },
-    draftPolicies.value.length,
-  );
-
-const buildPolicyGroupDraft = async (name?: string): Promise<PolicyGroupTable> =>
-  normalizePolicyGroup(
-    {
-      id: await taskService.requestUuid(),
-      scriptId: scriptId.value,
-      orderIndex: draftPolicyGroups.value.length,
-      data: {
-        name: name || `策略组 ${draftPolicyGroups.value.length + 1}`,
-        note: '',
-      },
-    },
-    draftPolicyGroups.value.length,
-  );
-
-const buildPolicySetDraft = async (name?: string): Promise<PolicySetTable> =>
-  normalizePolicySet(
-    {
-      id: await taskService.requestUuid(),
-      scriptId: scriptId.value,
-      orderIndex: draftPolicySets.value.length,
-      data: {
-        name: name || `策略集 ${draftPolicySets.value.length + 1}`,
-        note: '',
-      },
-    },
-    draftPolicySets.value.length,
-  );
-
 const setCurrentPolicySteps = (steps: Step[]) => {
   if (!currentPolicy.value) {
     return;
@@ -1409,16 +1370,12 @@ const duplicateTask = async (taskId: string) => {
     return;
   }
 
-  const duplicate = normalizeTask(
-    {
-      ...cloneJson(source),
-      id: await taskService.requestUuid(),
-      name: `${source.name} 副本`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    draftTasks.value.length,
-  );
+  const duplicate = await duplicateTaskDraft({
+    task: source,
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    tasks: draftTasks.value,
+  });
 
   draftTasks.value = [...draftTasks.value, duplicate].map((task, index) => normalizeTask(task, index));
   selectedTaskId.value = duplicate.id;
@@ -1465,25 +1422,104 @@ const moveTaskByMenu = (taskId: string, action: EditorTaskMoveAction) => {
 };
 
 const createPolicy = async () => {
-  const nextPolicy = await buildPolicyDraft();
+  const nextPolicy = await buildPolicyDraft({
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    policies: draftPolicies.value,
+  });
   draftPolicies.value = [...draftPolicies.value, nextPolicy].map((policy, index) => normalizePolicy(policy, index));
   selectedPolicyId.value = nextPolicy.id;
   activeMode.value = 'policy';
   activePolicyPanel.value = 'basic';
 };
 
+const duplicatePolicy = async (policyId: string) => {
+  const source = draftPolicies.value.find((policy) => policy.id === policyId);
+  if (!source) {
+    return;
+  }
+
+  const duplicate = await duplicatePolicyDraft({
+    policy: source,
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    policies: draftPolicies.value,
+  });
+
+  draftPolicies.value = [...draftPolicies.value, duplicate].map((policy, index) => normalizePolicy(policy, index));
+  selectedPolicyId.value = duplicate.id;
+  activeMode.value = 'policy';
+  activePolicyPanel.value = 'basic';
+};
+
 const createPolicyGroup = async () => {
-  const nextGroup = await buildPolicyGroupDraft();
+  const nextGroup = await buildPolicyGroupDraft({
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    groups: draftPolicyGroups.value,
+  });
   draftPolicyGroups.value = [...draftPolicyGroups.value, nextGroup].map((group, index) => normalizePolicyGroup(group, index));
   selectedPolicyGroupId.value = nextGroup.id;
   activeMode.value = 'policyGroup';
   activePolicyGroupPanel.value = 'basic';
 };
 
+const duplicatePolicyGroup = async (groupId: string) => {
+  const source = draftPolicyGroups.value.find((group) => group.id === groupId);
+  if (!source) {
+    return;
+  }
+
+  const duplicate = await duplicatePolicyGroupDraft({
+    group: source,
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    groups: draftPolicyGroups.value,
+    relatedPolicyIds: groupPolicyIdsByGroupId.value[groupId] ?? [],
+  });
+
+  draftPolicyGroups.value = [...draftPolicyGroups.value, duplicate.item].map((group, index) => normalizePolicyGroup(group, index));
+  groupPolicyIdsByGroupId.value = {
+    ...groupPolicyIdsByGroupId.value,
+    [duplicate.item.id]: duplicate.relatedPolicyIds,
+  };
+  selectedPolicyGroupId.value = duplicate.item.id;
+  activeMode.value = 'policyGroup';
+  activePolicyGroupPanel.value = 'basic';
+};
+
 const createPolicySet = async () => {
-  const nextSet = await buildPolicySetDraft();
+  const nextSet = await buildPolicySetDraft({
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    sets: draftPolicySets.value,
+  });
   draftPolicySets.value = [...draftPolicySets.value, nextSet].map((set, index) => normalizePolicySet(set, index));
   selectedPolicySetId.value = nextSet.id;
+  activeMode.value = 'policySet';
+  activePolicySetPanel.value = 'basic';
+};
+
+const duplicatePolicySet = async (setId: string) => {
+  const source = draftPolicySets.value.find((item) => item.id === setId);
+  if (!source) {
+    return;
+  }
+
+  const duplicate = await duplicatePolicySetDraft({
+    set: source,
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    sets: draftPolicySets.value,
+    relatedGroupIds: setGroupIdsBySetId.value[setId] ?? [],
+  });
+
+  draftPolicySets.value = [...draftPolicySets.value, duplicate.item].map((item, index) => normalizePolicySet(item, index));
+  setGroupIdsBySetId.value = {
+    ...setGroupIdsBySetId.value,
+    [duplicate.item.id]: duplicate.relatedGroupIds,
+  };
+  selectedPolicySetId.value = duplicate.item.id;
   activeMode.value = 'policySet';
   activePolicySetPanel.value = 'basic';
 };
@@ -1497,20 +1533,32 @@ const createReferenceResource = async (kind: EditorReferenceKind) => {
   }
 
   if (kind === 'policy') {
-    const nextPolicy = await buildPolicyDraft();
+    const nextPolicy = await buildPolicyDraft({
+      requestUuid: taskService.requestUuid,
+      scriptId: scriptId.value,
+      policies: draftPolicies.value,
+    });
     draftPolicies.value = [...draftPolicies.value, nextPolicy].map((policy, index) => normalizePolicy(policy, index));
     showToast(`已创建引用策略：${nextPolicy.data.name}`, 'success');
     return nextPolicy.id;
   }
 
   if (kind === 'policyGroup') {
-    const nextGroup = await buildPolicyGroupDraft();
+    const nextGroup = await buildPolicyGroupDraft({
+      requestUuid: taskService.requestUuid,
+      scriptId: scriptId.value,
+      groups: draftPolicyGroups.value,
+    });
     draftPolicyGroups.value = [...draftPolicyGroups.value, nextGroup].map((group, index) => normalizePolicyGroup(group, index));
     showToast(`已创建引用策略组：${nextGroup.data.name}`, 'success');
     return nextGroup.id;
   }
 
-  const nextSet = await buildPolicySetDraft();
+  const nextSet = await buildPolicySetDraft({
+    requestUuid: taskService.requestUuid,
+    scriptId: scriptId.value,
+    sets: draftPolicySets.value,
+  });
   draftPolicySets.value = [...draftPolicySets.value, nextSet].map((set, index) => normalizePolicySet(set, index));
   showToast(`已创建引用策略集：${nextSet.data.name}`, 'success');
   return nextSet.id;

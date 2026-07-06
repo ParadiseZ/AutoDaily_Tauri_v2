@@ -134,7 +134,6 @@ import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import { filterUserVisibleTaskRows } from '@/utils/scriptTaskVisibility';
 import { createUiSchema, parseUiSchema, stableStringify } from '@/views/script-editor/editorSchema';
-import { getVariableValueTypeLabel } from '@/views/script-editor/editorVariables';
 import EditorTaskTablePreview from '@/views/script-editor/EditorTaskTablePreview.vue';
 import {
   buildTemplateEditorInputs,

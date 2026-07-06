@@ -10,33 +10,32 @@ import { parseUiSchema } from '@/views/script-editor/editorSchema';
 import type { ScriptEditorRelationMap } from '@/views/script-editor/helpers/scriptEditorRelations';
 
 export const buildPolicyItems = (policies: PolicyTable[]): EditorNamedItem[] =>
-  policies.map((policy) => ({
+  policies.map((policy, index) => ({
     id: policy.id,
     title: policy.data.name,
     subtitle: policy.data.note?.trim() || '未填写备注',
-    badge: String(policy.orderIndex + 1),
+    detailLines: [
+      `note:${policy.data.note?.trim() || '未填写备注'}`,
+      `log:${policy.data.logPrint?.trim() || '未填写日志'}`,
+    ],
+    badge: String(index + 1),
+    searchText: `${policy.data.name} ${policy.data.note || ''} ${policy.data.logPrint || ''}`,
   }));
 
-export const buildPolicyGroupItems = (
-  groups: PolicyGroupTable[],
-  groupPolicyIdsByGroupId: ScriptEditorRelationMap,
-): EditorNamedItem[] =>
-  groups.map((group) => ({
+export const buildPolicyGroupItems = (groups: PolicyGroupTable[]): EditorNamedItem[] =>
+  groups.map((group, index) => ({
     id: group.id,
     title: group.data.name,
     subtitle: group.data.note?.trim() || '未填写备注',
-    badge: String(group.orderIndex + 1),
+    badge: String(index + 1),
   }));
 
-export const buildPolicySetItems = (
-  sets: PolicySetTable[],
-  setGroupIdsBySetId: ScriptEditorRelationMap,
-): EditorNamedItem[] =>
-  sets.map((set) => ({
+export const buildPolicySetItems = (sets: PolicySetTable[]): EditorNamedItem[] =>
+  sets.map((set, index) => ({
     id: set.id,
     title: set.data.name,
     subtitle: set.data.note?.trim() || '未填写备注',
-    badge: String(set.orderIndex + 1),
+    badge: String(index + 1),
   }));
 
 const describeTaskReferenceTriggerMode = (mode: ScriptTaskTable['triggerMode']) => {

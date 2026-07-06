@@ -1916,6 +1916,246 @@ test('moves policy collections from context menu', async ({ page }) => {
   expect(state?.policySets.map((item) => item.id)).toEqual(['set-b', 'set-a', 'set-c']);
 });
 
+test('duplicates and removes task items from context menu only', async ({ page }) => {
+  const scriptId = 'script-editor-task-context-actions';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '任务右键菜单脚本',
+      description: '验证任务右键复制删除和移除卡片按钮',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'task-alpha',
+        scriptId: currentScriptId,
+        name: '任务甲',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: { uiData: {}, variables: {}, steps: [] },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+      {
+        id: 'task-beta',
+        scriptId: currentScriptId,
+        name: '任务乙',
+        rowType: 'task',
+        triggerMode: 'rootOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 0,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: { uiData: {}, variables: {}, steps: [] },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 1,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await expect(page.getByTestId('editor-task-item-task-alpha').getByRole('button', { name: '复制' })).toHaveCount(0);
+  await expect(page.getByTestId('editor-task-item-task-alpha').getByRole('button', { name: '删除' })).toHaveCount(0);
+
+  await openTaskContextMenu(page, 'task-alpha');
+  await page.getByTestId('editor-task-duplicate').evaluate((element: HTMLElement) => element.click());
+
+  await openTaskContextMenu(page, 'task-beta');
+  await page.getByTestId('editor-task-remove').evaluate((element: HTMLElement) => element.click());
+  await page.getByRole('button', { name: '删除' }).evaluate((element: HTMLElement) => element.click());
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.scriptTasks[scriptId]).toHaveLength(2);
+  expect(state?.scriptTasks[scriptId].some((task) => task.id === 'task-beta')).toBe(false);
+  expect(state?.scriptTasks[scriptId].some((task) => task.name === '任务甲 副本')).toBe(true);
+});
+
+test('duplicates and removes policy collections from context menu only', async ({ page }) => {
+  const scriptId = 'script-editor-policy-context-actions';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '策略右键菜单脚本',
+      description: '验证策略系列表右键复制删除和移除卡片按钮',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await page.goto(`/editor?scriptId=${script.id}`);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    const makePolicy = (id: string, orderIndex: number, name: string): PolicyTable => ({
+      id,
+      scriptId: seedScript.id,
+      orderIndex,
+      data: {
+        name,
+        note: `${name}备注`,
+        logPrint: null,
+        curPos: 0,
+        skipFlag: false,
+        execCur: 0,
+        execMax: 1,
+        beforeAction: [],
+        cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+        afterAction: [],
+      },
+    });
+    const makeGroup = (id: string, orderIndex: number, name: string): PolicyGroupTable => ({
+      id,
+      scriptId: seedScript.id,
+      orderIndex,
+      data: {
+        name,
+        note: `${name}备注`,
+      },
+    });
+    const makeSet = (id: string, orderIndex: number, name: string): PolicySetTable => ({
+      id,
+      scriptId: seedScript.id,
+      orderIndex,
+      data: {
+        name,
+        note: `${name}备注`,
+      },
+    });
+
+    window.__AUTODAILY_MOCK__.reset();
+    window.__AUTODAILY_MOCK__.seed({
+      scripts: [seedScript],
+      scriptTasks: {},
+      policies: [
+        makePolicy('policy-a', 0, '登录策略'),
+        makePolicy('policy-b', 1, '领奖策略'),
+      ],
+      policyGroups: [
+        makeGroup('group-a', 0, '基础策略组'),
+        makeGroup('group-b', 1, '扩展策略组'),
+      ],
+      policySets: [
+        makeSet('set-a', 0, '主策略集'),
+        makeSet('set-b', 1, '副策略集'),
+      ],
+      groupPolicies: {
+        'group-a': ['policy-a'],
+      },
+      setGroups: {
+        'set-a': ['group-a'],
+      },
+    });
+  }, script);
+  await page.reload();
+
+  await selectEditorMode(page, 'policy');
+  await expect(page.getByTestId('editor-policy-item-policy-a').getByRole('button', { name: '复制' })).toHaveCount(0);
+  await expect(page.getByTestId('editor-policy-item-policy-a').getByRole('button', { name: '删除' })).toHaveCount(0);
+  await openCollectionContextMenu(page, 'editor-policy', 'policy-a');
+  await page.getByTestId('editor-policy-duplicate').evaluate((element: HTMLElement) => element.click());
+  await openCollectionContextMenu(page, 'editor-policy', 'policy-b');
+  await page.getByTestId('editor-policy-remove').evaluate((element: HTMLElement) => element.click());
+
+  await selectEditorMode(page, 'policyGroup');
+  await expect(page.getByTestId('editor-policy-group-item-group-a').getByRole('button', { name: '复制' })).toHaveCount(0);
+  await expect(page.getByTestId('editor-policy-group-item-group-a').getByRole('button', { name: '删除' })).toHaveCount(0);
+  await openCollectionContextMenu(page, 'editor-policy-group', 'group-a');
+  await page.getByTestId('editor-policy-group-duplicate').evaluate((element: HTMLElement) => element.click());
+  await openCollectionContextMenu(page, 'editor-policy-group', 'group-b');
+  await page.getByTestId('editor-policy-group-remove').evaluate((element: HTMLElement) => element.click());
+
+  await selectEditorMode(page, 'policySet');
+  await expect(page.getByTestId('editor-policy-set-item-set-a').getByRole('button', { name: '复制' })).toHaveCount(0);
+  await expect(page.getByTestId('editor-policy-set-item-set-a').getByRole('button', { name: '删除' })).toHaveCount(0);
+  await openCollectionContextMenu(page, 'editor-policy-set', 'set-a');
+  await page.getByTestId('editor-policy-set-duplicate').evaluate((element: HTMLElement) => element.click());
+  await openCollectionContextMenu(page, 'editor-policy-set', 'set-b');
+  await page.getByTestId('editor-policy-set-remove').evaluate((element: HTMLElement) => element.click());
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.policies.map((item) => item.data.name)).toEqual(['登录策略', '登录策略 副本']);
+  expect(state?.policyGroups.map((item) => item.data.name)).toEqual(['基础策略组', '基础策略组 副本']);
+  expect(state?.policySets.map((item) => item.data.name)).toEqual(['主策略集', '主策略集 副本']);
+
+  const duplicatedGroup = state?.policyGroups.find((item) => item.data.name === '基础策略组 副本');
+  const duplicatedSet = state?.policySets.find((item) => item.data.name === '主策略集 副本');
+  expect(duplicatedGroup).toBeTruthy();
+  expect(duplicatedSet).toBeTruthy();
+  expect(duplicatedGroup ? state?.groupPolicies[duplicatedGroup.id] : null).toEqual(['policy-a']);
+  expect(duplicatedSet ? state?.setGroups[duplicatedSet.id] : null).toEqual(['group-a']);
+});
+
 test('persists varCompare conditions and nested branch steps', async ({ page }) => {
   const scriptId = 'script-editor-nested';
   const script: StoredScriptTable = {

@@ -50,17 +50,17 @@
                   {{ item.badge }}
                 </span>
               </div>
-              <p class="mt-2 truncate text-xs text-(--app-text-faint)">{{ item.subtitle }}</p>
+              <template v-if="item.detailLines?.length">
+                <p
+                  v-for="(line, lineIndex) in item.detailLines"
+                  :key="`${item.id}-line-${lineIndex}`"
+                  class="mt-2 truncate text-xs text-(--app-text-faint)"
+                >
+                  {{ line }}
+                </p>
+              </template>
+              <p v-else class="mt-2 truncate text-xs text-(--app-text-faint)">{{ item.subtitle }}</p>
             </div>
-          </div>
-
-          <div class="flex flex-wrap gap-2">
-            <button class="app-icon-button app-icon-button-sec" type="button" aria-label="复制" title="复制" @click.stop="$emit('duplicate', item.id)">
-              <Copy class="h-4 w-4" />
-            </button>
-            <button class="app-icon-button app-crash-icon app-icon-button-sec" type="button" aria-label="删除" title="删除" @click.stop="$emit('remove', item.id)">
-              <Trash2 class="h-4 w-4" />
-            </button>
           </div>
         </article>
       </div>
@@ -77,6 +77,22 @@
       :data-testid="`${testIdPrefix}-context-menu`"
       :style="contextMenuStyle"
     >
+      <button
+        class="editor-collection-menu-item"
+        :data-testid="`${testIdPrefix}-duplicate`"
+        type="button"
+        @click="emitDuplicate"
+      >
+        复制
+      </button>
+      <button
+        class="editor-collection-menu-item"
+        :data-testid="`${testIdPrefix}-remove`"
+        type="button"
+        @click="emitRemove"
+      >
+        删除
+      </button>
       <button
         class="editor-collection-menu-item"
         :data-testid="`${testIdPrefix}-move-current-top`"
@@ -157,7 +173,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorCollectionMoveAction, EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';
-import { ChevronRight, Copy, GripVertical, Plus, Trash2 } from 'lucide-vue-next';
+import { ChevronRight, GripVertical, Plus } from 'lucide-vue-next';
 
 type MenuRect = {
   top: number;
@@ -210,7 +226,9 @@ const filteredItems = computed(() => {
   if (!keyword) {
     return props.items;
   }
-  return props.items.filter((item) => `${item.title} ${item.subtitle}`.toLowerCase().includes(keyword));
+  return props.items.filter((item) =>
+    `${item.title} ${item.subtitle} ${item.detailLines?.join(' ') || ''} ${item.searchText || ''}`.toLowerCase().includes(keyword),
+  );
 });
 const testIdPrefix = computed(() => props.itemTestIdPrefix.replace(/-item$/, ''));
 const currentContextItem = computed(() => props.items.find((item) => item.id === contextMenu.value?.itemId) ?? null);
@@ -348,6 +366,26 @@ const actionMenuStyle = computed(() =>
 const selectItem = (id: string) => {
   closeContextMenu();
   emit('select', id);
+};
+
+const emitDuplicate = () => {
+  if (!currentContextItem.value) {
+    closeContextMenu();
+    return;
+  }
+
+  emit('duplicate', currentContextItem.value.id);
+  closeContextMenu();
+};
+
+const emitRemove = () => {
+  if (!currentContextItem.value) {
+    closeContextMenu();
+    return;
+  }
+
+  emit('remove', currentContextItem.value.id);
+  closeContextMenu();
 };
 
 const scrollSelectedItemIntoView = async () => {

@@ -7,7 +7,7 @@
           v-model="search"
           class="app-input"
           type="search"
-          placeholder="按名称检索任务"
+          placeholder="名称或说明检索"
           data-testid="editor-task-search"
         />
         <button
@@ -48,15 +48,11 @@
             :selected="selectedTaskId === task.id"
             :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
             :dragging="draggingTaskId === task.id"
-            :disable-remove="tasks.length <= 1"
             @mouseenter="handleMouseEnter"
             @mouseup="handleMouseUp"
             @contextmenu="handleTaskContextMenu"
             @drag-start="startDrag"
             @select="selectTask"
-            @toggle-hidden="$emit('toggle-hidden', $event)"
-            @duplicate="$emit('duplicate', $event)"
-            @remove="$emit('remove', $event)"
           />
         </div>
 
@@ -68,16 +64,12 @@
             :drop-target="overTaskId === title.id && draggingTaskId !== null && draggingTaskId !== title.id"
             :expanded="isTitleExpanded(title.id)"
             :task-count="groupedTasksByTitle[title.id]?.length ?? 0"
-            :disable-remove="tasks.length <= 1"
             @mouseenter="handleMouseEnter"
             @mouseup="handleMouseUp"
             @contextmenu="handleTaskContextMenu"
             @drag-start="startDrag"
             @select="selectTask"
             @toggle-collapsed="toggleTitleCollapsed"
-            @toggle-hidden="$emit('toggle-hidden', $event)"
-            @duplicate="$emit('duplicate', $event)"
-            @remove="$emit('remove', $event)"
           />
 
           <div v-if="isTitleExpanded(title.id)" class="space-y-2">
@@ -88,15 +80,11 @@
               :selected="selectedTaskId === task.id"
               :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
               :dragging="draggingTaskId === task.id"
-              :disable-remove="tasks.length <= 1"
               @mouseenter="handleMouseEnter"
               @mouseup="handleMouseUp"
               @contextmenu="handleTaskContextMenu"
               @drag-start="startDrag"
               @select="selectTask"
-              @toggle-hidden="$emit('toggle-hidden', $event)"
-              @duplicate="$emit('duplicate', $event)"
-              @remove="$emit('remove', $event)"
             />
           </div>
         </section>
@@ -120,6 +108,31 @@
     >
       <button
         class="editor-task-menu-item"
+        data-testid="editor-task-duplicate"
+        type="button"
+        @click="emitDuplicate"
+      >
+        复制
+      </button>
+      <button
+        class="editor-task-menu-item"
+        data-testid="editor-task-remove"
+        type="button"
+        :disabled="!canRemoveTask"
+        @click="emitRemove"
+      >
+        删除
+      </button>
+      <button
+        class="editor-task-menu-item"
+        data-testid="editor-task-toggle-hidden"
+        type="button"
+        @click="emitToggleHidden"
+      >
+        {{ currentContextRow?.isHidden ? '在 UI 上显示' : '在 UI 上隐藏' }}
+      </button>
+      <button
+        class="editor-task-menu-item"
         data-testid="editor-task-move-current-top"
         type="button"
         @click="emitMove('current', 'top')"
@@ -135,6 +148,7 @@
         移动到底部
       </button>
       <button
+        v-if="currentContextRow?.rowType === 'task'"
         class="editor-task-menu-item editor-task-menu-item-branch"
         data-testid="editor-task-move-section"
         type="button"
@@ -144,6 +158,7 @@
         <ChevronRight class="h-4 w-4" />
       </button>
       <button
+        v-if="currentContextRow?.rowType === 'task'"
         class="editor-task-menu-item editor-task-menu-item-branch"
         data-testid="editor-task-move-task"
         type="button"
@@ -310,7 +325,8 @@ const titleRows = computed(() => sortedTasks.value.filter((task) => task.rowType
 const titleIdSet = computed(() => new Set(titleRows.value.map((task) => task.id)));
 const taskRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'task'));
 
-const matchesKeyword = (task: ScriptTaskTable) => !keyword.value || task.name.toLowerCase().includes(keyword.value);
+const matchesKeyword = (task: ScriptTaskTable) =>
+  !keyword.value || `${task.name || ''} ${task.description || ''}`.toLowerCase().includes(keyword.value);
 
 const groupedTasksByTitle = computed<Record<string, ScriptTaskTable[]>>(() =>
   Object.fromEntries(
@@ -331,7 +347,9 @@ const ungroupedTasks = computed(() =>
 
 const hasVisibleRows = computed(() => ungroupedTasks.value.length > 0 || visibleTitleRows.value.length > 0);
 const hiddenCount = computed(() => props.tasks.filter((task) => task.isHidden).length);
+const currentContextRow = computed(() => sortedTasks.value.find((task) => task.id === contextMenu.value?.taskId) ?? null);
 const currentContextTask = computed(() => taskRows.value.find((task) => task.id === contextMenu.value?.taskId) ?? null);
+const canRemoveTask = computed(() => props.tasks.length > 1);
 const sectionMenuTargets = computed(() =>
   titleRows.value.filter((title) => !keyword.value || title.name.toLowerCase().includes(keyword.value)),
 );
@@ -446,6 +464,36 @@ const isTitleExpanded = (titleId: string) => keyword.value.length > 0 || !collap
 const selectTask = (taskId: string) => {
   closeContextMenu();
   emit('select', taskId);
+};
+
+const emitDuplicate = () => {
+  if (!currentContextRow.value) {
+    closeContextMenu();
+    return;
+  }
+
+  emit('duplicate', currentContextRow.value.id);
+  closeContextMenu();
+};
+
+const emitRemove = () => {
+  if (!currentContextRow.value || !canRemoveTask.value) {
+    closeContextMenu();
+    return;
+  }
+
+  emit('remove', currentContextRow.value.id);
+  closeContextMenu();
+};
+
+const emitToggleHidden = () => {
+  if (!currentContextRow.value) {
+    closeContextMenu();
+    return;
+  }
+
+  emit('toggle-hidden', currentContextRow.value.id);
+  closeContextMenu();
 };
 
 const scrollSelectedTaskIntoView = async () => {
@@ -660,6 +708,17 @@ onBeforeUnmount(() => {
   background: rgba(70, 110, 255, 0.08);
 }
 
+.editor-task-card-hidden {
+  color: var(--app-text-faint);
+  /* background: color-mix(in srgb, var(--app-panel-muted) 40%, #A9A9A9 18%); */
+}
+.editor-task-card-expanded{
+  /* background: color-mix(in srgb, var(--app-panel-muted) 40%, #A9A9A9 18%); */
+  background: var(--app-accent);
+  color: white;
+}
+
+
 .editor-task-collapse-trigger {
   display: inline-flex;
   align-items: center;
@@ -706,5 +765,10 @@ onBeforeUnmount(() => {
 .editor-task-menu-item:hover {
   background: var(--app-state-hover-bg);
   border-color: var(--app-state-hover-border);
+}
+
+.editor-task-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 </style>

@@ -12,7 +12,9 @@ export interface EditorNamedItem {
   id: string;
   title: string;
   subtitle: string;
+  detailLines?: string[];
   badge?: string;
+  searchText?: string;
 }
 
 export type EditorCollectionMoveAction =
