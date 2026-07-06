@@ -38,48 +38,20 @@
     </EditorOverviewSection>
 
     <EditorOverviewSection title="变量绑定">
-      <EditorOverviewField label="绑定变量" width="radio">
-        <EditorSelectField
-            :model-value="selectedUiField.variableId || null"
-            :options="bindOptions"
-            placeholder="未绑定"
-            :test-id="selectedUiFieldIndex === 0 ? 'editor-ui-field-bind-0' : undefined"
-            @update:model-value="selectUiBinding(selectedUiField.id, String($event ?? ''))"
-        />
-      </EditorOverviewField>
-
-      <div
-          v-if="selectedBoundUiVariable"
-          class="editor-detail-summary"
-      >
-        <div class="editor-detail-summary-grid">
-          <EditorOverviewField label="作用域" width="compact">
-            <div class="editor-detail-value">{{ selectedBoundVariableNamespaceLabel }}</div>
-          </EditorOverviewField>
-          <EditorOverviewField label="类型" width="compact">
-            <div class="editor-detail-value">{{ selectedBoundVariableTypeLabel }}</div>
-          </EditorOverviewField>
-          <EditorOverviewField label="变量键">
-            <div class="editor-detail-value break-all">{{ selectedBoundVariableKeyLabel }}</div>
-          </EditorOverviewField>
-        </div>
-        <p
-            v-if="selectedBoundUiVariable.description"
-            class="mt-3 text-sm leading-6 text-(--app-text-soft)"
-        >
-          {{ selectedBoundUiVariable.description }}
-        </p>
-      </div>
+      <EditorVariableBindingField
+        label="绑定变量"
+        :model-value="selectedUiField.variableId || null"
+        :options="bindOptions"
+        placeholder="未绑定"
+        :test-id="selectedUiFieldIndex === 0 ? 'editor-ui-field-bind-0' : undefined"
+        :show-locate="Boolean(selectedBoundUiVariable && jumpToVariable)"
+        :locate-disabled="!selectedBoundUiVariable || !jumpToVariable"
+        @update:model-value="selectUiBinding(selectedUiField.id, String($event ?? ''))"
+        @locate="selectedBoundUiVariable ? jumpToVariable?.(selectedBoundUiVariable) : undefined"
+      />
     </EditorOverviewSection>
 
-    <EditorOverviewSection title="展示内容">
-      <EditorOverviewField label="说明" width="compact">
-        <input
-            :value="selectedUiField.description"
-            class="app-input"
-            @input="$emit('update-ui-field', selectedUiField.id, 'description', ($event.target as HTMLInputElement).value)"
-        />
-      </EditorOverviewField>
+    <EditorOverviewSection title="可选值设置">
 
       <EditorOverviewField v-if="selectedUiField.control === 'text' || selectedUiField.control === 'number'" label="占位提示" width="compact">
         <input
@@ -89,11 +61,11 @@
         />
       </EditorOverviewField>
 
-      <EditorOverviewField v-if="selectedUiField.control === 'radio' || selectedUiField.control === 'select'" label="选项">
+      <EditorOverviewField v-if="selectedUiField.control === 'radio' || selectedUiField.control === 'select'" label="选项(每行一个)">
           <textarea
               :value="selectedUiField.optionsText"
               class="app-textarea min-h-[100px] max-w-[38rem]"
-              placeholder="每行一个选项"
+              placeholder="请输入选项内容"
               @input="$emit('update-ui-field', selectedUiField.id, 'optionsText', ($event.target as HTMLTextAreaElement).value)"
           />
       </EditorOverviewField>
@@ -140,13 +112,20 @@
           </EditorOverviewField>
         </div>
       </div>
-
       <div
           v-else-if="selectedUiField.control === 'slider'"
           class="editor-detail-note border-dashed"
       >
         请绑定变量。滑块只支持绑定整数或浮点变量，绑定后再设置最小值、最大值和步长。
       </div>
+
+      <EditorOverviewField label="说明" width="compact">
+        <input
+            :value="selectedUiField.description"
+            class="app-input"
+            @input="$emit('update-ui-field', selectedUiField.id, 'description', ($event.target as HTMLInputElement).value)"
+        />
+      </EditorOverviewField>
     </EditorOverviewSection>
   </div>
   <EmptyState
@@ -161,8 +140,9 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import EditorOverviewField from '@/views/script-editor/EditorOverviewField.vue';
 import EditorOverviewSection from '@/views/script-editor/EditorOverviewSection.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
-import { getUiControlLabel, type EditorUiField } from '@/views/script-editor/editorSchema';
-import { getVariableDisplayKey, getVariableValueTypeLabel, type EditorVariableOption } from '@/views/script-editor/editorVariables';
+import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
+import { type EditorUiField } from '@/views/script-editor/editorSchema';
+import { type EditorVariableOption } from '@/views/script-editor/editorVariables';
 import { buildUiBindOptions } from '@/views/script-editor/editorUiPreview';
 
 defineOptions({ name: 'EditorUiFieldDetailsPanel' });
@@ -171,6 +151,7 @@ const props = defineProps<{
   selectedUiField: EditorUiField | null;
   selectedUiFieldIndex: number;
   variableOptions: EditorVariableOption[];
+  jumpToVariable?: (option: EditorVariableOption) => void;
 }>();
 
 const emit = defineEmits<{
@@ -186,7 +167,10 @@ const bindOptions = computed(() => {
   const options = props.selectedUiField?.control === 'slider'
     ? props.variableOptions.filter((item) => item.valueType === 'int' || item.valueType === 'float')
     : props.variableOptions;
-  return buildUiBindOptions(options);
+  return buildUiBindOptions(options).map((option) => ({
+    ...option,
+    value: option.value ?? '',
+  }));
 });
 const selectedBoundUiVariable = computed(() => {
   if (!props.selectedUiField?.variableId) {
@@ -195,20 +179,6 @@ const selectedBoundUiVariable = computed(() => {
 
   return props.variableOptions.find((item) => item.id === props.selectedUiField?.variableId) ?? null;
 });
-const selectedBoundVariableNamespaceLabel = computed(() => {
-  if (!selectedBoundUiVariable.value) {
-    return '';
-  }
-  if (selectedBoundUiVariable.value.namespace === 'runtime') return 'Runtime';
-  if (selectedBoundUiVariable.value.namespace === 'system') return 'System';
-  return 'Input';
-});
-const selectedBoundVariableTypeLabel = computed(() =>
-  selectedBoundUiVariable.value ? getVariableValueTypeLabel(selectedBoundUiVariable.value.valueType) : '',
-);
-const selectedBoundVariableKeyLabel = computed(() =>
-  selectedBoundUiVariable.value ? getVariableDisplayKey(selectedBoundUiVariable.value.key, selectedBoundUiVariable.value.namespace) : '',
-);
 const sliderValueType = computed(() => {
   if (props.selectedUiField?.control !== 'slider') {
     return null;
@@ -274,15 +244,15 @@ const selectUiBinding = (fieldId: string, variableId: string) => {
   @apply flex min-h-[44px] items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft);
 }
 
-.editor-detail-summary {
-  @apply max-w-[38rem] rounded-[14px] border border-(--app-border) bg-white/50 px-4 py-4;
-}
-
 .editor-detail-summary-grid {
   @apply flex flex-col gap-4;
 }
 
 .editor-detail-note {
   @apply max-w-[38rem] rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-sm leading-6 text-(--app-text-soft);
+}
+
+.app-textarea {
+  @apply h-50;
 }
 </style>

@@ -222,6 +222,11 @@ pub struct OcrSearcher {
     patterns: Vec<String>,
 }
 
+fn normalized_pattern(pattern: &str) -> Option<&str> {
+    let trimmed = pattern.trim();
+    (!trimmed.is_empty()).then_some(trimmed)
+}
+
 impl OcrSearcher {
     /// 从规则集中提取文本条件，构建搜索自动机。
     /// DetLabel 变体会被跳过，不参与文本搜索。
@@ -230,7 +235,11 @@ impl OcrSearcher {
 
         fn collect(rule: &SearchRule, keywords: &mut Vec<String>) {
             match rule {
-                SearchRule::Txt { pattern } => keywords.push(pattern.clone()),
+                SearchRule::Txt { pattern } => {
+                    if let Some(pattern) = normalized_pattern(pattern) {
+                        keywords.push(pattern.to_string());
+                    }
+                }
                 SearchRule::DetLabel { .. } => {}
                 SearchRule::Group { items, .. } => {
                     for item in items {
@@ -294,7 +303,8 @@ impl SearchRule {
     /// 两者在 Group 逻辑中可自由组合。
     pub fn evaluate(&self, hits: &[SearchHit], det_results: &[DetResult]) -> bool {
         match self {
-            SearchRule::Txt { pattern } => hits.iter().any(|h| &h.pattern == pattern),
+            SearchRule::Txt { pattern } => normalized_pattern(pattern)
+                .is_some_and(|pattern| hits.iter().any(|h| h.pattern == pattern)),
             SearchRule::DetLabel { idx } => det_results.iter().any(|d| d.index == *idx),
             SearchRule::Group { op, scope, items } => match scope {
                 SearchScope::Global => match op {
@@ -340,7 +350,11 @@ impl SearchRule {
 
     fn collect_keywords(&self, keywords: &mut Vec<String>) {
         match self {
-            SearchRule::Txt { pattern } => keywords.push(pattern.clone()),
+            SearchRule::Txt { pattern } => {
+                if let Some(pattern) = normalized_pattern(pattern) {
+                    keywords.push(pattern.to_string());
+                }
+            }
             SearchRule::DetLabel { .. } => {}
             SearchRule::Group { items, .. } => {
                 for item in items {

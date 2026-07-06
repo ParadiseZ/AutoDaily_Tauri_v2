@@ -1,5 +1,6 @@
 <template>
   <div
+    ref="rootEl"
     class="app-rule-card"
     :class="{
       'app-rule-card-nested': depth > 0,
@@ -25,9 +26,13 @@
           <div v-if="currentRule.type !== SEARCH_RULE_TYPE.group" class="flex-1 min-w-[150px] max-w-[400px]">
             <input
               v-if="currentRule.type === SEARCH_RULE_TYPE.txt"
+              ref="textInputEl"
               :value="currentRule.pattern"
               class="app-input"
+              :class="{ 'app-input-invalid': isPatternMissing }"
               placeholder="请输入文本"
+              :aria-invalid="isPatternMissing"
+              data-search-rule-text-input="true"
               :data-testid="rootTestId('txt')"
               @input="replaceRule({ ...currentRule, pattern: ($event.target as HTMLInputElement).value })"
             />
@@ -130,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { Trash2 } from 'lucide-vue-next';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
@@ -177,6 +182,7 @@ const emit = defineEmits<{
 
 const isRootGroup = computed(() => Boolean(props.forceGroupRoot && props.depth === 0));
 const currentRule = computed(() => (isRootGroup.value ? ensureRootGroupRule(props.modelValue) : props.modelValue));
+const isPatternMissing = computed(() => currentRule.value.type === SEARCH_RULE_TYPE.txt && !currentRule.value.pattern.trim());
 const headerLabel = computed(() => {
   if (isRootGroup.value) return '根逻辑组';
   if (currentRule.value.type === SEARCH_RULE_TYPE.group) return '逻辑组';
@@ -201,16 +207,35 @@ const resolvedLabelIndexOptions = computed(() => {
 });
 const addableRuleTypes = computed(() => searchRuleTypeOptions.filter((option) => option.value !== SEARCH_RULE_TYPE.group || props.depth < 4));
 const rootTestId = (suffix: string) => (props.testIdPrefix ? `${props.testIdPrefix}-${suffix}` : undefined);
+const rootEl = ref<HTMLElement | null>(null);
+const textInputEl = ref<HTMLInputElement | null>(null);
 
 const replaceRule = (value: SearchRule) => {
   emit('update:modelValue', value);
 };
 
-const changeType = (type: string) => {
+const focusCurrentTextInput = async () => {
+  await nextTick();
+  textInputEl.value?.focus();
+  textInputEl.value?.select();
+};
+
+const focusLastTextInput = async () => {
+  await nextTick();
+  const inputs = rootEl.value?.querySelectorAll<HTMLInputElement>('[data-search-rule-text-input="true"]');
+  const lastInput = inputs?.item((inputs?.length ?? 1) - 1) ?? null;
+  lastInput?.focus();
+  lastInput?.select();
+};
+
+const changeType = async (type: string) => {
   if (!searchRuleTypeOptions.some((option) => option.value === type)) {
     return;
   }
   replaceRule(createSearchRule(type as SearchRule['type']));
+  if (type === SEARCH_RULE_TYPE.txt) {
+    await focusCurrentTextInput();
+  }
 };
 
 const updateGroupField = (field: 'op' | 'scope', value: string) => {
@@ -221,7 +246,7 @@ const updateGroupField = (field: 'op' | 'scope', value: string) => {
   } as SearchRule);
 };
 
-const addGroupItem = (type: string) => {
+const addGroupItem = async (type: string) => {
   if (currentRule.value.type !== SEARCH_RULE_TYPE.group) return;
   if (!searchRuleTypeOptions.some((option) => option.value === type)) {
     return;
@@ -230,6 +255,9 @@ const addGroupItem = (type: string) => {
     ...currentRule.value,
     items: [...currentRule.value.items, createSearchRule(type as SearchRule['type'])],
   });
+  if (type === SEARCH_RULE_TYPE.txt) {
+    await focusLastTextInput();
+  }
 };
 
 const updateGroupItem = (index: number, value: SearchRule) => {

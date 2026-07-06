@@ -127,3 +127,17 @@ export const moveCollectionByMenuAction = <T extends { id: string }>(
   nextItems.splice(action.position === 'top' ? targetIndex : targetIndex + 1, 0, movedItem);
   return nextItems.map((item, index) => normalize(item, index));
 };
+
+export const selectNeighborIdAfterRemoval = <T extends { id: string }>(items: T[], removedId: string) => {
+  const removedIndex = items.findIndex((item) => item.id === removedId);
+  if (removedIndex < 0) {
+    return null;
+  }
+
+  const nextItems = items.filter((item) => item.id !== removedId);
+  if (nextItems.length === 0) {
+    return null;
+  }
+
+  return nextItems[Math.min(removedIndex, nextItems.length - 1)]?.id ?? null;
+};

@@ -8,41 +8,41 @@
         @update-input="forwardUpdateInput"
       />
 
-      <div v-else-if="activePanel === 'ui'" class="flex min-h-0 flex-1 flex-col gap-4">
-        <div class="editor-panel-tabs min-w-max">
-          <button
-            v-for="tab in uiWorkspaceTabs"
-            :key="tab.id"
-            type="button"
-            class="editor-panel-tab"
-            :class="{ 'editor-panel-tab-active': uiWorkspaceTab === tab.id }"
-            @click="uiWorkspaceTab = tab.id"
-          >
-            {{ tab.label }}
-          </button>
-        </div>
+      <div v-else-if="activePanel === 'ui'" class="flex min-h-0 flex-1 gap-[1px]">
+        <div
+          class="relative shrink-0 min-h-0"
+          :class="{ 'transition-[width] duration-200': !isResizingUiPanels }"
+          :style="{ width: `${uiEditorWidth}px` }"
+        >
+          <div class="h-full overflow-y-auto pr-2 custom-scrollbar">
+            <EditorUiFieldDetailsPanel
+              v-if="task.rowType === 'task'"
+              :selected-ui-field="selectedUiField"
+              :selected-ui-field-index="selectedUiFieldIndex"
+              :variable-options="variableOptions"
+              :jump-to-variable="jumpToVariable"
+              @update-ui-field="forwardUpdateUiField"
+              @remove-ui-field="$emit('remove-ui-field', $event)"
+            />
 
-        <div v-if="uiWorkspaceTab === 'edit'" class="min-h-0 flex-1 overflow-y-auto">
-          <EditorUiFieldDetailsPanel
-            v-if="task.rowType === 'task'"
-            :selected-ui-field="selectedUiField"
-            :selected-ui-field-index="selectedUiFieldIndex"
-            :variable-options="variableOptions"
-            @update-ui-field="forwardUpdateUiField"
-            @remove-ui-field="$emit('remove-ui-field', $event)"
-          />
+            <div
+              v-else
+              class="rounded-[18px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-5 py-5 text-sm text-(--app-text-soft)"
+            >
+              选择普通任务后，这里会显示当前任务的变量绑定详情。
+            </div>
+          </div>
 
           <div
-            v-else
-            class="rounded-[18px] border border-dashed border-(--app-border) bg-(--app-panel-muted) px-5 py-5 text-sm text-(--app-text-soft)"
+            class="absolute -right-[3px] top-0 bottom-0 z-10 w-[5px] cursor-col-resize transition-colors hover:bg-[rgba(70,110,255,0.96)]"
+            @mousedown.prevent="startUiPanelResize"
           >
-            选择普通任务后，这里会显示当前任务的字段详情。
+            <span class="pointer-events-none absolute left-1/2 top-0 bottom-0 w-px -translate-x-1/2 bg-(--app-border)" />
           </div>
         </div>
 
         <EditorTaskTablePreview
-          v-else
-          class="min-h-0 flex-1"
+          class="min-h-0 min-w-0 flex-1 pl-2"
           :tasks="tasks"
           :selected-task-id="task.id"
           :selected-task-ui-schema="uiSchema"
@@ -131,7 +131,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
@@ -220,12 +220,10 @@ const emit = defineEmits<{
   'open-raw': [section: 'inputs' | 'ui' | 'steps'];
 }>();
 
-const uiWorkspaceTabs = [
-  { id: 'edit', label: '编辑' },
-  { id: 'preview', label: 'UI 预览' },
-] as const;
-
-const uiWorkspaceTab = ref<(typeof uiWorkspaceTabs)[number]['id']>('edit');
+const uiEditorWidth = ref(420);
+const isResizingUiPanels = ref(false);
+let uiResizeStartX = 0;
+let uiResizeStartWidth = 0;
 
 const selectedInputEntry = computed(() => props.inputEntries.find((entry) => entry.id === props.selectedInputId) ?? null);
 const selectedInputIndex = computed(() =>
@@ -237,23 +235,33 @@ const selectedUiFieldIndex = computed(() =>
   selectedUiField.value ? props.uiSchema.fields.findIndex((field) => field.id === selectedUiField.value?.id) : -1,
 );
 
-watch(
-  () => props.selectedUiFieldId,
-  (fieldId) => {
-    if (fieldId && props.activePanel === 'ui') {
-      uiWorkspaceTab.value = 'edit';
-    }
-  },
-);
+const startUiPanelResize = (event: MouseEvent) => {
+  isResizingUiPanels.value = true;
+  uiResizeStartX = event.clientX;
+  uiResizeStartWidth = uiEditorWidth.value;
+};
 
-watch(
-  () => props.activePanel,
-  (panel) => {
-    if (panel === 'ui') {
-      uiWorkspaceTab.value = 'edit';
-    }
-  },
-);
+const handleUiPanelResize = (event: MouseEvent) => {
+  if (!isResizingUiPanels.value) {
+    return;
+  }
+  const delta = event.clientX - uiResizeStartX;
+  uiEditorWidth.value = Math.max(320, Math.min(760, uiResizeStartWidth + delta));
+};
+
+const stopUiPanelResize = () => {
+  isResizingUiPanels.value = false;
+};
+
+onMounted(() => {
+  window.addEventListener('mousemove', handleUiPanelResize);
+  window.addEventListener('mouseup', stopUiPanelResize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', handleUiPanelResize);
+  window.removeEventListener('mouseup', stopUiPanelResize);
+});
 
 const forwardUpdateInput = (
   entryId: string,

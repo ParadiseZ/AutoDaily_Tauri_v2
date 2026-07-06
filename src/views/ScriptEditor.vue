@@ -717,6 +717,7 @@ import {
   moveCollectionByMenuAction,
   moveTaskByMenuAction,
   reorderItemsById,
+  selectNeighborIdAfterRemoval,
 } from '@/views/script-editor/helpers/scriptEditorMoves';
 import {
   buildVariableReferenceKey,
@@ -1387,6 +1388,9 @@ const removeTask = async (taskId: string) => {
     return;
   }
 
+  const nextSelectedTaskId =
+    selectedTaskId.value === taskId ? selectNeighborIdAfterRemoval(draftTasks.value, taskId) : selectedTaskId.value;
+
   const approved = await requestAppConfirm({
     title: '删除任务',
     message: '确认要删除此任务吗？这将删除该任务下的所有数据',
@@ -1402,7 +1406,7 @@ const removeTask = async (taskId: string) => {
     .map((task, index) => normalizeTask(task, index));
 
   if (selectedTaskId.value === taskId) {
-    selectedTaskId.value = draftTasks.value[0]?.id ?? null;
+    selectedTaskId.value = nextSelectedTaskId;
   }
 };
 
@@ -1782,27 +1786,35 @@ const jumpToVariableResource = (option: EditorVariableOption) => {
 };
 
 const removePolicy = (policyId: string) => {
+  const nextSelectedPolicyId =
+    selectedPolicyId.value === policyId ? selectNeighborIdAfterRemoval(draftPolicies.value, policyId) : selectedPolicyId.value;
   draftPolicies.value = draftPolicies.value.filter((item) => item.id !== policyId).map((item, index) => normalizePolicy(item, index));
   groupPolicyIdsByGroupId.value = removeRelationIdFromAllOwners(groupPolicyIdsByGroupId.value, policyId);
   if (selectedPolicyId.value === policyId) {
-    selectedPolicyId.value = draftPolicies.value[0]?.id ?? null;
+    selectedPolicyId.value = nextSelectedPolicyId;
   }
 };
 
 const removePolicyGroup = (groupId: string) => {
+  const nextSelectedPolicyGroupId =
+    selectedPolicyGroupId.value === groupId
+      ? selectNeighborIdAfterRemoval(draftPolicyGroups.value, groupId)
+      : selectedPolicyGroupId.value;
   draftPolicyGroups.value = draftPolicyGroups.value.filter((item) => item.id !== groupId).map((item, index) => normalizePolicyGroup(item, index));
   groupPolicyIdsByGroupId.value = removeRelationOwner(groupPolicyIdsByGroupId.value, groupId);
   setGroupIdsBySetId.value = removeRelationIdFromAllOwners(setGroupIdsBySetId.value, groupId);
   if (selectedPolicyGroupId.value === groupId) {
-    selectedPolicyGroupId.value = draftPolicyGroups.value[0]?.id ?? null;
+    selectedPolicyGroupId.value = nextSelectedPolicyGroupId;
   }
 };
 
 const removePolicySet = (setId: string) => {
+  const nextSelectedPolicySetId =
+    selectedPolicySetId.value === setId ? selectNeighborIdAfterRemoval(draftPolicySets.value, setId) : selectedPolicySetId.value;
   draftPolicySets.value = draftPolicySets.value.filter((item) => item.id !== setId).map((item, index) => normalizePolicySet(item, index));
   setGroupIdsBySetId.value = removeRelationOwner(setGroupIdsBySetId.value, setId);
   if (selectedPolicySetId.value === setId) {
-    selectedPolicySetId.value = draftPolicySets.value[0]?.id ?? null;
+    selectedPolicySetId.value = nextSelectedPolicySetId;
   }
 };
 

@@ -328,7 +328,6 @@ const toggleTitleCollapsed = (titleId: string) => {
 };
 
 const handleTitleClick = (titleId: string) => {
-  emit('select-task', titleId);
   toggleTitleCollapsed(titleId);
 };
 

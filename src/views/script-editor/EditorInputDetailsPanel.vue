@@ -19,7 +19,7 @@
         <input
           :value="selectedInputEntry.key"
           class="app-input"
-          :class="{ 'editor-input-invalid': isKeyMissing }"
+          :class="{ 'app-input-invalid': isKeyMissing }"
           placeholder="例如：activitySweepCount"
           :aria-invalid="isKeyMissing"
           :data-testid="selectedInputIndex === 0 ? 'editor-input-key-0' : undefined"
@@ -145,11 +145,6 @@ const scopeOptions = [
 
 <style scoped>
 @reference "../../style.css";
-
-.editor-input-invalid {
-  border-color: rgba(220, 38, 38, 0.38);
-  background: rgba(220, 38, 38, 0.08);
-}
 
 .editor-detail-toggle {
   @apply flex min-h-[44px] items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3 text-sm text-(--app-text-soft);

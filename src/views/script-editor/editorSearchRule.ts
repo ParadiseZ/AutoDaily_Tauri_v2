@@ -35,7 +35,7 @@ export const createSearchRule = (type: SearchRule['type']): SearchRule => {
         items: createSearchRuleList(),
       };
     default:
-      return { type: SEARCH_RULE_TYPE.txt, pattern: '开始' };
+      return { type: SEARCH_RULE_TYPE.txt, pattern: '' };
   }
 };
 

@@ -72,20 +72,24 @@
             @toggle-collapsed="toggleTitleCollapsed"
           />
 
-          <div v-if="isTitleExpanded(title.id)" class="space-y-2">
-            <EditorTaskSidebarTaskCard
-              v-for="task in groupedTasksByTitle[title.id] ?? []"
-              :key="task.id"
-              :task="task"
-              :selected="selectedTaskId === task.id"
-              :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
-              :dragging="draggingTaskId === task.id"
-              @mouseenter="handleMouseEnter"
-              @mouseup="handleMouseUp"
-              @contextmenu="handleTaskContextMenu"
-              @drag-start="startDrag"
-              @select="selectTask"
-            />
+          <div class="editor-task-group-panel" :class="{ 'editor-task-group-panel-collapsed': !isTitleExpanded(title.id) }">
+            <div class="editor-task-group-panel-inner">
+              <div class="space-y-2 editor-task-group-panel-content">
+                <EditorTaskSidebarTaskCard
+                  v-for="task in groupedTasksByTitle[title.id] ?? []"
+                  :key="task.id"
+                  :task="task"
+                  :selected="selectedTaskId === task.id"
+                  :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
+                  :dragging="draggingTaskId === task.id"
+                  @mouseenter="handleMouseEnter"
+                  @mouseup="handleMouseUp"
+                  @contextmenu="handleTaskContextMenu"
+                  @drag-start="startDrag"
+                  @select="selectTask"
+                />
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -716,6 +720,27 @@ onBeforeUnmount(() => {
   /* background: color-mix(in srgb, var(--app-panel-muted) 40%, #A9A9A9 18%); */
   background: var(--app-accent);
   color: white;
+}
+
+.editor-task-group-panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows 0.22s ease, opacity 0.18s ease;
+}
+
+.editor-task-group-panel-collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.editor-task-group-panel-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.editor-task-group-panel-content {
+  padding-top: 0.5rem;
 }
 
 

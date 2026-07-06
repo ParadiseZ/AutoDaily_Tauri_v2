@@ -50,8 +50,7 @@
         :aria-label="expanded ? '收起分组' : '展开分组'"
         @click.stop="$emit('toggle-collapsed', title.id)"
       >
-        <ChevronDown v-if="expanded" class="h-6 w-6" />
-        <ChevronRight v-else class="h-6 w-6" />
+        <ChevronDown class="h-6 w-6 editor-task-collapse-icon" :class="{ 'editor-task-collapse-icon-collapsed': !expanded }" />
       </button>
     </div>
 
@@ -59,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronDown, ChevronRight, GripVertical } from 'lucide-vue-next';
+import { ChevronDown, GripVertical } from 'lucide-vue-next';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 
 defineOptions({ name: 'EditorTaskSidebarTitleCard' });
@@ -82,3 +81,13 @@ defineEmits<{
   contextmenu: [event: MouseEvent, taskId: string];
 }>();
 </script>
+
+<style scoped>
+.editor-task-collapse-icon {
+  transition: transform 0.22s ease, color 0.16s ease;
+}
+
+.editor-task-collapse-icon-collapsed {
+  transform: rotate(-90deg);
+}
+</style>
