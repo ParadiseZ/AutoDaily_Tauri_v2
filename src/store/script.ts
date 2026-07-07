@@ -40,6 +40,7 @@ export const useScriptStore = defineStore('script', () => {
     const selectedScriptId = ref<string | null>(null);
     const loading = ref(false);
     const marketLoading = ref(false);
+    const marketAppending = ref(false);
     const taskLoading = ref<Record<string, boolean>>({});
     const marketQuery = ref<ScriptSearchInput>(defaultMarketQuery());
     const marketPage = ref<MarketPage<MarketScriptRecord>>(emptyMarketPage());
@@ -68,6 +69,7 @@ export const useScriptStore = defineStore('script', () => {
             return rightTime - leftTime;
         }),
     );
+    const hasMoreMarket = computed(() => marketPage.value.records.length < marketPage.value.total);
 
     const loadScripts = async () => {
         loading.value = true;
@@ -114,15 +116,6 @@ export const useScriptStore = defineStore('script', () => {
         }
     };
 
-    const saveScriptTasks = async (scriptId: string, tasks: ScriptTaskTable[]) => {
-        const normalized = normalizeScriptTasks(tasks);
-        await scriptService.saveTasks(scriptId, normalized);
-        tasksByScriptId.value = {
-            ...tasksByScriptId.value,
-            [scriptId]: normalized,
-        };
-    };
-
     const deleteScript = async (scriptId: string) => {
         await scriptService.removeLocal(scriptId);
         scripts.value = scripts.value.filter((script) => script.id !== scriptId);
@@ -136,17 +129,44 @@ export const useScriptStore = defineStore('script', () => {
     const cloneScript = (sourceScriptId: string, overwriteCloudId: boolean) =>
         scriptService.cloneLocal(sourceScriptId, overwriteCloudId);
 
-    const searchMarket = async (partial?: Partial<ScriptSearchInput>) => {
+    const searchMarket = async (
+        partial?: Partial<ScriptSearchInput>,
+        options?: {
+            append?: boolean;
+        },
+    ) => {
         marketLoading.value = true;
+        marketAppending.value = Boolean(options?.append);
         try {
-            marketQuery.value = {
+            const nextQuery = {
                 ...marketQuery.value,
                 ...partial,
             };
-            marketPage.value = await scriptService.searchMarket(marketQuery.value);
+            const nextPage = await scriptService.searchMarket(nextQuery);
+            marketQuery.value = nextQuery;
+            marketPage.value = options?.append
+                ? {
+                    ...nextPage,
+                    records: [...marketPage.value.records, ...nextPage.records],
+                }
+                : nextPage;
         } finally {
             marketLoading.value = false;
+            marketAppending.value = false;
         }
+    };
+
+    const loadMoreMarket = async () => {
+        if (marketLoading.value || !hasMoreMarket.value) {
+            return;
+        }
+
+        await searchMarket(
+            {
+                page: marketPage.value.current + 1,
+            },
+            { append: true },
+        );
     };
 
     const downloadMarketScript = (
@@ -162,13 +182,15 @@ export const useScriptStore = defineStore('script', () => {
         downloadMarketScript,
         loadScripts,
         loadScriptTasks,
+        loadMoreMarket,
         loading,
+        hasMoreMarket,
+        marketAppending,
         marketLoading,
         marketPage,
         marketQuery,
         prepareScript,
         saveScript,
-        saveScriptTasks,
         scripts,
         searchMarket,
         selectedScript,

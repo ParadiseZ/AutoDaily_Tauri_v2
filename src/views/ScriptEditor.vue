@@ -437,6 +437,7 @@
                 show-reverse-action
                 reverse-action-label="逆序排列"
                 @link="linkPolicyToGroup"
+                @locate="locatePolicy"
                 @unlink="unlinkPolicyFromGroup"
                 @reorder="reorderGroupPolicies"
                 @reverse="reverseGroupPolicies"
@@ -451,6 +452,7 @@
                 :assigned-items="assignedGroups"
                 :unassigned-items="unassignedGroups"
                 @link="linkGroupToSet"
+                @locate="locatePolicyGroup"
                 @unlink="unlinkGroupFromSet"
                 @reorder="reorderSetGroups"
               />
@@ -654,9 +656,7 @@ import {
   buildScriptEditorSnapshots,
   hasDirtyScriptEditorState,
   loadScriptEditorData,
-  removeDeletedScriptEditorData,
   savePrimaryScriptEditorData,
-  updateScriptEditorRelations,
 } from '@/views/script-editor/helpers/scriptEditorPersistence';
 import {
   applyTaskDescription,
@@ -2045,6 +2045,11 @@ const reverseGroupPolicies = () => {
   groupPolicyIdsByGroupId.value = reverseRelationIds(groupPolicyIdsByGroupId.value, currentPolicyGroup.value.id);
 };
 
+const locatePolicy = (policyId: string) => {
+  activeMode.value = 'policy';
+  selectedPolicyId.value = policyId;
+};
+
 const linkGroupToSet = (groupId: string) => {
   if (!currentPolicySet.value) return;
   setGroupIdsBySetId.value = appendRelationId(setGroupIdsBySetId.value, currentPolicySet.value.id, groupId);
@@ -2058,6 +2063,11 @@ const unlinkGroupFromSet = (groupId: string) => {
 const reorderSetGroups = (draggedId: string, targetId: string) => {
   if (!currentPolicySet.value) return;
   setGroupIdsBySetId.value = reorderRelationIds(setGroupIdsBySetId.value, currentPolicySet.value.id, draggedId, targetId);
+};
+
+const locatePolicyGroup = (groupId: string) => {
+  activeMode.value = 'policyGroup';
+  selectedPolicyGroupId.value = groupId;
 };
 
 const addInput = () => {
@@ -2660,7 +2670,6 @@ const buildPolicyGroupPayload = () => buildPolicyGroupSavePayload(draftPolicyGro
 const buildPolicySetPayload = () => buildPolicySetSavePayload(draftPolicySets.value, scriptId.value);
 
 const saveEditor = async () => {
-  let taskPoliciesGroupSet = false,policiesRelationship = false,scriptFlag = false;
   if (!draftScript.value) {
     return;
   }
@@ -2689,43 +2698,17 @@ const saveEditor = async () => {
       },
     };
     await savePrimaryScriptEditorData({
-      scriptId: script.id,
       script,
       tasks,
       policies,
       policyGroups,
       policySets,
-      saveScriptTasks: scriptStore.saveScriptTasks,
-      savePolicy: scriptService.savePolicy,
-      savePolicyGroup: scriptService.savePolicyGroup,
-      savePolicySet: scriptService.savePolicySet,
-    });
-    taskPoliciesGroupSet = true;
-
-    await removeDeletedScriptEditorData({
-      sourcePolicySnapshot: sourcePoliciesSnapshot.value,
-      sourcePolicyGroupSnapshot: sourcePolicyGroupsSnapshot.value,
-      sourcePolicySetSnapshot: sourcePolicySetsSnapshot.value,
-      policies,
-      policyGroups,
-      policySets,
-      removePolicy: scriptService.removePolicy,
-      removePolicyGroup: scriptService.removePolicyGroup,
-      removePolicySet: scriptService.removePolicySet,
-    });
-
-    await updateScriptEditorRelations({
-      policyGroups,
-      policySets,
       groupPolicyIdsByGroupId: groupPolicyIdsByGroupId.value,
       setGroupIdsBySetId: setGroupIdsBySetId.value,
-      updateGroupPolicies: scriptService.updateGroupPolicies,
-      updateSetGroups: scriptService.updateSetGroups,
+      saveScriptEditorBundle: scriptService.saveEditorBundle,
     });
-    policiesRelationship = true;
-
-    await scriptStore.saveScript(script);
-    scriptFlag = true;
+    await scriptStore.loadScripts();
+    scriptStore.selectScript(script.id);
 
     draftTasks.value = tasks;
     draftPolicies.value = policies;
@@ -2753,7 +2736,7 @@ const saveEditor = async () => {
     appendConsoleLine(`脚本结构已保存：${script.data.name || script.id}`);
     showToast('脚本编辑结果已保存', 'success');
   } catch (error) {
-    let msg =  `脚本保存失败,${error instanceof Error ? error.message : '未知错误: 任务+策略(+组+集合):'+taskPoliciesGroupSet+",关联关系:"+policiesRelationship+",脚本信息:"+scriptFlag}`;
+    let msg = `脚本保存失败,${error instanceof Error ? error.message : '未知错误'}`;
     showToast(msg, 'error',5000);
     appendConsoleLine(msg, 'error');
     console.log(error);

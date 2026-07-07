@@ -37,7 +37,7 @@
       },
       "dictPath": "D:\\Database\\Project\\OCR\\PP-OCRv6_small_rec_infer\\v6_dict.txt",
       "resizeFilter": "Triangle",
-      "processingMode": "MicroBatch",
+      "processingMode": "Single",
       "microBatchSize": 4,
       "widthBucketStep": 32
     }

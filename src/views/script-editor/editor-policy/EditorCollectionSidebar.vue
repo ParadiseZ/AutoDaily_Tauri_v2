@@ -17,19 +17,23 @@
       :data-testid="`${testIdPrefix}-sidebar-scroll`"
       @scroll="closeContextMenu"
     >
-      <div v-if="filteredItems.length" class="space-y-2 pr-1">
+      <TransitionGroup
+        v-if="previewItems.length"
+        tag="div"
+        class="space-y-2 pr-1"
+        move-class="editor-collection-reorder-move"
+      >
         <article
-          v-for="item in filteredItems"
+          v-for="item in previewItems"
           :key="item.id"
-          class="app-list-item space-y-3 transition-colors"
+          class="app-list-item space-y-3 transition-all duration-200"
           :class="{
             'app-list-item-active': selectedId === item.id,
             'editor-drop-target': overId === item.id && draggingId !== null && draggingId !== item.id,
             'editor-dragging-item': draggingId === item.id,
           }"
           :data-testid="`${itemTestIdPrefix}-${item.id}`"
-          @mouseenter="handleMouseEnter(item.id)"
-          @mouseup="handleMouseUp(item.id)"
+          :data-collection-id="item.id"
           @contextmenu="handleItemContextMenu($event, item.id)"
         >
           <div class="grid grid-cols-[34px_minmax(0,1fr)] items-start gap-2">
@@ -38,7 +42,7 @@
               :class="{ 'app-drag-handle-active': draggingId === item.id }"
               type="button"
               aria-label="拖动排序"
-              @mousedown.prevent="startDrag(item.id)"
+              @mousedown.prevent="startDrag(item.id, $event)"
               @click.stop
             >
               <GripVertical class="h-4 w-4" />
@@ -63,13 +67,43 @@
             </div>
           </div>
         </article>
-      </div>
+      </TransitionGroup>
 
       <EmptyState v-else :title="emptyTitle" :description="emptyDescription" />
     </div>
   </SurfacePanel>
 
   <Teleport to="body">
+    <article
+      v-if="draggingItem"
+      class="editor-collection-drag-overlay app-list-item space-y-3"
+      :style="dragOverlayStyle"
+    >
+      <div class="grid grid-cols-[34px_minmax(0,1fr)] items-start gap-2">
+        <div class="app-drag-handle app-drag-handle-active pointer-events-none">
+          <GripVertical class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 text-left">
+          <div class="flex items-center gap-2">
+            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ draggingItem.title }}</p>
+            <span v-if="draggingItem.badge" class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-faint)">
+              {{ draggingItem.badge }}
+            </span>
+          </div>
+          <template v-if="draggingItem.detailLines?.length">
+            <p
+              v-for="(line, lineIndex) in draggingItem.detailLines"
+              :key="`${draggingItem.id}-overlay-line-${lineIndex}`"
+              class="mt-2 truncate text-xs text-(--app-text-faint)"
+            >
+              {{ line }}
+            </p>
+          </template>
+          <p v-else class="mt-2 truncate text-xs text-(--app-text-faint)">{{ draggingItem.subtitle }}</p>
+        </div>
+      </div>
+    </article>
+
     <div
       v-if="contextMenu"
       ref="contextMenuRoot"
@@ -211,6 +245,7 @@ const EXPANDED_MENU_MAX_HEIGHT = 320;
 const search = ref('');
 const draggingId = ref<string | null>(null);
 const overId = ref<string | null>(null);
+const dragPointer = ref({ x: 0, y: 0 });
 const contextMenu = ref<{ itemId: string; x: number; y: number } | null>(null);
 const targetMenuOpen = ref(false);
 const targetAnchor = ref<MenuRect | null>(null);
@@ -221,6 +256,24 @@ const targetMenuRoot = ref<HTMLElement | null>(null);
 const actionMenuRoot = ref<HTMLElement | null>(null);
 const scrollRoot = ref<HTMLElement | null>(null);
 
+const reorderPreviewItems = <T extends { id: string }>(items: T[], draggedId: string | null, targetId: string | null) => {
+  if (!draggedId || !targetId || draggedId === targetId) {
+    return items;
+  }
+  const nextItems = [...items];
+  const fromIndex = nextItems.findIndex((item) => item.id === draggedId);
+  const toIndex = nextItems.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+    return items;
+  }
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  if (!movedItem) {
+    return items;
+  }
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
+};
+
 const filteredItems = computed(() => {
   const keyword = search.value.trim().toLowerCase();
   if (!keyword) {
@@ -230,15 +283,40 @@ const filteredItems = computed(() => {
     `${item.title} ${item.subtitle} ${item.detailLines?.join(' ') || ''} ${item.searchText || ''}`.toLowerCase().includes(keyword),
   );
 });
+const previewItems = computed(() => reorderPreviewItems(filteredItems.value, draggingId.value, overId.value));
 const testIdPrefix = computed(() => props.itemTestIdPrefix.replace(/-item$/, ''));
 const currentContextItem = computed(() => props.items.find((item) => item.id === contextMenu.value?.itemId) ?? null);
 const targetItems = computed(() => filteredItems.value.filter((item) => item.id !== contextMenu.value?.itemId));
 const activeTarget = computed(() => props.items.find((item) => item.id === activeTargetId.value) ?? null);
-const visibleItemSignature = computed(() => filteredItems.value.map((item) => item.id).join('|'));
+const draggingItem = computed(() => props.items.find((item) => item.id === draggingId.value) ?? null);
+const dragOverlayStyle = computed(() => ({
+  left: `${dragPointer.value.x + 14}px`,
+  top: `${dragPointer.value.y + 14}px`,
+}));
+const visibleItemSignature = computed(() => previewItems.value.map((item) => item.id).join('|'));
+
+const applyDraggingUi = (active: boolean) => {
+  document.body.style.userSelect = active ? 'none' : '';
+  document.body.style.cursor = active ? 'grabbing' : '';
+};
+
+const updateDragPointer = (event: MouseEvent) => {
+  dragPointer.value = {
+    x: event.clientX,
+    y: event.clientY,
+  };
+};
+
+const resolveCollectionIdAtPoint = (event: MouseEvent) =>
+  document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>('[data-collection-id]')
+    ?.dataset.collectionId ?? null;
 
 const resetDrag = () => {
   draggingId.value = null;
   overId.value = null;
+  applyDraggingUi(false);
 };
 
 const closeContextMenu = () => {
@@ -249,26 +327,23 @@ const closeContextMenu = () => {
   activeLeafAnchor.value = null;
 };
 
-const startDrag = (id: string) => {
+const startDrag = (id: string, event: MouseEvent) => {
   closeContextMenu();
   draggingId.value = id;
   overId.value = id;
+  updateDragPointer(event);
+  applyDraggingUi(true);
 };
 
-const handleMouseEnter = (id: string) => {
+const handleWindowMouseMove = (event: MouseEvent) => {
   if (!draggingId.value) {
     return;
   }
-  overId.value = id;
-};
-
-const handleMouseUp = (targetId: string) => {
-  if (!draggingId.value || draggingId.value === targetId) {
-    resetDrag();
-    return;
+  updateDragPointer(event);
+  const id = resolveCollectionIdAtPoint(event);
+  if (id) {
+    overId.value = id;
   }
-  emit('reorder', draggingId.value, targetId);
-  resetDrag();
 };
 
 const clampHorizontalPosition = (x: number, width: number) =>
@@ -475,6 +550,13 @@ const handleWindowKeydown = (event: KeyboardEvent) => {
   }
 };
 
+const handleWindowMouseUp = () => {
+  if (draggingId.value && overId.value && draggingId.value !== overId.value) {
+    emit('reorder', draggingId.value, overId.value);
+  }
+  resetDrag();
+};
+
 watch(
   () => props.collapsed,
   (nextCollapsed) => {
@@ -493,7 +575,8 @@ watch(
 );
 
 onMounted(() => {
-  window.addEventListener('mouseup', resetDrag);
+  window.addEventListener('mousemove', handleWindowMouseMove);
+  window.addEventListener('mouseup', handleWindowMouseUp);
   window.addEventListener('resize', closeContextMenu);
   window.addEventListener('scroll', handleWindowScroll, true);
   window.addEventListener('keydown', handleWindowKeydown);
@@ -501,11 +584,13 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  window.removeEventListener('mouseup', resetDrag);
+  window.removeEventListener('mousemove', handleWindowMouseMove);
+  window.removeEventListener('mouseup', handleWindowMouseUp);
   window.removeEventListener('resize', closeContextMenu);
   window.removeEventListener('scroll', handleWindowScroll, true);
   window.removeEventListener('keydown', handleWindowKeydown);
   document.removeEventListener('click', handleDocumentClick);
+  applyDraggingUi(false);
 });
 </script>
 
@@ -513,11 +598,26 @@ onBeforeUnmount(() => {
 .editor-drop-target {
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.22);
   background: color-mix(in srgb, var(--app-state-active-bg) 84%, white);
+  transform: translateX(6px);
 }
 
 .editor-dragging-item {
+  opacity: 0;
+}
+
+.editor-collection-reorder-move {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.editor-collection-drag-overlay {
+  position: fixed;
+  z-index: 70;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
   border-color: rgba(70, 110, 255, 0.24);
-  background: rgba(70, 110, 255, 0.08);
+  background: color-mix(in srgb, var(--app-panel) 92%, white);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.2);
+  transform: scale(1.01);
 }
 
 .editor-collection-menu {

@@ -1,6 +1,6 @@
 <template>
   <article
-    class="app-list-item space-y-3 transition-colors"
+    class="app-list-item space-y-3 transition-all duration-200"
     :class="[{
       'app-list-item-active': selected,
       'editor-task-card-dragging': dragging,
@@ -10,8 +10,7 @@
       'editor-task-card-expanded': expanded
     }]"
     :data-testid="`editor-task-item-${title.id}`"
-    @mouseenter="$emit('mouseenter', title.id)"
-    @mouseup="$emit('mouseup', title.id)"
+    :data-task-id="title.id"
     @contextmenu="$emit('contextmenu', $event, title.id)"
   >
     <div class="grid grid-cols-[34px_minmax(0,1fr)_28px] items-start gap-2">
@@ -21,7 +20,7 @@
         :data-testid="`editor-task-drag-${title.id}`"
         type="button"
         aria-label="拖动排序"
-        @mousedown.prevent="$emit('drag-start', title.id)"
+        @mousedown.prevent="$emit('drag-start', title.id, $event)"
         @click.stop
       >
         <GripVertical class="h-4 w-4" />
@@ -74,10 +73,8 @@ defineProps<{
 
 defineEmits<{
   select: [taskId: string];
-  'drag-start': [taskId: string];
+  'drag-start': [taskId: string, event: MouseEvent];
   'toggle-collapsed': [taskId: string];
-  mouseenter: [taskId: string];
-  mouseup: [taskId: string];
   contextmenu: [event: MouseEvent, taskId: string];
 }>();
 </script>

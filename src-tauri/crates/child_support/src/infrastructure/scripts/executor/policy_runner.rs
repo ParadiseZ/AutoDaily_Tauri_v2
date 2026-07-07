@@ -237,7 +237,7 @@ impl ScriptExecutor {
                     .await?;
                 last_search_hits = hits;
                 if !matched {
-                    return Ok::<bool, crate::infrastructure::scripts::script_error::ScriptError>(false);
+                    return Ok::<bool, ScriptError>(false);
                 }
                 self.execute_policy_steps(
                     step_type,
@@ -246,7 +246,7 @@ impl ScriptExecutor {
                     after_action.as_slice(),
                 )
                 .await?;
-                Ok::<bool, crate::infrastructure::scripts::script_error::ScriptError>(true)
+                Ok::<bool, ScriptError>(true)
             }
             .await;
             let trace = self.take_active_policy_round_trace();

@@ -9,6 +9,7 @@ use imageproc::contours::find_contours;
 use imageproc::point::Point;
 
 use ndarray::{s, Array4, ArrayD, ArrayView2, ArrayView4, ArrayViewD};
+use rayon::prelude::*;
 use std::sync::Mutex;
 
 /// dbNet通常值
@@ -199,105 +200,124 @@ impl TextDetector for PaddleDetDbNet {
         let prob_map = output.slice(s![0, 0, .., ..]);
 
         // 二值化处理
-        let mut binary_map = ImageBuffer::new(w as u32, h as u32);
-        for y in 0..h {
-            for x in 0..w {
-                let val = if prob_map[[y, x]] > self.db_thresh {
-                    255
-                } else {
-                    0
-                };
-                binary_map.put_pixel(x as u32, y as u32, image::Luma([val]));
-            }
-        }
+        let mut binary_map: ImageBuffer<image::Luma<u8>, Vec<u8>> = ImageBuffer::from_vec(
+            w as u32,
+            h as u32,
+            (0..h * w)
+                .into_par_iter()
+                .map(|idx| {
+                    let y = idx / w;
+                    let x = idx % w;
+                    if prob_map[[y, x]] > self.db_thresh {
+                        255
+                    } else {
+                        0
+                    }
+                })
+                .collect(),
+        )
+        .ok_or_else(|| VisionError::DataProcessingErr {
+            method: "dbnet_postprocess".to_string(),
+            e: "二值图尺寸不匹配".to_string(),
+        })?;
 
         // 可选的膨胀操作
         if self.use_dilation {
-            // 简单的膨胀操作
-            let mut dilated = ImageBuffer::new(w as u32, h as u32);
-            for y in 0..h as u32 {
-                for x in 0..w as u32 {
+            let source = binary_map.as_raw();
+            let dilated_data: Vec<u8> = (0..h * w)
+                .into_par_iter()
+                .map(|idx| {
+                    let y = idx / w;
+                    let x = idx % w;
                     let mut max_val = 0u8;
                     for dy in -1..=1 {
                         for dx in -1..=1 {
                             let nx = (x as i32 + dx).clamp(0, w as i32 - 1) as u32;
                             let ny = (y as i32 + dy).clamp(0, h as i32 - 1) as u32;
-                            max_val = max_val.max(binary_map.get_pixel(nx, ny).0[0]);
+                            max_val = max_val.max(source[ny as usize * w + nx as usize]);
                         }
                     }
-                    dilated.put_pixel(x, y, image::Luma([max_val]));
-                }
-            }
-            binary_map = dilated;
+                    max_val
+                })
+                .collect();
+            binary_map =
+                ImageBuffer::from_vec(w as u32, h as u32, dilated_data).ok_or_else(|| {
+                    VisionError::DataProcessingErr {
+                        method: "dbnet_postprocess".to_string(),
+                        e: "膨胀图尺寸不匹配".to_string(),
+                    }
+                })?;
         }
 
         // 查找轮廓
         let contours = find_contours::<i32>(&binary_map);
         // 处理每个轮廓
-        let mut boxes: Vec<DetResult> = Vec::new();
-        for contour in contours {
-            // --- 步骤 1: 计算初始边界框 ---
-            // [重要] 这里应该使用 `get_min_area_rect` (最小面积旋转矩形)
-            // 但 imageproc 库标准版没有提供。我们暂时使用轴对齐框作为替代，
-            // 但请注意这是导致检测倾斜文本失败的主要原因。
-            let (min_box, min_side_len) = get_bounding_rect(&contour.points);
-            if min_box.is_empty() {
-                continue;
-            }
+        let boxes: Vec<DetResult> = contours
+            .par_iter()
+            .filter_map(|contour| {
+                // --- 步骤 1: 计算初始边界框 ---
+                // [重要] 这里应该使用 `get_min_area_rect` (最小面积旋转矩形)
+                // 但 imageproc 库标准版没有提供。我们暂时使用轴对齐框作为替代，
+                // 但请注意这是导致检测倾斜文本失败的主要原因。
+                let (min_box, min_side_len) = get_bounding_rect(&contour.points);
+                if min_box.is_empty() {
+                    return None;
+                }
 
-            // 根据最小边长过滤
-            if min_side_len < MIN_AREA {
-                continue;
-            }
+                // 根据最小边长过滤
+                if min_side_len < MIN_AREA {
+                    return None;
+                }
 
-            // --- 步骤 2: 计算得分并过滤 ---
-            let score = box_score_fast(prob_map.view(), &contour.points, &min_box);
+                // --- 步骤 2: 计算得分并过滤 ---
+                let score = box_score_fast(prob_map.view(), &contour.points, &min_box);
 
-            if score < self.db_box_thresh {
-                continue;
-            }
+                if score < self.db_box_thresh {
+                    return None;
+                }
 
-            // --- 步骤 3: 扩展多边形 (unclip) ---
-            let unclipped_poly = unclip_polygon(&min_box, self.unclip_ratio);
-            if unclipped_poly.is_empty() {
-                continue;
-            }
+                // --- 步骤 3: 扩展多边形 (unclip) ---
+                let unclipped_poly = unclip_polygon(&min_box, self.unclip_ratio);
+                if unclipped_poly.is_empty() {
+                    return None;
+                }
 
-            // --- 步骤 4: 对扩展后的多边形计算最终边界框 ---
-            // 同样，这里也应该使用 `get_min_area_rect`
+                // --- 步骤 4: 对扩展后的多边形计算最终边界框 ---
+                // 同样，这里也应该使用 `get_min_area_rect`
 
-            // 检查扩展后的多边形是否满足最小面积要求
-            let final_min_side = if unclipped_poly.len() == 4 {
-                let width = (unclipped_poly[2].x - unclipped_poly[0].x) as f32;
-                let height = (unclipped_poly[2].y - unclipped_poly[0].y) as f32;
-                width.min(height)
-            } else {
-                0.0 // 不应该出现这种情况，因为输入是矩形
-            };
+                // 检查扩展后的多边形是否满足最小面积要求
+                let final_min_side = if unclipped_poly.len() == 4 {
+                    let width = (unclipped_poly[2].x - unclipped_poly[0].x) as f32;
+                    let height = (unclipped_poly[2].y - unclipped_poly[0].y) as f32;
+                    width.min(height)
+                } else {
+                    0.0 // 不应该出现这种情况，因为输入是矩形
+                };
 
-            // 再次根据最小边长过滤
-            if final_min_side < MIN_AREA_AFTER {
-                continue;
-            }
+                // 再次根据最小边长过滤
+                if final_min_side < MIN_AREA_AFTER {
+                    return None;
+                }
 
-            // --- 步骤 5: 调整回原始图像坐标 ---
-            //let scaled_points = scale_polygon(final_box, scale_factor, origin_shape);
-            let scaled_points = scale_polygon(unclipped_poly, scale_factor, origin_shape);
+                // --- 步骤 5: 调整回原始图像坐标 ---
+                //let scaled_points = scale_polygon(final_box, scale_factor, origin_shape);
+                let scaled_points = scale_polygon(unclipped_poly, scale_factor, origin_shape);
 
-            //boxes.push((scaled_points, score));
-            boxes.push(DetResult::new(
-                BoundingBox::new(
-                    scaled_points[0].x,
-                    scaled_points[0].y,
-                    scaled_points[2].x,
-                    scaled_points[2].y,
-                ),
-                0,
-                "txt".into(),
-                score,
-                8,
-            ));
-        }
+                //boxes.push((scaled_points, score));
+                Some(DetResult::new(
+                    BoundingBox::new(
+                        scaled_points[0].x,
+                        scaled_points[0].y,
+                        scaled_points[2].x,
+                        scaled_points[2].y,
+                    ),
+                    0,
+                    "txt".into(),
+                    score,
+                    8,
+                ))
+            })
+            .collect();
 
         // 按分数排序（可选）
         //boxes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));

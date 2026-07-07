@@ -36,6 +36,16 @@ type ScriptTablePayload = {
 
 const DEFAULT_SCRIPT_REQUIRED_FEATURES = ['onnxInference', 'runtime:rhai', 'device:android'];
 
+type ScriptEditorSavePayload = {
+    script: ScriptTableRecord;
+    tasks: ScriptTaskTable[];
+    policies: PolicyTable[];
+    policyGroups: PolicyGroupTable[];
+    policySets: PolicySetTable[];
+    groupPolicyIdsByGroupId: Record<string, string[]>;
+    setGroupIdsBySetId: Record<string, string[]>;
+};
+
 const emptyMarketPage = (query: ScriptSearchInput): MarketPage<MarketScriptRecord> => ({
     records: [],
     total: 0,
@@ -162,8 +172,6 @@ export const scriptService = {
         return scripts.map(normalizeScriptTable);
     },
     listTasks: (scriptId: string) => invoke('get_script_tasks_cmd', { scriptId }) as Promise<ScriptTaskTable[]>,
-    saveTasks: (scriptId: string, tasks: ScriptTaskTable[]) =>
-        invoke('save_script_tasks_cmd', { scriptId, tasks }) as Promise<void>,
     listPolicies: (scriptId: string) => invoke('get_all_policies_cmd', { scriptId }) as Promise<PolicyTable[]>,
     savePolicy: (policy: PolicyTable) => invoke('save_policy_cmd', { policy }) as Promise<void>,
     removePolicy: (id: string) => invoke('delete_policy_cmd', { id }) as Promise<void>,
@@ -179,6 +187,8 @@ export const scriptService = {
     getSetGroups: (setId: string) => invoke('get_set_groups_cmd', { setId }) as Promise<string[]>,
     updateSetGroups: (setId: string, groupIds: string[]) =>
         invoke('update_set_groups_cmd', { setId, groupIds }) as Promise<void>,
+    saveEditorBundle: (payload: ScriptEditorSavePayload) =>
+        invoke('save_script_editor_cmd', payload) as Promise<void>,
     saveLocal: async (script: ScriptTableRecord): Promise<void> => {
         await invoke('save_script_cmd', { script });
     },

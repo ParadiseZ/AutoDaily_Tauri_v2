@@ -1,6 +1,5 @@
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::domain::devices::device_runtime_event::DeviceLifecycleStatus;
-use crate::infrastructure::context::init_error::InitResult;
 use crate::infrastructure::core::{
     now_millis_string, AssignmentId, DeviceId, DispatchId, HashMap, JobId, MessageId, ScriptId,
 };
@@ -8,8 +7,6 @@ use crate::infrastructure::ipc::chanel_server::IpcClientState;
 use crate::infrastructure::ipc::message::{
     ConnectionStatusKind, RuntimeDispatchPhase, RuntimeQueueItem, RuntimeSessionSnapshot,
 };
-use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::scripts::script_info_model::ScriptManager;
 use std::collections::VecDeque;
 use std::sync::{Arc, RwLock};
 use tokio::sync::{mpsc, watch};
@@ -138,8 +135,6 @@ impl RuntimeReconcileJob {
 
 /// 主进程上下文 - 优化的数据存储策略
 pub struct MainProcessCtx {
-    /// 脚本管理器（使用分页+缓存，不全量加载）
-    pub script_manager: Arc<RwLock<ScriptManager>>,
 
     /// IPC通道映射（运行时数据，必须在内存中）
     pub ipc_servers: Arc<RwLock<HashMap<Arc<DeviceId>, Arc<IpcClientState>>>>,
@@ -170,7 +165,6 @@ impl MainProcessCtx {
         let (runtime_reconcile_tx, runtime_reconcile_rx) = mpsc::unbounded_channel();
         (
             Self {
-                script_manager: Arc::new(RwLock::new(ScriptManager::empty())),
                 ipc_servers: Arc::new(RwLock::new(HashMap::new())),
                 device_runtime_states: Arc::new(RwLock::new(HashMap::new())),
                 device_runtime_signals: Arc::new(RwLock::new(HashMap::new())),
@@ -436,39 +430,4 @@ impl MainProcessCtx {
         })?;
         Ok(())
     }
-
-    pub async fn init_scripts_mgr() -> InitResult<()> {
-        Log::info("初始化脚本管理器...");
-        // 创建脚本管理器并加载索引
-        //let mut script_manager = ScriptManager::new(script_cache_size);
-
-        // 加载所有脚本数据
-        //script_manager .load_from_directory(&ScriptsConfig::get_dir().await).await.map_err(|e| InitError::InitMainScriptMgrErr { e: e.to_string() })?;
-        Ok(())
-    }
-
-    /// 搜索脚本数据
-    pub async fn init_(
-        &mut self, //request: crate::infrastructure::scripts::script_info_model::ScriptPageReq,
-    ) -> Result<
-        //crate::infrastructure::scripts::script_info_model::ScriptPageResp,
-        (),
-        Box<dyn std::error::Error>,
-    > {
-        Log::info("初始化脚本管理器...");
-        Ok(())
-        //self.script_manager.read().unwrap().get_scripts_page(request)
-    }
-
-    /*    /// 添加设备配置（小量数据，直接存储在内存）
-    pub fn add_device_config(&mut self, config: DeviceConfig) {
-        self.device_config.push(config);
-    }
-
-    /// 获取设备配置（从内存中快速获取）
-    pub fn get_device_config(&self, device_id: &DeviceId) -> Option<&DeviceConfig> {
-        self.device_config.iter().find(|config| config.device_id == *device_id)
-    }*/
-
-    pub fn run(&self) {}
 }

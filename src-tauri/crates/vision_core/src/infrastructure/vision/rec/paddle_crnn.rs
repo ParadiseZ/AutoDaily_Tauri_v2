@@ -374,19 +374,21 @@ impl PaddleRecCrnn {
                     self.get_input_node_name(),
                     self.get_output_node_name(),
                     |output| {
-                        let mut chunk_results = Vec::with_capacity(chunk.len());
-                        for (batch_index, sample) in chunk.iter().enumerate() {
-                            let det_res =
-                                det_results.get(sample.original_index).ok_or_else(|| {
-                                    VisionError::BatchMatchDetSizeFailed {
-                                        batch: chunk.len(),
-                                        det_num: det_results.len(),
-                                    }
-                                })?;
-                            let ocr = self.postprocess(output.view(), det_res, batch_index)?;
-                            chunk_results.push((sample.original_index, ocr));
-                        }
-                        Ok(chunk_results)
+                        chunk
+                            .par_iter()
+                            .enumerate()
+                            .map(|(batch_index, sample)| {
+                                let det_res =
+                                    det_results.get(sample.original_index).ok_or_else(|| {
+                                        VisionError::BatchMatchDetSizeFailed {
+                                            batch: chunk.len(),
+                                            det_num: det_results.len(),
+                                        }
+                                    })?;
+                                let ocr = self.postprocess(output.view(), det_res, batch_index)?;
+                                Ok((sample.original_index, ocr))
+                            })
+                            .collect::<VisionResult<Vec<_>>>()
                     },
                 )?;
                 results.extend(chunk_results);

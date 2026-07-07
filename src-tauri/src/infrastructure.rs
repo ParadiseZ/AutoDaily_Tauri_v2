@@ -6,8 +6,7 @@ pub mod db;
 // pub mod process;
 // 日志服务
 pub mod logging;
-// 脚本管理
-pub mod scripts;
+
 // 共享内存模型管理器
 //pub mod shared;
 // 视觉服务

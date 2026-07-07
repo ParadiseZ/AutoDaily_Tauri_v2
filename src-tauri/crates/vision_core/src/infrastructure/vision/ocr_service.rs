@@ -219,7 +219,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires AUTODAILY_OCR_TEST_CONFIG_PATH pointing to a real-path JSON config"]
-    async fn real_paths_detector_init_and_detect() {
+    async fn detect() {
         let config = real_ocr_test_config();
 
         let mut service = OcrService::new();
@@ -254,7 +254,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires AUTODAILY_OCR_TEST_CONFIG_PATH pointing to a real-path JSON config"]
-    async fn real_paths_ocr_init_and_recognize() {
+    async fn ocr() {
         let config = real_ocr_test_config();
         let config_print = real_ocr_test_config();
 

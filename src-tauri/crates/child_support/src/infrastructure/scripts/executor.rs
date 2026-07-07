@@ -23,6 +23,7 @@ use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::scripts::script_variable::{
     ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace,
 };
+use crate::domain::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::domain::vision::ocr_search::{
     OcrSearcher, RelativeAnchorType, RelativeDirection, RelativeTargetKind, SearchHit, SearchRule,
     VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
@@ -44,7 +45,6 @@ use crate::infrastructure::ipc::message::{
 };
 use crate::infrastructure::ipc::runtime_reporter::{emit_lifecycle_event, emit_progress_event};
 use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::infrastructure::session::runtime_session::{
     get_runtime_execution_policy, get_runtime_session_store, get_script_bundle_snapshot,
 };

@@ -33,22 +33,22 @@
           </div>
 
           <div class="mt-4 min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
-            <div v-if="filteredAssigned.length" class="space-y-2">
+            <TransitionGroup
+              v-if="previewAssigned.length"
+              tag="div"
+              class="space-y-2"
+              move-class="editor-relation-reorder-move"
+            >
               <article
-                v-for="(item, index) in filteredAssigned"
+                v-for="(item, index) in previewAssigned"
                 :key="item.id"
-                class="app-list-item transition-colors"
+                class="app-list-item transition-all duration-200"
                 :class="{
                   'editor-drop-target': overAssignedId === item.id && draggingAssignedId !== null && draggingAssignedId !== item.id,
                   'editor-dragging-item': draggingAssignedId === item.id,
                 }"
                 :data-testid="`editor-relation-assigned-${item.id}`"
                 :data-relation-id="item.id"
-                @mouseenter="handleAssignedHover(item.id)"
-                @mousemove="handleAssignedHover(item.id)"
-                @dragenter.prevent="handleAssignedNativeEnter(item.id)"
-                @dragover.prevent="handleAssignedNativeOver($event, item.id)"
-                @drop.prevent="handleAssignedNativeDrop(item.id)"
               >
                 <div class="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
                   <span class="flex h-9 w-9 items-center justify-center rounded-full border border-(--app-border) bg-(--app-panel-muted) text-sm font-semibold text-(--app-text-strong)">
@@ -58,16 +58,22 @@
                   <p class="truncate text-sm text-(--app-text-faint)">{{ item.subtitle }}</p>
                   <div class="flex items-center gap-2">
                     <button
+                      class="app-icon-button app-icon-button-sec shrink-0"
+                      type="button"
+                      aria-label="定位"
+                      title="定位"
+                      :data-testid="`editor-relation-locate-${item.id}`"
+                      @click="$emit('locate', item.id)"
+                    >
+                      <Crosshair class="h-4 w-4" />
+                    </button>
+                    <button
                       class="app-drag-handle"
                       :class="{ 'app-drag-handle-active': draggingAssignedId === item.id }"
                       type="button"
                       aria-label="拖动排序"
                       :data-testid="`editor-relation-drag-${index}`"
-                      draggable="true"
-                      @dragstart="handleAssignedNativeStart($event, item.id)"
-                      @dragend="resetAssignedDrag"
-                      @pointerdown.prevent="startAssignedDrag(item.id)"
-                      @mousedown.prevent="startAssignedDrag(item.id)"
+                      @mousedown.prevent="startAssignedDrag(item.id, $event)"
                       @click.stop
                     >
                       <GripVertical class="h-4 w-4" />
@@ -78,7 +84,7 @@
                   </div>
                 </div>
               </article>
-            </div>
+            </TransitionGroup>
 
             <EmptyState v-else title="还没有关联内容" description="从下方未关联列表中挑选并加入当前集合。" />
           </div>
@@ -126,11 +132,30 @@
 
     <EmptyState v-else title="先选择一个对象" description="左侧选中策略组或策略集后，再在这里调整关联关系。" />
   </SurfacePanel>
+
+  <Teleport to="body">
+    <article
+      v-if="draggingAssignedItem"
+      class="editor-relation-drag-overlay app-list-item"
+      :style="dragOverlayStyle"
+    >
+      <div class="grid grid-cols-[44px_minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-3">
+        <span class="flex h-9 w-9 items-center justify-center rounded-full border border-(--app-border) bg-(--app-panel-muted) text-sm font-semibold text-(--app-text-strong)">
+          {{ draggingAssignedIndex + 1 }}
+        </span>
+        <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ draggingAssignedItem.title }}</p>
+        <p class="truncate text-sm text-(--app-text-faint)">{{ draggingAssignedItem.subtitle }}</p>
+        <div class="app-drag-handle app-drag-handle-active pointer-events-none">
+          <GripVertical class="h-4 w-4" />
+        </div>
+      </div>
+    </article>
+  </Teleport>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { GripVertical, Trash2 } from 'lucide-vue-next';
+import { Crosshair, GripVertical, Trash2 } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';
@@ -154,6 +179,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   link: [id: string];
+  locate: [id: string];
   unlink: [id: string];
   reorder: [draggedId: string, targetId: string];
   reverse: [];
@@ -163,6 +189,7 @@ const assignedSearch = ref('');
 const unassignedSearch = ref('');
 const draggingAssignedId = ref<string | null>(null);
 const overAssignedId = ref<string | null>(null);
+const dragPointer = ref({ x: 0, y: 0 });
 const relationPane = ref<HTMLElement | null>(null);
 const relationPaneRatio = ref(0.5);
 const resizingPane = ref(false);
@@ -175,17 +202,42 @@ const RELATION_PANE_MIN_HEIGHT = 140;
 const matchesSearch = (item: EditorNamedItem, keyword: string) =>
   `${item.title} ${item.subtitle}`.toLowerCase().includes(keyword);
 
+const reorderPreviewItems = <T extends { id: string }>(items: T[], draggedId: string | null, targetId: string | null) => {
+  if (!draggedId || !targetId || draggedId === targetId) {
+    return items;
+  }
+  const nextItems = [...items];
+  const fromIndex = nextItems.findIndex((item) => item.id === draggedId);
+  const toIndex = nextItems.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+    return items;
+  }
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  if (!movedItem) {
+    return items;
+  }
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
+};
+
 const filteredAssigned = computed(() => {
   const keyword = assignedSearch.value.trim().toLowerCase();
   if (!keyword) return props.assignedItems;
   return props.assignedItems.filter((item) => matchesSearch(item, keyword));
 });
+const previewAssigned = computed(() => reorderPreviewItems(filteredAssigned.value, draggingAssignedId.value, overAssignedId.value));
 
 const filteredUnassigned = computed(() => {
   const keyword = unassignedSearch.value.trim().toLowerCase();
   if (!keyword) return props.unassignedItems;
   return props.unassignedItems.filter((item) => matchesSearch(item, keyword));
 });
+const draggingAssignedItem = computed(() => props.assignedItems.find((item) => item.id === draggingAssignedId.value) ?? null);
+const draggingAssignedIndex = computed(() => props.assignedItems.findIndex((item) => item.id === draggingAssignedId.value));
+const dragOverlayStyle = computed(() => ({
+  left: `${dragPointer.value.x + 14}px`,
+  top: `${dragPointer.value.y + 14}px`,
+}));
 
 const relationPaneStyle = computed(() => ({
   gridTemplateRows: `minmax(0, ${relationPaneRatio.value}fr) ${RELATION_PANE_HANDLE_HEIGHT}px minmax(0, ${1 - relationPaneRatio.value}fr)`,
@@ -201,79 +253,53 @@ const clampRelationPaneRatio = (value: number) => {
   return Math.min(1 - minRatio, Math.max(minRatio, value));
 };
 
+const applyDraggingUi = (active: boolean) => {
+  document.body.style.userSelect = active ? 'none' : '';
+  document.body.style.cursor = active ? 'grabbing' : '';
+};
+
+const updateDragPointer = (event: MouseEvent) => {
+  dragPointer.value = {
+    x: event.clientX,
+    y: event.clientY,
+  };
+};
+
+const resolveRelationIdAtPoint = (event: MouseEvent) =>
+  document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>('[data-relation-id]')
+    ?.dataset.relationId ?? null;
+
 const resetAssignedDrag = () => {
   draggingAssignedId.value = null;
   overAssignedId.value = null;
+  applyDraggingUi(false);
 };
 
-const findRelationItemAtPoint = (clientX: number, clientY: number) => {
-  const items = Array.from(document.querySelectorAll<HTMLElement>('[data-relation-id]'));
-  for (const item of items) {
-    const rect = item.getBoundingClientRect();
-    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-      return item.dataset.relationId ?? null;
-    }
-  }
-  return null;
-};
-
-const startAssignedDrag = (id: string) => {
+const startAssignedDrag = (id: string, event: MouseEvent) => {
   draggingAssignedId.value = id;
   overAssignedId.value = id;
-};
-
-const handleAssignedHover = (targetId: string) => {
-  if (!draggingAssignedId.value) {
-    return;
-  }
-  if (targetId !== draggingAssignedId.value && targetId !== overAssignedId.value) {
-    emit('reorder', draggingAssignedId.value, targetId);
-  }
-  overAssignedId.value = targetId;
-};
-
-const handleAssignedNativeStart = (event: DragEvent, id: string) => {
-  draggingAssignedId.value = id;
-  overAssignedId.value = id;
-  event.dataTransfer?.setData('text/plain', id);
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-  }
-};
-
-const handleAssignedNativeEnter = (id: string) => {
-  handleAssignedHover(id);
-};
-
-const handleAssignedNativeOver = (event: DragEvent, id: string) => {
-  handleAssignedHover(id);
-  if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = 'move';
-  }
-};
-
-const handleAssignedNativeDrop = (targetId: string) => {
-  if (!draggingAssignedId.value || draggingAssignedId.value === targetId) {
-    resetAssignedDrag();
-    return;
-  }
-  emit('reorder', draggingAssignedId.value, targetId);
-  resetAssignedDrag();
-};
-
-const handleWindowMouseUp = () => {
-  resetAssignedDrag();
+  updateDragPointer(event);
+  applyDraggingUi(true);
 };
 
 const handleWindowMouseMove = (event: MouseEvent) => {
   if (!draggingAssignedId.value) {
     return;
   }
-  const targetId = findRelationItemAtPoint(event.clientX, event.clientY);
-  if (!targetId) {
-    return;
+  updateDragPointer(event);
+  const targetId = resolveRelationIdAtPoint(event);
+  if (targetId) {
+    overAssignedId.value = targetId;
   }
-  handleAssignedHover(targetId);
+};
+
+const handleWindowMouseUp = () => {
+  if (draggingAssignedId.value && overAssignedId.value && draggingAssignedId.value !== overAssignedId.value) {
+    emit('reorder', draggingAssignedId.value, overAssignedId.value);
+  }
+  resetAssignedDrag();
 };
 
 const stopPaneResize = () => {
@@ -321,6 +347,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handlePaneResize);
   window.removeEventListener('mouseup', stopPaneResize);
   stopPaneResize();
+  applyDraggingUi(false);
 });
 </script>
 
@@ -343,12 +370,27 @@ onBeforeUnmount(() => {
 }
 
 .editor-dragging-item {
-  border-color: rgba(70, 110, 255, 0.24);
-  background: rgba(70, 110, 255, 0.08);
+  opacity: 0;
 }
 
 .editor-drop-target {
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.22);
   background: color-mix(in srgb, var(--app-state-active-bg) 84%, white);
+  transform: translateX(6px);
+}
+
+.editor-relation-reorder-move {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.editor-relation-drag-overlay {
+  position: fixed;
+  z-index: 70;
+  width: min(480px, calc(100vw - 32px));
+  pointer-events: none;
+  border-color: rgba(70, 110, 255, 0.24);
+  background: color-mix(in srgb, var(--app-panel) 92%, white);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.2);
+  transform: scale(1.01);
 }
 </style>

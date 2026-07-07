@@ -48,7 +48,11 @@
       </button>
     </SurfacePanel>
 
-    <div class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar">
+    <div
+      ref="scrollRoot"
+      class="min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar"
+      @scroll="handleMarketScroll"
+    >
     <div class="grid min-h-full gap-0 xl:grid-cols-[360px_minmax(0,1fr)]">
       <SurfacePanel class="space-y-3">
         <div class="flex items-center justify-between">
@@ -58,8 +62,8 @@
         </div>
 
         <AppLoadingState
-            v-if="scriptStore.marketLoading"
-            label="正在检索..."
+          v-if="scriptStore.marketLoading && !scriptStore.marketAppending"
+          label="正在检索..."
         />
         <div v-else-if="!scriptStore.marketPage.records.length" class="space-y-3">
           <EmptyState title="没有找到匹配脚本" description="可以放宽关键字、作者或运行时筛选后重新搜索。" icon="search" />
@@ -76,6 +80,15 @@
             <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ script.name || '未命名脚本' }}</p>
             <p class="mt-1 truncate text-xs text-(--app-text-faint)">{{ script.description || '暂无描述' }}</p>
           </button>
+          <p v-if="scriptStore.marketAppending" class="px-2 py-3 text-center text-xs text-(--app-text-faint)">
+            正在加载更多...
+          </p>
+          <p
+            v-else-if="scriptStore.marketPage.records.length > 0 && !scriptStore.hasMoreMarket"
+            class="px-2 py-3 text-center text-xs text-(--app-text-faint)"
+          >
+            已加载全部结果
+          </p>
         </div>
       </SurfacePanel>
 
@@ -194,11 +207,13 @@ const changeLogsLoading = ref(false);
 const downloadSubmitting = ref(false);
 const downloadPendingLabel = ref('下载中...');
 const downloadHistoryOpen = ref(false);
+const scrollRoot = ref<HTMLElement | null>(null);
 const filters = reactive({
   keyword: '',
   author: '',
   runtimeType: '',
 });
+const MARKET_SCROLL_THRESHOLD = 120;
 /*const runtimeOptions = [
   { label: '全部运行时', value: '' },
   { label: 'Rhai', value: 'rhai' },
@@ -316,6 +331,24 @@ const search = async () => {
   } catch (error) {
     selectedScriptId.value = null;
     showToast(error instanceof Error ? error.message : '搜索脚本市场失败，请稍后重试。', 'error');
+  }
+};
+
+const handleMarketScroll = async () => {
+  const element = scrollRoot.value;
+  if (!element || scriptStore.marketLoading || !scriptStore.hasMoreMarket) {
+    return;
+  }
+
+  const remaining = element.scrollHeight - element.scrollTop - element.clientHeight;
+  if (remaining > MARKET_SCROLL_THRESHOLD) {
+    return;
+  }
+
+  try {
+    await scriptStore.loadMoreMarket();
+  } catch (error) {
+    showToast(error instanceof Error ? error.message : '加载更多脚本失败，请稍后重试。', 'error');
   }
 };
 

@@ -302,6 +302,218 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
 
+test('returns to synced when select options text is reverted to original labels', async ({ page }) => {
+  const scriptId = 'script-editor-ui-dirty-revert';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '界面脏状态回退脚本',
+      description: '验证 select 选项改回原值后脏状态归零',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'task-ui-dirty-revert',
+        scriptId: currentScriptId,
+        name: '下拉任务',
+        description: '',
+        rowType: 'task',
+        triggerMode: 'linkOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 1,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {
+            fields: [
+              {
+                key: 'mode',
+                label: '模式',
+                control: 'select',
+                inputKey: 'mode',
+                options: [
+                  { label: '普通', value: 'normal' },
+                  { label: '困难', value: 'hard' },
+                ],
+              },
+            ],
+          },
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await expect(page.getByText('已同步', { exact: true })).toBeVisible();
+
+  await page.getByTestId('editor-tab-ui').click();
+  const optionsTextarea = page.locator('textarea').first();
+  await expect(optionsTextarea).toHaveValue('普通\n困难');
+
+  await optionsTextarea.fill('普通\n困难\n噩梦');
+  await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+
+  await optionsTextarea.fill('普通\n困难');
+  await expect(page.getByText('已同步', { exact: true })).toBeVisible();
+});
+
+test('returns to synced when variable key is reverted to original value', async ({ page }) => {
+  const scriptId = 'script-editor-variable-dirty-revert';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '变量脏状态回退脚本',
+      description: '验证变量键改回原值后脏状态归零',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'var-z',
+            key: 'input.zVar',
+            name: 'zVar',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 1,
+            description: '',
+          },
+          {
+            id: 'var-a',
+            key: 'input.aVar',
+            name: 'aVar',
+            namespace: 'input',
+            valueType: 'int',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: 2,
+            description: '',
+          },
+        ],
+      },
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const tasks: ScriptTaskTable[] = [
+      {
+        id: 'task-variable-dirty-revert',
+        scriptId: currentScriptId,
+        name: '变量任务',
+        description: '',
+        rowType: 'task',
+        triggerMode: 'linkOnly',
+        recordSchedule: true,
+        sectionId: null,
+        indentLevel: 1,
+        defaultTaskCycle: 'everyRun',
+        showEnabledToggle: true,
+        defaultEnabled: true,
+        taskTone: 'normal',
+        isHidden: false,
+        data: {
+          uiData: {},
+          variables: {},
+          steps: [],
+        },
+        createdAt: '2026-03-26T08:00:00.000Z',
+        updatedAt: '2026-03-26T08:00:00.000Z',
+        deletedAt: null,
+        isDeleted: false,
+        index: 0,
+      },
+    ];
+
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: tasks,
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await expect(page.getByText('已同步', { exact: true })).toBeVisible();
+
+  await page.getByTestId('editor-tab-inputs').click();
+  await expect(page.getByTestId('editor-input-key-0')).toHaveValue('zVar');
+
+  await page.getByTestId('editor-input-key-0').fill('tempVar');
+  await expect(page.getByText('未保存', { exact: true })).toBeVisible();
+
+  await page.getByTestId('editor-input-key-0').fill('zVar');
+  await expect(page.getByText('已同步', { exact: true })).toBeVisible();
+});
+
 test('restores selected sidebar items into scroll view after reload', async ({ page }) => {
   const scriptId = 'script-editor-scroll-restore';
   const script: StoredScriptTable = {
@@ -4137,4 +4349,106 @@ test('reverses assigned policies inside policy group workspace', async ({ page }
 
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   expect(state?.groupPolicies['group-a']).toEqual(['policy-c', 'policy-b', 'policy-a']);
+});
+
+test('locates assigned policy and policy group from relation workspace', async ({ page }) => {
+  const scriptId = 'script-editor-relation-locate';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '关联定位脚本',
+      description: '验证关联列表定位按钮',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await page.goto(`/editor?scriptId=${script.id}`);
+  await page.evaluate((seedScript) => {
+    if (!window.__AUTODAILY_MOCK__) {
+      throw new Error('browser mock backend is not available');
+    }
+
+    const makePolicy = (index: number): PolicyTable => ({
+      id: `policy-${index}`,
+      scriptId: seedScript.id,
+      orderIndex: index,
+      data: {
+        name: `策略 ${index + 1}`,
+        note: `策略 ${index + 1} 备注`,
+        logPrint: null,
+        curPos: 0,
+        skipFlag: false,
+        execCur: 0,
+        execMax: 1,
+        beforeAction: [],
+        cond: { type: 'group', op: 'And', scope: 'Global', items: [] },
+        afterAction: [],
+      },
+    });
+
+    const makeGroup = (index: number): PolicyGroupTable => ({
+      id: `group-${index}`,
+      scriptId: seedScript.id,
+      orderIndex: index,
+      data: {
+        name: `策略组 ${index + 1}`,
+        note: `策略组 ${index + 1} 备注`,
+      },
+    });
+
+    const makeSet = (index: number): PolicySetTable => ({
+      id: `set-${index}`,
+      scriptId: seedScript.id,
+      orderIndex: index,
+      data: {
+        name: `策略集 ${index + 1}`,
+        note: `策略集 ${index + 1} 备注`,
+      },
+    });
+
+    window.__AUTODAILY_MOCK__.reset();
+    window.__AUTODAILY_MOCK__.seed({
+      scripts: [seedScript],
+      scriptTasks: {},
+      policies: Array.from({ length: 28 }, (_, index) => makePolicy(index)),
+      policyGroups: Array.from({ length: 28 }, (_, index) => makeGroup(index)),
+      policySets: Array.from({ length: 28 }, (_, index) => makeSet(index)),
+      groupPolicies: {
+        'group-0': ['policy-27'],
+      },
+      setGroups: {
+        'set-0': ['group-27'],
+      },
+    });
+  }, script);
+  await page.reload();
+
+  await selectEditorMode(page, 'policyGroup');
+  await page.getByTestId('editor-relation-locate-policy-27').click();
+  await expectItemVisibleInScrollArea(page, 'editor-policy-sidebar-scroll', 'editor-policy-item-policy-27');
+  await expect(page.getByTestId('editor-policy-name')).toHaveValue('策略 28');
+
+  await selectEditorMode(page, 'policySet');
+  await page.getByTestId('editor-relation-locate-group-27').click();
+  await expectItemVisibleInScrollArea(page, 'editor-policy-group-sidebar-scroll', 'editor-policy-group-item-group-27');
+  await expect(page.getByText('已关联策略').first()).toBeVisible();
 });

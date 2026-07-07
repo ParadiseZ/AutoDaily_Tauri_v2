@@ -3,6 +3,8 @@ import type { PolicyGroupTable } from '@/types/bindings/PolicyGroupTable';
 import type { PolicySetTable } from '@/types/bindings/PolicySetTable';
 import type { PolicyTable } from '@/types/bindings/PolicyTable';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
+import { buildUiData, parseUiSchema } from '@/views/script-editor/editorSchema';
+import { parseInputEntries, syncInputVariableCatalog } from '@/views/script-editor/editorVariables';
 
 export interface ScriptEditorSnapshots {
   script: string;
@@ -15,6 +17,37 @@ export interface ScriptEditorSnapshots {
 }
 
 type StableStringify = (value: unknown) => string;
+
+const normalizeScriptForSnapshot = (script: ScriptTableRecord | null): ScriptTableRecord | null => {
+  if (!script) {
+    return script;
+  }
+
+  return {
+    ...script,
+    data: {
+      ...script.data,
+      // Dirty 比较按变量编辑器会写回的目录结构归一化，避免键/作用域回改后仍因目录排序或旧字段形态不同而保持脏状态。
+      variableCatalog: syncInputVariableCatalog(
+        script.data.variableCatalog,
+        null,
+        parseInputEntries(script.data.variableCatalog, null, {}),
+      ),
+    },
+  };
+};
+
+const normalizeTaskForSnapshot = (task: ScriptTaskTable): ScriptTaskTable => ({
+  ...task,
+  data: {
+    ...task.data,
+    // Dirty 比较按编辑器会写回的 UI 结构归一化，避免旧 options 对象数组和新字符串数组语义相同却比较不等。
+    uiData: buildUiData(parseUiSchema(task.data?.uiData ?? {})),
+  },
+});
+
+const stringifyTasks = (tasks: ScriptTaskTable[], stableStringify: StableStringify) =>
+  stableStringify(tasks.map(normalizeTaskForSnapshot));
 
 export const buildScriptEditorSnapshots = ({
   script,
@@ -35,8 +68,8 @@ export const buildScriptEditorSnapshots = ({
   setGroupIdsBySetId: Record<string, string[]>;
   stableStringify: StableStringify;
 }): ScriptEditorSnapshots => ({
-  script: stableStringify(script),
-  tasks: stableStringify(tasks),
+  script: stableStringify(normalizeScriptForSnapshot(script)),
+  tasks: stringifyTasks(tasks, stableStringify),
   policies: stableStringify(policies),
   policyGroups: stableStringify(policyGroups),
   policySets: stableStringify(policySets),
@@ -65,8 +98,8 @@ export const hasDirtyScriptEditorState = ({
   snapshots: ScriptEditorSnapshots;
   stableStringify: StableStringify;
 }) =>
-  stableStringify(script) !== snapshots.script
-  || stableStringify(tasks) !== snapshots.tasks
+  stableStringify(normalizeScriptForSnapshot(script)) !== snapshots.script
+  || stringifyTasks(tasks, stableStringify) !== snapshots.tasks
   || stableStringify(policies) !== snapshots.policies
   || stableStringify(policyGroups) !== snapshots.policyGroups
   || stableStringify(policySets) !== snapshots.policySets
@@ -154,34 +187,41 @@ export const loadScriptEditorData = async ({
 };
 
 export const savePrimaryScriptEditorData = async ({
-  scriptId,
   script,
   tasks,
   policies,
   policyGroups,
   policySets,
-  saveScriptTasks,
-  savePolicy,
-  savePolicyGroup,
-  savePolicySet,
+  groupPolicyIdsByGroupId,
+  setGroupIdsBySetId,
+  saveScriptEditorBundle,
 }: {
-  scriptId: string;
   script: ScriptTableRecord;
   tasks: ScriptTaskTable[];
   policies: PolicyTable[];
   policyGroups: PolicyGroupTable[];
   policySets: PolicySetTable[];
-  saveScriptTasks: (scriptId: string, tasks: ScriptTaskTable[]) => Promise<void>;
-  savePolicy: (policy: PolicyTable) => Promise<void>;
-  savePolicyGroup: (group: PolicyGroupTable) => Promise<void>;
-  savePolicySet: (set: PolicySetTable) => Promise<void>;
+  groupPolicyIdsByGroupId: Record<string, string[]>;
+  setGroupIdsBySetId: Record<string, string[]>;
+  saveScriptEditorBundle: (payload: {
+    script: ScriptTableRecord;
+    tasks: ScriptTaskTable[];
+    policies: PolicyTable[];
+    policyGroups: PolicyGroupTable[];
+    policySets: PolicySetTable[];
+    groupPolicyIdsByGroupId: Record<string, string[]>;
+    setGroupIdsBySetId: Record<string, string[]>;
+  }) => Promise<void>;
 }) => {
-  await Promise.all([
-    saveScriptTasks(scriptId, tasks),
-    ...policies.map((policy) => savePolicy(policy)),
-    ...policyGroups.map((group) => savePolicyGroup(group)),
-    ...policySets.map((set) => savePolicySet(set)),
-  ]);
+  await saveScriptEditorBundle({
+    script,
+    tasks,
+    policies,
+    policyGroups,
+    policySets,
+    groupPolicyIdsByGroupId,
+    setGroupIdsBySetId,
+  });
   return script;
 };
 

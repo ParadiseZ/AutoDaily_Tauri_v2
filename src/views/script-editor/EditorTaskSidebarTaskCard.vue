@@ -1,6 +1,6 @@
 <template>
   <article
-    class="app-list-item space-y-3 transition-colors"
+    class="app-list-item space-y-3 transition-all duration-200"
     :class="{
       'app-list-item-active': selected,
       'editor-task-drop-target': dropTarget,
@@ -8,8 +8,7 @@
       'editor-task-card-hidden': task.isHidden,
     }"
     :data-testid="`editor-task-item-${task.id}`"
-    @mouseenter="$emit('mouseenter', task.id)"
-    @mouseup="$emit('mouseup', task.id)"
+    :data-task-id="task.id"
     @contextmenu="$emit('contextmenu', $event, task.id)"
   >
     <div class="grid grid-cols-[34px_minmax(0,1fr)] items-start gap-2" @click="$emit('select', task.id)">
@@ -19,7 +18,7 @@
         :data-testid="`editor-task-drag-${task.id}`"
         type="button"
         aria-label="拖动排序"
-        @mousedown.prevent="$emit('drag-start', task.id)"
+        @mousedown.prevent="$emit('drag-start', task.id, $event)"
         @click.stop
       >
         <GripVertical class="h-4 w-4" />
@@ -63,9 +62,7 @@ defineProps<{
 
 defineEmits<{
   select: [taskId: string];
-  'drag-start': [taskId: string];
-  mouseenter: [taskId: string];
-  mouseup: [taskId: string];
+  'drag-start': [taskId: string, event: MouseEvent];
   contextmenu: [event: MouseEvent, taskId: string];
 }>();
 </script>

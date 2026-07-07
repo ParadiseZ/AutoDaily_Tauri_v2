@@ -4,6 +4,7 @@ use runtime_engine::domain::scripts::script_info::ScriptInfo;
 use runtime_engine::domain::scripts::script_info::{
     supported_script_features, SCRIPT_RUNTIME_SCHEMA,
 };
+use runtime_common::core::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -110,6 +111,18 @@ pub struct ScriptUploadRequest {
     pub set_groups: Vec<crate::domain::scripts::policy::SetGroupRelation>,
     #[serde(default)]
     pub model_files: Vec<ScriptModelFileDto>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptEditorSaveRequest {
+    pub script: crate::domain::scripts::script_info::ScriptTable,
+    pub tasks: Vec<crate::domain::scripts::script_task::ScriptTaskTable>,
+    pub policies: Vec<crate::domain::scripts::policy::PolicyTable>,
+    pub policy_groups: Vec<crate::domain::scripts::policy::PolicyGroupTable>,
+    pub policy_sets: Vec<crate::domain::scripts::policy::PolicySetTable>,
+    pub group_policy_ids_by_group_id: HashMap<String, Vec<String>>,
+    pub set_group_ids_by_set_id: HashMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

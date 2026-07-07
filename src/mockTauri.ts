@@ -1374,18 +1374,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             },
           }));
           return null;
-        case 'save_script_tasks_cmd':
-          updateState((current) => {
-            validateScriptEditable(findScript(current, String(args.scriptId)));
-            return {
-              ...current,
-              scriptTasks: {
-                ...current.scriptTasks,
-                [String(args.scriptId)]: Array.isArray(args.tasks) ? (args.tasks as ScriptTaskTable[]) : [],
-              },
-            };
-          });
-          return null;
         case 'save_script_cmd': {
           const nextScript = applyCurrentScriptCapability(args.script as StoredScriptTable);
           const existingScript = readState().scripts.find((script) => script.id === nextScript.id) ?? null;
@@ -1394,6 +1382,55 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             ...current,
             scripts: upsertScript(current.scripts, nextScript),
           }));
+          return null;
+        }
+        case 'save_script_editor_cmd': {
+          const nextScript = applyCurrentScriptCapability(args.script as StoredScriptTable);
+          const existingScript = readState().scripts.find((script) => script.id === nextScript.id) ?? null;
+          validateScriptEditable(existingScript, nextScript);
+          updateState((current) => {
+            const nextPolicyGroups = Array.isArray(args.policyGroups) ? (args.policyGroups as PolicyGroupTable[]) : [];
+            const nextPolicySets = Array.isArray(args.policySets) ? (args.policySets as PolicySetTable[]) : [];
+            const existingScriptGroupIds = new Set(
+              current.policyGroups.filter((group) => group.scriptId === nextScript.id).map((group) => group.id),
+            );
+            const existingScriptSetIds = new Set(
+              current.policySets.filter((set) => set.scriptId === nextScript.id).map((set) => set.id),
+            );
+
+            return {
+              ...current,
+              scripts: upsertScript(current.scripts, nextScript),
+              scriptTasks: {
+                ...current.scriptTasks,
+                [nextScript.id]: Array.isArray(args.tasks) ? (args.tasks as ScriptTaskTable[]) : [],
+              },
+              policies: [
+                ...current.policies.filter((policy) => policy.scriptId !== nextScript.id),
+                ...(Array.isArray(args.policies) ? (args.policies as PolicyTable[]) : []),
+              ].sort((left, right) => left.orderIndex - right.orderIndex),
+              policyGroups: [
+                ...current.policyGroups.filter((group) => group.scriptId !== nextScript.id),
+                ...nextPolicyGroups,
+              ].sort((left, right) => left.orderIndex - right.orderIndex),
+              policySets: [
+                ...current.policySets.filter((set) => set.scriptId !== nextScript.id),
+                ...nextPolicySets,
+              ].sort((left, right) => left.orderIndex - right.orderIndex),
+              groupPolicies: {
+                ...Object.fromEntries(
+                  Object.entries(current.groupPolicies).filter(([groupId]) => !existingScriptGroupIds.has(groupId)),
+                ),
+                ...(args.groupPolicyIdsByGroupId as GroupPolicyMap),
+              },
+              setGroups: {
+                ...Object.fromEntries(
+                  Object.entries(current.setGroups).filter(([setId]) => !existingScriptSetIds.has(setId)),
+                ),
+                ...(args.setGroupIdsBySetId as SetGroupMap),
+              },
+            };
+          });
           return null;
         }
         case 'delete_script_cmd':

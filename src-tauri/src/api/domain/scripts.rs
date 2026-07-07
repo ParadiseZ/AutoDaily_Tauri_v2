@@ -1,5 +1,6 @@
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_cmd::local_scripts_dir;
+use crate::api::backend_dto::ScriptEditorSaveRequest;
 use crate::api::backend_dto::apply_current_client_capability;
 use crate::api::infrastructure::process_api::{
     enqueue_device_runtime_session_refresh_jobs, load_assigned_device_ids_by_script,
@@ -10,8 +11,9 @@ use crate::constant::table_name::{SCRIPT_TABLE, SCRIPT_TASK_TABLE};
 use crate::domain::scripts::policy::*;
 use crate::domain::scripts::script_info::{ScriptTable, ScriptType};
 use crate::domain::scripts::script_task::ScriptTaskTable;
-use crate::infrastructure::core::ScriptId;
+use crate::infrastructure::core::{PolicyGroupId, PolicyId, PolicySetId, ScriptId};
 use crate::infrastructure::db::{get_pool, DbRepo};
+use std::collections::HashSet;
 use tauri::command;
 
 const PUBLISHED_SCRIPT_EDIT_ERROR: &str = "云端下载脚本不可直接编辑，请先克隆为本地脚本";
@@ -72,6 +74,133 @@ pub async fn save_script_cmd(
     Ok(())
 }
 
+fn parse_relation_ids(
+    values: &[String],
+    valid_ids: &HashSet<String>,
+) -> Vec<String> {
+    values
+        .iter()
+        .filter(|value| valid_ids.contains(value.as_str()))
+        .cloned()
+        .collect()
+}
+
+#[command]
+pub async fn save_script_editor_cmd(
+    app_handle: tauri::AppHandle,
+    mut payload: ScriptEditorSaveRequest,
+) -> Result<(), String> {
+    if payload.script.data.script_type == ScriptType::Published {
+        return Err(PUBLISHED_SCRIPT_EDIT_ERROR.to_string());
+    }
+
+    let existing = load_script_for_write(payload.script.id).await?;
+    ensure_script_is_editable(&existing)?;
+    apply_current_client_capability(&mut payload.script.data);
+
+    let script_id = payload.script.id.to_string();
+    let policy_ids = payload
+        .policies
+        .iter()
+        .map(|policy| policy.id.to_string())
+        .collect::<HashSet<_>>();
+    let policy_group_ids = payload
+        .policy_groups
+        .iter()
+        .map(|group| group.id.to_string())
+        .collect::<HashSet<_>>();
+    let policy_set_ids = payload
+        .policy_sets
+        .iter()
+        .map(|set| set.id.to_string())
+        .collect::<HashSet<_>>();
+
+    let group_policies = payload
+        .group_policy_ids_by_group_id
+        .iter()
+        .filter(|(group_id, _)| policy_group_ids.contains(group_id.as_str()))
+        .flat_map(|(group_id, policy_ids_for_group)| {
+            parse_relation_ids(policy_ids_for_group, &policy_ids)
+                .into_iter()
+                .enumerate()
+                .filter_map(|(order_index, policy_id)| {
+                    Some(GroupPolicyRelation {
+                        group_id: PolicyGroupId::from(uuid::Uuid::parse_str(group_id).ok()?),
+                        policy_id: PolicyId::from(uuid::Uuid::parse_str(&policy_id).ok()?),
+                        order_index: order_index as i32,
+                    })
+                })
+        })
+        .collect::<Vec<_>>();
+    let set_groups = payload
+        .set_group_ids_by_set_id
+        .iter()
+        .filter(|(set_id, _)| policy_set_ids.contains(set_id.as_str()))
+        .flat_map(|(set_id, group_ids_for_set)| {
+            parse_relation_ids(group_ids_for_set, &policy_group_ids)
+                .into_iter()
+                .enumerate()
+                .filter_map(|(order_index, group_id)| {
+                    Some(SetGroupRelation {
+                        set_id: PolicySetId::from(uuid::Uuid::parse_str(set_id).ok()?),
+                        group_id: PolicyGroupId::from(uuid::Uuid::parse_str(&group_id).ok()?),
+                        order_index: order_index as i32,
+                    })
+                })
+        })
+        .collect::<Vec<_>>();
+
+    let affected_device_ids = load_assigned_device_ids_by_script(payload.script.id).await?;
+    let pool = get_pool();
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+
+    sqlx::query(
+        "DELETE FROM group_policies WHERE group_id IN (SELECT id FROM policy_groups WHERE script_id = ?)",
+    )
+    .bind(&script_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("清理 group_policies 失败: {}", e))?;
+
+    sqlx::query("DELETE FROM set_groups WHERE set_id IN (SELECT id FROM policy_sets WHERE script_id = ?)")
+        .bind(&script_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| format!("清理 set_groups 失败: {}", e))?;
+
+    for table in ["script_tasks", "policies", "policy_groups", "policy_sets"] {
+        let query = format!("DELETE FROM {} WHERE script_id = ?", table);
+        sqlx::query(&query)
+            .bind(&script_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| format!("清理 {} 失败: {}", table, e))?;
+    }
+
+    crate::api::domain::script_batch_insert::batch_insert_script_related(
+        &mut tx,
+        &payload.script,
+        &payload.policies,
+        &payload.policy_groups,
+        &payload.policy_sets,
+        &group_policies,
+        &set_groups,
+        &payload.tasks,
+    )
+    .await?;
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+    notify_auto_dispatch_planner();
+    enqueue_device_runtime_session_refresh_jobs(
+        &app_handle,
+        affected_device_ids,
+        true,
+        false,
+        "save_script_editor",
+    )?;
+    Ok(())
+}
+
 /// 删除脚本配置
 #[command]
 pub async fn delete_script_cmd(
@@ -110,64 +239,6 @@ pub async fn get_script_tasks_cmd(script_id: ScriptId) -> Result<Vec<ScriptTaskT
         .await
         .map_err(|e| e.to_string())?;
     Ok(rows)
-}
-
-/// 批量保存脚本任务逻辑
-/// 这里采用简单策略：先删除该脚本的所有任务，再重新插入
-#[command]
-pub async fn save_script_tasks_cmd(
-    script_id: ScriptId,
-    tasks: Vec<ScriptTaskTable>,
-) -> Result<(), String> {
-    let script = load_script_for_write(script_id).await?;
-    ensure_script_is_editable(&script)?;
-
-    let pool = get_pool();
-    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-
-    // 删除旧任务
-    let delete_query = format!("DELETE FROM {} WHERE script_id = ?", SCRIPT_TASK_TABLE);
-    sqlx::query(&delete_query)
-        .bind(script.id.to_string())
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| e.to_string())?;
-
-    // 插入新任务
-    for task in tasks {
-        let insert_query = format!(
-            "INSERT INTO {} (id, script_id, name, description, row_type, trigger_mode, record_schedule, section_id, indent_level, default_task_cycle, exec_max, show_enabled_toggle, default_enabled, task_tone, is_hidden, `data`, created_at, updated_at, deleted_at, is_deleted, `index`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            SCRIPT_TASK_TABLE
-        );
-        sqlx::query(&insert_query)
-            .bind(task.id.to_string())
-            .bind(script.id.to_string())
-            .bind(&task.name)
-            .bind(&task.description)
-            .bind(task.row_type)
-            .bind(task.trigger_mode)
-            .bind(task.record_schedule)
-            .bind(task.section_id.map(|value| value.to_string()))
-            .bind(task.indent_level as i64)
-            .bind(&task.default_task_cycle)
-            .bind(task.exec_max as i64)
-            .bind(task.show_enabled_toggle)
-            .bind(task.default_enabled)
-            .bind(task.task_tone)
-            .bind(task.is_hidden)
-            .bind(&task.data)
-            .bind(task.created_at)
-            .bind(task.updated_at)
-            .bind(task.deleted_at)
-            .bind(task.is_deleted)
-            .bind(task.index as i64)
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| e.to_string())?;
-    }
-
-    tx.commit().await.map_err(|e| e.to_string())?;
-    Ok(())
 }
 
 /// 读取 YOLO 标签文件

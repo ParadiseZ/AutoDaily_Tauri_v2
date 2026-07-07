@@ -40,32 +40,33 @@
       @scroll="closeContextMenu"
     >
       <div v-if="hasVisibleRows" class="space-y-3 pr-1">
-        <div v-if="ungroupedTasks.length" class="space-y-2">
+        <TransitionGroup
+          v-if="previewUngroupedTasks.length"
+          tag="div"
+          class="space-y-2"
+          move-class="editor-task-reorder-move"
+        >
           <EditorTaskSidebarTaskCard
-            v-for="task in ungroupedTasks"
+            v-for="task in previewUngroupedTasks"
             :key="task.id"
             :task="task"
             :selected="selectedTaskId === task.id"
             :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
             :dragging="draggingTaskId === task.id"
-            @mouseenter="handleMouseEnter"
-            @mouseup="handleMouseUp"
             @contextmenu="handleTaskContextMenu"
             @drag-start="startDrag"
             @select="selectTask"
           />
-        </div>
+        </TransitionGroup>
 
-        <section v-for="title in visibleTitleRows" :key="title.id" class="space-y-2">
+        <section v-for="title in previewVisibleTitleRows" :key="title.id" class="space-y-2">
           <EditorTaskSidebarTitleCard
             :title="title"
             :selected="selectedTaskId === title.id"
             :dragging="draggingTaskId === title.id"
             :drop-target="overTaskId === title.id && draggingTaskId !== null && draggingTaskId !== title.id"
             :expanded="isTitleExpanded(title.id)"
-            :task-count="groupedTasksByTitle[title.id]?.length ?? 0"
-            @mouseenter="handleMouseEnter"
-            @mouseup="handleMouseUp"
+            :task-count="previewGroupedTasksByTitle[title.id]?.length ?? 0"
             @contextmenu="handleTaskContextMenu"
             @drag-start="startDrag"
             @select="selectTask"
@@ -74,21 +75,23 @@
 
           <div class="editor-task-group-panel" :class="{ 'editor-task-group-panel-collapsed': !isTitleExpanded(title.id) }">
             <div class="editor-task-group-panel-inner">
-              <div class="space-y-2 editor-task-group-panel-content">
+              <TransitionGroup
+                tag="div"
+                class="space-y-2 editor-task-group-panel-content"
+                move-class="editor-task-reorder-move"
+              >
                 <EditorTaskSidebarTaskCard
-                  v-for="task in groupedTasksByTitle[title.id] ?? []"
+                  v-for="task in previewGroupedTasksByTitle[title.id] ?? []"
                   :key="task.id"
                   :task="task"
                   :selected="selectedTaskId === task.id"
                   :drop-target="overTaskId === task.id && draggingTaskId !== null && draggingTaskId !== task.id"
                   :dragging="draggingTaskId === task.id"
-                  @mouseenter="handleMouseEnter"
-                  @mouseup="handleMouseUp"
                   @contextmenu="handleTaskContextMenu"
                   @drag-start="startDrag"
                   @select="selectTask"
                 />
-              </div>
+              </TransitionGroup>
             </div>
           </div>
         </section>
@@ -103,6 +106,48 @@
   </SurfacePanel>
 
   <Teleport to="body">
+    <article
+      v-if="draggingTask"
+      class="editor-task-drag-overlay app-list-item space-y-3"
+      :style="dragOverlayStyle"
+    >
+      <div v-if="draggingTask.rowType === 'title'" class="grid grid-cols-[34px_minmax(0,1fr)_28px] items-start gap-2">
+        <div class="app-drag-handle app-drag-handle-active pointer-events-none">
+          <GripVertical class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 text-left">
+          <div class="flex items-center gap-2">
+            <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px]">
+              {{ draggingTask.index + 1 }}
+            </span>
+            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ draggingTask.name }}</p>
+            <span class="rounded-full bg-(--app-panel-muted) px-2 py-1 text-[11px] text-(--app-text-faint)">
+              {{ previewGroupedTasksByTitle[draggingTask.id]?.length ?? 0 }}
+            </span>
+          </div>
+          <p class="mt-2 line-clamp-2 text-xs">{{ draggingTask.description?.trim() || '分组标题' }}</p>
+        </div>
+      </div>
+      <div v-else class="grid grid-cols-[34px_minmax(0,1fr)] items-start gap-2">
+        <div class="app-drag-handle app-drag-handle-active pointer-events-none">
+          <GripVertical class="h-4 w-4" />
+        </div>
+        <div class="min-w-0 flex-1 text-left" :style="{ paddingLeft: `${draggingTask.indentLevel * 0.85}rem` }">
+          <div class="flex items-center gap-2">
+            <span class="rounded-full border border-(--app-border) px-2 py-1 text-[11px] text-(--app-text-faint)">
+              {{ draggingTask.index + 1 }}
+            </span>
+            <p class="truncate text-sm font-semibold" :class="draggingTask.isHidden ? 'text-(--app-text-faint)' : 'text-(--app-text-strong)'">
+              {{ draggingTask.name }}
+            </p>
+          </div>
+          <p class="mt-2 line-clamp-2 text-xs text-(--app-text-faint)">
+            {{ draggingTask.description?.trim() || '' }}
+          </p>
+        </div>
+      </div>
+    </article>
+
     <div
       v-if="contextMenu"
       ref="contextMenuRoot"
@@ -269,7 +314,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ChevronRight, Plus } from 'lucide-vue-next';
+import { ChevronRight, GripVertical, Plus } from 'lucide-vue-next';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import EditorTaskSidebarTaskCard from '@/views/script-editor/EditorTaskSidebarTaskCard.vue';
@@ -310,6 +355,7 @@ const EXPANDED_MENU_MAX_HEIGHT = 320;
 const search = ref('');
 const draggingTaskId = ref<string | null>(null);
 const overTaskId = ref<string | null>(null);
+const dragPointer = ref({ x: 0, y: 0 });
 const collapsedTitleIds = ref<string[]>([]);
 const contextMenu = ref<{ taskId: string; x: number; y: number } | null>(null);
 const activeBranchMenu = ref<BranchMenuKind>(null);
@@ -324,10 +370,32 @@ const actionMenuRoot = ref<HTMLElement | null>(null);
 const scrollRoot = ref<HTMLElement | null>(null);
 
 const keyword = computed(() => search.value.trim().toLowerCase());
+const reorderPreviewItems = <T extends { id: string }>(items: T[], draggedId: string | null, targetId: string | null) => {
+  if (!draggedId || !targetId || draggedId === targetId) {
+    return items;
+  }
+  const nextItems = [...items];
+  const fromIndex = nextItems.findIndex((item) => item.id === draggedId);
+  const toIndex = nextItems.findIndex((item) => item.id === targetId);
+  if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+    return items;
+  }
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  if (!movedItem) {
+    return items;
+  }
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
+};
+
 const sortedTasks = computed(() => [...props.tasks].sort((left, right) => left.index - right.index));
+const previewSortedTasks = computed(() => reorderPreviewItems(sortedTasks.value, draggingTaskId.value, overTaskId.value));
 const titleRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'title'));
+const previewTitleRows = computed(() => previewSortedTasks.value.filter((task) => task.rowType === 'title'));
 const titleIdSet = computed(() => new Set(titleRows.value.map((task) => task.id)));
+const previewTitleIdSet = computed(() => new Set(previewTitleRows.value.map((task) => task.id)));
 const taskRows = computed(() => sortedTasks.value.filter((task) => task.rowType === 'task'));
+const previewTaskRows = computed(() => previewSortedTasks.value.filter((task) => task.rowType === 'task'));
 
 const matchesKeyword = (task: ScriptTaskTable) =>
   !keyword.value || `${task.name || ''} ${task.description || ''}`.toLowerCase().includes(keyword.value);
@@ -340,16 +408,30 @@ const groupedTasksByTitle = computed<Record<string, ScriptTaskTable[]>>(() =>
     ]),
   ),
 );
+const previewGroupedTasksByTitle = computed<Record<string, ScriptTaskTable[]>>(() =>
+  Object.fromEntries(
+    previewTitleRows.value.map((title) => [
+      title.id,
+      previewTaskRows.value.filter((task) => task.sectionId === title.id && matchesKeyword(task)),
+    ]),
+  ),
+);
 
 const visibleTitleRows = computed(() =>
   titleRows.value.filter((title) => matchesKeyword(title) || (groupedTasksByTitle.value[title.id]?.length ?? 0) > 0),
+);
+const previewVisibleTitleRows = computed(() =>
+  previewTitleRows.value.filter((title) => matchesKeyword(title) || (previewGroupedTasksByTitle.value[title.id]?.length ?? 0) > 0),
 );
 
 const ungroupedTasks = computed(() =>
   taskRows.value.filter((task) => (!task.sectionId || !titleIdSet.value.has(task.sectionId)) && matchesKeyword(task)),
 );
+const previewUngroupedTasks = computed(() =>
+  previewTaskRows.value.filter((task) => (!task.sectionId || !previewTitleIdSet.value.has(task.sectionId)) && matchesKeyword(task)),
+);
 
-const hasVisibleRows = computed(() => ungroupedTasks.value.length > 0 || visibleTitleRows.value.length > 0);
+const hasVisibleRows = computed(() => previewUngroupedTasks.value.length > 0 || previewVisibleTitleRows.value.length > 0);
 const hiddenCount = computed(() => props.tasks.filter((task) => task.isHidden).length);
 const currentContextRow = computed(() => sortedTasks.value.find((task) => task.id === contextMenu.value?.taskId) ?? null);
 const currentContextTask = computed(() => taskRows.value.find((task) => task.id === contextMenu.value?.taskId) ?? null);
@@ -362,12 +444,17 @@ const taskMenuTargets = computed(() =>
 );
 const activeSectionTarget = computed(() => titleRows.value.find((title) => title.id === activeSectionTargetId.value) ?? null);
 const activeTaskTarget = computed(() => taskRows.value.find((task) => task.id === activeTaskTargetId.value) ?? null);
+const draggingTask = computed(() => sortedTasks.value.find((task) => task.id === draggingTaskId.value) ?? null);
+const dragOverlayStyle = computed(() => ({
+  left: `${dragPointer.value.x + 14}px`,
+  top: `${dragPointer.value.y + 14}px`,
+}));
 const visibleRowSignature = computed(() =>
   [
-    ...ungroupedTasks.value.map((task) => task.id),
-    ...visibleTitleRows.value.flatMap((title) => [
+    ...previewUngroupedTasks.value.map((task) => task.id),
+    ...previewVisibleTitleRows.value.flatMap((title) => [
       title.id,
-      ...(isTitleExpanded(title.id) ? (groupedTasksByTitle.value[title.id] ?? []).map((task) => task.id) : []),
+      ...(isTitleExpanded(title.id) ? (previewGroupedTasksByTitle.value[title.id] ?? []).map((task) => task.id) : []),
     ]),
   ].join('|'),
 );
@@ -521,9 +608,28 @@ const toggleTitleCollapsed = (titleId: string) => {
     : [...collapsedTitleIds.value, titleId];
 };
 
+const applyDraggingUi = (active: boolean) => {
+  document.body.style.userSelect = active ? 'none' : '';
+  document.body.style.cursor = active ? 'grabbing' : '';
+};
+
+const updateDragPointer = (event: MouseEvent) => {
+  dragPointer.value = {
+    x: event.clientX,
+    y: event.clientY,
+  };
+};
+
+const resolveTaskIdAtPoint = (event: MouseEvent) =>
+  document
+    .elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>('[data-task-id]')
+    ?.dataset.taskId ?? null;
+
 const resetDrag = () => {
   draggingTaskId.value = null;
   overTaskId.value = null;
+  applyDraggingUi(false);
 };
 
 const closeContextMenu = () => {
@@ -535,27 +641,23 @@ const closeContextMenu = () => {
   activeLeafAnchor.value = null;
 };
 
-const startDrag = (taskId: string) => {
+const startDrag = (taskId: string, event: MouseEvent) => {
   closeContextMenu();
   draggingTaskId.value = taskId;
   overTaskId.value = taskId;
+  updateDragPointer(event);
+  applyDraggingUi(true);
 };
 
-const handleMouseEnter = (taskId: string) => {
+const handleWindowMouseMove = (event: MouseEvent) => {
   if (!draggingTaskId.value) {
     return;
   }
-  overTaskId.value = taskId;
-};
-
-const handleMouseUp = (targetTaskId: string) => {
-  if (!draggingTaskId.value || draggingTaskId.value === targetTaskId) {
-    resetDrag();
-    return;
+  updateDragPointer(event);
+  const taskId = resolveTaskIdAtPoint(event);
+  if (taskId) {
+    overTaskId.value = taskId;
   }
-
-  emit('reorder', draggingTaskId.value, targetTaskId);
-  resetDrag();
 };
 
 const readRect = (event: MouseEvent): MenuRect => {
@@ -624,6 +726,9 @@ const emitMove = (kind: EditorTaskMoveAction['kind'], position: 'top' | 'bottom'
 };
 
 const handleWindowMouseUp = () => {
+  if (draggingTaskId.value && overTaskId.value && draggingTaskId.value !== overTaskId.value) {
+    emit('reorder', draggingTaskId.value, overTaskId.value);
+  }
   resetDrag();
 };
 
@@ -685,6 +790,7 @@ watch(
 );
 
 onMounted(() => {
+  window.addEventListener('mousemove', handleWindowMouseMove);
   window.addEventListener('mouseup', handleWindowMouseUp);
   window.addEventListener('resize', closeContextMenu);
   window.addEventListener('scroll', handleWindowScroll, true);
@@ -693,11 +799,13 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', handleWindowMouseMove);
   window.removeEventListener('mouseup', handleWindowMouseUp);
   window.removeEventListener('resize', closeContextMenu);
   window.removeEventListener('scroll', handleWindowScroll, true);
   window.removeEventListener('keydown', handleWindowKeydown);
   document.removeEventListener('click', handleDocumentClick);
+  applyDraggingUi(false);
 });
 </script>
 
@@ -705,11 +813,26 @@ onBeforeUnmount(() => {
 .editor-task-drop-target {
   box-shadow: inset 0 0 0 1px rgba(70, 110, 255, 0.22);
   background: color-mix(in srgb, var(--app-state-active-bg) 84%, white);
+  transform: translateX(6px);
 }
 
 .editor-task-card-dragging {
+  opacity: 0;
+}
+
+.editor-task-reorder-move {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.editor-task-drag-overlay {
+  position: fixed;
+  z-index: 70;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
   border-color: rgba(70, 110, 255, 0.24);
-  background: rgba(70, 110, 255, 0.08);
+  background: color-mix(in srgb, var(--app-panel) 92%, white);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.2);
+  transform: scale(1.01);
 }
 
 .editor-task-card-hidden {

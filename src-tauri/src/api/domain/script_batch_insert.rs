@@ -27,7 +27,10 @@ pub async fn batch_insert_script_related(
     tasks: &[ScriptTaskTable],
 ) -> Result<(), String> {
     // 1. Insert script
-    sqlx::query("INSERT INTO scripts (id, `data`) VALUES (?, ?)")
+    sqlx::query(
+        "INSERT INTO scripts (id, `data`) VALUES (?, ?)
+         ON CONFLICT(id) DO UPDATE SET `data` = excluded.`data`",
+    )
         .bind(script.id.to_string())
         .bind(&script.data)
         .execute(&mut **tx)

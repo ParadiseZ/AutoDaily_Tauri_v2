@@ -13,6 +13,5 @@ pub mod logging;
 pub mod mail;
 pub mod ort;
 pub mod path_resolve;
-pub mod scripts;
 pub mod store_local;
 pub mod vision;
