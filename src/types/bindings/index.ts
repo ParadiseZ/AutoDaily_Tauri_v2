@@ -132,6 +132,7 @@ export type { TimeTemplate } from './TimeTemplate';
 export type { TimeoutAction } from './TimeoutAction';
 export type { TimeoutNotifyChannel } from './TimeoutNotifyChannel';
 export type { VarValue } from './VarValue';
+export type { WindowCaptureInterface } from './WindowCaptureInterface';
 export type { VisionItem } from './VisionItem';
 export type { VisionLayoutItem } from './VisionLayoutItem';
 export type { VisionLayoutSource } from './VisionLayoutSource';

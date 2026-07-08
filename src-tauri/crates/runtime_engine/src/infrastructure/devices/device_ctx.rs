@@ -1,6 +1,9 @@
-use crate::domain::devices::device_conf::{DeviceConfig, DevicePlatform};
+use crate::domain::devices::device_conf::{
+    CapMethod, DeviceConfig, DevicePlatform, WindowCaptureInterface as DeviceWindowCaptureInterface,
+};
 use crate::domain::scripts::point::Point;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
+use crate::infrastructure::capture::window_cap::{WindowCaptureConfig, WindowCaptureInterface};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::devices::device_runtime::{
     AndroidDeviceRuntime, DesktopDeviceRuntime, DeviceOperation, DeviceRuntime,
@@ -36,32 +39,41 @@ pub struct DeviceCtx {
 }
 
 impl DeviceCtx {
+    fn build_window_capture_config(config: &DeviceConfig) -> Option<WindowCaptureConfig> {
+        match &config.cap_method {
+            CapMethod::Window {
+                title,
+                interface,
+                frame_timeout_secs,
+                title_bar_height_px,
+            } => Some(WindowCaptureConfig {
+                title: title.clone(),
+                interface: match interface {
+                    DeviceWindowCaptureInterface::Dxgi => WindowCaptureInterface::Dxgi,
+                    DeviceWindowCaptureInterface::Gdi => WindowCaptureInterface::Gdi,
+                },
+                frame_timeout: std::time::Duration::from_secs((*frame_timeout_secs).max(1) as u64),
+                title_bar_height_px: *title_bar_height_px,
+            }),
+            _ => None,
+        }
+    }
+
     fn build_runtime(config: &DeviceConfig) -> DeviceRuntime {
-        let (capture_method, window_title) = match &config.cap_method {
-            crate::domain::devices::device_conf::CapMethod::Window { title }
-                if config.supports_window_capture() =>
-            {
-                (CaptureMethod::Window, Some(title.clone()))
-            }
-            crate::domain::devices::device_conf::CapMethod::Window { .. } => {
-                Log::warn("[ DeviceCtx ] 当前设备通道不支持窗口截图，运行时回退为 ADB 截图");
-                (CaptureMethod::Adb, None)
-            }
-            crate::domain::devices::device_conf::CapMethod::Adb => (CaptureMethod::Adb, None),
+        let (capture_method, window_capture_config) = match &config.cap_method {
+            CapMethod::Window { .. } => (CaptureMethod::Window, Self::build_window_capture_config(config)),
+            CapMethod::Adb => (CaptureMethod::Adb, None),
         };
         match config.platform {
-            DevicePlatform::Android => {
-                DeviceRuntime::Android(AndroidDeviceRuntime::new(capture_method, window_title))
-            }
+            DevicePlatform::Android => DeviceRuntime::Android(AndroidDeviceRuntime::new(
+                capture_method,
+                window_capture_config,
+            )),
             DevicePlatform::Desktop => DeviceRuntime::Desktop(DesktopDeviceRuntime::new()),
         }
     }
 
-    pub async fn new(
-        device_config: Arc<RwLock<DeviceConfig>>,
-        _capture_method: CaptureMethod,
-        _window_title: Option<String>,
-    ) -> DeviceCtx {
+    pub async fn new(device_config: Arc<RwLock<DeviceConfig>>) -> DeviceCtx {
         Log::debug("初始化设备上下文数据...");
         let config = device_config.read().await.clone();
         let runtime = Self::build_runtime(&config);
@@ -76,9 +88,9 @@ impl DeviceCtx {
         runtime.valid_capture().await
     }
 
-    pub async fn get_screenshot(&self) -> Option<RgbaImage> {
+    pub async fn get_screenshot_result(&self) -> Result<RgbaImage, String> {
         let runtime = self.runtime.read().await.clone();
-        runtime.capture_screen().await
+        runtime.capture_screen_result().await
     }
 
     pub async fn change_cap_method(&self, method: CaptureMethod) -> bool {
@@ -92,18 +104,12 @@ impl DeviceCtx {
         *self.runtime.write().await = runtime;
     }
 
-    pub async fn execute_operations(
-        &self,
-        operations: &[DeviceOperation],
-    ) -> Result<(), String> {
+    pub async fn execute_operations(&self, operations: &[DeviceOperation]) -> Result<(), String> {
         let runtime = self.runtime.read().await.clone();
         runtime.execute_operations(operations).await
     }
 
-    pub async fn execute_operation(
-        &self,
-        operation: DeviceOperation,
-    ) -> Result<(), String> {
+    pub async fn execute_operation(&self, operation: DeviceOperation) -> Result<(), String> {
         let runtime = self.runtime.read().await.clone();
         runtime.execute_operation(operation).await
     }
@@ -114,8 +120,7 @@ impl DeviceCtx {
     }
 
     pub async fn click(&self, point: Point<u16>) -> Result<(), String> {
-        self.execute_operation(DeviceOperation::Click(point))
-            .await
+        self.execute_operation(DeviceOperation::Click(point)).await
     }
 
     pub async fn long_click(&self, point: Point<u16>) -> Result<(), String> {

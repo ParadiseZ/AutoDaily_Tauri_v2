@@ -125,6 +125,25 @@ impl ScriptScheduler {
         Ok(())
     }
 
+    async fn reset_execution_state_and_flush_ocr_cache(
+        runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
+        script_name: &str,
+        log_context: &str,
+    ) {
+        let mut ctx = runtime_ctx.write().await;
+        ctx.execution.current_execution_id = None;
+        ctx.execution.current_assignment_id = None;
+        ctx.execution.current_task = None;
+        ctx.execution.current_step_id = None;
+        ctx.execution.current_step_name = None;
+        if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
+            Log::warn(&format!(
+                "[ scheduler ] 脚本[{}]{}写回 OCR 文字缓存失败，已忽略: {}",
+                script_name, log_context, error
+            ));
+        }
+    }
+
     fn parse_bundle_json<T: DeserializeOwned>(field: &str, json: &str) -> Result<T, String> {
         serde_json::from_str(json)
             .map_err(|error| format!("解析 bundle 字段 {} 失败: {}", field, error))
@@ -335,6 +354,7 @@ impl ScriptScheduler {
         let script_name = script_info.name.clone();
         Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_name));
         let capture_asset_signature = ScriptExecutor::build_capture_asset_signature(&script_info);
+        let text_rec_model_signature = ScriptExecutor::build_text_rec_model_signature(&script_info);
         Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
         let execution_plan =
@@ -370,6 +390,7 @@ impl ScriptScheduler {
             ctx.observation.last_snapshot = None;
             ctx.observation.last_hits.clear();
             ctx.observation.capture_asset_signature = capture_asset_signature;
+            ctx.observation.text_rec_model_signature = text_rec_model_signature;
             if let Err(error) = ctx
                 .observation
                 .vision_text_cache
@@ -660,40 +681,18 @@ impl ScriptScheduler {
                         .await?;
                     }
 
-                    {
-                        let mut ctx = runtime_ctx.write().await;
-                        if let Err(error) = ctx.observation.vision_text_cache.flush_current_script()
-                        {
-                            Log::warn(&format!(
-                                "[ scheduler ] 脚本[{}]失败后写回 OCR 文字缓存失败，已忽略: {}",
-                                script_name, error
-                            ));
-                        }
-                        ctx.execution.current_execution_id = None;
-                        ctx.execution.current_assignment_id = None;
-                        ctx.execution.current_task = None;
-                        ctx.execution.current_step_id = None;
-                        ctx.execution.current_step_name = None;
-                    }
+                    Self::reset_execution_state_and_flush_ocr_cache(
+                        &runtime_ctx,
+                        &script_name,
+                        "失败后",
+                    )
+                    .await;
                     return Err(format!("脚本[{}] {}", script_name, message));
                 }
             }
         }
 
-        {
-            let mut ctx = runtime_ctx.write().await;
-            ctx.execution.current_execution_id = None;
-            ctx.execution.current_assignment_id = None;
-            ctx.execution.current_task = None;
-            ctx.execution.current_step_id = None;
-            ctx.execution.current_step_name = None;
-            if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
-                Log::warn(&format!(
-                    "[ scheduler ] 脚本[{}]写回 OCR 文字缓存失败，已忽略: {}",
-                    script_name, error
-                ));
-            }
-        }
+        Self::reset_execution_state_and_flush_ocr_cache(&runtime_ctx, &script_name, "").await;
 
         emit_progress_event(
             RuntimeProgressPhase::Completed,
@@ -850,20 +849,12 @@ impl ScriptScheduler {
             _ => Ok(()),
         };
 
-        {
-            let mut ctx = runtime_ctx.write().await;
-            ctx.execution.current_execution_id = None;
-            ctx.execution.current_assignment_id = None;
-            ctx.execution.current_task = None;
-            ctx.execution.current_step_id = None;
-            ctx.execution.current_step_name = None;
-            if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
-                Log::warn(&format!(
-                    "[ scheduler ] 脚本[{}]调试执行后写回 OCR 文字缓存失败，已忽略: {}",
-                    script_id, error
-                ));
-            }
-        }
+        Self::reset_execution_state_and_flush_ocr_cache(
+            runtime_ctx,
+            &script_id.to_string(),
+            "调试执行后",
+        )
+        .await;
 
         if let Err(error) = &result {
             emit_progress_event(

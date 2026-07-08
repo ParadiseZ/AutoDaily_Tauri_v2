@@ -1,4 +1,4 @@
-use crate::infrastructure::logging::log_trait::Log;
+use runtime_common::logging::log_trait::Log;
 
 #[derive(Debug, Clone)]
 pub enum CaptureMethod {

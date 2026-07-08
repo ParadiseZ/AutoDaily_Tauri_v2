@@ -175,8 +175,8 @@ async fn handle_capture_control(
         return;
     }
 
-    match device_ctx.get_screenshot().await {
-        Some(image) => match dynamic_image_to_base64(&DynamicImage::ImageRgba8(image)) {
+    match device_ctx.get_screenshot_result().await {
+        Ok(image) => match dynamic_image_to_base64(&DynamicImage::ImageRgba8(image)) {
             Ok(image_data) => emit_capture_event(request_id, Some(image_data), None),
             Err(error) => emit_capture_event(
                 request_id,
@@ -184,7 +184,7 @@ async fn handle_capture_control(
                 Some(format!("[ child ] 设备截图编码失败：{}", error)),
             ),
         },
-        None => emit_capture_event(request_id, None, Some("[ child ] 设备截图失败".to_string())),
+        Err(error) => emit_capture_event(request_id, None, Some(error)),
     }
 }
 
@@ -258,10 +258,7 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 None,
-                Some(format!(
-                    "运行会话已加载，队列 {} 项",
-                    summary.queue_len
-                )),
+                Some(format!("运行会话已加载，队列 {} 项", summary.queue_len)),
             );
             let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,
@@ -293,10 +290,7 @@ async fn handle_session_control(control: SessionControlMessage) {
                 None,
                 None,
                 None,
-                Some(format!(
-                    "运行会话已热更新，队列 {} 项",
-                    summary.queue_len
-                )),
+                Some(format!("运行会话已热更新，队列 {} 项", summary.queue_len)),
             );
             let _ = emit_lifecycle_event_with_now(
                 RuntimeLifecyclePhase::Loaded,

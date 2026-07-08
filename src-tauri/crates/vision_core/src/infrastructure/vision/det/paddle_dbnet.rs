@@ -4,7 +4,7 @@ use crate::infrastructure::vision::base_model::BaseModel;
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, ImageBuffer};
+use image::{DynamicImage, GenericImageView, ImageBuffer, RgbaImage};
 use imageproc::contours::find_contours;
 use imageproc::point::Point;
 
@@ -46,6 +46,15 @@ impl PaddleDetDbNet {
 
     fn input_geometry(&self, image: &DynamicImage) -> (u32, u32, f32, [u32; 2]) {
         let (origin_w, origin_h) = image.dimensions();
+        self.input_geometry_from_dims(origin_w, origin_h)
+    }
+
+    fn input_geometry_rgba(&self, image: &RgbaImage) -> (u32, u32, f32, [u32; 2]) {
+        let (origin_w, origin_h) = image.dimensions();
+        self.input_geometry_from_dims(origin_w, origin_h)
+    }
+
+    fn input_geometry_from_dims(&self, origin_w: u32, origin_h: u32) -> (u32, u32, f32, [u32; 2]) {
         let scale = self.get_target_height() as f32 / origin_h as f32;
         let width = (origin_w as f32 * scale).round() as u32;
         let target_width = width.next_multiple_of(32);
@@ -82,6 +91,42 @@ impl PaddleDetDbNet {
         {
             let row_offset = y * padded_width_usize;
             for (x, pixel) in row.chunks_exact(3).enumerate() {
+                let idx = row_offset + x;
+                r_plane[idx] = pixel[0] as f32 * DBNET_R_SCALE + DBNET_R_PAD;
+                g_plane[idx] = pixel[1] as f32 * DBNET_G_SCALE + DBNET_G_PAD;
+                b_plane[idx] = pixel[2] as f32 * DBNET_B_SCALE + DBNET_B_PAD;
+            }
+        }
+    }
+
+    fn fill_chw_buffer_rgba(
+        &self,
+        image: &RgbaImage,
+        resized_width: u32,
+        padded_width: u32,
+        input_buffer: &mut [f32],
+    ) {
+        let target_height = self.get_target_height();
+        let target_height_usize = target_height as usize;
+        let resized_width_usize = resized_width as usize;
+        let padded_width_usize = padded_width as usize;
+        let plane_len = target_height_usize * padded_width_usize;
+        let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
+        let (g_plane, b_plane) = rest.split_at_mut(plane_len);
+
+        r_plane.fill(DBNET_R_PAD);
+        g_plane.fill(DBNET_G_PAD);
+        b_plane.fill(DBNET_B_PAD);
+
+        let resized_img =
+            image::imageops::resize(image, resized_width, target_height, FilterType::Triangle);
+        for (y, row) in resized_img
+            .as_raw()
+            .chunks_exact(resized_width_usize * 4)
+            .enumerate()
+        {
+            let row_offset = y * padded_width_usize;
+            for (x, pixel) in row.chunks_exact(4).enumerate() {
                 let idx = row_offset + x;
                 r_plane[idx] = pixel[0] as f32 * DBNET_R_SCALE + DBNET_R_PAD;
                 g_plane[idx] = pixel[1] as f32 * DBNET_G_SCALE + DBNET_G_PAD;
@@ -167,6 +212,40 @@ impl TextDetector for PaddleDetDbNet {
         )
         .map_err(|e| VisionError::DataProcessingErr {
             method: "dbnet_detect".to_string(),
+            e: e.to_string(),
+        })?;
+
+        self.base_model.inference_with_output_view(
+            input_view.into_dyn(),
+            self.get_input_node_name(),
+            self.get_output_node_name(),
+            |output| self.postprocess(output, [scale, scale], origin_shape),
+        )
+    }
+
+    fn detect_rgba(&self, image: &RgbaImage) -> VisionResult<Vec<DetResult>> {
+        let (width, target_width, scale, origin_shape) = self.input_geometry_rgba(image);
+        let target_height_usize = self.get_target_height() as usize;
+        let target_width_usize = target_width as usize;
+        let input_len = 3 * target_height_usize * target_width_usize;
+        let mut input_buffer =
+            self.preprocess_buffer
+                .lock()
+                .map_err(|_| VisionError::DataProcessingErr {
+                    method: "dbnet_detect_rgba".to_string(),
+                    e: "获取DBNet预处理缓存失败".to_string(),
+                })?;
+        if input_buffer.len() < input_len {
+            input_buffer.resize(input_len, 0.0);
+        }
+        let input_buffer = &mut input_buffer[..input_len];
+        self.fill_chw_buffer_rgba(image, width, target_width, input_buffer);
+        let input_view = ArrayView4::from_shape(
+            (1, 3, target_height_usize, target_width_usize),
+            input_buffer,
+        )
+        .map_err(|e| VisionError::DataProcessingErr {
+            method: "dbnet_detect_rgba".to_string(),
             e: e.to_string(),
         })?;
 

@@ -1,14 +1,12 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
 use crate::infrastructure::core::{Deserialize, Serialize};
-use crate::infrastructure::image::crop_image::get_crop_image;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::base_model::{BaseModel, ModelSource, ModelType};
 use crate::infrastructure::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infrastructure::vision::tensor_view::select_batch_and_squeeze_to_2d;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
-use image::DynamicImage;
-use imageproc::drawing::Canvas;
+use image::{DynamicImage, GenericImageView, RgbaImage};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -50,7 +48,7 @@ impl Default for RecProcessingMode {
 #[derive(Debug)]
 struct RecSample {
     original_index: usize,
-    image: DynamicImage,
+    image: RgbaImage,
     target_width: u32,
 }
 
@@ -69,6 +67,8 @@ pub struct PaddleRecCrnn {
     pub micro_batch_size: usize,
     #[serde(default = "PaddleRecCrnn::default_width_bucket_step")]
     pub width_bucket_step: u32,
+    #[serde(default = "PaddleRecCrnn::default_parallel_cpu_session_intra_threads")]
+    pub parallel_cpu_session_intra_threads: usize,
     #[serde(skip)]
     #[ts(skip)]
     pub dict: Vec<String>,
@@ -85,6 +85,10 @@ impl PaddleRecCrnn {
         32
     }
 
+    pub const fn default_parallel_cpu_session_intra_threads() -> usize {
+        1
+    }
+
     fn active_filter(&self) -> FilterType {
         match self.resize_filter {
             RecResizeFilter::Nearest => FilterType::Nearest,
@@ -99,12 +103,21 @@ impl PaddleRecCrnn {
         width.checked_add(7).map(|v| v & !7).unwrap_or(width).max(8)
     }
 
-    fn calc_target_width(&self, img: &DynamicImage) -> u32 {
-        let (origin_w, origin_h) = img.dimensions();
+    fn calc_target_width_from_dims(&self, origin_w: u32, origin_h: u32) -> u32 {
         let target_height = self.get_target_height();
         let ratio = origin_h as f32 / target_height as f32;
         let resize_w = (origin_w as f32 / ratio).ceil() as u32;
         Self::align_width(resize_w)
+    }
+
+    fn calc_target_width(&self, img: &DynamicImage) -> u32 {
+        let (origin_w, origin_h) = GenericImageView::dimensions(img);
+        self.calc_target_width_from_dims(origin_w, origin_h)
+    }
+
+    fn calc_target_width_rgba(&self, img: &RgbaImage) -> u32 {
+        let (origin_w, origin_h) = img.dimensions();
+        self.calc_target_width_from_dims(origin_w, origin_h)
     }
 
     fn bucket_width(&self, target_width: u32) -> u32 {
@@ -218,22 +231,76 @@ impl PaddleRecCrnn {
         }
     }
 
-    /// 根据检测框裁出文本图，并提前计算每个样本的目标宽度。
-    fn collect_samples(&self, image: &DynamicImage, det_results: &[DetResult]) -> Vec<RecSample> {
-        let mut samples: Vec<_> = det_results
-            .par_iter()
-            .enumerate()
-            .filter_map(|(idx, det_res)| {
-                get_crop_image(image, det_res).ok().map(|crop| RecSample {
-                    original_index: idx,
-                    target_width: self.calc_target_width(&crop),
-                    image: crop,
-                })
-            })
-            .collect();
+    fn fill_image_tensor_rgba(
+        &self,
+        img: &RgbaImage,
+        resize_width: u32,
+        padded_width: u32,
+        mut img_view: ArrayViewMut3<'_, f32>,
+    ) {
+        let resized_img = image::imageops::resize(
+            img,
+            resize_width,
+            self.get_target_height(),
+            self.active_filter(),
+        );
+        let target_height_usize = self.get_target_height() as usize;
+        let resize_width_usize = resize_width as usize;
+        let padded_width_usize = padded_width as usize;
+        let plane_len = target_height_usize * padded_width_usize;
 
-        samples.sort_by_key(|item| item.original_index);
-        samples
+        if let Some(buffer) = img_view.as_slice_mut() {
+            buffer.fill(-1.0);
+            let (r_plane, rest) = buffer.split_at_mut(plane_len);
+            let (g_plane, b_plane) = rest.split_at_mut(plane_len);
+            for (y, row) in resized_img
+                .as_raw()
+                .chunks_exact(resize_width_usize * 4)
+                .enumerate()
+            {
+                let row_offset = y * padded_width_usize;
+                for (x, pixel) in row.chunks_exact(4).enumerate() {
+                    let idx = row_offset + x;
+                    r_plane[idx] = pixel[0] as f32 * REC_SCALE - 1.0;
+                    g_plane[idx] = pixel[1] as f32 * REC_SCALE - 1.0;
+                    b_plane[idx] = pixel[2] as f32 * REC_SCALE - 1.0;
+                }
+            }
+        } else {
+            for y in 0..target_height_usize {
+                for x in 0..resize_width_usize {
+                    let idx = (y * resize_width_usize + x) * 4;
+                    let p = &resized_img.as_raw()[idx..idx + 4];
+                    img_view[[0, y, x]] = p[0] as f32 * REC_SCALE - 1.0;
+                    img_view[[1, y, x]] = p[1] as f32 * REC_SCALE - 1.0;
+                    img_view[[2, y, x]] = p[2] as f32 * REC_SCALE - 1.0;
+                }
+                for x in resize_width_usize..padded_width_usize {
+                    img_view[[0, y, x]] = -1.0;
+                    img_view[[1, y, x]] = -1.0;
+                    img_view[[2, y, x]] = -1.0;
+                }
+            }
+        }
+    }
+
+    fn preprocess_rgba(&self, img: &RgbaImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
+        let (origin_w, origin_h) = img.dimensions();
+        let target_height = self.get_target_height();
+        let ratio = origin_h as f32 / target_height as f32;
+        let target_width = self.calc_target_width_rgba(img);
+
+        Log::debug(&format!(
+            "Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
+            origin_w, origin_h, target_width, target_height, target_width, target_height
+        ));
+
+        let mut input = Array3::<f32>::zeros((3, target_height as usize, target_width as usize));
+        let img_view = input.view_mut();
+        self.fill_image_tensor_rgba(img, target_width, target_width, img_view);
+        let input = input.insert_axis(Axis(0));
+
+        Ok((input.into_dyn(), [ratio, ratio], [origin_h, origin_w]))
     }
 
     /// 执行单张识别链路。
@@ -247,7 +314,7 @@ impl PaddleRecCrnn {
         let preprocessed_inputs: Vec<(usize, ArrayD<f32>)> = samples
             .par_iter()
             .filter_map(|sample| {
-                self.preprocess(&sample.image)
+                self.preprocess_rgba(&sample.image)
                     .ok()
                     .map(|input| (sample.original_index, input.0))
             })
@@ -264,24 +331,53 @@ impl PaddleRecCrnn {
             );
         }
 
-        let mut results = Vec::with_capacity(preprocessed_inputs.len());
-        for (idx, input) in preprocessed_inputs {
-            let Some(det_res) = det_results.get(idx) else {
-                Log::warn(format!("文字识别-后处理：索引 {} 越界", idx).as_str());
-                continue;
-            };
-            match self.base_model.inference_with_output_view(
-                input.view(),
-                self.get_input_node_name(),
-                self.get_output_node_name(),
-                |output| self.postprocess(output, det_res, 0),
-            ) {
-                Ok(ocr) => results.push((idx, ocr)),
-                Err(e) => {
-                    Log::warn(format!("文字识别-推理：第 {} 项推理失败: {:?}", idx, e).as_str());
+        let mut results: Vec<(usize, OcrResult)> = if self.base_model.has_parallel_session_pool() {
+            preprocessed_inputs
+                .par_iter()
+                .filter_map(|(idx, input)| {
+                    let Some(det_res) = det_results.get(*idx) else {
+                        Log::warn(format!("文字识别-后处理：索引 {} 越界", idx).as_str());
+                        return None;
+                    };
+                    match self.base_model.inference_with_output_view(
+                        input.view(),
+                        self.get_input_node_name(),
+                        self.get_output_node_name(),
+                        |output| self.postprocess(output, det_res, 0),
+                    ) {
+                        Ok(ocr) => Some((*idx, ocr)),
+                        Err(e) => {
+                            Log::warn(
+                                format!("文字识别-推理：第 {} 项推理失败: {:?}", idx, e).as_str(),
+                            );
+                            None
+                        }
+                    }
+                })
+                .collect()
+        } else {
+            let mut results = Vec::with_capacity(preprocessed_inputs.len());
+            for (idx, input) in preprocessed_inputs {
+                let Some(det_res) = det_results.get(idx) else {
+                    Log::warn(format!("文字识别-后处理：索引 {} 越界", idx).as_str());
+                    continue;
+                };
+                match self.base_model.inference_with_output_view(
+                    input.view(),
+                    self.get_input_node_name(),
+                    self.get_output_node_name(),
+                    |output| self.postprocess(output, det_res, 0),
+                ) {
+                    Ok(ocr) => results.push((idx, ocr)),
+                    Err(e) => {
+                        Log::warn(
+                            format!("文字识别-推理：第 {} 项推理失败: {:?}", idx, e).as_str(),
+                        );
+                    }
                 }
             }
-        }
+            results
+        };
 
         if results.len() != det_results.len() {
             Log::warn(
@@ -325,7 +421,7 @@ impl PaddleRecCrnn {
                         chunk,
                     )
                     .expect("文字识别失败：批预处理失败【crnn preprocess_sample_batch】");
-                    self.fill_image_tensor(
+                    self.fill_image_tensor_rgba(
                         &sample.image,
                         sample.target_width,
                         padded_width,
@@ -358,40 +454,90 @@ impl PaddleRecCrnn {
 
         let mut results: Vec<(usize, OcrResult)> = Vec::new();
         let batch_limit = self.micro_batch_size.max(1);
+        let parallel_inference = self.base_model.has_parallel_session_pool();
 
         for (_bucket, bucket_samples) in buckets.iter_mut() {
             bucket_samples.sort_by_key(|sample| (sample.target_width, sample.original_index));
 
-            for chunk in bucket_samples.chunks(batch_limit) {
-                let padded_width = chunk
-                    .iter()
-                    .map(|sample| sample.target_width)
-                    .max()
-                    .unwrap_or(8);
-                let input = self.preprocess_sample_batch(chunk, padded_width)?;
-                let chunk_results = self.base_model.inference_with_output_view(
-                    input.view(),
-                    self.get_input_node_name(),
-                    self.get_output_node_name(),
-                    |output| {
-                        chunk
-                            .par_iter()
-                            .enumerate()
-                            .map(|(batch_index, sample)| {
-                                let det_res =
-                                    det_results.get(sample.original_index).ok_or_else(|| {
-                                        VisionError::BatchMatchDetSizeFailed {
+            if parallel_inference {
+                let prepared_chunks: VisionResult<Vec<(Vec<usize>, ArrayD<f32>)>> = bucket_samples
+                    .chunks(batch_limit)
+                    .map(|chunk| {
+                        let padded_width = chunk
+                            .iter()
+                            .map(|sample| sample.target_width)
+                            .max()
+                            .unwrap_or(8);
+                        let input = self.preprocess_sample_batch(chunk, padded_width)?;
+                        Ok((
+                            chunk.iter().map(|sample| sample.original_index).collect(),
+                            input,
+                        ))
+                    })
+                    .collect();
+
+                let chunk_results = prepared_chunks?
+                    .into_par_iter()
+                    .map(|(sample_indexes, input)| {
+                        self.base_model.inference_with_output_view(
+                            input.view(),
+                            self.get_input_node_name(),
+                            self.get_output_node_name(),
+                            |output| {
+                                sample_indexes
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(batch_index, original_index)| {
+                                        let det_res =
+                                            det_results.get(*original_index).ok_or_else(|| {
+                                                VisionError::BatchMatchDetSizeFailed {
+                                                    batch: sample_indexes.len(),
+                                                    det_num: det_results.len(),
+                                                }
+                                            })?;
+                                        let ocr =
+                                            self.postprocess(output.view(), det_res, batch_index)?;
+                                        Ok((*original_index, ocr))
+                                    })
+                                    .collect::<VisionResult<Vec<_>>>()
+                            },
+                        )
+                    })
+                    .collect::<VisionResult<Vec<_>>>()?;
+
+                results.extend(chunk_results.into_iter().flatten());
+            } else {
+                for chunk in bucket_samples.chunks(batch_limit) {
+                    let padded_width = chunk
+                        .iter()
+                        .map(|sample| sample.target_width)
+                        .max()
+                        .unwrap_or(8);
+                    let input = self.preprocess_sample_batch(chunk, padded_width)?;
+                    let chunk_results = self.base_model.inference_with_output_view(
+                        input.view(),
+                        self.get_input_node_name(),
+                        self.get_output_node_name(),
+                        |output| {
+                            chunk
+                                .par_iter()
+                                .enumerate()
+                                .map(|(batch_index, sample)| {
+                                    let det_res = det_results
+                                        .get(sample.original_index)
+                                        .ok_or_else(|| VisionError::BatchMatchDetSizeFailed {
                                             batch: chunk.len(),
                                             det_num: det_results.len(),
-                                        }
-                                    })?;
-                                let ocr = self.postprocess(output.view(), det_res, batch_index)?;
-                                Ok((sample.original_index, ocr))
-                            })
-                            .collect::<VisionResult<Vec<_>>>()
-                    },
-                )?;
-                results.extend(chunk_results);
+                                        })?;
+                                    let ocr =
+                                        self.postprocess(output.view(), det_res, batch_index)?;
+                                    Ok((sample.original_index, ocr))
+                                })
+                                .collect::<VisionResult<Vec<_>>>()
+                        },
+                    )?;
+                    results.extend(chunk_results);
+                }
             }
         }
 
@@ -447,7 +593,11 @@ impl PaddleRecCrnn {
 
 impl ModelHandler for PaddleRecCrnn {
     fn load_model(&mut self) -> VisionResult<()> {
-        self.base_model.load_model_base::<Self>("paddle_rec_crnn")
+        self.base_model
+            .load_model_base_with_session_intra_threads::<Self>(
+                "paddle_rec_crnn",
+                Some(self.parallel_cpu_session_intra_threads),
+            )
     }
     fn get_input_size(&self) -> (u32, u32) {
         (self.base_model.input_width, self.base_model.input_height)
@@ -455,7 +605,7 @@ impl ModelHandler for PaddleRecCrnn {
 
     fn preprocess(&self, img: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
         // 获取原始图像尺寸
-        let (origin_w, origin_h) = img.dimensions();
+        let (origin_w, origin_h) = GenericImageView::dimensions(img);
         let target_height = self.get_target_height();
         // 计算调整大小的比例
         let ratio = origin_h as f32 / target_height as f32;
@@ -504,12 +654,34 @@ impl ModelHandler for PaddleRecCrnn {
 }
 
 impl TextRecognizer for PaddleRecCrnn {
-    fn recognize(
+    fn recognize_crops(
         &self,
-        image: &DynamicImage,
-        det_results: &mut [DetResult],
+        cropped_images: Vec<DynamicImage>,
+        det_results: &[DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
-        let samples = self.collect_samples(image, det_results);
+        self.recognize_crops_rgba(
+            cropped_images
+                .into_iter()
+                .map(|image| image.to_rgba8())
+                .collect(),
+            det_results,
+        )
+    }
+
+    fn recognize_crops_rgba(
+        &self,
+        cropped_images: Vec<RgbaImage>,
+        det_results: &[DetResult],
+    ) -> VisionResult<Vec<OcrResult>> {
+        let samples: Vec<_> = cropped_images
+            .into_par_iter()
+            .enumerate()
+            .map(|(idx, image)| RecSample {
+                original_index: idx,
+                target_width: self.calc_target_width_rgba(&image),
+                image,
+            })
+            .collect();
         if samples.len() != det_results.len() {
             Log::warn(
                 format!(
@@ -587,92 +759,5 @@ impl TextRecognizer for PaddleRecCrnn {
             txt_char: chars,
         };
         Ok(ocr_result)
-    }
-
-    fn preprocess_batch(&self, images: &[DynamicImage]) -> VisionResult<ArrayD<f32>> {
-        if images.is_empty() {
-            return Err(VisionError::InputImageCollectionEmpty);
-        }
-
-        let widths: Vec<u32> = images
-            .par_iter()
-            .map(|img: &DynamicImage| self.calc_target_width(img))
-            .collect();
-        let max_width = widths.iter().copied().max().unwrap_or(8);
-
-        let batch_size = images.len();
-        let target_height_usize = self.get_target_height() as usize;
-        let max_width_usize = max_width as usize;
-
-        let mut batch_data =
-            Array4::<f32>::zeros((batch_size, 3, target_height_usize, max_width_usize));
-
-        let chunk_len = 3 * target_height_usize * max_width_usize;
-
-        if let Some(flat_data) = batch_data.as_slice_mut() {
-            flat_data
-                .par_chunks_mut(chunk_len)
-                .zip(images.par_iter())
-                .zip(widths.par_iter())
-                .for_each(|((chunk, img), &width)| {
-                    let img_view = ArrayViewMut3::from_shape(
-                        (3, target_height_usize, max_width_usize),
-                        chunk,
-                    )
-                    .expect("文字识别失败：批预处理失败【crnn preprocess_batch】Failed to create view from chunk");
-                    self.fill_image_tensor(img, width, max_width, img_view);
-                });
-        } else {
-            Log::error("文字识别失败：批预处理失败: Batch data 切片失败！");
-        }
-
-        Ok(batch_data.into_dyn())
-    }
-
-    fn postprocess_batch(
-        &self,
-        output: ArrayViewD<f32>,
-        det_result: &[DetResult],
-    ) -> VisionResult<Vec<OcrResult>> {
-        let batch_size = output.shape()[0];
-
-        if batch_size != det_result.len() {
-            return Err(VisionError::BatchMatchDetSizeFailed {
-                batch: batch_size,
-                det_num: det_result.len(),
-            });
-        }
-
-        let ocr_res: Vec<OcrResult> = det_result
-            .into_par_iter()
-            .enumerate()
-            .filter_map(|(i, det_res)| self.postprocess(output.view(), det_res, i).ok())
-            .collect();
-        if ocr_res.len() != batch_size {
-            Log::error("识别部分行的文字错误！");
-        }
-        Ok(ocr_res)
-    }
-
-    fn recognize_batch(
-        &self,
-        image: &DynamicImage,
-        det_results: &mut [DetResult],
-    ) -> VisionResult<Vec<OcrResult>> {
-        let samples = self.collect_samples(image, det_results);
-        if samples.len() != det_results.len() {
-            Log::warn(
-                format!(
-                    "文字识别-批处理裁剪：部分图像裁剪失败！(总数: {}, 成功: {})",
-                    det_results.len(),
-                    samples.len()
-                )
-                .as_str(),
-            );
-        }
-        if samples.is_empty() {
-            return Ok(Vec::new());
-        }
-        self.recognize_micro_batches(samples, det_results)
     }
 }

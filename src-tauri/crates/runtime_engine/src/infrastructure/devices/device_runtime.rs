@@ -3,7 +3,7 @@ use crate::domain::scripts::point::Point;
 use crate::infrastructure::adb_cli_local::adb_command::ADBCommand;
 use crate::infrastructure::adb_cli_local::adb_context::try_get_adb_ctx;
 use crate::infrastructure::capture::capture_method::CaptureMethod;
-use crate::infrastructure::capture::window_cap::WindowInfo;
+use crate::infrastructure::capture::window_cap::{WindowCaptureConfig, WindowInfo};
 use crate::infrastructure::logging::log_trait::Log;
 use image::RgbaImage;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -54,10 +54,10 @@ impl DeviceRuntime {
         }
     }
 
-    pub async fn capture_screen(&self) -> Option<RgbaImage> {
+    pub async fn capture_screen_result(&self) -> Result<RgbaImage, String> {
         match self {
-            Self::Android(runtime) => runtime.capture_screen().await,
-            Self::Desktop(runtime) => runtime.capture_screen().await,
+            Self::Android(runtime) => runtime.capture_screen_result().await,
+            Self::Desktop(runtime) => runtime.capture_screen_result().await,
         }
     }
 
@@ -112,13 +112,23 @@ pub struct AndroidDeviceRuntime {
 }
 
 impl AndroidDeviceRuntime {
-    pub fn new(capture_method: CaptureMethod, window_title: Option<String>) -> Self {
+    pub fn new(
+        capture_method: CaptureMethod,
+        window_capture_config: Option<WindowCaptureConfig>,
+    ) -> Self {
         let (tx, rx) = crossbeam_channel::bounded(1);
         Self {
             capture_method: Arc::new(AtomicU8::new(capture_method as u8)),
             cap_tx: tx,
             cap_rx: rx,
-            window_info: Arc::new(WindowInfo::init(window_title)),
+            window_info: Arc::new(WindowInfo::init(window_capture_config.unwrap_or(
+                WindowCaptureConfig {
+                    title: String::new(),
+                    interface: crate::infrastructure::capture::window_cap::WindowCaptureInterface::Gdi,
+                    frame_timeout: Duration::from_secs(10),
+                    title_bar_height_px: 122,
+                },
+            ))),
         }
     }
 
@@ -160,88 +170,35 @@ impl AndroidDeviceRuntime {
             .await
     }
 
-    async fn capture_screen_via_window(&self) -> Option<RgbaImage> {
-        if self.window_info.window.read().await.is_none() {
-            let target = self
-                .window_info
-                .target_title()
-                .await
-                .unwrap_or_else(|| "<unknown>".to_string());
-            Log::warn(&format!(
-                "窗口截图目标未初始化，尝试重新查找目标窗口: {}",
-                target
-            ));
-            if !self.window_info.refresh_window().await {
-                Log::warn("重新查找目标窗口失败");
-                return None;
-            }
-        }
-
-        {
-            let win = self.window_info.window.read().await;
-            if let Some(win) = win.as_ref() {
-                match win.capture_image() {
-                    Ok(img) => return Some(img),
-                    Err(error) => {
-                        Log::warn(&format!("窗口截图失败，尝试重新绑定窗口: {}", error));
-                    }
-                }
-            }
-        }
-
-        if !self.window_info.refresh_window().await {
-            Log::warn("重新绑定目标窗口失败");
-            return None;
-        }
-
-        let win = self.window_info.window.read().await;
-        let Some(win) = win.as_ref() else {
-            return None;
-        };
-        match win.capture_image() {
-            Ok(img) => Some(img),
-            Err(error) => {
-                Log::error(&format!("截图失败：{}", error));
-                None
-            }
-        }
+    async fn capture_screen_via_window_result(&self) -> Result<RgbaImage, String> {
+        self.window_info.capture_image_result().await
     }
 
-    async fn capture_screen_via_adb(&self) -> Option<RgbaImage> {
+    async fn capture_screen_via_adb_result(&self) -> Result<RgbaImage, String> {
         Log::debug("ADB方式截图...");
         let adb_ctx = match try_get_adb_ctx() {
             Ok(adb_ctx) => adb_ctx,
             Err(error) => {
-                Log::error(&format!("截图失败：{}", error));
-                return None;
+                return Err(format!("截图失败：{}", error));
             }
         };
         if let Err(error) = adb_ctx.send_capture_cmd(&ADBCommand::Capture(self.cap_tx.clone())) {
-            Log::error(&format!("截图失败：{}", error));
-            return None;
+            return Err(format!("截图失败：{}", error));
         }
         Log::debug("等待获取图像数据...");
         let cap_rx = self.cap_rx.clone();
         match tokio::task::spawn_blocking(move || cap_rx.recv_timeout(Duration::from_secs(10)))
             .await
         {
-            Ok(Ok(Ok(img))) => Some(img),
-            Ok(Ok(Err(error))) => {
-                Log::error(&format!("截图失败：{}", error));
-                None
-            }
+            Ok(Ok(Ok(img))) => Ok(img),
+            Ok(Ok(Err(error))) => Err(format!("截图失败：{}", error)),
             Ok(Err(crossbeam_channel::RecvTimeoutError::Timeout)) => {
-                Log::error("截图失败：等待截图结果已超过10秒！");
-                None
+                Err("截图失败：等待截图结果已超过10秒！".to_string())
             }
             Ok(Err(crossbeam_channel::RecvTimeoutError::Disconnected)) => {
-                Log::error("截图失败：截图数据通道已关闭！");
-                None
+                Err("截图失败：截图数据通道已关闭！".to_string())
             }
-            Err(error) => {
-                Log::error(&format!("截图失败：等待截图任务异常：{}", error));
-                None
-            }
+            Err(error) => Err(format!("截图失败：等待截图任务异常：{}", error)),
         }
     }
 
@@ -303,8 +260,7 @@ impl AndroidDeviceRuntime {
         match self.capture_method.load(Ordering::Acquire) {
             1 => {
                 Log::debug("验证窗口截图设置...");
-                let initialized = self.window_info.window.read().await.is_some();
-                if !initialized && !self.window_info.refresh_window().await {
+                if !self.window_info.valid_capture().await {
                     Log::error("验证截图设置失败：未初始化窗口信息！");
                     return false;
                 }
@@ -327,25 +283,14 @@ impl AndroidDeviceRuntime {
         }
     }
 
-    pub async fn capture_screen(&self) -> Option<RgbaImage> {
+    pub async fn capture_screen_result(&self) -> Result<RgbaImage, String> {
         match self.capture_method.load(Ordering::Acquire) {
             1 => {
                 Log::debug("窗口方式截图...");
-                if let Some(image) = self.capture_screen_via_window().await {
-                    Some(image)
-                } else if try_get_adb_ctx().is_ok() {
-                    Log::warn("窗口截图不可用，回退为 ADB 截图");
-                    self.capture_screen_via_adb().await
-                } else {
-                    Log::error("截图失败：未初始化目标窗口信息！");
-                    None
-                }
+                self.capture_screen_via_window_result().await
             }
-            2 => self.capture_screen_via_adb().await,
-            _ => {
-                Log::warn("截图失败：不支持的截图方式！");
-                None
-            }
+            2 => self.capture_screen_via_adb_result().await,
+            _ => Err("截图失败：不支持的截图方式！".to_string()),
         }
     }
 
@@ -438,9 +383,8 @@ impl DesktopDeviceRuntime {
         false
     }
 
-    pub async fn capture_screen(&self) -> Option<RgbaImage> {
-        Log::warn("DesktopDeviceRuntime 尚未实现截图");
-        None
+    pub async fn capture_screen_result(&self) -> Result<RgbaImage, String> {
+        Err("DesktopDeviceRuntime 尚未实现截图".to_string())
     }
 
     pub async fn change_cap_method(&self, method: CaptureMethod) -> bool {

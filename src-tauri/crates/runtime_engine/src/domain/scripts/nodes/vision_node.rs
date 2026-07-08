@@ -1,5 +1,5 @@
-use crate::domain::scripts::script_decision::Step;
 use crate::domain::scripts::nodes::flow_control::CompareOp;
+use crate::domain::scripts::script_decision::Step;
 use crate::domain::vision::ocr_search::SearchRule;
 use crate::infrastructure::core::{Deserialize, Serialize};
 

@@ -18,12 +18,12 @@ use crate::domain::scripts::policy::{
     GroupPolicyRelation, PolicyGroupTable, PolicySetTable, PolicyTable, SetGroupRelation,
 };
 use crate::domain::scripts::script_decision::{Step, StepKind};
+use crate::domain::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::domain::scripts::script_info::ScriptTable;
 use crate::domain::scripts::script_task::ScriptTaskTable;
 use crate::domain::scripts::script_variable::{
     ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace,
 };
-use crate::domain::scripts::script_error::{ExecuteResult, ScriptError};
 use crate::domain::vision::ocr_search::{
     OcrSearcher, RelativeAnchorType, RelativeDirection, RelativeTargetKind, SearchHit, SearchRule,
     VisionLayoutItem, VisionLayoutSource, VisionSnapshot,
@@ -49,7 +49,7 @@ use crate::infrastructure::session::runtime_session::{
     get_runtime_execution_policy, get_runtime_session_store, get_script_bundle_snapshot,
 };
 use crate::infrastructure::vision::ocr_service::OcrService;
-use image::{DynamicImage, RgbaImage};
+use image::RgbaImage;
 use rhai::serde::{from_dynamic, to_dynamic};
 use rhai::{Array, Dynamic, Engine, EvalAltResult, Map, Scope, AST, FLOAT, INT};
 use serde::de::DeserializeOwned;

@@ -37,19 +37,19 @@
 
     <div class="dialog-form-grid" :class="{ 'dialog-form-grid-compact': compact }">
       <label class="dialog-form-row" :class="{ 'dialog-form-row-compact': compact }">
-        <span class="dialog-form-label">Intra Threads</span>
+        <span class="dialog-form-label">算子内并<br/>行线程数</span>
         <input v-model.number="model.intraThreadNum" class="app-input" :data-testid="resolveTestId('intra-thread-num')" min="1" type="number" />
       </label>
 
       <label class="dialog-form-row" :class="{ 'dialog-form-row-compact': compact }">
-        <span class="dialog-form-label">Inter Threads</span>
+        <span class="dialog-form-label">算子间并<br/>行线程数</span>
         <input v-model.number="model.interThreadNum" class="app-input" :data-testid="resolveTestId('inter-thread-num')" min="1" type="number" />
       </label>
     </div>
 
     <div class="dialog-form-grid" :class="{ 'dialog-form-grid-compact': compact }">
       <label v-if="!compact" class="dialog-form-row">
-        <span class="dialog-form-label">Intra Spinning</span>
+        <span class="dialog-form-label">自旋</span>
         <span class="dialog-form-inline-toggle">
           <input
             v-model="model.intraSpinning"
@@ -58,12 +58,12 @@
             :data-testid="resolveTestId('intra-spinning')"
             style="accent-color: var(--app-accent)"
           />
-          <span class="text-sm text-(--app-text-soft)">启用后同一模型内部线程保持活跃。</span>
+          <span class="text-sm text-(--app-text-soft)">算子【内】线程保持活跃</span>
         </span>
       </label>
       <label v-else class="dialog-toggle-card">
         <span class="dialog-toggle-head">
-          <span class="dialog-form-label">Intra Spinning</span>
+          <span class="dialog-form-label">自旋</span>
           <input
             v-model="model.intraSpinning"
             type="checkbox"
@@ -72,11 +72,11 @@
             style="accent-color: var(--app-accent)"
           />
         </span>
-        <span class="dialog-toggle-text">保持模型内部线程活跃。</span>
+        <span class="dialog-toggle-text">算子【内】线程保持活跃</span>
       </label>
 
       <label v-if="!compact" class="dialog-form-row">
-        <span class="dialog-form-label">Inter Spinning</span>
+        <span class="dialog-form-label">自旋</span>
         <span class="dialog-form-inline-toggle">
           <input
             v-model="model.interSpinning"
@@ -85,12 +85,12 @@
             :data-testid="resolveTestId('inter-spinning')"
             style="accent-color: var(--app-accent)"
           />
-          <span class="text-sm text-(--app-text-soft)">启用后多模型之间的线程保持活跃。</span>
+          <span class="text-sm text-(--app-text-soft)">算子【间】线程保持活跃</span>
         </span>
       </label>
       <label v-else class="dialog-toggle-card">
         <span class="dialog-toggle-head">
-          <span class="dialog-form-label">Inter Spinning</span>
+          <span class="dialog-form-label">自旋</span>
           <input
             v-model="model.interSpinning"
             type="checkbox"
@@ -99,7 +99,7 @@
             style="accent-color: var(--app-accent)"
           />
         </span>
-        <span class="dialog-toggle-text">保持模型间线程活跃。</span>
+        <span class="dialog-toggle-text">算子【间】线程保持活跃</span>
       </label>
     </div>
   </div>

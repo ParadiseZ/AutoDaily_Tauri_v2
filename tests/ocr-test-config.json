@@ -39,7 +39,8 @@
       "resizeFilter": "Triangle",
       "processingMode": "Single",
       "microBatchSize": 4,
-      "widthBucketStep": 32
+      "widthBucketStep": 32,
+      "parallelCpuSessionIntraThreads": 1
     }
   },
   "imagePath": "D:\\Database\\Project\\YOLO\\AutoDailyTKFM\\all_images\\0044.jpg",

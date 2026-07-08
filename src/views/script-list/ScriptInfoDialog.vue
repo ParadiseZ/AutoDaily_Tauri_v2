@@ -376,6 +376,8 @@
               <template v-if="form.data.txtRecModel && 'PaddleCrnn' in form.data.txtRecModel">
                 <ModelBaseFields
                   :model="txtCrnnModel.baseModel"
+                  :single-session-intra-threads="txtCrnnModel.parallelCpuSessionIntraThreads"
+                  @update:singleSessionIntraThreads="txtCrnnModel.parallelCpuSessionIntraThreads = $event"
                   path-placeholder="例如：D:\\models\\ocr-rec.onnx"
                   test-id-prefix="script-models-txt-rec-base"
                 >
@@ -396,9 +398,21 @@
                     </label>
                   </template>
                 </ModelBaseFields>
+
                 <div class="dialog-form-grid">
                   <label class="dialog-form-row">
-                    <span class="dialog-form-label">缩放插值</span>
+                    <span class="dialog-form-label">单会话算子<br/>内线程数量</span>
+                    <input
+                      v-model="txtCrnnModel.parallelCpuSessionIntraThreads"
+                      class="app-input"
+                      data-testid="script-models-txt-rec-parallel-session-intra-threads"
+                      min="1"
+                      step="1"
+                      type="number"
+                    />
+                  </label>
+                  <label class="dialog-form-row">
+                    <span class="dialog-form-label">缩放插值方式</span>
                     <AppSelect
                       v-model="txtCrnnModel.resizeFilter"
                       :options="recResizeFilterOptions"
@@ -415,8 +429,8 @@
                       test-id="script-models-txt-rec-processing-mode"
                     />
                   </label>
-                  <label class="dialog-form-row">
-                    <span class="dialog-form-label">Micro-batch 大小</span>
+                  <label v-if="recProcessingModeOptions[1].value === txtCrnnModel.processingMode" class="dialog-form-row">
+                    <span class="dialog-form-label">批次大小</span>
                     <input
                       v-model.number="txtCrnnModel.microBatchSize"
                       class="app-input"
@@ -427,7 +441,7 @@
                     />
                   </label>
                 </div>
-                <div class="dialog-form-grid">
+                <div v-if="recProcessingModeOptions[1].value === txtCrnnModel.processingMode" class="dialog-form-grid">
                   <label class="dialog-form-row">
                     <span class="dialog-form-label">宽度分桶步长</span>
                     <input
@@ -588,7 +602,6 @@ import AppSelect from '@/components/shared/AppSelect.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import { scriptService } from '@/services/scriptService';
 import type { DetectorType } from '@/types/bindings/DetectorType';
-import type { RecognizerType } from '@/types/bindings/RecognizerType';
 import type { ScriptTableRecord } from '@/types/app/domain';
 import type { YoloDet } from '@/types/bindings/YoloDet';
 import type { YoloPostprocessKind } from '@/types/bindings/YoloPostprocessKind';
@@ -687,8 +700,8 @@ const recResizeFilterOptions = [
 ];
 
 const recProcessingModeOptions = [
-  { label: '单张', value: 'Single', description: '逐张识别，适合文本框数量少或宽度差异大的场景。' },
-  { label: 'Micro-batch', value: 'MicroBatch', description: '按宽度分桶后做小批次识别，适合框较多的场景。' },
+  { label: '单文本框', value: 'Single', description: '逐张识别，适合文本框数量少或宽度差异大的场景。' },
+  { label: '批处理', value: 'MicroBatch', description: '按宽度分桶后做小批次识别，适合框较多的场景。' },
 ];
 
 const yoloPostprocessOptions = [
@@ -739,6 +752,7 @@ function normalizeCrnnModel(model: ReturnType<typeof createCrnn>): ReturnType<ty
   if (!model.processingMode) model.processingMode = 'Single';
   if (!model.microBatchSize || model.microBatchSize < 1) model.microBatchSize = 4;
   if (!model.widthBucketStep || model.widthBucketStep < 8) model.widthBucketStep = 32;
+  if (!model.parallelCpuSessionIntraThreads || model.parallelCpuSessionIntraThreads < 1) model.parallelCpuSessionIntraThreads = 1;
   return model;
 }
 

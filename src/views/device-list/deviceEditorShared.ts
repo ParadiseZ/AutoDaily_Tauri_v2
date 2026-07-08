@@ -42,7 +42,13 @@ export const buildDeviceTableFromForm = async (
       capMethod:
         captureMethodType === 'adb'
           ? { type: 'adb' }
-          : { type: 'window', title: normalized.capMethodValue || form.deviceName },
+          : {
+              type: 'window',
+              title: normalized.capMethodValue || form.deviceName,
+              interface: form.windowCaptureInterface,
+              frameTimeoutSecs: Math.max(1, Math.floor(Number(form.frameTimeoutSecs) || 10)),
+              titleBarHeightPx: Math.max(0, Math.floor(Number(form.titleBarHeightPx) || 122)),
+            },
       imageCompression: captureMethodType === 'adb' ? 'AdbOriginal' : 'WindowOriginal',
       enable: form.enable,
       autoStart: form.autoStart,

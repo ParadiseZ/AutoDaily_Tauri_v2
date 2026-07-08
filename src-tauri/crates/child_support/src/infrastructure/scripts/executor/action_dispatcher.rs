@@ -348,11 +348,25 @@ impl<'a> ActionRunner<'a> {
     ) -> ExecuteResult<(ControlFlow, Option<PolicyActionTrace>)> {
         match action {
             Action::Capture { output_var } => {
-                let image = Arc::new(
-                    self.executor
-                        .capture_device_screenshot("action.capture")
-                        .await?,
-                );
+                let image = match self.executor.capture_device_screenshot("action.capture").await {
+                    Ok(image) => Arc::new(image),
+                    Err(error) => {
+                        if ScriptExecutor::is_dxgi_capture_timeout_error(&error)
+                            || ScriptExecutor::is_window_capture_bind_error(&error)
+                        {
+                            let message = ScriptExecutor::capture_error_message(&error)
+                                .unwrap_or_else(|| "设备截图超时".to_string());
+                            if let Some(flow) = self
+                                .executor
+                                .handle_capture_timeout_action("action.capture", message)
+                                .await?
+                            {
+                                return Ok((flow, None));
+                            }
+                        }
+                        return Err(error);
+                    }
+                };
                 self.executor
                     .store_capture_image(image, Some(output_var))
                     .await?;

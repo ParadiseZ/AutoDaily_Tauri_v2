@@ -1,7 +1,7 @@
 use crate::api::api_response::ApiResponse;
 use crate::api::backend_cmd::local_scripts_dir;
-use crate::api::backend_dto::ScriptEditorSaveRequest;
 use crate::api::backend_dto::apply_current_client_capability;
+use crate::api::backend_dto::ScriptEditorSaveRequest;
 use crate::api::infrastructure::process_api::{
     enqueue_device_runtime_session_refresh_jobs, load_assigned_device_ids_by_script,
     notify_auto_dispatch_planner,
@@ -74,10 +74,7 @@ pub async fn save_script_cmd(
     Ok(())
 }
 
-fn parse_relation_ids(
-    values: &[String],
-    valid_ids: &HashSet<String>,
-) -> Vec<String> {
+fn parse_relation_ids(values: &[String], valid_ids: &HashSet<String>) -> Vec<String> {
     values
         .iter()
         .filter(|value| valid_ids.contains(value.as_str()))
@@ -162,11 +159,13 @@ pub async fn save_script_editor_cmd(
     .await
     .map_err(|e| format!("清理 group_policies 失败: {}", e))?;
 
-    sqlx::query("DELETE FROM set_groups WHERE set_id IN (SELECT id FROM policy_sets WHERE script_id = ?)")
-        .bind(&script_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| format!("清理 set_groups 失败: {}", e))?;
+    sqlx::query(
+        "DELETE FROM set_groups WHERE set_id IN (SELECT id FROM policy_sets WHERE script_id = ?)",
+    )
+    .bind(&script_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| format!("清理 set_groups 失败: {}", e))?;
 
     for table in ["script_tasks", "policies", "policy_groups", "policy_sets"] {
         let query = format!("DELETE FROM {} WHERE script_id = ?", table);

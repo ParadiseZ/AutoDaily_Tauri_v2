@@ -152,7 +152,9 @@ impl<'de> Deserialize<'de> for CurrentTaskCondition {
         #[derive(Deserialize)]
         #[serde(rename_all = "camelCase", tag = "type")]
         enum LegacyCurrentTaskRule {
-            Task { target: TaskId },
+            Task {
+                target: TaskId,
+            },
             Group {
                 #[serde(default)]
                 items: Vec<LegacyCurrentTaskRule>,

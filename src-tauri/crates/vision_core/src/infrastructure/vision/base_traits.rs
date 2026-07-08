@@ -1,8 +1,8 @@
 use crate::domain::vision::result::{DetResult, OcrResult};
-use crate::infrastructure::image::crop_image::{get_crop_image, get_crop_images};
+use crate::infrastructure::image::crop_image::{get_crop_images, get_crop_images_rgba};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::vision_error::VisionResult;
-use image::DynamicImage;
+use image::{DynamicImage, RgbaImage};
 use ndarray::{ArrayD, ArrayViewD};
 use rayon::prelude::*;
 
@@ -38,6 +38,10 @@ pub trait TextDetector: ModelHandler {
         //self.parse_detection_result(processed_output)
         Ok(det_res)
     }
+
+    fn detect_rgba(&self, image: &RgbaImage) -> VisionResult<Vec<DetResult>> {
+        self.detect(&DynamicImage::ImageRgba8(image.clone()))
+    }
     /// 后处理推理结果
     fn postprocess(
         &self,
@@ -49,7 +53,6 @@ pub trait TextDetector: ModelHandler {
     // 获取检测特有的配置参数
 }
 
-/// 文本识别器trait - 继承ModelHandler并添加识别特有的方法  
 pub trait TextRecognizer: ModelHandler {
     fn recognize_preprocessed_inputs(
         &self,
@@ -125,32 +128,37 @@ pub trait TextRecognizer: ModelHandler {
         image: &DynamicImage,
         det_results: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
-        // 1. 预处理阶段
-        // 保留原始索引：(original_index, preprocessed_input)
-        //let rgba_img = &image.to_rgba8();//移入预处理阶段
-        let preprocessed_inputs: Vec<(usize, ArrayD<f32>)> = det_results
-            .par_iter()
-            .enumerate()
-            .filter_map(|(idx, det_res)| {
-                get_crop_image(image, det_res)
-                    .ok()
-                    .and_then(|img| self.preprocess(&img).ok())
-                    .and_then(|input| Some((idx, input.0))) // input.0 is Array4<f32> based on preprocess signature
-            })
-            .collect();
-        self.recognize_preprocessed_inputs(preprocessed_inputs, det_results)
+        let cropped_images = get_crop_images(image, det_results)?;
+        self.recognize_crops(cropped_images, det_results)
     }
-    fn recognize_batch(
+
+    fn recognize_rgba(
         &self,
-        image: &DynamicImage,
+        image: &RgbaImage,
         det_results: &mut [DetResult],
     ) -> VisionResult<Vec<OcrResult>> {
-        let imgs = get_crop_images(image, det_results)?;
-        let input = self.preprocess_batch(&imgs)?;
-        let raw_output = self.inference(input.view())?;
-        let ocr_res = self.postprocess_batch(raw_output.view(), det_results)?;
-        Ok(ocr_res)
-        //self.parse_recognition_result(processed_output)
+        let cropped_images = get_crop_images_rgba(image, det_results)?;
+        self.recognize_crops_rgba(cropped_images, det_results)
+    }
+
+    fn recognize_crops(
+        &self,
+        cropped_images: Vec<DynamicImage>,
+        det_results: &[DetResult],
+    ) -> VisionResult<Vec<OcrResult>>;
+
+    fn recognize_crops_rgba(
+        &self,
+        cropped_images: Vec<RgbaImage>,
+        det_results: &[DetResult],
+    ) -> VisionResult<Vec<OcrResult>> {
+        self.recognize_crops(
+            cropped_images
+                .into_iter()
+                .map(DynamicImage::ImageRgba8)
+                .collect(),
+            det_results,
+        )
     }
 
     /// 后处理推理结果
@@ -160,13 +168,4 @@ pub trait TextRecognizer: ModelHandler {
         det_result: &DetResult,
         batch_size: usize,
     ) -> VisionResult<OcrResult>;
-
-    /// 批量处理
-    fn preprocess_batch(&self, images: &[DynamicImage]) -> VisionResult<ArrayD<f32>>;
-
-    fn postprocess_batch(
-        &self,
-        output: ArrayViewD<f32>,
-        det_result: &[DetResult],
-    ) -> VisionResult<Vec<OcrResult>>;
 }

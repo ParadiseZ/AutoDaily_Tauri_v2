@@ -52,6 +52,35 @@
                 </label>
               </div>
 
+              <div v-if="form.capMethodType === 'window'" class="grid gap-4 md:grid-cols-3">
+                <label class="grid gap-2">
+                  <span class="text-sm text-(--app-text-soft)">截图接口</span>
+                  <AppSelect v-model="form.windowCaptureInterface" :options="windowCaptureInterfaceOptions" />
+                </label>
+                <label class="grid gap-2">
+                  <span class="text-sm text-(--app-text-soft)">帧超时时间（秒）</span>
+                  <input
+                    v-model.number="form.frameTimeoutSecs"
+                    class="app-input"
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="10"
+                  />
+                </label>
+                <label class="grid gap-2">
+                  <span class="text-sm text-(--app-text-soft)">标题栏高度（px）</span>
+                  <input
+                    v-model.number="form.titleBarHeightPx"
+                    class="app-input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="122"
+                  />
+                </label>
+              </div>
+
               <div class="grid gap-4 md:grid-cols-2">
                 <label class="grid gap-2">
                   <span class="text-sm text-(--app-text-soft)">连接通道</span>
@@ -284,6 +313,9 @@ const createEmptyForm = (): DeviceFormState => ({
   logToFile: true,
   capMethodType: 'window',
   capMethodValue: '',
+  windowCaptureInterface: 'dxgi',
+  frameTimeoutSecs: 10,
+  titleBarHeightPx: 122,
   connectAddress: '',
   connectIdentifier: '',
   adbPath: '',
@@ -342,6 +374,11 @@ const captureOptions = computed(() => {
   }
   return [{ label: 'ADB 截图', value: 'adb', description: '当前通道不是模拟器，窗口截图不可用。' }];
 });
+
+const windowCaptureInterfaceOptions = [
+  { label: 'DXGI', value: 'dxgi', description: '默认方案，等待桌面新帧后裁剪窗口区域。' },
+  { label: 'GDI', value: 'gdi', description: '兼容方案，直接做窗口截图。' },
+];
 
 const transportOptions = [
   { label: '模拟器', value: 'emulatorTcp' },
@@ -406,6 +443,9 @@ const syncForm = (device: DeviceTable | null) => {
   } else {
     form.capMethodType = 'window';
     form.capMethodValue = device.data.capMethod.title;
+    form.windowCaptureInterface = device.data.capMethod.interface ?? 'dxgi';
+    form.frameTimeoutSecs = Number(device.data.capMethod.frameTimeoutSecs ?? 10);
+    form.titleBarHeightPx = Number(device.data.capMethod.titleBarHeightPx ?? 122);
   }
 };
 
@@ -453,6 +493,11 @@ watch(
     if (transportKind !== 'emulatorTcp' && capMethodType === 'window') {
       form.capMethodType = 'adb';
       form.capMethodValue = '';
+    }
+    if (capMethodType === 'adb') {
+      form.windowCaptureInterface = 'dxgi';
+      form.frameTimeoutSecs = 10;
+      form.titleBarHeightPx = 122;
     }
   },
 );

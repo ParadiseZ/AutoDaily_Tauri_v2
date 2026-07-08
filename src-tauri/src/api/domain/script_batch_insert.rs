@@ -31,11 +31,11 @@ pub async fn batch_insert_script_related(
         "INSERT INTO scripts (id, `data`) VALUES (?, ?)
          ON CONFLICT(id) DO UPDATE SET `data` = excluded.`data`",
     )
-        .bind(script.id.to_string())
-        .bind(&script.data)
-        .execute(&mut **tx)
-        .await
-        .map_err(|e| format!("写入 Script 失败: {}", e))?;
+    .bind(script.id.to_string())
+    .bind(&script.data)
+    .execute(&mut **tx)
+    .await
+    .map_err(|e| format!("写入 Script 失败: {}", e))?;
 
     // 2. Batch insert policies (4 bind params each)
     if !policies.is_empty() {

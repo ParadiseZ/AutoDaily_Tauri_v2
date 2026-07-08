@@ -11,7 +11,7 @@ default = ["child-bin"]
 child-bin = ["dep:child_support"]
 
 [workspace]
-members = [".", "crates/child_support", "crates/runtime_common", "crates/vision_core", "crates/runtime_engine"]
+members = [".", "crates/child_support", "crates/runtime_common", "crates/vision_core", "crates/runtime_engine", "crates/window_capture"]
 resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -60,7 +60,7 @@ regex = "1.12.2"
 ts-rs = { version = "12", features = ["serde-json-impl"] }
 tracing-subscriber  = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
 tracing-appender = "0.2"
-xcap = "0.9.2"
+xcap = "0.9.6"
 num_cpus = "1.17"
 twox-hash = { version = "2", features = ["xxhash3_64"] }
 interprocess = { version = "2", features = ["tokio"] }

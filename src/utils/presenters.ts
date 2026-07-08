@@ -128,7 +128,9 @@ export const formatConnectLabel = (config: DeviceConfig) => {
 };
 
 export const formatCaptureMethod = (method: CapMethod) =>
-    method.type === 'adb' ? 'ADB 截图' : `窗口截取 · ${method.title}`;
+    method.type === 'adb'
+        ? 'ADB 截图'
+        : `窗口截取 · ${method.interface === 'gdi' ? 'GDI' : 'DXGI'} · ${method.title}`;
 
 export const formatStatusTone = (status: DeviceRuntimeStatus['kind'] | LogLevel) => {
     if (status === 'running' || status === 'Info') return 'success';

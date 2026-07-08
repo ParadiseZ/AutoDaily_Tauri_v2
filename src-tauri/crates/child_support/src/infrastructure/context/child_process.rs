@@ -1,6 +1,5 @@
 pub use runtime_engine::infrastructure::context::child_process::ChildProcessInitData;
 
-use crate::infrastructure::capture::capture_method::CaptureMethod;
 use crate::infrastructure::context::child_process_sec::{init_ipc_client, start_ipc_client};
 use crate::infrastructure::context::init_error::{InitError, InitResult};
 use crate::infrastructure::context::runtime_context::{init_runtime_ctx, RuntimeContext};
@@ -11,7 +10,6 @@ use crate::infrastructure::ipc::message::RunTarget;
 use crate::infrastructure::logging::child_log::LogChild;
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::ocr_service::OcrService;
-use runtime_engine::domain::devices::device_conf::CapMethod;
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
@@ -43,16 +41,9 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
     )));
     init_runtime_ctx(runtime_ctx)?;
 
-    let (cap_method, title) = match &init_data.device_config.cap_method {
-        CapMethod::Window { title } => (CaptureMethod::Window, Some(title.clone())),
-        CapMethod::Adb => (CaptureMethod::Adb, None),
-    };
-
     let device_ctx = Arc::new(
         crate::infrastructure::devices::device_ctx::DeviceCtx::new(
             Arc::new(RwLock::new(init_data.device_config.clone())),
-            cap_method,
-            title,
         )
         .await,
     );

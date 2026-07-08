@@ -201,6 +201,9 @@ pub struct ObservationState {
 
     /// 当前脚本视觉资源（模型/字典/标签等）的内容签名。
     pub capture_asset_signature: String,
+
+    /// 当前脚本文字识别模型文件签名，用于 OCR 文本缓存 key。
+    pub text_rec_model_signature: String,
 }
 
 impl ObservationState {
@@ -217,6 +220,7 @@ impl ObservationState {
             vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
             vision_signature_grid_size,
             capture_asset_signature: String::new(),
+            text_rec_model_signature: String::new(),
         }
     }
 }

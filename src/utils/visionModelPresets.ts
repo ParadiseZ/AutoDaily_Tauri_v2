@@ -67,6 +67,7 @@ export function createCrnn(version: 'v5' | 'v6' = 'v5'): PaddleRecCrnn {
         processingMode: 'Single',
         microBatchSize: 4,
         widthBucketStep: 32,
+        parallelCpuSessionIntraThreads: 1,
     };
 }
 

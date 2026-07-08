@@ -63,7 +63,7 @@ fn validate_capture_request(
 ) -> Result<(), String> {
     match capture_method {
         CaptureMethod::Window => match &device_conf.cap_method {
-            CapMethod::Window { title } => {
+            CapMethod::Window { title, .. } => {
                 if !device_conf.supports_window_capture() {
                     return Err(
                         "当前连接通道不支持窗口截图，只有模拟器连接可使用窗口截图".to_string()
@@ -175,21 +175,12 @@ pub async fn dev_capture_test(
     if matches!(capture_method, CaptureMethod::Adb) {
         ADBCtx::new(adb_conf).await?;
     }
-    let title = match device_conf.cap_method.clone() {
-        CapMethod::Window { title } => Some(title),
-        CapMethod::Adb => None,
-    };
-    let device_ctx = DeviceCtx::new(
-        Arc::new(RwLock::new(device_conf)),
-        capture_method,
-        title, //Arc::new(RwLock::new(adb_ctx)),
-    )
-    .await;
+    let device_ctx = DeviceCtx::new(Arc::new(RwLock::new(device_conf))).await;
 
     if !device_ctx.valid_capture().await {
         let reason = match capture_method_for_error {
             CaptureMethod::Window => match &device_conf_for_error.cap_method {
-                CapMethod::Window { title } => format!(
+                CapMethod::Window { title, .. } => format!(
                     "窗口截图校验失败：未找到标题包含“{}”的可截图窗口，或目标窗口已最小化",
                     title.trim()
                 ),
@@ -202,11 +193,11 @@ pub async fn dev_capture_test(
         };
         return Err(reason);
     }
-    match device_ctx.get_screenshot().await {
-        Some(image_data) => Ok(dynamic_image_to_base64(&DynamicImage::ImageRgba8(
+    match device_ctx.get_screenshot_result().await {
+        Ok(image_data) => Ok(dynamic_image_to_base64(&DynamicImage::ImageRgba8(
             image_data,
         ))?),
-        _ => Err("截图失败！".to_string()),
+        Err(error) => Err(error),
     }
 }
 

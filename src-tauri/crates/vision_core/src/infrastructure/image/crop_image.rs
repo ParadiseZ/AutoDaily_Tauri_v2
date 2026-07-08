@@ -2,7 +2,7 @@ use crate::domain::vision::result::DetResult;
 use crate::infrastructure::image::img_error::{ImageError, ImageResult};
 use crate::infrastructure::logging::log_trait::Log;
 use crate::infrastructure::vision::vision_error::VisionResult;
-use image::DynamicImage;
+use image::{DynamicImage, RgbaImage};
 use rayon::prelude::*;
 
 pub fn get_crop_images(
@@ -21,6 +21,31 @@ pub fn get_crop_images(
     Ok(cropped_images)
 }
 pub fn get_crop_image(img: &DynamicImage, det_res: &DetResult) -> ImageResult<DynamicImage> {
+    let (x, y, width, height) = crop_rect(det_res)?;
+    Ok(img.crop_imm(x, y, width, height))
+}
+
+pub fn get_crop_images_rgba(
+    img: &RgbaImage,
+    results: &[DetResult],
+) -> VisionResult<Vec<RgbaImage>> {
+    if results.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let cropped_images = results
+        .par_iter()
+        .filter_map(|det_res| get_crop_image_rgba(img, det_res).ok())
+        .collect();
+    Ok(cropped_images)
+}
+
+pub fn get_crop_image_rgba(img: &RgbaImage, det_res: &DetResult) -> ImageResult<RgbaImage> {
+    let (x, y, width, height) = crop_rect(det_res)?;
+    Ok(image::imageops::crop_imm(img, x, y, width, height).to_image())
+}
+
+fn crop_rect(det_res: &DetResult) -> ImageResult<(u32, u32, u32, u32)> {
     let res = &det_res.bounding_box;
     let box_width = (res.x2 as f32 - res.x1 as f32).abs().max(1.0) as u32;
     if box_width < 8u32 {
@@ -40,7 +65,7 @@ pub fn get_crop_image(img: &DynamicImage, det_res: &DetResult) -> ImageResult<Dy
             e: "".to_string(),
         });
     }
-    Ok(img.crop_imm(res.x1 as u32, res.y1 as u32, box_width, box_height))
+    Ok((res.x1 as u32, res.y1 as u32, box_width, box_height))
 }
 /*pub fn get_crop_image(img: &DynamicImage, det_res: &DetResult) -> ImageResult<DynamicImage> {
     let res = &det_res.bounding_box;

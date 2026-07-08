@@ -1,5 +1,5 @@
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
-use crate::domain::vision::result::{DetResult, OcrResult};
+use crate::domain::vision::result::OcrResult;
 use crate::infrastructure::core::{Deserialize, Error, HashMap, ScriptId, Serialize};
 use crate::infrastructure::logging::log_trait::Log;
 use std::fs;
@@ -36,8 +36,7 @@ pub type TextRecCacheResult<T> = Result<T, TextRecCacheError>;
 #[serde(default, rename_all = "camelCase")]
 pub struct TextRecCacheEntry {
     pub cache_key: String,
-    pub det_results: Vec<DetResult>,
-    pub ocr_results: Vec<OcrResult>,
+    pub ocr_result: Option<OcrResult>,
     pub updated_at: String,
 }
 
@@ -120,7 +119,7 @@ impl ScriptTextRecCacheRuntime {
                         error
                     ));
                     TextRecCacheDocument {
-                        version: 1,
+                        version: 2,
                         script_id: script_id.to_string(),
                         script_name: script_name.to_string(),
                         updated_at: unix_timestamp_string(),
@@ -130,7 +129,7 @@ impl ScriptTextRecCacheRuntime {
             }
         } else {
             TextRecCacheDocument {
-                version: 1,
+                version: 2,
                 script_id: script_id.to_string(),
                 script_name: script_name.to_string(),
                 updated_at: unix_timestamp_string(),
@@ -182,14 +181,14 @@ impl ScriptTextRecCacheRuntime {
         Ok(())
     }
 
-    pub fn find_entry(&mut self, cache_key: &str) -> Option<TextRecCacheEntry> {
+    pub fn find_entry(&mut self, cache_key: &str) -> Option<OcrResult> {
         let entry = self
             .document
             .as_ref()?
             .entries
             .iter()
             .find(|entry| entry.cache_key == cache_key)
-            .cloned();
+            .and_then(|entry| entry.ocr_result.clone());
 
         if entry.is_some() {
             self.session_stats
@@ -204,8 +203,7 @@ impl ScriptTextRecCacheRuntime {
     pub fn record_entry(
         &mut self,
         cache_key: impl Into<String>,
-        det_results: Vec<DetResult>,
-        ocr_results: Vec<OcrResult>,
+        ocr_result: OcrResult,
     ) -> TextRecCacheResult<()> {
         if !self.is_enabled() {
             return Ok(());
@@ -223,14 +221,12 @@ impl ScriptTextRecCacheRuntime {
             .iter_mut()
             .find(|entry| entry.cache_key == cache_key)
         {
-            entry.det_results = det_results;
-            entry.ocr_results = ocr_results;
+            entry.ocr_result = Some(ocr_result);
             entry.updated_at = updated_at;
         } else {
             document.entries.push(TextRecCacheEntry {
                 cache_key: cache_key.clone(),
-                det_results,
-                ocr_results,
+                ocr_result: Some(ocr_result),
                 updated_at,
             });
         }
@@ -359,6 +355,9 @@ fn sanitize_script_file_name(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
+    use crate::domain::vision::result::{BoundingBox, OcrResult};
+    use std::path::PathBuf;
 
     #[test]
     fn sanitize_empty_file_name() {
@@ -378,5 +377,37 @@ mod tests {
             sanitize_script_file_name("Daily:Login/Run"),
             "Daily_Login_Run"
         );
+    }
+
+    #[test]
+    fn record_and_find_single_ocr_entry() {
+        let mut cache = ScriptTextRecCacheRuntime::new(VisionTextCacheRuntimeConfig {
+            enabled: true,
+            dir: Some(PathBuf::from(".")),
+            signature_grid_size: 8,
+        });
+        cache.document = Some(TextRecCacheDocument {
+            version: 2,
+            script_id: "script-id".to_string(),
+            script_name: "script-name".to_string(),
+            updated_at: unix_timestamp_string(),
+            entries: Vec::new(),
+        });
+
+        let result = OcrResult::new(
+            BoundingBox::new(1, 2, 30, 12),
+            "cache".to_string(),
+            vec![0.9],
+            vec![1],
+            vec!["c".to_string()],
+            8,
+        );
+
+        cache
+            .record_entry("key-1", result.clone())
+            .expect("record should succeed");
+
+        assert_eq!(cache.find_entry("key-1"), Some(result));
+        assert_eq!(cache.find_entry("missing"), None);
     }
 }

@@ -13,7 +13,8 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::session::Session;
 use ort::value::TensorRef;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, TryLockError};
 
 /// 基础模型结构 - 包含所有模型的通用字段
 
@@ -39,6 +40,12 @@ pub struct BaseModel {
     #[serde(skip)]
     #[ts(skip)]
     pub session: Option<Mutex<Session>>,
+    #[serde(skip, default)]
+    #[ts(skip)]
+    session_pool: Vec<Mutex<Session>>,
+    #[serde(skip, default = "BaseModel::default_session_cursor")]
+    #[ts(skip)]
+    session_cursor: AtomicUsize,
     pub intra_thread_num: usize,
     pub intra_spinning: bool,
     pub inter_thread_num: usize,
@@ -92,6 +99,10 @@ pub enum ModelType {
     PaddleCrnn6,
 }
 impl BaseModel {
+    fn default_session_cursor() -> AtomicUsize {
+        AtomicUsize::new(0)
+    }
+
     pub fn resolve_model_path(&self) -> VisionResult<PathBuf> {
         match self.model_source {
             ModelSource::BuiltIn => self.resolve_builtin_model_path(),
@@ -160,25 +171,34 @@ impl BaseModel {
             model_path,
             is_loaded: false,
             model_type,
+            session_pool: Vec::new(),
+            session_cursor: Self::default_session_cursor(),
         }
     }
 
-    /// 加载 ONNX 模型并创建会话。
-    ///
-    /// 这里统一处理：
-    /// - 内置/自定义模型路径解析
-    /// - 执行器切换
-    /// - ORT 线程与图优化配置
-    pub fn load_model_base<T: ModelHandler>(&mut self, model_type_name: &str) -> VisionResult<()> {
-        // 1. 解析模型路径
-        let final_path = self.resolve_model_path()?;
+    pub fn use_parallel_cpu_sessions(&self, session_intra_threads: usize) -> bool {
+        matches!(
+            self.model_type,
+            ModelType::PaddleCrnn5 | ModelType::PaddleCrnn6
+        ) && self.execution_provider == InferenceBackend::CPU
+            && session_intra_threads > 0
+            && self.intra_thread_num > session_intra_threads
+            && self.intra_thread_num % session_intra_threads == 0
+    }
 
-        Log::debug(&format!(
-            "加载{}模型, 路径: {:?}",
-            model_type_name, final_path
-        ));
+    fn parallel_session_count(&self, session_intra_threads: usize) -> usize {
+        if self.use_parallel_cpu_sessions(session_intra_threads) {
+            self.intra_thread_num / session_intra_threads
+        } else {
+            1
+        }
+    }
 
-        // 2. 创建session builder
+    pub fn has_parallel_session_pool(&self) -> bool {
+        self.session_pool.len() > 1
+    }
+
+    fn build_session(&self, final_path: &PathBuf, intra_threads: usize) -> VisionResult<Session> {
         let result =
             configure_or_switch_provider(None, self.execution_provider.name()).map_err(|e| {
                 VisionError::SessionConfigFailed {
@@ -190,14 +210,13 @@ impl BaseModel {
         let session_builder = result.builder;
         Log::info(&format!("当前使用执行器: {}", result.active_backend.name()));
 
-        // 4. 加载模型文件
-        let session = session_builder
+        session_builder
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .map_err(|e| VisionError::SessionConfigFailed {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
             })?
-            .with_intra_threads(self.intra_thread_num)
+            .with_intra_threads(intra_threads)
             .map_err(|e| VisionError::SessionConfigFailed {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
@@ -222,14 +241,112 @@ impl BaseModel {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
             })?
-            .commit_from_file(&final_path)
+            .commit_from_file(final_path)
             .map_err(|e| VisionError::SessionConfigFailed {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
-            })?;
+            })
+    }
+
+    fn with_session<R, F>(&self, run: F) -> VisionResult<R>
+    where
+        F: FnOnce(&mut Session) -> VisionResult<R>,
+    {
+        if !self.session_pool.is_empty() {
+            let pool_len = self.session_pool.len();
+            let start = self.session_cursor.fetch_add(1, Ordering::Relaxed) % pool_len;
+
+            for offset in 0..pool_len {
+                let idx = (start + offset) % pool_len;
+                match self.session_pool[idx].try_lock() {
+                    Ok(mut session) => return run(&mut session),
+                    Err(TryLockError::WouldBlock) => {}
+                    Err(TryLockError::Poisoned(_)) => {
+                        return Err(VisionError::InferenceErr {
+                            method: "inference_base".to_string(),
+                            e: "获取Session池锁失败".to_string(),
+                        });
+                    }
+                }
+            }
+
+            let mut session =
+                self.session_pool[start]
+                    .lock()
+                    .map_err(|_| VisionError::InferenceErr {
+                        method: "inference_base".to_string(),
+                        e: "获取Session池锁失败".to_string(),
+                    })?;
+            return run(&mut session);
+        }
+
+        if let Some(session_mutex) = self.session.as_ref() {
+            let mut session = session_mutex
+                .lock()
+                .map_err(|_| VisionError::InferenceErr {
+                    method: "inference_base".to_string(),
+                    e: "获取Session锁失败".to_string(),
+                })?;
+            run(&mut session)
+        } else {
+            Err(VisionError::IoError {
+                path: "[推理阶段]".to_string(),
+                e: "模型未加载".to_string(),
+            })
+        }
+    }
+
+    /// 加载 ONNX 模型并创建会话。
+    ///
+    /// 这里统一处理：
+    /// - 内置/自定义模型路径解析
+    /// - 执行器切换
+    /// - ORT 线程与图优化配置
+    pub fn load_model_base<T: ModelHandler>(&mut self, model_type_name: &str) -> VisionResult<()> {
+        self.load_model_base_with_session_intra_threads::<T>(model_type_name, None)
+    }
+
+    pub fn load_model_base_with_session_intra_threads<T: ModelHandler>(
+        &mut self,
+        model_type_name: &str,
+        session_intra_threads: Option<usize>,
+    ) -> VisionResult<()> {
+        // 1. 解析模型路径
+        let final_path = self.resolve_model_path()?;
+
+        Log::debug(&format!(
+            "加载{}模型, 路径: {:?}",
+            model_type_name, final_path
+        ));
+
+        let session_intra_threads = session_intra_threads
+            .filter(|value| *value > 0)
+            .unwrap_or(self.intra_thread_num);
+        let session_count = self.parallel_session_count(session_intra_threads);
+
+        if session_count > 1 {
+            Log::debug(&format!(
+                "识别模型启用并行Session池: {}个Session x {}个intra线程",
+                session_count, session_intra_threads
+            ));
+        }
+
+        let mut sessions = Vec::with_capacity(session_count);
+        for _ in 0..session_count {
+            sessions.push(Mutex::new(
+                self.build_session(&final_path, session_intra_threads)?,
+            ));
+        }
 
         // 5. 更新状态
-        self.session = Some(Mutex::new(session));
+        if session_count == 1 {
+            self.session = sessions.pop();
+            self.session_pool.clear();
+        } else {
+            self.session = None;
+            self.session_pool = sessions;
+            self.session_cursor.store(0, Ordering::Relaxed);
+        }
         self.is_loaded = true;
 
         Log::debug(&format!("{}模型加载成功", model_type_name));
@@ -249,17 +366,16 @@ impl BaseModel {
     where
         F: for<'a> FnOnce(ArrayViewD<'a, f32>) -> VisionResult<R>,
     {
-        if let Some(session_mutex) = self.session.as_ref() {
-            let standard_input = (!input.is_standard_layout()).then(|| {
-                Log::debug("推理输入不是标准连续布局，复制为标准布局后再送入ORT");
-                input.to_owned()
-            });
-            let input_view = standard_input
-                .as_ref()
-                .map(|array| array.view())
-                .unwrap_or(input);
+        let standard_input = (!input.is_standard_layout()).then(|| {
+            Log::debug("推理输入不是标准连续布局，复制为标准布局后再送入ORT");
+            input.to_owned()
+        });
+        let input_view = standard_input
+            .as_ref()
+            .map(|array| array.view())
+            .unwrap_or(input);
 
-            // 创建输入张量
+        self.with_session(|session| {
             let input_tensor = TensorRef::from_array_view(input_view).map_err(|e| {
                 VisionError::DataProcessingErr {
                     method: "inference_base".to_string(),
@@ -267,15 +383,6 @@ impl BaseModel {
                 }
             })?;
 
-            // 获取锁
-            let mut session = session_mutex
-                .lock()
-                .map_err(|_| VisionError::InferenceErr {
-                    method: "inference_base".to_string(),
-                    e: "获取Session锁失败".to_string(),
-                })?;
-
-            // 执行推理
             let outputs = session
                 .run(inputs![input_node_name => input_tensor])
                 .map_err(|e| VisionError::InferenceErr {
@@ -283,7 +390,6 @@ impl BaseModel {
                     e: e.to_string(),
                 })?;
 
-            // 提取输出
             let view = outputs[output_node_name]
                 .try_extract_array::<f32>()
                 .map_err(|e| VisionError::DataProcessingErr {
@@ -292,12 +398,7 @@ impl BaseModel {
                 })?;
             Log::debug(&format!("模型输出维度: {}", view.ndim()));
             process_output(view)
-        } else {
-            Err(VisionError::IoError {
-                path: "[推理阶段]".to_string(),
-                e: "模型未加载".to_string(),
-            })
-        }
+        })
     }
 
     /// 执行一次通用推理，并返回拥有所有权的输出张量。
@@ -312,5 +413,49 @@ impl BaseModel {
         self.inference_with_output_view(input, input_node_name, output_node_name, |view| {
             Ok(view.to_owned())
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_model(
+        model_type: ModelType,
+        execution_provider: InferenceBackend,
+        intra: usize,
+    ) -> BaseModel {
+        BaseModel::new(
+            320,
+            48,
+            ModelSource::Custom,
+            PathBuf::new(),
+            execution_provider,
+            intra,
+            false,
+            1,
+            false,
+            model_type,
+        )
+    }
+
+    #[test]
+    fn enables_parallel_session_pool_only_for_even_cpu_crnn() {
+        let cpu_even = build_model(ModelType::PaddleCrnn5, InferenceBackend::CPU, 6);
+        assert!(cpu_even.use_parallel_cpu_sessions(2));
+        assert_eq!(cpu_even.parallel_session_count(2), 3);
+
+        let cpu_odd = build_model(ModelType::PaddleCrnn5, InferenceBackend::CPU, 5);
+        assert!(!cpu_odd.use_parallel_cpu_sessions(2));
+
+        let cpu_custom = build_model(ModelType::PaddleCrnn5, InferenceBackend::CPU, 6);
+        assert!(cpu_custom.use_parallel_cpu_sessions(3));
+        assert_eq!(cpu_custom.parallel_session_count(3), 2);
+
+        let dml_even = build_model(ModelType::PaddleCrnn5, InferenceBackend::DirectML, 6);
+        assert!(!dml_even.use_parallel_cpu_sessions(2));
+
+        let det_even = build_model(ModelType::PaddleDet5, InferenceBackend::CPU, 6);
+        assert!(!det_even.use_parallel_cpu_sessions(2));
     }
 }

@@ -135,7 +135,6 @@ impl RuntimeReconcileJob {
 
 /// 主进程上下文 - 优化的数据存储策略
 pub struct MainProcessCtx {
-
     /// IPC通道映射（运行时数据，必须在内存中）
     pub ipc_servers: Arc<RwLock<HashMap<Arc<DeviceId>, Arc<IpcClientState>>>>,
 

@@ -1,10 +1,10 @@
+use crate::domain::scripts::script_error::ScriptError;
 use crate::infrastructure::context::init_error::InitError;
 use crate::infrastructure::core::{Deserialize, Error, Serialize};
 use crate::infrastructure::image::img_error::ImageError;
 use crate::infrastructure::ipc::channel_error::ChannelError;
 use crate::infrastructure::logging::log_error::LogError;
 use crate::infrastructure::path_resolve::path_error::PathError;
-use crate::domain::scripts::script_error::ScriptError;
 use crate::infrastructure::vision::vision_error::VisionError;
 
 #[derive(Error, Debug, Serialize, Deserialize)]

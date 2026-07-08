@@ -487,6 +487,10 @@
                             </button>
                           </div>
                         </label>
+                        <label class="space-y-2">
+                          <span class="text-xs font-semibold text-(--app-text-faint)">单会话intra线程数量</span>
+                          <input v-model.number="txtRecCrnn.parallelCpuSessionIntraThreads" class="app-input" min="1" step="1" type="number" />
+                        </label>
                         <p class="text-xs text-(--app-text-faint)">切换为内置后会保留内置模型来源配置；如需覆盖字典，继续填写自定义字典路径即可。</p>
                       </template>
                     </div>

@@ -127,8 +127,24 @@ pub enum TimeoutNotifyChannel {
 #[ts(export)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum CapMethod {
-    Window { title: String },
+    Window {
+        title: String,
+        #[serde(default)]
+        interface: WindowCaptureInterface,
+        #[serde(default = "default_frame_timeout_secs")]
+        frame_timeout_secs: u32,
+        #[serde(default = "default_title_bar_height_px")]
+        title_bar_height_px: u32,
+    },
     Adb,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum WindowCaptureInterface {
+    Dxgi,
+    Gdi,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
@@ -187,6 +203,9 @@ impl Default for DeviceConfig {
             log_to_file: true,
             cap_method: CapMethod::Window {
                 title: "AutoDaily".into(),
+                interface: WindowCaptureInterface::default(),
+                frame_timeout_secs: default_frame_timeout_secs(),
+                title_bar_height_px: default_title_bar_height_px(),
             },
             image_compression: ImageCompression::WindowOriginal,
             enable: false,
@@ -214,8 +233,22 @@ impl Default for DeviceExecutionPolicy {
     }
 }
 
+impl Default for WindowCaptureInterface {
+    fn default() -> Self {
+        Self::Dxgi
+    }
+}
+
 fn default_startup_delay_secs() -> u32 {
     15
+}
+
+fn default_frame_timeout_secs() -> u32 {
+    10
+}
+
+fn default_title_bar_height_px() -> u32 {
+    122
 }
 
 fn default_adb_server_connect() -> Option<SocketAddrV4> {

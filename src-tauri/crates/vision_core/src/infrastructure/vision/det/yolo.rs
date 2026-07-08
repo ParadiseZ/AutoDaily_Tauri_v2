@@ -5,7 +5,7 @@ use crate::infrastructure::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infrastructure::vision::tensor_view::squeeze_singleton_axes_to_2d;
 use crate::infrastructure::vision::vision_error::{VisionError, VisionResult};
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView};
+use image::{DynamicImage, GenericImageView, RgbaImage};
 use ndarray::{Array4, ArrayD, ArrayView2, ArrayView4, ArrayViewD, Axis};
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
@@ -206,6 +206,17 @@ impl YoloDet {
         let (g_plane, b_plane) = rest.split_at_mut(plane_len);
 
         for (pixel_index, pixel) in raw_pixels.chunks_exact(3).enumerate() {
+            r_plane[pixel_index] = pixel[0] as f32 * INV_255;
+            g_plane[pixel_index] = pixel[1] as f32 * INV_255;
+            b_plane[pixel_index] = pixel[2] as f32 * INV_255;
+        }
+    }
+
+    fn fill_chw_buffer_rgba(raw_pixels: &[u8], input_buffer: &mut [f32], plane_len: usize) {
+        let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
+        let (g_plane, b_plane) = rest.split_at_mut(plane_len);
+
+        for (pixel_index, pixel) in raw_pixels.chunks_exact(4).enumerate() {
             r_plane[pixel_index] = pixel[0] as f32 * INV_255;
             g_plane[pixel_index] = pixel[1] as f32 * INV_255;
             b_plane[pixel_index] = pixel[2] as f32 * INV_255;
@@ -635,6 +646,45 @@ impl TextDetector for YoloDet {
             ArrayView4::from_shape((1, 3, height_usize, width_usize), input_buffer.as_slice())
                 .map_err(|e| VisionError::DataProcessingErr {
                     method: "yolo_detect".to_string(),
+                    e: e.to_string(),
+                })?;
+
+        self.base_model.inference_with_output_view(
+            input_view.into_dyn(),
+            self.get_input_node_name(),
+            self.get_output_node_name(),
+            |output| self.postprocess(output, scale_factor, origin_shape),
+        )
+    }
+
+    fn detect_rgba(&self, image: &RgbaImage) -> VisionResult<Vec<DetResult>> {
+        let (w, h) = self.get_input_size();
+        let (origin_w, origin_h) = image.dimensions();
+        let scale_factor = [origin_w as f32 / w as f32, origin_h as f32 / h as f32];
+        let origin_shape = [origin_h, origin_w];
+
+        let img = image::imageops::resize(image, w, h, FilterType::Triangle);
+        let raw_pixels = img.as_raw();
+        let width_usize = w as usize;
+        let height_usize = h as usize;
+        let plane_len = width_usize * height_usize;
+        let input_len = plane_len * 3;
+
+        let mut input_buffer =
+            self.preprocess_buffer
+                .lock()
+                .map_err(|_| VisionError::DataProcessingErr {
+                    method: "yolo_detect_rgba".to_string(),
+                    e: "获取YOLO预处理缓存失败".to_string(),
+                })?;
+        if input_buffer.len() != input_len {
+            input_buffer.resize(input_len, 0.0);
+        }
+        Self::fill_chw_buffer_rgba(raw_pixels, input_buffer.as_mut_slice(), plane_len);
+        let input_view =
+            ArrayView4::from_shape((1, 3, height_usize, width_usize), input_buffer.as_slice())
+                .map_err(|e| VisionError::DataProcessingErr {
+                    method: "yolo_detect_rgba".to_string(),
                     e: e.to_string(),
                 })?;
 
