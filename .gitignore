@@ -54,3 +54,6 @@ tools/windows_ui/__pycache__/
 
 .codegraph/*
 .understand-anything/*
+
+
+test/ocr_cache.txt

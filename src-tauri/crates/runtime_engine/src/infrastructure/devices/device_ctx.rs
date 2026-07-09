@@ -61,7 +61,10 @@ impl DeviceCtx {
 
     fn build_runtime(config: &DeviceConfig) -> DeviceRuntime {
         let (capture_method, window_capture_config) = match &config.cap_method {
-            CapMethod::Window { .. } => (CaptureMethod::Window, Self::build_window_capture_config(config)),
+            CapMethod::Window { .. } => (
+                CaptureMethod::Window,
+                Self::build_window_capture_config(config),
+            ),
             CapMethod::Adb => (CaptureMethod::Adb, None),
         };
         match config.platform {

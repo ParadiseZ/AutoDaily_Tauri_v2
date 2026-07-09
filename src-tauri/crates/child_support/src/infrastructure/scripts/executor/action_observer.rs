@@ -195,6 +195,9 @@ impl ScriptExecutor {
 
         let mut remaining = Duration::from_millis(ms);
         while !remaining.is_zero() {
+            if let Some(flow) = Self::stop_requested_flow() {
+                return Ok(Some(flow));
+            }
             let slice = remaining.min(Duration::from_millis(WAIT_TIMEOUT_CHECK_SLICE_MS));
             tokio::time::sleep(slice).await;
             remaining = remaining.saturating_sub(slice);
@@ -230,18 +233,19 @@ impl ScriptExecutor {
                 Ok(Some(ControlFlow::Link(recovery_task_id)))
             }
             TimeoutAction::StopExecution => {
+                crate::infrastructure::context::child_process_sec::request_stop_execution();
                 crate::infrastructure::context::child_process_sec::set_running_status(
-                    crate::infrastructure::context::child_process_sec::RunningStatus::Idle,
+                    crate::infrastructure::context::child_process_sec::RunningStatus::Stopping,
                 );
                 emit_progress_event(
-                    RuntimeProgressPhase::Idle,
+                    RuntimeProgressPhase::Stopping,
                     None,
                     None,
                     None,
                     None,
                     Some(message.clone()),
                 );
-                emit_lifecycle_event(RuntimeLifecyclePhase::Idle, Some(message.clone()));
+                emit_lifecycle_event(RuntimeLifecyclePhase::Stopping, Some(message.clone()));
                 Err(Self::execute_error("action.timeout", message))
             }
         }

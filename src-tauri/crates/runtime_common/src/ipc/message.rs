@@ -114,6 +114,7 @@ pub enum RuntimeDispatchPhase {
     Started,
     Finished,
     Failed,
+    Stopped,
     RequestNext,
 }
 
@@ -274,6 +275,7 @@ pub enum RuntimeProgressPhase {
     Loading,
     Planning,
     Executing,
+    Stopping,
     Paused,
     Completed,
     Failed,
@@ -301,6 +303,7 @@ pub enum RuntimeScheduleStatus {
     Running,
     Success,
     Failed,
+    Stopped,
     Skipped,
     Cleared,
 }

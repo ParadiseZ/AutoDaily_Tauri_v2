@@ -56,21 +56,19 @@ pub struct OcrResult {
     pub txt: String,
     pub score: Vec<f32>,
     pub index: Vec<usize>,
-    pub txt_char: Vec<String>,
 }
 
 impl fmt::Display for OcrResult {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "bounding_box: {:?}, stable_box: {:?}, stable_center: {:?}, txt: {}, score: {:?}, index: {:?}, txt_char: {:?}",
+            "bounding_box: {:?}, stable_box: {:?}, stable_center: {:?}, txt: {}, score: {:?}, index: {:?}",
             self.bounding_box,
             self.stable_box,
             self.stable_center,
             self.txt,
             self.score,
-            self.index,
-            self.txt_char
+            self.index
         )
     }
 }
@@ -81,7 +79,6 @@ impl OcrResult {
         txt: String,
         score: Vec<f32>,
         index: Vec<usize>,
-        txt_char: Vec<String>,
         grid_size: u16,
     ) -> Self {
         Self {
@@ -91,7 +88,6 @@ impl OcrResult {
             txt,
             score,
             index,
-            txt_char,
         }
     }
 }

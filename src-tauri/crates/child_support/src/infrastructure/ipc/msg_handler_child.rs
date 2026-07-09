@@ -1,6 +1,7 @@
 use crate::infrastructure::adb_cli_local::adb_context::ADBCtx;
 use crate::infrastructure::context::child_process_sec::{
-    get_ipc_client, set_running_status, trigger_cancel, RunningStatus,
+    clear_stop_request, get_ipc_client, request_stop_execution, set_running_status, trigger_cancel,
+    RunningStatus,
 };
 use crate::infrastructure::devices::device_ctx::try_get_device_ctx;
 use crate::infrastructure::ipc::message::{
@@ -192,28 +193,28 @@ async fn handle_process_control(ctrl: ProcessControlMessage) {
     match ctrl.action {
         ProcessAction::Start => {
             Log::info("[ child ] 收到启动命令");
+            clear_stop_request();
             set_running_status(RunningStatus::Running);
             let _ = emit_lifecycle_event_now(RuntimeLifecyclePhase::Running, None).await;
             // TODO: 第二阶段后续 - 通知调度器开始执行
         }
         ProcessAction::Stop => {
             Log::info("[ child ] 收到停止命令，停止当前脚本执行");
-            set_running_status(RunningStatus::Idle);
+            request_stop_execution();
+            set_running_status(RunningStatus::Stopping);
             emit_progress_event(
-                RuntimeProgressPhase::Idle,
+                RuntimeProgressPhase::Stopping,
                 None,
                 None,
                 None,
                 None,
-                Some("收到停止命令".to_string()),
+                Some("收到停止命令，正在停止当前执行".to_string()),
             );
             let _ = emit_lifecycle_event_now(
-                RuntimeLifecyclePhase::Idle,
-                Some("收到停止命令".to_string()),
+                RuntimeLifecyclePhase::Stopping,
+                Some("收到停止命令，正在停止当前执行".to_string()),
             )
             .await;
-            // 停止当前脚本执行但不退出进程，回到 Idle 状态
-            // TODO: 持久化运行时数据
         }
         ProcessAction::Pause => {
             Log::info("[ child ] 收到暂停命令");
@@ -243,6 +244,7 @@ async fn handle_session_control(control: SessionControlMessage) {
 
     match control {
         SessionControlMessage::LoadSession { session } => {
+            clear_stop_request();
             let summary = replace_runtime_session(session.clone()).await;
             Log::info(&format!(
                 "[ child ] 加载 session[{}]，队列长度: {}",
@@ -276,6 +278,7 @@ async fn handle_session_control(control: SessionControlMessage) {
             .await;
         }
         SessionControlMessage::ReloadSession { session } => {
+            clear_stop_request();
             let summary = replace_runtime_session(session.clone()).await;
             Log::info(&format!(
                 "[ child ] 热更新 session[{}]，队列长度: {}",
@@ -301,6 +304,7 @@ async fn handle_session_control(control: SessionControlMessage) {
             .await;
         }
         SessionControlMessage::ClearSession => {
+            clear_stop_request();
             let cleared = clear_runtime_session().await;
             Log::info("[ child ] 清空当前 session");
             if let Some(scheduler) = get_scheduler() {

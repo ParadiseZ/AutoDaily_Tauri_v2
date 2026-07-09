@@ -124,7 +124,8 @@ impl AndroidDeviceRuntime {
             window_info: Arc::new(WindowInfo::init(window_capture_config.unwrap_or(
                 WindowCaptureConfig {
                     title: String::new(),
-                    interface: crate::infrastructure::capture::window_cap::WindowCaptureInterface::Gdi,
+                    interface:
+                        crate::infrastructure::capture::window_cap::WindowCaptureInterface::Gdi,
                     frame_timeout: Duration::from_secs(10),
                     title_bar_height_px: 122,
                 },

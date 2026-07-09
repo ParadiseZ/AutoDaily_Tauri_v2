@@ -42,9 +42,9 @@ pub async fn init_environment(init_data: &ChildProcessInitData) -> InitResult<()
     init_runtime_ctx(runtime_ctx)?;
 
     let device_ctx = Arc::new(
-        crate::infrastructure::devices::device_ctx::DeviceCtx::new(
-            Arc::new(RwLock::new(init_data.device_config.clone())),
-        )
+        crate::infrastructure::devices::device_ctx::DeviceCtx::new(Arc::new(RwLock::new(
+            init_data.device_config.clone(),
+        )))
         .await,
     );
     init_device_ctx(device_ctx)?;

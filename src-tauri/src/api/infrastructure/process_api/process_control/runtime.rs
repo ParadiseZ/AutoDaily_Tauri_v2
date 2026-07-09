@@ -682,6 +682,7 @@ pub(crate) fn spawn_dispatch_signal_loop(
                     RuntimeDispatchPhase::Started
                         | RuntimeDispatchPhase::Finished
                         | RuntimeDispatchPhase::Failed
+                        | RuntimeDispatchPhase::Stopped
                 );
             let result = match signal.phase {
                 RuntimeDispatchPhase::Started => {
@@ -717,6 +718,20 @@ pub(crate) fn spawn_dispatch_signal_loop(
                         super::super::dispatch_planner::update_assignment_schedule_status_by_dispatch_id(
                             dispatch_id,
                             AssignmentScheduleStatus::Failed,
+                            None,
+                            Some(signal.at.clone()),
+                            signal.message.clone(),
+                        )
+                        .await
+                    } else {
+                        Ok(())
+                    }
+                }
+                RuntimeDispatchPhase::Stopped => {
+                    if let Some(dispatch_id) = signal.dispatch_id {
+                        super::super::dispatch_planner::update_assignment_schedule_status_by_dispatch_id(
+                            dispatch_id,
+                            AssignmentScheduleStatus::Stopped,
                             None,
                             Some(signal.at.clone()),
                             signal.message.clone(),

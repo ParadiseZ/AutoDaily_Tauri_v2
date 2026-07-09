@@ -26,6 +26,9 @@ impl ScriptExecutor {
             FlowControl::While { con, flow } => {
                 let mut iteration = 0usize;
                 loop {
+                    if let Some(flow) = Self::stop_requested_flow() {
+                        return Ok(flow);
+                    }
                     if let Some(timeout_flow) = self
                         .record_progress_evidence(
                             "flow.while",
@@ -77,6 +80,9 @@ impl ScriptExecutor {
                 };
 
                 for (index, item) in items.into_iter().enumerate() {
+                    if let Some(flow) = Self::stop_requested_flow() {
+                        return Ok(flow);
+                    }
                     if let Some(timeout_flow) = self
                         .record_progress_evidence(
                             "flow.forEach",
@@ -124,6 +130,9 @@ impl ScriptExecutor {
                 }
 
                 for index in 0..count {
+                    if let Some(flow) = Self::stop_requested_flow() {
+                        return Ok(flow);
+                    }
                     if let Some(timeout_flow) = self
                         .record_progress_evidence(
                             "flow.repeat",

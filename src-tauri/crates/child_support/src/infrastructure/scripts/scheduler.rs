@@ -34,6 +34,11 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
+enum ScriptExecutionOutcome {
+    Completed(String),
+    Stopped(String),
+}
+
 struct ParsedScriptBundle {
     script: ScriptTable,
     tasks: Vec<ScriptTaskTable>,
@@ -125,10 +130,8 @@ impl ScriptScheduler {
         Ok(())
     }
 
-    async fn reset_execution_state_and_flush_ocr_cache(
+    async fn reset_execution_state(
         runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
-        script_name: &str,
-        log_context: &str,
     ) {
         let mut ctx = runtime_ctx.write().await;
         ctx.execution.current_execution_id = None;
@@ -136,12 +139,22 @@ impl ScriptScheduler {
         ctx.execution.current_task = None;
         ctx.execution.current_step_id = None;
         ctx.execution.current_step_name = None;
-        if let Err(error) = ctx.observation.vision_text_cache.flush_current_script() {
-            Log::warn(&format!(
-                "[ scheduler ] 脚本[{}]{}写回 OCR 文字缓存失败，已忽略: {}",
-                script_name, log_context, error
-            ));
-        }
+    }
+
+    async fn flush_ocr_cache(
+        runtime_ctx: &Arc<RwLock<crate::infrastructure::context::runtime_context::RuntimeContext>>,
+        script_name: &str,
+        log_context: &str,
+    ) -> Result<(), String> {
+        let mut ctx = runtime_ctx.write().await;
+        ctx.vision_text_cache
+            .flush_current_script()
+            .map_err(|error| {
+                format!(
+                    "脚本[{}]{}写入 OCR 文字缓存失败: {}",
+                    script_name, log_context, error
+                )
+            })
     }
 
     fn parse_bundle_json<T: DeserializeOwned>(field: &str, json: &str) -> Result<T, String> {
@@ -286,7 +299,7 @@ impl ScriptScheduler {
         *self.current_script.write().await = None;
 
         match result {
-            Ok(script_name) => {
+            Ok(ScriptExecutionOutcome::Completed(script_name)) => {
                 Log::info(&format!("[ scheduler ] 脚本[{}]执行完成", script_name));
                 emit_dispatch_event(
                     Some(dispatch_id),
@@ -295,6 +308,18 @@ impl ScriptScheduler {
                     RuntimeDispatchPhase::Finished,
                     Some("dispatch 执行完成".to_string()),
                 );
+            }
+            Ok(ScriptExecutionOutcome::Stopped(script_name)) => {
+                Log::info(&format!("[ scheduler ] 脚本[{}]已停止", script_name));
+                self.clear_queue().await;
+                emit_dispatch_event(
+                    Some(dispatch_id),
+                    Some(assignment_id),
+                    Some(script_id),
+                    RuntimeDispatchPhase::Stopped,
+                    Some("dispatch 已停止".to_string()),
+                );
+                return false;
             }
             Err(e) => {
                 Log::error(&format!("[ scheduler ] 脚本执行失败: {}", e));
@@ -336,7 +361,7 @@ impl ScriptScheduler {
         &self,
         queue_item: RuntimeQueueItem,
         execution_id: ExecutionId,
-    ) -> Result<String, String> {
+    ) -> Result<ScriptExecutionOutcome, String> {
         let script_id = queue_item.script_id;
         let assignment_id = queue_item.assignment_id;
         let device_id = try_current_session_summary()
@@ -354,7 +379,14 @@ impl ScriptScheduler {
         let script_name = script_info.name.clone();
         Log::info(&format!("[ scheduler ] 开始执行脚本: {}", script_name));
         let capture_asset_signature = ScriptExecutor::build_capture_asset_signature(&script_info);
-        let text_rec_model_signature = ScriptExecutor::build_text_rec_model_signature(&script_info);
+        let text_rec_model_signature = {
+            let ctx = runtime_ctx.read().await;
+            if ctx.vision_text_cache.is_enabled() {
+                ScriptExecutor::build_text_rec_model_signature(&script_info)
+            } else {
+                String::new()
+            }
+        };
         Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
         let execution_plan =
@@ -391,16 +423,11 @@ impl ScriptScheduler {
             ctx.observation.last_hits.clear();
             ctx.observation.capture_asset_signature = capture_asset_signature;
             ctx.observation.text_rec_model_signature = text_rec_model_signature;
-            if let Err(error) = ctx
-                .observation
-                .vision_text_cache
+            ctx.vision_text_cache
                 .load_for_script(script_id, &script_name)
-            {
-                Log::warn(&format!(
-                    "[ scheduler ] 脚本[{}]加载 OCR 文字缓存失败，已忽略: {}",
-                    script_name, error
-                ));
-            }
+                .map_err(|error| {
+                    format!("脚本[{}]加载 OCR 文字缓存失败: {}", script_name, error)
+                })?;
         }
 
         emit_progress_event(
@@ -446,7 +473,10 @@ impl ScriptScheduler {
             )
             .await
             .map_err(|error| format!("脚本[{}] {}", script_name, error))?;
-            return Ok(script_name);
+            if crate::infrastructure::context::child_process_sec::stop_requested() {
+                return Ok(ScriptExecutionOutcome::Stopped(script_name));
+            }
+            return Ok(ScriptExecutionOutcome::Completed(script_name));
         }
 
         for skipped in &task_selection.skipped_tasks {
@@ -487,6 +517,28 @@ impl ScriptScheduler {
         let mut pending_tasks: VecDeque<_> = root_tasks.clone().into_iter().collect();
         let linkable_tasks = task_selection.linkable_tasks;
         while let Some(planned_task) = pending_tasks.pop_front() {
+            if crate::infrastructure::context::child_process_sec::stop_requested() {
+                Self::reset_execution_state(&runtime_ctx).await;
+                Self::flush_ocr_cache(&runtime_ctx, &script_name, "停止后").await?;
+                emit_progress_event(
+                    RuntimeProgressPhase::Stopping,
+                    Some(assignment_id),
+                    Some(script_id),
+                    None,
+                    None,
+                    Some(format!("脚本已停止: {}", script_name)),
+                );
+                emit_schedule_event(
+                    RuntimeScheduleStatus::Stopped,
+                    Some(execution_id),
+                    Some(assignment_id),
+                    Some(script_id),
+                    None,
+                    None,
+                    Some("收到停止命令，后续任务不再执行".to_string()),
+                );
+                return Ok(ScriptExecutionOutcome::Stopped(script_name));
+            }
             let task_cycle = planned_task.task_cycle;
             let task = planned_task.task;
             let record_schedule = planned_task.record_schedule;
@@ -519,6 +571,8 @@ impl ScriptScheduler {
             let task_result = executor.execute(&task.data.0.steps).await;
 
             let completion_at = chrono::Utc::now().to_rfc3339();
+            let stop_requested =
+                crate::infrastructure::context::child_process_sec::stop_requested();
             match task_result {
                 Ok(flow) => {
                     let task_skipped = Self::consume_task_skip_flag(&runtime_ctx, task.id).await;
@@ -529,6 +583,7 @@ impl ScriptScheduler {
                         &flow,
                         crate::infrastructure::scripts::executor::ControlFlow::StopScript
                     );
+                    let externally_stopped = stop_requested;
                     let linked_task = match &flow {
                         crate::infrastructure::scripts::executor::ControlFlow::Link(target) => {
                             Some(linkable_tasks.get(target).cloned().ok_or_else(|| {
@@ -538,12 +593,16 @@ impl ScriptScheduler {
                         _ => None,
                     };
                     let link_target = linked_task.as_ref().map(|planned| planned.task.id);
-                    let schedule_status = if task_skipped {
+                    let schedule_status = if externally_stopped {
+                        RuntimeScheduleStatus::Stopped
+                    } else if task_skipped {
                         RuntimeScheduleStatus::Skipped
                     } else {
                         RuntimeScheduleStatus::Success
                     };
-                    let schedule_message = if stop_script {
+                    let schedule_message = if externally_stopped {
+                        format!("收到停止命令，任务已中断: {}", task.name)
+                    } else if stop_script {
                         format!("脚本已跳过后续任务: {}", task.name)
                     } else if task_skipped {
                         match link_target {
@@ -570,12 +629,18 @@ impl ScriptScheduler {
                         Some(schedule_message.clone()),
                     );
                     emit_progress_event(
-                        RuntimeProgressPhase::Completed,
+                        if externally_stopped {
+                            RuntimeProgressPhase::Stopping
+                        } else {
+                            RuntimeProgressPhase::Completed
+                        },
                         Some(assignment_id),
                         Some(script_id),
                         Some(task.id),
                         None,
-                        Some(if stop_script {
+                        Some(if externally_stopped {
+                            format!("收到停止命令，任务已中断: {}", task.name)
+                        } else if stop_script {
                             format!("脚本已跳过后续任务: {}", task.name)
                         } else if task_skipped {
                             match link_target {
@@ -606,14 +671,18 @@ impl ScriptScheduler {
                                 task.id,
                             )?,
                             &task_cycle,
-                            if task_skipped {
+                            if externally_stopped {
+                                RunStatus::Stopped
+                            } else if task_skipped {
                                 RunStatus::Skipped
                             } else {
                                 RunStatus::Success
                             },
                             task_started_at.clone(),
                             Some(completion_at.clone()),
-                            if stop_script {
+                            if externally_stopped {
+                                Some("收到停止命令，任务已中断".to_string())
+                            } else if stop_script {
                                 Some("任务触发跳过脚本，后续任务不再执行".to_string())
                             } else {
                                 task_skipped.then(|| "任务在执行过程中被标记为跳过".to_string())
@@ -640,9 +709,73 @@ impl ScriptScheduler {
                         }
                         pending_tasks.push_front(linked_task);
                     }
+                    if externally_stopped {
+                        Self::reset_execution_state(&runtime_ctx).await;
+                        Self::flush_ocr_cache(&runtime_ctx, &script_name, "停止后").await?;
+                        emit_schedule_event(
+                            RuntimeScheduleStatus::Stopped,
+                            Some(execution_id),
+                            Some(assignment_id),
+                            Some(script_id),
+                            None,
+                            None,
+                            Some("收到停止命令，当前脚本已停止".to_string()),
+                        );
+                        return Ok(ScriptExecutionOutcome::Stopped(script_name));
+                    }
                 }
                 Err(error) => {
                     let message = error.to_string();
+                    if stop_requested {
+                        if record_schedule {
+                            ScheduleJournal::append_task_record(
+                                device_id,
+                                execution_id,
+                                assignment_id,
+                                script_id,
+                                &task,
+                                &ScheduleJournal::compute_dedup_scope_hash(
+                                    &queue_item.dedup_scope_base_hash,
+                                    task.id,
+                                )?,
+                                &task_cycle,
+                                RunStatus::Stopped,
+                                task_started_at,
+                                Some(completion_at),
+                                Some("收到停止命令，任务已中断".to_string()),
+                            )
+                            .await?;
+                        }
+                        emit_schedule_event(
+                            RuntimeScheduleStatus::Stopped,
+                            Some(execution_id),
+                            Some(assignment_id),
+                            Some(script_id),
+                            Some(task.id),
+                            None,
+                            Some(format!("收到停止命令，任务已中断: {}", task.name)),
+                        );
+                        emit_progress_event(
+                            RuntimeProgressPhase::Stopping,
+                            Some(assignment_id),
+                            Some(script_id),
+                            Some(task.id),
+                            None,
+                            Some(format!("收到停止命令，任务已中断: {}", task.name)),
+                        );
+                        Self::reset_execution_state(&runtime_ctx).await;
+                        Self::flush_ocr_cache(&runtime_ctx, &script_name, "停止后").await?;
+                        emit_schedule_event(
+                            RuntimeScheduleStatus::Stopped,
+                            Some(execution_id),
+                            Some(assignment_id),
+                            Some(script_id),
+                            None,
+                            None,
+                            Some("收到停止命令，当前脚本已停止".to_string()),
+                        );
+                        return Ok(ScriptExecutionOutcome::Stopped(script_name));
+                    }
                     emit_schedule_event(
                         RuntimeScheduleStatus::Failed,
                         Some(execution_id),
@@ -681,18 +814,15 @@ impl ScriptScheduler {
                         .await?;
                     }
 
-                    Self::reset_execution_state_and_flush_ocr_cache(
-                        &runtime_ctx,
-                        &script_name,
-                        "失败后",
-                    )
-                    .await;
+                    Self::reset_execution_state(&runtime_ctx).await;
+                    Self::flush_ocr_cache(&runtime_ctx, &script_name, "失败后").await?;
                     return Err(format!("脚本[{}] {}", script_name, message));
                 }
             }
         }
 
-        Self::reset_execution_state_and_flush_ocr_cache(&runtime_ctx, &script_name, "").await;
+        Self::reset_execution_state(&runtime_ctx).await;
+        Self::flush_ocr_cache(&runtime_ctx, &script_name, "").await?;
 
         emit_progress_event(
             RuntimeProgressPhase::Completed,
@@ -718,7 +848,7 @@ impl ScriptScheduler {
             )),
         );
 
-        Ok(script_name)
+        Ok(ScriptExecutionOutcome::Completed(script_name))
     }
 
     async fn execute_debug_policy_target(
@@ -849,12 +979,8 @@ impl ScriptScheduler {
             _ => Ok(()),
         };
 
-        Self::reset_execution_state_and_flush_ocr_cache(
-            runtime_ctx,
-            &script_id.to_string(),
-            "调试执行后",
-        )
-        .await;
+        Self::reset_execution_state(runtime_ctx).await;
+        Self::flush_ocr_cache(runtime_ctx, &script_id.to_string(), "调试执行后").await?;
 
         if let Err(error) = &result {
             emit_progress_event(

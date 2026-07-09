@@ -1,10 +1,8 @@
 use crate::domain::config::vision_cache_conf::VisionTextCacheRuntimeConfig;
-use crate::domain::vision::result::OcrResult;
+use crate::domain::vision::result::{BoundingBox, OcrResult};
 use crate::infrastructure::core::{Deserialize, Error, HashMap, ScriptId, Serialize};
-use crate::infrastructure::logging::log_trait::Log;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Error, Serialize, Deserialize)]
 pub enum TextRecCacheError {
@@ -25,29 +23,85 @@ pub enum TextRecCacheError {
 
     #[error("解析 OCR 文字缓存文件失败: {path}, {e}")]
     ParseFailed { path: String, e: String },
-
-    #[error("序列化 OCR 文字缓存文件失败: {e}")]
-    SerializeFailed { e: String },
 }
 
 pub type TextRecCacheResult<T> = Result<T, TextRecCacheError>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TextRecCacheEntry {
-    pub cache_key: String,
-    pub ocr_result: Option<OcrResult>,
-    pub updated_at: String,
+    pub key: String,
+    pub x1: u32,
+    pub y1: u32,
+    pub x2: u32,
+    pub y2: u32,
+    pub txt: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-#[serde(default, rename_all = "camelCase")]
-pub struct TextRecCacheDocument {
-    pub version: u8,
-    pub script_id: String,
-    pub script_name: String,
-    pub updated_at: String,
-    pub entries: Vec<TextRecCacheEntry>,
+impl TextRecCacheEntry {
+    pub fn cache_key(&self) -> &str {
+        &self.key
+    }
+
+    pub fn to_ocr_result(&self) -> OcrResult {
+        OcrResult::new(
+            BoundingBox::new(
+                self.x1 as i32,
+                self.y1 as i32,
+                self.x2 as i32,
+                self.y2 as i32,
+            ),
+            self.txt.clone(),
+            Vec::new(),
+            Vec::new(),
+            1,
+        )
+    }
+
+    pub fn to_line(&self) -> String {
+        format!(
+            "{},{},{},{},{},{}",
+            quote_field(&self.key),
+            self.x1,
+            self.y1,
+            self.x2,
+            self.y2,
+            quote_field(&self.txt)
+        )
+    }
+
+    pub fn parse_line(path: &Path, line_no: usize, line: &str) -> TextRecCacheResult<Self> {
+        let fields = split_cache_line(path, line_no, line)?;
+        if fields.len() != 6 {
+            return Err(TextRecCacheError::ParseFailed {
+                path: path.display().to_string(),
+                e: format!(
+                    "第 {} 行字段数量错误，期望 6 个，实际 {}",
+                    line_no,
+                    fields.len()
+                ),
+            });
+        }
+
+        Ok(Self {
+            key: parse_quoted_field(path, line_no, &fields[0], "key")?,
+            x1: parse_u32_field(path, line_no, &fields[1], "x1")?,
+            y1: parse_u32_field(path, line_no, &fields[2], "y1")?,
+            x2: parse_u32_field(path, line_no, &fields[3], "x2")?,
+            y2: parse_u32_field(path, line_no, &fields[4], "y2")?,
+            txt: parse_quoted_field(path, line_no, &fields[5], "txt")?,
+        })
+    }
+
+    fn from_ocr_result(cache_key: String, ocr_result: OcrResult) -> Self {
+        Self {
+            key: cache_key,
+            x1: ocr_result.bounding_box.x1.max(0) as u32,
+            y1: ocr_result.bounding_box.y1.max(0) as u32,
+            x2: ocr_result.bounding_box.x2.max(0) as u32,
+            y2: ocr_result.bounding_box.y2.max(0) as u32,
+            txt: ocr_result.txt,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -61,7 +115,7 @@ pub struct ScriptTextRecCacheRuntime {
     config: VisionTextCacheRuntimeConfig,
     current_file_path: Option<PathBuf>,
     current_script_id: Option<ScriptId>,
-    document: Option<TextRecCacheDocument>,
+    entries: Vec<TextRecCacheEntry>,
     session_stats: HashMap<String, TextRecCacheSessionStats>,
     dirty: bool,
 }
@@ -99,48 +153,17 @@ impl ScriptTextRecCacheRuntime {
             return Ok(());
         }
 
-        if self.dirty {
-            if let Err(error) = self.flush_current_script() {
-                Log::warn(&format!(
-                    "OCR 文字缓存写回失败，已放弃旧脚本缓存状态: {}",
-                    error
-                ));
-                self.reset_runtime_state();
-            }
-        }
-
         let file_path = self.resolve_cache_file_path(script_id, script_name)?;
-        let document = if file_path.exists() {
-            match self.read_document(&file_path) {
-                Ok(document) => document,
-                Err(error) => {
-                    Log::warn(&format!(
-                        "OCR 文字缓存文件读取失败，已回退为空缓存: {}",
-                        error
-                    ));
-                    TextRecCacheDocument {
-                        version: 2,
-                        script_id: script_id.to_string(),
-                        script_name: script_name.to_string(),
-                        updated_at: unix_timestamp_string(),
-                        entries: Vec::new(),
-                    }
-                }
-            }
+        let entries = if file_path.exists() {
+            self.read_entries(&file_path)?
         } else {
-            TextRecCacheDocument {
-                version: 2,
-                script_id: script_id.to_string(),
-                script_name: script_name.to_string(),
-                updated_at: unix_timestamp_string(),
-                entries: Vec::new(),
-            }
+            Vec::new()
         };
 
         self.current_file_path = Some(file_path);
         self.current_script_id = Some(script_id);
+        self.entries = entries;
         self.session_stats.clear();
-        self.document = Some(document);
         self.dirty = false;
         Ok(())
     }
@@ -154,23 +177,17 @@ impl ScriptTextRecCacheRuntime {
         let Some(path) = self.current_file_path.clone() else {
             return Ok(());
         };
-        let Some(document) = self.document.as_mut() else {
-            return Ok(());
-        };
         if !self.dirty {
             return Ok(());
         }
 
-        if document.entries.is_empty() {
-            self.dirty = false;
-            return Ok(());
-        }
-
         ensure_parent_dir(&path)?;
-        document.updated_at = unix_timestamp_string();
-
-        let text = serde_json::to_string_pretty(document)
-            .map_err(|e| TextRecCacheError::SerializeFailed { e: e.to_string() })?;
+        let text = self
+            .entries
+            .iter()
+            .map(TextRecCacheEntry::to_line)
+            .collect::<Vec<_>>()
+            .join("\n");
 
         fs::write(&path, text).map_err(|e| TextRecCacheError::WriteFailed {
             path: path.display().to_string(),
@@ -183,12 +200,10 @@ impl ScriptTextRecCacheRuntime {
 
     pub fn find_entry(&mut self, cache_key: &str) -> Option<OcrResult> {
         let entry = self
-            .document
-            .as_ref()?
             .entries
             .iter()
-            .find(|entry| entry.cache_key == cache_key)
-            .and_then(|entry| entry.ocr_result.clone());
+            .find(|entry| entry.cache_key() == cache_key)
+            .map(TextRecCacheEntry::to_ocr_result);
 
         if entry.is_some() {
             self.session_stats
@@ -209,26 +224,19 @@ impl ScriptTextRecCacheRuntime {
             return Ok(());
         }
 
-        let Some(document) = self.document.as_mut() else {
-            return Ok(());
-        };
-
         let cache_key = cache_key.into();
-        let updated_at = unix_timestamp_string();
 
-        if let Some(entry) = document
+        if let Some(entry) = self
             .entries
             .iter_mut()
-            .find(|entry| entry.cache_key == cache_key)
+            .find(|entry| entry.cache_key() == cache_key)
         {
-            entry.ocr_result = Some(ocr_result);
-            entry.updated_at = updated_at;
+            *entry = TextRecCacheEntry::from_ocr_result(cache_key.clone(), ocr_result);
         } else {
-            document.entries.push(TextRecCacheEntry {
-                cache_key: cache_key.clone(),
-                ocr_result: Some(ocr_result),
-                updated_at,
-            });
+            self.entries.push(TextRecCacheEntry::from_ocr_result(
+                cache_key.clone(),
+                ocr_result,
+            ));
         }
 
         self.session_stats.entry(cache_key).or_default().write_count += 1;
@@ -236,8 +244,8 @@ impl ScriptTextRecCacheRuntime {
         Ok(())
     }
 
-    pub fn current_document(&self) -> Option<&TextRecCacheDocument> {
-        self.document.as_ref()
+    pub fn current_entries(&self) -> &[TextRecCacheEntry] {
+        &self.entries
     }
 
     fn resolve_cache_file_path(
@@ -255,44 +263,35 @@ impl ScriptTextRecCacheRuntime {
             e: e.to_string(),
         })?;
 
-        let base_name = sanitize_script_file_name(script_name);
-        let primary = dir.join(format!("{}.json", base_name));
-
-        if !primary.exists() {
-            return Ok(primary);
-        }
-
-        match self.read_document(&primary) {
-            Ok(document) if document.script_id == script_id.to_string() => Ok(primary),
-            Ok(_) => Ok(dir.join(format!("{}-{}.json", base_name, short_script_id(script_id)))),
-            Err(error) => {
-                Log::warn(&format!(
-                    "OCR 文字缓存主文件读取失败，改用脚本 ID 后缀文件: {}",
-                    error
-                ));
-                Ok(dir.join(format!("{}-{}.json", base_name, short_script_id(script_id))))
-            }
-        }
+        Ok(dir.join(format!(
+            "{}-{}.txt",
+            sanitize_script_file_name(script_name),
+            short_script_id(script_id)
+        )))
     }
 
-    fn read_document(&self, path: &Path) -> TextRecCacheResult<TextRecCacheDocument> {
+    fn read_entries(&self, path: &Path) -> TextRecCacheResult<Vec<TextRecCacheEntry>> {
         let text = fs::read_to_string(path).map_err(|e| TextRecCacheError::ReadFailed {
             path: path.display().to_string(),
             e: e.to_string(),
         })?;
 
-        serde_json::from_str::<TextRecCacheDocument>(&text).map_err(|e| {
-            TextRecCacheError::ParseFailed {
-                path: path.display().to_string(),
-                e: e.to_string(),
+        let mut entries = Vec::new();
+        for (index, raw_line) in text.lines().enumerate() {
+            let line_no = index + 1;
+            let line = raw_line.trim();
+            if line.is_empty() {
+                continue;
             }
-        })
+            entries.push(TextRecCacheEntry::parse_line(path, line_no, line)?);
+        }
+        Ok(entries)
     }
 
     fn reset_runtime_state(&mut self) {
         self.current_file_path = None;
         self.current_script_id = None;
-        self.document = None;
+        self.entries.clear();
         self.session_stats.clear();
         self.dirty = false;
     }
@@ -306,13 +305,6 @@ fn ensure_parent_dir(path: &Path) -> TextRecCacheResult<()> {
         })?;
     }
     Ok(())
-}
-
-fn unix_timestamp_string() -> String {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_secs().to_string())
-        .unwrap_or_else(|_| "0".to_string())
 }
 
 fn short_script_id(script_id: ScriptId) -> String {
@@ -352,6 +344,105 @@ fn sanitize_script_file_name(input: &str) -> String {
     }
 }
 
+fn quote_field(value: &str) -> String {
+    let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{}\"", escaped)
+}
+
+fn parse_u32_field(
+    path: &Path,
+    line_no: usize,
+    value: &str,
+    field: &str,
+) -> TextRecCacheResult<u32> {
+    value
+        .trim()
+        .parse::<u32>()
+        .map_err(|error| TextRecCacheError::ParseFailed {
+            path: path.display().to_string(),
+            e: format!("第 {} 行字段 {} 不是合法 u32: {}", line_no, field, error),
+        })
+}
+
+fn parse_quoted_field(
+    path: &Path,
+    line_no: usize,
+    value: &str,
+    field: &str,
+) -> TextRecCacheResult<String> {
+    let bytes = value.as_bytes();
+    if bytes.len() < 2 || bytes.first() != Some(&b'"') || bytes.last() != Some(&b'"') {
+        return Err(TextRecCacheError::ParseFailed {
+            path: path.display().to_string(),
+            e: format!("第 {} 行字段 {} 缺少引号包裹", line_no, field),
+        });
+    }
+
+    let mut output = String::new();
+    let mut escaped = false;
+    for ch in value[1..value.len() - 1].chars() {
+        if escaped {
+            output.push(ch);
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+        output.push(ch);
+    }
+
+    if escaped {
+        return Err(TextRecCacheError::ParseFailed {
+            path: path.display().to_string(),
+            e: format!("第 {} 行字段 {} 以非法转义结尾", line_no, field),
+        });
+    }
+
+    Ok(output)
+}
+
+fn split_cache_line(path: &Path, line_no: usize, line: &str) -> TextRecCacheResult<Vec<String>> {
+    let mut fields = Vec::new();
+    let mut current = String::new();
+    let mut in_quotes = false;
+    let mut escaped = false;
+
+    for ch in line.chars() {
+        if escaped {
+            current.push(ch);
+            escaped = false;
+            continue;
+        }
+        match ch {
+            '\\' if in_quotes => {
+                current.push(ch);
+                escaped = true;
+            }
+            '"' => {
+                in_quotes = !in_quotes;
+                current.push(ch);
+            }
+            ',' if !in_quotes => {
+                fields.push(current.trim().to_string());
+                current.clear();
+            }
+            _ => current.push(ch),
+        }
+    }
+
+    if in_quotes {
+        return Err(TextRecCacheError::ParseFailed {
+            path: path.display().to_string(),
+            e: format!("第 {} 行存在未闭合引号", line_no),
+        });
+    }
+
+    fields.push(current.trim().to_string());
+    Ok(fields)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -386,28 +477,45 @@ mod tests {
             dir: Some(PathBuf::from(".")),
             signature_grid_size: 8,
         });
-        cache.document = Some(TextRecCacheDocument {
-            version: 2,
-            script_id: "script-id".to_string(),
-            script_name: "script-name".to_string(),
-            updated_at: unix_timestamp_string(),
-            entries: Vec::new(),
-        });
+        cache.current_file_path = Some(PathBuf::from("script-1.txt"));
+        cache.current_script_id = Some("script-id".into());
 
         let result = OcrResult::new(
             BoundingBox::new(1, 2, 30, 12),
             "cache".to_string(),
-            vec![0.9],
+            vec![0.123_456],
             vec![1],
-            vec!["c".to_string()],
             8,
         );
 
         cache
-            .record_entry("key-1", result.clone())
+            .record_entry("1:abcd", result.clone())
             .expect("record should succeed");
 
-        assert_eq!(cache.find_entry("key-1"), Some(result));
+        let cached = cache
+            .find_entry("1:abcd")
+            .expect("cache entry should exist");
+        assert_eq!(cached.bounding_box, result.bounding_box);
+        assert_eq!(cached.txt, result.txt);
+        assert!(cached.score.is_empty());
+        assert!(cached.index.is_empty());
         assert_eq!(cache.find_entry("missing"), None);
+    }
+
+    #[test]
+    fn cache_line_roundtrip_preserves_quotes_and_commas() {
+        let entry = TextRecCacheEntry {
+            key: "1:05d784fdefccc1f9".to_string(),
+            x1: 1,
+            y1: 2,
+            x2: 3,
+            y2: 4,
+            txt: "a,b\"c\\d".to_string(),
+        };
+
+        let line = entry.to_line();
+        let parsed = TextRecCacheEntry::parse_line(Path::new("test.txt"), 1, &line)
+            .expect("line should parse");
+        assert_eq!(parsed, entry);
     }
 }

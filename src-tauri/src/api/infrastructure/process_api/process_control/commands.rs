@@ -5,6 +5,7 @@ use super::super::dispatch_planner::{
 };
 use super::super::runtime_session::load_runtime_session_for_target;
 use super::events::{device_log_label, emit_assignment_schedule_changed};
+use super::events::{emit_device_lifecycle_status, emit_device_progress_status};
 use super::runtime::{
     dispatch_session_to_child, emit_queue_finished_progress, ensure_device_capture_ready,
     ensure_device_ready_for_manual, request_child_connection_action,
@@ -23,8 +24,8 @@ use super::state::{
 use crate::constant::table_name::DEVICE_TABLE;
 use crate::domain::devices::device_conf::DeviceTable;
 use crate::domain::devices::device_runtime_event::{
-    DeviceConnectionEventPayload, DeviceProgressEventPayload, DeviceRuntimeProgressPhase,
-    DeviceStatusEventPayload,
+    DeviceConnectionEventPayload, DeviceLifecycleStatus, DeviceProgressEventPayload,
+    DeviceRuntimeProgressPhase, DeviceStatusEventPayload,
 };
 use crate::domain::devices::device_schedule::{AssignmentScheduleStatus, AssignmentTriggerSource};
 use crate::infrastructure::context::child_process_manager::get_process_manager;
@@ -196,6 +197,18 @@ pub async fn cmd_device_stop(
     app_handle: tauri::AppHandle,
     device_id: DeviceId,
 ) -> Result<String, String> {
+    emit_device_lifecycle_status(
+        &app_handle,
+        device_id,
+        DeviceLifecycleStatus::Stopping,
+        "已发送停止命令，等待子进程停止当前执行",
+    );
+    emit_device_progress_status(
+        &app_handle,
+        device_id,
+        DeviceRuntimeProgressPhase::Stopping,
+        "已发送停止命令，等待子进程停止当前执行",
+    );
     send_process_control(device_id, ProcessAction::Stop);
     let stopped = stop_active_assignment_schedules_by_device(
         device_id,

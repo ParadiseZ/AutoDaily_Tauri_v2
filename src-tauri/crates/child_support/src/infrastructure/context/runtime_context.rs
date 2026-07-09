@@ -193,9 +193,6 @@ pub struct ObservationState {
     /// 设备相关属性
     pub screen_size: (u32, u32),
 
-    /// OCR 文字缓存运行时
-    pub vision_text_cache: ScriptTextRecCacheRuntime,
-
     /// 视觉签名网格大小，用于稳定坐标和排序分桶。
     pub vision_signature_grid_size: u16,
 
@@ -207,8 +204,7 @@ pub struct ObservationState {
 }
 
 impl ObservationState {
-    pub fn new(vision_text_cache_config: VisionTextCacheRuntimeConfig) -> Self {
-        let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
+    pub fn new(vision_signature_grid_size: u16) -> Self {
         Self {
             last_capture_image: None,
             last_vision_input_signature: None,
@@ -217,8 +213,7 @@ impl ObservationState {
             last_snapshot: None,
             last_hits: Vec::new(),
             screen_size: (0, 0),
-            vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
-            vision_signature_grid_size,
+            vision_signature_grid_size: vision_signature_grid_size.max(1),
             capture_asset_signature: String::new(),
             text_rec_model_signature: String::new(),
         }
@@ -229,6 +224,7 @@ impl ObservationState {
 pub struct RuntimeContext {
     pub execution: ExecutionState,
     pub observation: ObservationState,
+    pub vision_text_cache: ScriptTextRecCacheRuntime,
 
     /// 基础服务
     pub img_det_service: Arc<Mutex<OcrService>>,
@@ -245,9 +241,11 @@ impl RuntimeContext {
         vision_text_cache_config: VisionTextCacheRuntimeConfig,
         //adb_executor: Arc<RwLock<ADBExecutor>>,
     ) -> Self {
+        let vision_signature_grid_size = vision_text_cache_config.signature_grid_size.max(1);
         Self {
             execution: ExecutionState::new(script_id, target),
-            observation: ObservationState::new(vision_text_cache_config),
+            observation: ObservationState::new(vision_signature_grid_size),
+            vision_text_cache: ScriptTextRecCacheRuntime::new(vision_text_cache_config),
             img_det_service,
             ocr_service,
         }

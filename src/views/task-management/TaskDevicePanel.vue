@@ -571,6 +571,7 @@ const runtimeScheduleStatusLabels: Record<RuntimeScheduleStatus, string> = {
   running: '运行中',
   success: '成功',
   failed: '失败',
+  stopped: '已停止',
   skipped: '已跳过',
   cleared: '已清空',
 };
@@ -578,6 +579,7 @@ const runtimeScheduleStatusLabels: Record<RuntimeScheduleStatus, string> = {
 const historyScheduleStatusLabels: Record<RunStatus, string> = {
   success: '成功',
   failed: '失败',
+  stopped: '已停止',
   skipped: '已跳过',
 };
 
@@ -600,6 +602,7 @@ const triggerSourceLabels: Record<AssignmentTriggerSource, string> = {
 
 const historyScheduleTone = (status: RunStatus) => {
   if (status === 'success') return 'success';
+  if (status === 'stopped') return 'warning';
   if (status === 'skipped') return 'warning';
   if (status === 'failed') return 'danger';
   return 'neutral';
@@ -607,7 +610,7 @@ const historyScheduleTone = (status: RunStatus) => {
 
 const runtimeScheduleToneFromStatus = (status: RuntimeScheduleStatus) => {
   if (status === 'success') return 'success';
-  if (status === 'skipped' || status === 'queued' || status === 'running') return 'warning';
+  if (status === 'stopped' || status === 'skipped' || status === 'queued' || status === 'running') return 'warning';
   if (status === 'failed') return 'danger';
   return 'neutral';
 };

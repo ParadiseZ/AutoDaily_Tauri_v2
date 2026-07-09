@@ -67,6 +67,7 @@ export const progressPhaseLabels = {
     deviceConnected: '设备已连接',
     deviceDisconnected: '设备已断开',
     executing: '执行中',
+    stopping: '停止中',
     paused: '已暂停',
     completed: '已完成',
     failed: '失败',
@@ -85,6 +86,7 @@ export const activeRuntimeProgressPhases = new Set<DeviceRuntimeProgressPhase>([
     'emulatorStarting',
     'emulatorWaiting',
     'executing',
+    'stopping',
     'paused',
 ]);
 

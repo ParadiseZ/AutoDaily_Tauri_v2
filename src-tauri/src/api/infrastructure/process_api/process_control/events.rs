@@ -1,8 +1,9 @@
 use crate::constant::project::MAIN_WINDOW;
 use crate::domain::devices::device_runtime_event::{
     DeviceAssignmentScheduleChangedEventPayload, DeviceConnectionEventPayload,
-    DeviceProgressEventPayload, DeviceRuntimeProgressPhase, DeviceRuntimeReconcileAction,
-    DeviceRuntimeReconcileEventPayload, DeviceRuntimeReconcileJobType, DeviceRuntimeReconcilePhase,
+    DeviceLifecycleStatus, DeviceProgressEventPayload, DeviceRuntimeProgressPhase,
+    DeviceRuntimeReconcileAction, DeviceRuntimeReconcileEventPayload,
+    DeviceRuntimeReconcileJobType, DeviceRuntimeReconcilePhase, DeviceStatusEventPayload,
 };
 use crate::infrastructure::context::main_process::{MainProcessCtx, RuntimeReconcileJob};
 use crate::infrastructure::core::{now_millis_string, DeviceId};
@@ -110,6 +111,45 @@ pub(super) fn emit_device_progress_status(
             at,
         };
         let _ = main_window.emit("device-progress", payload);
+    }
+}
+
+pub(super) fn emit_device_lifecycle_status(
+    app_handle: &tauri::AppHandle,
+    device_id: DeviceId,
+    status: DeviceLifecycleStatus,
+    message: impl Into<String>,
+) {
+    let message = message.into();
+    let at = now_millis_string();
+    let device_label = device_log_label(app_handle, device_id);
+    Log::info(&format!(
+        "[ process ] 设备[{}]生命周期: {:?}{}",
+        device_label,
+        status,
+        if message.trim().is_empty() {
+            String::new()
+        } else {
+            format!("，{}", message)
+        }
+    ));
+    let _ = app_handle.state::<MainProcessCtx>().set_device_lifecycle(
+        device_id,
+        status.clone(),
+        None,
+        Some(message.clone()),
+        Some(at.clone()),
+    );
+    if let Some(main_window) = app_handle.get_webview_window(MAIN_WINDOW) {
+        let payload = DeviceStatusEventPayload {
+            device_id,
+            session_id: None,
+            status,
+            current_script_id: None,
+            message: Some(message),
+            at,
+        };
+        let _ = main_window.emit("device-status", payload);
     }
 }
 

@@ -3,7 +3,7 @@ impl ScriptExecutor {
         &self,
         image: Arc<RgbaImage>,
     ) -> ExecuteResult<(Vec<DetResult>, Vec<OcrResult>, VisionSnapshot)> {
-        let (grid_size, img_det_service, ocr_service, has_img_det_model, has_txt_det_model, has_txt_rec_model) = {
+        let (grid_size, has_img_det_model, has_txt_det_model, has_txt_rec_model) = {
             let ctx = self.runtime_ctx.read().await;
             let Some(script_info) = ctx.execution.script_info.as_ref() else {
                 return Err(Self::execute_error(
@@ -14,8 +14,6 @@ impl ScriptExecutor {
 
             (
                 ctx.observation.vision_signature_grid_size,
-                ctx.img_det_service.clone(),
-                ctx.ocr_service.clone(),
                 script_info.img_det_model.is_some(),
                 script_info.txt_det_model.is_some(),
                 script_info.txt_rec_model.is_some(),
@@ -30,66 +28,25 @@ impl ScriptExecutor {
         }
 
         let det_results = if has_img_det_model {
-            let det_capture_image = Arc::clone(&image);
-            Self::run_ocr_service_with_timeout(
-                "action.capture",
-                "目标检测",
-                VISION_INFERENCE_TIMEOUT_MS,
-                img_det_service,
-                move |service| {
-                    service
-                        .detect_rgba(det_capture_image.as_ref())
-                        .map_err(|error| format!("目标检测执行失败: {}", error))
-                },
-            )
-            .await?
+            self.run_img_det_pipeline("action.capture", Arc::clone(&image))
+                .await?
         } else {
             Vec::new()
         };
         let ocr_results = if has_txt_det_model {
-            let ocr_capture_image = Arc::clone(&image);
-            let ocr_det_results = Self::run_ocr_service_with_timeout(
-                "action.capture",
-                "OCR文字检测",
-                VISION_INFERENCE_TIMEOUT_MS,
-                ocr_service.clone(),
-                move |service| {
-                    service
-                        .detect_rgba(ocr_capture_image.as_ref())
-                        .map_err(|error| format!("OCR 文字检测执行失败: {}", error))
-                },
-            )
-            .await?;
-            let ocr_crop_entries = Self::collect_ocr_crop_entries(image.as_ref(), &ocr_det_results);
-            let ocr_crops = ocr_crop_entries
-                .iter()
-                .map(|(_, crop)| crop.clone())
-                .collect::<Vec<_>>();
-            let ocr_det_inputs = ocr_crop_entries
-                .iter()
-                .filter_map(|(idx, _)| ocr_det_results.get(*idx).cloned())
-                .collect::<Vec<_>>();
-            Self::run_ocr_service_with_timeout(
-                "action.capture",
-                "OCR",
-                VISION_INFERENCE_TIMEOUT_MS,
-                ocr_service,
-                move |service| {
-                    service
-                        .recognize_crops_rgba(ocr_crops, &ocr_det_inputs)
-                        .map_err(|error| format!("OCR 执行失败: {}", error))
-                },
-            )
-            .await?
+            self.run_ocr_pipeline("action.capture", Arc::clone(&image))
+                .await?
+                .1
         } else {
             Vec::new()
         };
 
-        let snapshot =
-            VisionSnapshot::new(ocr_results.clone(), det_results.clone(), None, grid_size)
-                .map_err(|error| {
-                    Self::execute_error("action.capture", format!("构建视觉快照失败: {}", error))
-                })?;
+        let mut snapshot = VisionSnapshot::new(det_results.clone(), grid_size).map_err(
+            |error| Self::execute_error("action.capture", format!("构建视觉快照失败: {}", error)),
+        )?;
+        snapshot.set_ocr_results(ocr_results.clone()).map_err(|error| {
+            Self::execute_error("action.capture", format!("写入 OCR 结果到视觉快照失败: {}", error))
+        })?;
 
         Ok((det_results, ocr_results, snapshot))
     }
@@ -182,14 +139,11 @@ impl ScriptExecutor {
             let ctx = self.runtime_ctx.read().await;
             ctx.observation.vision_signature_grid_size
         };
-        let snapshot = VisionSnapshot::new(
-            ocr_results.clone(),
-            det_results.clone(),
-            None,
-            grid_size,
-        )
-        .map_err(|error| {
-            Self::execute_error(step_type, format!("构建视觉快照失败: {}", error))
+        let mut snapshot = VisionSnapshot::new(det_results.clone(), grid_size).map_err(
+            |error| Self::execute_error(step_type, format!("构建视觉快照失败: {}", error)),
+        )?;
+        snapshot.set_ocr_results(ocr_results.clone()).map_err(|error| {
+            Self::execute_error(step_type, format!("写入 OCR 结果到视觉快照失败: {}", error))
         })?;
         let fingerprint = Self::build_page_fingerprint(&snapshot);
 
@@ -223,35 +177,7 @@ impl ScriptExecutor {
         out_var: &str,
     ) -> ExecuteResult<Vec<DetResult>> {
         let image = self.read_runtime_image_var(input_var, step_type).await?;
-        let service = {
-            let ctx = self.runtime_ctx.read().await;
-            let Some(script_info) = ctx.execution.script_info.as_ref() else {
-                return Err(Self::execute_error(
-                    step_type,
-                    "当前运行时缺少 script_info，无法执行目标检测".to_string(),
-                ));
-            };
-            if script_info.img_det_model.is_none() {
-                return Err(Self::execute_error(
-                    step_type,
-                    "当前脚本未配置图像检测模型".to_string(),
-                ));
-            }
-            ctx.img_det_service.clone()
-        };
-        let detect_image = image.clone();
-        let det_results = Self::run_ocr_service_with_timeout(
-            step_type,
-            "目标检测",
-            VISION_INFERENCE_TIMEOUT_MS,
-            service,
-            move |service| {
-                service
-                    .detect_rgba(detect_image.as_ref())
-                    .map_err(|error| format!("目标检测执行失败: {}", error))
-            },
-        )
-        .await?;
+        let det_results = self.run_img_det_pipeline(step_type, image.clone()).await?;
         self.store_explicit_vision_results(step_type, image, Some(det_results.clone()), None)
             .await?;
         self.set_runtime_var(
@@ -274,6 +200,109 @@ impl ScriptExecutor {
         out_var: &str,
     ) -> ExecuteResult<Vec<OcrResult>> {
         let image = self.read_runtime_image_var(input_var, step_type).await?;
+        let (det_results, ocr_results) = self.run_ocr_pipeline(step_type, image.clone()).await?;
+        self.store_explicit_vision_results(
+            step_type,
+            image,
+            Some(det_results),
+            Some(ocr_results.clone()),
+        )
+            .await?;
+        self.set_runtime_var(
+            out_var,
+            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
+        )
+        .await?;
+        self.set_runtime_var(
+            "runtime.ocrResults",
+            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
+        )
+        .await?;
+        Ok(ocr_results)
+    }
+
+    async fn store_explicit_vision_results(
+        &mut self,
+        step_type: &str,
+        image: Arc<RgbaImage>,
+        det_results: Option<Vec<DetResult>>,
+        ocr_results: Option<Vec<OcrResult>>,
+    ) -> ExecuteResult<()> {
+        let (grid_size, capture_asset_signature) = {
+            let ctx = self.runtime_ctx.read().await;
+            (
+                ctx.observation.vision_signature_grid_size,
+                ctx.observation.capture_asset_signature.clone(),
+            )
+        };
+        let current_signature =
+            Self::build_image_signature(capture_asset_signature.as_str(), image.as_ref());
+        let next_det_results = det_results.unwrap_or_default();
+        let next_ocr_results = ocr_results.unwrap_or_default();
+        let mut snapshot = VisionSnapshot::new(next_det_results.clone(), grid_size).map_err(
+            |error| Self::execute_error(step_type, format!("构建视觉快照失败: {}", error)),
+        )?;
+        snapshot.set_ocr_results(next_ocr_results.clone()).map_err(|error| {
+            Self::execute_error(step_type, format!("写入 OCR 结果到视觉快照失败: {}", error))
+        })?;
+        let fingerprint = Self::build_page_fingerprint(&snapshot);
+
+        let screen_size = (image.width(), image.height());
+        let mut ctx = self.runtime_ctx.write().await;
+        ctx.observation.last_capture_image = Some(image);
+        ctx.observation.last_vision_input_signature = Some(current_signature);
+        ctx.observation.last_det_results = next_det_results;
+        ctx.observation.last_ocr_results = next_ocr_results;
+        ctx.observation.screen_size = screen_size;
+        ctx.observation.last_snapshot = Some(snapshot);
+        ctx.observation.last_hits.clear();
+        drop(ctx);
+
+        self.push_active_policy_page_fingerprint(fingerprint);
+        Ok(())
+    }
+
+    async fn run_img_det_pipeline(
+        &self,
+        step_type: &str,
+        image: Arc<RgbaImage>,
+    ) -> ExecuteResult<Vec<DetResult>> {
+        let service = {
+            let ctx = self.runtime_ctx.read().await;
+            let Some(script_info) = ctx.execution.script_info.as_ref() else {
+                return Err(Self::execute_error(
+                    step_type,
+                    "当前运行时缺少 script_info，无法执行目标检测".to_string(),
+                ));
+            };
+            if script_info.img_det_model.is_none() {
+                return Err(Self::execute_error(
+                    step_type,
+                    "当前脚本未配置图像检测模型".to_string(),
+                ));
+            }
+            ctx.img_det_service.clone()
+        };
+
+        Self::run_ocr_service_with_timeout(
+            step_type,
+            "目标检测",
+            VISION_INFERENCE_TIMEOUT_MS,
+            service,
+            move |service| {
+                service
+                    .detect_rgba(image.as_ref())
+                    .map_err(|error| format!("目标检测执行失败: {}", error))
+            },
+        )
+        .await
+    }
+
+    async fn run_ocr_pipeline(
+        &self,
+        step_type: &str,
+        image: Arc<RgbaImage>,
+    ) -> ExecuteResult<(Vec<DetResult>, Vec<OcrResult>)> {
         let (service, use_cache, rec_model_signature, cached_ocr_results) = {
             let ctx = self.runtime_ctx.read().await;
             let Some(script_info) = ctx.execution.script_info.as_ref() else {
@@ -288,26 +317,15 @@ impl ScriptExecutor {
                     "当前脚本未完整配置 OCR 模型".to_string(),
                 ));
             }
-            let use_cache = ctx.observation.vision_text_cache.is_enabled();
+            let use_cache = ctx.vision_text_cache.is_enabled();
             let (rec_model_signature, cached_ocr_results) = if use_cache {
                 (
                     ctx.observation.text_rec_model_signature.clone(),
-                    ctx.observation
-                        .vision_text_cache
-                        .current_document()
-                        .map(|document| {
-                            document
-                                .entries
-                                .iter()
-                                .filter_map(|entry| {
-                                    entry
-                                        .ocr_result
-                                        .clone()
-                                        .map(|ocr_result| (entry.cache_key.clone(), ocr_result))
-                                })
-                                .collect::<std::collections::HashMap<_, _>>()
-                        })
-                        .unwrap_or_default(),
+                    ctx.vision_text_cache
+                        .current_entries()
+                        .iter()
+                        .map(|entry| (entry.cache_key().to_string(), entry.to_ocr_result()))
+                        .collect::<std::collections::HashMap<_, _>>(),
                 )
             } else {
                 (String::new(), std::collections::HashMap::new())
@@ -320,8 +338,8 @@ impl ScriptExecutor {
                 cached_ocr_results,
             )
         };
-        let ocr_image = image.clone();
-        let detect_image = image.clone();
+
+        let detect_image = Arc::clone(&image);
         let det_results = Self::run_ocr_service_with_timeout(
             step_type,
             "OCR文字检测",
@@ -334,7 +352,8 @@ impl ScriptExecutor {
             },
         )
         .await?;
-        let ocr_crop_entries = Self::collect_ocr_crop_entries(ocr_image.as_ref(), &det_results);
+
+        let ocr_crop_entries = Self::collect_ocr_crop_entries(image.as_ref(), &det_results);
         let ocr_results = if use_cache {
             let mut merged_results = vec![None; det_results.len()];
             let mut missing_indices = Vec::new();
@@ -391,7 +410,6 @@ impl ScriptExecutor {
                 let mut ctx = self.runtime_ctx.write().await;
                 for (cache_key, ocr_result) in new_cache_entries {
                     if let Err(error) = ctx
-                        .observation
                         .vision_text_cache
                         .record_entry(cache_key, ocr_result)
                     {
@@ -425,84 +443,8 @@ impl ScriptExecutor {
             )
             .await?
         };
-        self.store_explicit_vision_results(
-            step_type,
-            image,
-            Some(det_results),
-            Some(ocr_results.clone()),
-        )
-            .await?;
-        self.set_runtime_var(
-            out_var,
-            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
-        )
-        .await?;
-        self.set_runtime_var(
-            "runtime.ocrResults",
-            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
-        )
-        .await?;
-        Ok(ocr_results)
-    }
 
-    async fn store_explicit_vision_results(
-        &mut self,
-        step_type: &str,
-        image: Arc<RgbaImage>,
-        det_results: Option<Vec<DetResult>>,
-        ocr_results: Option<Vec<OcrResult>>,
-    ) -> ExecuteResult<()> {
-        let (grid_size, capture_asset_signature, existing_signature, existing_det, existing_ocr) = {
-            let ctx = self.runtime_ctx.read().await;
-            (
-                ctx.observation.vision_signature_grid_size,
-                ctx.observation.capture_asset_signature.clone(),
-                ctx.observation.last_vision_input_signature.clone(),
-                ctx.observation.last_det_results.clone(),
-                ctx.observation.last_ocr_results.clone(),
-            )
-        };
-        let current_signature =
-            Self::build_image_signature(capture_asset_signature.as_str(), image.as_ref());
-        let same_image = existing_signature.as_deref() == Some(current_signature.as_str());
-        let next_det_results = det_results.unwrap_or_else(|| {
-            if same_image {
-                existing_det
-            } else {
-                Vec::new()
-            }
-        });
-        let next_ocr_results = ocr_results.unwrap_or_else(|| {
-            if same_image {
-                existing_ocr
-            } else {
-                Vec::new()
-            }
-        });
-        let snapshot = VisionSnapshot::new(
-            next_ocr_results.clone(),
-            next_det_results.clone(),
-            None,
-            grid_size,
-        )
-        .map_err(|error| {
-            Self::execute_error(step_type, format!("构建视觉快照失败: {}", error))
-        })?;
-        let fingerprint = Self::build_page_fingerprint(&snapshot);
-
-        let screen_size = (image.width(), image.height());
-        let mut ctx = self.runtime_ctx.write().await;
-        ctx.observation.last_capture_image = Some(image);
-        ctx.observation.last_vision_input_signature = Some(current_signature);
-        ctx.observation.last_det_results = next_det_results;
-        ctx.observation.last_ocr_results = next_ocr_results;
-        ctx.observation.screen_size = screen_size;
-        ctx.observation.last_snapshot = Some(snapshot);
-        ctx.observation.last_hits.clear();
-        drop(ctx);
-
-        self.push_active_policy_page_fingerprint(fingerprint);
-        Ok(())
+        Ok((det_results, ocr_results))
     }
 
     async fn read_runtime_image_var(
@@ -567,12 +509,12 @@ impl ScriptExecutor {
 
     fn build_ocr_text_cache_key(image: &RgbaImage, rec_model_signature: &str) -> String {
         let mut hasher = XxHash3_64::default();
-        hasher.write(b"ocr-text:v1");
+        hasher.write(b"1");
         Self::write_hash_segment(&mut hasher, rec_model_signature.as_bytes());
         hasher.write(&image.width().to_le_bytes());
         hasher.write(&image.height().to_le_bytes());
         Self::write_hash_segment(&mut hasher, image.as_raw());
-        format!("ocr-text:v1:{:016x}", hasher.finish())
+        format!("1:{:016x}", hasher.finish())
     }
 
     fn collect_ocr_crop_entries(
@@ -626,6 +568,7 @@ impl ScriptExecutor {
         script_info: &crate::domain::scripts::script_info::ScriptInfo,
     ) -> String {
         let Some(model) = script_info.txt_rec_model.as_ref() else {
+            Log::warn("build_text_rec_model_signature: 未找到模型配置，将影响后续依赖该签名的内容！");
             return "none".to_string();
         };
 
@@ -819,13 +762,32 @@ impl ScriptExecutor {
     where
         F: Future<Output = Result<T, String>>,
     {
-        match tokio::time::timeout(Duration::from_millis(timeout_ms), future).await {
-            Ok(Ok(value)) => Ok(value),
-            Ok(Err(error)) => Err(Self::execute_error(step_type, error)),
-            Err(_) => Err(Self::execute_error(
-                step_type,
-                format!("{}超时，超过{}ms", label, timeout_ms),
-            )),
+        let started = tokio::time::Instant::now();
+        tokio::pin!(future);
+        loop {
+            if crate::infrastructure::context::child_process_sec::stop_requested() {
+                return Err(Self::execute_error(
+                    step_type,
+                    format!("{}已收到停止命令", label),
+                ));
+            }
+            let remaining = Duration::from_millis(timeout_ms).saturating_sub(started.elapsed());
+            if remaining.is_zero() {
+                return Err(Self::execute_error(
+                    step_type,
+                    format!("{}超时，超过{}ms", label, timeout_ms),
+                ));
+            }
+            let slice = remaining.min(Duration::from_millis(WAIT_TIMEOUT_CHECK_SLICE_MS));
+            tokio::select! {
+                result = &mut future => {
+                    return match result {
+                        Ok(value) => Ok(value),
+                        Err(error) => Err(Self::execute_error(step_type, error)),
+                    };
+                }
+                _ = tokio::time::sleep(slice) => {}
+            }
         }
     }
 
@@ -844,18 +806,36 @@ impl ScriptExecutor {
             let mut service = service.blocking_lock();
             operation(&mut service)
         });
-
-        match tokio::time::timeout(Duration::from_millis(timeout_ms), task).await {
-            Ok(Ok(Ok(value))) => Ok(value),
-            Ok(Ok(Err(error))) => Err(Self::execute_error(step_type, error)),
-            Ok(Err(error)) => Err(Self::execute_error(
-                step_type,
-                format!("{}任务执行失败: {}", label, error),
-            )),
-            Err(_) => Err(Self::execute_error(
-                step_type,
-                format!("{}超时，超过{}ms", label, timeout_ms),
-            )),
+        let started = tokio::time::Instant::now();
+        let mut task = Box::pin(task);
+        loop {
+            if crate::infrastructure::context::child_process_sec::stop_requested() {
+                return Err(Self::execute_error(
+                    step_type,
+                    format!("{}已收到停止命令", label),
+                ));
+            }
+            let remaining = Duration::from_millis(timeout_ms).saturating_sub(started.elapsed());
+            if remaining.is_zero() {
+                return Err(Self::execute_error(
+                    step_type,
+                    format!("{}超时，超过{}ms", label, timeout_ms),
+                ));
+            }
+            let slice = remaining.min(Duration::from_millis(WAIT_TIMEOUT_CHECK_SLICE_MS));
+            tokio::select! {
+                result = &mut task => {
+                    return match result {
+                        Ok(Ok(value)) => Ok(value),
+                        Ok(Err(error)) => Err(Self::execute_error(step_type, error)),
+                        Err(error) => Err(Self::execute_error(
+                            step_type,
+                            format!("{}任务执行失败: {}", label, error),
+                        )),
+                    };
+                }
+                _ = tokio::time::sleep(slice) => {}
+            }
         }
     }
 

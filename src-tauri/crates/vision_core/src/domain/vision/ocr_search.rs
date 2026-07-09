@@ -1,7 +1,6 @@
 use crate::domain::vision::result::{BoundingBox, DetResult, OcrResult, StablePoint};
 use crate::infrastructure::vision::vision_error::VisionResult;
 use aho_corasick::AhoCorasick;
-use image::RgbaImage;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -102,59 +101,38 @@ pub struct VisionSnapshot {
     pub layout_items: Vec<VisionLayoutItem>,
     /// 位置比较使用的网格挡位。
     pub signature_grid_size: u16,
-
-    pub capture: Option<RgbaImage>,
 }
 
 impl VisionSnapshot {
-    pub fn new(
-        mut ocr_results: Vec<OcrResult>,
-        mut det_results: Vec<DetResult>,
-        image: Option<RgbaImage>,
-        signature_grid_size: u16,
-    ) -> VisionResult<Self> {
+    pub fn new(mut det_results: Vec<DetResult>, signature_grid_size: u16) -> VisionResult<Self> {
         let grid_size = signature_grid_size.max(1);
-        for item in &mut ocr_results {
-            item.stable_box = item.bounding_box.to_stable_box(grid_size);
-            item.stable_center = item.bounding_box.to_stable_center(grid_size);
-        }
-        for item in &mut det_results {
-            item.stable_box = item.bounding_box.to_stable_box(grid_size);
-            item.stable_center = item.bounding_box.to_stable_center(grid_size);
-        }
-
-        ocr_results.sort_by(compare_ocr_items);
+        normalize_det_items(&mut det_results, grid_size);
         det_results.sort_by(compare_det_items);
 
-        let mut buffer = String::new();
-        let mut offset_map = Vec::new();
-
-        // 仅将 OCR 文本写入搜索缓冲区
-        for (idx, ocr) in ocr_results.iter().enumerate() {
-            let start_offset = buffer.len();
-
-            // 写入颜色标记 (如果有图像)
-            /*if let Some(img) = image {
-                if let Ok((bg, fg)) = ColorAnalyzer::analyze_box(img, &ocr.bounding_box) {
-                    buffer.push_str(&format!("__BG:{}__ __FG:{}__ ", bg.as_str(), fg.as_str()));
-                }
-            }*/
-
-            // 写入 OCR 文本内容
-            buffer.push_str(&ocr.txt);
-            buffer.push('\n'); // 换行作为分隔符
-            offset_map.push((start_offset, idx));
-        }
-
         Ok(Self {
-            buffer,
-            offset_map,
-            layout_items: build_layout_items(&ocr_results, &det_results),
-            ocr_items: ocr_results,
+            buffer: String::new(),
+            offset_map: Vec::new(),
+            layout_items: build_layout_items(&[], &det_results),
+            ocr_items: Vec::new(),
             det_items: det_results,
             signature_grid_size: grid_size,
-            capture: image,
         })
+    }
+
+    pub fn with_ocr_results(mut self, ocr_results: Vec<OcrResult>) -> VisionResult<Self> {
+        self.set_ocr_results(ocr_results)?;
+        Ok(self)
+    }
+
+    pub fn set_ocr_results(&mut self, mut ocr_results: Vec<OcrResult>) -> VisionResult<()> {
+        normalize_ocr_items(&mut ocr_results, self.signature_grid_size);
+        ocr_results.sort_by(compare_ocr_items);
+        let (buffer, offset_map) = build_ocr_buffer(&ocr_results);
+        self.layout_items = build_layout_items(&ocr_results, &self.det_items);
+        self.buffer = buffer;
+        self.offset_map = offset_map;
+        self.ocr_items = ocr_results;
+        Ok(())
     }
 
     /// 根据字符偏移量查找关联的 OcrResult
@@ -168,6 +146,34 @@ impl VisionSnapshot {
             .get(idx)
             .and_then(|(_, item_idx)| self.ocr_items.get(*item_idx).map(|item| (*item_idx, item)))
     }
+}
+
+fn normalize_ocr_items(items: &mut [OcrResult], grid_size: u16) {
+    for item in items {
+        item.stable_box = item.bounding_box.to_stable_box(grid_size);
+        item.stable_center = item.bounding_box.to_stable_center(grid_size);
+    }
+}
+
+fn normalize_det_items(items: &mut [DetResult], grid_size: u16) {
+    for item in items {
+        item.stable_box = item.bounding_box.to_stable_box(grid_size);
+        item.stable_center = item.bounding_box.to_stable_center(grid_size);
+    }
+}
+
+fn build_ocr_buffer(ocr_results: &[OcrResult]) -> (String, Vec<(usize, usize)>) {
+    let mut buffer = String::new();
+    let mut offset_map = Vec::new();
+
+    for (idx, ocr) in ocr_results.iter().enumerate() {
+        let start_offset = buffer.len();
+        buffer.push_str(&ocr.txt);
+        buffer.push('\n');
+        offset_map.push((start_offset, idx));
+    }
+
+    (buffer, offset_map)
 }
 
 /// 逻辑判定操作符
@@ -451,7 +457,6 @@ mod tests {
                 "Confirm".to_string(),
                 vec![0.9],
                 vec![0],
-                vec!["C".into()],
                 8,
             ),
             OcrResult::new(
@@ -459,7 +464,6 @@ mod tests {
                 "Cancel".to_string(),
                 vec![0.85],
                 vec![1],
-                vec!["C".into()],
                 8,
             ),
         ];
@@ -472,7 +476,10 @@ mod tests {
         )];
 
         // 构建快照 (不带图像则不分析颜色)
-        let snapshot = VisionSnapshot::new(ocr, det.clone(), None, 8).unwrap();
+        let snapshot = VisionSnapshot::new(det.clone(), 8)
+            .unwrap()
+            .with_ocr_results(ocr)
+            .unwrap();
 
         // 验证缓冲区中不包含 YOLO 标记
         assert!(!snapshot.buffer.contains("__OBJ:"));
@@ -513,7 +520,10 @@ mod tests {
             8,
         )];
 
-        let snapshot = VisionSnapshot::new(ocr, det.clone(), None, 8).unwrap();
+        let snapshot = VisionSnapshot::new(det.clone(), 8)
+            .unwrap()
+            .with_ocr_results(ocr)
+            .unwrap();
 
         // 纯 YOLO 规则
         let rule = SearchRule::DetLabel { idx: 3 };
@@ -537,7 +547,7 @@ mod tests {
             items: vec![SearchRule::DetLabel { idx: 3 }],
         };
 
-        let _ = VisionSnapshot::new(vec![], det.clone(), None, 8).unwrap();
+        let _ = VisionSnapshot::new(det.clone(), 8).unwrap();
         assert!(rule.evaluate(&[], &det));
     }
 
@@ -548,10 +558,12 @@ mod tests {
             "Hello Hello".to_string(),
             vec![0.9, 0.9],
             vec![0, 1],
-            vec!["H".into()],
             8,
         )];
-        let snapshot = VisionSnapshot::new(ocr, vec![], None, 8).unwrap();
+        let snapshot = VisionSnapshot::new(vec![], 8)
+            .unwrap()
+            .with_ocr_results(ocr)
+            .unwrap();
 
         let rule = SearchRule::Txt {
             pattern: "Hello".into(),

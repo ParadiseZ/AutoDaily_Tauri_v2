@@ -162,7 +162,9 @@ impl WindowInfo {
                 wait_timeout_ms,
             ) {
                 Ok(image) => return Self::crop_title_bar(image, title_bar_height_px),
-                Err(error) if Self::is_dxgi_wait_error(&error) && started.elapsed() < frame_timeout => {
+                Err(error)
+                    if Self::is_dxgi_wait_error(&error) && started.elapsed() < frame_timeout =>
+                {
                     continue;
                 }
                 Err(error) if Self::is_dxgi_wait_error(&error) => {
@@ -292,8 +294,8 @@ impl WindowInfo {
 #[cfg(test)]
 mod tests {
     use super::{WindowCaptureConfig, WindowCaptureInterface, WindowInfo};
-    use std::{env, fs, path::PathBuf};
     use std::time::{Duration, Instant};
+    use std::{env, fs, path::PathBuf};
     use tokio::runtime::Builder;
 
     fn read_test_config() -> (String, usize) {
@@ -325,17 +327,16 @@ mod tests {
 
     fn save_capture(label: &str, image: &image::RgbaImage) {
         let dir = output_dir();
-        fs::create_dir_all(&dir).unwrap_or_else(|error| {
-            panic!("创建截图输出目录失败 {}: {error}", dir.display())
-        });
+        fs::create_dir_all(&dir)
+            .unwrap_or_else(|error| panic!("创建截图输出目录失败 {}: {error}", dir.display()));
         let path = dir.join(format!("window_capture_{label}.png"));
-        image.save(&path)
+        image
+            .save(&path)
             .unwrap_or_else(|error| panic!("保存截图失败 {}: {error}", path.display()));
         println!("saved_capture label={} path={}", label, path.display());
     }
 
-    fn measure_capture<F>(label: &str, rounds: usize, mut capture: F)
-        -> image::RgbaImage
+    fn measure_capture<F>(label: &str, rounds: usize, mut capture: F) -> image::RgbaImage
     where
         F: FnMut() -> image::RgbaImage,
     {

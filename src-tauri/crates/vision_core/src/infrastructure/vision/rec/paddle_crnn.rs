@@ -722,7 +722,6 @@ impl TextRecognizer for PaddleRecCrnn {
         }
 
         let mut result_text = String::new();
-        let mut chars = Vec::new();
         let mut scores = Vec::new();
         let mut indexes = Vec::new();
         let blank_idx = class_num - 1;
@@ -745,7 +744,6 @@ impl TextRecognizer for PaddleRecCrnn {
                     scores.push(max_prob);
                     indexes.push(max_idx - 1);
                     result_text.push_str(char);
-                    chars.push(char.into())
                 }
             }
         }
@@ -756,7 +754,6 @@ impl TextRecognizer for PaddleRecCrnn {
             txt: result_text,
             score: scores,
             index: indexes,
-            txt_char: chars,
         };
         Ok(ocr_result)
     }

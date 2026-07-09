@@ -495,7 +495,7 @@ export const useDeviceStore = defineStore('device', () => {
         if (phase === 'failed' || phase === 'deviceDisconnected') tone = 'danger';
         else if (phase === 'childProcessExited' || phase === 'childProcessCrashed') tone = 'danger';
         else if (phase === 'completed' || phase === 'deviceConnected') tone = 'success';
-        else if (phase === 'paused') tone = 'warning';
+        else if (phase === 'paused' || phase === 'stopping') tone = 'warning';
         else if (
             phase &&
             activeRuntimeProgressPhases.has(phase)

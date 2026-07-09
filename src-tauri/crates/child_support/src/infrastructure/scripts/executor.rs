@@ -310,8 +310,16 @@ impl ScriptExecutor {
         self.scope.clear();
     }
 
+    fn stop_requested_flow() -> Option<ControlFlow> {
+        crate::infrastructure::context::child_process_sec::stop_requested()
+            .then_some(ControlFlow::StopScript)
+    }
+
     pub async fn execute(&mut self, steps: &[Step]) -> ExecuteResult<ControlFlow> {
         for step in steps {
+            if let Some(flow) = Self::stop_requested_flow() {
+                return Ok(flow);
+            }
             match self.execute_step(step).await? {
                 ControlFlow::Next => continue,
                 ControlFlow::Continue => return Ok(ControlFlow::Continue),
@@ -329,6 +337,9 @@ impl ScriptExecutor {
         step: &'a Step,
     ) -> Pin<Box<dyn Future<Output = ExecuteResult<ControlFlow>> + 'a>> {
         Box::pin(async move {
+            if let Some(flow) = Self::stop_requested_flow() {
+                return Ok(flow);
+            }
             if step.skip_flag {
                 let step_name = self.resolve_step_display_name(step).await;
                 self.log_step_debug("skip", step, &step_name, Some("skip_flag=true"));
@@ -413,11 +424,17 @@ impl ScriptExecutor {
     }
 
     async fn execute_sequence(&mut self, steps: &[Step]) -> ExecuteResult<ControlFlow> {
+        if let Some(flow) = Self::stop_requested_flow() {
+            return Ok(flow);
+        }
         if let Some(flow) = self.try_execute_action_sequence(steps).await? {
             return Ok(flow);
         }
 
         for step in steps {
+            if let Some(flow) = Self::stop_requested_flow() {
+                return Ok(flow);
+            }
             let flow = self.execute_step(step).await?;
             if !matches!(flow, ControlFlow::Next) {
                 return Ok(flow);

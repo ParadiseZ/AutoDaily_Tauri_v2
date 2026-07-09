@@ -10,6 +10,7 @@ static RUNNING: AtomicU8 = AtomicU8::new(RunningStatus::Unknown as u8);
 static IPC_CLIENT: OnceLock<Arc<IpcClient>> = OnceLock::new();
 static IPC_CLIENT_STARTED: AtomicBool = AtomicBool::new(false);
 static CANCEL_TOKEN: OnceLock<tokio_util::sync::CancellationToken> = OnceLock::new();
+static STOP_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 pub fn is_idle() -> bool {
     RUNNING.load(Ordering::Acquire) == RunningStatus::Idle as u8
@@ -24,7 +25,7 @@ pub fn get_running_status() -> RunningStatus {
 }
 
 pub fn process_need_stop() -> bool {
-    matches!(RUNNING.load(Ordering::Acquire), 4 | 5 | 6)
+    matches!(RUNNING.load(Ordering::Acquire), 4 | 5)
 }
 
 pub fn init_ipc_client(device_id: Arc<DeviceId>, log_level: LogLevel) -> InitResult<()> {
@@ -68,4 +69,16 @@ pub fn trigger_cancel() {
     if let Some(token) = CANCEL_TOKEN.get() {
         token.cancel();
     }
+}
+
+pub fn request_stop_execution() {
+    STOP_REQUESTED.store(true, Ordering::Release);
+}
+
+pub fn clear_stop_request() {
+    STOP_REQUESTED.store(false, Ordering::Release);
+}
+
+pub fn stop_requested() -> bool {
+    STOP_REQUESTED.load(Ordering::Acquire)
 }

@@ -279,7 +279,10 @@ mod imp {
                 .AcquireNextFrame(wait_timeout_ms, &mut frame_info, &mut resource)
                 .map_err(|error| {
                     if error.code() == DXGI_ERROR_WAIT_TIMEOUT {
-                        format!("DXGI AcquireNextFrame timeout: {}ms 内没有等到新的桌面帧", wait_timeout_ms)
+                        format!(
+                            "DXGI AcquireNextFrame timeout: {}ms 内没有等到新的桌面帧",
+                            wait_timeout_ms
+                        )
                     } else {
                         format!("DXGI AcquireNextFrame failed: {error}")
                     }

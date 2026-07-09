@@ -225,7 +225,8 @@ impl ScriptExecutor {
                 .await?,
             None => default_det,
         };
-        let snapshot = VisionSnapshot::new(ocr_results, det_results, None, grid_size)
+        let snapshot = VisionSnapshot::new(det_results, grid_size)
+            .and_then(|snapshot| snapshot.with_ocr_results(ocr_results))
             .map_err(|error| Self::execute_error(step_type, format!("构建视觉快照失败: {}", error)))?;
         let searcher = OcrSearcher::new(std::slice::from_ref(rule));
         let hits = searcher.search(&snapshot);

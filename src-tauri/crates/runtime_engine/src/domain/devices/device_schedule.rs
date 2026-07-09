@@ -32,6 +32,7 @@ pub enum TaskCycle {
 pub enum RunStatus {
     Success,
     Failed,
+    Stopped,
     Skipped,
 }
 

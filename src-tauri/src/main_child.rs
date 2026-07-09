@@ -2,7 +2,7 @@ use child_support::infrastructure::context::child_process::{
     init_environment, ChildProcessInitData,
 };
 use child_support::infrastructure::context::child_process_sec::{
-    get_running_status, process_need_stop, set_running_status, RunningStatus,
+    clear_stop_request, get_running_status, process_need_stop, set_running_status, RunningStatus,
 };
 use child_support::infrastructure::context::init_error::InitError;
 use child_support::infrastructure::core::{Deserialize, Error, Serialize};
@@ -11,6 +11,7 @@ use child_support::infrastructure::ipc::message::RuntimeDispatchPhase;
 use child_support::infrastructure::ipc::message::RuntimeLifecyclePhase;
 use child_support::infrastructure::ipc::runtime_reporter::{
     emit_connection_event_now, emit_dispatch_event, emit_lifecycle_event, emit_lifecycle_event_now,
+    emit_progress_event,
 };
 use child_support::infrastructure::logging::log_trait::Log;
 use child_support::infrastructure::scripts::scheduler::{get_scheduler, init_scheduler};
@@ -138,7 +139,7 @@ async fn run_child_process() -> ChildProcessResult<()> {
 /// 子进程主循环
 /// - Idle 状态：等待主进程发来的消息（通过 IPC 接收，由 chanel_client 的 recv_loop 处理）
 /// - Running 状态：执行脚本调度
-/// - Stopping 状态：退出循环
+/// - Stopping 状态：等待当前执行自行收尾后回到 Idle
 async fn run_main_loop(cancel_token: CancellationToken) {
     loop {
         // 检查是否需要停止
@@ -192,7 +193,33 @@ async fn run_main_loop(cancel_token: CancellationToken) {
                     } => {}
                 }
             }
-            RunningStatus::Stopping | RunningStatus::Stopped | RunningStatus::Error => {
+            RunningStatus::Stopping => {
+                let should_finalize = get_scheduler()
+                    .map(|scheduler| scheduler.current_script_snapshot().is_none())
+                    .unwrap_or(true);
+                if should_finalize {
+                    if let Some(scheduler) = get_scheduler() {
+                        scheduler.clear_queue().await;
+                    }
+                    clear_stop_request();
+                    set_running_status(RunningStatus::Idle);
+                    emit_progress_event(
+                        child_support::infrastructure::ipc::message::RuntimeProgressPhase::Idle,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some("停止完成，已回到待命状态".to_string()),
+                    );
+                    emit_lifecycle_event(
+                        RuntimeLifecyclePhase::Idle,
+                        Some("停止完成，已回到待命状态".to_string()),
+                    );
+                } else {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                }
+            }
+            RunningStatus::Stopped | RunningStatus::Error => {
                 Log::info(&format!("[ child ] 状态为 {:?}，退出主循环", status));
                 break;
             }

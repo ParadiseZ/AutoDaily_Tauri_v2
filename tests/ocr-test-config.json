@@ -44,5 +44,7 @@
     }
   },
   "imagePath": "D:\\Database\\Project\\YOLO\\AutoDailyTKFM\\all_images\\0044.jpg",
-  "printRes":false
+  "printRes":false,
+  "useCacheResults":true,
+  "cacheFilePath":"D:\\Database\\Project\\VisualStudioCode\\AutoDaily\\tests\\ocr_cache.txt"
 }

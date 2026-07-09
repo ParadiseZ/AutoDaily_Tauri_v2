@@ -49,7 +49,6 @@ fn build_ocr_result(txt: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> OcrResult 
         txt.to_string(),
         vec![0.9],
         vec![1],
-        vec![txt.to_string()],
         8,
     )
 }
@@ -884,13 +883,10 @@ async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration
     {
         let mut ctx = executor.runtime_ctx.write().await;
         ctx.observation.last_snapshot = Some(
-            VisionSnapshot::new(
-                vec![build_ocr_result("开始", 0, 0, 30, 12)],
-                Vec::new(),
-                None,
-                8,
-            )
-            .unwrap(),
+            VisionSnapshot::new(Vec::new(), 8)
+                .unwrap()
+                .with_ocr_results(vec![build_ocr_result("开始", 0, 0, 30, 12)])
+                .unwrap(),
         );
     }
 
@@ -954,13 +950,10 @@ async fn policy_before_action_runs_even_when_condition_misses() {
     {
         let mut ctx = executor.runtime_ctx.write().await;
         ctx.observation.last_snapshot = Some(
-            VisionSnapshot::new(
-                vec![build_ocr_result("未命中", 0, 0, 30, 12)],
-                Vec::new(),
-                None,
-                8,
-            )
-            .unwrap(),
+            VisionSnapshot::new(Vec::new(), 8)
+                .unwrap()
+                .with_ocr_results(vec![build_ocr_result("未命中", 0, 0, 30, 12)])
+                .unwrap(),
         );
     }
 
@@ -1176,13 +1169,10 @@ async fn vision_search_path_triggers_timeout_detector() {
     let _guard = acquire_runtime_session_test_guard().await;
     install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
     let mut executor = build_executor();
-    let snapshot = VisionSnapshot::new(
-        vec![build_ocr_result("开始", 0, 0, 24, 12)],
-        Vec::new(),
-        None,
-        8,
-    )
-    .unwrap();
+    let snapshot = VisionSnapshot::new(Vec::new(), 8)
+        .unwrap()
+        .with_ocr_results(vec![build_ocr_result("开始", 0, 0, 24, 12)])
+        .unwrap();
     let page_fingerprint = super::ScriptExecutor::build_page_fingerprint(&snapshot);
     executor.last_progress_probe = Some(super::ProgressProbe {
         page_fingerprint: Some(page_fingerprint),
@@ -1223,13 +1213,10 @@ async fn task_control_progress_probe_does_not_reuse_cached_page_fingerprint() {
     let _guard = acquire_runtime_session_test_guard().await;
     install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
     let mut executor = build_executor();
-    let snapshot = VisionSnapshot::new(
-        vec![build_ocr_result("开始", 0, 0, 24, 12)],
-        Vec::new(),
-        None,
-        8,
-    )
-    .unwrap();
+    let snapshot = VisionSnapshot::new(Vec::new(), 8)
+        .unwrap()
+        .with_ocr_results(vec![build_ocr_result("开始", 0, 0, 24, 12)])
+        .unwrap();
     {
         let mut ctx = executor.runtime_ctx.write().await;
         ctx.observation.last_snapshot = Some(snapshot);

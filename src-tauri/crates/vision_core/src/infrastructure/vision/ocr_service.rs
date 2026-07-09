@@ -196,9 +196,10 @@ impl Default for OcrService {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::vision::result::{BoundingBox, OcrResult};
     use crate::infrastructure::image::crop_image::get_crop_images;
     use crate::infrastructure::image::load_image::load_img_from_path;
-    use serde::Deserialize;
+    use serde::{Deserialize, Serialize};
     use std::collections::HashMap;
     use std::hash::Hasher;
     use std::io::Read;
@@ -221,17 +222,14 @@ mod tests {
         cache_file_path: Option<String>,
     }
 
-    #[derive(Debug, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    struct TestCacheDocument {
-        entries: Vec<TestCacheEntry>,
-    }
-
-    #[derive(Debug, Deserialize)]
-    #[serde(rename_all = "camelCase")]
+    #[derive(Debug, Clone, PartialEq, Eq)]
     struct TestCacheEntry {
-        cache_key: String,
-        ocr_result: Option<OcrResult>,
+        key: String,
+        x1: u32,
+        y1: u32,
+        x2: u32,
+        y2: u32,
+        txt: String,
     }
 
     fn required_env(name: &str) -> String {
@@ -292,33 +290,166 @@ mod tests {
     fn test_cache_key(image: &DynamicImage, rec_model_signature: &str) -> String {
         let rgba = image.to_rgba8();
         let mut hasher = XxHash3_64::default();
-        hasher.write(b"ocr-text:v1");
+        hasher.write(b"1");
         write_hash_segment(&mut hasher, rec_model_signature.as_bytes());
         hasher.write(&rgba.width().to_le_bytes());
         hasher.write(&rgba.height().to_le_bytes());
         write_hash_segment(&mut hasher, rgba.as_raw());
-        format!("ocr-text:v1:{:016x}", hasher.finish())
+        format!("1:{:016x}", hasher.finish())
+    }
+
+    fn test_cache_entry_to_ocr_result(entry: TestCacheEntry) -> OcrResult {
+        OcrResult::new(
+            BoundingBox::new(
+                entry.x1 as i32,
+                entry.y1 as i32,
+                entry.x2 as i32,
+                entry.y2 as i32,
+            ),
+            entry.txt,
+            Vec::new(),
+            Vec::new(),
+            1,
+        )
+    }
+
+    fn ocr_result_to_test_cache_entry(cache_key: &str, ocr_result: &OcrResult) -> TestCacheEntry {
+        TestCacheEntry {
+            key: cache_key.to_string(),
+            x1: ocr_result.bounding_box.x1.max(0) as u32,
+            y1: ocr_result.bounding_box.y1.max(0) as u32,
+            x2: ocr_result.bounding_box.x2.max(0) as u32,
+            y2: ocr_result.bounding_box.y2.max(0) as u32,
+            txt: ocr_result.txt.clone(),
+        }
+    }
+
+    fn quote_field(value: &str) -> String {
+        let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+        format!("\"{}\"", escaped)
+    }
+
+    fn parse_quoted_field(value: &str) -> String {
+        let mut output = String::new();
+        let mut escaped = false;
+        for ch in value[1..value.len() - 1].chars() {
+            if escaped {
+                output.push(ch);
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else {
+                output.push(ch);
+            }
+        }
+        output
+    }
+
+    fn split_cache_line(line: &str) -> Vec<String> {
+        let mut fields = Vec::new();
+        let mut current = String::new();
+        let mut in_quotes = false;
+        let mut escaped = false;
+        for ch in line.chars() {
+            if escaped {
+                current.push(ch);
+                escaped = false;
+                continue;
+            }
+            match ch {
+                '\\' if in_quotes => {
+                    current.push(ch);
+                    escaped = true;
+                }
+                '"' => {
+                    in_quotes = !in_quotes;
+                    current.push(ch);
+                }
+                ',' if !in_quotes => {
+                    fields.push(current.trim().to_string());
+                    current.clear();
+                }
+                _ => current.push(ch),
+            }
+        }
+        fields.push(current.trim().to_string());
+        fields
+    }
+
+    fn parse_test_cache_entry(line: &str) -> TestCacheEntry {
+        let fields = split_cache_line(line);
+        assert_eq!(fields.len(), 6, "cache line should have 6 fields");
+        TestCacheEntry {
+            key: parse_quoted_field(&fields[0]),
+            x1: fields[1].parse().expect("x1 should be u32"),
+            y1: fields[2].parse().expect("y1 should be u32"),
+            x2: fields[3].parse().expect("x2 should be u32"),
+            y2: fields[4].parse().expect("y2 should be u32"),
+            txt: parse_quoted_field(&fields[5]),
+        }
+    }
+
+    fn format_test_cache_entry(entry: &TestCacheEntry) -> String {
+        format!(
+            "{},{},{},{},{},{}",
+            quote_field(&entry.key),
+            entry.x1,
+            entry.y1,
+            entry.x2,
+            entry.y2,
+            quote_field(&entry.txt)
+        )
     }
 
     fn load_test_cache_map(cache_file_path: &str) -> HashMap<String, OcrResult> {
+        let cache_path = Path::new(cache_file_path);
+        if !cache_path.exists() {
+            if let Some(parent) = cache_path.parent() {
+                std::fs::create_dir_all(parent).unwrap_or_else(|error| {
+                    panic!(
+                        "failed to create cache dir for '{}': {}",
+                        cache_file_path, error
+                    )
+                });
+            }
+            std::fs::write(cache_path, "").unwrap_or_else(|error| {
+                panic!(
+                    "failed to create empty cache file '{}': {}",
+                    cache_file_path, error
+                )
+            });
+        }
         let text = std::fs::read_to_string(cache_file_path).unwrap_or_else(|error| {
             panic!("failed to read cache file '{}': {}", cache_file_path, error)
         });
-        let document: TestCacheDocument = serde_json::from_str(&text).unwrap_or_else(|error| {
+        text.lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(parse_test_cache_entry)
+            .into_iter()
+            .map(|entry| {
+                let key = entry.key.clone();
+                (key, test_cache_entry_to_ocr_result(entry))
+            })
+            .collect()
+    }
+
+    fn write_test_cache_map(cache_file_path: &str, cache_store: &HashMap<String, OcrResult>) {
+        let mut entries = cache_store
+            .iter()
+            .map(|(cache_key, ocr_result)| ocr_result_to_test_cache_entry(cache_key, ocr_result))
+            .collect::<Vec<_>>();
+        entries.sort_by(|left, right| left.key.cmp(&right.key));
+        let text = entries
+            .iter()
+            .map(format_test_cache_entry)
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(cache_file_path, text).unwrap_or_else(|error| {
             panic!(
-                "failed to parse cache file '{}': {}",
+                "failed to write cache file '{}': {}",
                 cache_file_path, error
             )
         });
-        document
-            .entries
-            .into_iter()
-            .filter_map(|entry| {
-                entry
-                    .ocr_result
-                    .map(|ocr_result| (entry.cache_key, ocr_result))
-            })
-            .collect()
     }
 
     #[tokio::test]
@@ -398,13 +529,15 @@ mod tests {
             let cache_file_path = config.cache_file_path.as_deref().unwrap_or_else(|| {
                 panic!("cacheFilePath is required when useCacheResults is true")
             });
-            let cache_store = load_test_cache_map(cache_file_path);
+            println!("ocr cache file: {}", cache_file_path);
+            let mut cache_store = load_test_cache_map(cache_file_path);
             let cropped_images = get_crop_images(&image, &det_results)
                 .expect("failed to crop OCR images for cache test");
 
             let cache_lookup_start = Instant::now();
             let mut hit_count = 0_usize;
             let mut merged_results = vec![None; det_results.len()];
+            let mut missing_cache_keys = Vec::new();
             let mut missing_indices = Vec::new();
             let mut missing_det_results = Vec::new();
             let mut missing_crops = Vec::new();
@@ -418,6 +551,7 @@ mod tests {
                     hit_count += 1;
                     merged_results[idx] = Some(cached);
                 } else {
+                    missing_cache_keys.push(cache_key);
                     missing_indices.push(idx);
                     missing_det_results.push(det_result.clone());
                     missing_crops.push(crop_image);
@@ -427,11 +561,15 @@ mod tests {
                 .recognize_crops(missing_crops, &missing_det_results)
                 .expect("recognize_crops should run for uncached OCR results");
             for (offset, ocr_result) in miss_results.into_iter().enumerate() {
+                if let Some(cache_key) = missing_cache_keys.get(offset) {
+                    cache_store.insert(cache_key.clone(), ocr_result.clone());
+                }
                 if let Some(original_index) = missing_indices.get(offset).copied() {
                     merged_results[original_index] = Some(ocr_result);
                 }
             }
             let cached_results: Vec<_> = merged_results.into_iter().flatten().collect();
+            write_test_cache_map(cache_file_path, &cache_store);
             cache_lookup_elapsed = Some(cache_lookup_start.elapsed());
             cache_hit_count = Some(hit_count);
             cache_miss_count = Some(missing_indices.len());
@@ -514,9 +652,8 @@ mod tests {
             }
             for (idx, item) in ocr_results.iter().enumerate() {
                 println!(
-                    "#{idx}: txt='{}' chars={:?} score={:?} box=({}, {}, {}, {})",
+                    "#{idx}: txt='{}' score={:?} box=({}, {}, {}, {})",
                     item.txt,
-                    item.txt_char,
                     item.score,
                     item.bounding_box.x1,
                     item.bounding_box.y1,

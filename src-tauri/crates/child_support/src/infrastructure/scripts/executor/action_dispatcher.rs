@@ -273,8 +273,14 @@ impl<'a> ActionRunner<'a> {
             return Ok(None);
         };
 
+        if let Some(flow) = ScriptExecutor::stop_requested_flow() {
+            return Ok(Some(flow));
+        }
         if runtime_policy.action_wait_ms > 0 {
             tokio::time::sleep(Duration::from_millis(runtime_policy.action_wait_ms)).await;
+        }
+        if let Some(flow) = ScriptExecutor::stop_requested_flow() {
+            return Ok(Some(flow));
         }
 
         self.executor
@@ -304,6 +310,10 @@ impl<'a> ActionRunner<'a> {
             return Ok(Some(ControlFlow::Next));
         }
 
+        if let Some(flow) = ScriptExecutor::stop_requested_flow() {
+            return Ok(Some(flow));
+        }
+
         if let Some(timeout_flow) = self
             .executor
             .record_progress_evidence(
@@ -329,6 +339,10 @@ impl<'a> ActionRunner<'a> {
                     format!("执行动作序列失败: {}", error),
                 )
             })?;
+
+        if let Some(flow) = ScriptExecutor::stop_requested_flow() {
+            return Ok(Some(flow));
+        }
 
         for compiled_step in compiled_steps {
             Log::debug(&format!(
