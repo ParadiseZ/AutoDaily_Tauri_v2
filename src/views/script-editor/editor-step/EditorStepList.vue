@@ -63,7 +63,7 @@ import type { Step } from '@/types/bindings/Step';
 import { describeStep, describeStepMeta } from '@/views/script-editor/editor-step/editorStepTemplates';
 import type { EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { ACTION_TYPE, FLOW_TYPE, STEP_OP, TASK_CONTROL_TYPE, VISION_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
-import { Trash2 } from 'lucide-vue-next';
+import { Trash2 } from '@lucide/vue';
 
 const props = withDefaults(defineProps<{
   steps: Step[];

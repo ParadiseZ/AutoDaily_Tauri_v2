@@ -1,0 +1,10 @@
+[package]
+name = "infra-vision-cache"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+domain_vision = { package = "domain-vision", path = "../domain_vision" }
+ad_kernel = { path = "../ad_kernel" }
+serde = { workspace = true }
+thiserror = { workspace = true }

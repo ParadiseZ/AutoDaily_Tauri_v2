@@ -207,7 +207,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorCollectionMoveAction, EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';
-import { ChevronRight, GripVertical, Plus } from 'lucide-vue-next';
+import { ChevronRight, GripVertical, Plus } from '@lucide/vue';
 
 type MenuRect = {
   top: number;

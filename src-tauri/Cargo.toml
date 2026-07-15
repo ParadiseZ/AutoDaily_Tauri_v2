@@ -3,15 +3,15 @@ name = "auto_daily"
 version = "0.1.0"
 description = "A Tauri App"
 authors = ["小口嗦面"]
-edition = "2021"
+edition = "2024"
 default-run = "auto_daily"
 
 [features]
 default = ["child-bin"]
-child-bin = ["dep:child_support"]
+child-bin = ["dep:child_runner"]
 
 [workspace]
-members = [".", "crates/child_support", "crates/runtime_common", "crates/vision_core", "crates/runtime_engine", "crates/window_capture"]
+members = [".", "crates/domain_device", "crates/domain_schedule", "crates/domain_notification", "crates/domain_script", "crates/domain_system", "crates/domain_vision", "crates/runner_protocol", "crates/child_runner", "crates/ad_kernel", "crates/infra_vision", "crates/infra_adb", "crates/infra_device_runtime", "crates/infra_logging", "crates/infra_mail", "crates/infra_sqlite", "crates/infra_vision_cache", "crates/infra_window_capture"]
 resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -27,12 +27,6 @@ resolver = "2"
 name = "auto_daily_lib"
 crate-type = ["cdylib", "rlib"]
 
-[[bin]]
-name = "child"
-path = "src/main_child.rs"
-required-features = ["child-bin"]
-
-
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -44,13 +38,13 @@ crossbeam-channel = "0.5.15"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tracing = "0.1"
-adb_client = { version = "3.1.1", default-features = false, features = ["mdns", "usb"] }
+adb_client = { version = "3.1.1", default-features = false, features = ["framebuffer", "mdns", "usb"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.18.0", features = ["v7", "serde"] }
 serde_yaml = "0.9"
 bincode = { version = "=2.0.1" }
 base64 = "0.22"
-ort = { version = "2.0.0-rc.12", features = ["directml"] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "download-binaries", "tls-rustls", "copy-dylibs", "api-24", "directml"] }
 ndarray = "0.17.2"
 imageproc = { version = "0.26.1", default-features = false, features = ["rayon"] }
 rayon = "1.11.0"
@@ -92,10 +86,23 @@ nix = "0.31.2"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-child_support = { path = "crates/child_support", optional = true }
-runtime_common = { path = "crates/runtime_common" }
-vision_core = { path = "crates/vision_core" }
-runtime_engine = { path = "crates/runtime_engine" }
+domain_device = { package = "domain-device", path = "crates/domain_device" }
+domain_schedule = { package = "domain-schedule", path = "crates/domain_schedule" }
+domain_notification = { package = "domain-notification", path = "crates/domain_notification" }
+domain_script = { package = "domain-script", path = "crates/domain_script" }
+domain_system = { package = "domain-system", path = "crates/domain_system" }
+domain_vision = { package = "domain-vision", path = "crates/domain_vision" }
+child_runner = { path = "crates/child_runner", optional = true }
+infra_sqlite = { package = "infra-sqlite", path = "crates/infra_sqlite" }
+infra_mail = { package = "infra-mail", path = "crates/infra_mail" }
+infra_adb = { package = "infra-adb", path = "crates/infra_adb" }
+infra_device_runtime = { package = "infra-device-runtime", path = "crates/infra_device_runtime" }
+infra_window_capture = { package = "infra-window-capture", path = "crates/infra_window_capture" }
+infra_vision_cache = { package = "infra-vision-cache", path = "crates/infra_vision_cache" }
+runner_protocol = { package = "runner-protocol", path = "crates/runner_protocol" }
+ad_kernel = { path = "crates/ad_kernel" }
+infra_logging = { package = "infra-logging", path = "crates/infra_logging" }
+infra_vision = { package = "infra-vision", path = "crates/infra_vision" }
 #tauri
 tauri = { workspace = true }
 tauri-plugin-opener = { workspace = true }
@@ -113,11 +120,6 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 #erased-serde = "0.4.6"
 
-# 截图
-xcap = { workspace = true }
-#adb_executor = { path = "adb_executor" }
-adb_client = {workspace = true}
-#fs_extra = "1.3"
 # error
 thiserror = { workspace = true}
 #anyhow = "1.0"
@@ -126,6 +128,7 @@ thiserror = { workspace = true}
 tracing = { workspace = true }
 
 tracing-appender = { workspace = true }
+tracing-subscriber = { workspace = true }
 #once_cell = "1.21"
 # time format
 chrono = { workspace = true }
@@ -173,14 +176,10 @@ uuid = { workspace = true }
 
 # 日期口而笑哦
 cron = { workspace = true }
-# 表达式
-rhai = { workspace = true }
 lazy_static = { workspace = true }  #std::sync::OnceLock (自 Rust 1.70 起)，或者 tokio::sync::OnceCell
 #更小的锁等
 #parking_lot = "0.12.4"
 
-# 数据库
-sqlx = { workspace = true }
 num = { workspace = true }
 
 # 字符串搜索

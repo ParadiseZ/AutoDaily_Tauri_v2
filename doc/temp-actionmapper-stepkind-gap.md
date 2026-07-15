@@ -7,8 +7,8 @@
 - 安卓项目来源：`D:\Database\Project\AndroidStudio\AutoDaily\app\src\main\java\com\smart\autodaily\handler\ActionMapper.kt`
 - 安卓动作常量：`D:\Database\Project\AndroidStudio\AutoDaily\app\src\main\java\com\smart\autodaily\constant\ActionString.kt`
 - 安卓运行语义补充：`RunScript.kt`、`RunScriptExtension.kt`、`command\CommandImpl.kt`
-- 当前项目步骤模型：`src-tauri/crates/runtime_engine/src/domain/scripts/script_decision.rs`
-- 当前项目 Action / Flow / TaskControl：`src-tauri/crates/runtime_engine/src/domain/scripts/nodes/*.rs`
+- 当前项目步骤模型：`src-tauri/crates/domain_script/src/step.rs`
+- 当前项目 Action / Flow / TaskControl：`src-tauri/crates/domain_script/src/action.rs`、`flow_control.rs`、`task_control.rs`
 - 当前前端模板：`src/views/script-editor/editor-step/editorStepTemplates.ts`、`editorStepKinds.ts`
 
 安卓项目没有 `StepKind`。这里比较的是：安卓 `ActionMapper` 映射出来的操作能力，当前项目是否已经能通过 `StepKind` 下的 `action`、`flowControl`、`taskControl`、`vision`、`dataHanding` 表达并执行。

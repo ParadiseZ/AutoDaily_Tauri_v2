@@ -276,6 +276,7 @@
 import { computed, ref, watch } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { Action } from '@/types/bindings/Action';
+import type { JsonValue } from '@/types/app/domain';
 import type { CompareOp } from '@/types/bindings/CompareOp';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { DataHanding } from '@/types/bindings/DataHanding';
@@ -1487,7 +1488,7 @@ const updateSetVarJson = (value: string) => {
       step.a = {
         ...step.a,
         val: null,
-        json_val: parsed,
+        json_val: parsed as JsonValue,
         expr: null,
       };
     });

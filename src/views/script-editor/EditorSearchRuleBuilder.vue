@@ -136,7 +136,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import { Trash2 } from 'lucide-vue-next';
+import { Trash2 } from '@lucide/vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EmptyState from '@/components/shared/EmptyState.vue';

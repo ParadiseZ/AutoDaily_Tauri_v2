@@ -532,7 +532,7 @@ import { withResolvedReferenceOption } from '@/views/script-editor/editorReferen
 import { FLOW_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { isSameBranchPath, type StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
 import { getVariableOptionSummary, type EditorInputEntry, type EditorInputType, type EditorVariableOption } from '@/views/script-editor/editorVariables';
-import { Trash2 } from 'lucide-vue-next';
+import { Trash2 } from '@lucide/vue';
 
 type BindingFlow = Extract<
   FlowControl,

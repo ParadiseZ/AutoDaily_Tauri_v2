@@ -1,7 +1,7 @@
 use crate::app::app_error::{AppError, AppResult};
-use crate::constant::project::MAIN_WINDOW;
-use crate::domain::config::shortcut_conf::ShortCut;
-use crate::infrastructure::logging::log_trait::Log;
+use crate::app::constants::MAIN_WINDOW;
+use crate::infra::logging::log_trait::Log;
+use domain_system::ShortCut;
 use std::str::FromStr;
 use tauri::{AppHandle, Manager, Wry};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutEvent, ShortcutState};

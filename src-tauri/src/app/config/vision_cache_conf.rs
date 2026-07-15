@@ -1,8 +1,6 @@
 use crate::app::app_error::{AppError, AppResult};
-use crate::constant::sys_conf_path::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
-use crate::domain::config::vision_cache_conf::{
-    VisionTextCacheConfig, VisionTextCacheRuntimeConfig,
-};
+use crate::app::constants::{APP_STORE, VISION_TEXT_CACHE_CONFIG_KEY};
+use domain_vision::{VisionTextCacheConfig, VisionTextCacheRuntimeConfig};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 

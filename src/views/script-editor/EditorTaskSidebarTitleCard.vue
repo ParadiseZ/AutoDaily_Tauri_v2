@@ -57,7 +57,7 @@
 </template>
 
 <script setup lang="ts">
-import { ChevronDown, GripVertical } from 'lucide-vue-next';
+import { ChevronDown, GripVertical } from '@lucide/vue';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 
 defineOptions({ name: 'EditorTaskSidebarTitleCard' });

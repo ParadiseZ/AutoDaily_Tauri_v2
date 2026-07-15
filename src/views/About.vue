@@ -105,7 +105,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { Command } from 'lucide-vue-next';
+import { Command } from '@lucide/vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import MarkdownDocumentDialog from '@/components/shared/MarkdownDocumentDialog.vue';

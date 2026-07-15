@@ -1,0 +1,14 @@
+[package]
+name = "runner-protocol"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ad_kernel = { path = "../ad_kernel" }
+domain_device = { package = "domain-device", path = "../domain_device" }
+domain_vision = { package = "domain-vision", path = "../domain_vision" }
+bincode = { workspace = true }
+serde = { workspace = true }
+ts-rs = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }

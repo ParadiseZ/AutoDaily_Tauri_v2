@@ -48,7 +48,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Plus, Trash2 } from 'lucide-vue-next';
+import { Plus, Trash2 } from '@lucide/vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import { getInputTypeLabel, type EditorInputEntry } from '@/views/script-editor/editorVariables';
 

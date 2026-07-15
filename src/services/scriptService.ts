@@ -25,15 +25,6 @@ type RawScriptTable = ScriptTable & {
     };
 };
 
-type ScriptTablePayload = {
-    id: string;
-    data: Omit<ScriptTableRecord['data'], 'verNum' | 'latestVer' | 'downloadCount'> & {
-        verNum: number;
-        latestVer: number;
-        downloadCount: number;
-    };
-};
-
 const DEFAULT_SCRIPT_REQUIRED_FEATURES = ['onnxInference', 'runtime:rhai', 'device:android'];
 
 type ScriptEditorSavePayload = {
@@ -188,7 +179,7 @@ export const scriptService = {
     updateSetGroups: (setId: string, groupIds: string[]) =>
         invoke('update_set_groups_cmd', { setId, groupIds }) as Promise<void>,
     saveEditorBundle: (payload: ScriptEditorSavePayload) =>
-        invoke('save_script_editor_cmd', payload) as Promise<void>,
+        invoke('save_script_editor_cmd', { payload }) as Promise<void>,
     saveLocal: async (script: ScriptTableRecord): Promise<void> => {
         await invoke('save_script_cmd', { script });
     },

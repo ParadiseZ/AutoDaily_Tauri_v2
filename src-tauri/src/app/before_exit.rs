@@ -1,6 +1,6 @@
-use crate::constant::sys_conf_path::APP_STORE;
-use crate::infrastructure::context::child_process_manager::get_process_manager;
-use crate::infrastructure::logging::log_trait::Log;
+use crate::app::constants::APP_STORE;
+use crate::infra::context::child_process_manager::get_process_manager;
+use crate::infra::logging::log_trait::Log;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 

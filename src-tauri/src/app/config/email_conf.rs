@@ -1,7 +1,7 @@
 use crate::app::app_error::{AppError, AppResult};
-use crate::constant::sys_conf_path::{APP_STORE, EMAIL_CONFIG_KEY};
-use crate::domain::config::notice_conf::EmailConfig;
-use runtime_engine::infrastructure::mail::{send_email, EmailMessagePayload};
+use crate::app::constants::{APP_STORE, EMAIL_CONFIG_KEY};
+use domain_notification::EmailConfig;
+use infra_mail::{EmailMessagePayload, send_email};
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
 

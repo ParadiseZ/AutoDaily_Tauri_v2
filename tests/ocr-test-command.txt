@@ -1,7 +1,10 @@
-$env:AUTODAILY_OCR_TEST_CONFIG_PATH="D:\Database\Project\VisualStudioCode\AutoDaily\tests\ocr-test-config.json"
+$env:AUTODAILY_OCR_TEST_CONFIG_PATH="D:\Project\AutoDaily\tests\ocr-test-config.json"
 
-cd D:\\Database\\Project\\VisualStudioCode\\AutoDaily\\src-tauri
+cd D:\\Project\\AutoDaily\\src-tauri
 
-cargo test --config "unstable.build-dir-new-layout=false" -p vision_core detect --release -- --ignored --nocapture
+cargo test -p infra-vision detect --release -- --ignored --nocapture
 
-cargo test --config "unstable.build-dir-new-layout=false" -p vision_core ocr --release -- --ignored --nocapture
+cargo test -p infra-vision ocr --release -- --ignored --nocapture
+
+$env:WINDOW_CAP_TEST_TITLE=""
+cargo test -p infra-window-capture test_capture_timing_for_window_title --release -- --ignored --nocapture

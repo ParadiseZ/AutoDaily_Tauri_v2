@@ -1385,12 +1385,13 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return null;
         }
         case 'save_script_editor_cmd': {
-          const nextScript = applyCurrentScriptCapability(args.script as StoredScriptTable);
+          const payload = args.payload as Record<string, unknown>;
+          const nextScript = applyCurrentScriptCapability(payload.script as StoredScriptTable);
           const existingScript = readState().scripts.find((script) => script.id === nextScript.id) ?? null;
           validateScriptEditable(existingScript, nextScript);
           updateState((current) => {
-            const nextPolicyGroups = Array.isArray(args.policyGroups) ? (args.policyGroups as PolicyGroupTable[]) : [];
-            const nextPolicySets = Array.isArray(args.policySets) ? (args.policySets as PolicySetTable[]) : [];
+            const nextPolicyGroups = Array.isArray(payload.policyGroups) ? (payload.policyGroups as PolicyGroupTable[]) : [];
+            const nextPolicySets = Array.isArray(payload.policySets) ? (payload.policySets as PolicySetTable[]) : [];
             const existingScriptGroupIds = new Set(
               current.policyGroups.filter((group) => group.scriptId === nextScript.id).map((group) => group.id),
             );
@@ -1403,11 +1404,11 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
               scripts: upsertScript(current.scripts, nextScript),
               scriptTasks: {
                 ...current.scriptTasks,
-                [nextScript.id]: Array.isArray(args.tasks) ? (args.tasks as ScriptTaskTable[]) : [],
+                [nextScript.id]: Array.isArray(payload.tasks) ? (payload.tasks as ScriptTaskTable[]) : [],
               },
               policies: [
                 ...current.policies.filter((policy) => policy.scriptId !== nextScript.id),
-                ...(Array.isArray(args.policies) ? (args.policies as PolicyTable[]) : []),
+                ...(Array.isArray(payload.policies) ? (payload.policies as PolicyTable[]) : []),
               ].sort((left, right) => left.orderIndex - right.orderIndex),
               policyGroups: [
                 ...current.policyGroups.filter((group) => group.scriptId !== nextScript.id),
@@ -1421,13 +1422,13 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
                 ...Object.fromEntries(
                   Object.entries(current.groupPolicies).filter(([groupId]) => !existingScriptGroupIds.has(groupId)),
                 ),
-                ...(args.groupPolicyIdsByGroupId as GroupPolicyMap),
+                ...(payload.groupPolicyIdsByGroupId as GroupPolicyMap),
               },
               setGroups: {
                 ...Object.fromEntries(
                   Object.entries(current.setGroups).filter(([setId]) => !existingScriptSetIds.has(setId)),
                 ),
-                ...(args.setGroupIdsBySetId as SetGroupMap),
+                ...(payload.setGroupIdsBySetId as SetGroupMap),
               },
             };
           });

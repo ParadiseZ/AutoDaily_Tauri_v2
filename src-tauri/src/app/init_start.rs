@@ -1,17 +1,16 @@
+use crate::app::config::scripts_conf::ScriptsConfig;
 use crate::app::config::short_cut::register_short_cut_by_config;
-use crate::constant::project::MAIN_WINDOW;
-use crate::constant::sys_conf_path::{
-    APP_STORE, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, SCRIPTS_CONFIG_KEY, SYSTEM_SETTINGS_KEY,
-    VISION_TEXT_CACHE_CONFIG_KEY,
+use crate::app::config::store::get_or_init_config;
+use crate::app::constants::{
+    APP_STORE, EMAIL_CONFIG_KEY, LOG_CONFIG_KEY, MAIN_WINDOW, SCRIPTS_CONFIG_KEY,
+    SYSTEM_SETTINGS_KEY, VISION_TEXT_CACHE_CONFIG_KEY,
 };
-use crate::domain::config::notice_conf::EmailConfig;
-use crate::domain::config::scripts_conf::ScriptsConfig;
-use crate::domain::config::sys_conf::{StartMode, SystemConfig};
-use crate::domain::config::vision_cache_conf::VisionTextCacheConfig;
-use crate::infrastructure::app_handle::init_app_handle;
-use crate::infrastructure::logging::config::LogMain;
-use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::store_local::config_store::get_or_init_config;
+use crate::infra::app_handle::init_app_handle;
+use crate::infra::logging::config::LogMain;
+use crate::infra::logging::log_trait::Log;
+use domain_notification::EmailConfig;
+use domain_system::{StartMode, SystemConfig};
+use domain_vision::VisionTextCacheConfig;
 use std::sync::Arc;
 use tauri::path::BaseDirectory;
 use tauri::{AppHandle, Manager, Wry};
@@ -21,7 +20,11 @@ pub async fn init_at_start(app_handle: &AppHandle) {
     //初始化app_handle
     init_app_handle(app_handle);
     //初始化数据库
-    if let Err(e) = crate::infrastructure::db::init_db(app_handle).await {
+    let db_dir = app_handle
+        .path()
+        .app_data_dir()
+        .expect("解析应用数据目录失败");
+    if let Err(e) = infra_sqlite::init_db_and_migrate_with_path(&db_dir).await {
         panic!("初始化数据库失败: {}", e);
     }
     //初始化store
@@ -43,13 +46,13 @@ pub async fn init_at_start(app_handle: &AppHandle) {
         Err(e) => eprintln!("初始化日志系统失败: {}", e),
     }
     // 初始化子进程日志接收器
-    crate::infrastructure::logging::main_process_log_handler::init_child_log_receiver();
+    crate::infra::logging::main_process_log_handler::init_child_log_receiver();
     // 启动 IPC Server
-    if let Err(e) = crate::infrastructure::ipc::chanel_server::IpcServer::start() {
+    if let Err(e) = crate::infra::ipc::channel_server::IpcServer::start() {
         Log::error(&format!("启动 IPC Server 失败: {}", e));
     }
     // 初始化子进程管理器
-    crate::infrastructure::context::child_process_manager::init_process_manager();
+    crate::infra::context::child_process_manager::init_process_manager();
     // 初始化系统设置
     let sys_conf: SystemConfig = get_or_init_config(store.clone(), SYSTEM_SETTINGS_KEY);
     if let Err(error) = cleanup_expired_schedule_records(&sys_conf).await {
@@ -74,10 +77,8 @@ pub async fn init_at_start(app_handle: &AppHandle) {
 
 async fn cleanup_expired_schedule_records(sys_conf: &SystemConfig) -> Result<(), String> {
     let (assignment_deleted, child_deleted) =
-        crate::api::infrastructure::process_api::cleanup_expired_schedule_records(
-            sys_conf.dispatch_schedule_retention_days,
-        )
-        .await?;
+        infra_sqlite::cleanup_expired_schedule_records(sys_conf.dispatch_schedule_retention_days)
+            .await?;
     Log::info(&format!(
         "启动清理过期调度记录完成: 保留 {} 天, 清理 assignment {} 条, child {} 条",
         sys_conf.dispatch_schedule_retention_days, assignment_deleted, child_deleted

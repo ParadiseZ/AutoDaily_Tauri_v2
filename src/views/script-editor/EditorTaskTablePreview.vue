@@ -166,7 +166,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { ChevronDown } from 'lucide-vue-next';
+import { ChevronDown } from '@lucide/vue';
 import type { TaskCycle } from '@/types/bindings/TaskCycle';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import { parseUiSchema, type EditorUiSchema } from '@/views/script-editor/editorSchema';

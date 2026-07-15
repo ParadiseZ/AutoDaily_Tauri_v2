@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref, shallowRef } from 'vue';
-import { createEditableScript, normalizeScriptTable, scriptService } from '@/services/scriptService';
+import { createEditableScript, scriptService } from '@/services/scriptService';
 import { taskService } from '@/services/taskService';
 import type { ScriptTaskTable } from '@/types/bindings/ScriptTaskTable';
 import type {
@@ -74,7 +74,7 @@ export const useScriptStore = defineStore('script', () => {
     const loadScripts = async () => {
         loading.value = true;
         try {
-            scripts.value = (await scriptService.listLocal()).map(normalizeScriptTable);
+            scripts.value = await scriptService.listLocal();
             if (!selectedScriptId.value && scripts.value.length > 0) {
                 selectedScriptId.value = scripts.value[0].id;
             }

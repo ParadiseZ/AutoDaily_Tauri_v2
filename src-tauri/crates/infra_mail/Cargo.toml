@@ -1,0 +1,11 @@
+[package]
+name = "infra-mail"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+domain_notification = { package = "domain-notification", path = "../domain_notification" }
+lettre = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

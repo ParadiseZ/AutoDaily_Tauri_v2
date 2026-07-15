@@ -1,0 +1,18 @@
+[package]
+name = "infra-sqlite"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+async-trait = { workspace = true }
+domain_device = { package = "domain-device", path = "../domain_device" }
+domain_schedule = { package = "domain-schedule", path = "../domain_schedule" }
+domain_script = { package = "domain-script", path = "../domain_script" }
+ad_kernel = { path = "../ad_kernel" }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+tokio = { workspace = true }
+ts-rs = { workspace = true }
+uuid = { workspace = true }

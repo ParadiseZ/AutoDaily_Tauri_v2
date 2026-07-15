@@ -1,0 +1,1593 @@
+use super::ScriptExecutor;
+use crate::infra::context::runtime_context::RuntimeContext;
+use crate::infra::session::runtime_session::{clear_runtime_session, replace_runtime_session};
+use ad_kernel::ids::{PolicyId, TaskId, UuidV7};
+use domain_device::{DeviceOperation, TimeoutAction};
+use domain_script::PolicyInfo;
+use domain_script::ScriptInfo;
+use domain_script::ScriptTask;
+use domain_script::TaskCycle;
+use domain_script::{
+    Action, ClickMode, ColorCompareMethod, ColorRgb, ConditionNode, CurrentTaskCondition,
+    DataHanding, FlowControl, PointU16, PolicySetResultCompareOp, StateStatus, StateTarget, Step,
+    StepKind, TaskControl, VisionNode,
+};
+use domain_script::{PolicyProfile, ScriptTaskProfile, TaskRowType, TaskTone, TaskTriggerMode};
+use domain_script::{
+    ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace, ScriptVariableSourceType,
+    ScriptVariableValueType,
+};
+use domain_vision::SearchRule;
+use domain_vision::VisionSnapshot;
+use domain_vision::VisionTextCacheRuntimeConfig;
+use domain_vision::{BoundingBox, DetResult, OcrResult};
+use image::{Rgba, RgbaImage};
+use infra_vision::OcrService;
+use rhai::Dynamic;
+use rhai::serde::to_dynamic;
+use runner_protocol::message::{
+    DispatchKind, DispatchSource, RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem,
+    RuntimeSessionSnapshot,
+};
+use serde_json::{Value, json};
+use std::sync::Arc;
+use std::sync::OnceLock;
+use std::time::Instant;
+use tokio::sync::RwLock;
+use tokio::sync::{Mutex, OwnedMutexGuard};
+
+static RUNTIME_SESSION_TEST_MUTEX: OnceLock<Arc<Mutex<()>>> = OnceLock::new();
+
+fn build_ocr_result(txt: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> OcrResult {
+    OcrResult::new(
+        BoundingBox::new(x1, y1, x2, y2),
+        txt.to_string(),
+        vec![0.9],
+        vec![1],
+        8,
+    )
+}
+
+fn build_det_result(index: i32, label: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> DetResult {
+    DetResult::new(
+        BoundingBox::new(x1, y1, x2, y2),
+        index,
+        label.to_string(),
+        0.9,
+        8,
+    )
+}
+
+fn fill_rect(image: &mut RgbaImage, bbox: &BoundingBox, color: [u8; 4]) {
+    for y in bbox.y1..=bbox.y2 {
+        for x in bbox.x1..=bbox.x2 {
+            image.put_pixel(x as u32, y as u32, Rgba(color));
+        }
+    }
+}
+
+#[test]
+fn select_ocr_result_prefers_exact_match_then_contains() {
+    let items = vec![
+        build_ocr_result("开始行动", 0, 0, 40, 20),
+        build_ocr_result("开始", 50, 0, 90, 20),
+    ];
+
+    let exact = ScriptExecutor::select_ocr_result(&items, Some("开始")).unwrap();
+    assert_eq!(exact.txt, "开始");
+
+    let contains = ScriptExecutor::select_ocr_result(&items, Some("行动")).unwrap();
+    assert_eq!(contains.txt, "开始行动");
+}
+
+#[test]
+fn select_ocr_result_uses_position_for_policy_click() {
+    let items = vec![
+        build_ocr_result("开始", 0, 0, 40, 20),
+        build_ocr_result("开始", 50, 0, 90, 20),
+        build_ocr_result("开始", 100, 0, 140, 20),
+    ];
+
+    let matched = ScriptExecutor::select_ocr_result_at(&items, Some("开始"), Some(1)).unwrap();
+    assert_eq!(matched.bounding_box.x1, 50);
+
+    let clamped = ScriptExecutor::select_ocr_result_at(&items, Some("开始"), Some(99)).unwrap();
+    assert_eq!(clamped.bounding_box.x1, 100);
+}
+
+#[test]
+fn select_det_result_matches_label_index() {
+    let items = vec![
+        build_det_result(3, "enemy", 0, 0, 40, 40),
+        build_det_result(7, "ally", 50, 0, 90, 40),
+    ];
+
+    let matched = ScriptExecutor::select_det_result(&items, Some(7)).unwrap();
+    assert_eq!(matched.label, "ally");
+}
+
+#[test]
+fn select_det_result_uses_position_for_duplicate_labels() {
+    let items = vec![
+        build_det_result(7, "button", 0, 0, 40, 40),
+        build_det_result(7, "button", 50, 0, 90, 40),
+        build_det_result(3, "other", 100, 0, 140, 40),
+    ];
+
+    let matched = ScriptExecutor::select_det_result_at(&items, Some(7), Some(1)).unwrap();
+    assert_eq!(matched.bounding_box.x1, 50);
+}
+
+#[test]
+fn vision_count_compare_counts_det_labels() {
+    let items = vec![
+        build_det_result(1, "enemy", 0, 0, 20, 20),
+        build_det_result(1, "enemy", 30, 0, 50, 20),
+        build_det_result(2, "ally", 60, 0, 80, 20),
+    ];
+
+    assert_eq!(ScriptExecutor::count_det_items(&items, Some("enemy")), 2);
+    assert_eq!(ScriptExecutor::count_det_items(&items, Some("all")), 1);
+    assert_eq!(ScriptExecutor::count_det_items(&items, None), 3);
+}
+
+#[test]
+fn vision_count_compare_prefers_exact_ocr_match() {
+    let items = vec![
+        build_ocr_result("开始行动", 0, 0, 40, 20),
+        build_ocr_result("开始", 50, 0, 90, 20),
+        build_ocr_result("开始", 100, 0, 140, 20),
+    ];
+
+    assert_eq!(ScriptExecutor::count_ocr_items(&items, Some("开始")), 2);
+    assert_eq!(ScriptExecutor::count_ocr_items(&items, Some("行动")), 1);
+    assert_eq!(ScriptExecutor::count_ocr_items(&items, None), 3);
+}
+
+#[test]
+fn drop_set_next_cycles_options_and_updates_template_root() {
+    let options = vec!["A".to_string(), "B".to_string(), "C".to_string()];
+    assert_eq!(ScriptExecutor::next_option_value(&options, Some("A")), "B");
+    assert_eq!(ScriptExecutor::next_option_value(&options, Some("C")), "A");
+    assert_eq!(
+        ScriptExecutor::next_option_value(&options, Some("missing")),
+        "A"
+    );
+
+    let mut root = json!({ "taskSettings": {} });
+    ScriptExecutor::set_template_variable_value(&mut root, "var-1", json!("B"));
+    assert_eq!(root["variables"]["var-1"], json!("B"));
+    assert!(root.get("taskSettings").is_some());
+}
+
+#[test]
+fn bounding_box_center_converts_to_device_point() {
+    let point = ScriptExecutor::bounding_box_center_to_point(
+        "action.click",
+        "点击目标",
+        &BoundingBox::new(10, 20, 30, 40),
+    )
+    .unwrap();
+
+    assert_eq!(point.x, 20);
+    assert_eq!(point.y, 30);
+}
+
+#[test]
+fn result_vec_can_be_deserialized_from_dynamic() {
+    let dynamic = to_dynamic(vec![build_ocr_result("开始", 0, 0, 20, 20)]).unwrap();
+    let items = ScriptExecutor::deserialize_dynamic_value::<Vec<OcrResult>>(&dynamic).unwrap();
+
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].txt, "开始");
+}
+
+#[test]
+fn wait_ms_extracts_duration_from_ocr_runtime_items() {
+    let dynamic = to_dynamic(vec![
+        build_ocr_result("剩余 00:12", 0, 0, 20, 20),
+        build_ocr_result("00:00:08", 20, 0, 40, 20),
+    ])
+    .unwrap();
+
+    let wait_ms = ScriptExecutor::extract_wait_ms_from_runtime_ocr(&dynamic).unwrap();
+    assert_eq!(wait_ms, Some(12_000));
+}
+
+#[test]
+fn wait_ms_extracts_duration_from_json_runtime_payload() {
+    let dynamic = to_dynamic(json!([
+        { "text": "广告剩余 00:00:09" }
+    ]))
+    .unwrap();
+
+    let wait_ms = ScriptExecutor::extract_wait_ms_from_runtime_ocr(&dynamic).unwrap();
+    assert_eq!(wait_ms, Some(9_000));
+}
+
+#[test]
+fn wait_ms_parses_input_number_values() {
+    assert_eq!(
+        ScriptExecutor::parse_wait_ms_from_input(&Dynamic::from_int(1_500)),
+        Some(1_500)
+    );
+    assert_eq!(
+        ScriptExecutor::parse_wait_ms_from_input(&Dynamic::from("2000".to_string())),
+        Some(2_000)
+    );
+}
+
+#[test]
+fn ocr_text_cache_key_changes_with_pixels() {
+    let image_a = RgbaImage::from_pixel(4, 4, Rgba([12, 34, 56, 255]));
+    let image_b = RgbaImage::from_pixel(4, 4, Rgba([12, 35, 56, 255]));
+
+    let key_a = ScriptExecutor::build_ocr_text_cache_key(&image_a, "rec:a");
+    let key_b = ScriptExecutor::build_ocr_text_cache_key(&image_b, "rec:a");
+
+    assert_ne!(key_a, key_b);
+}
+
+#[test]
+fn ocr_text_cache_key_changes_with_recognizer_signature() {
+    let image = RgbaImage::from_pixel(4, 4, Rgba([12, 34, 56, 255]));
+
+    let key_a = ScriptExecutor::build_ocr_text_cache_key(&image, "rec:a");
+    let key_b = ScriptExecutor::build_ocr_text_cache_key(&image, "rec:b");
+
+    assert_ne!(key_a, key_b);
+}
+
+#[test]
+fn compare_optional_id_supports_eq_and_ne() {
+    let actual = Some(ad_kernel::ids::UuidV7(42));
+
+    assert!(ScriptExecutor::compare_optional_id(
+        actual,
+        &PolicySetResultCompareOp::Eq,
+        &ad_kernel::ids::UuidV7(42).to_string(),
+    ));
+    assert!(ScriptExecutor::compare_optional_id(
+        actual,
+        &PolicySetResultCompareOp::Ne,
+        &ad_kernel::ids::UuidV7(7).to_string(),
+    ));
+}
+
+#[test]
+fn compare_bool_supports_eq_and_ne() {
+    assert!(ScriptExecutor::compare_bool(
+        true,
+        &PolicySetResultCompareOp::Eq,
+        true,
+    ));
+    assert!(ScriptExecutor::compare_bool(
+        true,
+        &PolicySetResultCompareOp::Ne,
+        false,
+    ));
+}
+
+fn build_task_with_variables(task_id: TaskId, variables: Value) -> ScriptTaskProfile {
+    ScriptTaskProfile {
+        id: task_id,
+        script_id: UuidV7(1),
+        name: "task".to_string(),
+        description: String::new(),
+        row_type: TaskRowType::Task,
+        trigger_mode: TaskTriggerMode::RootOnly,
+        record_schedule: false,
+        section_id: None,
+        indent_level: 0,
+        default_task_cycle: TaskCycle::EveryRun,
+        exec_max: 0,
+        show_enabled_toggle: true,
+        default_enabled: true,
+        task_tone: TaskTone::Normal,
+        is_hidden: false,
+        task: ScriptTask {
+            ui_data: Value::Null,
+            variables,
+            steps: Vec::new(),
+        },
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+        deleted_at: None,
+        is_deleted: false,
+        index: 0,
+    }
+}
+
+fn build_input_variable(task_id: TaskId) -> ScriptVariableDef {
+    ScriptVariableDef {
+        id: "var_pkg_name_id".to_string(),
+        key: "input.pkg_name".to_string(),
+        name: "包名".to_string(),
+        namespace: ScriptVariableNamespace::Input,
+        value_type: ScriptVariableValueType::String,
+        owner_task_id: Some(task_id),
+        source_type: ScriptVariableSourceType::Manual,
+        source_step_id: None,
+        readable: true,
+        writable: true,
+        persisted: true,
+        ui_bindable: true,
+        default_value: Some(json!("default-from-catalog")),
+        description: String::new(),
+    }
+}
+
+fn build_script_level_input_variable() -> ScriptVariableDef {
+    ScriptVariableDef {
+        id: "script_level_input_id".to_string(),
+        key: "input.shared_flag".to_string(),
+        name: "共享开关".to_string(),
+        namespace: ScriptVariableNamespace::Input,
+        value_type: ScriptVariableValueType::Bool,
+        owner_task_id: None,
+        source_type: ScriptVariableSourceType::Manual,
+        source_step_id: None,
+        readable: true,
+        writable: true,
+        persisted: true,
+        ui_bindable: true,
+        default_value: Some(json!(true)),
+        description: String::new(),
+    }
+}
+
+fn build_executor_with_target(run_target: RunTarget) -> ScriptExecutor {
+    let runtime_ctx = Arc::new(RwLock::new(RuntimeContext::new(
+        UuidV7(1),
+        run_target,
+        Arc::new(Mutex::new(OcrService::new())),
+        Arc::new(Mutex::new(OcrService::new())),
+        VisionTextCacheRuntimeConfig {
+            enabled: false,
+            dir: None,
+            signature_grid_size: 8,
+        },
+    )));
+    ScriptExecutor::new(runtime_ctx)
+}
+
+fn build_executor() -> ScriptExecutor {
+    build_executor_with_target(RunTarget::FullScript {
+        script_id: UuidV7(1),
+    })
+}
+
+fn build_input_catalog(task_id: TaskId) -> ScriptVariableCatalog {
+    ScriptVariableCatalog {
+        version: 1,
+        variables: vec![
+            build_input_variable(task_id),
+            build_script_level_input_variable(),
+        ],
+    }
+}
+
+async fn install_runtime_policy_for_test(timeout_action: TimeoutAction) {
+    clear_runtime_session().await;
+    replace_runtime_session(RuntimeSessionSnapshot {
+        session_id: UuidV7(501),
+        device_id: UuidV7(502),
+        run_target: RunTarget::FullScript {
+            script_id: UuidV7(1),
+        },
+        runtime_policy: RuntimeExecutionPolicy {
+            action_wait_ms: 0,
+            progress_timeout_enabled: true,
+            progress_timeout_ms: 1_000,
+            timeout_action,
+            timeout_notify_channels: Vec::new(),
+        },
+        queue: vec![RuntimeQueueItem {
+            dispatch_id: UuidV7(504),
+            dispatch_kind: DispatchKind::QueueAssignment,
+            dispatch_source: DispatchSource::Planner,
+            assignment_id: UuidV7(503),
+            script_id: UuidV7(1),
+            time_template_id: None,
+            account_id: None,
+            account_data_json: None,
+            order_index: 0,
+            window_start_at: None,
+            template_values_json: None,
+            dedup_scope_base_hash: String::new(),
+        }],
+        script_bundles: Vec::new(),
+        issued_at: chrono::Utc::now().to_rfc3339(),
+    })
+    .await;
+}
+
+async fn acquire_runtime_session_test_guard() -> OwnedMutexGuard<()> {
+    RUNTIME_SESSION_TEST_MUTEX
+        .get_or_init(|| Arc::new(Mutex::new(())))
+        .clone()
+        .lock_owned()
+        .await
+}
+
+fn build_set_var_step(name: &str, expr: &str) -> Step {
+    Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: None,
+        skip_flag: false,
+        kind: StepKind::DataHanding {
+            a: DataHanding::SetVar {
+                name: name.to_string(),
+                val: None,
+                json_val: None,
+                expr: Some(expr.to_string()),
+            },
+        },
+    }
+}
+
+fn build_rhai_step(code: &str, out_var: Option<&str>) -> Step {
+    Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: None,
+        skip_flag: false,
+        kind: StepKind::DataHanding {
+            a: DataHanding::Rhai {
+                code: code.to_string(),
+                out_var: out_var.map(str::to_string),
+            },
+        },
+    }
+}
+
+#[tokio::test]
+async fn rhai_step_executes_compiled_block_and_syncs_runtime_roots() {
+    let mut executor = build_executor();
+    executor
+        .set_runtime_var("runtime.count", Dynamic::from_int(2))
+        .await
+        .unwrap();
+
+    executor
+        .execute(&[build_rhai_step(
+            r#"
+                runtime.count += 3;
+                runtime.message = "done";
+                runtime.count
+            "#,
+            Some("runtime.result"),
+        )])
+        .await
+        .unwrap();
+
+    let count = executor.read_runtime_var("runtime.count").await.unwrap();
+    let message = executor.read_runtime_var("runtime.message").await.unwrap();
+    let result = executor.read_runtime_var("runtime.result").await.unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<i64>(&count).unwrap(),
+        5
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&message).unwrap(),
+        "done"
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<i64>(&result).unwrap(),
+        5
+    );
+    assert_eq!(executor.compiled_rhai_blocks.len(), 1);
+}
+
+#[tokio::test]
+async fn set_var_accepts_json_payload_for_structured_variables() {
+    let mut executor = build_executor();
+
+    executor
+        .execute_data_handling_step(&DataHanding::SetVar {
+            name: "runtime.payload".to_string(),
+            val: None,
+            json_val: Some(json!({
+                "items": [1, 2],
+                "enabled": true
+            })),
+            expr: None,
+        })
+        .await
+        .unwrap();
+
+    let value = executor.read_runtime_var("runtime.payload").await.unwrap();
+    let payload = ScriptExecutor::deserialize_dynamic_value::<Value>(&value).unwrap();
+    assert_eq!(
+        payload,
+        json!({
+            "items": [1, 2],
+            "enabled": true
+        })
+    );
+}
+
+#[tokio::test]
+async fn clear_vars_resets_values_by_declared_type() {
+    let mut executor = build_executor();
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        let mut script_info = ScriptInfo::default();
+        script_info.variable_catalog.variables = vec![
+            ScriptVariableDef {
+                id: "input_counter".to_string(),
+                key: "input.counter".to_string(),
+                name: "计数".to_string(),
+                namespace: ScriptVariableNamespace::Input,
+                value_type: ScriptVariableValueType::Int,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: true,
+                ui_bindable: true,
+                default_value: None,
+                description: String::new(),
+            },
+            ScriptVariableDef {
+                id: "runtime_items".to_string(),
+                key: "runtime.items".to_string(),
+                name: "条目".to_string(),
+                namespace: ScriptVariableNamespace::Runtime,
+                value_type: ScriptVariableValueType::List,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: false,
+                ui_bindable: false,
+                default_value: None,
+                description: String::new(),
+            },
+            ScriptVariableDef {
+                id: "runtime_flag".to_string(),
+                key: "runtime.flag".to_string(),
+                name: "标记".to_string(),
+                namespace: ScriptVariableNamespace::Runtime,
+                value_type: ScriptVariableValueType::Bool,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: false,
+                ui_bindable: false,
+                default_value: None,
+                description: String::new(),
+            },
+            ScriptVariableDef {
+                id: "runtime_capture".to_string(),
+                key: "runtime.capture".to_string(),
+                name: "截图".to_string(),
+                namespace: ScriptVariableNamespace::Runtime,
+                value_type: ScriptVariableValueType::Image,
+                owner_task_id: None,
+                source_type: ScriptVariableSourceType::Manual,
+                source_step_id: None,
+                readable: true,
+                writable: true,
+                persisted: false,
+                ui_bindable: false,
+                default_value: None,
+                description: String::new(),
+            },
+        ];
+        ctx.execution.script_info = Some(script_info);
+    }
+
+    executor
+        .set_runtime_var("input.counter", Dynamic::from_int(9))
+        .await
+        .unwrap();
+    executor
+        .set_runtime_var("runtime.items", to_dynamic(vec![1, 2, 3]).unwrap())
+        .await
+        .unwrap();
+    executor
+        .set_runtime_var("runtime.flag", Dynamic::from_bool(true))
+        .await
+        .unwrap();
+    executor
+        .set_runtime_var("runtime.capture", Dynamic::from("image-ref".to_string()))
+        .await
+        .unwrap();
+
+    executor
+        .execute_data_handling_step(&DataHanding::ClearVars {
+            names: vec![
+                "input.counter".to_string(),
+                "runtime.items".to_string(),
+                "runtime.flag".to_string(),
+                "runtime.capture".to_string(),
+            ],
+        })
+        .await
+        .unwrap();
+
+    let counter = executor.read_runtime_var("input.counter").await.unwrap();
+    let items = executor.read_runtime_var("runtime.items").await.unwrap();
+    let flag = executor.read_runtime_var("runtime.flag").await.unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<i64>(&counter).unwrap(),
+        0
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<Value>(&items).unwrap(),
+        json!([])
+    );
+    assert!(!ScriptExecutor::deserialize_dynamic_value::<bool>(&flag).unwrap());
+    assert!(executor.read_runtime_var("runtime.capture").await.is_none());
+}
+
+#[tokio::test]
+async fn rhai_task_helper_updates_runtime_state() {
+    let mut executor = build_executor();
+    let task_id = UuidV7::new_v7();
+    let task_name = "Rhai 名称任务";
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.execution.current_task = Some(ScriptTaskProfile {
+            id: task_id,
+            script_id: UuidV7(1),
+            name: task_name.to_string(),
+            description: String::new(),
+            row_type: TaskRowType::Task,
+            trigger_mode: TaskTriggerMode::RootOnly,
+            record_schedule: false,
+            section_id: None,
+            indent_level: 0,
+            default_task_cycle: TaskCycle::EveryRun,
+            exec_max: 0,
+            show_enabled_toggle: true,
+            default_enabled: true,
+            task_tone: TaskTone::Normal,
+            is_hidden: false,
+            task: ScriptTask {
+                ui_data: Value::Null,
+                variables: Value::Null,
+                steps: Vec::new(),
+            },
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+            deleted_at: None,
+            is_deleted: false,
+            index: 0,
+        });
+    }
+    let code = format!(
+        r#"
+            set_task_done("{}", true);
+            0
+        "#,
+        task_name
+    );
+
+    executor
+        .execute(&[build_rhai_step(&code, None)])
+        .await
+        .unwrap();
+
+    let done = {
+        let ctx = executor.runtime_ctx.read().await;
+        ctx.execution
+            .task_states
+            .get(&task_id)
+            .map(|state| state.done_flag)
+            .unwrap_or(false)
+    };
+    assert!(done);
+}
+
+fn build_policy_table(
+    policy_id: PolicyId,
+    script_id: UuidV7,
+    before_action: Vec<Step>,
+    after_action: Vec<Step>,
+) -> PolicyProfile {
+    PolicyProfile {
+        id: policy_id,
+        script_id,
+        order_index: 0,
+        info: PolicyInfo {
+            name: "policy-debug".to_string(),
+            note: String::new(),
+            log_print: None,
+            cur_pos: 0,
+            skip_flag: false,
+            exec_max: 0,
+            before_action,
+            cond: SearchRule::Txt {
+                pattern: "开始".to_string(),
+            },
+            after_action,
+        },
+    }
+}
+
+#[test]
+fn input_variable_prefers_template_values_by_variable_id() {
+    let task_id = UuidV7(7);
+    let task = build_task_with_variables(
+        task_id,
+        json!({
+            "pkg_name": "default-from-task"
+        }),
+    );
+    let variable = build_input_variable(task_id);
+    let template_values = ScriptExecutor::parse_runtime_template_values(Some(
+        r#"{"variables":{"var_pkg_name_id":"templated-value"}}"#,
+    ))
+    .unwrap()
+    .unwrap();
+
+    let value = ScriptExecutor::resolve_input_variable_value(
+        &variable,
+        Some(&template_values),
+        Some(&task),
+    );
+    assert_eq!(value, Some(json!("templated-value")));
+}
+
+#[test]
+fn input_variable_falls_back_to_task_storage_key() {
+    let task_id = UuidV7(8);
+    let task = build_task_with_variables(
+        task_id,
+        json!({
+            "pkg_name": "default-from-task"
+        }),
+    );
+    let variable = build_input_variable(task_id);
+
+    let value = ScriptExecutor::resolve_input_variable_value(&variable, None, Some(&task));
+    assert_eq!(value, Some(json!("default-from-task")));
+}
+
+#[test]
+fn input_variable_falls_back_to_catalog_default_without_template_or_task_value() {
+    let variable = build_script_level_input_variable();
+
+    let value = ScriptExecutor::resolve_input_variable_value(&variable, None, None);
+    assert_eq!(value, Some(json!(true)));
+}
+
+#[test]
+fn task_owned_input_variable_is_hidden_without_task_context() {
+    let task_id = UuidV7(9);
+    let variable = build_input_variable(task_id);
+
+    assert!(!ScriptExecutor::input_variable_visible_for_task(
+        &variable, None
+    ));
+}
+
+#[test]
+fn policy_debug_target_exposes_task_owned_input_without_task_context() {
+    let task_id = UuidV7(10);
+    let variable = build_input_variable(task_id);
+
+    assert!(ScriptExecutor::input_variable_visible_for_target(
+        &variable,
+        &RunTarget::Policy {
+            script_id: UuidV7(1),
+            policy_id: UuidV7(2),
+        },
+        None,
+    ));
+    assert!(!ScriptExecutor::input_variable_visible_for_target(
+        &variable,
+        &RunTarget::FullScript {
+            script_id: UuidV7(1),
+        },
+        None,
+    ));
+}
+
+#[tokio::test]
+async fn hydrate_input_scope_loads_task_owned_defaults_for_policy_debug_target() {
+    let task_id = UuidV7(11);
+    let mut executor = build_executor_with_target(RunTarget::Policy {
+        script_id: UuidV7(1),
+        policy_id: UuidV7(2),
+    });
+
+    executor
+        .hydrate_input_scope(&build_input_catalog(task_id), None, None)
+        .await
+        .unwrap();
+
+    let task_owned = executor.read_runtime_var("input.pkg_name").await.unwrap();
+    let script_owned = executor
+        .read_runtime_var("input.shared_flag")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&task_owned).unwrap(),
+        "default-from-catalog"
+    );
+    assert!(ScriptExecutor::deserialize_dynamic_value::<bool>(&script_owned).unwrap());
+}
+
+#[tokio::test]
+async fn hydrate_input_scope_prefers_template_values_for_policy_debug_target() {
+    let task_id = UuidV7(12);
+    let mut executor = build_executor_with_target(RunTarget::PolicySet {
+        script_id: UuidV7(1),
+        policy_set_id: UuidV7(3),
+    });
+
+    executor
+        .hydrate_input_scope(
+            &build_input_catalog(task_id),
+            Some(r#"{"variables":{"var_pkg_name_id":"templated-from-policy-debug"}}"#),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let task_owned = executor.read_runtime_var("input.pkg_name").await.unwrap();
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&task_owned).unwrap(),
+        "templated-from-policy-debug"
+    );
+}
+
+#[tokio::test]
+async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration() {
+    let script_id = UuidV7(1);
+    let task_id = UuidV7(13);
+    let policy_id = UuidV7(21);
+    let policy_group_id = UuidV7(31);
+    let policy_set_id = UuidV7(41);
+    let mut executor = build_executor_with_target(RunTarget::PolicyGroup {
+        script_id,
+        policy_group_id,
+    });
+
+    executor
+        .hydrate_input_scope(
+            &build_input_catalog(task_id),
+            Some(r#"{"variables":{"var_pkg_name_id":"templated-from-group-debug"}}"#),
+            None,
+        )
+        .await
+        .unwrap();
+
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.observation.last_snapshot = Some(
+            VisionSnapshot::new(Vec::new(), 8)
+                .unwrap()
+                .with_ocr_results(vec![build_ocr_result("开始", 0, 0, 30, 12)])
+                .unwrap(),
+        );
+    }
+
+    let candidate = super::PolicyCandidate {
+        policy_set_id: Some(policy_set_id),
+        policy_set_name: None,
+        policy_group_id: Some(policy_group_id),
+        policy_group_name: None,
+        policy: build_policy_table(
+            policy_id,
+            script_id,
+            vec![build_set_var_step("runtime.beforeValue", "input.pkg_name")],
+            vec![build_set_var_step(
+                "runtime.afterValue",
+                r#"if input.shared_flag { input.pkg_name + "-after" } else { "disabled" }"#,
+            )],
+        ),
+    };
+
+    let flow = executor
+        .execute_policy_candidates(
+            "debug.policy",
+            vec![candidate],
+            None,
+            "runtime.policyDebugResult",
+        )
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Next));
+    let before_value = executor
+        .read_runtime_var("runtime.beforeValue")
+        .await
+        .unwrap();
+    let after_value = executor
+        .read_runtime_var("runtime.afterValue")
+        .await
+        .unwrap();
+
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&before_value).unwrap(),
+        "templated-from-group-debug"
+    );
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&after_value).unwrap(),
+        "templated-from-group-debug-after"
+    );
+}
+
+#[tokio::test]
+async fn policy_before_action_runs_even_when_condition_misses() {
+    let script_id = UuidV7(101);
+    let policy_id = UuidV7(121);
+    let policy_group_id = UuidV7(131);
+    let policy_set_id = UuidV7(141);
+    let mut executor = build_executor_with_target(RunTarget::PolicyGroup {
+        script_id,
+        policy_group_id,
+    });
+
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.observation.last_snapshot = Some(
+            VisionSnapshot::new(Vec::new(), 8)
+                .unwrap()
+                .with_ocr_results(vec![build_ocr_result("未命中", 0, 0, 30, 12)])
+                .unwrap(),
+        );
+    }
+
+    let candidate = super::PolicyCandidate {
+        policy_set_id: Some(policy_set_id),
+        policy_set_name: None,
+        policy_group_id: Some(policy_group_id),
+        policy_group_name: None,
+        policy: build_policy_table(
+            policy_id,
+            script_id,
+            vec![build_set_var_step(
+                "runtime.beforeOnly",
+                r#""ran-before-match""#,
+            )],
+            vec![build_set_var_step(
+                "runtime.afterOnly",
+                r#""ran-after-match""#,
+            )],
+        ),
+    };
+
+    executor
+        .execute_policy_candidates(
+            "debug.policy",
+            vec![candidate],
+            None,
+            "runtime.policyDebugResult",
+        )
+        .await
+        .unwrap();
+
+    let before_value = executor
+        .read_runtime_var("runtime.beforeOnly")
+        .await
+        .unwrap();
+    assert_eq!(
+        ScriptExecutor::deserialize_dynamic_value::<String>(&before_value).unwrap(),
+        "ran-before-match"
+    );
+    assert!(
+        executor
+            .read_runtime_var("runtime.afterOnly")
+            .await
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn timeout_handling_resets_progress_probe_after_stop_execution() {
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: Some("page:v1:deadbeef".to_string()),
+        evidence_signature: "evidence:v1".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let runtime_policy = RuntimeExecutionPolicy {
+        action_wait_ms: 0,
+        progress_timeout_enabled: true,
+        progress_timeout_ms: 1_000,
+        timeout_action: TimeoutAction::StopExecution,
+        timeout_notify_channels: Vec::new(),
+    };
+
+    let error = executor
+        .evaluate_progress_probe(
+            &runtime_policy,
+            Some("page:v1:deadbeef".to_string()),
+            "evidence:v1".to_string(),
+            "unit-test timeout".to_string(),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(error.to_string().contains("unit-test timeout"));
+    assert!(executor.last_progress_probe.is_none());
+}
+
+#[tokio::test]
+async fn device_operation_helper_times_out() {
+    let error = ScriptExecutor::await_device_result_with_timeout(
+        "unit.deviceTimeout",
+        "设备操作",
+        10,
+        async {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            Ok::<(), String>(())
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.to_string().contains("设备操作超时"));
+}
+
+#[tokio::test]
+async fn vision_inference_helper_times_out() {
+    let error = ScriptExecutor::run_ocr_service_with_timeout(
+        "unit.visionTimeout",
+        "OCR",
+        10,
+        Arc::new(Mutex::new(OcrService::new())),
+        |_service| {
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            Ok::<(), String>(())
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(error.to_string().contains("OCR超时"));
+}
+
+#[tokio::test]
+async fn if_condition_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "flow.if".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_flow_control_step(&FlowControl::If {
+            con: ConditionNode::RawExpr {
+                expr: "true".to_string(),
+            },
+            then: Vec::new(),
+            else_steps: None,
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn wait_ms_prefers_runtime_binding_then_falls_back() {
+    let mut executor = build_executor();
+    executor
+        .set_runtime_var(
+            "runtime.ocrResults",
+            to_dynamic(vec![build_ocr_result("倒计时 00:00:07", 0, 0, 24, 12)]).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let resolved = executor
+        .resolve_wait_duration_ms(1_500, None, Some("runtime.ocrResults"))
+        .await;
+    assert_eq!(resolved, 7_000);
+
+    executor
+        .set_runtime_var("input.waitMs", Dynamic::from("2400".to_string()))
+        .await
+        .unwrap();
+    let fallback = executor
+        .resolve_wait_duration_ms(1_500, Some("input.waitMs"), Some("runtime.missing"))
+        .await;
+    assert_eq!(fallback, 2_400);
+
+    let defaulted = executor
+        .resolve_wait_duration_ms(0, Some("input.missing"), None)
+        .await;
+    assert_eq!(defaulted, 1_000);
+}
+
+#[tokio::test]
+async fn data_set_var_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "data.setVar".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_data_handling_step(&DataHanding::SetVar {
+            name: "runtime.timeoutProbe".to_string(),
+            val: None,
+            json_val: None,
+            expr: Some("1 + 1".to_string()),
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn vision_search_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    let snapshot = VisionSnapshot::new(Vec::new(), 8)
+        .unwrap()
+        .with_ocr_results(vec![build_ocr_result("开始", 0, 0, 24, 12)])
+        .unwrap();
+    let page_fingerprint = super::ScriptExecutor::build_page_fingerprint(&snapshot);
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: Some(page_fingerprint),
+        evidence_signature: "vision.search".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.observation.last_snapshot = Some(snapshot);
+    }
+
+    let flow = executor
+        .execute_vision_step(&VisionNode::VisionSearch {
+            det_res_var: None,
+            ocr_res_var: None,
+            rule: SearchRule::Txt {
+                pattern: "开始".to_string(),
+            },
+            out_var: "runtime.visionHits".to_string(),
+            out_det_var: None,
+            out_ocr_var: None,
+            then_steps: Vec::new(),
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn task_control_progress_probe_does_not_reuse_cached_page_fingerprint() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    let snapshot = VisionSnapshot::new(Vec::new(), 8)
+        .unwrap()
+        .with_ocr_results(vec![build_ocr_result("开始", 0, 0, 24, 12)])
+        .unwrap();
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.observation.last_snapshot = Some(snapshot);
+    }
+
+    executor
+        .execute_task_control_step(&TaskControl::SetState {
+            target: StateTarget::Task { id: UuidV7(700) },
+            targets: Vec::new(),
+            status: StateStatus::Done { value: true },
+        })
+        .await
+        .unwrap();
+
+    assert!(
+        executor
+            .last_progress_probe
+            .as_ref()
+            .is_some_and(|probe| probe.page_fingerprint.is_none())
+    );
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn action_prepare_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "action.prepare".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_action_step(
+            None,
+            None,
+            0,
+            &Action::LaunchApp {
+                pkg_name: String::new(),
+                pkg_name_expr: None,
+                activity_name: String::new(),
+                activity_name_expr: None,
+            },
+        )
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn compile_action_sequence_includes_launch_app() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("启动应用".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::LaunchApp {
+                pkg_name: "com.demo.app".to_string(),
+                pkg_name_expr: None,
+                activity_name: "com.demo.app.MainActivity".to_string(),
+                activity_name_expr: None,
+            },
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Supported(compiled) = compiled else {
+        panic!("launch app should be compiled into sequence fast path");
+    };
+    assert_eq!(compiled.len(), 1);
+    assert!(matches!(
+        compiled[0].operation,
+        DeviceOperation::LaunchApp { .. }
+    ));
+}
+
+#[tokio::test]
+async fn compile_action_sequence_rejects_bound_launch_app() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("启动应用变量".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::LaunchApp {
+                pkg_name: String::new(),
+                pkg_name_expr: Some("input.pkgName".to_string()),
+                activity_name: String::new(),
+                activity_name_expr: Some("input.activityName".to_string()),
+            },
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Unsupported(blocker) = compiled else {
+        panic!("bound launch app should be rejected from sequence fast path");
+    };
+    assert!(blocker.reason.contains("变量绑定"));
+}
+
+#[tokio::test]
+async fn click_point_expr_reads_json_point_variable() {
+    let mut executor = build_executor();
+    executor
+        .set_runtime_var(
+            "input.tapPoint",
+            to_dynamic(json!({ "x": 321, "y": 654 })).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let planned = executor
+        .plan_click_action(
+            &ClickMode::Point {
+                p: PointU16 { x: 1, y: 2 },
+                p_expr: Some("input.tapPoint".to_string()),
+            },
+            0,
+            0,
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(planned.operations.len(), 1);
+    assert!(matches!(
+        &planned.operations[0],
+        DeviceOperation::Click(point) if point.x == 321 && point.y == 654
+    ));
+}
+
+#[tokio::test]
+async fn compile_action_sequence_rejects_capture_with_reason() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("截图".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::Capture {
+                output_var: "runtime.latestCapture".to_string(),
+            },
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Unsupported(blocker) = compiled else {
+        panic!("capture should be rejected from sequence fast path");
+    };
+    assert_eq!(blocker.step_label, "截图");
+    assert!(blocker.reason.contains("结果通道"));
+}
+
+#[tokio::test]
+async fn compile_action_sequence_rejects_reboot_with_reason() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("重启".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::Reboot,
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Unsupported(blocker) = compiled else {
+        panic!("reboot should be rejected from sequence fast path");
+    };
+    assert_eq!(blocker.step_label, "重启");
+    assert!(blocker.reason.contains("独立 ADB 指令通道"));
+}
+
+#[tokio::test]
+async fn task_control_path_triggers_timeout_detector() {
+    let _guard = acquire_runtime_session_test_guard().await;
+    install_runtime_policy_for_test(TimeoutAction::SkipCurrentTask).await;
+    let mut executor = build_executor();
+    executor.last_progress_probe = Some(super::ProgressProbe {
+        page_fingerprint: None,
+        evidence_signature: "taskControl.setState".to_string(),
+        task_id: None,
+        step_id: None,
+        stagnant_since: Instant::now() - std::time::Duration::from_secs(10),
+        notified: false,
+    });
+
+    let flow = executor
+        .execute_task_control_step(&TaskControl::SetState {
+            target: StateTarget::Task { id: UuidV7(700) },
+            targets: Vec::new(),
+            status: StateStatus::Skip { value: true },
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Return));
+    clear_runtime_session().await;
+}
+
+#[tokio::test]
+async fn task_control_set_state_applies_multiple_targets() {
+    let mut executor = build_executor();
+    let task_a = UuidV7(701);
+    let task_b = UuidV7(702);
+    let policy_a = UuidV7(801);
+    let policy_b = UuidV7(802);
+
+    let flow = executor
+        .execute_task_control_step(&TaskControl::SetState {
+            target: StateTarget::Task { id: task_a },
+            targets: vec![
+                StateTarget::Task { id: task_a },
+                StateTarget::Task { id: task_b },
+                StateTarget::Policy { id: policy_a },
+                StateTarget::Policy { id: policy_b },
+            ],
+            status: StateStatus::Skip { value: true },
+        })
+        .await
+        .unwrap();
+
+    assert!(matches!(flow, super::ControlFlow::Next));
+    let ctx = executor.runtime_ctx.read().await;
+    assert!(
+        ctx.execution
+            .task_states
+            .get(&task_a)
+            .is_some_and(|state| state.skip_flag)
+    );
+    assert!(
+        ctx.execution
+            .task_states
+            .get(&task_b)
+            .is_some_and(|state| state.skip_flag)
+    );
+    assert!(
+        ctx.execution
+            .policy_states
+            .get(&policy_a)
+            .is_some_and(|state| state.skip_flag)
+    );
+    assert!(
+        ctx.execution
+            .policy_states
+            .get(&policy_b)
+            .is_some_and(|state| state.skip_flag)
+    );
+}
+
+#[tokio::test]
+async fn current_task_condition_matches_target_and_expected_value() {
+    let mut executor = build_executor();
+    let task_id = UuidV7(710);
+    {
+        let mut ctx = executor.runtime_ctx.write().await;
+        ctx.execution.current_task = Some(build_task_with_variables(task_id, json!({})));
+    }
+
+    let matched = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            current: CurrentTaskCondition {
+                target: Some(task_id),
+                expected: true,
+            },
+        })
+        .await
+        .unwrap();
+    let unmatched = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            current: CurrentTaskCondition {
+                target: Some(UuidV7(711)),
+                expected: true,
+            },
+        })
+        .await
+        .unwrap();
+    let negated = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            current: CurrentTaskCondition {
+                target: Some(UuidV7(711)),
+                expected: false,
+            },
+        })
+        .await
+        .unwrap();
+    let empty_target = executor
+        .evaluate_condition(&ConditionNode::CurrentTaskIn {
+            current: CurrentTaskCondition {
+                target: None,
+                expected: true,
+            },
+        })
+        .await
+        .unwrap();
+
+    assert!(matched);
+    assert!(!unmatched);
+    assert!(negated);
+    assert!(!empty_target);
+}
+
+#[test]
+fn current_task_condition_deserializes_legacy_shape() {
+    let parsed: ConditionNode = serde_json::from_value(json!({
+        "type": "currentTaskIn",
+        "op": "And",
+        "items": [
+            {
+                "type": "group",
+                "items": [
+                    { "type": "task", "target": UuidV7(720).to_string() }
+                ]
+            }
+        ],
+        "targets": [UuidV7(721).to_string()]
+    }))
+    .unwrap();
+
+    match parsed {
+        ConditionNode::CurrentTaskIn { current } => {
+            assert_eq!(current.target, Some(UuidV7(721)));
+            assert!(current.expected);
+        }
+        other => panic!("unexpected node: {:?}", other),
+    }
+}
+
+#[test]
+fn color_compare_matches_background_ring_color() {
+    let mut image = RgbaImage::from_pixel(64, 32, Rgba([250, 250, 250, 255]));
+    let bbox = BoundingBox::new(12, 8, 28, 20);
+    fill_rect(&mut image, &bbox, [210, 30, 30, 255]);
+    let item = build_ocr_result("开始", bbox.x1, bbox.y1, bbox.x2, bbox.y2);
+
+    assert!(ScriptExecutor::ocr_item_matches_color(
+        &image,
+        &item,
+        false,
+        ScriptExecutor::rgb_to_oklab(&ColorRgb {
+            r: 250,
+            g: 250,
+            b: 250,
+        }),
+        &ColorCompareMethod::OklabDistance { threshold: 0.03 },
+    ));
+}
+
+#[test]
+fn color_compare_matches_font_color_against_top_three_clusters() {
+    let mut image = RgbaImage::from_pixel(96, 48, Rgba([245, 245, 245, 255]));
+    let bbox = BoundingBox::new(18, 10, 48, 30);
+    let left = BoundingBox::new(18, 10, 27, 30);
+    let middle = BoundingBox::new(28, 10, 37, 30);
+    let right = BoundingBox::new(38, 10, 48, 30);
+    fill_rect(&mut image, &left, [220, 40, 40, 255]);
+    fill_rect(&mut image, &middle, [40, 180, 70, 255]);
+    fill_rect(&mut image, &right, [40, 90, 220, 255]);
+    let item = build_ocr_result("开始", bbox.x1, bbox.y1, bbox.x2, bbox.y2);
+
+    assert!(ScriptExecutor::ocr_item_matches_color(
+        &image,
+        &item,
+        true,
+        ScriptExecutor::rgb_to_oklab(&ColorRgb {
+            r: 40,
+            g: 90,
+            b: 220,
+        }),
+        &ColorCompareMethod::OklabDistance { threshold: 0.04 },
+    ));
+}

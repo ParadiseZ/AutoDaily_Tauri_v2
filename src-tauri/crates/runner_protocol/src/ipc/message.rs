@@ -1,0 +1,375 @@
+use bincode::{Decode, Encode};
+
+use ad_kernel::LogLevel;
+use ad_kernel::ids::{
+    AccountId, AssignmentId, DeviceId, DispatchId, ExecutionId, MessageId, PolicyGroupId, PolicyId,
+    PolicySetId, ScriptId, SessionId, StepId, TaskId, TemplateId,
+};
+use domain_device::{TimeoutAction, TimeoutNotifyChannel};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct IpcMessage {
+    pub id: MessageId,
+    pub source_or_target: DeviceId,
+    pub message_type: MessageType,
+    pub payload: MessagePayload,
+}
+
+impl IpcMessage {
+    pub fn new(
+        source_or_target: DeviceId,
+        message_type: MessageType,
+        payload: MessagePayload,
+    ) -> Self {
+        Self {
+            id: MessageId::new_v7(),
+            source_or_target,
+            message_type,
+            payload,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Deserialize, Hash)]
+pub enum MessageType {
+    Command,
+    Response,
+    Heartbeat,
+    Logger,
+    Status,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Encode, Decode, Deserialize)]
+pub enum MessagePayload {
+    SocketRegistration(u32),
+    ProcessControl(ProcessControlMessage),
+    SessionControl(SessionControlMessage),
+    ConnectionControl(ConnectionControlMessage),
+    CaptureControl(CaptureControlMessage),
+    RuntimeEvent(RuntimeEventMessage),
+    ConfigUpdate(ConfigUpdateMessage),
+    Logger(LogMessage),
+    Empty,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct ProcessControlMessage {
+    pub action: ProcessAction,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub enum ProcessAction {
+    Start,
+    Stop,
+    Pause,
+    Shutdown,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct ConnectionControlMessage {
+    pub action: ConnectionAction,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub enum ConnectionAction {
+    Probe,
+    EnsureReady,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct CaptureControlMessage;
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DispatchKind {
+    QueueAssignment,
+    TemporaryFullScript,
+    TemporaryTask,
+    DebugPolicy,
+    DebugGroup,
+    DebugSet,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DispatchSource {
+    Planner,
+    User,
+    Debug,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RuntimeDispatchPhase {
+    Started,
+    Finished,
+    Failed,
+    Stopped,
+    RequestNext,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RunTarget {
+    DeviceQueue,
+    FullScript {
+        script_id: ScriptId,
+    },
+    Task {
+        script_id: ScriptId,
+        task_id: TaskId,
+    },
+    PolicyGroup {
+        script_id: ScriptId,
+        policy_group_id: PolicyGroupId,
+    },
+    PolicySet {
+        script_id: ScriptId,
+        policy_set_id: PolicySetId,
+    },
+    Policy {
+        script_id: ScriptId,
+        policy_id: PolicyId,
+    },
+}
+
+impl RunTarget {
+    pub fn script_id(&self) -> Option<ScriptId> {
+        match self {
+            Self::DeviceQueue => None,
+            Self::FullScript { script_id }
+            | Self::Task { script_id, .. }
+            | Self::PolicyGroup { script_id, .. }
+            | Self::PolicySet { script_id, .. }
+            | Self::Policy { script_id, .. } => Some(*script_id),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RunTarget;
+    use ad_kernel::ids::ScriptId;
+
+    #[test]
+    fn reports_the_target_script_only_when_one_is_selected() {
+        let script_id = ScriptId::new_v7();
+
+        assert_eq!(RunTarget::DeviceQueue.script_id(), None);
+        assert_eq!(
+            RunTarget::FullScript { script_id }.script_id(),
+            Some(script_id)
+        );
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeExecutionPolicy {
+    pub action_wait_ms: u64,
+    pub progress_timeout_enabled: bool,
+    pub progress_timeout_ms: u64,
+    pub timeout_action: TimeoutAction,
+    pub timeout_notify_channels: Vec<TimeoutNotifyChannel>,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeQueueItem {
+    pub dispatch_id: DispatchId,
+    pub dispatch_kind: DispatchKind,
+    pub dispatch_source: DispatchSource,
+    pub assignment_id: AssignmentId,
+    pub script_id: ScriptId,
+    pub time_template_id: Option<TemplateId>,
+    pub account_id: Option<AccountId>,
+    pub account_data_json: Option<String>,
+    pub order_index: u32,
+    pub window_start_at: Option<String>,
+    pub template_values_json: Option<String>,
+    pub dedup_scope_base_hash: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptBundleSnapshot {
+    pub script_id: ScriptId,
+    pub script_json: String,
+    pub tasks_json: String,
+    pub policies_json: String,
+    pub policy_groups_json: String,
+    pub policy_sets_json: String,
+    pub group_policies_json: String,
+    pub set_groups_json: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeSessionSnapshot {
+    pub session_id: SessionId,
+    pub device_id: DeviceId,
+    pub run_target: RunTarget,
+    pub runtime_policy: RuntimeExecutionPolicy,
+    pub queue: Vec<RuntimeQueueItem>,
+    pub script_bundles: Vec<ScriptBundleSnapshot>,
+    pub issued_at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum SessionControlMessage {
+    LoadSession { session: RuntimeSessionSnapshot },
+    ReloadSession { session: RuntimeSessionSnapshot },
+    ClearSession,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RuntimeLifecyclePhase {
+    Initializing,
+    Loaded,
+    Idle,
+    Running,
+    Paused,
+    Stopping,
+    Error,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RuntimeLifecycleEvent {
+    pub session_id: Option<SessionId>,
+    pub phase: RuntimeLifecyclePhase,
+    pub current_script_id: Option<ScriptId>,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RuntimeProgressPhase {
+    Idle,
+    Loading,
+    Planning,
+    Executing,
+    Stopping,
+    Paused,
+    Completed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RuntimeProgressEvent {
+    pub session_id: Option<SessionId>,
+    pub assignment_id: Option<AssignmentId>,
+    pub script_id: Option<ScriptId>,
+    pub task_id: Option<TaskId>,
+    pub step_id: Option<StepId>,
+    pub phase: RuntimeProgressPhase,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum RuntimeScheduleStatus {
+    Queued,
+    Running,
+    Success,
+    Failed,
+    Stopped,
+    Skipped,
+    Cleared,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RuntimeScheduleEvent {
+    pub session_id: Option<SessionId>,
+    pub execution_id: Option<ExecutionId>,
+    pub assignment_id: Option<AssignmentId>,
+    pub script_id: Option<ScriptId>,
+    pub task_id: Option<TaskId>,
+    pub step_id: Option<StepId>,
+    pub status: RuntimeScheduleStatus,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ConnectionStatusKind {
+    DeviceUnknown,
+    DeviceChecking,
+    ShellProbeChecking,
+    EmulatorStarting,
+    EmulatorWaiting,
+    DeviceConnected,
+    DeviceDisconnected,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq, ts_rs::TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ConnectionStatusEvent {
+    pub status: ConnectionStatusKind,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureResultEvent {
+    pub request_id: MessageId,
+    pub image_data: Option<String>,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeDispatchEvent {
+    pub dispatch_id: Option<DispatchId>,
+    pub assignment_id: Option<AssignmentId>,
+    pub script_id: Option<ScriptId>,
+    pub phase: RuntimeDispatchPhase,
+    pub message: Option<String>,
+    pub at: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RuntimeEventMessage {
+    Lifecycle(RuntimeLifecycleEvent),
+    Progress(RuntimeProgressEvent),
+    Schedule(RuntimeScheduleEvent),
+    Connection(ConnectionStatusEvent),
+    Capture(CaptureResultEvent),
+    Dispatch(RuntimeDispatchEvent),
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct ConfigUpdateMessage {
+    pub device_config_json: String,
+}
+
+#[derive(Debug, Clone, Encode, Decode, Deserialize, PartialEq)]
+pub struct LogMessage {
+    pub level: LogLevel,
+    pub message: String,
+    pub module: Option<String>,
+}

@@ -1,0 +1,194 @@
+use crate::adb_config::ADBConnectConfig;
+use ad_kernel::Point;
+use image::RgbaImage;
+use std::ops::Add;
+
+// Constants
+pub(crate) const BACK: &str = "input keyevent 4";
+pub(crate) const HOME: &str = "input keyevent 3";
+pub(crate) const POWER: &str = "input keyevent 26";
+pub(crate) const CLICK: &str = "input tap";
+pub(crate) const SWIPE: &str = "input swipe";
+pub(crate) const TOUCH_SCREEN: &str = "input touchscreen swipe";
+pub(crate) const STOP_APP: &str = "am force-stop";
+
+pub(crate) fn sleep_cmd(interval_ms: u64) -> String {
+    let seconds = interval_ms / 1000;
+    let millis = interval_ms % 1000;
+    if millis == 0 {
+        format!("sleep {}", seconds)
+    } else {
+        format!("sleep {}.{:03}", seconds, millis)
+    }
+}
+
+pub(crate) fn click_cmd(p: &Point<u16>) -> String {
+    format!("{} {},{}", CLICK, p.x, p.y)
+}
+pub(crate) fn long_click_cmd(p1: &Point<u16>) -> String {
+    let p2 = p1.add(Point::new(1, 1));
+    format!(
+        "{} {},{} {},{} {}",
+        TOUCH_SCREEN, p1.x, p1.y, p2.x, p2.y, 1500
+    )
+}
+pub(crate) fn long_click_and_swipe(p1: &Point<u16>, p2: &Point<u16>, duration: &u64) -> String {
+    format!(
+        "{} {},{} {},{} {}",
+        TOUCH_SCREEN, p1.x, p1.y, p2.x, p2.y, duration
+    )
+}
+pub(crate) fn swipe_cmd(p1: &Point<u16>, p2: &Point<u16>) -> String {
+    format!("{} {},{} {},{},{}", SWIPE, p1.x, p1.y, p2.x, p2.y, 1000)
+}
+
+pub(crate) fn swipe_duration_cmd(p1: &Point<u16>, p2: &Point<u16>, duration: &u64) -> String {
+    format!("{} {},{} {},{} {}", SWIPE, p1.x, p1.y, p2.x, p2.y, duration)
+}
+
+pub(crate) fn input_text_cmd(text: &str) -> String {
+    format!("input text {}", text)
+}
+
+pub(crate) fn stop_app_cmd(package_name: &str) -> String {
+    format!("{} {}", STOP_APP, package_name)
+}
+
+pub(crate) fn start_activity_cmd(package_name: &str, activity_name: &str) -> String {
+    format!("am start -W -n {}/{}", package_name, activity_name)
+}
+
+#[derive(Debug, Clone)]
+pub enum ADBCommand {
+    Click(Point<u16>),
+    LongClick(Point<u16>),
+    LongClickAndSwipe(Point<u16>, Point<u16>, u64),
+    Swipe(Point<u16>, Point<u16>),
+    SwipeWithDuration(Point<u16>, Point<u16>, u64),
+    Reboot,
+    StartActivity(String, String),
+    Capture(crossbeam_channel::Sender<Result<RgbaImage, String>>),
+    StopApp(String),
+    InputText(String),
+    Back,
+    Home,
+
+    //合并为单条指令
+    Sequence(Vec<ADBCommand>),
+    // 合并为单条命令并等待执行结果，适合低频但希望确认成功的一组操作
+    ReliableSequence(Vec<ADBCommand>),
+    //Sequence则合并，其他则睡眠
+    Duration(u64),
+
+    //以下命令不参与执行器的操作执行
+    Loop(Vec<ADBCommand>),
+    StopLoop(bool),
+    ChangeConnectConfig(ADBConnectConfig),
+    AwaitResult(
+        Box<ADBCommand>,
+        crossbeam_channel::Sender<Result<(), String>>,
+    ),
+
+    Pause,
+    Resume,
+}
+
+impl std::fmt::Display for ADBCommand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ADBCommand::Click(p) => write!(f, "{} {} {}", CLICK, p.x, p.y),
+            ADBCommand::LongClick(p) => write!(f, "{}", long_click_cmd(p)),
+            ADBCommand::LongClickAndSwipe(p1, p2, duration) => {
+                write!(f, "{}", long_click_and_swipe(p1, p2, duration))
+            }
+            ADBCommand::Swipe(p1, p2) => write!(f, "{}", swipe_cmd(p1, p2)),
+            ADBCommand::SwipeWithDuration(p1, p2, duration) => {
+                write!(f, "{}", swipe_duration_cmd(p1, p2, duration))
+            }
+            ADBCommand::Reboot => write!(f, "reboot:{}", POWER),
+            ADBCommand::StartActivity(package_name, activity_name) => {
+                write!(f, "{}", start_activity_cmd(package_name, activity_name))
+            }
+            ADBCommand::Capture(_) => write!(f, "capture"),
+            ADBCommand::StopApp(package_name) => write!(f, "{} {}", STOP_APP, package_name),
+            ADBCommand::InputText(text) => write!(f, "input:{}", text),
+            ADBCommand::Back => write!(f, "back:{}", BACK),
+            ADBCommand::Home => write!(f, "home:{}", HOME),
+            ADBCommand::Sequence(commands) => {
+                write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str())
+            }
+            ADBCommand::ReliableSequence(commands) => {
+                write!(
+                    f,
+                    "reliable_sequence:{}",
+                    adb_cmd_vec_to_string(commands).as_str()
+                )
+            }
+            ADBCommand::Duration(duration) => write!(f, "{}", duration),
+            ADBCommand::Loop(commands) => {
+                write!(f, "sequence:{}", adb_cmd_vec_to_string(commands).as_str())
+            }
+            ADBCommand::StopLoop(is_stop) => write!(f, "stop_loop:{}", is_stop),
+            ADBCommand::ChangeConnectConfig(config) => {
+                write!(f, "change_connect_config:{}", config)
+            }
+            ADBCommand::AwaitResult(command, _) => write!(f, "await:{}", command),
+            ADBCommand::Pause => write!(f, "pause"),
+            ADBCommand::Resume => write!(f, "resume"),
+        }
+    }
+}
+
+fn adb_cmd_vec_to_string(commands: &Vec<ADBCommand>) -> String {
+    let mut cmds = String::new();
+    for command in commands {
+        cmds.push_str(&command.to_string());
+        cmds.push_str(",");
+    }
+    cmds.pop();
+    cmds
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum ADBCmdConv {
+    ADBShellCommand(String),
+    ADBClientCommand(ADBCommand),
+    ADBSleepCommand(ADBCommand),
+}
+
+impl std::fmt::Display for ADBCmdConv {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ADBCmdConv::ADBShellCommand(cmd) => write!(f, "{}", cmd),
+            ADBCmdConv::ADBClientCommand(cmd) => write!(f, "{}", cmd),
+            ADBCmdConv::ADBSleepCommand(cmd) => write!(f, "{}", cmd),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum ADBCommandResult {
+    Success,
+    Failed(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sleep_cmd, start_activity_cmd};
+
+    #[test]
+    fn sleep_cmd_formats_milliseconds() {
+        assert_eq!(sleep_cmd(0), "sleep 0");
+        assert_eq!(sleep_cmd(150), "sleep 0.150");
+        assert_eq!(sleep_cmd(1000), "sleep 1");
+        assert_eq!(sleep_cmd(1250), "sleep 1.250");
+    }
+
+    #[test]
+    fn start_activity_cmd_waits_for_launch_completion() {
+        assert_eq!(
+            start_activity_cmd("com.demo.app", "com.demo.app.MainActivity"),
+            "am start -W -n com.demo.app/com.demo.app.MainActivity"
+        );
+    }
+}

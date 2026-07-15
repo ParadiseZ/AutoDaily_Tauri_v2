@@ -1,0 +1,11 @@
+[package]
+name = "domain-schedule"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ad_kernel = { path = "../ad_kernel" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+ts-rs = { workspace = true }

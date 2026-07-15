@@ -2,14 +2,63 @@
 
 extern crate core;
 
-// Legacy modules (will be gradually phased out).
 mod api;
 mod app;
-mod constant;
-mod domain;
-pub mod infrastructure;
+mod infra;
 
-use crate::api::backend_cmd::{
+use crate::api::local::debug::{frontend_debug_log_cmd, open_current_devtools_cmd};
+use crate::api::local::device::{
+    delete_device_cmd, get_all_devices_cmd, get_cpu_count_cmd, get_device_by_id_cmd,
+    save_device_cmd,
+};
+use crate::api::local::execution::{
+    cmd_bootstrap_enabled_devices, cmd_capture_device_image, cmd_device_pause, cmd_device_shutdown,
+    cmd_device_start, cmd_device_stop, cmd_get_device_runtime_snapshots, cmd_get_running_devices,
+    cmd_is_device_running, cmd_prepare_device_capture, cmd_probe_device_connections,
+    cmd_restart_device_runtime, cmd_run_script_target, cmd_run_user_script_target,
+    cmd_spawn_device, cmd_sync_device_runtime_session, register_child_process_exit_handler,
+    spawn_auto_dispatch_planner_loop, spawn_dispatch_signal_loop, spawn_runtime_reconcile_loop,
+};
+use crate::api::local::get_uuid_v7;
+use crate::api::local::schedule::{
+    clear_schedules_by_script_cmd, clear_schedules_cmd, delete_assignment_cmd,
+    delete_script_time_template_values_cmd, delete_time_template_cmd, get_all_time_templates_cmd,
+    get_assignment_schedules_by_device_cmd, get_assignments_by_device_cmd,
+    get_schedules_by_device_cmd, get_script_time_template_values_cmd, reorder_assignments_cmd,
+    save_assignment_cmd, save_script_time_template_values_cmd, save_time_template_cmd,
+};
+use crate::api::local::script::policies::*;
+use crate::api::local::script::transfer_records::{
+    clear_script_transfer_records_cmd, delete_script_transfer_record_cmd,
+    list_script_transfer_records_cmd, pause_script_transfer_record_cmd,
+    resume_script_transfer_record_cmd,
+};
+use crate::api::local::script::{
+    clone_local_script_cmd, delete_script_cmd, get_all_scripts_cmd, get_script_by_id_cmd,
+    get_script_tasks_cmd, get_yolo_labels_cmd, save_script_cmd, save_script_editor_cmd,
+};
+use crate::api::local::settings::email::{
+    get_email_config_cmd, send_test_email_cmd, set_email_config_cmd,
+};
+use crate::api::local::settings::log::{
+    clean_logs_now_cmd, clear_today_device_logs_cmd, get_log_config_cmd,
+    read_today_device_logs_cmd, update_child_log_level_cmd, update_log_dir_cmd,
+    update_log_level_cmd, update_retention_days_cmd,
+};
+use crate::api::local::settings::system::set_system_settings_cmd;
+use crate::api::local::settings::vision_cache::{
+    get_vision_text_cache_config_cmd, set_vision_text_cache_config_cmd,
+};
+use crate::api::local::vision::dev_test::{
+    dev_capture_test, paddle_ocr_inference_image_data_test, paddle_ocr_inference_test,
+    save_captured_image, yolo_inference_image_data_test, yolo_inference_test,
+};
+use crate::api::local::vision::image::convert_img_to_base64_cmd;
+use crate::api::local::vision::lab::{
+    get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd, vision_list_image_files_cmd,
+    vision_save_capture_image_cmd,
+};
+use crate::api::server::{
     backend_download_model, backend_download_script, backend_get_auth_session,
     backend_get_cached_profile, backend_get_profile, backend_get_script_change_logs,
     backend_get_script_cloud_summary, backend_login, backend_logout,
@@ -18,63 +67,9 @@ use crate::api::backend_cmd::{
     backend_send_verification_code, backend_update_username, backend_upload_model,
     backend_upload_script,
 };
-use crate::api::dev_test::{
-    dev_capture_test, paddle_ocr_inference_image_data_test, paddle_ocr_inference_test,
-    save_captured_image, yolo_inference_image_data_test, yolo_inference_test,
-};
-use crate::api::domain::devices::{
-    delete_device_cmd, get_all_devices_cmd, get_cpu_count_cmd, get_device_by_id_cmd,
-    save_device_cmd,
-};
-use crate::api::domain::policy::*;
-use crate::api::domain::schedule::{
-    clear_schedules_by_script_cmd, clear_schedules_cmd, delete_assignment_cmd,
-    delete_script_time_template_values_cmd, delete_time_template_cmd, get_all_time_templates_cmd,
-    get_assignment_schedules_by_device_cmd, get_assignments_by_device_cmd,
-    get_schedules_by_device_cmd, get_script_time_template_values_cmd, reorder_assignments_cmd,
-    save_assignment_cmd, save_script_time_template_values_cmd, save_time_template_cmd,
-};
-use crate::api::domain::script_transfer_records::{
-    clear_script_transfer_records_cmd, delete_script_transfer_record_cmd,
-    list_script_transfer_records_cmd, pause_script_transfer_record_cmd,
-    resume_script_transfer_record_cmd,
-};
-use crate::api::domain::scripts::{
-    clone_local_script_cmd, delete_script_cmd, get_all_scripts_cmd, get_script_by_id_cmd,
-    get_script_tasks_cmd, get_yolo_labels_cmd, save_script_cmd, save_script_editor_cmd,
-};
-use crate::api::infrastructure::config::email::{
-    get_email_config_cmd, send_test_email_cmd, set_email_config_cmd,
-};
-use crate::api::infrastructure::config::log_api::{
-    clean_logs_now_cmd, clear_today_device_logs_cmd, get_log_config_cmd,
-    read_today_device_logs_cmd, update_child_log_level_cmd, update_log_dir_cmd,
-    update_log_level_cmd, update_retention_days_cmd,
-};
-use crate::api::infrastructure::config::sys_conf::set_system_settings_cmd;
-use crate::api::infrastructure::config::vision_cache::{
-    get_vision_text_cache_config_cmd, set_vision_text_cache_config_cmd,
-};
-use crate::api::infrastructure::frontend_debug::{
-    frontend_debug_log_cmd, open_current_devtools_cmd,
-};
-use crate::api::infrastructure::get_uuid_v7;
-use crate::api::infrastructure::img::convert_img_to_base64_cmd;
-use crate::api::infrastructure::process_api::{
-    cmd_bootstrap_enabled_devices, cmd_capture_device_image, cmd_device_pause, cmd_device_shutdown,
-    cmd_device_start, cmd_device_stop, cmd_get_device_runtime_snapshots, cmd_get_running_devices,
-    cmd_is_device_running, cmd_prepare_device_capture, cmd_probe_device_connections,
-    cmd_restart_device_runtime, cmd_run_script_target, cmd_run_user_script_target,
-    cmd_spawn_device, cmd_sync_device_runtime_session, register_child_process_exit_handler,
-    spawn_auto_dispatch_planner_loop, spawn_dispatch_signal_loop, spawn_runtime_reconcile_loop,
-};
-use crate::api::infrastructure::vision_lab::{
-    get_vision_lab_model_config_cmd, set_vision_lab_model_config_cmd, vision_list_image_files_cmd,
-    vision_save_capture_image_cmd,
-};
 use crate::app::before_exit::before_exit;
 use crate::app::init_start::init_at_start;
-use crate::infrastructure::context::main_process::MainProcessCtx;
+use crate::infra::context::main_process::MainProcessCtx;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{App, Emitter, Manager};
 

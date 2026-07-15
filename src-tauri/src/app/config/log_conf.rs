@@ -1,17 +1,15 @@
-use crate::api::infrastructure::process_api::send_device_config_update;
+use crate::api::local::execution::send_device_config_update;
 use crate::app::app_error::AppResult;
-use crate::constant::sys_conf_path::{APP_STORE, LOG_CONFIG_KEY};
-use crate::constant::table_name::DEVICE_TABLE;
-use crate::domain::devices::device_conf::DeviceTable;
-use crate::infrastructure::app_handle::get_app_handle;
-use crate::infrastructure::context::child_process_manager::get_process_manager;
-use crate::infrastructure::core::DeviceId;
-use crate::infrastructure::db::DbRepo;
-use crate::infrastructure::logging::config::LogMain;
-use crate::infrastructure::logging::log_cleaner::LogCleaner;
-use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::logging::logger::LOG_DIR;
-use crate::infrastructure::logging::LogLevel;
+use crate::app::constants::{APP_STORE, LOG_CONFIG_KEY};
+use crate::infra::app_handle::get_app_handle;
+use crate::infra::context::child_process_manager::get_process_manager;
+use crate::infra::logging::LogLevel;
+use crate::infra::logging::config::LogMain;
+use crate::infra::logging::log_cleaner::LogCleaner;
+use crate::infra::logging::log_trait::Log;
+use crate::infra::logging::logger::LOG_DIR;
+use ad_kernel::ids::DeviceId;
+use infra_sqlite::{get_device, save_device};
 use tauri_plugin_store::StoreExt;
 
 /// 持久化日志配置到 store
@@ -94,29 +92,29 @@ pub async fn update_child_log_level_app(
     log_level: &LogLevel,
 ) -> AppResult<()> {
     let app_handle = get_app_handle();
-    let Some(mut current) = DbRepo::get_by_id::<DeviceTable>(DEVICE_TABLE, &device_id.to_string())
-        .await
-        .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
+    let Some(mut current) = get_device(device_id).await.map_err(|error| {
+        crate::app::app_error::AppError::SetConfigFailed {
             detail: "读取设备日志级别配置".to_string(),
             e: error,
-        })?
+        }
+    })?
     else {
         return Err(crate::app::app_error::AppError::SetConfigFailed {
             detail: "读取设备日志级别配置".to_string(),
             e: "目标设备不存在".to_string(),
         });
     };
-    let device_name = current.data.0.device_name.clone();
-    current.data.0.log_level = log_level.clone();
-    DbRepo::upsert_id_data(DEVICE_TABLE, &device_id.to_string(), &current.data)
-        .await
-        .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
+    let device_name = current.config.device_name.clone();
+    current.config.log_level = log_level.clone();
+    save_device(&current).await.map_err(|error| {
+        crate::app::app_error::AppError::SetConfigFailed {
             detail: "写入设备日志级别配置".to_string(),
             e: error,
-        })?;
+        }
+    })?;
     if let Some(manager) = get_process_manager() {
         if manager.is_running(&device_id).await {
-            send_device_config_update(&app_handle, device_id, &current.data.0)
+            send_device_config_update(&app_handle, device_id, &current.config)
                 .await
                 .map_err(|error| crate::app::app_error::AppError::SetConfigFailed {
                     detail: "同步设备日志级别到子进程".to_string(),

@@ -314,7 +314,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { ChevronRight, GripVertical, Plus } from 'lucide-vue-next';
+import { ChevronRight, GripVertical, Plus } from '@lucide/vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import EditorTaskSidebarTaskCard from '@/views/script-editor/EditorTaskSidebarTaskCard.vue';

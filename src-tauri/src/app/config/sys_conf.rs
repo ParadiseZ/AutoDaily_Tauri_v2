@@ -1,9 +1,8 @@
 use crate::app::app_error::{AppError, AppResult};
 use crate::app::config::short_cut::{register_short_cut_by_config, unregister_all};
-use crate::constant::project::MAIN_WINDOW;
-use crate::constant::sys_conf_path::{APP_STORE, SYSTEM_SETTINGS_KEY};
-use crate::domain::config::sys_conf::SystemConfig;
-use crate::infrastructure::logging::log_trait::Log;
+use crate::app::constants::{APP_STORE, MAIN_WINDOW, SYSTEM_SETTINGS_KEY};
+use crate::infra::logging::log_trait::Log;
+use domain_system::SystemConfig;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 

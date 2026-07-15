@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import * as icons from 'lucide-vue-next';
+import * as icons from '@lucide/vue';
 import { SvgLogo, SvgNode, SvgStatus } from '@/components/shared/svg';
 
 const props = defineProps({

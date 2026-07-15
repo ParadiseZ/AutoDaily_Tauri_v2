@@ -1,0 +1,11 @@
+[package]
+name = "domain-device"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ad_kernel = { path = "../ad_kernel" }
+bincode = { workspace = true }
+domain_vision = { package = "domain-vision", path = "../domain_vision" }
+serde = { workspace = true }
+ts-rs = { workspace = true }

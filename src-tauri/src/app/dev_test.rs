@@ -1,13 +1,12 @@
 use crate::app::app_error::AppResult;
-use crate::domain::vision::result::{DetResult, OcrResult};
-use crate::infrastructure::image::load_image::load_img_from_path;
-use crate::infrastructure::logging::log_trait::Log;
-use crate::infrastructure::vision::det::DetectorType;
-use crate::infrastructure::vision::ocr_service::OcrService;
-use crate::infrastructure::vision::rec::RecognizerType;
-use base64::engine::general_purpose;
+use crate::infra::logging::log_trait::Log;
 use base64::Engine;
+use base64::engine::general_purpose;
+use domain_vision::DetectorType;
+use domain_vision::RecognizerType;
+use domain_vision::{DetResult, OcrResult};
 use image::DynamicImage;
+use infra_vision::{OcrService, load_img_from_path};
 
 fn load_img_from_base64(image_data: &str) -> Result<DynamicImage, String> {
     let base64 = image_data

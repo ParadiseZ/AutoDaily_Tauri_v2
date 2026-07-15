@@ -1,0 +1,15 @@
+[package]
+name = "infra-adb"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+adb_client = { workspace = true }
+crossbeam-channel = { workspace = true }
+image = { workspace = true }
+ad_kernel = { path = "../ad_kernel" }
+serde = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+ts-rs = { workspace = true }

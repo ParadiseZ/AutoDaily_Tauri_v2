@@ -155,7 +155,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Crosshair, GripVertical, Trash2 } from 'lucide-vue-next';
+import { Crosshair, GripVertical, Trash2 } from '@lucide/vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
 import type { EditorNamedItem } from '@/views/script-editor/editor-policy/editorPolicy';

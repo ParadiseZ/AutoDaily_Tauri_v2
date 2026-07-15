@@ -1,0 +1,18 @@
+[package]
+name = "infra-device-runtime"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+adb_client = { workspace = true }
+domain_device = { package = "domain-device", path = "../domain_device" }
+crossbeam-channel = { workspace = true }
+image = { workspace = true }
+infra_adb = { package = "infra-adb", path = "../infra_adb" }
+infra_window_capture = { package = "infra-window-capture", path = "../infra_window_capture" }
+runner_protocol = { package = "runner-protocol", path = "../runner_protocol" }
+ad_kernel = { path = "../ad_kernel" }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+ts-rs = { workspace = true }

@@ -1,0 +1,13 @@
+[package]
+name = "ad_kernel"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bincode = { workspace = true }
+serde = { workspace = true }
+ts-rs = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

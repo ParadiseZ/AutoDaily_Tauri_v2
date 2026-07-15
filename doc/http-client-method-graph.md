@@ -1,7 +1,7 @@
 # HttpClient Method Graph
 
 文件对应：
-[http_client.rs](D:/Database/Project/VisualStudioCode/AutoDaily/src-tauri/crates/runtime_engine/src/infrastructure/http_client.rs)
+[http_client.rs](../src-tauri/src/infra/http_client.rs)
 
 ## Overview
 

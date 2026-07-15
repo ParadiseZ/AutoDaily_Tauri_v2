@@ -1,9 +1,6 @@
 [build]
-# sccache 编译缓存加速 - 首次编译后，相同代码重编译速度提升 5-10 倍
-# 如果没有安装 sccache，运行: cargo install sccache
-# 不再经过 .cmd wrapper。Tauri dev 链接主程序时 rustc 参数很长，cmd.exe 会命中
-# 8191 字符命令行上限，直接表现为 "The command line is too long."
-rustc-wrapper = "D:\\Database\\Rust\\cargo\\bin\\sccache.exe"
+# 不经 .cmd wrapper，避免 Tauri dev 的 rustc 参数触及 Windows 命令行长度限制。
+# sccache 由开发者环境按需通过 RUSTC_WRAPPER 启用，不能成为仓库构建前提。
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
 
@@ -40,7 +37,10 @@ fullbuild = "build --features child-bin"
 # ts-rs 生成的 TypeScript 绑定输出目录
 [env]
 TS_RS_EXPORT_DIR = { value = "src/types/bindings", relative = true }
+# ORT 二进制缓存跟随项目，避免用户级缓存的权限或残留状态影响构建。
+ORT_CACHE_DIR = { value = "src-tauri/target/ort-cache", relative = true }
 
 #build-dir-new-layout
 [unstable]
-build-dir-new-layout = true
+# 先关闭
+build-dir-new-layout = false

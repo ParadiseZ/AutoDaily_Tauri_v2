@@ -1,0 +1,34 @@
+[package]
+name = "child_runner"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ad_kernel = { path = "../ad_kernel" }
+domain_schedule = { package = "domain-schedule", path = "../domain_schedule" }
+domain_device = { package = "domain-device", path = "../domain_device" }
+domain_script = { package = "domain-script", path = "../domain_script" }
+domain_vision = { package = "domain-vision", path = "../domain_vision" }
+infra_sqlite = { package = "infra-sqlite", path = "../infra_sqlite" }
+infra_adb = { package = "infra-adb", path = "../infra_adb" }
+infra_device_runtime = { package = "infra-device-runtime", path = "../infra_device_runtime" }
+infra_logging = { package = "infra-logging", path = "../infra_logging" }
+infra_window_capture = { package = "infra-window-capture", path = "../infra_window_capture" }
+infra_vision_cache = { package = "infra-vision-cache", path = "../infra_vision_cache" }
+runner_protocol = { package = "runner-protocol", path = "../runner_protocol" }
+infra_vision = { package = "infra-vision", path = "../infra_vision" }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }
+interprocess = { workspace = true }
+rhai = { workspace = true }
+image = { workspace = true }
+twox-hash = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true }
