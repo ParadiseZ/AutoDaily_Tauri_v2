@@ -2,7 +2,11 @@
   <div
     v-if="useRadioGroup"
     class="editor-select-group"
-    :class="{ 'editor-select-group-disabled': disabled }"
+    :class="[
+      { 'editor-select-group-disabled': disabled },
+      { 'field-compact': width === 'compact' },
+      { 'field-radio': width === 'radio' },
+    ]"
     :data-testid="testId"
     role="radiogroup"
   >
@@ -42,6 +46,10 @@
     :searchable="searchable"
     :search-placeholder="searchPlaceholder"
     :test-id="testId"
+    :class="{
+      'field-compact': width === 'compact',
+      'field-radio': width === 'radio',
+    }"
     @update:model-value="$emit('update:modelValue', $event)"
   />
 </template>
@@ -69,6 +77,7 @@ const props = withDefaults(
     showDescription?: boolean;
     searchable?: boolean;
     searchPlaceholder?: string;
+    width?: 'full' | 'compact' | 'radio';
     testId?: string;
   }>(),
   {
@@ -99,6 +108,8 @@ const selectOption = (value: SelectValue) => {
 </script>
 
 <style scoped>
+@reference "../../style.css";
+
 .editor-select-group {
   display: flex;
   flex-wrap: wrap;
@@ -180,5 +191,13 @@ const selectOption = (value: SelectValue) => {
   color: var(--app-text-faint);
   font-size: 0.72rem;
   line-height: 1.35;
+}
+
+.field-compact {
+  @apply max-w-[16rem];
+}
+
+.field-radio {
+  @apply max-w-[24rem];
 }
 </style>

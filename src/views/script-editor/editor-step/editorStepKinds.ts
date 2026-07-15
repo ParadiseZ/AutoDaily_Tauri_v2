@@ -21,6 +21,8 @@ import type { VisionNode } from '@/types/bindings/VisionNode';
 type ActionMode = Extract<Action, { ac: 'click' }>['mode'] | Extract<Action, { ac: 'swipe' }>['mode'];
 type PolicySetResultField = Extract<ConditionNode, { type: 'policySetResult' }>['field'];
 type PolicySetResultCompareOp = Extract<ConditionNode, { type: 'policySetResult' }>['op'];
+type PrintSource = Extract<DataHanding, { type: 'print' }>['source'];
+type PrintLogLevel = Extract<DataHanding, { type: 'print' }>['level'];
 type ScalarTaskCycle = Extract<TaskCycle, string>;
 
 export const STEP_OPS = ['sequence', 'action', 'dataHanding', 'flowControl', 'taskControl', 'vision'] as const satisfies readonly Step['op'][];
@@ -99,16 +101,25 @@ export const FLOW_TYPE = {
   handlePolicy: FLOW_TYPES[18],
 } as const;
 
-export const DATA_TYPES = ['setVar', 'clearVars', 'getVar', 'filter', 'colorCompare', 'relativeFilter', 'rhai'] as const satisfies readonly DataHanding['type'][];
+export const DATA_TYPES = ['setVar', 'clearVars', 'getVar', 'print', 'filter', 'colorCompare', 'relativeFilter', 'rhai'] as const satisfies readonly DataHanding['type'][];
 export const DATA_TYPE = {
   setVar: DATA_TYPES[0],
   clearVars: DATA_TYPES[1],
   getVar: DATA_TYPES[2],
-  filter: DATA_TYPES[3],
-  colorCompare: DATA_TYPES[4],
-  relativeFilter: DATA_TYPES[5],
-  rhai: DATA_TYPES[6],
+  print: DATA_TYPES[3],
+  filter: DATA_TYPES[4],
+  colorCompare: DATA_TYPES[5],
+  relativeFilter: DATA_TYPES[6],
+  rhai: DATA_TYPES[7],
 } as const;
+
+export const PRINT_SOURCES = ['text', 'variable'] as const satisfies readonly PrintSource[];
+export const PRINT_SOURCE = {
+  text: PRINT_SOURCES[0],
+  variable: PRINT_SOURCES[1],
+} as const;
+
+export const PRINT_LOG_LEVELS = ['Debug', 'Info', 'Warn', 'Error'] as const satisfies readonly Exclude<PrintLogLevel, 'Off'>[];
 
 export const COLOR_COMPARE_METHOD_TYPES = ['oklabDistance'] as const satisfies readonly ColorCompareMethod['type'][];
 export const COLOR_COMPARE_METHOD_TYPE = {

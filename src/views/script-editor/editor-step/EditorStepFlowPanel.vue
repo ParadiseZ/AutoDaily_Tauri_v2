@@ -187,7 +187,6 @@
           />
           <div class="space-y-1">
             <p class="text-sm font-medium text-(--app-text-strong)">添加到顶部</p>
-            <p class="text-xs leading-6 text-(--app-text-soft)">开启后，源对象会插到目标对象当前顺序的最前面。</p>
           </div>
         </label>
 
@@ -456,16 +455,15 @@
     </template>
 
     <template v-else-if="flowWithCondition && flowCondition">
-      <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
+      <!-- <div class="space-y-4 rounded-[16px] border border-(--app-border) px-4 py-4">
         <div class="flex flex-wrap items-start justify-between gap-3">
-          <!-- 去掉步骤内切换其它类型步骤的功能 -->
-          <!-- <EditorSelectField
+          <EditorSelectField
             :model-value="flowWithCondition.type"
             :options="flowTypeOptions"
             placeholder="流程类型"
             class="min-w-[180px] flex-1"
             @update:model-value="$emit('update-flow-type', String($event || FLOW_TYPE.if))"
-          /> -->
+          />
 
           <div class="flex flex-wrap items-center gap-2" v-if="branchTargets.length">
             <button
@@ -492,11 +490,40 @@
           </div>
         </div>
 
-        <div v-if="flowWithCondition.type !== FLOW_TYPE.if && branchSummary" class="text-xs text-(--app-text-faint)">
+        <div v-if="flowWithCondition.type !== FLOW_TYPE.if && flowWithCondition.type !== FLOW_TYPE.while && branchSummary" class="text-xs text-(--app-text-faint)">
           {{ branchSummary }}
         </div>
 
-        <EditorConditionBuilder
+        
+      </div> -->
+
+      <div class="flex flex-wrap items-center gap-2" v-if="branchTargets.length">
+        <button
+          v-for="target in branchTargets"
+          :key="target.key"
+          class="app-button app-accent-comple-color"
+          type="button"
+          :data-testid="`editor-branch-${target.key}`"
+          @click="$emit('navigate-branch', target.path)"
+        >
+          <span>{{ target.label }}</span>
+          <span class="editor-branch-pill-count">{{ target.count }}</span>
+        </button>
+
+        <button
+          v-if="flowWithCondition.type === FLOW_TYPE.if"
+          class="app-button app-button-primary app-toolbar-button justify-center"
+          type="button"
+          @click="$emit('toggle-else-branch')"
+        >
+          {{ hasElseBranch ? '移除 Else' : '添加 Else' }}
+        </button>
+
+        <div v-if="flowWithCondition.type !== FLOW_TYPE.if && flowWithCondition.type !== FLOW_TYPE.while && branchSummary" class="text-xs">
+          {{ branchSummary }}
+        </div>
+      </div>
+      <EditorConditionBuilder
           :model-value="flowCondition"
           :variable-options="readableCatalogVariableOptions"
           :variable-reference-options="variableReferenceOptions"
@@ -513,7 +540,6 @@
           test-id-prefix="editor-condition"
           @update:model-value="$emit('update-flow-condition', $event)"
         />
-      </div>
     </template>
   </div>
 </template>
@@ -801,7 +827,8 @@ const bindingReverseTestId = computed(() => {
   return 'editor-flow-bind-policy-reverse';
 });
 const bindingReverseDescription = computed(() => {
-  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) {
+  return '';
+/*   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) {
     return '会先按源策略集当前顺序展开策略组，再整体反转后插入目标策略集。';
   }
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicyGroup) {
@@ -810,10 +837,11 @@ const bindingReverseDescription = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.addPolicyGroups) {
     return '会先按源策略组当前顺序展开策略，再整体反转后插入目标策略组。';
   }
-  return '单个策略本身不会变成多个对象，但保留这个开关以统一绑定语义。';
+  return '单个策略本身不会变成多个对象，但保留这个开关以统一绑定语义。'; */
 });
 const bindingHelpText = computed(() => {
-  if (props.selectedFlow.type === FLOW_TYPE.addPolicies) {
+  return '';
+/*   if (props.selectedFlow.type === FLOW_TYPE.addPolicies) {
     return '运行时会读取源策略集当前可见的策略组顺序，再按 top / reverse 规则插入到目标策略集。后续处理目标策略集时会直接使用这份展开结果。';
   }
   if (props.selectedFlow.type === FLOW_TYPE.removePolicies) {
@@ -834,7 +862,7 @@ const bindingHelpText = computed(() => {
   if (props.selectedFlow.type === FLOW_TYPE.bindPolicy) {
     return '运行时会把源策略插入目标策略组。后续处理引用该策略组的策略集时，会使用插入后的最终策略顺序。';
   }
-  return '运行时只会移除目标策略组中由这个源策略绑定出来的覆盖关系，不会改动策略组本身保存的原始策略列表。';
+  return '运行时只会移除目标策略组中由这个源策略绑定出来的覆盖关系，不会改动策略组本身保存的原始策略列表。'; */
 });
 const resolveReferenceOptions = (
   currentId: string,
@@ -1502,9 +1530,10 @@ const jumpToSelectedRepeatIndexVariable = () => {
 
 .editor-branch-pill-count {
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
+  /* background: rgba(255, 255, 255, 0.72); */
+  background: white;
   padding: 0.1rem 0.45rem;
   font-size: 0.74rem;
-  color: var(--app-text-faint);
+  color: black;
 }
 </style>

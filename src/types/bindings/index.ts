@@ -87,6 +87,7 @@ export type { PolicySetResultCompareOp } from './PolicySetResultCompareOp';
 export type { PolicySetResultField } from './PolicySetResultField';
 export type { PolicySetTable } from './PolicySetTable';
 export type { PolicyTable } from './PolicyTable';
+export type { PrintSource } from './PrintSource';
 export type { RecProcessingMode } from './RecProcessingMode';
 export type { RecResizeFilter } from './RecResizeFilter';
 export type { RecognizerType } from './RecognizerType';

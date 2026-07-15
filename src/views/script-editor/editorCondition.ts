@@ -27,7 +27,7 @@ export const conditionTypeOptions = [
   { label: '表达式', value: CONDITION_TYPE.rawExpr, description: '直接编写 rhai 条件表达式。' },
   { label: '条件组', value: CONDITION_TYPE.group, description: '组合多个子条件。' },
   { label: '执行次数', value: CONDITION_TYPE.execNumCompare, description: '按任务或策略的执行次数判断。' },
-  { label: '任务状态', value: CONDITION_TYPE.taskStatus, description: '按任务或策略完成/跳过状态判断。' },
+  { label: '任务/策略状态', value: CONDITION_TYPE.taskStatus, description: '按任务或策略完成/跳过状态判断。' },
   { label: '当前任务', value: CONDITION_TYPE.currentTaskIn, description: '判断当前执行任务是否属于指定列表。' },
   { label: '变量比较', value: CONDITION_TYPE.varCompare, description: '比较运行时变量或输入变量。' },
   { label: '判断数量大小', value: CONDITION_TYPE.visionCountCompare, description: '统计检测标签或 OCR 文字的匹配数量，并和指定数量比较。' },
@@ -45,10 +45,10 @@ export const stateTargetTypeOptions = [
   { label: '策略', value: createStateTarget('policy').type, description: '引用策略状态。' },
 ];
 
-export const taskControlTypeOptions = [
+/* export const taskControlTypeOptions = [
   { label: '状态匹配', value: TASK_CONTROL_TYPE.setState, description: '检查目标当前状态。' },
 ];
-
+ */
 export const stateStatusTypeOptions = [
   { label: '启用', value: STATE_STATUS_TYPE.enabled, description: '启用 / 禁用状态。' },
   { label: '完成', value: STATE_STATUS_TYPE.done, description: '完成状态。' },
@@ -115,7 +115,7 @@ export const createConditionNode = (type: ConditionNode['type'] = CONDITION_TYPE
         op: COMPARE_OP.contains satisfies CompareOp,
         value: buildVarValue({
           kind: 'string',
-          textValue: '开始',
+          textValue: '',
           boolValue: false,
         }),
       });

@@ -21,7 +21,7 @@ pub use access::{ScriptAccessError, clone_cloud_id, ensure_clone_allowed, ensure
 pub use action::{Action, ClickMode, SwipeMode, SwipeTarget};
 pub use ad_kernel::ids::ScriptId;
 pub use data_handing::{
-    ColorCompareMethod, ColorRgb, DataHanding, FilterMode, RegionPoint, VarValue,
+    ColorCompareMethod, ColorRgb, DataHanding, FilterMode, PrintSource, RegionPoint, VarValue,
 };
 pub use error::{ExecuteResult, ScriptError};
 pub use flow_control::{

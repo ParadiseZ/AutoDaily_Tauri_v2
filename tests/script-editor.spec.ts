@@ -2409,8 +2409,12 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
   await page.getByTestId('editor-step-template-if').click();
 
   await selectOptionByValue(page, 'editor-condition-type', 'varCompare');
+  const varCompareValue = page.getByLabel('比较值');
+  await expect(varCompareValue).toHaveValue('');
+  await expect(varCompareValue).toBeFocused();
   await selectOptionByValue(page, 'editor-condition-var-name', 'input.pkgName');
-  await page.getByLabel('比较值').fill('已完成');
+  await varCompareValue.fill('已完成');
+  await expect(varCompareValue).toHaveClass(/input-valid/);
   await page.getByTestId('editor-branch-then').click();
   await page.getByTestId('editor-step-template-wait').click();
   await page.getByRole('button', { name: '顶层步骤' }).click();
@@ -2670,6 +2674,12 @@ test('persists action sequence, vision rule, and task state forms', async ({ pag
   await page.getByTestId('editor-step-template-click-text').click();
   await page.getByLabel('目标文字').fill('命中');
   await page.getByTestId('editor-step-template-wait').click();
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+
+  await page.getByTestId('editor-step-template-print').click();
+  await page.getByTestId('editor-step-card-6').click();
+  await page.getByTestId('editor-print-value').fill('任务完成');
+  await selectOptionByValue(page, 'editor-print-level', 'Warn');
 
   await page.getByTestId('editor-save').click();
 
@@ -2769,6 +2779,15 @@ test('persists action sequence, vision rule, and task state forms', async ({ pag
           },
         },
       ],
+    },
+  });
+  expect(task.data.steps[6]).toMatchObject({
+    op: 'dataHanding',
+    a: {
+      type: 'print',
+      source: 'text',
+      value: '任务完成',
+      level: 'Warn',
     },
   });
 });

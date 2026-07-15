@@ -58,6 +58,29 @@ impl ScriptExecutor {
                 }
                 Ok(ControlFlow::Next)
             }
+            DataHanding::Print {
+                source,
+                value,
+                level,
+            } => {
+                let output = match source {
+                    PrintSource::Text => value.clone(),
+                    PrintSource::Variable => self
+                        .read_runtime_var(value)
+                        .await
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| format!("<变量 {} 未定义>", value)),
+                };
+                let message = format!("[ script ] {}", output);
+                match level {
+                    LogLevel::Debug => Log::debug(&message),
+                    LogLevel::Info => Log::info(&message),
+                    LogLevel::Warn => Log::warn(&message),
+                    LogLevel::Error => Log::error(&message),
+                    LogLevel::Off => {}
+                }
+                Ok(ControlFlow::Next)
+            }
             DataHanding::Filter {
                 input_var,
                 out_name,

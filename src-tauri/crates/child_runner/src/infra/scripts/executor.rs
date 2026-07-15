@@ -7,6 +7,7 @@ use crate::infra::context::{
     PolicyActionTrace, PolicyExecutionResult, PolicyExecutionRound,
 };
 use crate::infra::ipc::runtime_reporter::{emit_lifecycle_event, emit_progress_event};
+use crate::infra::logging::LogLevel;
 use crate::infra::logging::log_trait::Log;
 use crate::infra::session::runtime_session::{
     get_runtime_execution_policy, get_runtime_session_store, get_script_bundle_snapshot,
@@ -22,8 +23,9 @@ use domain_device::{DeviceOperation, TimeoutAction};
 use domain_script::{
     Action, ClickMode, ColorCompareMethod, ColorRgb, CompareOp, ConditionNode,
     CurrentTaskCondition, DataHanding, ExecuteResult, FilterMode, FlowControl, PointF32, PointU16,
-    PolicySetResultCompareOp, PolicySetResultField, RegionPoint, ScriptError, StateStatus,
-    StateTarget, Step, StepKind, SwipeMode, SwipeTarget, TaskControl, VarValue, VisionNode,
+    PolicySetResultCompareOp, PolicySetResultField, PrintSource, RegionPoint, ScriptError,
+    StateStatus, StateTarget, Step, StepKind, SwipeMode, SwipeTarget, TaskControl, VarValue,
+    VisionNode,
 };
 use domain_script::{
     PolicyGroupPolicyLink, PolicyGroupProfile, PolicyProfile, PolicySetGroupLink, PolicySetProfile,

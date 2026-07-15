@@ -92,6 +92,7 @@ const SVG_ICONS = {
   setVar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
   getVar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
   code: '<path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/><path d="M14 4l-4 16"/>',
+  print: '<path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7"/><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M18 12h.01"/>',
   filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
   color: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.836-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
   detect: '<path d="M3 11h4"/><path d="M17 11h4"/><path d="M11 3v4"/><path d="M11 17v4"/><rect x="6" y="6" width="10" height="10" rx="2"/>',
@@ -805,6 +806,24 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
   {
+    id: 'print',
+    icon: genSvg(SVG_ICONS.print),
+    label: '打印',
+    description: '将固定字符串或变量当前值输出到运行日志。',
+    group: '数据',
+    create: () =>
+      createBaseStep({
+        label: '打印',
+        op: STEP_OP.dataHanding,
+        a: {
+          type: DATA_TYPE.print,
+          source: 'text',
+          value: '',
+          level: 'Info',
+        },
+      }),
+  },
+  {
     id: 'rhai',
     icon: genSvg(SVG_ICONS.code),
     label: 'Rhai 代码',
@@ -1043,6 +1062,7 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === DATA_TYPE.setVar) return '设置变量';
     if (step.a.type === DATA_TYPE.clearVars) return '清空变量';
     if (step.a.type === DATA_TYPE.getVar) return '读取变量';
+    if (step.a.type === DATA_TYPE.print) return '打印';
     if (step.a.type === DATA_TYPE.rhai) return 'Rhai 代码';
     if (step.a.type === DATA_TYPE.filter) return '过滤变量';
     if (step.a.type === DATA_TYPE.colorCompare) return '颜色筛选';
@@ -1150,6 +1170,10 @@ export const describeStepMeta = (step: Step) => {
         return step.a.names.length ? `清空 ${step.a.names.length} 个变量` : '清空变量列表';
       case DATA_TYPE.getVar:
         return `读取变量 ${step.a.name || '未命名变量'}`;
+      case DATA_TYPE.print:
+        return step.a.source === 'variable'
+          ? `[${step.a.level}] 打印变量 ${step.a.value || '未指定变量'}`
+          : `[${step.a.level}] 打印 ${step.a.value || '空字符串'}`;
       case DATA_TYPE.rhai:
         return step.a.out_var?.trim()
           ? `Rhai 代码 -> ${step.a.out_var.trim()}`

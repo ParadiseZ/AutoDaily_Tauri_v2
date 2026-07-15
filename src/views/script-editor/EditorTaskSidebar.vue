@@ -355,7 +355,9 @@ const EXPANDED_MENU_MAX_HEIGHT = 320;
 const search = ref('');
 const draggingTaskId = ref<string | null>(null);
 const overTaskId = ref<string | null>(null);
-const dragPointer = ref({ x: 0, y: 0 });
+const dragPointer = ref({ x: 0, y: 0, width: 0, height: 0 });
+const dragStartY = ref(0);
+const dragTargetCenters = ref<Array<{ id: string; y: number }>>([]);
 const collapsedTitleIds = ref<string[]>([]);
 const contextMenu = ref<{ taskId: string; x: number; y: number } | null>(null);
 const activeBranchMenu = ref<BranchMenuKind>(null);
@@ -446,8 +448,10 @@ const activeSectionTarget = computed(() => titleRows.value.find((title) => title
 const activeTaskTarget = computed(() => taskRows.value.find((task) => task.id === activeTaskTargetId.value) ?? null);
 const draggingTask = computed(() => sortedTasks.value.find((task) => task.id === draggingTaskId.value) ?? null);
 const dragOverlayStyle = computed(() => ({
-  left: `${dragPointer.value.x + 14}px`,
-  top: `${dragPointer.value.y + 14}px`,
+  left: `${dragPointer.value.x}px`,
+  top: `${dragPointer.value.y - dragPointer.value.height / 2}px`,
+  ...(dragPointer.value.width ? { width: `${dragPointer.value.width}px` } : {}),
+  ...(dragPointer.value.height ? { height: `${dragPointer.value.height}px` } : {}),
 }));
 const visibleRowSignature = computed(() =>
   [
@@ -613,22 +617,35 @@ const applyDraggingUi = (active: boolean) => {
   document.body.style.cursor = active ? 'grabbing' : '';
 };
 
-const updateDragPointer = (event: MouseEvent) => {
+const updateDragPointer = (
+  event: MouseEvent,
+  x = dragPointer.value.x,
+  width = dragPointer.value.width,
+  height = dragPointer.value.height,
+) => {
   dragPointer.value = {
-    x: event.clientX,
+    x,
     y: event.clientY,
+    width,
+    height,
   };
 };
 
-const resolveTaskIdAtPoint = (event: MouseEvent) =>
-  document
-    .elementFromPoint(event.clientX, event.clientY)
-    ?.closest<HTMLElement>('[data-task-id]')
-    ?.dataset.taskId ?? null;
+const resolveTaskIdAtPoint = (event: MouseEvent) => {
+  const targetCenters = dragTargetCenters.value;
+  if (event.clientY > dragStartY.value) {
+    return targetCenters.filter((target) => target.y > dragStartY.value && target.y < event.clientY).at(-1)?.id ?? null;
+  }
+  if (event.clientY < dragStartY.value) {
+    return targetCenters.find((target) => target.y < dragStartY.value && target.y > event.clientY)?.id ?? null;
+  }
+  return null;
+};
 
 const resetDrag = () => {
   draggingTaskId.value = null;
   overTaskId.value = null;
+  dragTargetCenters.value = [];
   applyDraggingUi(false);
 };
 
@@ -645,7 +662,16 @@ const startDrag = (taskId: string, event: MouseEvent) => {
   closeContextMenu();
   draggingTaskId.value = taskId;
   overTaskId.value = taskId;
-  updateDragPointer(event);
+  const sourceRect = (event.target as HTMLElement).closest<HTMLElement>('[data-task-id]')?.getBoundingClientRect();
+  updateDragPointer(event, sourceRect?.left ?? event.clientX, sourceRect?.width ?? 0, sourceRect?.height ?? 0);
+  dragStartY.value = event.clientY;
+  dragTargetCenters.value = Array.from(document.querySelectorAll<HTMLElement>('[data-task-id]'))
+    .filter((target) => target.dataset.taskId !== taskId)
+    .map((target) => {
+      const rect = target.getBoundingClientRect();
+      return { id: target.dataset.taskId!, y: rect.top + rect.height / 2 };
+    })
+    .filter((target) => target.y > 0);
   applyDraggingUi(true);
 };
 
@@ -654,10 +680,7 @@ const handleWindowMouseMove = (event: MouseEvent) => {
     return;
   }
   updateDragPointer(event);
-  const taskId = resolveTaskIdAtPoint(event);
-  if (taskId) {
-    overTaskId.value = taskId;
-  }
+  overTaskId.value = resolveTaskIdAtPoint(event) ?? draggingTaskId.value;
 };
 
 const readRect = (event: MouseEvent): MenuRect => {
@@ -832,7 +855,7 @@ onBeforeUnmount(() => {
   border-color: rgba(70, 110, 255, 0.24);
   background: color-mix(in srgb, var(--app-panel) 92%, white);
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.2);
-  transform: scale(1.01);
+  transform: scale(1.03);
 }
 
 .editor-task-card-hidden {

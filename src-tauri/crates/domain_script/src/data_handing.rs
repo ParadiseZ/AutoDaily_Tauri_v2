@@ -1,4 +1,5 @@
 use crate::{PointF32, PointU16, Step};
+use ad_kernel::LogLevel;
 use domain_vision::{RelativeAnchorType, RelativeDirection, RelativeTargetKind};
 use serde_json::Value;
 
@@ -34,6 +35,11 @@ pub enum DataHanding {
     GetVar {
         name: String,
         default_val: Option<VarValue>,
+    },
+    Print {
+        source: PrintSource,
+        value: String,
+        level: LogLevel,
     },
     Filter {
         input_var: String,
@@ -86,6 +92,14 @@ pub enum DataHanding {
 pub enum FilterMode {
     Filter,
     Map,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum PrintSource {
+    Text,
+    Variable,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]

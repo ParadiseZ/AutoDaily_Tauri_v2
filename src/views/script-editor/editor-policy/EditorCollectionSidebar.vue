@@ -245,7 +245,9 @@ const EXPANDED_MENU_MAX_HEIGHT = 320;
 const search = ref('');
 const draggingId = ref<string | null>(null);
 const overId = ref<string | null>(null);
-const dragPointer = ref({ x: 0, y: 0 });
+const dragPointer = ref({ x: 0, y: 0, width: 0, height: 0 });
+const dragStartY = ref(0);
+const dragTargetCenters = ref<Array<{ id: string; y: number }>>([]);
 const contextMenu = ref<{ itemId: string; x: number; y: number } | null>(null);
 const targetMenuOpen = ref(false);
 const targetAnchor = ref<MenuRect | null>(null);
@@ -290,8 +292,10 @@ const targetItems = computed(() => filteredItems.value.filter((item) => item.id 
 const activeTarget = computed(() => props.items.find((item) => item.id === activeTargetId.value) ?? null);
 const draggingItem = computed(() => props.items.find((item) => item.id === draggingId.value) ?? null);
 const dragOverlayStyle = computed(() => ({
-  left: `${dragPointer.value.x + 14}px`,
-  top: `${dragPointer.value.y + 14}px`,
+  left: `${dragPointer.value.x}px`,
+  top: `${dragPointer.value.y - dragPointer.value.height / 2}px`,
+  ...(dragPointer.value.width ? { width: `${dragPointer.value.width}px` } : {}),
+  ...(dragPointer.value.height ? { height: `${dragPointer.value.height}px` } : {}),
 }));
 const visibleItemSignature = computed(() => previewItems.value.map((item) => item.id).join('|'));
 
@@ -300,22 +304,35 @@ const applyDraggingUi = (active: boolean) => {
   document.body.style.cursor = active ? 'grabbing' : '';
 };
 
-const updateDragPointer = (event: MouseEvent) => {
+const updateDragPointer = (
+  event: MouseEvent,
+  x = dragPointer.value.x,
+  width = dragPointer.value.width,
+  height = dragPointer.value.height,
+) => {
   dragPointer.value = {
-    x: event.clientX,
+    x,
     y: event.clientY,
+    width,
+    height,
   };
 };
 
-const resolveCollectionIdAtPoint = (event: MouseEvent) =>
-  document
-    .elementFromPoint(event.clientX, event.clientY)
-    ?.closest<HTMLElement>('[data-collection-id]')
-    ?.dataset.collectionId ?? null;
+const resolveCollectionIdAtPoint = (event: MouseEvent) => {
+  const targetCenters = dragTargetCenters.value;
+  if (event.clientY > dragStartY.value) {
+    return targetCenters.filter((target) => target.y > dragStartY.value && target.y < event.clientY).at(-1)?.id ?? null;
+  }
+  if (event.clientY < dragStartY.value) {
+    return targetCenters.find((target) => target.y < dragStartY.value && target.y > event.clientY)?.id ?? null;
+  }
+  return null;
+};
 
 const resetDrag = () => {
   draggingId.value = null;
   overId.value = null;
+  dragTargetCenters.value = [];
   applyDraggingUi(false);
 };
 
@@ -331,7 +348,16 @@ const startDrag = (id: string, event: MouseEvent) => {
   closeContextMenu();
   draggingId.value = id;
   overId.value = id;
-  updateDragPointer(event);
+  const sourceRect = (event.target as HTMLElement).closest<HTMLElement>('[data-collection-id]')?.getBoundingClientRect();
+  updateDragPointer(event, sourceRect?.left ?? event.clientX, sourceRect?.width ?? 0, sourceRect?.height ?? 0);
+  dragStartY.value = event.clientY;
+  dragTargetCenters.value = Array.from(document.querySelectorAll<HTMLElement>('[data-collection-id]'))
+    .filter((target) => target.dataset.collectionId !== id)
+    .map((target) => {
+      const rect = target.getBoundingClientRect();
+      return { id: target.dataset.collectionId!, y: rect.top + rect.height / 2 };
+    })
+    .filter((target) => target.y > 0);
   applyDraggingUi(true);
 };
 
@@ -340,10 +366,7 @@ const handleWindowMouseMove = (event: MouseEvent) => {
     return;
   }
   updateDragPointer(event);
-  const id = resolveCollectionIdAtPoint(event);
-  if (id) {
-    overId.value = id;
-  }
+  overId.value = resolveCollectionIdAtPoint(event) ?? draggingId.value;
 };
 
 const clampHorizontalPosition = (x: number, width: number) =>
@@ -617,7 +640,7 @@ onBeforeUnmount(() => {
   border-color: rgba(70, 110, 255, 0.24);
   background: color-mix(in srgb, var(--app-panel) 92%, white);
   box-shadow: 0 18px 36px rgba(15, 23, 42, 0.2);
-  transform: scale(1.01);
+  transform: scale(1.03);
 }
 
 .editor-collection-menu {

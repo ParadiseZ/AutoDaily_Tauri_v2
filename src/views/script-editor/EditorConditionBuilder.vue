@@ -1,25 +1,6 @@
 <template>
-  <div
-    class="app-rule-card"
-    :class="{
-      'app-rule-card-nested': depth > 0,
-      'app-rule-card-group': modelValue.type === 'group'
-    }"
-  >
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex gap-10">
-        <div class="editor-inline-label">条件类型</div>
-        <div class="editor-inline-content">
-          <EditorSelectField
-            :model-value="modelValue.type"
-            :options="resolvedConditionTypeOptions"
-            placeholder="条件类型"
-            class="min-w-[180px] flex-1"
-            :test-id="rootTestId('type')"
-            @update:model-value="changeType(String($event || 'rawExpr'))"
-          />
-        </div>
-      </div>
+  <EditorOverviewSection width="wide">
+    <template #actions>
       <button
         v-if="removable"
         class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
@@ -30,52 +11,54 @@
       >
         <Trash2 class="h-4 w-4" />
       </button>
-    </div>
+    </template>
 
-    <div class="mt-4 space-y-3">
+    <EditorOverviewField label="条件类型" width="compact">
+      <EditorSelectField
+        :model-value="modelValue.type"
+        :options="resolvedConditionTypeOptions"
+        placeholder="条件类型"
+        :test-id="rootTestId('type')"
+        @update:model-value="changeType(String($event || 'rawExpr'))"
+      />
+    </EditorOverviewField>
+
       <template v-if="modelValue.type === 'rawExpr'">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">表达式</span>
+        <EditorOverviewField label="表达式" width="compact">
           <input
             :value="modelValue.expr"
             class="app-input"
             :data-testid="rootTestId('raw-expr')"
             @input="replaceNode({ ...modelValue, expr: ($event.target as HTMLInputElement).value })"
           />
-        </label>
+        </EditorOverviewField>
       </template>
 
       <template v-else-if="modelValue.type === 'group'">
-        <!-- 逻辑组自身的配置与控制区域 -->
-        <div class="flex flex-wrap items-start gap-x-6 gap-y-4">
-          <label class="space-y-2 shrink-0">
-            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint)">组合逻辑</span>
-            <EditorSelectField
-              :model-value="modelValue.op"
-              :options="logicOpOptions"
-              placeholder="组合逻辑"
-              :test-id="rootTestId('logic-op')"
-              @update:model-value="updateGroupOp(String($event || 'And'))"
-            />
-          </label>
+        <EditorOverviewField label="组合逻辑" width="radio">
+          <EditorSelectField
+            :model-value="modelValue.op"
+            :options="logicOpOptions"
+            placeholder="组合逻辑"
+            :test-id="rootTestId('logic-op')"
+            @update:model-value="updateGroupOp(String($event || 'And'))"
+          />
+        </EditorOverviewField>
 
-          <div class="space-y-2 flex-1 min-w-[240px]">
-            <span class="text-xs font-semibold uppercase tracking-[0.12em] text-(--app-text-faint) block">添加项</span>
-            <div class="flex flex-wrap items-center gap-2">
-              <button
-                v-for="option in addableConditionTypes"
-                :key="option.value"
-                class="app-button app-button-ghost app-toolbar-button"
-                type="button"
-                @click="addGroupItem(option.value)"
-              >
-                {{ option.label }}
-              </button>
-            </div>
+        <EditorOverviewField label="添加项">
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              v-for="option in addableConditionTypes"
+              :key="option.value"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              @click="addGroupItem(option.value)"
+            >
+              {{ option.label }}
+            </button>
           </div>
-        </div>
+        </EditorOverviewField>
 
-        <!-- 子条件列表与父级配置之间由分割线清晰隔开 -->
         <div v-if="modelValue.items.length" class="border-t border-(--app-border) my-4 pt-4 space-y-3">
           <EditorConditionBuilder
             v-for="(item, index) in modelValue.items"
@@ -106,37 +89,32 @@
       </template>
 
       <template v-else-if="modelValue.type === 'execNumCompare'">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">目标类型</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="modelValue.target.type"
-              :options="stateTargetTypeOptions"
-              placeholder="目标类型"
-              @update:model-value="updateExecTargetType(String($event || 'task'))"
-            />
-          </div>
+        <EditorOverviewField label="目标类型" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.target.type"
+            :options="stateTargetTypeOptions"
+            placeholder="目标类型"
+            @update:model-value="updateExecTargetType(String($event || 'task'))"
+          />
+        </EditorOverviewField>
 
-          <div class="editor-inline-label">目标资源</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="modelValue.target.id || null"
-              :options="resolvedExecTargetOptions"
-              placeholder="选择任务或策略"
-              @update:model-value="updateExecTargetId(String($event || ''))"
-            />
-          </div>
+        <EditorOverviewField label="目标资源" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.target.id || null"
+            :options="resolvedExecTargetOptions"
+            placeholder="选择任务或策略"
+            @update:model-value="updateExecTargetId(String($event || ''))"
+          />
+        </EditorOverviewField>
 
-          <div class="editor-inline-label">比较方式</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="modelValue.op"
-              :options="execCompareOpOptions"
-              placeholder="比较方式"
-              @update:model-value="updateExecCompareOp(String($event || 'ge'))"
-            />
-          </div>
-        </div>
+        <EditorOverviewField label="比较方式" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.op"
+            :options="execCompareOpOptions"
+            placeholder="比较方式"
+            @update:model-value="updateExecCompareOp(String($event || 'ge'))"
+          />
+        </EditorOverviewField>
 
         <div class="flex flex-wrap gap-2">
           <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createExecTargetReference">
@@ -156,48 +134,41 @@
       </template>
 
       <template v-else-if="modelValue.type === 'taskStatus'">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">状态动作</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="modelValue.a.type"
-              :options="taskControlTypeOptions"
-              placeholder="状态动作"
-              @update:model-value="updateTaskStatusField('type', String($event || 'setState'))"
-            />
-          </div>
+        <!-- <EditorOverviewField label="状态动作" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.a.type"
+            :options="taskControlTypeOptions"
+            placeholder="状态动作"
+            @update:model-value="updateTaskStatusField('type', String($event || 'setState'))"
+          />
+        </EditorOverviewField> -->
 
-          <div class="editor-inline-label">目标类型</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="modelValue.a.target.type"
-              :options="stateTargetTypeOptions"
-              placeholder="目标类型"
-              @update:model-value="updateTaskTargetType(String($event || 'task'))"
-            />
-          </div>
+        <EditorOverviewField label="目标类型" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.a.target.type"
+            :options="stateTargetTypeOptions"
+            placeholder="目标类型"
+            @update:model-value="updateTaskTargetType(String($event || 'task'))"
+          />
+        </EditorOverviewField>
 
-          <div class="editor-inline-label">目标资源</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="modelValue.a.target.id || null"
-              :options="resolvedTaskStatusTargetOptions"
-              placeholder="选择任务或策略"
-              @update:model-value="updateTaskTargetId(String($event || ''))"
-            />
-          </div>
-        </div>
-        <div class="flex gap-x-10">
-          <div class="editor-inline-label">状态类型</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="modelValue.a.status.type"
-              :options="filteredStateStatusTypeOptions"
-              placeholder="状态类型"
-              @update:model-value="updateTaskStatusType(String($event || 'done'))"
-            />
-          </div>
-        </div>
+        <EditorOverviewField label="目标资源" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.a.target.id || null"
+            :options="resolvedTaskStatusTargetOptions"
+            placeholder="选择任务或策略"
+            @update:model-value="updateTaskTargetId(String($event || ''))"
+          />
+        </EditorOverviewField>
+
+        <EditorOverviewField label="状态类型">
+          <EditorSelectField
+            :model-value="modelValue.a.status.type"
+            :options="filteredStateStatusTypeOptions"
+            placeholder="状态类型"
+            @update:model-value="updateTaskStatusType(String($event || 'done'))"
+          />
+        </EditorOverviewField>
 
         <div class="flex flex-wrap gap-2">
           <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createTaskStatusTargetReference">
@@ -215,47 +186,48 @@
           </button>
         </div>
 
-        <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
-          <input
-            :checked="Boolean(modelValue.a.status.value)"
-            type="checkbox"
-            class="h-4 w-4"
-            style="accent-color: var(--app-accent)"
-            @change="updateTaskStatusValue(($event.target as HTMLInputElement).checked)"
-          />
-          <span class="text-sm text-(--app-text-soft)">状态值为真</span>
-        </label>
+        <EditorOverviewField label="状态值">
+          <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
+            <input
+              :checked="Boolean(modelValue.a.status.value)"
+              type="checkbox"
+              class="h-4 w-4"
+              style="accent-color: var(--app-accent)"
+              @change="updateTaskStatusValue(($event.target as HTMLInputElement).checked)"
+            />
+            <span class="text-sm text-(--app-text-soft)">状态值为真</span>
+          </label>
+        </EditorOverviewField>
       </template>
 
       <template v-else-if="modelValue.type === 'currentTaskIn'">
-        <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
-          <label class="space-y-2">
-            <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标任务</span>
-            <EditorSelectField
-              :model-value="modelValue.target || null"
-              :options="resolvedCurrentTaskTargetOptions"
-              placeholder="选择任务"
-              :test-id="rootTestId('current-task-target')"
-              @update:model-value="updateCurrentTaskTarget(String($event || ''))"
-            />
-          </label>
+        <EditorOverviewField label="目标任务" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.target || null"
+            :options="resolvedCurrentTaskTargetOptions"
+            placeholder="选择任务"
+            :test-id="rootTestId('current-task-target')"
+            @update:model-value="updateCurrentTaskTarget(String($event || ''))"
+          />
+        </EditorOverviewField>
 
-          <div class="flex flex-wrap gap-2">
-            <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createCurrentTaskTargetReference">
-              <AppIcon name="plus" :size="14" />
-              新建任务
-            </button>
-            <button
-              class="app-button app-button-ghost app-toolbar-button"
-              type="button"
-              :disabled="!modelValue.target"
-              @click="jumpToCurrentTaskTargetReference"
-            >
-              <AppIcon name="locate-fixed" :size="14" />
-              定位编辑
-            </button>
-          </div>
+        <div class="flex flex-wrap gap-2">
+          <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createCurrentTaskTargetReference">
+            <AppIcon name="plus" :size="14" />
+            新建任务
+          </button>
+          <button
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            :disabled="!modelValue.target"
+            @click="jumpToCurrentTaskTargetReference"
+          >
+            <AppIcon name="locate-fixed" :size="14" />
+            定位编辑
+          </button>
+        </div>
 
+        <EditorOverviewField label="判断结果">
           <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
             <input
               :checked="modelValue.expected"
@@ -266,46 +238,40 @@
               @change="updateCurrentTaskExpected(($event.target as HTMLInputElement).checked)"
             />
             <div class="space-y-1">
-              <p class="text-sm font-medium text-(--app-text-strong)">{{ modelValue.expected ? '是' : '不是' }}</p>
-              <p class="text-xs leading-6 text-(--app-text-soft)">勾选表示当前任务必须是所选任务；取消勾选表示当前任务必须不是所选任务。</p>
+              <p class="text-sm font-medium text-(--app-text-strong)">是目标任务</p>
             </div>
           </label>
-        </div>
+        </EditorOverviewField>
       </template>
 
       <template v-else-if="modelValue.type === 'varCompare'">
-        <div class="editor-compact-grid">
-          <label class="space-y-2">
-            <span class="text-xs font-medium text-(--app-text-faint)">变量</span>
-            <EditorSelectField
-              :model-value="modelValue.var_name || null"
-              :options="variableOptions"
-              placeholder="从变量列表中选择"
-              :test-id="rootTestId('var-name')"
-              @update:model-value="updateVarCompareField('var_name', String($event || ''))"
-            />
-          </label>
+        <EditorOverviewField label="变量" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.var_name || null"
+            :options="variableOptions"
+            placeholder="请选择"
+            :test-id="rootTestId('var-name')"
+            @update:model-value="updateVarCompareField('var_name', String($event || ''))"
+          />
+        </EditorOverviewField>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium text-(--app-text-faint)">比较</span>
-            <EditorSelectField
-              :model-value="modelValue.op"
-              :options="compareOpOptions"
-              placeholder="比较方式"
-              @update:model-value="updateVarCompareField('op', String($event || 'eq'))"
-            />
-          </label>
+        <EditorOverviewField label="比较" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.op"
+            :options="compareOpOptions"
+            placeholder="比较方式"
+            @update:model-value="updateVarCompareField('op', String($event || 'eq'))"
+          />
+        </EditorOverviewField>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium text-(--app-text-faint)">值类型</span>
-            <EditorSelectField
-              :model-value="currentVarValueDraft.kind"
-              :options="varValueTypeOptions"
-              placeholder="值类型"
-              @update:model-value="updateVarCompareValueKind(String($event || 'string'))"
-            />
-          </label>
-        </div>
+        <EditorOverviewField label="值类型" width="compact">
+          <EditorSelectField
+            :model-value="currentVarValueDraft.kind"
+            :options="varValueTypeOptions"
+            placeholder="值类型"
+            @update:model-value="updateVarCompareValueKind(String($event || 'string'))"
+          />
+        </EditorOverviewField>
 
         <div v-if="createVariable || (selectedVarCompareOption && jumpToVariable)" class="flex flex-wrap gap-2">
           <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createVarCompareVariable">
@@ -334,52 +300,51 @@
           @update-input="(entryId, field, value) => emit('update-input', entryId, field, value)"
         /> -->
 
-        <label v-if="currentVarValueDraft.kind === 'bool'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
-          <input
-            :checked="currentVarValueDraft.boolValue"
-            type="checkbox"
-            class="h-4 w-4"
-            style="accent-color: var(--app-accent)"
-            @change="updateVarCompareBool(($event.target as HTMLInputElement).checked)"
-          />
-          <span class="text-sm text-(--app-text-soft)">比较值为真</span>
-        </label>
+        <EditorOverviewField v-if="currentVarValueDraft.kind === 'bool'" label="比较值" width="compact">
+          <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
+            <input
+              :checked="currentVarValueDraft.boolValue"
+              type="checkbox"
+              class="h-4 w-4"
+              style="accent-color: var(--app-accent)"
+              @change="updateVarCompareBool(($event.target as HTMLInputElement).checked)"
+            />
+            <span class="text-sm text-(--app-text-soft)">比较值为真</span>
+          </label>
+        </EditorOverviewField>
 
-        <label v-else class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">比较值</span>
+        <EditorOverviewField v-else label="比较值" width="compact">
           <input
+            ref="varCompareValueInputEl"
             :value="currentVarValueDraft.textValue"
             class="app-input"
+            :class="{ 'app-input-invalid': !currentVarValueDraft.textValue || currentVarValueDraft.textValue.trim().length == 0 }"
             :type="currentVarValueDraft.kind === 'string' ? 'text' : 'number'"
             @input="updateVarCompareText(($event.target as HTMLInputElement).value)"
           />
-        </label>
+        </EditorOverviewField>
       </template>
 
       <template v-else-if="modelValue.type === 'visionCountCompare'">
-        <div class="editor-compact-grid">
-          <label class="space-y-2 md:col-span-2">
-            <span class="text-xs font-medium text-(--app-text-faint)">结果变量</span>
-            <EditorSelectField
-              :model-value="modelValue.input_var || null"
-              :options="resolvedVisionCountCompareInputOptions"
-              placeholder="选择检测结果或 OCR 结果变量"
-              :test-id="rootTestId('vision-count-compare-input-var')"
-              @update:model-value="updateVisionCountCompareField('input_var', String($event || ''))"
-            />
-          </label>
+        <EditorOverviewField label="结果变量">
+          <EditorSelectField width="compact"
+            :model-value="modelValue.input_var || null"
+            :options="resolvedVisionCountCompareInputOptions"
+            placeholder="选择检测结果或 OCR 结果变量"
+            :test-id="rootTestId('vision-count-compare-input-var')"
+            @update:model-value="updateVisionCountCompareField('input_var', String($event || ''))"
+          />
+        </EditorOverviewField>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium text-(--app-text-faint)">比较</span>
-            <EditorSelectField
-              :model-value="modelValue.op"
-              :options="countCompareConditionOpOptions"
-              placeholder="比较方式"
-              :test-id="rootTestId('vision-count-compare-op')"
-              @update:model-value="updateVisionCountCompareField('op', String($event || 'ge'))"
-            />
-          </label>
-        </div>
+        <EditorOverviewField label="比较" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.op"
+            :options="countCompareConditionOpOptions"
+            placeholder="比较方式"
+            :test-id="rootTestId('vision-count-compare-op')"
+            @update:model-value="updateVisionCountCompareField('op', String($event || 'ge'))"
+          />
+        </EditorOverviewField>
 
         <div v-if="createVariable || (selectedVisionCountCompareInputOption && jumpToVariable)" class="flex flex-wrap gap-2">
           <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createVisionCountCompareVariable">
@@ -397,67 +362,58 @@
           </button>
         </div>
 
-        <div class="editor-compact-grid">
-          <label class="space-y-2 md:col-span-2">
-            <span class="text-xs font-medium text-(--app-text-faint)">目标标签 / 文字</span>
-            <input
-              :value="modelValue.target_value ?? ''"
-              class="app-input"
-              placeholder="留空则统计全部结果"
-              :data-testid="rootTestId('vision-count-compare-target-value')"
-              @input="updateVisionCountCompareNullableField('target_value', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
+        <EditorOverviewField label="目标标签 / 文字" width="compact">
+          <input
+            :value="modelValue.target_value ?? ''"
+            class="app-input"
+            placeholder="留空则统计全部结果"
+            :data-testid="rootTestId('vision-count-compare-target-value')"
+            @input="updateVisionCountCompareNullableField('target_value', ($event.target as HTMLInputElement).value)"
+          />
+        </EditorOverviewField>
 
-          <label class="space-y-2">
-            <span class="text-xs font-medium text-(--app-text-faint)">指定数量</span>
-            <input
-              :value="String(modelValue.expected_count ?? 0)"
-              class="app-input"
-              type="number"
-              :data-testid="rootTestId('vision-count-compare-expected-count')"
-              @input="updateVisionCountCompareNumberField('expected_count', ($event.target as HTMLInputElement).value)"
-            />
-          </label>
-        </div>
+        <EditorOverviewField label="指定数量" width="compact">
+          <input
+            :value="String(modelValue.expected_count ?? 0)"
+            class="app-input"
+            type="number"
+            :data-testid="rootTestId('vision-count-compare-expected-count')"
+            @input="updateVisionCountCompareNumberField('expected_count', ($event.target as HTMLInputElement).value)"
+          />
+        </EditorOverviewField>
       </template>
 
       <template v-else-if="modelValue.type === 'policySetResult'">
-        <div class="editor-inline-grid">
-          <div class="editor-inline-label">结果变量</div>
-          <div class="editor-inline-content md:col-span-3">
-            <EditorSelectField
-              :model-value="modelValue.result_var || null"
-              :options="resolvedPolicySetResultVarOptions"
-              :show-description="true"
-              placeholder="选择策略集结果变量"
-              :test-id="rootTestId('policy-set-result-var')"
-              @update:model-value="updatePolicySetResultField('result_var', String($event || ''))"
-            />
-          </div>
+        <EditorOverviewField label="结果变量">
+          <EditorSelectField width="compact"
+            :model-value="modelValue.result_var || null"
+            :options="resolvedPolicySetResultVarOptions"
+            :show-description="true"
+            placeholder="选择策略集结果变量"
+            :test-id="rootTestId('policy-set-result-var')"
+            @update:model-value="updatePolicySetResultField('result_var', String($event || ''))"
+          />
+        </EditorOverviewField>
 
-          <div class="editor-inline-label">判断字段</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="modelValue.field"
-              :options="policySetResultFieldOptions"
-              placeholder="结果字段"
-              :test-id="rootTestId('policy-set-result-field')"
-              @update:model-value="updatePolicySetResultFieldType(String($event || 'policyId'))"
-            />
-          </div>
+        <EditorOverviewField label="判断字段" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.field"
+            :options="policySetResultFieldOptions"
+            placeholder="结果字段"
+            :test-id="rootTestId('policy-set-result-field')"
+            @update:model-value="updatePolicySetResultFieldType(String($event || 'policyId'))"
+          />
+        </EditorOverviewField>
 
-          <div class="editor-inline-label">比较方式</div>
-          <div class="editor-inline-content">
-            <EditorSelectField
-              :model-value="modelValue.op"
-              :options="policySetResultCompareOptions"
-              placeholder="比较方式"
-              :test-id="rootTestId('policy-set-result-op')"
-              @update:model-value="updatePolicySetResultCompareOp(String($event || 'eq'))"
-            />
-          </div>
-        </div>
+        <EditorOverviewField label="比较方式" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.op"
+            :options="policySetResultCompareOptions"
+            placeholder="比较方式"
+            :test-id="rootTestId('policy-set-result-op')"
+            @update:model-value="updatePolicySetResultCompareOp(String($event || 'eq'))"
+          />
+        </EditorOverviewField>
 
         <div class="flex flex-wrap gap-2">
           <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createPolicySetResultVariable">
@@ -475,27 +431,29 @@
           </button>
         </div>
 
-        <label v-if="modelValue.field === 'matched'" class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
-          <input
-            :checked="Boolean(modelValue.value_bool)"
-            type="checkbox"
-            class="h-4 w-4"
-            style="accent-color: var(--app-accent)"
-            @change="updatePolicySetResultBool(($event.target as HTMLInputElement).checked)"
-          />
-          <span class="text-sm text-(--app-text-soft)">比较值为真</span>
-        </label>
+        <EditorOverviewField v-if="modelValue.field === 'matched'" label="比较值">
+          <label class="flex items-center gap-3 rounded-[16px] border border-(--app-border) px-4 py-3">
+            <input
+              :checked="Boolean(modelValue.value_bool)"
+              type="checkbox"
+              class="h-4 w-4"
+              style="accent-color: var(--app-accent)"
+              @change="updatePolicySetResultBool(($event.target as HTMLInputElement).checked)"
+            />
+            <span class="text-sm text-(--app-text-soft)">比较值为真</span>
+          </label>
+        </EditorOverviewField>
 
-        <div v-else class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">比较对象</span>
+        <EditorOverviewField v-else label="比较对象">
           <EditorSelectField
+            width="compact"
             :model-value="modelValue.value_id || null"
             :options="resolvedPolicySetResultTargetOptions"
             placeholder="选择资源"
             :test-id="rootTestId('policy-set-result-target-id')"
             @update:model-value="updatePolicySetResultValueId(String($event || ''))"
           />
-        </div>
+        </EditorOverviewField>
 
         <div class="rounded-[14px] border border-(--app-border) bg-white/40 px-4 py-3 text-sm leading-6 text-(--app-text-soft)">
           该节点比较策略集处理结果对象里的明确字段。运行时结果会同时写出 `policySetId`、`policyGroupId`、`policyId`
@@ -506,14 +464,15 @@
       <div v-else class="rounded-[14px] border border-(--app-border) bg-white/40 px-3 py-3 text-sm text-(--app-text-soft)">
         当前条件类型暂未提供专用表单。
       </div>
-    </div>
-  </div>
+  </EditorOverviewSection>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { Trash2 } from '@lucide/vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
+import EditorOverviewField from '@/views/script-editor/EditorOverviewField.vue';
+import EditorOverviewSection from '@/views/script-editor/EditorOverviewSection.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
@@ -530,7 +489,6 @@ import {
   parseVarValueDraft,
   stateStatusTypeOptions,
   stateTargetTypeOptions,
-  taskControlTypeOptions,
   varValueTypeOptions,
 } from '@/views/script-editor/editorCondition';
 import type { VarValueKind } from '@/views/script-editor/editorCondition';
@@ -586,6 +544,7 @@ const emit = defineEmits<{
 const resolvedConditionTypeOptions = computed(() => [...conditionTypeOptions]);
 const addableConditionTypes = computed(() => conditionTypeOptions.filter((option) => option.value !== 'group' || props.depth < 2));
 const varCompareKindPreference = ref<VarValueKind | null>(null);
+const varCompareValueInputEl = ref<HTMLInputElement | null>(null);
 const filteredStateStatusTypeOptions = computed(() =>
   props.modelValue.type === 'taskStatus' && props.modelValue.a.target.type !== 'task'
     ? stateStatusTypeOptions.filter((option) => option.value !== 'enabled')
@@ -751,11 +710,15 @@ const replaceNode = (value: ConditionNode) => {
   emit('update:modelValue', value);
 };
 
-const changeType = (type: string) => {
+const changeType = async (type: string) => {
   if (!conditionTypeOptions.some((option) => option.value === type)) {
     return;
   }
   replaceNode(createConditionNode(type as ConditionNode['type']));
+  if (type === 'varCompare') {
+    await nextTick();
+    varCompareValueInputEl.value?.focus();
+  }
 };
 
 const updateGroupOp = (op: string) => {
@@ -1099,97 +1062,3 @@ const jumpToPolicySetResultVariable = () => {
 };
 
 </script>
-
-<style scoped>
-.app-rule-card {
-  border-radius: 18px;
-  border: 1px solid var(--app-border);
-  background: color-mix(in srgb, var(--app-panel-muted) 88%, white);
-  padding: 1rem;
-}
-
-.app-rule-card-nested {
-  background: rgba(255, 255, 255, 0.56);
-}
-
-.app-rule-card-group {
-  border-left: 4px solid var(--app-accent);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(245, 248, 255, 0.7)),
-    color-mix(in srgb, var(--app-panel-muted) 88%, white);
-}
-
-.editor-inline-grid {
-  display: grid;
-  gap: 0.75rem;
-}
-
-@media (min-width: 768px) {
-  .editor-inline-grid {
-    grid-template-columns: 78px minmax(0, 1fr) 78px minmax(0, 1fr);
-    align-items: center;
-  }
-}
-
-.editor-inline-label {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  /* color: var(--app-text-faint); */
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.editor-inline-content {
-  min-height: 44px;
-}
-
-.editor-compact-grid {
-  display: grid;
-  gap: 0.75rem;
-}
-
-@media (min-width: 900px) {
-  .editor-compact-grid {
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
-    align-items: start;
-  }
-}
-
-.editor-target-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.editor-target-chip {
-  display: inline-flex;
-  min-width: 0;
-  max-width: 100%;
-  align-items: center;
-  gap: 0.45rem;
-  border: 1px solid var(--app-border);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.62);
-  padding: 0.35rem 0.45rem 0.35rem 0.7rem;
-  color: var(--app-text-soft);
-  font-size: 0.82rem;
-}
-
-.editor-target-remove {
-  display: inline-flex;
-  height: 1.35rem;
-  width: 1.35rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  color: var(--app-text-faint);
-}
-
-.editor-target-remove:hover {
-  background: rgba(15, 23, 42, 0.08);
-  color: var(--app-text);
-}
-</style>

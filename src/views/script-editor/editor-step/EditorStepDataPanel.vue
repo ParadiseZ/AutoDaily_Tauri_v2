@@ -169,6 +169,52 @@
       </template>
     </template>
 
+    <template v-else-if="selectedData.type === DATA_TYPE.print">
+      <div class="grid gap-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 md:grid-cols-2">
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">输入类型</span>
+          <EditorSelectField
+            :model-value="selectedData.source"
+            :options="printSourceOptions"
+            placeholder="选择输入类型"
+            test-id="editor-print-source"
+            @update:model-value="$emit('update-print-source', String($event || PRINT_SOURCE.text))"
+          />
+        </label>
+        <label class="space-y-2">
+          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">日志级别</span>
+          <EditorSelectField
+            :model-value="selectedData.level"
+            :options="printLogLevelOptions"
+            placeholder="选择日志级别"
+            test-id="editor-print-level"
+            @update:model-value="$emit('update-data-field', 'level', String($event || 'Info'))"
+          />
+        </label>
+        <p class="text-xs leading-5 text-(--app-text-soft) md:col-span-2">输出仍遵循当前子进程的日志级别过滤。</p>
+      </div>
+
+      <label v-if="selectedData.source === PRINT_SOURCE.text" class="space-y-2">
+        <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">字符串</span>
+        <input
+          :value="selectedData.value"
+          class="app-input"
+          data-testid="editor-print-value"
+          @input="$emit('update-data-field', 'value', ($event.target as HTMLInputElement).value)"
+        />
+      </label>
+
+      <EditorVariableBindingField
+        v-else
+        label="变量"
+        :model-value="selectedData.value || null"
+        :options="resolvedPrintVariableOptions"
+        placeholder="从变量列表中选择"
+        test-id="editor-print-value"
+        @update:model-value="$emit('update-data-field', 'value', String($event || ''))"
+      />
+    </template>
+
     <template v-else-if="selectedData.type === DATA_TYPE.rhai">
       <div class="space-y-3 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <EditorVariableBindingField
@@ -438,7 +484,7 @@ import EditorCodeField from '@/views/script-editor/EditorCodeField.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
 import type { DataHanding } from '@/types/bindings/DataHanding';
-import { DATA_TYPE, FILTER_MODE_TYPE } from '@/views/script-editor/editor-step/editorStepKinds';
+import { DATA_TYPE, FILTER_MODE_TYPE, PRINT_LOG_LEVELS, PRINT_SOURCE } from '@/views/script-editor/editor-step/editorStepKinds';
 import { varValueTypeOptions, type VarValueDraft } from '@/views/script-editor/editorVarValue';
 import type { StepBranchPath } from '@/views/script-editor/editor-step/editorStepTree';
 import type { EditorInputType, EditorVariableOption } from '@/views/script-editor/editorVariables';
@@ -479,6 +525,7 @@ const emit = defineEmits<{
   'toggle-clear-var': [value: string, checked: boolean];
   'update-data-field': [field: string, value: string];
   'update-data-nullable-field': [field: string, value: string];
+  'update-print-source': [value: string];
   'update-region-point': [field: 'region_top_left' | 'region_bottom_right', key: 'mode' | 'x' | 'y', value: string];
   'toggle-get-var-default': [enabled: boolean];
   'update-get-var-type': [kind: string];
@@ -502,6 +549,15 @@ const regionModeOptions = [
   { label: '坐标', value: 'point', description: '使用设备像素坐标。' },
   { label: '百分比', value: 'percent', description: '按设备宽高换算百分比。' },
 ];
+const printSourceOptions = [
+  { label: '字符串', value: PRINT_SOURCE.text, description: '直接输出填写的文字。' },
+  { label: '变量', value: PRINT_SOURCE.variable, description: '读取并输出变量当前值。' },
+];
+const printLogLevelOptions = PRINT_LOG_LEVELS.map((level) => ({
+  label: level,
+  value: level,
+  description: `${level} 级日志。`,
+}));
 
 const RegionPointEditor = defineComponent({
   name: 'RegionPointEditor',
@@ -572,6 +628,12 @@ const resolvedRhaiOutputOptions = computed(() =>
   props.selectedData.type === DATA_TYPE.rhai
     ? withCurrentVariableOption(props.writableCatalogVariableOptions, props.selectedData.out_var ?? '')
     : props.writableCatalogVariableOptions,
+);
+
+const resolvedPrintVariableOptions = computed(() =>
+  props.selectedData.type === DATA_TYPE.print
+    ? withCurrentVariableOption(props.readableCatalogVariableOptions, props.selectedData.value)
+    : props.readableCatalogVariableOptions,
 );
 
 const resolvedFilterOutputOptions = computed(() =>

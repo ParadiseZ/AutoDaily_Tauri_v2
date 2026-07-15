@@ -1,5 +1,5 @@
 <template>
-  <div class="grid min-h-0 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
+  <div class="grid min-h-0 flex-1 gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
     <datalist v-if="variableSuggestions.length" :id="variableDatalistId">
       <option v-for="option in variableSuggestions" :key="option" :value="option" />
     </datalist>
@@ -48,8 +48,11 @@
             </EditorOverviewField>
           </EditorOverviewSection>
 
-          <EditorOverviewSection
+          <!-- <EditorOverviewSection
             :description="selectedStepConfigDescription"
+            width="wide"
+          > -->
+          <EditorOverviewSection
             width="wide"
           >
             <div class="space-y-3">
@@ -169,6 +172,7 @@
                 @toggle-clear-var="toggleClearVar"
                 @update-data-field="updateDataField"
                 @update-data-nullable-field="updateDataNullableField"
+                @update-print-source="updatePrintSource"
                 @toggle-get-var-default="toggleGetVarDefault"
                 @update-get-var-type="updateGetVarType"
                 @update-get-var-text="updateGetVarText"
@@ -607,7 +611,7 @@ const selectedStepKindLabel = computed(() => {
   }
   return '容器 · sequence';
 });
-const selectedStepSummary = computed(() => {
+/* const selectedStepSummary = computed(() => {
   if (!selectedStep.value) {
     return '';
   }
@@ -638,17 +642,8 @@ const selectedStepConfigTitle = computed(() => {
   if (selectedStep.value.op === STEP_OP.taskControl) return '状态配置';
   if (selectedStep.value.op === STEP_OP.vision) return '视觉配置';
   return '序列配置';
-});
-const selectedStepConfigDescription = computed(() => {
-  if (!selectedStep.value) {
-    return '';
-  }
-  if (selectedStep.value.op === STEP_OP.sequence) {
-    return 'Sequence 节点字段较少，重点是进入子层级继续编辑允许合并的动作步骤。';
-  }
-  /* return '详情区现在按概览与配置拆开，和输入、界面等 tab 保持同一套阅读节奏。'; */
-  return '';
-});
+}); */
+
 
 const selectedAction = computed<Action | null>(() => (selectedStep.value?.op === STEP_OP.action ? selectedStep.value.a : null));
 const selectedFlow = computed<FlowControl | null>(() => (selectedStep.value?.op === STEP_OP.flowControl ? selectedStep.value.a : null));
@@ -1262,6 +1257,14 @@ const updateSetVarTarget = (value: string) => {
       json_val: matched ? nextJsonVal : step.a.json_val,
       expr: null,
     };
+  });
+};
+
+const updatePrintSource = (source: string) => {
+  if (source !== 'text' && source !== 'variable') return;
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.dataHanding || step.a.type !== DATA_TYPE.print) return;
+    step.a = { ...step.a, source, value: '' } as DataHanding;
   });
 };
 

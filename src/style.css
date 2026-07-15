@@ -283,6 +283,11 @@ a {
   background: rgba(220, 38, 38, 0.08);
 }
 
+.input-valid {
+  border-color: rgba(22, 163, 74, 0.38);
+  background: rgba(22, 163, 74, 0.08);
+}
+
 .app-button,
 .app-icon-button {
   display: inline-flex;
@@ -321,9 +326,15 @@ a {
   height: 1.5rem;
 }
 
+.app-accent-comple-color{
+  border-color: var(--app-border);
+  background: #ff9d79;
+  color: white;
+}
+
 .app-button:hover,
 .app-icon-button:hover {
-  border-color: rgba(70, 110, 255, 1);
+/*   border-color: rgba(70, 110, 255, 1); */
   transform: translateY(-1px);
   cursor: pointer;
 }

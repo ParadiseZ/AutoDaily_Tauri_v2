@@ -1,6 +1,7 @@
-use super::ScriptExecutor;
+use super::{ControlFlow, ScriptExecutor};
 use crate::infra::context::runtime_context::RuntimeContext;
 use crate::infra::session::runtime_session::{clear_runtime_session, replace_runtime_session};
+use ad_kernel::LogLevel;
 use ad_kernel::ids::{PolicyId, TaskId, UuidV7};
 use domain_device::{DeviceOperation, TimeoutAction};
 use domain_script::PolicyInfo;
@@ -9,8 +10,8 @@ use domain_script::ScriptTask;
 use domain_script::TaskCycle;
 use domain_script::{
     Action, ClickMode, ColorCompareMethod, ColorRgb, ConditionNode, CurrentTaskCondition,
-    DataHanding, FlowControl, PointU16, PolicySetResultCompareOp, StateStatus, StateTarget, Step,
-    StepKind, TaskControl, VisionNode,
+    DataHanding, FlowControl, PointU16, PolicySetResultCompareOp, PrintSource, StateStatus,
+    StateTarget, Step, StepKind, TaskControl, VisionNode,
 };
 use domain_script::{PolicyProfile, ScriptTaskProfile, TaskRowType, TaskTone, TaskTriggerMode};
 use domain_script::{
@@ -442,6 +443,39 @@ fn build_rhai_step(code: &str, out_var: Option<&str>) -> Step {
             },
         },
     }
+}
+
+#[tokio::test]
+async fn print_step_accepts_text_and_variable_sources() {
+    let mut executor = build_executor();
+
+    assert!(matches!(
+        executor
+            .execute_data_handling_step(&DataHanding::Print {
+                source: PrintSource::Text,
+                value: "固定文本".to_string(),
+                level: LogLevel::Info,
+            })
+            .await
+            .unwrap(),
+        ControlFlow::Next
+    ));
+
+    executor
+        .set_runtime_var("runtime.message", Dynamic::from("变量文本"))
+        .await
+        .unwrap();
+    assert!(matches!(
+        executor
+            .execute_data_handling_step(&DataHanding::Print {
+                source: PrintSource::Variable,
+                value: "runtime.message".to_string(),
+                level: LogLevel::Debug,
+            })
+            .await
+            .unwrap(),
+        ControlFlow::Next
+    ));
 }
 
 #[tokio::test]
