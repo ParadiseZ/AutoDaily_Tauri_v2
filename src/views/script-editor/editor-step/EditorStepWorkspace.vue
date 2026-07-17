@@ -87,11 +87,10 @@
                 :jump-to-variable="jumpToVariable"
                 :create-policy="createPolicyTarget"
                 :jump-to-policy="jumpToPolicyTarget"
-                :create-task="createTaskTarget"
-                :jump-to-task="jumpToTaskTarget"
                 @update-input="(entryId, field, value) => updateInput?.(entryId, field, value)"
                 @update-exec-max="updateActionExecMax"
                 @update-field="updateActionField"
+                @update-drop-set-target="updateDropSetTarget"
                 @update-mode="updateActionMode"
                 @update-point-field="updateActionPointField"
                 @update-number-field="updateActionNumberField"
@@ -101,8 +100,6 @@
                 @jump-to-variable="handleJumpToDataVariable"
                 @create-policy-target="handleCreatePolicyTarget"
                 @jump-policy-target="jumpToPolicyTarget"
-                @create-drop-set-task="handleCreateDropSetTask"
-                @jump-drop-set-task="jumpToTaskTarget"
               />
 
               <EditorStepFlowPanel
@@ -976,8 +973,15 @@ const updateActionField = (field: string, value: string) => {
     if (step.op !== STEP_OP.action) return;
     step.a = {
       ...(step.a ?? {}),
-      [field]: field === 'enable_filter' ? value === 'true' : value,
+      [field]: field === 'enable_filter' || field === 'cycle' ? value === 'true' : value,
     } as Action;
+  });
+};
+
+const updateDropSetTarget = (taskId: string, variableId: string) => {
+  updateSelectedStep((step) => {
+    if (step.op !== STEP_OP.action || step.a.ac !== ACTION_TYPE.dropSetNext) return;
+    step.a = { ...step.a, task: taskId, variable_id: variableId };
   });
 };
 
@@ -1122,19 +1126,6 @@ const handleCreatePolicyTarget = async () => {
   updateActionField('target', id);
 };
 
-const createTaskTarget = async () => props.createReference('task');
-
-const jumpToTaskTarget = (id: string) => {
-  if (id) {
-    props.jumpToReference('task', id);
-  }
-};
-
-const handleCreateDropSetTask = async () => {
-  const id = await createTaskTarget();
-  updateActionField('task', id);
-};
-
 const updateActionTextField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.action) return;
@@ -1169,7 +1160,7 @@ const updateSwipeTargetField = (target: 'from' | 'to', field: string, value: str
 const updateFlowField = (field: string, value: string) => {
   updateSelectedStep((step) => {
     if (step.op !== STEP_OP.flowControl) return;
-    if ((step.a.type === FLOW_TYPE.handlePolicySet || step.a.type === FLOW_TYPE.handlePolicy) && field === 'target') {
+    if ((step.a.type === FLOW_TYPE.searchPolicySetText || step.a.type === FLOW_TYPE.handlePolicySet || step.a.type === FLOW_TYPE.handlePolicy) && field === 'target') {
       let nextTarget = createStringList();
       try {
         nextTarget = JSON.parse(value) as string[];

@@ -130,12 +130,21 @@ export const collectVariableReferencesFromSteps = (steps: Step[], bucket = new S
     }
 
     if (step.op === 'flowControl') {
+      if (step.a.type === 'searchPolicySetText') {
+        if (step.a.ocr_input_var?.trim()) {
+          bucket.add(step.a.ocr_input_var.trim());
+        }
+        if (step.a.out_var?.trim()) {
+          bucket.add(step.a.out_var.trim());
+        }
+        continue;
+      }
       if (step.a.type === 'handlePolicySet') {
         if (step.a.det_input_var?.trim()) {
           bucket.add(step.a.det_input_var.trim());
         }
-        if (step.a.ocr_input_var?.trim()) {
-          bucket.add(step.a.ocr_input_var.trim());
+        if (step.a.search_hits_var?.trim()) {
+          bucket.add(step.a.search_hits_var.trim());
         }
         if (step.a.out_var?.trim()) {
           bucket.add(step.a.out_var.trim());
@@ -270,9 +279,14 @@ export const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string
     }
 
     if (step.op === 'flowControl') {
+      if (step.a.type === 'searchPolicySetText') {
+        pushVariableUsage(bucket, step.a.ocr_input_var, `${stepLabel}的OCR输入`);
+        pushVariableUsage(bucket, step.a.out_var, stepLabel);
+        continue;
+      }
       if (step.a.type === 'handlePolicySet') {
         pushVariableUsage(bucket, step.a.det_input_var, `${stepLabel}的检测输入`);
-        pushVariableUsage(bucket, step.a.ocr_input_var, `${stepLabel}的OCR输入`);
+        pushVariableUsage(bucket, step.a.search_hits_var, `${stepLabel}的搜索命中输入`);
         pushVariableUsage(bucket, step.a.out_var, stepLabel);
         continue;
       }
@@ -410,6 +424,16 @@ export const renameVariableReferencesInSteps = (steps: Step[], previousKey: stri
         if (nextStep.a.det_input_var === previousKey) {
           nextStep.a.det_input_var = nextKey;
         }
+        if (nextStep.a.search_hits_var === previousKey) {
+          nextStep.a.search_hits_var = nextKey;
+        }
+        if (nextStep.a.out_var === previousKey) {
+          nextStep.a.out_var = nextKey;
+        }
+        return nextStep;
+      }
+
+      if (nextStep.a.type === 'searchPolicySetText') {
         if (nextStep.a.ocr_input_var === previousKey) {
           nextStep.a.ocr_input_var = nextKey;
         }

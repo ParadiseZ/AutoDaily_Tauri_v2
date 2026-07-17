@@ -85,8 +85,6 @@ impl ScriptExecutor {
             ctx.observation.capture_asset_signature.as_str(),
             image.as_ref(),
         ));
-        ctx.observation.last_det_results = det_results;
-        ctx.observation.last_ocr_results = ocr_results;
         ctx.observation.screen_size = screen_size;
         ctx.observation.last_snapshot = Some(snapshot);
         ctx.observation.last_hits.clear();
@@ -110,8 +108,6 @@ impl ScriptExecutor {
         let mut ctx = self.runtime_ctx.write().await;
         ctx.observation.last_capture_image = Some(image);
         ctx.observation.last_vision_input_signature = None;
-        ctx.observation.last_det_results.clear();
-        ctx.observation.last_ocr_results.clear();
         ctx.observation.screen_size = screen_size;
         ctx.observation.last_snapshot = None;
         ctx.observation.last_hits.clear();
@@ -121,53 +117,6 @@ impl ScriptExecutor {
     async fn activate_image_var(&mut self, step_type: &str, input_var: &str) -> ExecuteResult<()> {
         let image = self.read_runtime_image_var(input_var, step_type).await?;
         self.activate_image_context(step_type, image, None).await
-    }
-
-    async fn activate_runtime_results_context(
-        &mut self,
-        step_type: &str,
-        det_input_var: &str,
-        ocr_input_var: &str,
-    ) -> ExecuteResult<()> {
-        let det_results = self
-            .read_runtime_result_vec::<DetResult>(det_input_var, step_type, "检测")
-            .await?;
-        let ocr_results = self
-            .read_runtime_result_vec::<OcrResult>(ocr_input_var, step_type, "OCR")
-            .await?;
-        let grid_size = {
-            let ctx = self.runtime_ctx.read().await;
-            ctx.observation.vision_signature_grid_size
-        };
-        let mut snapshot = VisionSnapshot::new(det_results.clone(), grid_size).map_err(
-            |error| Self::execute_error(step_type, format!("构建视觉快照失败: {}", error)),
-        )?;
-        snapshot.set_ocr_results(ocr_results.clone()).map_err(|error| {
-            Self::execute_error(step_type, format!("写入 OCR 结果到视觉快照失败: {}", error))
-        })?;
-        let fingerprint = Self::build_page_fingerprint(&snapshot);
-
-        self.set_runtime_var(
-            "runtime.detResults",
-            Self::results_to_dynamic(step_type, "检测", &det_results)?,
-        )
-        .await?;
-        self.set_runtime_var(
-            "runtime.ocrResults",
-            Self::results_to_dynamic(step_type, "OCR", &ocr_results)?,
-        )
-        .await?;
-
-        let mut ctx = self.runtime_ctx.write().await;
-        ctx.observation.last_det_results = det_results;
-        ctx.observation.last_ocr_results = ocr_results;
-        ctx.observation.last_vision_input_signature = None;
-        ctx.observation.last_snapshot = Some(snapshot);
-        ctx.observation.last_hits.clear();
-        drop(ctx);
-
-        self.push_active_policy_page_fingerprint(fingerprint);
-        Ok(())
     }
 
     async fn execute_detect_step(
@@ -200,13 +149,8 @@ impl ScriptExecutor {
         out_var: &str,
     ) -> ExecuteResult<Vec<OcrResult>> {
         let image = self.read_runtime_image_var(input_var, step_type).await?;
-        let (det_results, ocr_results) = self.run_ocr_pipeline(step_type, image.clone()).await?;
-        self.store_explicit_vision_results(
-            step_type,
-            image,
-            Some(det_results),
-            Some(ocr_results.clone()),
-        )
+        let (_, ocr_results) = self.run_ocr_pipeline(step_type, image.clone()).await?;
+        self.store_explicit_vision_results(step_type, image, None, Some(ocr_results.clone()))
             .await?;
         self.set_runtime_var(
             out_var,
@@ -237,22 +181,28 @@ impl ScriptExecutor {
         };
         let current_signature =
             Self::build_image_signature(capture_asset_signature.as_str(), image.as_ref());
-        let next_det_results = det_results.unwrap_or_default();
-        let next_ocr_results = ocr_results.unwrap_or_default();
-        let mut snapshot = VisionSnapshot::new(next_det_results.clone(), grid_size).map_err(
-            |error| Self::execute_error(step_type, format!("构建视觉快照失败: {}", error)),
-        )?;
-        snapshot.set_ocr_results(next_ocr_results.clone()).map_err(|error| {
-            Self::execute_error(step_type, format!("写入 OCR 结果到视觉快照失败: {}", error))
-        })?;
-        let fingerprint = Self::build_page_fingerprint(&snapshot);
 
         let screen_size = (image.width(), image.height());
         let mut ctx = self.runtime_ctx.write().await;
+        let same_image = ctx.observation.last_vision_input_signature.as_deref()
+            == Some(current_signature.as_str());
+        let mut snapshot = match (same_image, ctx.observation.last_snapshot.take()) {
+            (true, Some(snapshot)) => snapshot,
+            _ => VisionSnapshot::new(Vec::new(), grid_size).map_err(|error| {
+                Self::execute_error(step_type, format!("构建视觉快照失败: {}", error))
+            })?,
+        };
+        if let Some(det_results) = det_results {
+            snapshot.set_det_results(det_results);
+        }
+        if let Some(ocr_results) = ocr_results {
+            snapshot.set_ocr_results(ocr_results).map_err(|error| {
+                Self::execute_error(step_type, format!("写入 OCR 结果到视觉快照失败: {}", error))
+            })?;
+        }
+        let fingerprint = Self::build_page_fingerprint(&snapshot);
         ctx.observation.last_capture_image = Some(image);
         ctx.observation.last_vision_input_signature = Some(current_signature);
-        ctx.observation.last_det_results = next_det_results;
-        ctx.observation.last_ocr_results = next_ocr_results;
         ctx.observation.screen_size = screen_size;
         ctx.observation.last_snapshot = Some(snapshot);
         ctx.observation.last_hits.clear();
@@ -324,7 +274,7 @@ impl ScriptExecutor {
                     ctx.vision_text_cache.cached_ocr_results(),
                 )
             } else {
-                (String::new(), std::collections::HashMap::new())
+                (String::new(), HashMap::new())
             };
 
             (

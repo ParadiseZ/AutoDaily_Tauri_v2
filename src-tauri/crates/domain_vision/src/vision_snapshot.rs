@@ -26,19 +26,18 @@ pub struct VisionSnapshot {
 }
 
 impl VisionSnapshot {
-    pub fn new(mut det_results: Vec<DetResult>, signature_grid_size: u16) -> VisionResult<Self> {
+    pub fn new(det_results: Vec<DetResult>, signature_grid_size: u16) -> VisionResult<Self> {
         let grid_size = signature_grid_size.max(1);
-        normalize_det_items(&mut det_results, grid_size);
-        det_results.sort_by(compare_det_items);
-
-        Ok(Self {
+        let mut snapshot = Self {
             buffer: String::new(),
             offset_map: Vec::new(),
-            layout_items: build_layout_items(&[], &det_results),
+            layout_items: Vec::new(),
             ocr_items: Vec::new(),
-            det_items: det_results,
+            det_items: Vec::new(),
             signature_grid_size: grid_size,
-        })
+        };
+        snapshot.set_det_results(det_results);
+        Ok(snapshot)
     }
 
     pub fn with_ocr_results(mut self, ocr_results: Vec<OcrResult>) -> VisionResult<Self> {
@@ -57,17 +56,26 @@ impl VisionSnapshot {
         Ok(())
     }
 
-    /// 根据字符偏移量查找关联的 OcrResult
-    pub(crate) fn find_ocr_at(&self, offset: usize) -> Option<(usize, &OcrResult)> {
-        let idx = self
-            .offset_map
-            .binary_search_by(|(off, _)| off.cmp(&offset))
-            .unwrap_or_else(|x| if x > 0 { x - 1 } else { 0 });
-
-        self.offset_map
-            .get(idx)
-            .and_then(|(_, item_idx)| self.ocr_items.get(*item_idx).map(|item| (*item_idx, item)))
+    pub fn set_det_results(&mut self, mut det_results: Vec<DetResult>) {
+        normalize_det_items(&mut det_results, self.signature_grid_size);
+        det_results.sort_by(compare_det_items);
+        self.layout_items = build_layout_items(&self.ocr_items, &det_results);
+        self.det_items = det_results;
     }
+}
+
+fn find_ocr_at<'a>(
+    offset_map: &[(usize, usize)],
+    ocr_items: &'a [OcrResult],
+    offset: usize,
+) -> Option<(usize, &'a OcrResult)> {
+    let idx = offset_map
+        .binary_search_by(|(off, _)| off.cmp(&offset))
+        .unwrap_or_else(|x| if x > 0 { x - 1 } else { 0 });
+
+    offset_map
+        .get(idx)
+        .and_then(|(_, item_idx)| ocr_items.get(*item_idx).map(|item| (*item_idx, item)))
 }
 
 fn normalize_ocr_items(items: &mut [OcrResult], grid_size: u16) {
@@ -130,13 +138,28 @@ impl OcrSearcher {
 
     /// 在文本快照中搜索，返回所有文本命中结果
     pub fn search(&self, snapshot: &VisionSnapshot) -> Vec<SearchHit> {
+        self.search_buffer(&snapshot.buffer, &snapshot.offset_map, &snapshot.ocr_items)
+    }
+
+    /// 在独立 OCR 步骤输出中搜索，不创建或更新帧快照。
+    pub fn search_ocr_items(&self, ocr_items: &[OcrResult]) -> Vec<SearchHit> {
+        let (buffer, offset_map) = build_ocr_buffer(ocr_items);
+        self.search_buffer(&buffer, &offset_map, ocr_items)
+    }
+
+    fn search_buffer(
+        &self,
+        buffer: &str,
+        offset_map: &[(usize, usize)],
+        ocr_items: &[OcrResult],
+    ) -> Vec<SearchHit> {
         let mut hits = Vec::new();
         let mut seen = HashSet::new();
 
         // 1. Aho-Corasick 关键字匹配
         if let Some(automaton) = &self.automaton {
-            for mat in automaton.find_iter(&snapshot.buffer) {
-                if let Some((ocr_index, ocr)) = snapshot.find_ocr_at(mat.start()) {
+            for mat in automaton.find_iter(buffer) {
+                if let Some((ocr_index, ocr)) = find_ocr_at(offset_map, ocr_items, mat.start()) {
                     let pattern = self.patterns[mat.pattern().as_usize()].clone();
                     if seen.insert((pattern.clone(), ocr_index)) {
                         hits.push(SearchHit {
@@ -319,6 +342,34 @@ mod tests {
     }
 
     #[test]
+    fn test_updating_det_results_preserves_ocr_snapshot() {
+        let ocr = vec![OcrResult::new(
+            BoundingBox::new(10, 10, 50, 30),
+            "Confirm".to_string(),
+            vec![0.9],
+            vec![0],
+            8,
+        )];
+        let mut snapshot = VisionSnapshot::new(Vec::new(), 8)
+            .unwrap()
+            .with_ocr_results(ocr)
+            .unwrap();
+
+        snapshot.set_det_results(vec![DetResult::new(
+            BoundingBox::new(100, 100, 150, 150),
+            5,
+            "button".into(),
+            0.8,
+            8,
+        )]);
+
+        assert_eq!(snapshot.ocr_items.len(), 1);
+        assert_eq!(snapshot.det_items.len(), 1);
+        assert_eq!(snapshot.layout_items.len(), 2);
+        assert!(snapshot.buffer.contains("Confirm"));
+    }
+
+    #[test]
     fn test_not_yolo_rule() {
         let det = vec![];
 
@@ -356,6 +407,25 @@ mod tests {
         // Should only have 1 hit despite "Hello" appearing twice in the same box
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].pattern, "Hello");
+        assert_eq!(hits[0].ocr_index, 0);
+    }
+
+    #[test]
+    fn test_search_ocr_items_without_snapshot() {
+        let items = vec![OcrResult::new(
+            BoundingBox::new(10, 10, 100, 30),
+            "Confirm".to_string(),
+            vec![0.9],
+            vec![0],
+            8,
+        )];
+
+        let hits = OcrSearcher::new(&[SearchRule::Txt {
+            pattern: "Confirm".into(),
+        }])
+        .search_ocr_items(&items);
+
+        assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].ocr_index, 0);
     }
 }

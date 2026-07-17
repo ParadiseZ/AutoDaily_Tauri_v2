@@ -98,14 +98,22 @@ pub enum FlowControl {
         source: PolicyId,
         target: PolicyGroupId,
     },
+    SearchPolicySetText {
+        target: Vec<PolicySetId>,
+        #[serde(default = "default_policy_set_ocr_input_var")]
+        ocr_input_var: String,
+        #[serde(default = "default_policy_set_search_hits_var")]
+        out_var: String,
+    },
     HandlePolicySet {
         target: Vec<PolicySetId>,
         #[serde(default = "default_policy_set_det_input_var")]
         det_input_var: String,
-        #[serde(default = "default_policy_set_ocr_input_var")]
-        ocr_input_var: String,
         #[serde(default = "default_policy_set_search_hits_var")]
         search_hits_var: String,
+        /// legacy-editor-compat: 仅用于让旧脚本在编辑器中可读取和保存；运行时统一使用 search_hits_var。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ocr_input_var: Option<String>,
         out_var: String,
     },
     HandlePolicy {

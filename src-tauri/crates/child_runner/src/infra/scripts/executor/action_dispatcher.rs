@@ -161,8 +161,13 @@ impl<'a> ActionRunner<'a> {
             Action::InputText { text } => format!("输入文本({})", text),
             Action::PosAdd { target } => format!("策略点击位置+1(target={})", target),
             Action::PosMinus { target } => format!("策略点击位置-1(target={})", target),
-            Action::DropSetNext { task, variable_id } => {
-                format!("写入追加策略集(task={}, variable={})", task, variable_id)
+            Action::DropSetNext {
+                task,
+                variable_id,
+                direction,
+                cycle,
+            } => {
+                format!("切换 UI 变量(task={}, variable={}, direction={:?}, cycle={})", task, variable_id, direction, cycle)
             }
             Action::LaunchApp {
                 pkg_name,
@@ -441,8 +446,15 @@ impl<'a> ActionRunner<'a> {
                 self.executor.adjust_policy_click_pos(*target, -1).await?;
                 Ok((ControlFlow::Next, None))
             }
-            Action::DropSetNext { task, variable_id } => {
-                self.executor.execute_drop_set_next(*task, variable_id).await?;
+            Action::DropSetNext {
+                task,
+                variable_id,
+                direction,
+                cycle,
+            } => {
+                self.executor
+                    .execute_drop_set_next(*task, variable_id, *direction, *cycle)
+                    .await?;
                 Ok((ControlFlow::Next, None))
             }
             Action::LaunchApp {

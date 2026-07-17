@@ -312,59 +312,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       ),
     );
 
-  const isRunnableRecoveryTask = (state: MockState, scriptId: string, taskId: string) =>
-    (state.scriptTasks[scriptId] ?? []).some(
-      (task) => task.id === taskId && task.rowType === 'task' && !task.isDeleted,
-    );
-
-  const validateRecoveryPolicyForScript = (state: MockState, scriptId: string) => {
-    const script = findScript(state, scriptId);
-    if (!script) {
-      return;
-    }
-
-    const recoveryTaskId = script.data.runtimeSettings?.recoveryTaskId ?? null;
-    if (!recoveryTaskId) {
-      throw new Error(`脚本「${script.data.name}」未配置恢复任务，无法使用 RunRecoveryTask 策略`);
-    }
-
-    if (!isRunnableRecoveryTask(state, scriptId, recoveryTaskId)) {
-      throw new Error(`脚本「${script.data.name}」配置的恢复任务不存在，或不是可执行 Task`);
-    }
-  };
-
-  const validateTimeoutPolicyForRun = (state: MockState, deviceId: string, target?: unknown) => {
-    const device = findDevice(state, deviceId);
-    if (!device) {
-      return;
-    }
-
-    const timeoutAction = device.data.executionPolicy?.timeoutAction;
-    if (timeoutAction !== 'runRecoveryTask') {
-      return;
-    }
-
-    const normalizedTarget = normalizeRunTargetShape(target);
-    const runType = normalizedTarget?.type ?? 'deviceQueue';
-
-    if (runType === 'deviceQueue') {
-      for (const assignment of state.assignmentsByDevice[deviceId] ?? []) {
-        const scriptId = typeof (assignment as { scriptId?: unknown }).scriptId === 'string'
-          ? String((assignment as { scriptId?: unknown }).scriptId)
-          : null;
-        if (scriptId) {
-          validateRecoveryPolicyForScript(state, scriptId);
-        }
-      }
-      return;
-    }
-
-    const scriptId = normalizedTarget?.scriptId ?? null;
-    if (scriptId) {
-      validateRecoveryPolicyForScript(state, scriptId);
-    }
-  };
-
   const normalizeRunTargetShape = (target: unknown): MockRunTargetShape | null => {
     if (target === 'deviceQueue') {
       return { type: 'deviceQueue' };
@@ -1038,7 +985,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return `设备[${String(args.deviceId)}]子进程已关闭`;
         case 'cmd_restart_device_runtime':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           updateState((current) => ({
             ...current,
             runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
@@ -1054,7 +1000,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
               .filter((scriptId): scriptId is string => typeof scriptId === 'string'),
           );
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           updateState((current) => ({
             ...current,
             runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))
@@ -1068,7 +1013,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
           return `已向设备[${String(args.deviceId)}]发送停止命令`;
         case 'cmd_sync_device_runtime_session':
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateTimeoutPolicyForRun(readState(), String(args.deviceId));
           return `已同步设备[${String(args.deviceId)}]运行会话`;
         case 'cmd_run_script_target':
           {
@@ -1085,7 +1029,6 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             validatePublishedScriptAccessForRun(state, scriptIds);
           }
           validateRuntimePlatformSupported(readState(), String(args.deviceId));
-          validateTimeoutPolicyForRun(readState(), String(args.deviceId), args.target);
           updateState((current) => ({
             ...current,
             runningDeviceIds: current.runningDeviceIds.includes(String(args.deviceId))

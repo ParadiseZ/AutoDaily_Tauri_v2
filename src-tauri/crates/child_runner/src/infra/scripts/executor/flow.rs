@@ -242,17 +242,23 @@ impl ScriptExecutor {
                 self.execute_unload_policy_step(*source, *target).await?;
                 Ok(ControlFlow::Next)
             }
+            FlowControl::SearchPolicySetText {
+                target,
+                ocr_input_var,
+                out_var,
+            } => self
+                .execute_search_policy_set_text(target, ocr_input_var, out_var)
+                .await,
             FlowControl::HandlePolicySet {
                 target,
                 det_input_var,
-                ocr_input_var,
                 search_hits_var,
                 out_var,
+                ..
             } => {
                 self.execute_handle_policy_set(
                     target,
                     det_input_var,
-                    ocr_input_var,
                     search_hits_var,
                     out_var,
                 )

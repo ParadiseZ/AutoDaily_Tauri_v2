@@ -211,7 +211,7 @@
       </div>
     </template>
 
-    <template v-else-if="selectedFlow.type === FLOW_TYPE.handlePolicySet || selectedFlow.type === FLOW_TYPE.handlePolicy">
+    <template v-else-if="selectedFlow.type === FLOW_TYPE.searchPolicySetText || selectedFlow.type === FLOW_TYPE.handlePolicySet || selectedFlow.type === FLOW_TYPE.handlePolicy">
       <div class="space-y-4 rounded-[16px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4">
         <div class="space-y-2">
           <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">{{ targetTitle }}</span>
@@ -220,13 +220,13 @@
               :model-value="pendingTargetId"
               :options="availableTargetReferenceOptions"
               :placeholder="targetPlaceholder"
-              :test-id="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-pending' : 'editor-flow-policy-pending'"
+              :test-id="selectedFlow.type === FLOW_TYPE.searchPolicySetText ? 'editor-flow-search-policy-set-pending' : selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-pending' : 'editor-flow-policy-pending'"
               @update:model-value="pendingTargetId = String($event || '')"
             />
             <button
               class="app-button app-button-primary app-toolbar-button justify-center"
               type="button"
-              :data-testid="selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-add' : 'editor-flow-policy-add'"
+              :data-testid="selectedFlow.type === FLOW_TYPE.searchPolicySetText ? 'editor-flow-search-policy-set-add' : selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'editor-flow-policy-set-add' : 'editor-flow-policy-add'"
               :disabled="!pendingTargetId"
               @click="appendTarget"
             >
@@ -239,7 +239,7 @@
           <article
             v-for="target in resolvedTargets"
             :key="target.id"
-            :data-testid="selectedFlow.type === FLOW_TYPE.handlePolicySet ? `editor-flow-policy-set-target-${target.id}` : `editor-flow-policy-target-${target.id}`"
+            :data-testid="selectedFlow.type === FLOW_TYPE.searchPolicySetText ? `editor-flow-search-policy-set-target-${target.id}` : selectedFlow.type === FLOW_TYPE.handlePolicySet ? `editor-flow-policy-set-target-${target.id}` : `editor-flow-policy-target-${target.id}`"
             class="flex items-center justify-between gap-3 rounded-[14px] border border-(--app-border) bg-white/55 px-3 py-3"
           >
             <div class="min-w-0">
@@ -263,7 +263,39 @@
         </div>
 
         <div class="space-y-4">
-          <template v-if="selectedFlow.type === FLOW_TYPE.handlePolicySet">
+          <template v-if="selectedFlow.type === FLOW_TYPE.searchPolicySetText">
+            <EditorVariableBindingField
+              label="OCR结果集"
+              :model-value="selectedSearchPolicySetOcrInput || null"
+              :options="resolvedSearchPolicySetOcrInputOptions"
+              placeholder="选择 OCR 结果变量"
+              test-id="editor-flow-search-policy-set-ocr-input-var"
+              create-label="新建 OCR 结果变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedSearchPolicySetOcrInputOption && jumpToVariable)"
+              :locate-disabled="!selectedSearchPolicySetOcrInputOption || !jumpToVariable"
+              @update:model-value="$emit('update-field', 'ocr_input_var', String($event || ''))"
+              @create="createSearchPolicySetOcrInputVariable"
+              @locate="jumpToSearchPolicySetOcrInputVariable"
+            />
+
+            <EditorVariableBindingField
+              label="搜索命中输出"
+              :model-value="selectedSearchPolicySetOutput || null"
+              :options="resolvedSearchPolicySetOutputOptions"
+              placeholder="选择 SearchHit[] 输出变量"
+              test-id="editor-flow-search-policy-set-out-var"
+              create-label="新建命中结果变量"
+              :show-create="Boolean(createVariable)"
+              :show-locate="Boolean(selectedSearchPolicySetOutputOption && jumpToVariable)"
+              :locate-disabled="!selectedSearchPolicySetOutputOption || !jumpToVariable"
+              @update:model-value="$emit('update-field', 'out_var', String($event || ''))"
+              @create="createSearchPolicySetOutputVariable"
+              @locate="jumpToSearchPolicySetOutputVariable"
+            />
+          </template>
+
+          <template v-else-if="selectedFlow.type === FLOW_TYPE.handlePolicySet">
             <EditorVariableBindingField
               label="目标检测结果集"
               :model-value="selectedPolicySetDetInput || null"
@@ -278,35 +310,19 @@
               @create="createPolicySetDetInputVariable"
               @locate="jumpToPolicySetDetInputVariable"
             />
-
             <EditorVariableBindingField
-              label="OCR结果集"
-              :model-value="selectedPolicySetOcrInput || null"
-              :options="resolvedPolicySetOcrInputOptions"
-              placeholder="选择 OCR 结果变量"
-              test-id="editor-flow-policy-set-ocr-input-var"
-              create-label="新建 OCR 结果变量"
-              :show-create="Boolean(createVariable)"
-              :show-locate="Boolean(selectedPolicySetOcrInputOption && jumpToVariable)"
-              :locate-disabled="!selectedPolicySetOcrInputOption || !jumpToVariable"
-              @update:model-value="$emit('update-field', 'ocr_input_var', String($event || ''))"
-              @create="createPolicySetOcrInputVariable"
-              @locate="jumpToPolicySetOcrInputVariable"
-            />
-
-            <EditorVariableBindingField
-              label="搜索命中输出"
-              :model-value="selectedPolicySetSearchHitsOutput || null"
-              :options="resolvedPolicySetSearchHitsOutputOptions"
-              placeholder="选择 SearchHit[] 输出变量"
+              label="搜索命中结果集"
+              :model-value="selectedPolicySetSearchHitsInput || null"
+              :options="resolvedPolicySetSearchHitsInputOptions"
+              placeholder="选择 SearchHit[] 输入变量"
               test-id="editor-flow-policy-set-search-hits-var"
               create-label="新建命中结果变量"
               :show-create="Boolean(createVariable)"
-              :show-locate="Boolean(selectedPolicySetSearchHitsOutputOption && jumpToVariable)"
-              :locate-disabled="!selectedPolicySetSearchHitsOutputOption || !jumpToVariable"
+              :show-locate="Boolean(selectedPolicySetSearchHitsInputOption && jumpToVariable)"
+              :locate-disabled="!selectedPolicySetSearchHitsInputOption || !jumpToVariable"
               @update:model-value="$emit('update-field', 'search_hits_var', String($event || ''))"
-              @create="createPolicySetSearchHitsVariable"
-              @locate="jumpToPolicySetSearchHitsVariable"
+              @create="createPolicySetSearchHitsInputVariable"
+              @locate="jumpToPolicySetSearchHitsInputVariable"
             />
           </template>
 
@@ -327,6 +343,7 @@
           />
 
           <EditorVariableBindingField
+            v-if="selectedFlow.type !== FLOW_TYPE.searchPolicySetText"
             label="输出结果变量"
             :model-value="selectedFlowOutput || null"
             :options="resolvedFlowOutputOptions"
@@ -343,9 +360,11 @@
         </div>
 
         <div class="rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-4 text-xs leading-6 text-(--app-text-soft)">
-          <template v-if="selectedFlow.type === FLOW_TYPE.handlePolicySet">
-            处理策略集会直接使用绑定的 `DET` / `OCR` 结果集做策略匹配，不再读取截图输入变量。
-            搜索命中结果会以 `SearchHit[]` 写入输出变量，可直接复用到点击文字等依赖搜索结果的动作。
+          <template v-if="selectedFlow.type === FLOW_TYPE.searchPolicySetText">
+            搜索目标策略集条件中的文字，并将 `SearchHit[]` 写入搜索命中输出变量。
+          </template>
+          <template v-else-if="selectedFlow.type === FLOW_TYPE.handlePolicySet">
+            处理策略集会使用搜索命中结果集与检测结果集完成条件判断；命中后会将搜索命中结果集收敛为命中策略的条件文字，未命中时写入空集。
             输出 JSON 约定：顶层摘要字段为 `matched`、`policySetId`、`policyGroupId`、`policyId`，逐轮明细写入 `rounds`。
             每个 round 内再保存 `pageFingerprints`、`actionSignatures`、`actions`，其中 `actions` 按 `actionIndex` 标识单轮中的动作顺序。
           </template>
@@ -697,6 +716,14 @@ const policySetOcrVariableOptions = computed(() =>
     '默认 OCR 输出变量，处理策略集会直接读取这里的 OCR 结果。',
   ),
 );
+const policySetSearchHitsVariableOptions = computed(() =>
+  ensureRuntimeResultOption(
+    jsonVariableOptions.value,
+    'runtime.searchHits',
+    '搜索命中',
+    '默认条件文字搜索输出变量，处理策略集会读取并在完成后回写这里的命中结果。',
+  ),
+);
 const runtimeWaitVariableOptions = computed(() => {
   const options = props.variableReferenceOptions
     .filter((option) => option.namespace === 'runtime' && ['json', 'list', 'object'].includes(option.valueType))
@@ -926,10 +953,13 @@ const bindingTargetReferenceOptions = computed(() => {
 const selectedPolicySetDetInput = computed(() =>
   props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? props.selectedFlow.det_input_var : '',
 );
-const selectedPolicySetOcrInput = computed(() =>
-  props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? props.selectedFlow.ocr_input_var : '',
+const selectedSearchPolicySetOcrInput = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.searchPolicySetText ? props.selectedFlow.ocr_input_var : '',
 );
-const selectedPolicySetSearchHitsOutput = computed(() =>
+const selectedSearchPolicySetOutput = computed(() =>
+  props.selectedFlow.type === FLOW_TYPE.searchPolicySetText ? props.selectedFlow.out_var : '',
+);
+const selectedPolicySetSearchHitsInput = computed(() =>
   props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? props.selectedFlow.search_hits_var : '',
 );
 const selectedFlowInput = computed(() =>
@@ -941,11 +971,14 @@ const selectedFlowOutput = computed(() =>
 const selectedPolicySetDetInputOption = computed(() =>
   props.variableReferenceOptions.find((option) => option.key === selectedPolicySetDetInput.value) ?? null,
 );
-const selectedPolicySetOcrInputOption = computed(() =>
-  props.variableReferenceOptions.find((option) => option.key === selectedPolicySetOcrInput.value) ?? null,
+const selectedSearchPolicySetOcrInputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedSearchPolicySetOcrInput.value) ?? null,
 );
-const selectedPolicySetSearchHitsOutputOption = computed(() =>
-  props.variableReferenceOptions.find((option) => option.key === selectedPolicySetSearchHitsOutput.value) ?? null,
+const selectedSearchPolicySetOutputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedSearchPolicySetOutput.value) ?? null,
+);
+const selectedPolicySetSearchHitsInputOption = computed(() =>
+  props.variableReferenceOptions.find((option) => option.key === selectedPolicySetSearchHitsInput.value) ?? null,
 );
 const selectedFlowInputOption = computed(() =>
   props.variableReferenceOptions.find((option) => option.key === selectedFlowInput.value) ?? null,
@@ -1019,11 +1052,14 @@ const selectedRepeatIndexOption = computed(() => {
 const resolvedPolicySetDetInputOptions = computed(() => {
   return withCurrentVariableOption(policySetDetVariableOptions.value, selectedPolicySetDetInput.value, '变量目录里找不到该检测结果绑定，保存时仍会保留当前值。');
 });
-const resolvedPolicySetOcrInputOptions = computed(() => {
-  return withCurrentVariableOption(policySetOcrVariableOptions.value, selectedPolicySetOcrInput.value, '变量目录里找不到该 OCR 结果绑定，保存时仍会保留当前值。');
+const resolvedSearchPolicySetOcrInputOptions = computed(() => {
+  return withCurrentVariableOption(policySetOcrVariableOptions.value, selectedSearchPolicySetOcrInput.value, '变量目录里找不到该 OCR 结果绑定，保存时仍会保留当前值。');
 });
-const resolvedPolicySetSearchHitsOutputOptions = computed(() =>
-  withCurrentVariableOption(jsonVariableOptions.value, selectedPolicySetSearchHitsOutput.value, '变量目录里找不到该命中结果绑定，保存时仍会保留当前值。'),
+const resolvedSearchPolicySetOutputOptions = computed(() =>
+  withCurrentVariableOption(policySetSearchHitsVariableOptions.value, selectedSearchPolicySetOutput.value, '变量目录里找不到该命中结果绑定，保存时仍会保留当前值。'),
+);
+const resolvedPolicySetSearchHitsInputOptions = computed(() =>
+  withCurrentVariableOption(policySetSearchHitsVariableOptions.value, selectedPolicySetSearchHitsInput.value, '变量目录里找不到该命中结果绑定，保存时仍会保留当前值。'),
 );
 const resolvedForEachItemOptions = computed(() => {
   const flow = props.selectedFlow;
@@ -1081,7 +1117,7 @@ const resolvedWaitRuntimeOptions = computed(() => {
   return withCurrentVariableOption(runtimeWaitVariableOptions.value, flow.runtime_var, '变量目录里找不到该运行时绑定，保存时仍会保留当前值。');
 });
 const availableTargetReferenceOptions = computed(() => {
-  if (props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
+  if (props.selectedFlow.type === FLOW_TYPE.searchPolicySetText || props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
     const selectedIds = new Set(props.selectedFlow.target);
     return props.policySetReferenceOptions.filter((option) => !selectedIds.has(option.value));
   }
@@ -1094,7 +1130,7 @@ const availableTargetReferenceOptions = computed(() => {
   return [];
 });
 const resolvedTargets = computed(() => {
-  if (props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
+  if (props.selectedFlow.type === FLOW_TYPE.searchPolicySetText || props.selectedFlow.type === FLOW_TYPE.handlePolicySet) {
     return props.selectedFlow.target.map((id) => {
       const matched = props.policySetReferenceOptions.find((option) => option.value === id);
       return {
@@ -1119,10 +1155,10 @@ const resolvedTargets = computed(() => {
   return [];
 });
 const emptyTargetText = computed(() =>
-  props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '还没有绑定策略集，运行时不会执行任何匹配。' : '还没有绑定策略，运行时不会执行任何匹配。',
+  props.selectedFlow.type === FLOW_TYPE.searchPolicySetText || props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '还没有绑定策略集，运行时不会执行任何匹配。' : '还没有绑定策略，运行时不会执行任何匹配。',
 );
-const targetTitle = computed(() => (props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '目标策略集' : '目标策略'));
-const targetPlaceholder = computed(() => (props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '选择策略集后添加' : '选择策略后添加'));
+const targetTitle = computed(() => (props.selectedFlow.type === FLOW_TYPE.searchPolicySetText || props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '目标策略集' : '目标策略'));
+const targetPlaceholder = computed(() => (props.selectedFlow.type === FLOW_TYPE.searchPolicySetText || props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? '选择策略集后添加' : '选择策略后添加'));
 
 const createTaskReferenceAndBind = async () => {
   const id = await props.createReference('task');
@@ -1167,7 +1203,7 @@ const jumpToLinkedTask = () => {
 };
 
 const appendTarget = () => {
-  if ((props.selectedFlow.type !== FLOW_TYPE.handlePolicySet && props.selectedFlow.type !== FLOW_TYPE.handlePolicy) || !pendingTargetId.value) {
+  if ((props.selectedFlow.type !== FLOW_TYPE.searchPolicySetText && props.selectedFlow.type !== FLOW_TYPE.handlePolicySet && props.selectedFlow.type !== FLOW_TYPE.handlePolicy) || !pendingTargetId.value) {
     return;
   }
 
@@ -1308,7 +1344,7 @@ const updateWaitSourceMode = (mode: string) => {
 };
 
 const removeTarget = (targetId: string) => {
-  if (props.selectedFlow.type !== FLOW_TYPE.handlePolicySet && props.selectedFlow.type !== FLOW_TYPE.handlePolicy) {
+  if (props.selectedFlow.type !== FLOW_TYPE.searchPolicySetText && props.selectedFlow.type !== FLOW_TYPE.handlePolicySet && props.selectedFlow.type !== FLOW_TYPE.handlePolicy) {
     return;
   }
 
@@ -1316,7 +1352,7 @@ const removeTarget = (targetId: string) => {
 };
 
 const jumpToTarget = (targetId: string) => {
-  props.jumpToReference(props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'policySet' : 'policy', targetId);
+  props.jumpToReference(props.selectedFlow.type === FLOW_TYPE.searchPolicySetText || props.selectedFlow.type === FLOW_TYPE.handlePolicySet ? 'policySet' : 'policy', targetId);
 };
 
 const createFlowInputVariable = async () => {
@@ -1351,8 +1387,8 @@ const createPolicySetDetInputVariable = async () => {
   emit('update-field', 'det_input_var', key);
 };
 
-const createPolicySetOcrInputVariable = async () => {
-  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.handlePolicySet) {
+const createSearchPolicySetOcrInputVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.searchPolicySetText) {
     return;
   }
 
@@ -1366,7 +1402,22 @@ const createPolicySetOcrInputVariable = async () => {
   }
   emit('update-field', 'ocr_input_var', key);
 };
-const createPolicySetSearchHitsVariable = async () => {
+const createSearchPolicySetOutputVariable = async () => {
+  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.searchPolicySetText) {
+    return;
+  }
+
+  const key = await props.createVariable('runtime', 'json', {
+    preferredKey: 'searchHits',
+    name: '搜索命中',
+    focusEditor: true,
+  });
+  if (!key) {
+    return;
+  }
+  emit('update-field', 'out_var', key);
+};
+const createPolicySetSearchHitsInputVariable = async () => {
   if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.handlePolicySet) {
     return;
   }
@@ -1412,17 +1463,23 @@ const jumpToPolicySetDetInputVariable = () => {
   props.jumpToVariable(selectedPolicySetDetInputOption.value);
 };
 
-const jumpToPolicySetOcrInputVariable = () => {
-  if (!selectedPolicySetOcrInputOption.value || !props.jumpToVariable) {
+const jumpToSearchPolicySetOcrInputVariable = () => {
+  if (!selectedSearchPolicySetOcrInputOption.value || !props.jumpToVariable) {
     return;
   }
-  props.jumpToVariable(selectedPolicySetOcrInputOption.value);
+  props.jumpToVariable(selectedSearchPolicySetOcrInputOption.value);
 };
-const jumpToPolicySetSearchHitsVariable = () => {
-  if (!selectedPolicySetSearchHitsOutputOption.value || !props.jumpToVariable) {
+const jumpToSearchPolicySetOutputVariable = () => {
+  if (!selectedSearchPolicySetOutputOption.value || !props.jumpToVariable) {
     return;
   }
-  props.jumpToVariable(selectedPolicySetSearchHitsOutputOption.value);
+  props.jumpToVariable(selectedSearchPolicySetOutputOption.value);
+};
+const jumpToPolicySetSearchHitsInputVariable = () => {
+  if (!selectedPolicySetSearchHitsInputOption.value || !props.jumpToVariable) {
+    return;
+  }
+  props.jumpToVariable(selectedPolicySetSearchHitsInputOption.value);
 };
 
 const jumpToFlowOutputVariable = () => {

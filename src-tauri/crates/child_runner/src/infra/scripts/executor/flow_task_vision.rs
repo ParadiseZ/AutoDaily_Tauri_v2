@@ -205,12 +205,19 @@ impl ScriptExecutor {
         ocr_res_var: Option<&str>,
         rule: &SearchRule,
     ) -> ExecuteResult<(Vec<SearchHit>, Vec<DetResult>, Vec<OcrResult>, bool)> {
-        let (default_ocr, default_det, grid_size) = {
+        let (default_ocr, default_det) = {
             let ctx = self.runtime_ctx.read().await;
             (
-                ctx.observation.last_ocr_results.clone(),
-                ctx.observation.last_det_results.clone(),
-                ctx.observation.vision_signature_grid_size,
+                ctx.observation
+                    .last_snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.ocr_items.clone())
+                    .unwrap_or_default(),
+                ctx.observation
+                    .last_snapshot
+                    .as_ref()
+                    .map(|snapshot| snapshot.det_items.clone())
+                    .unwrap_or_default(),
             )
         };
         let ocr_results = match ocr_res_var.map(str::trim).filter(|value| !value.is_empty()) {
@@ -225,15 +232,12 @@ impl ScriptExecutor {
                 .await?,
             None => default_det,
         };
-        let snapshot = VisionSnapshot::new(det_results, grid_size)
-            .and_then(|snapshot| snapshot.with_ocr_results(ocr_results))
-            .map_err(|error| Self::execute_error(step_type, format!("构建视觉快照失败: {}", error)))?;
         let searcher = OcrSearcher::new(std::slice::from_ref(rule));
-        let hits = searcher.search(&snapshot);
-        let matched = rule.evaluate(&hits, &snapshot.det_items);
+        let hits = searcher.search_ocr_items(&ocr_results);
+        let matched = rule.evaluate(&hits, &det_results);
         Ok((
             hits.clone(),
-            Self::collect_det_results_by_rule(rule, &snapshot.det_items),
+            Self::collect_det_results_by_rule(rule, &det_results),
             Self::collect_ocr_results_from_hits(&hits),
             matched,
         ))

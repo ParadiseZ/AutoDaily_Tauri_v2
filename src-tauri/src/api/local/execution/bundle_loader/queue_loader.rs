@@ -182,7 +182,6 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
 
     let script_name = script.info.name.clone();
     let script_type = script.info.script_type.clone();
-    let recovery_task_id = script.info.runtime_settings.recovery_task_id;
     let policy_ids = policies.iter().map(|policy| policy.id).collect();
     let policy_group_ids = policy_groups.iter().map(|group| group.id).collect();
     let policy_set_ids = policy_sets.iter().map(|set| set.id).collect();
@@ -191,7 +190,6 @@ async fn load_script_bundle(script_id: ScriptId) -> Result<LoadedScriptBundle, S
         script_id,
         script_name,
         script_type,
-        recovery_task_id,
         runnable_task_ids,
         policy_ids,
         policy_group_ids,

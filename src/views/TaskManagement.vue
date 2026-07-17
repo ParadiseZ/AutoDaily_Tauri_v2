@@ -72,12 +72,13 @@
 
     <AppDialog
       :open="assignmentSettingsOpen"
-      title="脚本模板设置"
-      width-class="max-w-4xl max-h-[calc(100vh-3rem)] flex flex-col"
+      title="脚本任务设置"
+      width-class="max-w-4xl h-[80vh] flex flex-col"
       @close="assignmentSettingsOpen = false"
     >
       <ScriptTemplateValuePanel
         v-if="assignmentSettingsScope && assignmentSettingsScript"
+        class="min-h-0 flex-1"
         :script="assignmentSettingsScript"
         :tasks="assignmentSettingsTasks"
         :scope="assignmentSettingsScope"
@@ -121,9 +122,7 @@ import { showToast } from '@/utils/toast';
 import { activeRuntimeProgressPhases } from '@/utils/deviceRuntime';
 import {
   validateDeviceConnectionBootstrapConfig,
-  validateDeviceQueueRecoveryForDevice,
   validateDeviceRuntimePlatform,
-  validateRunTargetRecoveryForDevice,
 } from '@/utils/runtimePolicy';
 import type { AssignmentRecord, DeviceFormState } from '@/types/app/domain';
 import type { RunTarget } from '@/types/bindings/RunTarget';
@@ -424,11 +423,7 @@ const validateDeviceQueueStart = (deviceId: string) => {
     return bootstrapError;
   }
 
-  return validateDeviceQueueRecoveryForDevice(
-    device,
-    taskStore.assignmentsByDevice[deviceId] ?? [],
-    scriptStore.sortedScripts,
-  );
+  return null;
 };
 
 const validateTemporaryRun = async (deviceId: string, target: RunTarget) => {
@@ -467,7 +462,7 @@ const validateTemporaryRun = async (deviceId: string, target: RunTarget) => {
     return '目标任务不存在，或不是可执行 Task。';
   }
 
-  return validateRunTargetRecoveryForDevice(device, script, tasks);
+  return null;
 };
 
 const prepareCurrentRunForTemporaryTarget = async (deviceId: string) => {

@@ -11,7 +11,6 @@ use domain_script::{PolicyProfile, ScriptInfo, ScriptTaskProfile};
 use domain_vision::SearchHit;
 use domain_vision::VisionSnapshot;
 use domain_vision::VisionTextCacheRuntimeConfig;
-use domain_vision::{DetResult, OcrResult};
 use image::RgbaImage;
 use infra_vision::OcrService;
 use infra_vision_cache::ScriptTextRecCacheRuntime;
@@ -124,12 +123,6 @@ pub(crate) struct ObservationState {
     /// 最近一次显式视觉步骤所使用的图像签名，用于合并 OCR/检测结果。
     pub last_vision_input_signature: Option<String>,
 
-    /// 最近一次显式目标检测结果。
-    pub last_det_results: Vec<DetResult>,
-
-    /// 最近一次显式 OCR 结果。
-    pub last_ocr_results: Vec<OcrResult>,
-
     /// 每一帧的视觉快照缓存
     pub last_snapshot: Option<VisionSnapshot>,
 
@@ -154,8 +147,6 @@ impl ObservationState {
         Self {
             last_capture_image: None,
             last_vision_input_signature: None,
-            last_det_results: Vec::new(),
-            last_ocr_results: Vec::new(),
             last_snapshot: None,
             last_hits: Vec::new(),
             screen_size: (0, 0),

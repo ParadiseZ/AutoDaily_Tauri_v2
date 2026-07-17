@@ -334,12 +334,8 @@ const collectDerivedRuntimeVariables = (
     }
 
     if (step.op === 'flowControl') {
-      if ((step.a.type === 'handlePolicySet' || step.a.type === 'handlePolicy') && step.a.out_var?.trim()) {
+      if ((step.a.type === 'searchPolicySetText' || step.a.type === 'handlePolicySet' || step.a.type === 'handlePolicy') && step.a.out_var?.trim()) {
         const key = step.a.out_var.trim();
-        bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
-      }
-      if (step.a.type === 'handlePolicySet' && step.a.search_hits_var?.trim()) {
-        const key = step.a.search_hits_var.trim();
         bucket.set(key, createDerivedRuntimeVariable(key, 'json', ownerTaskId, step.id));
       }
 

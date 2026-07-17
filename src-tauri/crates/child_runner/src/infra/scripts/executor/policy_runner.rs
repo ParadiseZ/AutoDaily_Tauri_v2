@@ -1,3 +1,11 @@
+enum PolicyMatchSource {
+    Snapshot,
+    SearchHits {
+        hits: Vec<SearchHit>,
+        det_results: Vec<DetResult>,
+    },
+}
+
 impl ScriptExecutor {
     fn policy_set_candidate_cache_key(target: &[PolicySetId]) -> String {
         target
@@ -40,7 +48,6 @@ impl ScriptExecutor {
         &mut self,
         target: &[PolicySetId],
         det_input_var: &str,
-        ocr_input_var: &str,
         search_hits_var: &str,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
@@ -53,16 +60,21 @@ impl ScriptExecutor {
         {
             return Ok(timeout_flow);
         }
-        self.activate_runtime_results_context(
-            "flow.handlePolicySet",
-            det_input_var,
-            ocr_input_var,
-        )
-            .await?;
         let bundle = self.load_policy_bundle("flow.handlePolicySet").await?;
         let candidates = self
             .resolve_cached_policy_set_candidates(&bundle, target)
             .await?;
+        let hits = self
+            .read_runtime_result_vec::<SearchHit>(
+                search_hits_var,
+                "flow.handlePolicySet",
+                "搜索命中",
+            )
+            .await?;
+        let det_results = self
+            .read_runtime_result_vec::<DetResult>(det_input_var, "flow.handlePolicySet", "检测")
+            .await?;
+        let match_source = PolicyMatchSource::SearchHits { hits, det_results };
         Log::debug(&format!(
             "[ executor ] HandlePolicySet 候选展开完成: target_count={}, candidate_count={}, search_hits_var={}, out_var={}",
             target.len(),
@@ -73,10 +85,38 @@ impl ScriptExecutor {
         self.execute_policy_candidates(
             "flow.handlePolicySet",
             candidates,
+            match_source,
             Some(search_hits_var),
             out_var,
         )
         .await
+    }
+
+    async fn execute_search_policy_set_text(
+        &mut self,
+        target: &[PolicySetId],
+        ocr_input_var: &str,
+        out_var: &str,
+    ) -> ExecuteResult<ControlFlow> {
+        let step_type = "flow.searchPolicySetText";
+        let ocr_results = self
+            .read_runtime_result_vec::<OcrResult>(ocr_input_var, step_type, "OCR")
+            .await?;
+        let bundle = self.load_policy_bundle(step_type).await?;
+        let candidates = self
+            .resolve_cached_policy_set_candidates(&bundle, target)
+            .await?;
+        let rules = candidates
+            .iter()
+            .map(|candidate| candidate.policy.info.cond.clone())
+            .collect::<Vec<_>>();
+        let hits = OcrSearcher::new(&rules).search_ocr_items(&ocr_results);
+        self.set_runtime_var(
+            out_var,
+            Self::results_to_dynamic(step_type, "搜索命中", &hits)?,
+        )
+        .await?;
+        Ok(ControlFlow::Next)
     }
 
     async fn debug_execute_policy_candidates(
@@ -102,7 +142,13 @@ impl ScriptExecutor {
             ));
         }
 
-        self.execute_policy_candidates("debug.policy", candidates, None, "runtime.policyDebugResult")
+        self.execute_policy_candidates(
+            "debug.policy",
+            candidates,
+            PolicyMatchSource::Snapshot,
+            None,
+            "runtime.policyDebugResult",
+        )
             .await?;
         let value = self.read_runtime_var("runtime.policyDebugResult").await.ok_or_else(|| {
             Self::execute_error(
@@ -146,7 +192,13 @@ impl ScriptExecutor {
             candidates.len(),
             out_var
         ));
-        self.execute_policy_candidates("flow.handlePolicy", candidates, None, out_var)
+        self.execute_policy_candidates(
+            "flow.handlePolicy",
+            candidates,
+            PolicyMatchSource::Snapshot,
+            None,
+            out_var,
+        )
             .await
     }
 
@@ -154,6 +206,7 @@ impl ScriptExecutor {
         &mut self,
         step_type: &str,
         candidates: Vec<PolicyCandidate>,
+        match_source: PolicyMatchSource,
         search_hits_var: Option<&str>,
         out_var: &str,
     ) -> ExecuteResult<ControlFlow> {
@@ -232,9 +285,15 @@ impl ScriptExecutor {
                     before_action.as_slice(),
                 )
                 .await?;
-                let (matched, hits) = self
-                    .evaluate_policy_match(step_type, &candidate.policy.info.cond)
-                    .await?;
+                let (matched, hits) = match &match_source {
+                    PolicyMatchSource::Snapshot => self
+                        .evaluate_policy_match(step_type, &candidate.policy.info.cond)
+                        .await?,
+                    PolicyMatchSource::SearchHits { hits, det_results } => (
+                        candidate.policy.info.cond.evaluate(hits, det_results),
+                        candidate.policy.info.cond.filter_hits(hits),
+                    ),
+                };
                 last_search_hits = hits;
                 if !matched {
                     return Ok::<bool, ScriptError>(false);
@@ -286,7 +345,7 @@ impl ScriptExecutor {
         if let Some(search_hits_var) = search_hits_var {
             self.set_runtime_var(
                 search_hits_var,
-                Self::results_to_dynamic(step_type, "搜索命中", &last_search_hits)?,
+                Self::results_to_dynamic(step_type, "搜索命中", &Vec::<SearchHit>::new())?,
             )
             .await?;
         }

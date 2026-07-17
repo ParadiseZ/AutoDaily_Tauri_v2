@@ -41,14 +41,9 @@
                   <span class="text-sm text-(--app-text-soft)">截图方式</span>
                   <AppSelect v-model="form.capMethodType" :options="captureOptions" />
                 </label>
-                <label class="grid gap-2">
+                <label v-if="form.capMethodType === 'window'" class="grid gap-2">
                   <span class="text-sm text-(--app-text-soft)">窗口名 / 标识</span>
-                  <input
-                    v-model.trim="form.capMethodValue"
-                    class="app-input"
-                    :placeholder="form.capMethodType === 'window' ? '窗口标题' : 'ADB 截图无需额外配置'"
-                    :disabled="form.capMethodType === 'adb'"
-                  />
+                  <input v-model.trim="form.capMethodValue" class="app-input" placeholder="窗口标题" />
                 </label>
               </div>
 
@@ -132,7 +127,7 @@
                 </label>
               </div>
 
-              <div class="grid gap-4 md:grid-cols-2">
+              <div v-if="form.transportKind === 'emulatorTcp'" class="grid gap-4 md:grid-cols-2">
                 <label class="grid gap-2">
                   <span class="text-sm text-(--app-text-soft)">设备启动路径（可选）</span>
                   <div class="path-input-row">

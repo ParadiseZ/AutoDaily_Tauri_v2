@@ -73,7 +73,14 @@ const SVG_ICONS = {
   launch: '<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M10 8l6 4-6 4v-8z"/>',
   stop: '<rect x="3" y="3" width="18" height="18" rx="4"/><rect x="9" y="9" width="6" height="6" rx="1"/>',
   click: '<path d="M4 4l7.07 17 2.51-7.39L21 11.07z"/>',
+  clickPercent: '<path d="M4 4h5v5H4z"/><path d="M15 15h5v5h-5z"/><path d="M7 17L17 7"/><path d="M14 7h3v3"/><path d="M7 14v3h3"/>',
+  clickText: '<path d="M4 5h16"/><path d="M8 5v11"/><path d="M5 16h6"/><path d="M15 14l2 5 1.5-2.5L21 18z"/>',
+  clickLabel: '<rect x="4" y="4" width="12" height="12" rx="2" stroke-dasharray="3 2"/><path d="M15 14l2 5 1.5-2.5L21 18z"/>',
   swipe: '<path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>',
+  swipePercent: '<path d="M4 5h5v5"/><path d="M20 19h-5v-5"/><path d="M6 18L18 6"/><path d="M13 6h5v5"/><path d="M11 18H6v-5"/>',
+  swipeText: '<path d="M4 5h11"/><path d="M4 10h8"/><path d="M4 15h11"/><path d="M15 18h5"/><path d="M17 15l3 3-3 3"/>',
+  swipeLabel: '<rect x="4" y="4" width="12" height="12" rx="2" stroke-dasharray="3 2"/><path d="M10 20h10"/><path d="M17 17l3 3-3 3"/>',
+  swipeMixed: '<rect x="3" y="4" width="7" height="7" rx="1" stroke-dasharray="2 1"/><path d="M13 5h8"/><path d="M13 10h5"/><path d="M6 15v5h14"/><path d="M17 17l3 3-3 3"/>',
   back: '<path d="M15 18l-6-6 6-6"/>',
   add: '<circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/>',
   minus: '<circle cx="12" cy="12" r="10"/><path d="M8 12h8"/>',
@@ -87,10 +94,19 @@ const SVG_ICONS = {
   break: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
   stopScript: '<circle cx="12" cy="12" r="10"/><rect x="8" y="8" width="8" height="8" rx="1"/>',
   policySet: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  policySetAdd: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M12 10v6"/><path d="M9 13h6"/>',
+  policySetRemove: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M9 13h6"/>',
+  policySetRun: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M11 10l5 3-5 3z"/>',
   policyGroup: '<path d="M3 7h18"/><path d="M3 12h18"/><path d="M3 17h18"/><circle cx="7" cy="7" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="17" r="1"/>',
+  policyGroupAdd: '<path d="M4 7h10"/><path d="M4 12h10"/><path d="M4 17h10"/><circle cx="2.5" cy="7" r=".5"/><circle cx="2.5" cy="12" r=".5"/><circle cx="2.5" cy="17" r=".5"/><path d="M19 10v8"/><path d="M15 14h8"/>',
+  policyGroupRemove: '<path d="M4 7h10"/><path d="M4 12h10"/><path d="M4 17h10"/><circle cx="2.5" cy="7" r=".5"/><circle cx="2.5" cy="12" r=".5"/><circle cx="2.5" cy="17" r=".5"/><path d="M15 14h8"/>',
   policy: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>',
+  policyAdd: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6"/><path d="M9 15h6"/>',
+  policyRemove: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2-2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6"/>',
+  policyRun: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2-2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M10 12l5 3-5 3z"/>',
   setVar: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
   getVar: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  clearVars: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 15H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/>',
   code: '<path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/><path d="M14 4l-4 16"/>',
   print: '<path d="M6 9V3h12v6"/><rect x="6" y="14" width="12" height="7"/><path d="M6 17H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><path d="M18 12h.01"/>',
   filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
@@ -99,8 +115,9 @@ const SVG_ICONS = {
   ocr: '<path d="M4 6h16"/><path d="M4 12h10"/><path d="M4 18h7"/><path d="M18 12l2 2-4 4"/>',
   count: '<path d="M9 7h11"/><path d="M9 12h11"/><path d="M9 17h11"/><path d="M4 7h.01"/><path d="M4 12h.01"/><path d="M4 17h.01"/>',
   search: '<circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>',
+  scanSearch: '<path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><circle cx="11" cy="11" r="4"/><path d="m15 15 3 3"/>',
   state: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/>',
-  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  link: '<path d="M5 5v14"/><path d="M5 12h14"/><path d="m15 7 5 5-5 5"/>',
   sequence: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/>'
 };
 
@@ -183,7 +200,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'click-percent',
-    icon: genSvg(SVG_ICONS.click),
+    icon: genSvg(SVG_ICONS.clickPercent),
     label: '点击百分比',
     description: '按相对坐标点击，适合多分辨率脚本。',
     group: '动作',
@@ -204,7 +221,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'click-text',
-    icon: genSvg(SVG_ICONS.click),
+    icon: genSvg(SVG_ICONS.clickText),
     label: '点击文字',
     description: '搜索 OCR 文本后点击对应区域。',
     group: '动作',
@@ -226,7 +243,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'click-label',
-    icon: genSvg(SVG_ICONS.click),
+    icon: genSvg(SVG_ICONS.clickLabel),
     label: '点击标签',
     description: '根据视觉标签索引点击对应目标。',
     group: '动作',
@@ -269,7 +286,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-percent',
-    icon: genSvg(SVG_ICONS.swipe),
+    icon: genSvg(SVG_ICONS.swipePercent),
     label: '滑动百分比',
     description: '按相对坐标执行滑动。',
     group: '动作',
@@ -289,7 +306,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-text',
-    icon: genSvg(SVG_ICONS.swipe),
+    icon: genSvg(SVG_ICONS.swipeText),
     label: '滑动文字',
     description: '按 OCR 文字起止点执行滑动。',
     group: '动作',
@@ -310,7 +327,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-label',
-    icon: genSvg(SVG_ICONS.swipe),
+    icon: genSvg(SVG_ICONS.swipeLabel),
     label: '滑动标签',
     description: '按视觉标签索引起止点执行滑动。',
     group: '动作',
@@ -331,13 +348,13 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'swipe-label-to-text',
-    icon: genSvg(SVG_ICONS.swipe),
-    label: '标签滑到文字',
+    icon: genSvg(SVG_ICONS.swipeMixed),
+    label: '组合滑动',
     description: '以检测标签为起点、OCR 文字为终点执行滑动。',
     group: '动作',
     create: () =>
       createBaseStep({
-        label: '标签滑到文字',
+        label: '组合滑动',
         op: STEP_OP.action,
         exec_max: 0,
         a: {
@@ -412,7 +429,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
     id: 'drop-set-next',
     icon: genSvg(SVG_ICONS.next),
     label: 'UI 变量下一个',
-    description: '把指定任务的 Select/Radio 变量切换到下一个选项并写回模板变量。',
+    description: '按方向切换指定任务的 Select/Radio 变量，可在首尾循环。',
     group: '动作',
     create: () =>
       createBaseStep({
@@ -423,9 +440,14 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           ac: ACTION_TYPE.dropSetNext,
           task: '',
           variable_id: '',
+          direction: 'increase',
+          cycle: true,
         },
       }),
   },
+
+
+
   {
     id: 'wait',
     icon: genSvg(SVG_ICONS.wait),
@@ -569,10 +591,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'add-policies',
-    icon: genSvg(SVG_ICONS.policySet),
+    icon: genSvg(SVG_ICONS.policySetAdd),
     label: '追加策略集',
     description: '把源策略集里的策略组按顺序追加到目标策略集。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '追加策略集',
@@ -588,10 +610,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'remove-policies',
-    icon: genSvg(SVG_ICONS.policySet),
+    icon: genSvg(SVG_ICONS.policySetRemove),
     label: '移除策略集',
     description: '从目标策略集中移除运行时追加的源策略集。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '移除策略集',
@@ -605,10 +627,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'bind-policy-group',
-    icon: genSvg(SVG_ICONS.policySet),
+    icon: genSvg(SVG_ICONS.policySetAdd),
     label: '绑定策略组',
     description: '把一个策略组绑定到目标策略集，可控制顶部插入和逆序。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '绑定策略组',
@@ -624,10 +646,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'remove-policy-group',
-    icon: genSvg(SVG_ICONS.policySet),
+    icon: genSvg(SVG_ICONS.policySetRemove),
     label: '移除策略组',
     description: '从目标策略集中移除运行时绑定的源策略组。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '移除策略组',
@@ -641,10 +663,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'add-policy-groups',
-    icon: genSvg(SVG_ICONS.policyGroup),
+    icon: genSvg(SVG_ICONS.policyGroupAdd),
     label: '追加策略组',
     description: '把一个策略组里的策略插入目标策略组，可控制顶部插入和逆序。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '追加策略组',
@@ -660,10 +682,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'unload-policy-group',
-    icon: genSvg(SVG_ICONS.policyGroup),
+    icon: genSvg(SVG_ICONS.policyGroupRemove),
     label: '卸载策略组',
     description: '从目标策略组中移除运行时追加的源策略组。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '卸载策略组',
@@ -677,10 +699,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'bind-policy',
-    icon: genSvg(SVG_ICONS.policy),
+    icon: genSvg(SVG_ICONS.policyAdd),
     label: '绑定策略',
     description: '把一个策略绑定到目标策略组，可控制顶部插入和逆序。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '绑定策略',
@@ -696,10 +718,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'unload-policy',
-    icon: genSvg(SVG_ICONS.policy),
+    icon: genSvg(SVG_ICONS.policyRemove),
     label: '卸载策略',
     description: '从目标策略组中移除运行时绑定的源策略。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '卸载策略',
@@ -713,10 +735,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'handle-policy-set',
-    icon: genSvg(SVG_ICONS.policySet),
+    icon: genSvg(SVG_ICONS.policySetRun),
     label: '处理策略集',
-    description: '使用 DET / OCR 结果集执行策略集匹配，并把命中结果输出为 JSON 变量。',
-    group: '流程',
+    description: '使用搜索命中结果集和 DET 结果集完成策略条件判断，并执行命中策略。',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '处理策略集',
@@ -725,7 +747,6 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           type: FLOW_TYPE.handlePolicySet,
           target: createStringList(),
           det_input_var: 'runtime.detResults',
-          ocr_input_var: 'runtime.ocrResults',
           search_hits_var: 'runtime.searchHits',
           out_var: 'runtime.policySetResult',
         },
@@ -733,10 +754,10 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'handle-policy',
-    icon: genSvg(SVG_ICONS.policy),
+    icon: genSvg(SVG_ICONS.policyRun),
     label: '处理策略',
     description: '执行指定策略并把结果输出为 JSON 变量。',
-    group: '流程',
+    group: '策略',
     create: () =>
       createBaseStep({
         label: '处理策略',
@@ -746,6 +767,24 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           target: createStringList(),
           input_var: 'runtime.latestCapture',
           out_var: 'runtime.policyResult',
+        },
+      }),
+  },
+  {
+    id: 'search-policy-set-text',
+    icon: genSvg(SVG_ICONS.search),
+    label: '搜索条件文字',
+    description: '从目标策略集的文字条件中搜索 OCR 结果，并输出搜索命中结果集。',
+    group: '策略',
+    create: () =>
+      createBaseStep({
+        label: '搜索条件文字',
+        op: STEP_OP.flowControl,
+        a: {
+          type: FLOW_TYPE.searchPolicySetText,
+          target: createStringList(),
+          ocr_input_var: 'runtime.ocrResults',
+          out_var: 'runtime.searchHits',
         },
       }),
   },
@@ -774,7 +813,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'clear-vars',
-    icon: genSvg(SVG_ICONS.minus),
+    icon: genSvg(SVG_ICONS.clearVars),
     label: '清空变量',
     description: '按变量类型写入空值或移除图像引用。',
     group: '数据',
@@ -788,7 +827,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
         },
       }),
   },
-  {
+  /* {
     id: 'get-var',
     icon: genSvg(SVG_ICONS.getVar),
     label: '读取变量',
@@ -804,7 +843,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           default_val: null,
         },
       }),
-  },
+  }, */
   {
     id: 'print',
     icon: genSvg(SVG_ICONS.print),
@@ -926,7 +965,7 @@ export const editorStepTemplates: EditorStepTemplate[] = [
   },
   {
     id: 'vision-search',
-    icon: genSvg(SVG_ICONS.search),
+    icon: genSvg(SVG_ICONS.scanSearch),
     label: '视觉搜索',
     description: '基于 OCR / YOLO 规则搜索目标并输出结果变量。',
     group: '视觉',
@@ -1046,6 +1085,7 @@ export const describeStepTitle = (step: Step) => {
     if (step.a.type === FLOW_TYPE.unloadPolicyGroup) return '卸载策略组';
     if (step.a.type === FLOW_TYPE.bindPolicy) return '绑定策略';
     if (step.a.type === FLOW_TYPE.unloadPolicy) return '卸载策略';
+    if (step.a.type === FLOW_TYPE.searchPolicySetText) return '搜索条件文字';
     if (step.a.type === FLOW_TYPE.handlePolicySet) return '处理策略集';
     if (step.a.type === FLOW_TYPE.handlePolicy) return '处理策略';
     if (step.a.type === FLOW_TYPE.if) return '条件分支';
@@ -1153,8 +1193,10 @@ export const describeStepMeta = (step: Step) => {
         return '跳出当前循环';
       case FLOW_TYPE.stopScript:
         return '结束当前脚本执行';
+      case FLOW_TYPE.searchPolicySetText:
+        return `搜索 ${step.a.target.length} 个策略集的条件文字 · OCR ${step.a.ocr_input_var || '未指定'} -> ${step.a.out_var || '未指定输出'}`;
       case FLOW_TYPE.handlePolicySet:
-        return `处理 ${step.a.target.length} 个策略集 · DET ${step.a.det_input_var || '未指定'} · OCR ${step.a.ocr_input_var || '未指定'} · Hits ${step.a.search_hits_var || '未指定'} -> ${step.a.out_var || '未指定输出'}`;
+        return `处理 ${step.a.target.length} 个策略集 · DET ${step.a.det_input_var || '未指定'} · Hits ${step.a.search_hits_var || '未指定'} -> ${step.a.out_var || '未指定输出'}`;
       case FLOW_TYPE.handlePolicy:
         return `处理 ${step.a.target.length} 个策略 · ${step.a.input_var || '未指定输入'} -> ${step.a.out_var || '未指定输出'}`;
       default:

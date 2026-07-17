@@ -302,6 +302,107 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
 
+test('selects a UI variable next-step task and its bound variable together', async ({ page }) => {
+  const scriptId = 'script-editor-drop-set-next';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: 'UI 变量切换脚本',
+      description: '',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: {
+        version: 1,
+        variables: [{
+          id: 'input-mode',
+          key: 'input.mode',
+          name: '模式',
+          namespace: 'input',
+          valueType: 'string',
+          ownerTaskId: 'task-target',
+          sourceType: 'manual',
+          sourceStepId: null,
+          readable: true,
+          writable: true,
+          persisted: true,
+          uiBindable: true,
+          defaultValue: '普通',
+          description: '',
+        }],
+      },
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.evaluate((currentScriptId) => {
+    const task = (id: string, name: string, uiData: Record<string, unknown> = {}): ScriptTaskTable => ({
+      id,
+      scriptId: currentScriptId,
+      name,
+      description: '',
+      rowType: 'task',
+      triggerMode: 'linkOnly',
+      recordSchedule: true,
+      sectionId: null,
+      indentLevel: 1,
+      defaultTaskCycle: 'everyRun',
+      execMax: 0,
+      showEnabledToggle: true,
+      defaultEnabled: true,
+      taskTone: 'normal',
+      isHidden: false,
+      data: { uiData, variables: {}, steps: [] },
+      createdAt: '2026-03-26T08:00:00.000Z',
+      updatedAt: '2026-03-26T08:00:00.000Z',
+      deletedAt: null,
+      isDeleted: false,
+      index: id === 'task-source' ? 0 : 1,
+    });
+    window.__AUTODAILY_MOCK__?.seed({
+      scriptTasks: {
+        [currentScriptId]: [
+          task('task-source', '来源任务'),
+          task('task-target', '目标任务', {
+            fields: [{ key: 'mode', label: '模式', control: 'select', variableId: 'input-mode', inputKey: 'mode', options: ['普通', '困难'] }],
+          }),
+        ],
+      },
+    });
+  }, scriptId);
+  await page.reload();
+
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-drop-set-next').click();
+  await page.getByTestId('editor-action-drop-set-task-option-task-target').click();
+  await selectOptionByValue(page, 'editor-action-drop-set-direction', 'decrease');
+  await page.getByTestId('editor-action-drop-set-cycle').uncheck();
+  await expect(page.getByTestId('editor-action-drop-set-task')).toContainText('目标任务');
+  await expect(page.getByTestId('editor-action-drop-set-variable')).toContainText('模式');
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state?.scriptTasks[scriptId]?.[0]?.data.steps[0]).toMatchObject({
+    a: { ac: 'dropSetNext', task: 'task-target', variable_id: 'input-mode', direction: 'decrease', cycle: false },
+  });
+});
+
 test('returns to synced when select options text is reverted to original labels', async ({ page }) => {
   const scriptId = 'script-editor-ui-dirty-revert';
   const script: StoredScriptTable = {
@@ -923,7 +1024,7 @@ test('persists current-task condition with target and expected flag', async ({ p
   });
 });
 
-test('persists handle policy set flow and policy-set-result condition with ids only', async ({ page }) => {
+test('persists policy-set text search and handling flow with ids only', async ({ page }) => {
   const scriptId = 'script-editor-policy-set-flow';
   const script: StoredScriptTable = {
     id: scriptId,
@@ -1012,18 +1113,25 @@ test('persists handle policy set flow and policy-set-result condition with ids o
   await page.reload();
 
   await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-search-policy-set-text').click();
   await page.getByTestId('editor-step-template-handle-policy-set').click();
   await page.getByTestId('editor-step-template-if').click();
 
   await page.getByTestId('editor-step-card-0').click();
+  await selectOptionByValue(page, 'editor-flow-search-policy-set-pending', 'set-a');
+  await page.getByTestId('editor-flow-search-policy-set-add').click();
+  await expect(page.getByTestId('editor-flow-search-policy-set-target-set-a')).toContainText('主策略集');
+  await expect(page.getByTestId('editor-flow-search-policy-set-ocr-input-var')).toContainText('OCR结果');
+  await expect(page.getByTestId('editor-flow-search-policy-set-out-var')).toContainText('搜索命中');
+
+  await page.getByTestId('editor-step-card-1').click();
   await selectOptionByValue(page, 'editor-flow-policy-set-pending', 'set-a');
   await page.getByTestId('editor-flow-policy-set-add').click();
   await expect(page.getByTestId('editor-flow-policy-set-target-set-a')).toContainText('主策略集');
   await expect(page.getByTestId('editor-flow-policy-set-det-input-var')).toContainText('检测结果');
-  await expect(page.getByTestId('editor-flow-policy-set-ocr-input-var')).toContainText('OCR结果');
   await expect(page.getByTestId('editor-flow-policy-set-search-hits-var')).toContainText('搜索命中');
 
-  await page.getByTestId('editor-step-card-1').click();
+  await page.getByTestId('editor-step-card-2').click();
   await selectOptionByValue(page, 'editor-condition-type', 'policySetResult');
   await selectOptionByValue(page, 'editor-condition-policy-set-result-var', 'runtime.policySetResult');
   await selectOptionByValue(page, 'editor-condition-policy-set-result-field', 'policyId');
@@ -1037,15 +1145,23 @@ test('persists handle policy set flow and policy-set-result condition with ids o
   expect(task.data.steps[0]).toMatchObject({
     op: 'flowControl',
     a: {
+      type: 'searchPolicySetText',
+      target: ['set-a'],
+      ocr_input_var: 'runtime.ocrResults',
+      out_var: 'runtime.searchHits',
+    },
+  });
+  expect(task.data.steps[1]).toMatchObject({
+    op: 'flowControl',
+    a: {
       type: 'handlePolicySet',
       target: ['set-a'],
       det_input_var: 'runtime.detResults',
-      ocr_input_var: 'runtime.ocrResults',
       search_hits_var: 'runtime.searchHits',
       out_var: 'runtime.policySetResult',
     },
   });
-  expect(task.data.steps[1]).toMatchObject({
+  expect(task.data.steps[2]).toMatchObject({
     op: 'flowControl',
     a: {
       type: 'if',

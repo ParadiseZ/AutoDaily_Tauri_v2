@@ -53,7 +53,7 @@
         :mode="dialogMode"
         :open="scriptInfoDialogOpen"
         :script="dialogScript"
-        :task-options="[]"
+        :task-options="dialogRecoveryTaskOptions"
         @close="closeInfoDialog"
         @save="handleSaveScriptInfo"
       />
@@ -100,6 +100,21 @@ const uploadPendingLabel = ref('上传中...');
 const selectedScriptChangeLogs = ref<ScriptChangeLogRecord[]>([]);
 const changeLogsLoading = ref(false);
 const changeLogsLoadFailed = ref(false);
+
+const dialogRecoveryTaskOptions = computed(() => {
+  const scriptId = dialogScript.value?.id;
+  if (!scriptId) {
+    return [];
+  }
+
+  return (scriptStore.tasksByScriptId[scriptId] ?? [])
+    .filter((task) => task.rowType === 'task' && !task.isDeleted)
+    .map((task) => ({
+      label: task.name,
+      value: task.id,
+      description: `任务 ${task.index + 1}`,
+    }));
+});
 
 const filteredScripts = computed(() => {
   const keyword = searchQuery.value.trim().toLowerCase();

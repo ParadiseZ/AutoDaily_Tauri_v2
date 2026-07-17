@@ -9,6 +9,19 @@ fn default_enable_filter() -> bool {
     true
 }
 
+fn default_drop_set_cycle() -> bool {
+    true
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, Copy, ts_rs::TS, Default)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum DropSetDirection {
+    #[default]
+    Increase,
+    Decrease,
+}
+
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]
 #[ts(export)]
 #[serde(rename_all = "camelCase", tag = "source")]
@@ -132,6 +145,10 @@ pub enum Action {
     DropSetNext {
         task: TaskId,
         variable_id: String,
+        #[serde(default)]
+        direction: DropSetDirection,
+        #[serde(default = "default_drop_set_cycle")]
+        cycle: bool,
     },
     LaunchApp {
         pkg_name: String,

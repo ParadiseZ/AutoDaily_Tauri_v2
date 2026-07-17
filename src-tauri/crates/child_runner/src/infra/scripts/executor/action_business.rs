@@ -39,6 +39,8 @@ impl ScriptExecutor {
         &mut self,
         task_id: TaskId,
         variable_id: &str,
+        direction: domain_script::DropSetDirection,
+        cycle: bool,
     ) -> ExecuteResult<()> {
         let variable_id = variable_id.trim();
         if variable_id.is_empty() {
@@ -90,7 +92,7 @@ impl ScriptExecutor {
             let root = Self::parse_template_values_root(ctx.execution.template_values_json.as_deref())?;
             let current = Self::template_variable_value(&root, variable_id)
                 .or_else(|| variable.default_value.as_ref().map(Self::json_value_to_string));
-            Self::next_option_value(&options, current.as_deref())
+            Self::next_option_value(&options, current.as_deref(), direction, cycle)
         };
 
         let (device_id, time_template_id, account_id, next_root_json) = {
@@ -136,8 +138,11 @@ impl ScriptExecutor {
         .await?;
 
         Log::info(&format!(
-            "[ executor ] DropSetNext 已切换任务[{}]变量[{}]到 {}",
-            task_id, variable_id, next_value
+            "[ executor ] DropSetNext 已{}切换任务[{}]变量[{}]到 {}",
+            if matches!(direction, domain_script::DropSetDirection::Increase) { "递增" } else { "递减" },
+            task_id,
+            variable_id,
+            next_value
         ));
         Ok(())
     }
@@ -224,12 +229,27 @@ impl ScriptExecutor {
             .unwrap_or_else(|| value.to_string())
     }
 
-    fn next_option_value(options: &[String], current: Option<&str>) -> String {
+    fn next_option_value(
+        options: &[String],
+        current: Option<&str>,
+        direction: domain_script::DropSetDirection,
+        cycle: bool,
+    ) -> String {
         let current = current.map(str::trim).filter(|value| !value.is_empty());
         let index = current
             .and_then(|value| options.iter().position(|option| option == value))
-            .map(|index| (index + 1) % options.len())
-            .unwrap_or(0);
+            .map(|index| match direction {
+                domain_script::DropSetDirection::Increase if index + 1 < options.len() => index + 1,
+                domain_script::DropSetDirection::Increase if cycle => 0,
+                domain_script::DropSetDirection::Increase => index,
+                domain_script::DropSetDirection::Decrease if index > 0 => index - 1,
+                domain_script::DropSetDirection::Decrease if cycle => options.len() - 1,
+                domain_script::DropSetDirection::Decrease => index,
+            })
+            .unwrap_or_else(|| match direction {
+                domain_script::DropSetDirection::Increase => 0,
+                domain_script::DropSetDirection::Decrease => options.len() - 1,
+            });
         options[index].clone()
     }
 

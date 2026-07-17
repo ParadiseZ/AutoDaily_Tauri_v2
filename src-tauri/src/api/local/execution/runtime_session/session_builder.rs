@@ -1,7 +1,6 @@
 use super::access_control::validate_published_script_runtime_access;
 use crate::api::local::execution::bundle_loader::{
-    load_runtime_queue, load_script_bundles, validate_recovery_task_config,
-    validate_run_target_support,
+    load_runtime_queue, load_script_bundles, validate_run_target_support,
 };
 use crate::app::config::vision_cache_conf::get_vision_text_cache_runtime_config_app;
 use ad_kernel::ids::{AssignmentId, DeviceId, SessionId};
@@ -64,7 +63,6 @@ pub(super) async fn load_runtime_session_for_queue_item(
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
     validate_published_script_runtime_access(app_handle, &loaded_script_bundles).await?;
     validate_run_target_support(&run_target, &loaded_script_bundles)?;
-    validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     let script_bundles = loaded_script_bundles
         .into_iter()
         .map(|bundle| bundle.snapshot)
@@ -114,7 +112,6 @@ pub(super) async fn build_runtime_session_snapshot(
     let loaded_script_bundles = load_script_bundles(&run_target, &queue).await?;
     validate_published_script_runtime_access(app_handle, &loaded_script_bundles).await?;
     validate_run_target_support(&run_target, &loaded_script_bundles)?;
-    validate_recovery_task_config(&run_target, &runtime_policy, &loaded_script_bundles)?;
     let script_bundles = loaded_script_bundles
         .into_iter()
         .map(|bundle| bundle.snapshot)

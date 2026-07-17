@@ -168,6 +168,14 @@ impl SearchRule {
         }
     }
 
+    pub fn filter_hits(&self, hits: &[SearchHit]) -> Vec<SearchHit> {
+        let keywords = self.get_all_keywords();
+        hits.iter()
+            .filter(|hit| keywords.iter().any(|keyword| keyword == &hit.pattern))
+            .cloned()
+            .collect()
+    }
+
     pub(crate) fn get_all_keywords(&self) -> Vec<String> {
         let mut keywords = Vec::new();
         self.collect_keywords(&mut keywords);

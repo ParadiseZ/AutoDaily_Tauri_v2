@@ -542,7 +542,7 @@ import {
   createPolicySetRunTarget,
   createTaskRunTarget,
 } from '@/utils/runTarget';
-import { validateDeviceRuntimePlatform, validateRunTargetRecoveryForDevice } from '@/utils/runtimePolicy';
+import { validateDeviceRuntimePlatform } from '@/utils/runtimePolicy';
 import {
   rewritePublishedDetectorModelPath,
   rewritePublishedRecognizerModelPath,
@@ -1981,19 +1981,6 @@ const handleRunSelection = async () => {
     return;
   }
 
-  if (draftScript.value) {
-    const recoveryError = validateRunTargetRecoveryForDevice(
-      selectedPreviewDevice.value,
-      draftScript.value,
-      draftTasks.value,
-    );
-    if (recoveryError) {
-      appendConsoleLine(`运行前校验失败：${recoveryError}`, 'warning');
-      showToast(recoveryError, 'warning');
-      return;
-    }
-  }
-
   if (dirty.value) {
     appendConsoleLine('运行前检测到未保存改动，先保存当前脚本结构。', 'warning');
     await saveEditor();
@@ -2366,6 +2353,24 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
     return nextStep;
   }
 
+  if (templateId === 'search-policy-set-text' && nextStep.op === 'flowControl' && nextStep.a.type === 'searchPolicySetText') {
+    nextStep.a.ocr_input_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'ocrResults',
+      name: 'OCR结果',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    nextStep.a.out_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'searchHits',
+      name: '搜索命中',
+      select: false,
+      silent: true,
+      sourceStepId: nextStep.id,
+    });
+    return nextStep;
+  }
+
   if (templateId === 'handle-policy-set' && nextStep.op === 'flowControl' && nextStep.a.type === 'handlePolicySet') {
     nextStep.a.det_input_var = await createVariableResource('runtime', 'json', {
       preferredKey: 'detResults',
@@ -2374,9 +2379,9 @@ const bindTemplateVariableDefaults = async (templateId: string, step: Step) => {
       silent: true,
       sourceStepId: nextStep.id,
     });
-    nextStep.a.ocr_input_var = await createVariableResource('runtime', 'json', {
-      preferredKey: 'ocrResults',
-      name: 'OCR结果',
+    nextStep.a.search_hits_var = await createVariableResource('runtime', 'json', {
+      preferredKey: 'searchHits',
+      name: '搜索命中',
       select: false,
       silent: true,
       sourceStepId: nextStep.id,

@@ -5,9 +5,9 @@
       title="拖动调整控制台高度"
       @mousedown.prevent="startResize"
     />
-    <div class="flex items-center justify-between border-b border-(--app-border) px-2 py-2">
+    <div class="flex items-center justify-between border-b border-(--app-border) px-1 py-1">
       <div class="space-y-1">
-        <p class="text-xs font-medium text-(--app-text-soft)">底部控制台</p>
+        <!-- <p class="text-xs font-medium text-(--app-text-soft)">底部控制台</p> -->
       </div>
       <div class="flex items-center gap-2">
         <span class="text-xs text-(--app-text-faint)">{{ entries.length }} / {{ maxLines }}</span>
@@ -63,13 +63,11 @@ const props = withDefaults(
     maxLines?: number;
     initialHeight?: number;
     minHeight?: number;
-    maxHeight?: number;
   }>(),
   {
     maxLines: 300,
     initialHeight: 120,
     minHeight: 96,
-    maxHeight: 360,
   },
 );
 
@@ -78,7 +76,10 @@ defineEmits<{
   close: [];
 }>();
 
-const height = ref(props.initialHeight);
+const maxHeight = () => window.innerHeight * 0.9;
+const clampHeight = (value: number) => Math.min(maxHeight(), Math.max(props.minHeight, value));
+
+const height = ref(clampHeight(props.initialHeight));
 const scrollPanel = ref<HTMLElement | null>(null);
 const resizing = ref(false);
 const resizeStartY = ref(0);
@@ -92,8 +93,6 @@ const syncBottom = async () => {
   scrollPanel.value.scrollTop = scrollPanel.value.scrollHeight;
 };
 
-const clampHeight = (value: number) => Math.max(props.minHeight, Math.min(props.maxHeight, value));
-
 const handleMouseMove = (event: MouseEvent) => {
   if (!resizing.value) {
     return;
@@ -104,6 +103,10 @@ const handleMouseMove = (event: MouseEvent) => {
 
 const stopResize = () => {
   resizing.value = false;
+};
+
+const handleWindowResize = () => {
+  height.value = clampHeight(height.value);
 };
 
 const startResize = (event: MouseEvent) => {
@@ -122,10 +125,12 @@ watch(
 
 window.addEventListener('mousemove', handleMouseMove);
 window.addEventListener('mouseup', stopResize);
+window.addEventListener('resize', handleWindowResize);
 
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleMouseMove);
   window.removeEventListener('mouseup', stopResize);
+  window.removeEventListener('resize', handleWindowResize);
 });
 </script>
 

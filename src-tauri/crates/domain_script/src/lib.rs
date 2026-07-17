@@ -18,7 +18,7 @@ mod variable;
 mod vision_node;
 
 pub use access::{ScriptAccessError, clone_cloud_id, ensure_clone_allowed, ensure_editable};
-pub use action::{Action, ClickMode, SwipeMode, SwipeTarget};
+pub use action::{Action, ClickMode, DropSetDirection, SwipeMode, SwipeTarget};
 pub use ad_kernel::ids::ScriptId;
 pub use data_handing::{
     ColorCompareMethod, ColorRgb, DataHanding, FilterMode, PrintSource, RegionPoint, VarValue,

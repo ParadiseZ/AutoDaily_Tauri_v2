@@ -49,6 +49,7 @@ export type { DeviceTimeoutEventPayload } from './DeviceTimeoutEventPayload';
 export type { DeviceTransportKind } from './DeviceTransportKind';
 export type { DispatchKind } from './DispatchKind';
 export type { DispatchSource } from './DispatchSource';
+export type { DropSetDirection } from './DropSetDirection';
 export type { EmulatorConnectMode } from './EmulatorConnectMode';
 export type { ExecutionScheduleProfile } from './ExecutionScheduleProfile';
 export type { FilterMode } from './FilterMode';

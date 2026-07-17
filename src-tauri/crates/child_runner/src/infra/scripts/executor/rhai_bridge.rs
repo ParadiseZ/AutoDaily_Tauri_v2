@@ -2078,7 +2078,7 @@ impl ScriptExecutor {
                 Ok(Self::build_flow_step(FlowControl::HandlePolicySet {
                     target,
                     det_input_var,
-                    ocr_input_var,
+                    ocr_input_var: Some(ocr_input_var),
                     search_hits_var,
                     out_var,
                 }))

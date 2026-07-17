@@ -61,7 +61,7 @@ export const validateDeviceForm = (form: DeviceFormState): NormalizedDeviceFormV
   }
 
   if (needsIdentifier && !normalized.connectIdentifier) {
-    throw new Error('当前连接方式需要填写设备标识。');
+    throw new Error('请填写设备标识，例如 emulator-5554 或设备序列号。');
   }
 
   if (needsIdentifier && !normalized.adbPath) {

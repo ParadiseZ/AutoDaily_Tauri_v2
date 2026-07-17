@@ -66,7 +66,7 @@ const templateGroups = computed(() => {
     grouped.set(template.group, bucket);
   }
 
-  const groupOrder = props.restrictSequenceTemplates ? ['动作', '流程'] : ['动作', '流程', '数据', '视觉', '状态', '容器', '兼容'];
+  const groupOrder = props.restrictSequenceTemplates ? ['动作', '流程'] : ['动作', '流程','策略', '数据', '视觉', '状态', '容器'];
   return Array.from(grouped.entries())
     .sort(([left], [right]) => {
       const leftIndex = groupOrder.indexOf(left);

@@ -4,16 +4,13 @@ mod target_validation;
 use ad_kernel::ids::{ScriptId, TaskId};
 use domain_schedule::PlannerQueueItem;
 use domain_script::ScriptType;
-use runner_protocol::message::{
-    RunTarget, RuntimeExecutionPolicy, RuntimeQueueItem, ScriptBundleSnapshot,
-};
+use runner_protocol::message::{RunTarget, RuntimeQueueItem, ScriptBundleSnapshot};
 use std::collections::HashSet;
 
 pub(super) struct LoadedScriptBundle {
     pub(super) script_id: ScriptId,
     pub(super) script_name: String,
     pub(super) script_type: ScriptType,
-    pub(super) recovery_task_id: Option<TaskId>,
     pub(super) runnable_task_ids: HashSet<TaskId>,
     pub(super) policy_ids: HashSet<ad_kernel::ids::PolicyId>,
     pub(super) policy_group_ids: HashSet<ad_kernel::ids::PolicyGroupId>,
@@ -53,14 +50,6 @@ pub(super) async fn load_script_bundles(
     queue: &[RuntimeQueueItem],
 ) -> Result<Vec<LoadedScriptBundle>, String> {
     queue_loader::load_script_bundles(run_target, queue).await
-}
-
-pub(super) fn validate_recovery_task_config(
-    run_target: &RunTarget,
-    runtime_policy: &RuntimeExecutionPolicy,
-    bundles: &[LoadedScriptBundle],
-) -> Result<(), String> {
-    target_validation::validate_recovery_task_config(run_target, runtime_policy, bundles)
 }
 
 pub(super) fn validate_run_target_support(

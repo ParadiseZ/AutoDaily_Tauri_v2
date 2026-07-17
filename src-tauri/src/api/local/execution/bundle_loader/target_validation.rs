@@ -1,47 +1,6 @@
 use super::LoadedScriptBundle;
 use ad_kernel::ids::ScriptId;
-use domain_device::TimeoutAction;
-use runner_protocol::message::{RunTarget, RuntimeExecutionPolicy};
-use std::collections::HashSet;
-
-pub(super) fn validate_recovery_task_config(
-    run_target: &RunTarget,
-    runtime_policy: &RuntimeExecutionPolicy,
-    bundles: &[LoadedScriptBundle],
-) -> Result<(), String> {
-    if !matches!(
-        runtime_policy.timeout_action,
-        TimeoutAction::RunRecoveryTask
-    ) {
-        return Ok(());
-    }
-
-    let required_script_ids: HashSet<ScriptId> = match run_target {
-        RunTarget::DeviceQueue => bundles.iter().map(|bundle| bundle.script_id).collect(),
-        _ => run_target.script_id().into_iter().collect(),
-    };
-
-    for bundle in bundles
-        .iter()
-        .filter(|bundle| required_script_ids.contains(&bundle.script_id))
-    {
-        let recovery_task_id = bundle.recovery_task_id.ok_or_else(|| {
-            format!(
-                "脚本[{}]未配置恢复任务，无法使用 RunRecoveryTask 策略",
-                bundle.script_name
-            )
-        })?;
-
-        if !bundle.runnable_task_ids.contains(&recovery_task_id) {
-            return Err(format!(
-                "脚本[{}]的恢复任务不存在，或不是可执行 Task",
-                bundle.script_name
-            ));
-        }
-    }
-
-    Ok(())
-}
+use runner_protocol::message::RunTarget;
 
 pub(super) fn validate_run_target_support(
     run_target: &RunTarget,

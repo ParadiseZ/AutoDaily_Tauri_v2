@@ -128,53 +128,54 @@
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.dropSetNext">
-      <div class="space-y-3">
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">目标任务</span>
+      <EditorOverviewSection title="UI 变量切换">
+        <EditorOverviewField label="目标任务">
           <EditorSelectField
             :model-value="selectedAction.task || null"
             :options="resolvedTaskTargetOptions"
             :show-description="true"
             placeholder="选择要切换 UI 变量的任务"
             test-id="editor-action-drop-set-task"
-            @update:model-value="selectDropSetTask(String($event || ''))"
+            @update:model-value="selectDropSetTarget(String($event || ''))"
           />
-        </label>
-        <label class="space-y-2">
-          <span class="text-xs font-medium uppercase tracking-[0.12em] text-(--app-text-faint)">UI 变量</span>
+        </EditorOverviewField>
+
+        <EditorOverviewField label="UI 变量">
           <EditorSelectField
             :model-value="selectedAction.variable_id || null"
             :options="resolvedDropSetVariableOptions"
             :show-description="true"
-            placeholder="选择 Select / Radio 绑定变量"
+            placeholder="选择 Select / Radio 类型绑定的变量"
             test-id="editor-action-drop-set-variable"
             @update:model-value="$emit('update-field', 'variable_id', String($event || ''))"
           />
-        </label>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-if="createTask"
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            @click="$emit('create-drop-set-task')"
-          >
-            <AppIcon name="plus" :size="14" />
-            新建任务
-          </button>
-          <button
-            class="app-button app-button-ghost app-toolbar-button"
-            type="button"
-            :disabled="!selectedAction.task || !jumpToTask"
-            @click="selectedAction.task ? $emit('jump-drop-set-task', selectedAction.task) : undefined"
-          >
-            <AppIcon name="locate-fixed" :size="14" />
-            定位任务
-          </button>
-        </div>
-        <p class="text-xs leading-5 text-(--app-text-faint)">
-          执行时把该变量切到配置选项里的下一个值，并写回当前设备/时间模板作用域。
-        </p>
-      </div>
+        </EditorOverviewField>
+
+        <EditorOverviewField label="切换方向" width="radio">
+          <EditorSelectField
+            :model-value="selectedAction.direction"
+            :options="dropSetDirectionOptions"
+            :show-description="true"
+            width="radio"
+            test-id="editor-action-drop-set-direction"
+            @update:model-value="$emit('update-field', 'direction', String($event || 'increase'))"
+          />
+        </EditorOverviewField>
+
+        <EditorOverviewField label="循环切换" width="compact">
+          <label class="flex items-center gap-3 rounded-[12px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft)">
+            <input
+              :checked="selectedAction.cycle"
+              type="checkbox"
+              class="h-4 w-4"
+              data-testid="editor-action-drop-set-cycle"
+              style="accent-color: var(--app-accent)"
+              @change="$emit('update-field', 'cycle', ($event.target as HTMLInputElement).checked ? 'true' : 'false')"
+            />
+            <span>到首尾后回到另一端</span>
+          </label>
+        </EditorOverviewField>
+      </EditorOverviewSection>
     </template>
 
     <template v-else-if="selectedAction.ac === ACTION_TYPE.click">
@@ -616,8 +617,6 @@ const props = defineProps<{
   jumpToVariable?: (option: EditorVariableOption) => void;
   createPolicy?: () => Promise<string>;
   jumpToPolicy?: (id: string) => void;
-  createTask?: () => Promise<string>;
-  jumpToTask?: (id: string) => void;
   jsonVariableOptions?: SelectOption[];
   selectedLaunchPackageTarget?: EditorVariableOption | null;
   selectedLaunchActivityTarget?: EditorVariableOption | null;
@@ -636,8 +635,7 @@ const emit = defineEmits<{
   'jump-to-variable': [option: EditorVariableOption];
   'create-policy-target': [];
   'jump-policy-target': [id: string];
-  'create-drop-set-task': [];
-  'jump-drop-set-task': [id: string];
+  'update-drop-set-target': [taskId: string, variableId: string];
   'update-input': [entryId: string, field: 'key' | 'name' | 'description' | 'namespace' | 'type' | 'stringValue' | 'booleanValue', value: string | boolean];
 }>();
 
@@ -659,6 +657,10 @@ const swipeTargetSourceOptions = [
 const filterSourceOptions = [
   { label: '预设', value: 'fixed', description: '使用步骤里填写的目标文字或目标标签。' },
   { label: '绑定变量', value: 'expr', description: '绑定变量' },
+];
+const dropSetDirectionOptions: SelectOption[] = [
+  { label: '向前', value: 'increase', description: '' },
+  { label: '向后', value: 'decrease', description: '' },
 ];
 const presetBindingModeOptions = [
   { label: '预设', value: 'fixed', description: '使用步骤里直接填写的固定值。' },
@@ -797,7 +799,7 @@ const dropSetVariableOptions = computed(() => {
   return (props.taskUiVariableOptions ?? [])
     .filter((option) => !taskId || option.taskId === taskId)
     .map((option) => ({
-      label: option.label,
+      label: option.taskLabel,
       value: option.variableId,
       description: option.description ?? `${option.taskLabel} · ${option.options.length} 个选项`,
     }));
@@ -822,16 +824,16 @@ const resolvedDropSetVariableOptions = computed(() => {
   ];
 });
 
-const selectDropSetTask = (taskId: string) => {
-  emit('update-field', 'task', taskId);
+const selectDropSetTarget = (taskId: string) => {
   if (props.selectedAction.ac !== ACTION_TYPE.dropSetNext) {
     return;
   }
   const currentVariableId = props.selectedAction.variable_id?.trim() ?? '';
   const nextOptions = (props.taskUiVariableOptions ?? []).filter((option) => option.taskId === taskId);
-  if (!nextOptions.some((option) => option.variableId === currentVariableId)) {
-    emit('update-field', 'variable_id', nextOptions[0]?.variableId ?? '');
-  }
+  const variableId = nextOptions.some((option) => option.variableId === currentVariableId)
+    ? currentVariableId
+    : nextOptions[0]?.variableId ?? '';
+  emit('update-drop-set-target', taskId, variableId);
 };
 
 const selectedActionInput = computed(() => {

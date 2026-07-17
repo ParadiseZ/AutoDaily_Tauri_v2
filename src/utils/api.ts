@@ -61,7 +61,7 @@ export const toErrorText = (error: unknown) => {
     }
 
     if (error instanceof Error) {
-        return [error.name, error.message, error.stack].filter(Boolean).join('\n');
+        return error.message;
     }
 
     try {

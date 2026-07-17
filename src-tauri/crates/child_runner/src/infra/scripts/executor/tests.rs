@@ -4,7 +4,6 @@ use crate::infra::session::runtime_session::{clear_runtime_session, replace_runt
 use ad_kernel::LogLevel;
 use ad_kernel::ids::{PolicyId, TaskId, UuidV7};
 use domain_device::{DeviceOperation, TimeoutAction};
-use domain_script::PolicyInfo;
 use domain_script::ScriptInfo;
 use domain_script::ScriptTask;
 use domain_script::TaskCycle;
@@ -13,6 +12,7 @@ use domain_script::{
     DataHanding, FlowControl, PointU16, PolicySetResultCompareOp, PrintSource, StateStatus,
     StateTarget, Step, StepKind, TaskControl, VisionNode,
 };
+use domain_script::{DropSetDirection, PolicyInfo};
 use domain_script::{PolicyProfile, ScriptTaskProfile, TaskRowType, TaskTone, TaskTriggerMode};
 use domain_script::{
     ScriptVariableCatalog, ScriptVariableDef, ScriptVariableNamespace, ScriptVariableSourceType,
@@ -21,7 +21,7 @@ use domain_script::{
 use domain_vision::SearchRule;
 use domain_vision::VisionSnapshot;
 use domain_vision::VisionTextCacheRuntimeConfig;
-use domain_vision::{BoundingBox, DetResult, OcrResult};
+use domain_vision::{BoundingBox, DetResult, OcrResult, SearchHit};
 use image::{Rgba, RgbaImage};
 use infra_vision::OcrService;
 use rhai::Dynamic;
@@ -148,10 +148,33 @@ fn vision_count_compare_prefers_exact_ocr_match() {
 #[test]
 fn drop_set_next_cycles_options_and_updates_template_root() {
     let options = vec!["A".to_string(), "B".to_string(), "C".to_string()];
-    assert_eq!(ScriptExecutor::next_option_value(&options, Some("A")), "B");
-    assert_eq!(ScriptExecutor::next_option_value(&options, Some("C")), "A");
     assert_eq!(
-        ScriptExecutor::next_option_value(&options, Some("missing")),
+        ScriptExecutor::next_option_value(&options, Some("A"), DropSetDirection::Increase, true),
+        "B"
+    );
+    assert_eq!(
+        ScriptExecutor::next_option_value(&options, Some("C"), DropSetDirection::Increase, true),
+        "A"
+    );
+    assert_eq!(
+        ScriptExecutor::next_option_value(
+            &options,
+            Some("missing"),
+            DropSetDirection::Increase,
+            true
+        ),
+        "A"
+    );
+    assert_eq!(
+        ScriptExecutor::next_option_value(&options, Some("A"), DropSetDirection::Decrease, true),
+        "C"
+    );
+    assert_eq!(
+        ScriptExecutor::next_option_value(&options, Some("C"), DropSetDirection::Increase, false),
+        "C"
+    );
+    assert_eq!(
+        ScriptExecutor::next_option_value(&options, Some("A"), DropSetDirection::Decrease, false),
         "A"
     );
 
@@ -356,6 +379,38 @@ fn build_executor() -> ScriptExecutor {
     build_executor_with_target(RunTarget::FullScript {
         script_id: UuidV7(1),
     })
+}
+
+#[tokio::test]
+async fn explicit_vision_steps_merge_into_one_snapshot() {
+    let mut executor = build_executor();
+    let image = Arc::new(RgbaImage::new(200, 200));
+
+    executor
+        .store_explicit_vision_results(
+            "test.vision",
+            image.clone(),
+            Some(vec![build_det_result(5, "button", 100, 100, 150, 150)]),
+            None,
+        )
+        .await
+        .unwrap();
+    executor
+        .store_explicit_vision_results(
+            "test.vision",
+            image,
+            None,
+            Some(vec![build_ocr_result("Confirm", 10, 10, 50, 30)]),
+        )
+        .await
+        .unwrap();
+
+    let ctx = executor.runtime_ctx.read().await;
+    let snapshot = ctx.observation.last_snapshot.as_ref().unwrap();
+    assert_eq!(snapshot.det_items.len(), 1);
+    assert_eq!(snapshot.det_items[0].label, "button");
+    assert_eq!(snapshot.ocr_items.len(), 1);
+    assert_eq!(snapshot.ocr_items[0].txt, "Confirm");
 }
 
 fn build_input_catalog(task_id: TaskId) -> ScriptVariableCatalog {
@@ -930,6 +985,7 @@ async fn policy_debug_candidate_steps_can_read_task_owned_inputs_after_hydration
         .execute_policy_candidates(
             "debug.policy",
             vec![candidate],
+            super::PolicyMatchSource::Snapshot,
             None,
             "runtime.policyDebugResult",
         )
@@ -1000,6 +1056,7 @@ async fn policy_before_action_runs_even_when_condition_misses() {
         .execute_policy_candidates(
             "debug.policy",
             vec![candidate],
+            super::PolicyMatchSource::Snapshot,
             None,
             "runtime.policyDebugResult",
         )
@@ -1020,6 +1077,48 @@ async fn policy_before_action_runs_even_when_condition_misses() {
             .await
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn policy_set_search_hits_are_cleared_when_no_policy_matches() {
+    let script_id = UuidV7(201);
+    let policy_id = UuidV7(221);
+    let policy_group_id = UuidV7(231);
+    let policy_set_id = UuidV7(241);
+    let mut executor = build_executor_with_target(RunTarget::PolicyGroup {
+        script_id,
+        policy_group_id,
+    });
+    let candidate = super::PolicyCandidate {
+        policy_set_id: Some(policy_set_id),
+        policy_set_name: None,
+        policy_group_id: Some(policy_group_id),
+        policy_group_name: None,
+        policy: build_policy_table(policy_id, script_id, Vec::new(), Vec::new()),
+    };
+
+    executor
+        .execute_policy_candidates(
+            "flow.handlePolicySet",
+            vec![candidate],
+            super::PolicyMatchSource::SearchHits {
+                hits: vec![SearchHit {
+                    pattern: "未命中".to_string(),
+                    ocr_index: 0,
+                    ocr_item: build_ocr_result("未命中", 0, 0, 30, 12),
+                }],
+                det_results: Vec::new(),
+            },
+            Some("runtime.searchHits"),
+            "runtime.policySetResult",
+        )
+        .await
+        .unwrap();
+
+    let hits = executor.read_runtime_var("runtime.searchHits").await.unwrap();
+    assert!(ScriptExecutor::deserialize_dynamic_value::<Vec<SearchHit>>(&hits)
+        .unwrap()
+        .is_empty());
 }
 
 #[tokio::test]
