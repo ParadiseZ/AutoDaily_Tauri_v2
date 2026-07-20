@@ -2,6 +2,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("安装 rustls ring CryptoProvider 失败");
+
     #[cfg(feature = "child-bin")]
     {
         if std::env::args().any(|arg| arg == "--child") {

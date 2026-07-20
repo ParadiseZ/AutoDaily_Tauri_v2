@@ -336,6 +336,8 @@ impl ScriptExecutor {
         &self,
         source: PolicyGroupId,
         target: PolicyGroupId,
+        source_name: &str,
+        target_name: &str,
         top: bool,
         reverse: bool,
     ) {
@@ -350,7 +352,7 @@ impl ScriptExecutor {
         entry.push(binding);
         Log::info(&format!(
             "[ executor ] 追加：策略组➡️策略组,source_group={}, target_group={}, top={}, reverse={}",
-            source, target, top, reverse
+            source_name, target_name, top, reverse
         ));
     }
 
@@ -499,24 +501,34 @@ impl ScriptExecutor {
         }
 
         let bundle = self.load_policy_bundle("flow.addPolicyGroups").await?;
-        if !bundle.policy_groups.iter().any(|item| item.id == source) {
-            return Err(Self::execute_error(
-                "flow.addPolicyGroups",
-                format!("源策略组[{}]不存在", source),
-            ));
-        }
-        if !bundle.policy_groups.iter().any(|item| item.id == target) {
-            return Err(Self::execute_error(
-                "flow.addPolicyGroups",
-                format!("目标策略组[{}]不存在", target),
-            ));
-        }
+        let source_name = bundle
+            .policy_groups
+            .iter()
+            .find(|item| item.id == source)
+            .map(|item| item.info.name.as_str())
+            .ok_or_else(|| {
+                Self::execute_error(
+                    "flow.addPolicyGroups",
+                    format!("源策略组[{}]不存在", source),
+                )
+            })?;
+        let target_name = bundle
+            .policy_groups
+            .iter()
+            .find(|item| item.id == target)
+            .map(|item| item.info.name.as_str())
+            .ok_or_else(|| {
+                Self::execute_error(
+                    "flow.addPolicyGroups",
+                    format!("目标策略组[{}]不存在", target),
+                )
+            })?;
 
         Log::info(&format!(
             "[ executor ] 执行追加策略组: source_group={}, target_group={}, top={}, reverse={}",
-            source, target, top, reverse
+            source_name, target_name, top, reverse
         ));
-        self.add_policy_group_to_group(source, target, top, reverse)
+        self.add_policy_group_to_group(source, target, source_name, target_name, top, reverse)
             .await;
         self.invalidate_policy_set_candidate_cache().await;
         Ok(())

@@ -1,4 +1,4 @@
-use crate::infra::vision::base_model::BaseModel;
+use crate::infra::vision::base_model::{BaseModel, ModelSpatialInput};
 use crate::infra::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infra::vision::vision_error::{VisionError, VisionResult};
 use domain_vision::{BoundingBox, DetResult, PaddleDetDbNet as PaddleDetDbNetConfig};
@@ -47,62 +47,121 @@ const DBNET_R_PAD: f32 = -0.485 / 0.229;
 const DBNET_G_PAD: f32 = -0.456 / 0.224;
 const DBNET_B_PAD: f32 = -0.406 / 0.225;
 
+#[derive(Debug, Clone, Copy)]
+struct DbNetInputGeometry {
+    width: u32,
+    height: u32,
+    scale_factor: [f32; 2],
+    origin_shape: [u32; 2],
+}
+
 impl PaddleDetDbNet {
     fn default_preprocess_buffer() -> Mutex<Vec<f32>> {
         Mutex::new(Vec::new())
     }
 
-    fn input_geometry(&self, image: &DynamicImage) -> (u32, u32, f32, [u32; 2]) {
+    fn input_geometry(&self, image: &DynamicImage) -> VisionResult<DbNetInputGeometry> {
         let (origin_w, origin_h) = image.dimensions();
         self.input_geometry_from_dims(origin_w, origin_h)
     }
 
-    fn input_geometry_rgba(&self, image: &RgbaImage) -> (u32, u32, f32, [u32; 2]) {
+    fn input_geometry_rgba(&self, image: &RgbaImage) -> VisionResult<DbNetInputGeometry> {
         let (origin_w, origin_h) = image.dimensions();
         self.input_geometry_from_dims(origin_w, origin_h)
     }
 
-    fn input_geometry_from_dims(&self, origin_w: u32, origin_h: u32) -> (u32, u32, f32, [u32; 2]) {
-        let scale = self.get_target_height() as f32 / origin_h as f32;
-        let width = (origin_w as f32 * scale).round() as u32;
-        let target_width = width.next_multiple_of(32);
+    fn align_dynamic_dimension(value: f32) -> u32 {
+        ((value / 32.0).round() as u32).max(1) * 32
+    }
 
-        (width, target_width, scale, [origin_h, origin_w])
+    fn input_geometry_from_dims(
+        &self,
+        origin_w: u32,
+        origin_h: u32,
+    ) -> VisionResult<DbNetInputGeometry> {
+        if origin_w == 0 || origin_h == 0 {
+            return Err(VisionError::DataProcessingErr {
+                method: "dbnet_input_geometry".to_string(),
+                e: "输入图像宽高不能为 0".to_string(),
+            });
+        }
+        let ModelSpatialInput { width, height } = self
+            .base_model
+            .model_spatial_input()
+            .ok_or_else(|| VisionError::DataProcessingErr {
+                method: "dbnet_input_geometry".to_string(),
+                e: "尚未读取 DBNet 模型输入尺寸".to_string(),
+            })?;
+        let width_limit = self.base_model.input_width.max(32) as f32;
+        let height_limit = self.base_model.input_height.max(32) as f32;
+        let origin_w_f = origin_w as f32;
+        let origin_h_f = origin_h as f32;
+
+        let (target_width, target_height) = match (width, height) {
+            (Some(target_width), Some(target_height)) => (target_width, target_height),
+            (None, None) => {
+                let scale = (width_limit / origin_w_f)
+                    .min(height_limit / origin_h_f)
+                    .min(1.0);
+                (
+                    Self::align_dynamic_dimension(origin_w_f * scale),
+                    Self::align_dynamic_dimension(origin_h_f * scale),
+                )
+            }
+            (Some(target_width), None) => {
+                let natural_height = origin_h_f * target_width as f32 / origin_w_f;
+                (
+                    target_width,
+                    Self::align_dynamic_dimension(natural_height.min(height_limit)),
+                )
+            }
+            (None, Some(target_height)) => {
+                let natural_width = origin_w_f * target_height as f32 / origin_h_f;
+                (
+                    Self::align_dynamic_dimension(natural_width.min(width_limit)),
+                    target_height,
+                )
+            }
+        };
+
+        Ok(DbNetInputGeometry {
+            width: target_width,
+            height: target_height,
+            scale_factor: [
+                target_height as f32 / origin_h_f,
+                target_width as f32 / origin_w_f,
+            ],
+            origin_shape: [origin_h, origin_w],
+        })
     }
 
     fn fill_chw_buffer(
         &self,
         image: &DynamicImage,
-        resized_width: u32,
-        padded_width: u32,
+        target_width: u32,
+        target_height: u32,
         input_buffer: &mut [f32],
     ) {
-        let target_height = self.get_target_height();
         let target_height_usize = target_height as usize;
-        let resized_width_usize = resized_width as usize;
-        let padded_width_usize = padded_width as usize;
-        let plane_len = target_height_usize * padded_width_usize;
+        let target_width_usize = target_width as usize;
+        let plane_len = target_height_usize * target_width_usize;
         let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
         let (g_plane, b_plane) = rest.split_at_mut(plane_len);
 
-        r_plane.fill(DBNET_R_PAD);
-        g_plane.fill(DBNET_G_PAD);
-        b_plane.fill(DBNET_B_PAD);
-
         let resized_img = image
-            .resize_exact(resized_width, target_height, FilterType::Triangle)
+            .resize_exact(target_width, target_height, FilterType::Triangle)
             .to_rgb8();
         for (y, row) in resized_img
             .as_raw()
-            .chunks_exact(resized_width_usize * 3)
+            .chunks_exact(target_width_usize * 3)
             .enumerate()
         {
-            let row_offset = y * padded_width_usize;
+            let row_offset = y * target_width_usize;
             for (x, pixel) in row.chunks_exact(3).enumerate() {
                 let idx = row_offset + x;
-                r_plane[idx] = pixel[0] as f32 * DBNET_R_SCALE + DBNET_R_PAD;
+                r_plane[idx] = pixel[2] as f32 * DBNET_R_SCALE + DBNET_R_PAD;
                 g_plane[idx] = pixel[1] as f32 * DBNET_G_SCALE + DBNET_G_PAD;
-                b_plane[idx] = pixel[2] as f32 * DBNET_B_SCALE + DBNET_B_PAD;
+                b_plane[idx] = pixel[0] as f32 * DBNET_B_SCALE + DBNET_B_PAD;
             }
         }
     }
@@ -110,35 +169,29 @@ impl PaddleDetDbNet {
     fn fill_chw_buffer_rgba(
         &self,
         image: &RgbaImage,
-        resized_width: u32,
-        padded_width: u32,
+        target_width: u32,
+        target_height: u32,
         input_buffer: &mut [f32],
     ) {
-        let target_height = self.get_target_height();
         let target_height_usize = target_height as usize;
-        let resized_width_usize = resized_width as usize;
-        let padded_width_usize = padded_width as usize;
-        let plane_len = target_height_usize * padded_width_usize;
+        let target_width_usize = target_width as usize;
+        let plane_len = target_height_usize * target_width_usize;
         let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
         let (g_plane, b_plane) = rest.split_at_mut(plane_len);
 
-        r_plane.fill(DBNET_R_PAD);
-        g_plane.fill(DBNET_G_PAD);
-        b_plane.fill(DBNET_B_PAD);
-
         let resized_img =
-            image::imageops::resize(image, resized_width, target_height, FilterType::Triangle);
+            image::imageops::resize(image, target_width, target_height, FilterType::Triangle);
         for (y, row) in resized_img
             .as_raw()
-            .chunks_exact(resized_width_usize * 4)
+            .chunks_exact(target_width_usize * 4)
             .enumerate()
         {
-            let row_offset = y * padded_width_usize;
+            let row_offset = y * target_width_usize;
             for (x, pixel) in row.chunks_exact(4).enumerate() {
                 let idx = row_offset + x;
-                r_plane[idx] = pixel[0] as f32 * DBNET_R_SCALE + DBNET_R_PAD;
+                r_plane[idx] = pixel[2] as f32 * DBNET_R_SCALE + DBNET_R_PAD;
                 g_plane[idx] = pixel[1] as f32 * DBNET_G_SCALE + DBNET_G_PAD;
-                b_plane[idx] = pixel[2] as f32 * DBNET_B_SCALE + DBNET_B_PAD;
+                b_plane[idx] = pixel[0] as f32 * DBNET_B_SCALE + DBNET_B_PAD;
             }
         }
     }
@@ -148,16 +201,17 @@ impl ModelHandler for PaddleDetDbNet {
     fn load_model(&mut self) -> VisionResult<()> {
         self.base_model.load_model_base::<Self>("paddle_det_dbnet")
     }
-    fn get_input_size(&self) -> (u32, u32) {
-        (self.base_model.input_width, self.base_model.input_height)
-    }
-
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
-        let (width, target_width, scale, origin_shape) = self.input_geometry(image);
-        let target_height_usize = self.get_target_height() as usize;
-        let target_width_usize = target_width as usize;
+        let geometry = self.input_geometry(image)?;
+        let target_height_usize = geometry.height as usize;
+        let target_width_usize = geometry.width as usize;
         let mut input_buffer = vec![0.0; 3 * target_height_usize * target_width_usize];
-        self.fill_chw_buffer(image, width, target_width, input_buffer.as_mut_slice());
+        self.fill_chw_buffer(
+            image,
+            geometry.width,
+            geometry.height,
+            input_buffer.as_mut_slice(),
+        );
         let input = Array4::from_shape_vec(
             (1, 3, target_height_usize, target_width_usize),
             input_buffer,
@@ -167,7 +221,11 @@ impl ModelHandler for PaddleDetDbNet {
             e: e.to_string(),
         })?;
 
-        Ok((input.into_dyn(), [scale, scale], origin_shape))
+        Ok((
+            input.into_dyn(),
+            geometry.scale_factor,
+            geometry.origin_shape,
+        ))
     }
 
     fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
@@ -188,15 +246,18 @@ impl ModelHandler for PaddleDetDbNet {
     }
 
     fn get_target_height(&self) -> u32 {
-        self.base_model.input_height
+        self.base_model
+            .model_spatial_input()
+            .and_then(|input| input.height)
+            .unwrap_or(self.base_model.input_height)
     }
 }
 
 impl TextDetector for PaddleDetDbNet {
     fn detect(&self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
-        let (width, target_width, scale, origin_shape) = self.input_geometry(image);
-        let target_height_usize = self.get_target_height() as usize;
-        let target_width_usize = target_width as usize;
+        let geometry = self.input_geometry(image)?;
+        let target_height_usize = geometry.height as usize;
+        let target_width_usize = geometry.width as usize;
         let input_len = 3 * target_height_usize * target_width_usize;
         let mut input_buffer =
             self.preprocess_buffer
@@ -209,7 +270,7 @@ impl TextDetector for PaddleDetDbNet {
             input_buffer.resize(input_len, 0.0);
         }
         let input_buffer = &mut input_buffer[..input_len];
-        self.fill_chw_buffer(image, width, target_width, input_buffer);
+        self.fill_chw_buffer(image, geometry.width, geometry.height, input_buffer);
         let input_view = ArrayView4::from_shape(
             (1, 3, target_height_usize, target_width_usize),
             input_buffer,
@@ -223,14 +284,14 @@ impl TextDetector for PaddleDetDbNet {
             input_view.into_dyn(),
             self.get_input_node_name(),
             self.get_output_node_name(),
-            |output| self.postprocess(output, [scale, scale], origin_shape),
+            |output| self.postprocess(output, geometry.scale_factor, geometry.origin_shape),
         )
     }
 
     fn detect_rgba(&self, image: &RgbaImage) -> VisionResult<Vec<DetResult>> {
-        let (width, target_width, scale, origin_shape) = self.input_geometry_rgba(image);
-        let target_height_usize = self.get_target_height() as usize;
-        let target_width_usize = target_width as usize;
+        let geometry = self.input_geometry_rgba(image)?;
+        let target_height_usize = geometry.height as usize;
+        let target_width_usize = geometry.width as usize;
         let input_len = 3 * target_height_usize * target_width_usize;
         let mut input_buffer =
             self.preprocess_buffer
@@ -243,7 +304,7 @@ impl TextDetector for PaddleDetDbNet {
             input_buffer.resize(input_len, 0.0);
         }
         let input_buffer = &mut input_buffer[..input_len];
-        self.fill_chw_buffer_rgba(image, width, target_width, input_buffer);
+        self.fill_chw_buffer_rgba(image, geometry.width, geometry.height, input_buffer);
         let input_view = ArrayView4::from_shape(
             (1, 3, target_height_usize, target_width_usize),
             input_buffer,
@@ -257,7 +318,7 @@ impl TextDetector for PaddleDetDbNet {
             input_view.into_dyn(),
             self.get_input_node_name(),
             self.get_output_node_name(),
-            |output| self.postprocess(output, [scale, scale], origin_shape),
+            |output| self.postprocess(output, geometry.scale_factor, geometry.origin_shape),
         )
     }
 
@@ -553,4 +614,75 @@ fn scale_polygon(
             Point::new(sx, sy)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use domain_vision::{BaseModel as BaseModelConfig, InferenceBackend, ModelSource, ModelType};
+    use std::path::PathBuf;
+
+    fn build_detector() -> PaddleDetDbNet {
+        PaddleDetDbNet::from(PaddleDetDbNetConfig {
+            base_model: BaseModelConfig {
+                intra_thread_num: 1,
+                intra_spinning: false,
+                inter_thread_num: 1,
+                inter_spinning: false,
+                execution_provider: InferenceBackend::CPU,
+                input_width: 800,
+                input_height: 800,
+                model_source: ModelSource::Custom,
+                model_path: PathBuf::new(),
+                model_type: ModelType::PaddleDet6,
+            },
+            db_thresh: 0.3,
+            db_box_thresh: 0.6,
+            unclip_ratio: 1.5,
+            use_dilation: false,
+        })
+    }
+
+    #[test]
+    fn dynamic_dimensions_fit_limits_and_align_to_stride() {
+        let mut detector = build_detector();
+        detector
+            .base_model
+            .set_model_spatial_input_for_test(ModelSpatialInput {
+                width: None,
+                height: None,
+            });
+
+        let geometry = detector.input_geometry_from_dims(2400, 1080).unwrap();
+        assert_eq!((geometry.width, geometry.height), (800, 352));
+        assert!((geometry.scale_factor[0] - 352.0 / 1080.0).abs() < f32::EPSILON);
+        assert!((geometry.scale_factor[1] - 1.0 / 3.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn static_dimensions_use_model_shape_exactly() {
+        let mut detector = build_detector();
+        detector
+            .base_model
+            .set_model_spatial_input_for_test(ModelSpatialInput {
+                width: Some(960),
+                height: Some(544),
+            });
+
+        let geometry = detector.input_geometry_from_dims(2400, 1080).unwrap();
+        assert_eq!((geometry.width, geometry.height), (960, 544));
+    }
+
+    #[test]
+    fn rgba_preprocess_writes_paddle_bgr_planes() {
+        let detector = build_detector();
+        let image = RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 0, 255]));
+        let mut input = vec![0.0; 3];
+
+        detector.fill_chw_buffer_rgba(&image, 1, 1, &mut input);
+
+        assert!((input[0] - DBNET_R_PAD).abs() < f32::EPSILON);
+        assert!((input[1] - DBNET_G_PAD).abs() < f32::EPSILON);
+        assert!((input[2] - (255.0 * DBNET_B_SCALE + DBNET_B_PAD)).abs() < f32::EPSILON);
+    }
 }

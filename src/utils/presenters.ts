@@ -1,4 +1,5 @@
 import type { CapMethod } from '@/types/bindings/CapMethod';
+import type { WindowCaptureInterface } from '@/types/bindings/WindowCaptureInterface';
 import type { DeviceConfig } from '@/types/bindings/DeviceConfig';
 import type { LogLevel } from '@/types/bindings/LogLevel';
 import type {
@@ -127,10 +128,16 @@ export const formatConnectLabel = (config: DeviceConfig) => {
     return `${prefix} · ${config.connectIdentifier || '未设置设备标识'}`;
 };
 
+const formatWindowCaptureInterface = (value: WindowCaptureInterface) => {
+    if (value === 'dwmGetDxSharedSurface') return 'DwmGetDxSharedSurface';
+    if (value === 'wgc') return 'WGC';
+    return value === 'gdi' ? 'GDI' : 'DXGI';
+};
+
 export const formatCaptureMethod = (method: CapMethod) =>
     method.type === 'adb'
         ? 'ADB 截图'
-        : `窗口截取 · ${method.interface === 'gdi' ? 'GDI' : 'DXGI'} · ${method.title}`;
+        : `窗口截取 · ${formatWindowCaptureInterface(method.interface)} · ${method.title}`;
 
 export const formatStatusTone = (status: DeviceRuntimeStatus['kind'] | LogLevel) => {
     if (status === 'running' || status === 'Info') return 'success';

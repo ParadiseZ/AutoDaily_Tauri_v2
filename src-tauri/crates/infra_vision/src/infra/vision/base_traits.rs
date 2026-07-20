@@ -8,9 +8,6 @@ use ndarray::{ArrayD, ArrayViewD};
 pub(crate) trait ModelHandler: Send + Sync + std::fmt::Debug {
     fn load_model(&mut self) -> VisionResult<()>;
 
-    /// 获取模型输入尺寸
-    fn get_input_size(&self) -> (u32, u32);
-
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])>;
     /// 执行模型推理
     fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>>;

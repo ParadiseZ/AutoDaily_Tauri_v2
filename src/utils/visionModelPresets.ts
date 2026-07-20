@@ -79,14 +79,12 @@ export function syncYoloPostprocessFields(model: YoloDet): YoloDet {
     const kind = model.postprocessKind ?? 'LegacyNms';
     model.postprocessKind = kind;
 
-    if (kind === 'EndToEnd') {
-        model.confidenceThresh = null;
-        model.iouThresh = null;
-        return model;
-    }
-
     if (model.confidenceThresh == null) {
         model.confidenceThresh = YOLO_LEGACY_CONFIDENCE_DEFAULT;
+    }
+    if (kind === 'EndToEnd') {
+        model.iouThresh = null;
+        return model;
     }
     if (model.iouThresh == null) {
         model.iouThresh = YOLO_LEGACY_IOU_DEFAULT;

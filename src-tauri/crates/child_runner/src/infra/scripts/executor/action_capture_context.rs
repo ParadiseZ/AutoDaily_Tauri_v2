@@ -234,7 +234,7 @@ impl ScriptExecutor {
             ctx.img_det_service.clone()
         };
 
-        Self::run_ocr_service_with_timeout(
+        let det_results = Self::run_ocr_service_with_timeout(
             step_type,
             "目标检测",
             VISION_INFERENCE_TIMEOUT_MS,
@@ -245,7 +245,32 @@ impl ScriptExecutor {
                     .map_err(|error| format!("目标检测执行失败: {}", error))
             },
         )
-        .await
+        .await?;
+
+        Log::debug_lazy(|| {
+            let mut lines = vec![format!(
+                "[ executor ] {}目标检测完成: count={}",
+                step_type,
+                det_results.len()
+            )];
+            for (index, item) in det_results.iter().take(10).enumerate() {
+                let center = item.bounding_box.center();
+                lines.push(format!(
+                    "[ executor ] {} DET[{}]: label={} idx={} score={:.3} center=({}, {})",
+                    step_type, index, item.label, item.index, item.score, center.x, center.y
+                ));
+            }
+            if det_results.len() > 10 {
+                lines.push(format!(
+                    "[ executor ] {} DET 结果已截断展示，其余 {} 条省略",
+                    step_type,
+                    det_results.len() - 10
+                ));
+            }
+            lines.join("\n")
+        });
+
+        Ok(det_results)
     }
 
     async fn run_ocr_pipeline(

@@ -323,7 +323,8 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   await dialog.getByTestId('script-models-img-det-base-model-path').fill('D:\\models\\img-det-yolo26.onnx');
   await dialog.getByTestId('script-models-img-det-label-path').fill('D:\\models\\img-det-yolo26.labels.yaml');
   await expect(dialog.getByTestId('script-models-img-det-class-count')).toHaveValue('4');
-  await expect(dialog.getByTestId('script-models-img-det-confidence')).toHaveCount(0);
+  await expect(dialog.getByTestId('script-models-img-det-confidence')).toHaveValue('0.25');
+  await dialog.getByTestId('script-models-img-det-confidence').fill('0.62');
   await expect(dialog.getByTestId('script-models-img-det-iou')).toHaveCount(0);
 
   await openModelTab(page, 'txtDet');
@@ -332,8 +333,12 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   await dialog.getByTestId('script-models-txt-det-base-model-path').fill('D:\\models\\txt-det-yolo26.onnx');
   await dialog.getByTestId('script-models-txt-det-label-path').fill('D:\\models\\txt-det-yolo26.labels.yaml');
   await expect(dialog.getByTestId('script-models-txt-det-class-count')).toHaveValue('4');
-  await expect(dialog.getByTestId('script-models-txt-det-confidence')).toHaveCount(0);
+  await expect(dialog.getByTestId('script-models-txt-det-confidence')).toHaveValue('0.25');
+  await dialog.getByTestId('script-models-txt-det-confidence').fill('0.71');
   await expect(dialog.getByTestId('script-models-txt-det-iou')).toHaveCount(0);
+
+  await openModelTab(page, 'txtRec');
+  await selectOptionByValue(page, 'script-models-txt-rec-kind', 'PaddleCrnn5');
 
   await dialog.getByTestId('script-submit').click();
   await expect(dialog).not.toBeVisible();
@@ -342,7 +347,7 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   expect(script.data.imgDetModel).toEqual({
     Yolo26: expect.objectContaining({
       classCount: 4,
-      confidenceThresh: null,
+      confidenceThresh: 0.62,
       iouThresh: null,
       labelPath: 'D:\\models\\img-det-yolo26.labels.yaml',
       postprocessKind: 'EndToEnd',
@@ -356,7 +361,7 @@ test('creates a local script with yolo26 detector settings', async ({ page }) =>
   expect(script.data.txtDetModel).toEqual({
     Yolo26: expect.objectContaining({
       classCount: 4,
-      confidenceThresh: null,
+      confidenceThresh: 0.71,
       iouThresh: null,
       labelPath: 'D:\\models\\txt-det-yolo26.labels.yaml',
       postprocessKind: 'EndToEnd',

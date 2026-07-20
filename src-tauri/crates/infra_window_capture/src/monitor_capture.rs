@@ -1,4 +1,6 @@
 use image::RgbaImage;
+#[cfg(target_os = "windows")]
+use windows::Win32::Graphics::Direct3D11::ID3D11Device;
 
 #[cfg(target_os = "windows")]
 mod imp {
@@ -7,7 +9,7 @@ mod imp {
     use std::sync::{Arc, Mutex, OnceLock};
     use windows::{
         Win32::{
-            Foundation::POINT,
+            Foundation::{HANDLE, HWND, POINT},
             Graphics::{
                 Direct3D::D3D_DRIVER_TYPE_HARDWARE,
                 Direct3D11::{
@@ -16,20 +18,36 @@ mod imp {
                     D3D11_TEXTURE2D_DESC, D3D11_USAGE_STAGING, D3D11CreateDevice, ID3D11Device,
                     ID3D11DeviceContext, ID3D11Resource, ID3D11Texture2D,
                 },
+                Dxgi::Common::{
+                    DXGI_FORMAT, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB,
+                    DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+                },
                 Dxgi::{
                     DXGI_ERROR_WAIT_TIMEOUT, DXGI_OUTDUPL_FRAME_INFO, IDXGIDevice, IDXGIOutput1,
                     IDXGIOutputDuplication, IDXGIResource,
                 },
                 Gdi::{MONITOR_DEFAULTTONEAREST, MonitorFromPoint},
             },
+            System::LibraryLoader::{GetModuleHandleW, GetProcAddress},
         },
-        core::Interface,
+        core::{BOOL, Interface, s, w},
     };
     use xcap::Monitor;
 
     static D3D_DEVICE: OnceLock<Result<ID3D11Device, String>> = OnceLock::new();
     static D3D_CONTEXT: OnceLock<Result<ID3D11DeviceContext, String>> = OnceLock::new();
     static DXGI_RUNTIMES: OnceLock<Mutex<HashMap<isize, Arc<DxgiRuntime>>>> = OnceLock::new();
+    static DWM_STAGING: OnceLock<Mutex<Option<StagingTexture>>> = OnceLock::new();
+    static WGC_STAGING: OnceLock<Mutex<Option<StagingTexture>>> = OnceLock::new();
+
+    type DwmGetDxSharedSurface = unsafe extern "system" fn(
+        HWND,
+        *mut HANDLE,
+        *mut windows::Win32::Foundation::LUID,
+        *mut u32,
+        *mut u32,
+        *mut u64,
+    ) -> BOOL;
 
     struct StagingTexture {
         width: u32,
@@ -42,11 +60,17 @@ mod imp {
         staging: Mutex<Option<StagingTexture>>,
     }
 
-    fn bgra_to_rgba(mut buffer: Vec<u8>) -> Vec<u8> {
-        for pixel in buffer.chunks_exact_mut(4) {
-            pixel.swap(0, 2);
+    fn native_pixels_to_rgba(mut buffer: Vec<u8>, format: DXGI_FORMAT) -> Result<Vec<u8>, String> {
+        match format {
+            DXGI_FORMAT_B8G8R8A8_UNORM | DXGI_FORMAT_B8G8R8A8_UNORM_SRGB => {
+                for pixel in buffer.chunks_exact_mut(4) {
+                    pixel.swap(0, 2);
+                }
+            }
+            DXGI_FORMAT_R8G8B8A8_UNORM | DXGI_FORMAT_R8G8B8A8_UNORM_SRGB => {}
+            _ => return Err(format!("不支持的共享纹理格式: {:?}", format)),
         }
-        buffer
+        Ok(buffer)
     }
 
     fn d3d_device() -> Result<&'static ID3D11Device, String> {
@@ -84,13 +108,12 @@ mod imp {
     }
 
     fn get_or_create_staging_texture(
-        runtime: &DxgiRuntime,
+        staging_cache: &Mutex<Option<StagingTexture>>,
         width: u32,
         height: u32,
         source_desc: &D3D11_TEXTURE2D_DESC,
     ) -> Result<ID3D11Texture2D, String> {
-        let mut staging = runtime
-            .staging
+        let mut staging = staging_cache
             .lock()
             .map_err(|_| "锁定 staging 纹理失败".to_string())?;
         if let Some(cache) = staging.as_ref() {
@@ -124,7 +147,7 @@ mod imp {
     }
 
     fn texture_to_rgba_image(
-        runtime: &DxgiRuntime,
+        staging_cache: &Mutex<Option<StagingTexture>>,
         source_texture: &ID3D11Texture2D,
         x: u32,
         y: u32,
@@ -142,7 +165,7 @@ mod imp {
                     src_desc.Width, src_desc.Height
                 ));
             }
-            let staging = get_or_create_staging_texture(runtime, width, height, &src_desc)?;
+            let staging = get_or_create_staging_texture(staging_cache, width, height, &src_desc)?;
 
             let region = D3D11_BOX {
                 left: x,
@@ -191,8 +214,59 @@ mod imp {
             }
 
             context.Unmap(Some(&resource), 0);
-            RgbaImage::from_raw(width, height, bgra_to_rgba(bgra))
+            RgbaImage::from_raw(width, height, native_pixels_to_rgba(bgra, src_desc.Format)?)
                 .ok_or_else(|| "RgbaImage::from_raw failed".to_string())
+        }
+    }
+
+    fn dwm_get_dx_shared_surface() -> Result<DwmGetDxSharedSurface, String> {
+        unsafe {
+            let module = GetModuleHandleW(w!("user32.dll"))
+                .map_err(|error| format!("获取 user32.dll 模块失败: {error}"))?;
+            let proc = GetProcAddress(module, s!("DwmGetDxSharedSurface"))
+                .ok_or_else(|| "当前系统没有导出 DwmGetDxSharedSurface".to_string())?;
+            Ok(std::mem::transmute::<
+                unsafe extern "system" fn() -> isize,
+                DwmGetDxSharedSurface,
+            >(proc))
+        }
+    }
+
+    fn capture_dwm_shared_surface(hwnd: HWND) -> Result<RgbaImage, String> {
+        unsafe {
+            let mut shared_handle = HANDLE::default();
+            let succeeded = dwm_get_dx_shared_surface()?(
+                hwnd,
+                &mut shared_handle,
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+                std::ptr::null_mut(),
+            );
+            if !succeeded.as_bool() || shared_handle.is_invalid() {
+                return Err("DwmGetDxSharedSurface 未返回可用的共享纹理".to_string());
+            }
+
+            let mut source_texture = None;
+            d3d_device()?
+                .OpenSharedResource(shared_handle, &mut source_texture)
+                .map_err(|error| format!("OpenSharedResource failed: {error}"))?;
+            let source_texture: ID3D11Texture2D = source_texture
+                .ok_or_else(|| "OpenSharedResource returned null texture".to_string())?;
+            let mut desc = D3D11_TEXTURE2D_DESC::default();
+            source_texture.GetDesc(&mut desc);
+            if desc.Width == 0 || desc.Height == 0 {
+                return Err("DwmGetDxSharedSurface 返回的纹理尺寸无效".to_string());
+            }
+
+            texture_to_rgba_image(
+                DWM_STAGING.get_or_init(|| Mutex::new(None)),
+                &source_texture,
+                0,
+                0,
+                desc.Width,
+                desc.Height,
+            )
         }
     }
 
@@ -298,7 +372,7 @@ mod imp {
                 let source_texture = resource
                     .cast::<ID3D11Texture2D>()
                     .map_err(|error| format!("Cast resource to ID3D11Texture2D failed: {error}"))?;
-                texture_to_rgba_image(runtime, &source_texture, x, y, width, height)
+                texture_to_rgba_image(&runtime.staging, &source_texture, x, y, width, height)
             })();
 
             let _ = runtime.duplication.ReleaseFrame();
@@ -368,6 +442,15 @@ mod imp {
         if right <= left || bottom <= top {
             return Err("窗口区域不在目标显示器可视范围内".to_string());
         }
+        if left != window_x
+            || top != window_y
+            || right != window_x + window_width as i32
+            || bottom != window_y + window_height as i32
+        {
+            return Err(format!(
+                "DXGI截图区域部分超出目标显示器，拒绝返回错误尺寸: window=({window_x}, {window_y}, {window_width}, {window_height}), monitor=({monitor_x}, {monitor_y}, {monitor_width}, {monitor_height})"
+            ));
+        }
 
         let capture_x = (left - monitor_x) as u32;
         let capture_y = (top - monitor_y) as u32;
@@ -409,6 +492,31 @@ mod imp {
             )
         })
     }
+
+    pub(crate) fn capture_window_shared_surface(hwnd: isize) -> Result<RgbaImage, String> {
+        capture_dwm_shared_surface(HWND(hwnd as *mut core::ffi::c_void))
+    }
+
+    pub(crate) fn clone_d3d_device() -> Result<ID3D11Device, String> {
+        Ok(d3d_device()?.clone())
+    }
+
+    pub(crate) fn wgc_texture_region_to_rgba(
+        source_texture: &ID3D11Texture2D,
+        x: u32,
+        y: u32,
+        width: u32,
+        height: u32,
+    ) -> Result<RgbaImage, String> {
+        texture_to_rgba_image(
+            WGC_STAGING.get_or_init(|| Mutex::new(None)),
+            source_texture,
+            x,
+            y,
+            width,
+            height,
+        )
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -436,6 +544,32 @@ pub(crate) fn capture_window_region(
         window_height,
         wait_timeout_ms,
     )
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn capture_window_shared_surface(hwnd: isize) -> Result<RgbaImage, String> {
+    imp::capture_window_shared_surface(hwnd)
+}
+
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn capture_window_shared_surface(_hwnd: isize) -> Result<RgbaImage, String> {
+    Err("当前平台不支持 DwmGetDxSharedSurface 窗口采集".to_string())
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn clone_d3d_device() -> Result<ID3D11Device, String> {
+    imp::clone_d3d_device()
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn wgc_texture_region_to_rgba(
+    source_texture: &windows::Win32::Graphics::Direct3D11::ID3D11Texture2D,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+) -> Result<RgbaImage, String> {
+    imp::wgc_texture_region_to_rgba(source_texture, x, y, width, height)
 }
 
 #[cfg(not(target_os = "windows"))]

@@ -23,15 +23,30 @@
     </label>
     <slot name="after-model-path" />
 
-    <div class="dialog-form-grid" :class="{ 'dialog-form-grid-compact': compact }">
+    <div v-if="inputSizeMode === 'longestSide'" class="dialog-form-grid" :class="{ 'dialog-form-grid-compact': compact }">
+      <label class="dialog-form-row" :class="{ 'dialog-form-row-compact': compact }">
+        <span class="dialog-form-label">最长边</span>
+        <span class="space-y-1">
+          <input v-model.number="model.inputWidth" class="app-input" :data-testid="resolveTestId('input-width')" min="32" step="32" type="number" />
+          <span class="block text-xs text-(--app-text-faint)">仅动态维度模型有效；静态模型使用模型内置宽高。</span>
+        </span>
+      </label>
+    </div>
+
+    <div v-else class="dialog-form-grid" :class="{ 'dialog-form-grid-compact': compact }">
       <label class="dialog-form-row" :class="{ 'dialog-form-row-compact': compact }">
         <span class="dialog-form-label">输入宽度</span>
-        <input v-model.number="model.inputWidth" class="app-input" :data-testid="resolveTestId('input-width')" min="1" type="number" />
+        <span class="space-y-1">
+          <input v-model.number="model.inputWidth" class="app-input" :data-testid="resolveTestId('input-width')" min="1" type="number" />
+          <span v-if="inputWidthHint" class="block text-xs text-(--app-text-faint)">{{ inputWidthHint }}</span>
+        </span>
       </label>
-
       <label class="dialog-form-row" :class="{ 'dialog-form-row-compact': compact }">
         <span class="dialog-form-label">输入高度</span>
-        <input v-model.number="model.inputHeight" class="app-input" :data-testid="resolveTestId('input-height')" min="1" type="number" />
+        <span class="space-y-1">
+          <input v-model.number="model.inputHeight" class="app-input" :data-testid="resolveTestId('input-height')" min="1" type="number" />
+          <span v-if="inputHeightHint" class="block text-xs text-(--app-text-faint)">{{ inputHeightHint }}</span>
+        </span>
       </label>
     </div>
 
@@ -118,9 +133,13 @@ const props = withDefaults(defineProps<{
   testIdPrefix?: string;
   builtInEnabled?: boolean;
   compact?: boolean;
+  inputSizeMode?: 'dimensions' | 'longestSide';
+  inputWidthHint?: string;
+  inputHeightHint?: string;
 }>(), {
   builtInEnabled: true,
   compact: false,
+  inputSizeMode: 'dimensions',
 });
 
 const resolveTestId = (suffix: string) =>
@@ -142,6 +161,9 @@ const providerOptions = [
 ];
 
 const compact = computed(() => props.compact);
+const inputSizeMode = computed(() => props.inputSizeMode);
+const inputWidthHint = computed(() => props.inputWidthHint);
+const inputHeightHint = computed(() => props.inputHeightHint);
 
 const pickModelPath = async () => {
   const value = await open({

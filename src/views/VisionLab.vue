@@ -1,6 +1,6 @@
 <template>
   <div class="vision-lab-shell h-svh overflow-hidden">
-    <div class="mx-auto flex h-full max-w-full flex-col gap-4">
+    <div class="mx-auto flex h-full max-w-full flex-col gap-1">
       <EditorWindowTitlebar
         class="vision-lab-titlebar"
         title="视觉测试"
@@ -10,17 +10,11 @@
       </template>
     </EditorWindowTitlebar>
 
-      <header class="vision-lab-header rounded-[28px] border border-(--app-border) px-5 py-4 lg:px-6">
-        <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div class="space-y-2">
-            <div class="flex flex-wrap items-center gap-3">
-              <span class="rounded-full border border-(--app-border) bg-white/55 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-(--app-text-faint)">
-                Vision Lab
-              </span>
-            </div>
-            <div class="space-y-1">
-              <p class="text-sm text-(--app-text-soft)">{{ selectedItem?.name || '未选择图像' }}</p>
-            </div>
+      <header class="vision-lab-header rounded-[22px] border border-(--app-border) px-4 py-2 lg:px-5">
+        <div class="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ selectedItem?.name || '未选择图像' }}</p>
+            <p class="mt-0.5 truncate text-xs text-(--app-text-faint)">{{ selectedItem?.path || selectedItem?.savedPath || '请从左侧选择图像或先截图' }}</p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
@@ -64,7 +58,7 @@
         </div>
       </header>
 
-      <div class="grid min-h-0 flex-1 gap-4 xl:grid-cols-[300px_minmax(0,1fr)_minmax(460px,540px)] 2xl:grid-cols-[320px_minmax(0,1fr)_minmax(500px,580px)]">
+      <div class="grid min-h-0 flex-1 gap-1 xl:grid-cols-[300px_minmax(0,1fr)_minmax(460px,540px)] 2xl:grid-cols-[320px_minmax(0,1fr)_minmax(500px,580px)]">
         <aside class="vision-side-panel min-h-0 overflow-hidden rounded-[26px] border border-(--app-border) bg-(--app-panel)">
           <div class="flex h-full flex-col">
             <div class="border-b border-(--app-border) px-4 py-4">
@@ -119,7 +113,7 @@
                   v-for="item in filteredFolderItems"
                   :key="item.id"
                   class="vision-list-item w-full rounded-[20px] border px-3 py-3 text-left transition"
-                  :class="selectedItem?.id === item.id ? 'border-(--app-state-active-border) bg-(--app-state-active-bg)' : 'border-(--app-border) hover:border-(--app-state-active-hover-border)'"
+                  :class="selectedItem?.id === item.id ? 'border-(--app-accent)! bg-(--app-accent-soft)/60 ring-2 ring-(--app-accent)/25 shadow-[0_10px_28px_rgba(15,23,42,0.12)]' : 'border-(--app-border) hover:border-(--app-state-active-hover-border)'"
                   type="button"
                   @click="selectItem(item)"
                 >
@@ -128,7 +122,9 @@
                       <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.name }}</p>
                       <p class="mt-1 line-clamp-2 text-xs leading-5 text-(--app-text-faint)">{{ item.path }}</p>
                     </div>
-                    <span class="rounded-full bg-emerald-500/12 px-2 py-1 text-[11px] font-medium text-emerald-700">已保存</span>
+                    <span class="rounded-full px-2 py-1 text-[11px] font-medium" :class="selectedItem?.id === item.id ? 'bg-(--app-accent) text-white' : 'bg-emerald-500/12 text-emerald-700'">
+                      {{ selectedItem?.id === item.id ? '当前' : '已保存' }}
+                    </span>
                   </div>
                 </button>
               </section>
@@ -150,7 +146,7 @@
                   :key="item.id"
                   class="rounded-[22px] border px-3 py-3 transition"
                   :class="[
-                    selectedItem?.id === item.id ? 'border-(--app-accent) bg-(--app-accent-soft)/35' : 'border-(--app-border)',
+                    selectedItem?.id === item.id ? 'border-(--app-accent)! bg-(--app-accent-soft)/60 ring-2 ring-(--app-accent)/25 shadow-[0_10px_28px_rgba(15,23,42,0.12)]' : 'border-(--app-border)',
                     item.saved ? 'shadow-[0_0_0_1px_rgba(16,185,129,0.1)]' : 'shadow-[0_0_0_1px_rgba(245,158,11,0.08)]',
                   ]"
                 >
@@ -162,12 +158,15 @@
                           {{ item.saved ? item.savedPath || '已保存' : '未保存到自定义目录' }}
                         </p>
                       </div>
-                      <span
-                        class="rounded-full px-2 py-1 text-[11px] font-medium"
-                        :class="item.saved ? 'bg-emerald-500/12 text-emerald-700' : 'bg-amber-500/14 text-amber-700'"
-                      >
-                        {{ item.saved ? '已保存' : '未保存' }}
-                      </span>
+                      <div class="flex shrink-0 flex-col items-end gap-1">
+                        <span v-if="selectedItem?.id === item.id" class="rounded-full bg-(--app-accent) px-2 py-1 text-[11px] font-medium text-white">当前</span>
+                        <span
+                          class="rounded-full px-2 py-1 text-[11px] font-medium"
+                          :class="item.saved ? 'bg-emerald-500/12 text-emerald-700' : 'bg-amber-500/14 text-amber-700'"
+                        >
+                          {{ item.saved ? '已保存' : '未保存' }}
+                        </span>
+                      </div>
                     </div>
                   </button>
                   <div class="mt-3 flex items-center gap-2">
@@ -192,12 +191,11 @@
           <div class="flex h-full flex-col">
             <div class="border-b border-(--app-border) px-4 py-4">
               <div class="flex flex-col gap-4">
-                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div class="min-w-0">
-                    <p class="truncate text-lg font-semibold text-(--app-text-strong)">{{ selectedItem?.name || '未选择图像' }}</p>
-                    <p class="mt-1 truncate text-sm text-(--app-text-soft)">{{ selectedItem?.path || selectedItem?.savedPath || '请从左侧选择图像或先截图' }}</p>
-                  </div>
-                  <div class="flex flex-wrap items-center gap-2">
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <label class="flex items-center gap-2 rounded-[14px] border border-(--app-border) bg-(--app-panel-muted) px-3 py-2 text-xs font-semibold text-(--app-text-strong)">
+                      <span>覆盖</span>
+                      <input v-model="overwriteResults" class="toggle toggle-sm" type="checkbox" />
+                    </label>
                     <button
                       v-for="tool in previewTools"
                       :key="tool.value"
@@ -213,7 +211,6 @@
                     <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomOut">-</button>
                     <span class="rounded-full border border-(--app-border) px-3 py-2 text-xs text-(--app-text-soft)">{{ Math.round(zoom * 100) }}%</span>
                     <button class="app-button app-button-ghost px-3 py-2 text-xs" type="button" @click="zoomIn">+</button>
-                  </div>
                 </div>
 
                 <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
@@ -275,7 +272,7 @@
                     <div
                       v-for="entry in overlayEntries"
                       :key="entry.key"
-                      class="absolute rounded-[10px] border text-[10px] font-semibold shadow-lg"
+                      class="absolute border text-[10px] font-semibold shadow-lg"
                       :class="entry.kind === 'ocr' ? 'border-cyan-300/90 bg-cyan-500/15 text-cyan-50' : entry.kind === 'textDet' ? 'border-fuchsia-300/90 bg-fuchsia-500/16 text-fuchsia-50' : 'border-amber-300/90 bg-amber-500/18 text-amber-50'"
                       :style="getBoxStyle(entry.box)"
                     >
@@ -339,39 +336,8 @@
                     <span class="text-xs text-(--app-text-faint)">{{ panelOpen.detConfig ? '收起' : '展开' }}</span>
                   </button>
                   <div v-if="panelOpen.detConfig" class="space-y-3 border-t border-(--app-border) px-4 py-4">
-                    <label class="space-y-2">
-                      <span class="text-xs font-semibold text-(--app-text-faint)">模型类型</span>
-                      <AppSelect :model-value="imgDetKind" :options="imgDetectorOptions" placeholder="选择模型" test-id="vision-lab-img-det-kind" @update:model-value="setImgDetKind" />
-                    </label>
-                    <template v-if="imgDetYolo">
-                      <ModelBaseFields :model="imgDetYolo.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\img-det.onnx" test-id-prefix="vision-lab-img-det-base" />
-                      <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-(--app-text-faint)">类别数量</span>
-                          <input v-model.number="imgDetYolo.classCount" class="app-input" min="1" type="number" />
-                        </label>
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-(--app-text-faint)">标签路径</span>
-                          <div class="vision-path-row">
-                            <input v-model.trim="imgDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
-                            <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickImgDetLabelPath">
-                              <AppIcon name="folder-open" :size="16" />
-                            </button>
-                          </div>
-                        </label>
-                      </div>
-                      <div class="grid gap-3 sm:grid-cols-2">
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-(--app-text-faint)">置信度</span>
-                          <input v-model.number="imgDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                        </label>
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-(--app-text-faint)">IOU</span>
-                          <input v-model.number="imgDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                        </label>
-                      </div>
-                    </template>
-                    <button class="app-button app-button-primary w-full justify-center" type="button" :disabled="!canRunDetection || isRunningDet" @click="runDetection">
+                    <VisionModelSettings mode="imgDet" v-model:detector-model="imgDetModel" test-id-prefix="vision-lab-img-det" />
+                    <button class="app-button app-button-primary w-full justify-center" type="button" :disabled="!canRunDetection || isRunningDet" @click="runDetection()">
                       {{ isRunningDet ? '检测中...' : '目标检测' }}
                     </button>
                   </div>
@@ -403,7 +369,7 @@
                           <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.index }}: {{ item.label }}</p>
                           <p class="mt-1 text-xs text-(--app-text-faint)">类目 #{{ item.index }} · {{ formatBox(item.bounding_box) }}</p>
                         </div>
-                        <span class="rounded-full bg-amber-500/12 px-2 py-1 text-[11px] font-medium text-amber-700">{{ item.score.toFixed(3) }}</span>
+                        <span class="rounded-full bg-amber-500/12 px-2 py-1 text-[11px] font-medium text-amber-700">{{ formatConfidence(item.score) }}</span>
                       </div>
                     </div>
                   </div>
@@ -419,87 +385,17 @@
                   <div v-if="panelOpen.ocrConfig" class="space-y-4 border-t border-(--app-border) px-4 py-4">
                     <div class="space-y-3 rounded-[18px] border border-(--app-border) px-3 py-3">
                       <p class="text-sm font-semibold text-(--app-text-strong)">文字检测</p>
-                      <label class="space-y-2">
-                        <span class="text-xs font-semibold text-(--app-text-faint)">模型类型</span>
-                        <AppSelect :model-value="txtDetKind" :options="txtDetectorOptions" placeholder="选择模型" test-id="vision-lab-txt-det-kind" @update:model-value="setTxtDetKind" />
-                      </label>
-                      <template v-if="txtDetYolo">
-                        <ModelBaseFields :model="txtDetYolo.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\txt-det.onnx" test-id-prefix="vision-lab-txt-det-base" />
-                        <div class="grid gap-3 sm:grid-cols-2">
-                          <label class="space-y-2">
-                            <span class="text-xs font-semibold text-(--app-text-faint)">类别数量</span>
-                            <input v-model.number="txtDetYolo.classCount" class="app-input" min="1" type="number" />
-                          </label>
-                          <label class="space-y-2">
-                            <span class="text-xs font-semibold text-(--app-text-faint)">标签路径</span>
-                            <div class="vision-path-row">
-                              <input v-model.trim="txtDetYolo.labelPath" class="app-input" placeholder="D:\\models\\labels.yaml" />
-                              <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickTxtDetLabelPath">
-                                <AppIcon name="folder-open" :size="16" />
-                              </button>
-                            </div>
-                          </label>
-                        </div>
-                        <div class="grid gap-3 sm:grid-cols-2">
-                          <label class="space-y-2">
-                            <span class="text-xs font-semibold text-(--app-text-faint)">文本索引</span>
-                            <AppSelect
-                              v-if="txtDetLabelOptions.length"
-                              v-model="txtDetLabelSelectValue"
-                              :options="txtDetLabelOptions"
-                              placeholder="选择标签"
-                              test-id="vision-lab-txt-det-label-idx"
-                            />
-                            <input v-else v-model.number="txtDetYolo.txtIdx" class="app-input" min="0" type="number" placeholder="未加载标签时手动输入 idx" />
-                          </label>
-                          <label class="space-y-2">
-                            <span class="text-xs font-semibold text-(--app-text-faint)">置信度</span>
-                            <input v-model.number="txtDetYolo.confidenceThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                          </label>
-                        </div>
-                        <div class="grid gap-3 sm:grid-cols-2">
-                          <label class="space-y-2">
-                            <span class="text-xs font-semibold text-(--app-text-faint)">IOU</span>
-                            <input v-model.number="txtDetYolo.iouThresh" class="app-input" min="0" max="1" step="0.01" type="number" />
-                          </label>
-                        </div>
-                        <p v-if="txtDetLabelHint" class="text-xs text-(--app-text-faint)">{{ txtDetLabelHint }}</p>
-                      </template>
-                      <template v-else-if="txtDetDbNet">
-                        <ModelBaseFields :model="txtDetDbNet.baseModel" :built-in-enabled="false" compact path-placeholder="例如：D:\\models\\ocr-dbnet.onnx" test-id-prefix="vision-lab-txt-det-base" />
-                      </template>
+                      <VisionModelSettings mode="txtDet" v-model:detector-model="txtDetModel" test-id-prefix="vision-lab-txt-det" />
                     </div>
-
                     <div class="space-y-3 rounded-[18px] border border-(--app-border) px-3 py-3">
                       <p class="text-sm font-semibold text-(--app-text-strong)">文字识别</p>
-                      <label class="space-y-2">
-                        <span class="text-xs font-semibold text-(--app-text-faint)">模型类型</span>
-                        <AppSelect :model-value="txtRecKind" :options="recognizerOptions" placeholder="选择模型" test-id="vision-lab-txt-rec-kind" @update:model-value="setTxtRecKind" />
-                      </label>
-                      <template v-if="txtRecCrnn">
-                        <ModelBaseFields :model="txtRecCrnn.baseModel" compact path-placeholder="例如：D:\\models\\ocr-rec.onnx" test-id-prefix="vision-lab-txt-rec-base" />
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-(--app-text-faint)">字典路径</span>
-                          <div class="vision-path-row">
-                            <input v-model.trim="txtRecCrnn.dictPath" class="app-input" placeholder="D:\\models\\keys.txt" />
-                            <button class="app-button app-button-ghost vision-path-button" type="button" @click="pickTxtRecDictPath">
-                              <AppIcon name="folder-open" :size="16" />
-                            </button>
-                          </div>
-                        </label>
-                        <label class="space-y-2">
-                          <span class="text-xs font-semibold text-(--app-text-faint)">单会话intra线程数量</span>
-                          <input v-model.number="txtRecCrnn.parallelCpuSessionIntraThreads" class="app-input" min="1" step="1" type="number" />
-                        </label>
-                        <p class="text-xs text-(--app-text-faint)">切换为内置后会保留内置模型来源配置；如需覆盖字典，继续填写自定义字典路径即可。</p>
-                      </template>
+                      <VisionModelSettings mode="txtRec" v-model:recognizer-model="txtRecModel" test-id-prefix="vision-lab-txt-rec" />
                     </div>
-
                     <div class="grid gap-2 sm:grid-cols-2">
                       <button class="app-button app-button-ghost justify-center" type="button" :disabled="!canRunTextDetection || isRunningTextDet" @click="runTextDetection">
                         {{ isRunningTextDet ? '检测中...' : '文字检测' }}
                       </button>
-                      <button class="app-button app-button-primary justify-center" type="button" :disabled="!canRunOcr || isRunningOcr" @click="runOcr">
+                      <button class="app-button app-button-primary justify-center" type="button" :disabled="!canRunOcr || isRunningOcr" @click="runOcr()">
                         {{ isRunningOcr ? 'OCR 中...' : '完整OCR' }}
                       </button>
                     </div>
@@ -526,8 +422,13 @@
                         运行文字检测后，这里显示文本框。
                       </div>
                       <div v-for="(item, index) in textDetResults" :key="`text-det-${index}`" class="rounded-[18px] border border-(--app-border) px-3 py-3">
-                        <p class="text-xs text-(--app-text-faint)">文本框 {{ index + 1 }} · {{ formatBox(item.bounding_box) }}</p>
-                        <p class="mt-1 text-sm font-semibold text-(--app-text-strong)">{{ item.index }}: {{ item.label }}</p>
+                        <div class="flex items-start justify-between gap-3">
+                          <div class="min-w-0">
+                            <p class="text-xs text-(--app-text-faint)">文本框 {{ index + 1 }} · {{ formatBox(item.bounding_box) }}</p>
+                            <p class="mt-1 text-sm font-semibold text-(--app-text-strong)">{{ item.index }}: {{ item.label }}</p>
+                          </div>
+                          <span class="rounded-full bg-fuchsia-500/12 px-2 py-1 text-[11px] font-medium text-fuchsia-700">{{ formatConfidence(item.score) }}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -545,7 +446,7 @@
                             <p class="truncate text-sm font-semibold text-(--app-text-strong)">{{ item.txt || '(空文本)' }}</p>
                             <p class="mt-1 text-xs text-(--app-text-faint)">框：{{ formatBox(item.bounding_box) }}</p>
                           </div>
-                          <span class="rounded-full bg-cyan-500/12 px-2 py-1 text-[11px] font-medium text-cyan-700">{{ averageScore(item).toFixed(3) }}</span>
+                          <span class="rounded-full bg-cyan-500/12 px-2 py-1 text-[11px] font-medium text-cyan-700">{{ formatConfidence(averageScore(item)) }}</span>
                         </div>
                         <div class="mt-2 grid gap-2 text-[11px] text-(--app-text-soft) sm:grid-cols-2">
                           <div class="rounded-[12px] border border-(--app-border) px-2 py-2">
@@ -596,7 +497,7 @@
                           <p class="mt-1 text-xs text-(--app-text-faint)">{{ item.kind === 'ocr' ? 'OCR' : 'Det' }} · {{ formatBox(item.box) }}</p>
                         </div>
                         <span class="rounded-full px-2 py-1 text-[11px] font-medium" :class="item.kind === 'ocr' ? 'bg-cyan-500/12 text-cyan-700' : 'bg-amber-500/12 text-amber-700'">
-                          {{ item.score.toFixed(3) }}
+                          {{ formatConfidence(item.score) }}
                         </span>
                       </div>
                       <div class="mt-2 grid gap-2 text-[11px] text-(--app-text-soft) sm:grid-cols-2">
@@ -656,7 +557,7 @@ import AppDialog from '@/components/shared/AppDialog.vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorWindowTitlebar from '@/views/script-editor/EditorWindowTitlebar.vue';
-import ModelBaseFields from '@/views/script-list/script-info/ModelBaseFields.vue';
+import VisionModelSettings from '@/views/script-list/script-info/VisionModelSettings.vue';
 import { openCurrentDevtools, reloadCurrentPage } from '@/services/devtoolsService';
 import { scriptService } from '@/services/scriptService';
 import { visionLabConfigService } from '@/services/visionLabConfigService';
@@ -796,6 +697,7 @@ const txtDetLabelOptions = ref<Array<{ label: string; value: string; description
 const txtDetLabelHint = ref<string | null>('请先设置文字检测标签路径，或选择“不过滤”验证原始检测输出。');
 
 const activeTool = ref<PreviewTool>('browse');
+const overwriteResults = ref(true);
 const zoom = ref(1);
 const naturalSize = reactive({ width: 0, height: 0 });
 const previewContainerRef = ref<HTMLElement | null>(null);
@@ -907,13 +809,29 @@ const filteredOcrResults = computed(() => {
 const overlayEntries = computed<OverlayEntry[]>(() => {
   const entries: OverlayEntry[] = [];
   detResults.value.forEach((item, index) => {
-    entries.push({ key: `det-${index}`, kind: 'det', label: item.label, box: item.bounding_box });
+    entries.push({
+      key: `det-${index}`,
+      kind: 'det',
+      label: `${item.label} ${formatConfidence(item.score)}`,
+      box: item.bounding_box,
+    });
   });
   textDetResults.value.forEach((item, index) => {
-    entries.push({ key: `text-det-${index}`, kind: 'textDet', label: item.label || `文本框 ${index + 1}`, box: item.bounding_box });
+    const label = item.label || `文本框 ${index + 1}`;
+    entries.push({
+      key: `text-det-${index}`,
+      kind: 'textDet',
+      label: `${label} ${formatConfidence(item.score)}`,
+      box: item.bounding_box,
+    });
   });
   ocrResults.value.forEach((item, index) => {
-    entries.push({ key: `ocr-${index}`, kind: 'ocr', label: item.txt || '(空)', box: item.bounding_box });
+    entries.push({
+      key: `ocr-${index}`,
+      kind: 'ocr',
+      label: `${item.txt || '(空)'} ${formatConfidence(averageScore(item))}`,
+      box: item.bounding_box,
+    });
   });
   return entries;
 });
@@ -975,6 +893,10 @@ function normalizeItemName(path: string) {
 function averageScore(item: OcrResult) {
   if (!item.score.length) return 0;
   return item.score.reduce((sum, value) => sum + value, 0) / item.score.length;
+}
+
+function formatConfidence(score: number) {
+  return `${(score * 100).toFixed(2)}%`;
 }
 
 function formatBox(box: BoundingBox) {
@@ -1192,19 +1114,6 @@ function sanitizeTextDetector(model: DetectorType | null): DetectorType | null {
   return model;
 }
 
-function setImgDetKind(value: string | number | null) {
-  const kind = String(value ?? 'none') as VisionImgDetectorKind;
-  imgDetModel.value = kind === 'none' ? null : createDetectorByKind(kind, false);
-}
-
-function setTxtDetKind(value: string | number | null) {
-  txtDetModel.value = createDetectorByKind(String(value ?? 'none') as DetectorKind, true);
-}
-
-function setTxtRecKind(value: string | number | null) {
-  txtRecModel.value = createRecognizerByKind(String(value ?? 'none') as RecognizerKind);
-}
-
 async function loadImageDirectory(dirPath: string) {
   const paths = await visionLabService.listImageFiles(dirPath);
   folderItems.value = paths.map((path) => ({
@@ -1271,6 +1180,10 @@ function clearVisionResults() {
   textDetResults.value = [];
   ocrResults.value = [];
   comboResults.value = [];
+}
+
+function prepareVisionRun() {
+  if (overwriteResults.value) clearVisionResults();
 }
 
 async function ensureSaveDirectory() {
@@ -1341,49 +1254,20 @@ async function captureFromDevice() {
   }
 }
 
-const pickImgDetLabelPath = async () => {
-  const value = await open({
-    multiple: false,
-    directory: false,
-    filters: [{ name: 'Label Files', extensions: ['yaml', 'yml', 'json', 'txt'] }],
-  });
-  if (typeof value === 'string' && value && imgDetYolo.value) {
-    imgDetYolo.value.labelPath = value;
-  }
-};
-
-const pickTxtDetLabelPath = async () => {
-  const value = await open({
-    multiple: false,
-    directory: false,
-    filters: [{ name: 'Label Files', extensions: ['yaml', 'yml', 'json', 'txt'] }],
-  });
-  if (typeof value === 'string' && value && txtDetYolo.value) {
-    txtDetYolo.value.labelPath = value;
-  }
-};
-
-const pickTxtRecDictPath = async () => {
-  const value = await open({
-    multiple: false,
-    directory: false,
-    filters: [{ name: 'Dictionary Files', extensions: ['txt', 'dict'] }],
-  });
-  if (typeof value === 'string' && value && txtRecCrnn.value) {
-    txtRecCrnn.value.dictPath = value;
-  }
-};
-
-async function runDetection() {
-  if (!imgDetModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
+async function runDetection(prepare = true): Promise<DetResult[]> {
+  if (!imgDetModel.value || (!selectedImagePath.value && !selectedImageData.value)) return [];
+  if (prepare) prepareVisionRun();
   isRunningDet.value = true;
   try {
-    detResults.value = selectedImagePath.value
+    const results = selectedImagePath.value
       ? await visionLabService.runDetection(clone(imgDetModel.value), selectedImagePath.value)
       : await visionLabService.runDetectionForImageData(clone(imgDetModel.value), selectedImageData.value!);
-    showToast(`检测完成，共 ${detResults.value.length} 条结果`, 'success');
+    detResults.value.push(...results);
+    showToast(`检测完成，共 ${results.length} 条结果`, 'success');
+    return results;
   } catch (error) {
     showToast(error instanceof Error ? error.message : '目标检测失败', 'error');
+    return [];
   } finally {
     isRunningDet.value = false;
   }
@@ -1391,12 +1275,14 @@ async function runDetection() {
 
 async function runTextDetection() {
   if (!txtDetModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
+  prepareVisionRun();
   isRunningTextDet.value = true;
   try {
-    textDetResults.value = selectedImagePath.value
+    const results = selectedImagePath.value
       ? await visionLabService.runDetection(clone(txtDetModel.value), selectedImagePath.value)
       : await visionLabService.runDetectionForImageData(clone(txtDetModel.value), selectedImageData.value!);
-    showToast(`文字检测完成，共 ${textDetResults.value.length} 个文本框`, 'success');
+    textDetResults.value.push(...results);
+    showToast(`文字检测完成，共 ${results.length} 个文本框`, 'success');
   } catch (error) {
     showToast(error instanceof Error ? error.message : '文字检测失败', 'error');
   } finally {
@@ -1404,20 +1290,24 @@ async function runTextDetection() {
   }
 }
 
-async function runOcr() {
-  if (!txtDetModel.value || !txtRecModel.value || (!selectedImagePath.value && !selectedImageData.value)) return;
+async function runOcr(prepare = true): Promise<VisionOcrResult[]> {
+  if (!txtDetModel.value || !txtRecModel.value || (!selectedImagePath.value && !selectedImageData.value)) return [];
+  if (prepare) prepareVisionRun();
   isRunningOcr.value = true;
   try {
     const results = selectedImagePath.value
       ? await visionLabService.runOcr(clone(txtDetModel.value), clone(txtRecModel.value), selectedImagePath.value)
       : await visionLabService.runOcrForImageData(clone(txtDetModel.value), clone(txtRecModel.value), selectedImageData.value!);
-    ocrResults.value = results.map((item) => ({
+    const analyzedResults = results.map((item) => ({
       ...item,
       ...analyzeOcrColors(item.bounding_box),
     }));
-    showToast(`OCR 完成，共 ${ocrResults.value.length} 条文本`, 'success');
+    ocrResults.value.push(...analyzedResults);
+    showToast(`OCR 完成，共 ${analyzedResults.length} 条文本`, 'success');
+    return analyzedResults;
   } catch (error) {
     showToast(error instanceof Error ? error.message : 'OCR 失败', 'error');
+    return [];
   } finally {
     isRunningOcr.value = false;
   }
@@ -1425,11 +1315,12 @@ async function runOcr() {
 
 async function runComboAnalysis() {
   if (!canRunCombo.value) return;
+  prepareVisionRun();
   isRunningCombo.value = true;
   try {
-    await Promise.all([runDetection(), runOcr()]);
-    comboResults.value = [
-      ...detResults.value.map((item, index) => ({
+    const [newDetResults, newOcrResults] = await Promise.all([runDetection(false), runOcr(false)]);
+    const nextComboResults = [
+      ...newDetResults.map((item, index) => ({
         key: `combo-det-${index}`,
         kind: 'det' as const,
         label: item.label,
@@ -1438,7 +1329,7 @@ async function runComboAnalysis() {
         bgColorHex: rgbToHex(sampleRegionAverage(item.bounding_box) ?? { r: 255, g: 255, b: 255 }),
         fgColorHex: null,
       })),
-      ...ocrResults.value.map((item, index) => ({
+      ...newOcrResults.map((item, index) => ({
         key: `combo-ocr-${index}`,
         kind: 'ocr' as const,
         text: item.txt,
@@ -1448,7 +1339,8 @@ async function runComboAnalysis() {
         fgColorHex: item.fgColorHex,
       })),
     ];
-    showToast(`视觉分析完成，共 ${comboResults.value.length} 条结果`, 'success');
+    comboResults.value.push(...nextComboResults);
+    showToast(`视觉分析完成，共 ${nextComboResults.length} 条结果`, 'success');
   } finally {
     isRunningCombo.value = false;
   }
@@ -1615,30 +1507,6 @@ async function loadImgDetLabels() {
   }
 }
 
-async function loadTxtDetLabels() {
-  const labelPath = txtDetYolo.value?.labelPath?.trim();
-  if (!labelPath) {
-    txtDetLabelOptions.value = [];
-    txtDetLabelHint.value = '当前未设置文字检测标签路径，可先选择“不过滤”验证模型输出。';
-    return;
-  }
-  try {
-    const labels = await scriptService.getYoloLabels(labelPath);
-    txtDetLabelOptions.value = [
-      { label: '不过滤', value: '__ALL__', description: '先查看所有检测结果' },
-      ...labels.map((item) => ({
-        label: `${item.index}: ${item.label}`,
-        value: String(item.index),
-        description: `idx ${item.index}`,
-      })),
-    ];
-    txtDetLabelHint.value = labels.length ? null : '标签文件已读取，但未解析到 names。';
-  } catch (error) {
-    txtDetLabelOptions.value = [{ label: '不过滤', value: '__ALL__', description: '先查看所有检测结果' }];
-    txtDetLabelHint.value = error instanceof Error ? `标签文件读取失败：${error.message}` : '标签文件读取失败，请检查路径或格式。';
-  }
-}
-
 async function hydrateFromLocalConfig() {
   const config = await visionLabConfigService.getModelConfig().catch(() => null);
   imgDetModel.value = sanitizeImageDetector(clone(config?.imgDetModel ?? createDetectorByKind('Yolo11', false)));
@@ -1713,19 +1581,12 @@ watch(
   { immediate: true },
 );
 
-watch(
-  () => txtDetYolo.value?.labelPath,
-  () => {
-    void loadTxtDetLabels();
-  },
-  { immediate: true },
-);
 
 onMounted(async () => {
   await Promise.all([deviceStore.refreshAll(), loadPreferences()]);
   await hydrateFromLaunchPreset();
   hydratingModelConfig.value = false;
-  await Promise.all([loadImgDetLabels(), loadTxtDetLabels()]);
+  await loadImgDetLabels();
   if (preferences.imageDir) {
     await reloadImageDirectory();
   }

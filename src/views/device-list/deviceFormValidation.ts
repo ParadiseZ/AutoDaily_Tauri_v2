@@ -8,9 +8,37 @@ export interface NormalizedDeviceFormValues {
   exePath: string;
   exeArgs: string;
   capMethodValue: string;
+  windowOffsets: WindowOffsets;
+}
+
+export interface WindowOffsets {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
 }
 
 const hostPortPattern = /^([^:\s]+):(\d{1,5})$/;
+const maxU32 = 4_294_967_295;
+
+export const parseWindowOffsets = (value: string): WindowOffsets => {
+  const parts = value.split(',').map((part) => part.trim());
+  if (parts.length !== 4 || parts.some((part) => !/^\d+$/.test(part))) {
+    throw new Error('窗口偏移必须按左,上,右,下填写四个非负整数，例如 1,40,1,1');
+  }
+
+  const values = parts.map(Number);
+  if (values.some((offset) => !Number.isSafeInteger(offset) || offset > maxU32)) {
+    throw new Error(`窗口偏移必须是 0 到 ${maxU32} 之间的整数。`);
+  }
+
+  return {
+    left: values[0],
+    top: values[1],
+    right: values[2],
+    bottom: values[3],
+  };
+};
 
 const isValidIpv4 = (host: string) => {
   const parts = host.split('.');
@@ -43,6 +71,10 @@ export const validateDeviceForm = (form: DeviceFormState): NormalizedDeviceFormV
     exePath: form.exePath.trim(),
     exeArgs: form.exeArgs.trim(),
     capMethodValue: form.capMethodValue.trim(),
+    windowOffsets:
+      form.capMethodType === 'window'
+        ? parseWindowOffsets(form.windowOffsets)
+        : { left: 1, top: 40, right: 1, bottom: 1 },
   };
 
   const emulatorUsesTcpAddress =

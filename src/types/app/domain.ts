@@ -480,9 +480,9 @@ export interface DeviceFormState {
     logToFile: boolean;
     capMethodType: 'window' | 'adb';
     capMethodValue: string;
-    windowCaptureInterface: 'dxgi' | 'gdi';
+    windowCaptureInterface: 'dxgi' | 'gdi' | 'dwmGetDxSharedSurface' | 'wgc';
     frameTimeoutSecs: number;
-    titleBarHeightPx: number;
+    windowOffsets: string;
     connectAddress: string;
     connectIdentifier: string;
     adbPath: string;

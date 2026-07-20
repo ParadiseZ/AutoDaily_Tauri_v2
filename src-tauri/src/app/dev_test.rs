@@ -5,10 +5,10 @@ use base64::engine::general_purpose;
 use domain_vision::DetectorType;
 use domain_vision::RecognizerType;
 use domain_vision::{DetResult, OcrResult};
-use image::DynamicImage;
-use infra_vision::{OcrService, load_img_from_path};
+use image::RgbaImage;
+use infra_vision::{OcrService, VisionResult, get_crop_image_rgba, load_img_from_path};
 
-fn load_img_from_base64(image_data: &str) -> Result<DynamicImage, String> {
+fn load_img_from_base64(image_data: &str) -> Result<RgbaImage, String> {
     let base64 = image_data
         .split_once("base64,")
         .map(|(_, value)| value)
@@ -16,36 +16,26 @@ fn load_img_from_base64(image_data: &str) -> Result<DynamicImage, String> {
     let bytes = general_purpose::STANDARD
         .decode(base64)
         .map_err(|e| format!("base64解码失败: {}", e))?;
-    image::load_from_memory(&bytes).map_err(|e| format!("内存图像解析失败: {}", e))
+    image::load_from_memory(&bytes)
+        .map(|image| image.to_rgba8())
+        .map_err(|e| format!("内存图像解析失败: {}", e))
 }
 
-pub async fn yolo_infer_test(
-    image_path: &str,
-    detector_config: DetectorType,
-) -> AppResult<Vec<DetResult>> {
-    // 1. 创建OCR服务实例
-    let mut ocr_service = OcrService::new();
-    ocr_service.init_detector(detector_config).await?;
-    let image = load_img_from_path(image_path)?;
-    Ok(ocr_service.detect(&image)?)
+fn run_ocr_rgba(ocr_service: &mut OcrService, image: &RgbaImage) -> VisionResult<Vec<OcrResult>> {
+    let det_results = ocr_service.detect_rgba(image)?;
+    let (cropped_images, crop_det_results): (Vec<_>, Vec<_>) = det_results
+        .iter()
+        .filter_map(|det_result| {
+            get_crop_image_rgba(image, det_result)
+                .ok()
+                .map(|crop| (crop, det_result.clone()))
+        })
+        .unzip();
+
+    ocr_service.recognize_crops_rgba(cropped_images, &crop_det_results)
 }
 
-pub async fn paddle_ocr_infer(
-    detector_config: DetectorType,
-    recognizer_config: RecognizerType,
-    image_path: &str,
-) -> AppResult<Vec<OcrResult>> {
-    // 1. 创建OCR服务实例
-    let mut ocr_service = OcrService::new();
-    // det
-    ocr_service.init_detector(detector_config).await?;
-    let image = load_img_from_path(image_path)?;
-    let mut det_results = ocr_service.detect(&image)?;
-    // rec
-    ocr_service.init_recognizer(recognizer_config).await?;
-    //let image = load_img_from_path(image_path)?;
-    let ocr_results = ocr_service.recognize(&image, &mut det_results)?;
-    // 4. 记录检测结果
+fn log_ocr_results(ocr_results: &[OcrResult]) {
     for (i, ocr) in ocr_results.iter().enumerate() {
         Log::info(
             format!(
@@ -61,6 +51,34 @@ pub async fn paddle_ocr_infer(
             .as_str(),
         );
     }
+}
+
+pub async fn yolo_infer_test(
+    image_path: &str,
+    detector_config: DetectorType,
+) -> AppResult<Vec<DetResult>> {
+    // 1. 创建OCR服务实例
+    let mut ocr_service = OcrService::new();
+    ocr_service.init_detector(detector_config).await?;
+    let image = load_img_from_path(image_path)?.to_rgba8();
+    Ok(ocr_service.detect_rgba(&image)?)
+}
+
+pub async fn paddle_ocr_infer(
+    detector_config: DetectorType,
+    recognizer_config: RecognizerType,
+    image_path: &str,
+) -> AppResult<Vec<OcrResult>> {
+    // 1. 创建OCR服务实例
+    let mut ocr_service = OcrService::new();
+    // det
+    ocr_service.init_detector(detector_config).await?;
+    let image = load_img_from_path(image_path)?.to_rgba8();
+    // rec
+    ocr_service.init_recognizer(recognizer_config).await?;
+    let ocr_results = run_ocr_rgba(&mut ocr_service, &image)?;
+    // 4. 记录检测结果
+    log_ocr_results(&ocr_results);
     Ok(ocr_results)
 }
 
@@ -74,7 +92,7 @@ pub async fn yolo_infer_base64_test(
         .await
         .map_err(|e| e.to_string())?;
     let image = load_img_from_base64(image_data)?;
-    ocr_service.detect(&image).map_err(|e| e.to_string())
+    ocr_service.detect_rgba(&image).map_err(|e| e.to_string())
 }
 
 pub async fn paddle_ocr_base64_infer(
@@ -88,28 +106,11 @@ pub async fn paddle_ocr_base64_infer(
         .await
         .map_err(|e| e.to_string())?;
     let image = load_img_from_base64(image_data)?;
-    let mut det_results = ocr_service.detect(&image).map_err(|e| e.to_string())?;
     ocr_service
         .init_recognizer(recognizer_config)
         .await
         .map_err(|e| e.to_string())?;
-    let ocr_results = ocr_service
-        .recognize(&image, &mut det_results)
-        .map_err(|e| e.to_string())?;
-    for (i, ocr) in ocr_results.iter().enumerate() {
-        Log::info(
-            format!(
-                "#{}: 文本='{}' (分数={:?}, 位置=[{:.1}, {:.1}, {:.1}, {:.1}]",
-                i + 1,
-                ocr.txt,
-                ocr.score,
-                ocr.bounding_box.x1,
-                ocr.bounding_box.y1,
-                ocr.bounding_box.x2,
-                ocr.bounding_box.y2,
-            )
-            .as_str(),
-        );
-    }
+    let ocr_results = run_ocr_rgba(&mut ocr_service, &image).map_err(|e| e.to_string())?;
+    log_ocr_results(&ocr_results);
     Ok(ocr_results)
 }

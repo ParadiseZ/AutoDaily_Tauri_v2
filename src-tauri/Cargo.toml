@@ -58,7 +58,7 @@ xcap = "0.9.6"
 num_cpus = "1.17"
 twox-hash = { version = "2", features = ["xxhash3_64"] }
 interprocess = { version = "2", features = ["tokio"] }
-reqwest = { version = "0.13.2", default-features = false, features = ["rustls", "json", "multipart", "stream"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["rustls-no-provider", "json", "multipart", "stream"] }
 sha2 = "0.10"
 async-trait = "0.1.89"
 cron = "0.15.0"
@@ -203,6 +203,5 @@ tauri-plugin-global-shortcut = { workspace = true }
 tauri-plugin-window-state = { workspace = true }
 tauri-plugin-single-instance = { workspace = true }
 
-# 直接依赖 rustls 并强制使用 ring 后端，覆盖 adb_client 的传递依赖
-# 这样可以避免 aws-lc-rs 的 C/C++ FFI 代码与 Cranelift 的冲突
-#rustls = { version = "0.23", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+# 统一使用 ring；reqwest 与 updater 均通过 rustls-no-provider 复用该进程级后端。
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }

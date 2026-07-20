@@ -1,4 +1,4 @@
-use crate::infra::vision::base_model::BaseModel;
+use crate::infra::vision::base_model::{BaseModel, ModelSpatialInput};
 use crate::infra::vision::base_traits::{ModelHandler, TextDetector};
 use crate::infra::vision::tensor_view::squeeze_singleton_axes_to_2d;
 use crate::infra::vision::vision_error::{VisionError, VisionResult};
@@ -6,7 +6,8 @@ use domain_vision::{
     BoundingBox, DetResult, ModelType, YoloDet as YoloDetConfig, YoloPostprocessKind,
 };
 use image::imageops::FilterType;
-use image::{DynamicImage, GenericImageView, RgbaImage};
+use image::{DynamicImage, RgbaImage};
+use infra_logging::Log;
 use ndarray::{Array4, ArrayD, ArrayView2, ArrayView4, ArrayViewD, Axis};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -68,6 +69,20 @@ enum YoloBoxFormat {
 
 const MAX_NMS_CANDIDATES_PER_CLASS: usize = 512;
 const INV_255: f32 = 1.0 / 255.0;
+const YOLO_STRIDE: u32 = 32;
+const YOLO_PADDING_VALUE: u8 = 114;
+
+#[derive(Debug, Clone, Copy)]
+struct YoloLetterbox {
+    input_width: u32,
+    input_height: u32,
+    resized_width: u32,
+    resized_height: u32,
+    pad_left: u32,
+    pad_top: u32,
+    scale: f32,
+    origin_shape: [u32; 2],
+}
 
 impl YoloDet {
     const DEFAULT_LEGACY_CONFIDENCE_THRESH: f32 = 0.25;
@@ -197,6 +212,7 @@ impl YoloDet {
     }
 
     /// 将 RGB 像素连续写入 CHW 缓冲区，避免 4D 下标逐点赋值的额外开销。
+    #[cfg(test)]
     fn fill_chw_buffer(raw_pixels: &[u8], input_buffer: &mut [f32], plane_len: usize) {
         let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
         let (g_plane, b_plane) = rest.split_at_mut(plane_len);
@@ -208,6 +224,7 @@ impl YoloDet {
         }
     }
 
+    #[cfg(test)]
     fn fill_chw_buffer_rgba(raw_pixels: &[u8], input_buffer: &mut [f32], plane_len: usize) {
         let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
         let (g_plane, b_plane) = rest.split_at_mut(plane_len);
@@ -219,18 +236,121 @@ impl YoloDet {
         }
     }
 
+    fn fill_letterboxed_chw_rgba(
+        raw_pixels: &[u8],
+        input_buffer: &mut [f32],
+        transform: YoloLetterbox,
+    ) {
+        input_buffer.fill(YOLO_PADDING_VALUE as f32 * INV_255);
+        let input_width = transform.input_width as usize;
+        let plane_len = input_width * transform.input_height as usize;
+        let resized_width = transform.resized_width as usize;
+        let pad_left = transform.pad_left as usize;
+        let pad_top = transform.pad_top as usize;
+        let (r_plane, rest) = input_buffer.split_at_mut(plane_len);
+        let (g_plane, b_plane) = rest.split_at_mut(plane_len);
+
+        for (source_index, pixel) in raw_pixels.chunks_exact(4).enumerate() {
+            let x = source_index % resized_width;
+            let y = source_index / resized_width;
+            let destination_index = (y + pad_top) * input_width + x + pad_left;
+            r_plane[destination_index] = pixel[0] as f32 * INV_255;
+            g_plane[destination_index] = pixel[1] as f32 * INV_255;
+            b_plane[destination_index] = pixel[2] as f32 * INV_255;
+        }
+    }
+
+    fn align_to_stride(value: u32) -> u32 {
+        value.max(1).div_ceil(YOLO_STRIDE) * YOLO_STRIDE
+    }
+
+    fn resolve_letterbox(
+        &self,
+        origin_width: u32,
+        origin_height: u32,
+    ) -> VisionResult<YoloLetterbox> {
+        if origin_width == 0 || origin_height == 0 {
+            return Err(VisionError::DataProcessingErr {
+                method: "yolo_resolve_letterbox".to_string(),
+                e: "输入图像宽高不能为0".to_string(),
+            });
+        }
+
+        let (input_width, input_height, scale) = match self.base_model.model_spatial_input() {
+            Some(ModelSpatialInput {
+                width: Some(width),
+                height: Some(height),
+            }) => {
+                let scale =
+                    (width as f32 / origin_width as f32).min(height as f32 / origin_height as f32);
+                (width, height, scale)
+            }
+            Some(ModelSpatialInput {
+                width: None,
+                height: None,
+            }) => {
+                let longest_side = Self::align_to_stride(self.base_model.input_width);
+                let scale = longest_side as f32 / origin_width.max(origin_height) as f32;
+                let resized_width = (origin_width as f32 * scale).round().max(1.0) as u32;
+                let resized_height = (origin_height as f32 * scale).round().max(1.0) as u32;
+                (
+                    Self::align_to_stride(resized_width),
+                    Self::align_to_stride(resized_height),
+                    scale,
+                )
+            }
+            _ => {
+                return Err(VisionError::DataProcessingErr {
+                    method: "yolo_resolve_letterbox".to_string(),
+                    e: "ORT未能读取YOLO模型输入尺寸".to_string(),
+                });
+            }
+        };
+        let resized_width = (origin_width as f32 * scale)
+            .round()
+            .clamp(1.0, input_width as f32) as u32;
+        let resized_height = (origin_height as f32 * scale)
+            .round()
+            .clamp(1.0, input_height as f32) as u32;
+        let pad_width = input_width - resized_width;
+        let pad_height = input_height - resized_height;
+
+        Ok(YoloLetterbox {
+            input_width,
+            input_height,
+            resized_width,
+            resized_height,
+            pad_left: pad_width / 2,
+            pad_top: pad_height / 2,
+            scale,
+            origin_shape: [origin_height, origin_width],
+        })
+    }
+
+    fn resize_for_letterbox(&self, image: &RgbaImage) -> VisionResult<(RgbaImage, YoloLetterbox)> {
+        let transform = self.resolve_letterbox(image.width(), image.height())?;
+        let resized = image::imageops::resize(
+            image,
+            transform.resized_width,
+            transform.resized_height,
+            FilterType::Triangle,
+        );
+        Ok((resized, transform))
+    }
+
     /// 将 NMS 之后的轻量候选框转成最终业务结果，并在这里完成坐标恢复与标签解析。
     fn finalize_candidates(
         &self,
         candidates: Vec<YoloCandidate>,
         scale_factor: [f32; 2],
+        padding: [f32; 2],
         origin_shape: [u32; 2],
     ) -> Vec<DetResult> {
         candidates
             .into_iter()
             .map(|candidate| {
                 DetResult::new(
-                    self.candidate_to_bounding_box(&candidate, scale_factor, origin_shape),
+                    self.candidate_to_bounding_box(&candidate, scale_factor, padding, origin_shape),
                     candidate.class_id as i32,
                     self.resolve_label(candidate.class_id),
                     candidate.score,
@@ -256,6 +376,7 @@ impl YoloDet {
         &self,
         candidate: &YoloCandidate,
         scale_factor: [f32; 2],
+        padding: [f32; 2],
         origin_shape: [u32; 2],
     ) -> BoundingBox {
         match candidate.box_format {
@@ -265,6 +386,7 @@ impl YoloDet {
                 candidate.coords[2],
                 candidate.coords[3],
                 scale_factor,
+                padding,
                 origin_shape,
             ),
             YoloBoxFormat::Xyxy => self.build_xyxy_box(
@@ -273,6 +395,7 @@ impl YoloDet {
                 candidate.coords[2],
                 candidate.coords[3],
                 scale_factor,
+                padding,
                 origin_shape,
             ),
         }
@@ -299,10 +422,11 @@ impl YoloDet {
         w: f32,
         h: f32,
         scale_factor: [f32; 2],
+        padding: [f32; 2],
         origin_shape: [u32; 2],
     ) -> BoundingBox {
-        let xc = xc * scale_factor[0];
-        let yc = yc * scale_factor[1];
+        let xc = (xc - padding[0]) * scale_factor[0];
+        let yc = (yc - padding[1]) * scale_factor[1];
         let w = w * scale_factor[0];
         let h = h * scale_factor[1];
 
@@ -321,13 +445,14 @@ impl YoloDet {
         x2: f32,
         y2: f32,
         scale_factor: [f32; 2],
+        padding: [f32; 2],
         origin_shape: [u32; 2],
     ) -> BoundingBox {
         BoundingBox::new(
-            self.clamp_x(x1 * scale_factor[0], origin_shape),
-            self.clamp_y(y1 * scale_factor[1], origin_shape),
-            self.clamp_x(x2 * scale_factor[0], origin_shape),
-            self.clamp_y(y2 * scale_factor[1], origin_shape),
+            self.clamp_x((x1 - padding[0]) * scale_factor[0], origin_shape),
+            self.clamp_y((y1 - padding[1]) * scale_factor[1], origin_shape),
+            self.clamp_x((x2 - padding[0]) * scale_factor[0], origin_shape),
+            self.clamp_y((y2 - padding[1]) * scale_factor[1], origin_shape),
         )
     }
 
@@ -387,6 +512,7 @@ impl YoloDet {
         &self,
         output: ArrayViewD<f32>,
         scale_factor: [f32; 2],
+        padding: [f32; 2],
         origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
         // Yolo11/8 这条链路走 raw head: 先筛候选框，再做本地 NMS，最后再生成完整 DetResult。
@@ -451,6 +577,7 @@ impl YoloDet {
         Ok(self.finalize_candidates(
             apply_nms(candidates, self.legacy_iou_thresh()),
             scale_factor,
+            padding,
             origin_shape,
         ))
     }
@@ -462,6 +589,7 @@ impl YoloDet {
         &self,
         output: ArrayViewD<f32>,
         scale_factor: [f32; 2],
+        padding: [f32; 2],
         origin_shape: [u32; 2],
     ) -> VisionResult<Vec<DetResult>> {
         let matrix = self.squeeze_output(output)?;
@@ -483,11 +611,7 @@ impl YoloDet {
                     let class_id = row[5].round().max(0.0) as usize;
                     let score = row[4];
 
-                    if self
-                        .confidence_thresh
-                        .is_some_and(|threshold| score < threshold)
-                        || !self.allow_class(class_id)
-                    {
+                    if score < self.legacy_confidence_thresh() || !self.allow_class(class_id) {
                         continue;
                     }
 
@@ -508,11 +632,7 @@ impl YoloDet {
                     let class_id = col[5].round().max(0.0) as usize;
                     let score = col[4];
 
-                    if self
-                        .confidence_thresh
-                        .is_some_and(|threshold| score < threshold)
-                        || !self.allow_class(class_id)
-                    {
+                    if score < self.legacy_confidence_thresh() || !self.allow_class(class_id) {
                         continue;
                     }
 
@@ -538,7 +658,24 @@ impl YoloDet {
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
 
-        Ok(self.finalize_candidates(candidates, scale_factor, origin_shape))
+        Ok(self.finalize_candidates(candidates, scale_factor, padding, origin_shape))
+    }
+
+    fn postprocess_letterboxed(
+        &self,
+        output: ArrayViewD<f32>,
+        transform: YoloLetterbox,
+    ) -> VisionResult<Vec<DetResult>> {
+        let scale_factor = [1.0 / transform.scale, 1.0 / transform.scale];
+        let padding = [transform.pad_left as f32, transform.pad_top as f32];
+        match self.effective_postprocess_kind() {
+            YoloPostprocessKind::LegacyNms => {
+                self.postprocess_legacy(output, scale_factor, padding, transform.origin_shape)
+            }
+            YoloPostprocessKind::EndToEnd => {
+                self.postprocess_end_to_end(output, scale_factor, padding, transform.origin_shape)
+            }
+        }
     }
 }
 
@@ -546,31 +683,43 @@ impl ModelHandler for YoloDet {
     fn load_model(&mut self) -> VisionResult<()> {
         self.reset_runtime_cache();
         self.base_model
-            .load_model_base::<Self>(self.model_file_stem())
-    }
-
-    fn get_input_size(&self) -> (u32, u32) {
-        (self.base_model.input_width, self.base_model.input_height)
+            .load_model_base::<Self>(self.model_file_stem())?;
+        match self.base_model.model_spatial_input() {
+            Some(ModelSpatialInput {
+                width: Some(width),
+                height: Some(height),
+            }) => Log::info(&format!(
+                "YOLO输入策略: 静态模型, LetterBox到模型尺寸 {}x{}",
+                width, height
+            )),
+            Some(ModelSpatialInput {
+                width: None,
+                height: None,
+            }) => Log::info(&format!(
+                "YOLO输入策略: 动态模型, 最长边 {}, stride {} 最小对齐",
+                Self::align_to_stride(self.base_model.input_width),
+                YOLO_STRIDE
+            )),
+            _ => {
+                return Err(VisionError::DataProcessingErr {
+                    method: "yolo_load_model".to_string(),
+                    e: "ORT未能识别YOLO模型输入形状".to_string(),
+                });
+            }
+        }
+        Ok(())
     }
 
     fn preprocess(&self, image: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
-        // 兼容通用调用路径，仍然返回拥有所有权的输入张量。
-        let (w, h) = self.get_input_size();
-        let (origin_w, origin_h) = image.dimensions();
-        let scale_x = origin_w as f32 / w as f32;
-        let scale_y = origin_h as f32 / h as f32;
-
-        let img = image.resize_exact(w, h, FilterType::Triangle);
-        let (width, height) = img.dimensions();
-        let img_buffer = img.to_rgb8();
-        let raw_pixels = img_buffer.into_raw();
-        let width_usize = width as usize;
-        let height_usize = height as usize;
+        // 兼容通用调用路径，推理主链路使用下方 detect/detect_rgba 以携带 padding 信息。
+        let (img, transform) = self.resize_for_letterbox(&image.to_rgba8())?;
+        let raw_pixels = img.into_raw();
+        let width_usize = transform.input_width as usize;
+        let height_usize = transform.input_height as usize;
         let mut input = Array4::<f32>::zeros((1, 3, height_usize, width_usize));
-        let plane_len = width_usize * height_usize;
 
         if let Some(buffer) = input.as_slice_mut() {
-            Self::fill_chw_buffer(&raw_pixels, buffer, plane_len);
+            Self::fill_letterboxed_chw_rgba(&raw_pixels, buffer, transform);
         } else {
             return Err(VisionError::DataProcessingErr {
                 method: "yolo_preprocess".to_string(),
@@ -578,7 +727,11 @@ impl ModelHandler for YoloDet {
             });
         }
 
-        Ok((input.into_dyn(), [scale_x, scale_y], [origin_h, origin_w]))
+        Ok((
+            input.into_dyn(),
+            [1.0 / transform.scale, 1.0 / transform.scale],
+            transform.origin_shape,
+        ))
     }
 
     fn inference(&self, input: ArrayViewD<f32>) -> VisionResult<ArrayD<f32>> {
@@ -609,56 +762,14 @@ impl TextDetector for YoloDet {
     /// 这条实现会复用预处理缓冲区，并直接消费 ORT 输出 view，
     /// 避免通用 `inference_base` 的输出整块复制。
     fn detect(&self, image: &DynamicImage) -> VisionResult<Vec<DetResult>> {
-        // 检测主链路：预处理 -> ORT 推理 -> 直接消费输出 view 做后处理，避免整块输出复制。
-        let (w, h) = self.get_input_size();
-        let (origin_w, origin_h) = image.dimensions();
-        let scale_factor = [origin_w as f32 / w as f32, origin_h as f32 / h as f32];
-        let origin_shape = [origin_h, origin_w];
-
-        let img = image.resize_exact(w, h, FilterType::Triangle);
-        let img_buffer = img.to_rgb8();
-        let raw_pixels = img_buffer.as_raw();
-        let width_usize = w as usize;
-        let height_usize = h as usize;
-        let plane_len = width_usize * height_usize;
-        let input_len = plane_len * 3;
-
-        let mut input_buffer =
-            self.preprocess_buffer
-                .lock()
-                .map_err(|_| VisionError::DataProcessingErr {
-                    method: "yolo_detect".to_string(),
-                    e: "获取YOLO预处理缓存失败".to_string(),
-                })?;
-        if input_buffer.len() != input_len {
-            input_buffer.resize(input_len, 0.0);
-        }
-        Self::fill_chw_buffer(raw_pixels, input_buffer.as_mut_slice(), plane_len);
-        let input_view =
-            ArrayView4::from_shape((1, 3, height_usize, width_usize), input_buffer.as_slice())
-                .map_err(|e| VisionError::DataProcessingErr {
-                    method: "yolo_detect".to_string(),
-                    e: e.to_string(),
-                })?;
-
-        self.base_model.inference_with_output_view(
-            input_view.into_dyn(),
-            self.get_input_node_name(),
-            self.get_output_node_name(),
-            |output| self.postprocess(output, scale_factor, origin_shape),
-        )
+        self.detect_rgba(&image.to_rgba8())
     }
 
     fn detect_rgba(&self, image: &RgbaImage) -> VisionResult<Vec<DetResult>> {
-        let (w, h) = self.get_input_size();
-        let (origin_w, origin_h) = image.dimensions();
-        let scale_factor = [origin_w as f32 / w as f32, origin_h as f32 / h as f32];
-        let origin_shape = [origin_h, origin_w];
-
-        let img = image::imageops::resize(image, w, h, FilterType::Triangle);
+        let (img, transform) = self.resize_for_letterbox(image)?;
         let raw_pixels = img.as_raw();
-        let width_usize = w as usize;
-        let height_usize = h as usize;
+        let width_usize = transform.input_width as usize;
+        let height_usize = transform.input_height as usize;
         let plane_len = width_usize * height_usize;
         let input_len = plane_len * 3;
 
@@ -672,7 +783,7 @@ impl TextDetector for YoloDet {
         if input_buffer.len() != input_len {
             input_buffer.resize(input_len, 0.0);
         }
-        Self::fill_chw_buffer_rgba(raw_pixels, input_buffer.as_mut_slice(), plane_len);
+        Self::fill_letterboxed_chw_rgba(raw_pixels, input_buffer.as_mut_slice(), transform);
         let input_view =
             ArrayView4::from_shape((1, 3, height_usize, width_usize), input_buffer.as_slice())
                 .map_err(|e| VisionError::DataProcessingErr {
@@ -684,7 +795,7 @@ impl TextDetector for YoloDet {
             input_view.into_dyn(),
             self.get_input_node_name(),
             self.get_output_node_name(),
-            |output| self.postprocess(output, scale_factor, origin_shape),
+            |output| self.postprocess_letterboxed(output, transform),
         )
     }
 
@@ -696,10 +807,10 @@ impl TextDetector for YoloDet {
     ) -> VisionResult<Vec<DetResult>> {
         match self.effective_postprocess_kind() {
             YoloPostprocessKind::LegacyNms => {
-                self.postprocess_legacy(output, scale_factor, origin_shape)
+                self.postprocess_legacy(output, scale_factor, [0.0, 0.0], origin_shape)
             }
             YoloPostprocessKind::EndToEnd => {
-                self.postprocess_end_to_end(output, scale_factor, origin_shape)
+                self.postprocess_end_to_end(output, scale_factor, [0.0, 0.0], origin_shape)
             }
         }
     }
@@ -785,12 +896,18 @@ fn apply_nms(mut boxes: Vec<YoloCandidate>, iou_thresh: f32) -> Vec<YoloCandidat
 mod tests {
     use super::*;
     use domain_vision::{InferenceBackend, ModelSource};
+    use image::Rgba;
     use ndarray::arr2;
 
     fn build_detector(model_type: ModelType, txt_idx: Option<u16>) -> YoloDet {
         let mut class_labels = HashMap::new();
         class_labels.insert(0, "button".to_string());
         class_labels.insert(1, "text".to_string());
+        let postprocess_kind = match model_type {
+            ModelType::Yolo11 => YoloPostprocessKind::LegacyNms,
+            ModelType::Yolo26 => YoloPostprocessKind::EndToEnd,
+            _ => unreachable!("test helper only supports YOLO models"),
+        };
 
         YoloDet {
             base_model: BaseModel::new(
@@ -811,7 +928,7 @@ mod tests {
             iou_thresh: Some(0.45),
             label_path: None,
             txt_idx,
-            postprocess_kind: Some(YoloPostprocessKind::EndToEnd),
+            postprocess_kind: Some(postprocess_kind),
             output_layout: OnceLock::new(),
             preprocess_buffer: YoloDet::default_preprocess_buffer(),
         }
@@ -857,6 +974,105 @@ mod tests {
         assert_eq!(results[0].index, 1);
         assert_eq!(results[0].label, "text");
         assert_eq!(results[0].bounding_box, BoundingBox::new(10, 20, 110, 120));
+    }
+
+    #[test]
+    fn end_to_end_uses_default_confidence_threshold_when_not_configured() {
+        let mut detector = build_detector(ModelType::Yolo26, None);
+        detector.confidence_thresh = None;
+        let output = arr2(&[
+            [10.0, 20.0, 110.0, 120.0, 0.80, 1.0],
+            [20.0, 30.0, 40.0, 50.0, 0.10, 0.0],
+        ])
+        .into_dyn();
+
+        let results = detector
+            .postprocess(output.view(), [1.0, 1.0], [640, 640])
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].index, 1);
+    }
+
+    #[test]
+    fn dynamic_input_uses_longest_side_and_minimum_stride_padding() {
+        let mut detector = build_detector(ModelType::Yolo26, None);
+        detector.base_model.input_width = 800;
+        detector
+            .base_model
+            .set_model_spatial_input_for_test(ModelSpatialInput {
+                width: None,
+                height: None,
+            });
+
+        let transform = detector.resolve_letterbox(2400, 1080).unwrap();
+        assert_eq!(
+            (transform.resized_width, transform.resized_height),
+            (800, 360)
+        );
+        assert_eq!((transform.input_width, transform.input_height), (800, 384));
+        assert_eq!((transform.pad_left, transform.pad_top), (0, 12));
+    }
+
+    #[test]
+    fn static_input_letterboxes_to_model_dimensions() {
+        let mut detector = build_detector(ModelType::Yolo26, None);
+        detector
+            .base_model
+            .set_model_spatial_input_for_test(ModelSpatialInput {
+                width: Some(800),
+                height: Some(800),
+            });
+
+        let transform = detector.resolve_letterbox(2400, 1080).unwrap();
+        assert_eq!(
+            (transform.resized_width, transform.resized_height),
+            (800, 360)
+        );
+        assert_eq!((transform.input_width, transform.input_height), (800, 800));
+        assert_eq!((transform.pad_left, transform.pad_top), (0, 220));
+    }
+
+    #[test]
+    fn letterbox_postprocess_removes_padding_before_scaling() {
+        let detector = build_detector(ModelType::Yolo26, None);
+        let output = arr2(&[[100.0, 42.0, 200.0, 72.0, 0.80, 1.0]]).into_dyn();
+        let transform = YoloLetterbox {
+            input_width: 800,
+            input_height: 384,
+            resized_width: 800,
+            resized_height: 360,
+            pad_left: 0,
+            pad_top: 12,
+            scale: 1.0 / 3.0,
+            origin_shape: [1080, 2400],
+        };
+
+        let results = detector
+            .postprocess_letterboxed(output.view(), transform)
+            .unwrap();
+        assert_eq!(results[0].bounding_box, BoundingBox::new(300, 90, 600, 180));
+    }
+
+    #[test]
+    fn rgba_fast_preprocess_matches_dynamic_image_preprocess() {
+        let mut image = RgbaImage::new(3, 2);
+        for (index, pixel) in image.pixels_mut().enumerate() {
+            let value = index as u8 * 31;
+            *pixel = Rgba([value, value.wrapping_add(17), value.wrapping_add(43), 255]);
+        }
+
+        let rgb_resized = DynamicImage::ImageRgba8(image.clone())
+            .resize_exact(5, 4, FilterType::Triangle)
+            .to_rgb8();
+        let rgba_resized = image::imageops::resize(&image, 5, 4, FilterType::Triangle);
+        let plane_len = 5 * 4;
+        let mut rgb_chw = vec![0.0; plane_len * 3];
+        let mut rgba_chw = vec![0.0; plane_len * 3];
+
+        YoloDet::fill_chw_buffer(rgb_resized.as_raw(), &mut rgb_chw, plane_len);
+        YoloDet::fill_chw_buffer_rgba(rgba_resized.as_raw(), &mut rgba_chw, plane_len);
+
+        assert_eq!(rgba_chw, rgb_chw);
     }
 
     #[test]

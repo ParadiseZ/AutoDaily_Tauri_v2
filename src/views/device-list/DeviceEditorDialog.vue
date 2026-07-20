@@ -47,7 +47,7 @@
                 </label>
               </div>
 
-              <div v-if="form.capMethodType === 'window'" class="grid gap-4 md:grid-cols-3">
+              <div v-if="form.capMethodType === 'window'" class="grid gap-4 md:grid-cols-2">
                 <label class="grid gap-2">
                   <span class="text-sm text-(--app-text-soft)">截图接口</span>
                   <AppSelect v-model="form.windowCaptureInterface" :options="windowCaptureInterfaceOptions" />
@@ -63,16 +63,19 @@
                     placeholder="10"
                   />
                 </label>
+              </div>
+
+              <div v-if="form.capMethodType === 'window'">
                 <label class="grid gap-2">
-                  <span class="text-sm text-(--app-text-soft)">标题栏高度（px）</span>
+                  <span class="text-sm text-(--app-text-soft)">窗口内容偏移（左,上,右,下）</span>
                   <input
-                    v-model.number="form.titleBarHeightPx"
+                    v-model.trim="form.windowOffsets"
                     class="app-input"
-                    type="number"
-                    min="0"
-                    step="1"
-                    placeholder="122"
+                    placeholder="1,40,1,1"
+                    pattern="\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*\d+\s*"
+                    title="请按左,上,右,下填写四个非负整数，例如 1,40,1,1"
                   />
+                  <span class="text-xs text-(--app-text-muted)">四个非负整数；左、上同时决定裁剪起点。</span>
                 </label>
               </div>
 
@@ -310,7 +313,7 @@ const createEmptyForm = (): DeviceFormState => ({
   capMethodValue: '',
   windowCaptureInterface: 'dxgi',
   frameTimeoutSecs: 10,
-  titleBarHeightPx: 122,
+  windowOffsets: '1,40,1,1',
   connectAddress: '',
   connectIdentifier: '',
   adbPath: '',
@@ -372,6 +375,8 @@ const captureOptions = computed(() => {
 
 const windowCaptureInterfaceOptions = [
   { label: 'DXGI', value: 'dxgi', description: '默认方案，等待桌面新帧后裁剪窗口区域。' },
+  { label: 'DwmGetDxSharedSurface', value: 'dwmGetDxSharedSurface', description: '直接读取目标窗口的 DWM 共享纹理。' },
+  { label: 'WGC', value: 'wgc', description: '通过 Windows Graphics Capture 直接采集目标窗口。' },
   { label: 'GDI', value: 'gdi', description: '兼容方案，直接做窗口截图。' },
 ];
 
@@ -440,7 +445,12 @@ const syncForm = (device: DeviceTable | null) => {
     form.capMethodValue = device.data.capMethod.title;
     form.windowCaptureInterface = device.data.capMethod.interface ?? 'dxgi';
     form.frameTimeoutSecs = Number(device.data.capMethod.frameTimeoutSecs ?? 10);
-    form.titleBarHeightPx = Number(device.data.capMethod.titleBarHeightPx ?? 122);
+    form.windowOffsets = [
+      device.data.capMethod.offsetLeftPx ?? 1,
+      device.data.capMethod.offsetTopPx ?? 40,
+      device.data.capMethod.offsetRightPx ?? 1,
+      device.data.capMethod.offsetBottomPx ?? 1,
+    ].join(',');
   }
 };
 
@@ -492,7 +502,7 @@ watch(
     if (capMethodType === 'adb') {
       form.windowCaptureInterface = 'dxgi';
       form.frameTimeoutSecs = 10;
-      form.titleBarHeightPx = 122;
+      form.windowOffsets = '1,40,1,1';
     }
   },
 );

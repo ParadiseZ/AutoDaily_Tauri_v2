@@ -7,6 +7,22 @@ use std::sync::atomic::Ordering;
 
 pub(crate) struct LogChild;
 impl LogTrait for LogChild {
+    fn is_debug_enabled(&self) -> bool {
+        get_ipc_client().is_some_and(|client| client.should_log(LogLevel::Debug))
+    }
+
+    fn is_info_enabled(&self) -> bool {
+        get_ipc_client().is_some_and(|client| client.should_log(LogLevel::Info))
+    }
+
+    fn is_warn_enabled(&self) -> bool {
+        get_ipc_client().is_some_and(|client| client.should_log(LogLevel::Warn))
+    }
+
+    fn is_error_enabled(&self) -> bool {
+        get_ipc_client().is_some_and(|client| client.should_log(LogLevel::Error))
+    }
+
     fn debug(&self, msg: &str) {
         if let Some(client) = get_ipc_client() {
             client.debug(msg);

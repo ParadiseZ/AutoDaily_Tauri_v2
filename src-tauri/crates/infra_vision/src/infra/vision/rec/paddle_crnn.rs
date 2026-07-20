@@ -1,4 +1,4 @@
-use crate::infra::vision::base_model::BaseModel;
+use crate::infra::vision::base_model::{BaseModel, ModelSpatialInput};
 use crate::infra::vision::base_traits::{ModelHandler, TextRecognizer};
 use crate::infra::vision::tensor_view::select_batch_and_squeeze_to_2d;
 use crate::infra::vision::vision_error::{VisionError, VisionResult};
@@ -22,7 +22,15 @@ const REC_SCALE: f32 = 2.0 / 255.0;
 struct RecSample {
     original_index: usize,
     image: RgbaImage,
-    target_width: u32,
+    resized_width: u32,
+    tensor_width: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RecInputGeometry {
+    resized_width: u32,
+    tensor_width: u32,
+    height: u32,
 }
 
 #[derive(Debug)]
@@ -67,21 +75,46 @@ impl PaddleRecCrnn {
         width.checked_add(7).map(|v| v & !7).unwrap_or(width).max(8)
     }
 
-    fn calc_target_width_from_dims(&self, origin_w: u32, origin_h: u32) -> u32 {
-        let target_height = self.get_target_height();
-        let ratio = origin_h as f32 / target_height as f32;
-        let resize_w = (origin_w as f32 / ratio).ceil() as u32;
-        Self::align_width(resize_w)
+    fn input_geometry_from_dims(
+        &self,
+        origin_w: u32,
+        origin_h: u32,
+    ) -> VisionResult<RecInputGeometry> {
+        if origin_w == 0 || origin_h == 0 {
+            return Err(VisionError::DataProcessingErr {
+                method: "crnn_input_geometry".to_string(),
+                e: "输入图像宽高不能为 0".to_string(),
+            });
+        }
+        let ModelSpatialInput { width, height } = self
+            .base_model
+            .model_spatial_input()
+            .ok_or_else(|| VisionError::DataProcessingErr {
+                method: "crnn_input_geometry".to_string(),
+                e: "尚未读取 CRNN 模型输入尺寸".to_string(),
+            })?;
+        let target_height = height.unwrap_or(self.base_model.input_height).max(1);
+        let natural_width =
+            (origin_w as f32 * target_height as f32 / origin_h as f32).ceil() as u32;
+        let (resized_width, tensor_width) = match width {
+            Some(static_width) => (natural_width.min(static_width).max(1), static_width),
+            None => (natural_width.max(1), Self::align_width(natural_width)),
+        };
+        Ok(RecInputGeometry {
+            resized_width,
+            tensor_width,
+            height: target_height,
+        })
     }
 
-    fn calc_target_width(&self, img: &DynamicImage) -> u32 {
+    fn input_geometry(&self, img: &DynamicImage) -> VisionResult<RecInputGeometry> {
         let (origin_w, origin_h) = GenericImageView::dimensions(img);
-        self.calc_target_width_from_dims(origin_w, origin_h)
+        self.input_geometry_from_dims(origin_w, origin_h)
     }
 
-    fn calc_target_width_rgba(&self, img: &RgbaImage) -> u32 {
+    fn input_geometry_rgba(&self, img: &RgbaImage) -> VisionResult<RecInputGeometry> {
         let (origin_w, origin_h) = img.dimensions();
-        self.calc_target_width_from_dims(origin_w, origin_h)
+        self.input_geometry_from_dims(origin_w, origin_h)
     }
 
     fn bucket_width(&self, target_width: u32) -> u32 {
@@ -180,7 +213,7 @@ impl PaddleRecCrnn {
         let plane_len = target_height_usize * padded_width_usize;
 
         if let Some(buffer) = img_view.as_slice_mut() {
-            buffer.fill(-1.0);
+            buffer.fill(0.0);
             let (r_plane, rest) = buffer.split_at_mut(plane_len);
             let (g_plane, b_plane) = rest.split_at_mut(plane_len);
             for (y, row) in resized_img
@@ -191,9 +224,9 @@ impl PaddleRecCrnn {
                 let row_offset = y * padded_width_usize;
                 for (x, pixel) in row.chunks_exact(3).enumerate() {
                     let idx = row_offset + x;
-                    r_plane[idx] = pixel[0] as f32 * REC_SCALE - 1.0;
+                    r_plane[idx] = pixel[2] as f32 * REC_SCALE - 1.0;
                     g_plane[idx] = pixel[1] as f32 * REC_SCALE - 1.0;
-                    b_plane[idx] = pixel[2] as f32 * REC_SCALE - 1.0;
+                    b_plane[idx] = pixel[0] as f32 * REC_SCALE - 1.0;
                 }
             }
         } else {
@@ -201,14 +234,14 @@ impl PaddleRecCrnn {
                 for x in 0..resize_width_usize {
                     let idx = (y * resize_width_usize + x) * 3;
                     let p = &resized_img.as_raw()[idx..idx + 3];
-                    img_view[[0, y, x]] = p[0] as f32 * REC_SCALE - 1.0;
+                    img_view[[0, y, x]] = p[2] as f32 * REC_SCALE - 1.0;
                     img_view[[1, y, x]] = p[1] as f32 * REC_SCALE - 1.0;
-                    img_view[[2, y, x]] = p[2] as f32 * REC_SCALE - 1.0;
+                    img_view[[2, y, x]] = p[0] as f32 * REC_SCALE - 1.0;
                 }
                 for x in resize_width_usize..padded_width_usize {
-                    img_view[[0, y, x]] = -1.0;
-                    img_view[[1, y, x]] = -1.0;
-                    img_view[[2, y, x]] = -1.0;
+                    img_view[[0, y, x]] = 0.0;
+                    img_view[[1, y, x]] = 0.0;
+                    img_view[[2, y, x]] = 0.0;
                 }
             }
         }
@@ -233,7 +266,7 @@ impl PaddleRecCrnn {
         let plane_len = target_height_usize * padded_width_usize;
 
         if let Some(buffer) = img_view.as_slice_mut() {
-            buffer.fill(-1.0);
+            buffer.fill(0.0);
             let (r_plane, rest) = buffer.split_at_mut(plane_len);
             let (g_plane, b_plane) = rest.split_at_mut(plane_len);
             for (y, row) in resized_img
@@ -244,9 +277,9 @@ impl PaddleRecCrnn {
                 let row_offset = y * padded_width_usize;
                 for (x, pixel) in row.chunks_exact(4).enumerate() {
                     let idx = row_offset + x;
-                    r_plane[idx] = pixel[0] as f32 * REC_SCALE - 1.0;
+                    r_plane[idx] = pixel[2] as f32 * REC_SCALE - 1.0;
                     g_plane[idx] = pixel[1] as f32 * REC_SCALE - 1.0;
-                    b_plane[idx] = pixel[2] as f32 * REC_SCALE - 1.0;
+                    b_plane[idx] = pixel[0] as f32 * REC_SCALE - 1.0;
                 }
             }
         } else {
@@ -254,14 +287,14 @@ impl PaddleRecCrnn {
                 for x in 0..resize_width_usize {
                     let idx = (y * resize_width_usize + x) * 4;
                     let p = &resized_img.as_raw()[idx..idx + 4];
-                    img_view[[0, y, x]] = p[0] as f32 * REC_SCALE - 1.0;
+                    img_view[[0, y, x]] = p[2] as f32 * REC_SCALE - 1.0;
                     img_view[[1, y, x]] = p[1] as f32 * REC_SCALE - 1.0;
-                    img_view[[2, y, x]] = p[2] as f32 * REC_SCALE - 1.0;
+                    img_view[[2, y, x]] = p[0] as f32 * REC_SCALE - 1.0;
                 }
                 for x in resize_width_usize..padded_width_usize {
-                    img_view[[0, y, x]] = -1.0;
-                    img_view[[1, y, x]] = -1.0;
-                    img_view[[2, y, x]] = -1.0;
+                    img_view[[0, y, x]] = 0.0;
+                    img_view[[1, y, x]] = 0.0;
+                    img_view[[2, y, x]] = 0.0;
                 }
             }
         }
@@ -269,18 +302,23 @@ impl PaddleRecCrnn {
 
     fn preprocess_rgba(&self, img: &RgbaImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
         let (origin_w, origin_h) = img.dimensions();
-        let target_height = self.get_target_height();
-        let ratio = origin_h as f32 / target_height as f32;
-        let target_width = self.calc_target_width_rgba(img);
+        let geometry = self.input_geometry_rgba(img)?;
+        let ratio = origin_h as f32 / geometry.height as f32;
 
         Log::debug(&format!(
-            "Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
-            origin_w, origin_h, target_width, target_height, target_width, target_height
+            "rgba Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
+            origin_w,
+            origin_h,
+            geometry.resized_width,
+            geometry.height,
+            geometry.tensor_width,
+            geometry.height
         ));
 
-        let mut input = Array3::<f32>::zeros((3, target_height as usize, target_width as usize));
+        let mut input =
+            Array3::<f32>::zeros((3, geometry.height as usize, geometry.tensor_width as usize));
         let img_view = input.view_mut();
-        self.fill_image_tensor_rgba(img, target_width, target_width, img_view);
+        self.fill_image_tensor_rgba(img, geometry.resized_width, geometry.tensor_width, img_view);
         let input = input.insert_axis(Axis(0));
 
         Ok((input.into_dyn(), [ratio, ratio], [origin_h, origin_w]))
@@ -406,7 +444,7 @@ impl PaddleRecCrnn {
                     .expect("文字识别失败：批预处理失败【crnn preprocess_sample_batch】");
                     self.fill_image_tensor_rgba(
                         &sample.image,
-                        sample.target_width,
+                        sample.resized_width,
                         padded_width,
                         img_view,
                     );
@@ -430,7 +468,7 @@ impl PaddleRecCrnn {
         let mut buckets: BTreeMap<u32, Vec<RecSample>> = BTreeMap::new();
         for sample in samples {
             buckets
-                .entry(self.bucket_width(sample.target_width))
+                .entry(self.bucket_width(sample.tensor_width))
                 .or_default()
                 .push(sample);
         }
@@ -440,7 +478,7 @@ impl PaddleRecCrnn {
         let parallel_inference = self.base_model.has_parallel_session_pool();
 
         for (_bucket, bucket_samples) in buckets.iter_mut() {
-            bucket_samples.sort_by_key(|sample| (sample.target_width, sample.original_index));
+            bucket_samples.sort_by_key(|sample| (sample.tensor_width, sample.original_index));
 
             if parallel_inference {
                 let prepared_chunks: VisionResult<Vec<(Vec<usize>, ArrayD<f32>)>> = bucket_samples
@@ -448,7 +486,7 @@ impl PaddleRecCrnn {
                     .map(|chunk| {
                         let padded_width = chunk
                             .iter()
-                            .map(|sample| sample.target_width)
+                            .map(|sample| sample.tensor_width)
                             .max()
                             .unwrap_or(8);
                         let input = self.preprocess_sample_batch(chunk, padded_width)?;
@@ -493,7 +531,7 @@ impl PaddleRecCrnn {
                 for chunk in bucket_samples.chunks(batch_limit) {
                     let padded_width = chunk
                         .iter()
-                        .map(|sample| sample.target_width)
+                        .map(|sample| sample.tensor_width)
                         .max()
                         .unwrap_or(8);
                     let input = self.preprocess_sample_batch(chunk, padded_width)?;
@@ -588,27 +626,28 @@ impl ModelHandler for PaddleRecCrnn {
                 Some(self.parallel_cpu_session_intra_threads),
             )
     }
-    fn get_input_size(&self) -> (u32, u32) {
-        (self.base_model.input_width, self.base_model.input_height)
-    }
-
     fn preprocess(&self, img: &DynamicImage) -> VisionResult<(ArrayD<f32>, [f32; 2], [u32; 2])> {
         // 获取原始图像尺寸
         let (origin_w, origin_h) = GenericImageView::dimensions(img);
-        let target_height = self.get_target_height();
+        let geometry = self.input_geometry(img)?;
         // 计算调整大小的比例
-        let ratio = origin_h as f32 / target_height as f32;
-        let target_width = self.calc_target_width(img);
+        let ratio = origin_h as f32 / geometry.height as f32;
 
         Log::debug(&format!(
-            "Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
-            origin_w, origin_h, target_width, target_height, target_width, target_height
+            "normal Rec缩放: 原始={}x{}, 调整后={}x{}, 填充后={}x{}",
+            origin_w,
+            origin_h,
+            geometry.resized_width,
+            geometry.height,
+            geometry.tensor_width,
+            geometry.height
         ));
 
         // 初始化输入数组 (使用带填充的宽度)
-        let mut input = Array3::<f32>::zeros((3, target_height as usize, target_width as usize));
+        let mut input =
+            Array3::<f32>::zeros((3, geometry.height as usize, geometry.tensor_width as usize));
         let img_view = input.view_mut();
-        self.fill_image_tensor(img, target_width, target_width, img_view);
+        self.fill_image_tensor(img, geometry.resized_width, geometry.tensor_width, img_view);
 
         // 扩展到批次维度 (1, C, H, W)
         let input = input.insert_axis(Axis(0));
@@ -634,7 +673,10 @@ impl ModelHandler for PaddleRecCrnn {
     }
 
     fn get_target_height(&self) -> u32 {
-        self.base_model.input_height
+        self.base_model
+            .model_spatial_input()
+            .and_then(|input| input.height)
+            .unwrap_or(self.base_model.input_height)
     }
 }
 
@@ -661,12 +703,16 @@ impl TextRecognizer for PaddleRecCrnn {
         let samples: Vec<_> = cropped_images
             .into_par_iter()
             .enumerate()
-            .map(|(idx, image)| RecSample {
-                original_index: idx,
-                target_width: self.calc_target_width_rgba(&image),
-                image,
+            .map(|(idx, image)| {
+                let geometry = self.input_geometry_rgba(&image)?;
+                Ok(RecSample {
+                    original_index: idx,
+                    resized_width: geometry.resized_width,
+                    tensor_width: geometry.tensor_width,
+                    image,
+                })
             })
-            .collect();
+            .collect::<VisionResult<Vec<_>>>()?;
         if samples.len() != det_results.len() {
             Log::warn(
                 format!(
@@ -741,5 +787,89 @@ impl TextRecognizer for PaddleRecCrnn {
             index: indexes,
         };
         Ok(ocr_result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use domain_vision::{BaseModel as BaseModelConfig, InferenceBackend};
+    use std::path::PathBuf;
+
+    fn build_recognizer() -> PaddleRecCrnn {
+        PaddleRecCrnn::from(PaddleRecCrnnConfig {
+            base_model: BaseModelConfig {
+                intra_thread_num: 1,
+                intra_spinning: false,
+                inter_thread_num: 1,
+                inter_spinning: false,
+                execution_provider: InferenceBackend::CPU,
+                input_width: 320,
+                input_height: 48,
+                model_source: ModelSource::Custom,
+                model_path: PathBuf::new(),
+                model_type: ModelType::PaddleCrnn6,
+            },
+            dict_path: None,
+            resize_filter: RecResizeFilter::Triangle,
+            processing_mode: RecProcessingMode::Single,
+            micro_batch_size: 4,
+            width_bucket_step: 32,
+            parallel_cpu_session_intra_threads: 1,
+        })
+    }
+
+    #[test]
+    fn dynamic_width_keeps_content_width_and_only_aligns_tensor() {
+        let mut recognizer = build_recognizer();
+        recognizer
+            .base_model
+            .set_model_spatial_input_for_test(ModelSpatialInput {
+                width: None,
+                height: Some(48),
+            });
+
+        let geometry = recognizer.input_geometry_from_dims(101, 48).unwrap();
+        assert_eq!(geometry.resized_width, 101);
+        assert_eq!(geometry.tensor_width, 104);
+        assert_eq!(geometry.height, 48);
+    }
+
+    #[test]
+    fn static_width_uses_model_width_and_pads_short_content() {
+        let mut recognizer = build_recognizer();
+        recognizer
+            .base_model
+            .set_model_spatial_input_for_test(ModelSpatialInput {
+                width: Some(320),
+                height: Some(48),
+            });
+
+        let geometry = recognizer.input_geometry_from_dims(100, 50).unwrap();
+        assert_eq!(geometry.resized_width, 96);
+        assert_eq!(geometry.tensor_width, 320);
+        assert_eq!(geometry.height, 48);
+    }
+
+    #[test]
+    fn rgba_preprocess_uses_bgr_and_gray_padding() {
+        let mut recognizer = build_recognizer();
+        recognizer
+            .base_model
+            .set_model_spatial_input_for_test(ModelSpatialInput {
+                width: Some(2),
+                height: Some(1),
+            });
+        let image = RgbaImage::from_pixel(1, 1, image::Rgba([255, 0, 0, 255]));
+        let mut input = Array3::<f32>::zeros((3, 1, 2));
+
+        recognizer.fill_image_tensor_rgba(&image, 1, 2, input.view_mut());
+
+        assert!((input[[0, 0, 0]] + 1.0).abs() < f32::EPSILON);
+        assert!((input[[1, 0, 0]] + 1.0).abs() < f32::EPSILON);
+        assert!((input[[2, 0, 0]] - 1.0).abs() < f32::EPSILON);
+        assert_eq!(input[[0, 0, 1]], 0.0);
+        assert_eq!(input[[1, 0, 1]], 0.0);
+        assert_eq!(input[[2, 0, 1]], 0.0);
     }
 }

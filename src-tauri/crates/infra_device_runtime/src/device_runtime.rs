@@ -2,7 +2,7 @@ use crate::Log;
 use domain_device::{DeviceOperation, DevicePlatform};
 use image::RgbaImage;
 use infra_adb::{ADBCommand, try_get_adb_ctx};
-use infra_window_capture::{CaptureMethod, WindowCaptureConfig, WindowInfo};
+use infra_window_capture::{CaptureMethod, WindowCaptureConfig, WindowCaptureOffsets, WindowInfo};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
@@ -92,7 +92,12 @@ impl AndroidDeviceRuntime {
                     title: String::new(),
                     interface: infra_window_capture::WindowCaptureInterface::Gdi,
                     frame_timeout: Duration::from_secs(10),
-                    title_bar_height_px: 122,
+                    offsets: WindowCaptureOffsets {
+                        left: 1,
+                        top: 40,
+                        right: 1,
+                        bottom: 1,
+                    },
                 },
             ))),
         }

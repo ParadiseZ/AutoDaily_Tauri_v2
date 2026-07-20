@@ -7,4 +7,5 @@ cargo test -p infra-vision detect --release -- --ignored --nocapture
 cargo test -p infra-vision ocr --release -- --ignored --nocapture
 
 $env:WINDOW_CAP_TEST_TITLE=""
+$env:WINDOW_CAP_TEST_ROUNDS=10
 cargo test -p infra-window-capture test_capture_timing_for_window_title --release -- --ignored --nocapture

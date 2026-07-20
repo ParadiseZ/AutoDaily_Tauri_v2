@@ -7,6 +7,10 @@ lazy_static! {
 }
 
 pub trait LogTrait: Send + Sync {
+    fn is_debug_enabled(&self) -> bool;
+    fn is_info_enabled(&self) -> bool;
+    fn is_warn_enabled(&self) -> bool;
+    fn is_error_enabled(&self) -> bool;
     fn debug(&self, msg: &str);
     fn info(&self, msg: &str);
     fn warn(&self, msg: &str);
@@ -35,9 +39,21 @@ impl Log {
             log.debug(msg);
         }
     }
+    pub fn debug_lazy(message: impl FnOnce() -> String) {
+        if let Some(log) = LOGGER.get().filter(|log| log.is_debug_enabled()) {
+            let message = message();
+            log.debug(&message);
+        }
+    }
     pub fn info(msg: &str) {
         if let Some(log) = LOGGER.get() {
             log.info(msg);
+        }
+    }
+    pub fn info_lazy(message: impl FnOnce() -> String) {
+        if let Some(log) = LOGGER.get().filter(|log| log.is_info_enabled()) {
+            let message = message();
+            log.info(&message);
         }
     }
     pub fn warn(msg: &str) {
@@ -45,9 +61,21 @@ impl Log {
             log.warn(msg);
         }
     }
+    pub fn warn_lazy(message: impl FnOnce() -> String) {
+        if let Some(log) = LOGGER.get().filter(|log| log.is_warn_enabled()) {
+            let message = message();
+            log.warn(&message);
+        }
+    }
     pub fn error(msg: &str) {
         if let Some(log) = LOGGER.get() {
             log.error(msg);
+        }
+    }
+    pub fn error_lazy(message: impl FnOnce() -> String) {
+        if let Some(log) = LOGGER.get().filter(|log| log.is_error_enabled()) {
+            let message = message();
+            log.error(&message);
         }
     }
 }

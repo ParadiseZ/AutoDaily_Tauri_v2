@@ -157,6 +157,22 @@ impl LogMain {
 }
 
 impl LogTrait for LogMain {
+    fn is_debug_enabled(&self) -> bool {
+        tracing::enabled!(tracing::Level::DEBUG)
+    }
+
+    fn is_info_enabled(&self) -> bool {
+        tracing::enabled!(tracing::Level::INFO)
+    }
+
+    fn is_warn_enabled(&self) -> bool {
+        tracing::enabled!(tracing::Level::WARN)
+    }
+
+    fn is_error_enabled(&self) -> bool {
+        tracing::enabled!(tracing::Level::ERROR)
+    }
+
     fn debug(&self, msg: &str) {
         tracing::debug!("{}", msg);
     }

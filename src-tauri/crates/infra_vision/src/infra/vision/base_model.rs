@@ -10,11 +10,18 @@ use ort::logging::LogLevel;
 use ort::session::Session;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::value::TensorRef;
+use ort::value::ValueType;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, TryLockError};
 
 /// 基础模型结构 - 包含所有模型的通用字段
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ModelSpatialInput {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+}
 
 pub(crate) struct BaseModel {
     pub session: Option<Mutex<Session>>,
@@ -36,6 +43,7 @@ pub(crate) struct BaseModel {
     pub model_path: std::path::PathBuf,
     pub is_loaded: bool,
     pub model_type: ModelType,
+    model_spatial_input: Option<ModelSpatialInput>,
 }
 
 impl std::fmt::Debug for BaseModel {
@@ -138,6 +146,7 @@ impl BaseModel {
             model_path,
             is_loaded: false,
             model_type,
+            model_spatial_input: None,
             session_pool: Vec::new(),
             session_cursor: Self::default_session_cursor(),
         }
@@ -215,6 +224,47 @@ impl BaseModel {
                 method: "load_model_base".to_string(),
                 e: e.to_string(),
             })
+    }
+
+    fn inspect_model_input(session: &Session) -> Option<ModelSpatialInput> {
+        let input = session
+            .inputs()
+            .iter()
+            .find(|input| input.name() == "images")
+            .or_else(|| session.inputs().first())?;
+        let ValueType::Tensor { shape, .. } = input.dtype() else {
+            Log::info(&format!(
+                "模型输入尺寸: name={}, type={}",
+                input.name(),
+                input.dtype()
+            ));
+            return None;
+        };
+
+        Log::info(&format!(
+            "模型输入尺寸: name={}, shape={}, layout=NCHW",
+            input.name(),
+            shape
+        ));
+        if shape.len() != 4 {
+            return None;
+        }
+
+        let height = shape[2];
+        let width = shape[3];
+        Some(ModelSpatialInput {
+            width: (width > 0).then_some(width as u32),
+            height: (height > 0).then_some(height as u32),
+        })
+    }
+
+    pub(crate) fn model_spatial_input(&self) -> Option<ModelSpatialInput> {
+        self.model_spatial_input
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_model_spatial_input_for_test(&mut self, input: ModelSpatialInput) {
+        self.model_spatial_input = Some(input);
     }
 
     fn with_session<R, F>(&self, run: F) -> VisionResult<R>
@@ -304,10 +354,12 @@ impl BaseModel {
         }
 
         let mut sessions = Vec::with_capacity(session_count);
-        for _ in 0..session_count {
-            sessions.push(Mutex::new(
-                self.build_session(&final_path, session_intra_threads)?,
-            ));
+        for session_index in 0..session_count {
+            let session = self.build_session(&final_path, session_intra_threads)?;
+            if session_index == 0 {
+                self.model_spatial_input = Self::inspect_model_input(&session);
+            }
+            sessions.push(Mutex::new(session));
         }
 
         // 5. 更新状态

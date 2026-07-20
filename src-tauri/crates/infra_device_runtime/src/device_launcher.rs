@@ -291,7 +291,13 @@ fn build_connection_candidates(config: &DeviceConfig) -> Vec<ADBConnectConfig> {
         DeviceTransportKind::AdbWireless => {
             let mut configs = Vec::new();
             match resolve_wireless_mdns_direct_tcp(config) {
-                Ok(Some(config)) => configs.push(config),
+                Ok(Some(config)) => {
+                    Log::debug(&format!(
+                        "[ launcher ] 无线 mDNS 找到 DirectTcp 候选: {}",
+                        config
+                    ));
+                    configs.push(config);
+                }
                 Ok(None) => Log::warn(
                     "[ launcher ] mDNS 未找到匹配的无线调试设备，回退到 ServeByIdentifier",
                 ),
@@ -301,6 +307,7 @@ fn build_connection_candidates(config: &DeviceConfig) -> Vec<ADBConnectConfig> {
                 )),
             }
             configs.push(serve_by_identifier_config(config));
+            Log::debug(&format!("[ launcher ] 无线 ADB 连接候选: {configs:?}"));
             configs
         }
     }
@@ -339,6 +346,10 @@ fn resolve_wireless_mdns_direct_tcp(
     let services = server
         .mdns_services()
         .map_err(|e| format!("[ launcher ] 读取 mDNS services 失败: {}", e))?;
+    Log::debug(&format!(
+        "[ launcher ] mDNS 查询完成: identifier={identifier}, server={server_connect}, services={}",
+        services.len()
+    ));
 
     let direct_addr = services
         .iter()

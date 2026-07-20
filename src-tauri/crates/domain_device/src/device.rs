@@ -131,8 +131,14 @@ pub enum CapMethod {
         interface: WindowCaptureInterface,
         #[serde(default = "default_frame_timeout_secs")]
         frame_timeout_secs: u32,
-        #[serde(default = "default_title_bar_height_px")]
-        title_bar_height_px: u32,
+        #[serde(default = "default_window_offset_side_px")]
+        offset_left_px: u32,
+        #[serde(default = "default_window_offset_top_px")]
+        offset_top_px: u32,
+        #[serde(default = "default_window_offset_side_px")]
+        offset_right_px: u32,
+        #[serde(default = "default_window_offset_side_px")]
+        offset_bottom_px: u32,
     },
     Adb,
 }
@@ -143,6 +149,8 @@ pub enum CapMethod {
 pub enum WindowCaptureInterface {
     Dxgi,
     Gdi,
+    DwmGetDxSharedSurface,
+    Wgc,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq, ts_rs::TS)]
@@ -203,7 +211,10 @@ impl Default for DeviceConfig {
                 title: "AutoDaily".into(),
                 interface: WindowCaptureInterface::default(),
                 frame_timeout_secs: default_frame_timeout_secs(),
-                title_bar_height_px: default_title_bar_height_px(),
+                offset_left_px: default_window_offset_side_px(),
+                offset_top_px: default_window_offset_top_px(),
+                offset_right_px: default_window_offset_side_px(),
+                offset_bottom_px: default_window_offset_side_px(),
             },
             image_compression: ImageCompression::WindowOriginal,
             enable: false,
@@ -245,8 +256,12 @@ fn default_frame_timeout_secs() -> u32 {
     10
 }
 
-fn default_title_bar_height_px() -> u32 {
-    122
+fn default_window_offset_side_px() -> u32 {
+    1
+}
+
+fn default_window_offset_top_px() -> u32 {
+    40
 }
 
 fn default_adb_server_connect() -> Option<SocketAddrV4> {

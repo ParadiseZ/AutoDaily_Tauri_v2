@@ -94,8 +94,13 @@ impl ScriptExecutor {
             )?;
             Log::debug(&format!(
                 "[ executor ] 策略集[{}]展开后的策略组顺序: {}",
-                set_id,
-                Self::format_id_list(&group_ids)
+                set_map
+                    .get(set_id)
+                    .map(|set| set.info.name.as_str())
+                    .unwrap_or("<不存在>"),
+                Self::format_name_list(&group_ids, |id| {
+                    group_map.get(id).map(|group| group.info.name.clone())
+                })
             ));
 
             for group_id in group_ids {
@@ -109,8 +114,13 @@ impl ScriptExecutor {
                 )?;
                 Log::debug(&format!(
                     "[ executor ] 策略组[{}]展开后的策略顺序: {}",
-                    group_id,
-                    Self::format_id_list(&policy_ids)
+                    group_map
+                        .get(&group_id)
+                        .map(|group| group.info.name.as_str())
+                        .unwrap_or("<不存在>"),
+                    Self::format_name_list(&policy_ids, |id| {
+                        policy_map.get(id).map(|policy| policy.info.name.clone())
+                    })
                 ));
 
                 for policy_id in policy_ids {
@@ -250,8 +260,13 @@ impl ScriptExecutor {
         )?;
         Log::debug(&format!(
             "[ executor ] 策略组[{}]展开后的策略顺序: {}",
-            group_id,
-            Self::format_id_list(&policy_ids)
+            group_map
+                .get(&group_id)
+                .map(|group| group.info.name.as_str())
+                .unwrap_or("<不存在>"),
+            Self::format_name_list(&policy_ids, |id| {
+                policy_map.get(id).map(|policy| policy.info.name.clone())
+            })
         ));
 
         let mut candidates = Vec::new();
@@ -400,15 +415,13 @@ impl ScriptExecutor {
         }
     }
 
-    fn format_id_list<T>(items: &[T]) -> String
-    where
-        T: ToString,
-    {
+    fn format_name_list<T>(items: &[T], name_of: impl Fn(&T) -> Option<String>) -> String {
         if items.is_empty() {
             return "<empty>".to_string();
         }
-        items.iter()
-            .map(ToString::to_string)
+        items
+            .iter()
+            .map(|item| name_of(item).unwrap_or_else(|| "<不存在>".to_string()))
             .collect::<Vec<_>>()
             .join(" -> ")
     }

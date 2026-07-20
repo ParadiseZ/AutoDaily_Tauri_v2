@@ -6,7 +6,9 @@ use domain_device::{
     WindowCaptureInterface as DeviceWindowCaptureInterface,
 };
 use image::RgbaImage;
-use infra_window_capture::{CaptureMethod, WindowCaptureConfig, WindowCaptureInterface};
+use infra_window_capture::{
+    CaptureMethod, WindowCaptureConfig, WindowCaptureInterface, WindowCaptureOffsets,
+};
 use std::sync::{Arc, OnceLock};
 use tokio::sync::RwLock;
 
@@ -40,15 +42,27 @@ impl DeviceCtx {
                 title,
                 interface,
                 frame_timeout_secs,
-                title_bar_height_px,
+                offset_left_px,
+                offset_top_px,
+                offset_right_px,
+                offset_bottom_px,
             } => Some(WindowCaptureConfig {
                 title: title.clone(),
                 interface: match interface {
                     DeviceWindowCaptureInterface::Dxgi => WindowCaptureInterface::Dxgi,
                     DeviceWindowCaptureInterface::Gdi => WindowCaptureInterface::Gdi,
+                    DeviceWindowCaptureInterface::DwmGetDxSharedSurface => {
+                        WindowCaptureInterface::DwmGetDxSharedSurface
+                    }
+                    DeviceWindowCaptureInterface::Wgc => WindowCaptureInterface::Wgc,
                 },
                 frame_timeout: std::time::Duration::from_secs((*frame_timeout_secs).max(1) as u64),
-                title_bar_height_px: *title_bar_height_px,
+                offsets: WindowCaptureOffsets {
+                    left: *offset_left_px,
+                    top: *offset_top_px,
+                    right: *offset_right_px,
+                    bottom: *offset_bottom_px,
+                },
             }),
             _ => None,
         }
