@@ -343,11 +343,41 @@ impl<'a> SequenceOperationCompiler<'a> {
         duration: u64,
     ) -> ExecuteResult<Result<CompiledSequenceOperation, String>> {
         let (from, to) = match mode {
-            SwipeMode::Point { from, to } => (
-                ScriptExecutor::point_to_absolute(from),
-                ScriptExecutor::point_to_absolute(to),
-            ),
-            SwipeMode::Percent { from, to } => {
+            SwipeMode::Point {
+                from,
+                to,
+                from_expr,
+                to_expr,
+            } => {
+                if [from_expr, to_expr]
+                    .into_iter()
+                    .flatten()
+                    .any(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "滑动依赖变量点位，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
+                (
+                    ScriptExecutor::point_to_absolute(from),
+                    ScriptExecutor::point_to_absolute(to),
+                )
+            }
+            SwipeMode::Percent {
+                from,
+                to,
+                from_expr,
+                to_expr,
+            } => {
+                if [from_expr, to_expr]
+                    .into_iter()
+                    .flatten()
+                    .any(|value| !value.trim().is_empty())
+                {
+                    return Ok(Err(
+                        "滑动依赖变量点位，不能合并进固定 Sequence".to_string(),
+                    ));
+                }
                 let screen_size = self.executor.ensure_screen_size().await?;
                 (
                     ScriptExecutor::percent_point_to_absolute(from, screen_size)?,

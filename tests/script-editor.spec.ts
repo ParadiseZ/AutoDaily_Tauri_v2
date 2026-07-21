@@ -143,6 +143,11 @@ const openCollectionContextMenu = async (page: Page, prefix: string, itemId: str
   await expect(page.getByTestId(`${prefix}-context-menu`)).toBeVisible();
 };
 
+const selectDropdownOptionByValue = async (page: Page, testId: string, value: string) => {
+  await page.getByTestId(testId).click();
+  await page.getByTestId(`${testId}-option-${value}`).click();
+};
+
 const expectItemVisibleInScrollArea = async (page: Page, scrollTestId: string, itemTestId: string) => {
   await expect.poll(async () => page.evaluate(({ scrollTestId: nextScrollTestId, itemTestId: nextItemTestId }) => {
     const scrollRoot = document.querySelector(`[data-testid="${nextScrollTestId}"]`) as HTMLElement | null;
@@ -302,6 +307,83 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
 
+test('edits JSON point values through dedicated task UI controls', async ({ page }) => {
+  const scriptId = 'script-editor-point-ui';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '点位 UI 脚本',
+      description: '验证坐标点位 UI 写回 JSON 输入变量',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-add').click();
+  await page.getByTestId('editor-input-key-0').fill('tapPoint');
+  await selectOptionByValue(page, 'editor-input-type-0', 'json');
+  await page.locator('textarea.app-textarea').fill('{"x":120,"y":240}');
+
+  await page.getByTestId('editor-tab-ui').click();
+  await page.getByTestId('editor-ui-template-point').click();
+  await selectOptionByLabel(page, 'editor-ui-field-bind-0', 'tapPoint');
+  await expect(page.getByTestId('editor-ui-preview-control-0-x')).toHaveValue('120');
+  await expect(page.getByTestId('editor-ui-preview-control-0-y')).toHaveValue('240');
+  await page.getByTestId('editor-ui-preview-control-0-x').fill('321');
+  await page.getByTestId('editor-ui-preview-control-0-y').fill('654');
+
+  await page.getByTestId('editor-ui-template-percentPoint').click();
+  await selectOptionByLabel(page, 'editor-ui-field-bind-1', 'tapPoint');
+  await expect(page.getByTestId('editor-ui-preview-control-1-x')).toHaveValue('321');
+  await expect(page.getByTestId('editor-ui-preview-control-1-y')).toHaveValue('654');
+  await page.getByTestId('editor-ui-preview-control-1-x').fill('2');
+  await page.getByTestId('editor-ui-preview-control-1-y').fill('-1');
+  await expect(page.getByTestId('editor-ui-preview-control-1-x')).toHaveValue('1');
+  await expect(page.getByTestId('editor-ui-preview-control-1-y')).toHaveValue('0');
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  const savedScript = state!.scripts.find((item) => item.id === scriptId);
+  expect(savedScript?.data.variableCatalog.variables).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        key: 'input.tapPoint',
+        valueType: 'json',
+        defaultValue: { x: 1, y: 0 },
+      }),
+    ]),
+  );
+  expect(task.data.uiData).toMatchObject({
+    fields: [
+      expect.objectContaining({ control: 'point', inputKey: 'tapPoint' }),
+      expect.objectContaining({ control: 'percentPoint', inputKey: 'tapPoint' }),
+    ],
+  });
+});
+
 test('switches task steps without reusing the previous task workspace', async ({ page }) => {
   const scriptId = 'script-editor-task-step-switch';
   const script: StoredScriptTable = {
@@ -411,6 +493,12 @@ test('isolates then, else, and sequence child step containers', async ({ page })
   await page.getByTestId('editor-step-template-sequence').click();
   await page.getByTestId('editor-step-card-1').click();
   await page.getByTestId('editor-branch-sequence').click();
+  await expect(page.getByTestId('editor-step-template-click-text')).toBeVisible();
+  await expect(page.getByTestId('editor-step-template-swipe-label-to-text')).toBeVisible();
+  await expect(page.getByTestId('editor-step-template-capture')).toHaveCount(0);
+  await expect(page.getByTestId('editor-step-template-pos-add')).toHaveCount(0);
+  await expect(page.getByTestId('editor-step-template-pos-minus')).toHaveCount(0);
+  await expect(page.getByTestId('editor-step-template-drop-set-next')).toHaveCount(0);
   await page.getByTestId('editor-step-template-click-point').click();
   await expect(page.getByTestId('editor-step-card-0')).toContainText('点击');
   await expect(page.getByTestId('editor-step-card-1')).toHaveCount(0);
@@ -3138,6 +3226,22 @@ test('switches preset and binding editors for launch click and wait steps', asyn
             description: '',
           },
           {
+            id: 'var-swipe-point',
+            key: 'input.swipePoint',
+            name: '滑动点位变量',
+            namespace: 'input',
+            valueType: 'json',
+            ownerTaskId: 'preset_binding_task',
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: false,
+            defaultValue: { x: 100, y: 200 },
+            description: '',
+          },
+          {
             id: 'var-target-text',
             key: 'input.targetText',
             name: '目标文字变量',
@@ -3357,6 +3461,23 @@ test('switches preset and binding editors for launch click and wait steps', asyn
                 ms: 1000,
               },
             },
+            {
+              id: null,
+              source_id: null,
+              target_id: null,
+              label: '滑动坐标',
+              skip_flag: false,
+              exec_cur: 0,
+              exec_max: 1,
+              op: 'action',
+              a: {
+                ac: 'swipe',
+                mode: 'point',
+                duration: 300,
+                from: { x: 100, y: 200 },
+                to: { x: 300, y: 400 },
+              },
+            },
           ],
         },
         createdAt: '2026-03-26T08:00:00.000Z',
@@ -3388,12 +3509,16 @@ test('switches preset and binding editors for launch click and wait steps', asyn
   await page.getByTestId('editor-step-card-1').click();
   await selectOptionByValue(page, 'editor-action-click-point-source', 'expr');
   await expect(page.getByTestId('editor-action-click-point-var')).toBeVisible();
-  await selectOptionByValue(page, 'editor-action-click-point-var', 'input.tapPoint');
+  await selectDropdownOptionByValue(page, 'editor-action-click-point-var', 'input.tapPoint');
 
   await page.getByTestId('editor-step-card-2').click();
   await selectOptionByValue(page, 'editor-action-click-point-source', 'expr');
   await expect(page.getByTestId('editor-action-click-point-var')).toBeVisible();
-  await selectOptionByValue(page, 'editor-action-click-point-var', 'input.tapPercent');
+  await selectDropdownOptionByValue(page, 'editor-action-click-point-var', 'input.tapPercent');
+  await expect(page.getByTestId('editor-action-click-point-var')).toContainText('点击百分比变量');
+  await page.getByTestId('editor-save').click();
+  const clickBindingState = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(clickBindingState!.scriptTasks[scriptId][0].data.steps[2].a).toMatchObject({ p_expr: 'input.tapPercent' });
 
   await page.getByTestId('editor-step-card-3').click();
   await selectOptionByValue(page, 'editor-action-click-text-filter-source', 'expr');
@@ -3404,6 +3529,19 @@ test('switches preset and binding editors for launch click and wait steps', asyn
   await selectOptionByValue(page, 'editor-action-click-label-filter-source', 'expr');
   await expect(page.getByTestId('editor-action-click-label-var')).toBeVisible();
   await selectOptionByValue(page, 'editor-action-click-label-var', 'input.targetLabel');
+
+  await page.getByTestId('editor-step-card-6').click();
+  await selectOptionByValue(page, 'editor-action-swipe-from-point-source', 'expr');
+  await selectDropdownOptionByValue(page, 'editor-action-swipe-from-point-var', 'input.swipePoint');
+  await selectOptionByValue(page, 'editor-action-swipe-to-point-source', 'expr');
+  await selectDropdownOptionByValue(page, 'editor-action-swipe-to-point-var', 'input.swipePoint');
+  await page.getByTestId('editor-save').click();
+  const bindingState = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(bindingState!.scriptTasks[scriptId][0].data.steps[2].a).toMatchObject({ p_expr: 'input.tapPercent' });
+  expect(bindingState!.scriptTasks[scriptId][0].data.steps[6].a).toMatchObject({
+    from_expr: 'input.swipePoint',
+    to_expr: 'input.swipePoint',
+  });
 
   await page.getByTestId('editor-step-card-5').click();
   await selectOptionByValue(page, 'editor-flow-wait-binding-mode', 'expr');
@@ -3417,6 +3555,12 @@ test('switches preset and binding editors for launch click and wait steps', asyn
   await selectOptionByValue(page, 'editor-flow-wait-input-var', 'input.waitMs');
   await page.getByTestId('editor-tab-inputs').click();
   await expect(page.getByText('等待毫秒变量', { exact: true })).toHaveClass(/text-emerald-600/);
+  await expect(page.getByText('点击坐标变量', { exact: true })).toHaveClass(/text-emerald-600/);
+  await expect(page.getByText('滑动点位变量', { exact: true })).toHaveClass(/text-emerald-600/);
+  await page.getByText('滑动点位变量', { exact: true }).click();
+  const selectedVariableKey = page.locator('input[placeholder="例如：activitySweepCount"]');
+  await expect(selectedVariableKey).toHaveValue('swipePoint');
+  await selectedVariableKey.fill('swipePointRenamed');
   await page.getByTestId('editor-tab-steps').click();
 
   await page.getByTestId('editor-save').click();
@@ -3469,6 +3613,15 @@ test('switches preset and binding editors for launch click and wait steps', asyn
     a: {
       type: 'waitMs',
       input_var: 'input.waitMs',
+    },
+  });
+  expect(task.data.steps[6]).toMatchObject({
+    op: 'action',
+    a: {
+      ac: 'swipe',
+      mode: 'point',
+      from_expr: 'input.swipePointRenamed',
+      to_expr: 'input.swipePointRenamed',
     },
   });
 });

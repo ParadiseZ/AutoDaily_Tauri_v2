@@ -45,10 +45,18 @@ pub enum SwipeMode {
     Percent {
         from: PointF32,
         to: PointF32,
+        #[serde(default)]
+        from_expr: Option<String>,
+        #[serde(default)]
+        to_expr: Option<String>,
     },
     Point {
         from: PointU16,
         to: PointU16,
+        #[serde(default)]
+        from_expr: Option<String>,
+        #[serde(default)]
+        to_expr: Option<String>,
     },
     LabelIdx {
         input_var: String,

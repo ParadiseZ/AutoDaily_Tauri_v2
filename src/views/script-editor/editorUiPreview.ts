@@ -7,10 +7,14 @@ import {
 } from '@/views/script-editor/editorVariables';
 import type { EditorUiField } from '@/views/script-editor/editorSchema';
 
-export const buildUiBindOptions = (variableOptions: EditorVariableOption[]) => [
+export const buildUiBindOptions = (variableOptions: EditorVariableOption[], includeJsonInput = false) => [
   { label: '未绑定', value: null, description: '纯展示字段或说明文本。' },
   ...variableOptions
-    .filter((entry) => entry.uiBindable)
+    .filter(
+      (entry) =>
+        entry.uiBindable ||
+        (includeJsonInput && entry.namespace === 'input' && (entry.valueType === 'json' || entry.valueType === 'object')),
+    )
     .map((entry) => ({
       label: entry.label || entry.key || '未命名输入',
       value: entry.id,

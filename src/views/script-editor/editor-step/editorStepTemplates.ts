@@ -36,20 +36,6 @@ export interface EditorStepTemplate {
   create: () => Step;
 }
 
-export const ACTION_SEQUENCE_TEMPLATE_IDS = [
-  'launch-app',
-  'stop-app',
-  'click-point',
-  'click-percent',
-  'swipe-point',
-  'swipe-percent',
-  'back',
-  'wait',
-] as const;
-
-export const isActionSequenceTemplateId = (templateId: string) =>
-  ACTION_SEQUENCE_TEMPLATE_IDS.includes(templateId as (typeof ACTION_SEQUENCE_TEMPLATE_IDS)[number]);
-
 const castStep = (value: unknown) => value as Step;
 
 const createBaseStep = (partial: Record<string, unknown>) =>
@@ -281,6 +267,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           duration: 300,
           from: { x: 640, y: 560 },
           to: { x: 640, y: 180 },
+          from_expr: null,
+          to_expr: null,
         },
       }),
   },
@@ -301,6 +289,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           duration: 300,
           from: { x: 0.5, y: 0.75 },
           to: { x: 0.5, y: 0.25 },
+          from_expr: null,
+          to_expr: null,
         },
       }),
   },
@@ -322,6 +312,8 @@ export const editorStepTemplates: EditorStepTemplate[] = [
           input_var: 'runtime.ocrResults',
           from: '开始',
           to: '结束',
+          from_expr: null,
+          to_expr: null,
         },
       }),
   },
@@ -1038,6 +1030,20 @@ export const editorStepTemplates: EditorStepTemplate[] = [
       }),
   },
 ];
+
+export const isActionSequenceTemplateId = (templateId: string) => {
+  const template = editorStepTemplates.find((item) => item.id === templateId);
+  if (!template) return false;
+
+  const step = template.create();
+  if (step.op === STEP_OP.action) {
+    return step.a.ac !== ACTION_TYPE.capture
+      && step.a.ac !== ACTION_TYPE.posAdd
+      && step.a.ac !== ACTION_TYPE.posMinus
+      && step.a.ac !== ACTION_TYPE.dropSetNext;
+  }
+  return step.op === STEP_OP.flowControl && step.a.type === FLOW_TYPE.waitMs;
+};
 
 export const createStepFromTemplate = (templateId: string) =>
   editorStepTemplates.find((template) => template.id === templateId)?.create() ?? null;

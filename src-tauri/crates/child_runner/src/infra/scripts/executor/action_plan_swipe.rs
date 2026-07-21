@@ -5,9 +5,16 @@ impl ScriptExecutor {
         duration: u64,
     ) -> ExecuteResult<PlannedDeviceAction> {
         let (from, to, trace) = match mode {
-            SwipeMode::Point { from, to } => {
-                let from_point = Self::point_to_absolute(from);
-                let to_point = Self::point_to_absolute(to);
+            SwipeMode::Point {
+                from,
+                to,
+                from_expr,
+                to_expr,
+            } => {
+                let from = self.resolve_u16_point(from, from_expr.as_deref(), "action.swipe")?;
+                let to = self.resolve_u16_point(to, to_expr.as_deref(), "action.swipe")?;
+                let from_point = Self::point_to_absolute(&from);
+                let to_point = Self::point_to_absolute(&to);
                 (
                     from_point,
                     to_point,
@@ -27,10 +34,17 @@ impl ScriptExecutor {
                     ),
                 )
             }
-            SwipeMode::Percent { from, to } => {
+            SwipeMode::Percent {
+                from,
+                to,
+                from_expr,
+                to_expr,
+            } => {
                 let screen_size = self.ensure_screen_size().await?;
-                let from_point = Self::percent_point_to_absolute(from, screen_size)?;
-                let to_point = Self::percent_point_to_absolute(to, screen_size)?;
+                let from = self.resolve_f32_point(from, from_expr.as_deref(), "action.swipe")?;
+                let to = self.resolve_f32_point(to, to_expr.as_deref(), "action.swipe")?;
+                let from_point = Self::percent_point_to_absolute(&from, screen_size)?;
+                let to_point = Self::percent_point_to_absolute(&to, screen_size)?;
                 (
                     from_point,
                     to_point,

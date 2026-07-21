@@ -227,12 +227,23 @@ impl<'a> ActionRunner<'a> {
 
     fn describe_swipe_mode(mode: &SwipeMode) -> String {
         match mode {
-            SwipeMode::Point { from, to } => {
-                format!("point from=({}, {}) to=({}, {})", from.x, from.y, to.x, to.y)
-            }
-            SwipeMode::Percent { from, to } => format!(
-                "percent from=({:.3}, {:.3}) to=({:.3}, {:.3})",
-                from.x, from.y, to.x, to.y
+            SwipeMode::Point {
+                from,
+                to,
+                from_expr,
+                to_expr,
+            } => format!(
+                "point from=({}, {}) to=({}, {}), from_expr={:?}, to_expr={:?}",
+                from.x, from.y, to.x, to.y, from_expr, to_expr
+            ),
+            SwipeMode::Percent {
+                from,
+                to,
+                from_expr,
+                to_expr,
+            } => format!(
+                "percent from=({:.3}, {:.3}) to=({:.3}, {:.3}), from_expr={:?}, to_expr={:?}",
+                from.x, from.y, to.x, to.y, from_expr, to_expr
             ),
             SwipeMode::LabelIdx {
                 input_var,

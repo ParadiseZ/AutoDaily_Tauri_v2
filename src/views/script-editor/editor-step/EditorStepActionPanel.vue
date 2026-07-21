@@ -198,7 +198,7 @@
         />
       </template>
 
-      <div v-if="selectedAction.mode !== ACTION_MODE.point && selectedAction.mode === ACTION_MODE.percent" class="border-1"></div>
+      <div v-if="selectedAction.mode !== ACTION_MODE.point && selectedAction.mode !== ACTION_MODE.percent" class="border-1"></div>
       
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-3">
         <label class="md:col-span-2 flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
@@ -307,7 +307,7 @@
           </template>
         </div>
       </div>
-      <div v-if="selectedAction.mode !== ACTION_MODE.point && selectedAction.mode === ACTION_MODE.percent" class="border-1"></div>
+      <div v-if="selectedAction.mode !== ACTION_MODE.point && selectedAction.mode !== ACTION_MODE.percent" class="border-1"></div>
       <div class="editor-compact-grid editor-compact-grid--triple">
         <!-- <label class="editor-compact-field">
           <span class="editor-compact-field__label">点击方式</span>
@@ -339,57 +339,28 @@
         </label>
       </div>
 
-      <EditorPresetBindingSection
+      <EditorPointBindingSection
         v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent"
+        key="click-point-binding"
         :label="selectedAction.mode === ACTION_MODE.point ? '坐标来源' : '百分比来源'"
-        :model-value="clickPointSource"
-        :options="presetBindingModeOptions"
-        placeholder="选择点位来源"
-        test-id="editor-action-click-point-source"
-        @update:model-value="updateClickPointSource(String($event || 'fixed'))"
-      >
-        <template #fixed>
-          <div class="editor-compact-grid">
-            <label class="editor-compact-field">
-              <span class="editor-compact-field__label">X</span>
-              <input
-                :value="String((selectedAction.p as { x?: number })?.x ?? '')"
-                class="app-input"
-                type="number"
-                @input="$emit('update-point-field', 'p', 'x', ($event.target as HTMLInputElement).value)"
-              />
-            </label>
-            <label class="editor-compact-field">
-              <span class="editor-compact-field__label">Y</span>
-              <input
-                :value="String((selectedAction.p as { y?: number })?.y ?? '')"
-                class="app-input"
-                type="number"
-                @input="$emit('update-point-field', 'p', 'y', ($event.target as HTMLInputElement).value)"
-              />
-            </label>
-          </div>
-        </template>
-        <template #binding>
-          <EditorVariableBindingField
-            label="点位变量"
-            :model-value="selectedAction.p_expr || null"
-            :options="resolvedClickPointVariableOptions"
-            placeholder="绑定 JSON 点位变量"
-            test-id="editor-action-click-point-var"
-            create-label="新建点位变量"
-            :show-create="Boolean(createVariable)"
-            :show-locate="Boolean(selectedClickPointTarget && jumpToVariable)"
-            :locate-disabled="!selectedClickPointTarget || !jumpToVariable"
-            @update:model-value="$emit('update-text-field', 'p_expr', String($event || ''))"
-            @create="$emit('create-variable', 'clickPoint')"
-            @locate="selectedClickPointTarget ? $emit('jump-to-variable', selectedClickPointTarget) : undefined"
-          />
-          <p class="text-xs leading-5 text-(--app-text-soft)">
-            变量值使用 JSON `{ "x": ..., "y": ... }`。坐标模式读绝对值；百分比模式读 0 到 1。
-          </p>
-        </template>
-      </EditorPresetBindingSection>
+        :mode="selectedAction.mode"
+        :source="clickPointSource"
+        :point="selectedAction.p"
+        variable-label="点位变量"
+        :variable-value="selectedAction.p_expr"
+        :variable-options="resolvedClickPointVariableOptions"
+        :source-options="presetBindingModeOptions"
+        source-test-id="editor-action-click-point-source"
+        variable-test-id="editor-action-click-point-var"
+        create-label="新建点位变量"
+        :show-create="Boolean(createVariable)"
+        :show-locate="Boolean(selectedClickPointTarget && jumpToVariable)"
+        @update-source="updateClickPointSource"
+        @update-point="(axis, value) => $emit('update-point-field', 'p', axis, value)"
+        @update-variable="$emit('update-text-field', 'p_expr', String($event || ''))"
+        @create="$emit('create-variable', 'clickPoint')"
+        @locate="selectedClickPointTarget ? $emit('jump-to-variable', selectedClickPointTarget) : undefined"
+      />
 
     </template>
 
@@ -427,47 +398,49 @@
         />
       </template>
 
-      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="editor-compact-grid editor-compact-grid--quad">
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">起点 X</span>
-          <input
-            :value="String((selectedAction.from as { x?: number })?.x ?? '')"
-            aria-label="起点 X"
-            class="app-input"
-            type="number"
-            @input="$emit('update-point-field', 'from', 'x', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">起点 Y</span>
-          <input
-            :value="String((selectedAction.from as { y?: number })?.y ?? '')"
-            aria-label="起点 Y"
-            class="app-input"
-            type="number"
-            @input="$emit('update-point-field', 'from', 'y', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">终点 X</span>
-          <input
-            :value="String((selectedAction.to as { x?: number })?.x ?? '')"
-            aria-label="终点 X"
-            class="app-input"
-            type="number"
-            @input="$emit('update-point-field', 'to', 'x', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
-        <label class="editor-compact-field">
-          <span class="editor-compact-field__label">终点 Y</span>
-          <input
-            :value="String((selectedAction.to as { y?: number })?.y ?? '')"
-            aria-label="终点 Y"
-            class="app-input"
-            type="number"
-            @input="$emit('update-point-field', 'to', 'y', ($event.target as HTMLInputElement).value)"
-          />
-        </label>
+      <div v-if="selectedAction.mode === ACTION_MODE.point || selectedAction.mode === ACTION_MODE.percent" class="grid gap-4 md:grid-cols-2">
+        <EditorPointBindingSection
+          key="swipe-from-point-binding"
+          label="起点来源"
+          :mode="selectedAction.mode"
+          :source="swipeFromPointSource"
+          :point="selectedAction.from"
+          variable-label="起点变量"
+          :variable-value="selectedAction.from_expr"
+          :variable-options="resolvedSwipeFromPointVariableOptions"
+          :source-options="presetBindingModeOptions"
+          source-test-id="editor-action-swipe-from-point-source"
+          variable-test-id="editor-action-swipe-from-point-var"
+          create-label="新建起点变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedSwipeFromPointTarget && jumpToVariable)"
+          @update-source="updateSwipePointSource('from', $event)"
+          @update-point="(axis, value) => $emit('update-point-field', 'from', axis, value)"
+          @update-variable="$emit('update-text-field', 'from_expr', String($event || ''))"
+          @create="$emit('create-variable', 'swipeFromPoint')"
+          @locate="selectedSwipeFromPointTarget ? $emit('jump-to-variable', selectedSwipeFromPointTarget) : undefined"
+        />
+        <EditorPointBindingSection
+          key="swipe-to-point-binding"
+          label="终点来源"
+          :mode="selectedAction.mode"
+          :source="swipeToPointSource"
+          :point="selectedAction.to"
+          variable-label="终点变量"
+          :variable-value="selectedAction.to_expr"
+          :variable-options="resolvedSwipeToPointVariableOptions"
+          :source-options="presetBindingModeOptions"
+          source-test-id="editor-action-swipe-to-point-source"
+          variable-test-id="editor-action-swipe-to-point-var"
+          create-label="新建终点变量"
+          :show-create="Boolean(createVariable)"
+          :show-locate="Boolean(selectedSwipeToPointTarget && jumpToVariable)"
+          @update-source="updateSwipePointSource('to', $event)"
+          @update-point="(axis, value) => $emit('update-point-field', 'to', axis, value)"
+          @update-variable="$emit('update-text-field', 'to_expr', String($event || ''))"
+          @create="$emit('create-variable', 'swipeToPoint')"
+          @locate="selectedSwipeToPointTarget ? $emit('jump-to-variable', selectedSwipeToPointTarget) : undefined"
+        />
       </div>
 
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="grid gap-3 md:grid-cols-2">
@@ -580,6 +553,7 @@ import { computed, defineComponent, h, ref, watch, type PropType } from 'vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import AppSelect from '@/components/shared/AppSelect.vue';
 import EditorOverviewSection from '@/views/script-editor/EditorOverviewSection.vue';
+import EditorPointBindingSection from '@/views/script-editor/editor-step/EditorPointBindingSection.vue';
 import EditorPresetBindingSection from '@/views/script-editor/EditorPresetBindingSection.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import EditorVariableBindingField from '@/views/script-editor/EditorVariableBindingField.vue';
@@ -608,6 +582,8 @@ const props = defineProps<{
   selectedClickLabelTarget?: EditorVariableOption | null;
   selectedSwipeFromTextTarget?: EditorVariableOption | null;
   selectedSwipeToTextTarget?: EditorVariableOption | null;
+  selectedSwipeFromPointTarget?: EditorVariableOption | null;
+  selectedSwipeToPointTarget?: EditorVariableOption | null;
   policyReferenceOptions?: EditorReferenceOption[];
   taskReferenceOptions?: EditorReferenceOption[];
   taskUiVariableOptions?: EditorTaskUiVariableOption[];
@@ -631,7 +607,7 @@ const emit = defineEmits<{
   'update-number-field': [field: string, value: string];
   'update-text-field': [field: string, value: string];
   'update-swipe-target-field': [target: 'from' | 'to', field: string, value: string | number | null];
-  'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText' | 'launchPackage' | 'launchActivity' | 'clickPoint'];
+  'create-variable': [target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText' | 'swipeFromPoint' | 'swipeToPoint' | 'launchPackage' | 'launchActivity' | 'clickPoint'];
   'jump-to-variable': [option: EditorVariableOption];
   'create-policy-target': [];
   'jump-policy-target': [id: string];
@@ -867,6 +843,18 @@ const resolvedClickPointVariableOptions = computed(() =>
     ? withCurrentVariableOption(props.jsonVariableOptions ?? [], props.selectedAction.p_expr ?? '')
     : props.jsonVariableOptions ?? [],
 );
+const resolvedSwipeFromPointVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.swipe &&
+  (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+    ? withCurrentVariableOption(props.jsonVariableOptions ?? [], props.selectedAction.from_expr ?? '')
+    : props.jsonVariableOptions ?? [],
+);
+const resolvedSwipeToPointVariableOptions = computed(() =>
+  props.selectedAction.ac === ACTION_TYPE.swipe &&
+  (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+    ? withCurrentVariableOption(props.jsonVariableOptions ?? [], props.selectedAction.to_expr ?? '')
+    : props.jsonVariableOptions ?? [],
+);
 const resolvedClickTextVariableOptions = computed(() =>
   props.selectedAction.ac === ACTION_TYPE.click && props.selectedAction.mode === ACTION_MODE.txt
     ? withCurrentVariableOption(props.textVariableOptions ?? [], props.selectedAction.txt_expr ?? '')
@@ -919,6 +907,8 @@ const clickLabelFilterSourceState = ref<'fixed' | 'expr'>('fixed');
 const launchPackageSourceState = ref<'fixed' | 'expr'>('fixed');
 const launchActivitySourceState = ref<'fixed' | 'expr'>('fixed');
 const clickPointSourceState = ref<'fixed' | 'expr'>('fixed');
+const swipeFromPointSourceState = ref<'fixed' | 'expr'>('fixed');
+const swipeToPointSourceState = ref<'fixed' | 'expr'>('fixed');
 
 watch(
   () => [
@@ -936,6 +926,39 @@ watch(
     }
     if (launchPackageSourceState.value !== 'expr') {
       launchPackageSourceState.value = 'fixed';
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => [
+    props.selectedAction.ac,
+    props.selectedAction.ac === ACTION_TYPE.swipe ? props.selectedAction.mode : null,
+    props.selectedAction.ac === ACTION_TYPE.swipe &&
+    (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+      ? props.selectedAction.from_expr ?? ''
+      : '',
+    props.selectedAction.ac === ACTION_TYPE.swipe &&
+    (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+      ? props.selectedAction.to_expr ?? ''
+      : '',
+  ],
+  ([ac, mode, fromExpr, toExpr]) => {
+    if (ac !== ACTION_TYPE.swipe || (mode !== ACTION_MODE.point && mode !== ACTION_MODE.percent)) {
+      swipeFromPointSourceState.value = 'fixed';
+      swipeToPointSourceState.value = 'fixed';
+      return;
+    }
+    if (String(fromExpr).trim()) {
+      swipeFromPointSourceState.value = 'expr';
+    } else if (swipeFromPointSourceState.value !== 'expr') {
+      swipeFromPointSourceState.value = 'fixed';
+    }
+    if (String(toExpr).trim()) {
+      swipeToPointSourceState.value = 'expr';
+    } else if (swipeToPointSourceState.value !== 'expr') {
+      swipeToPointSourceState.value = 'fixed';
     }
   },
   { immediate: true },
@@ -1040,6 +1063,8 @@ const launchActivitySource = computed(() =>
 const clickPointSource = computed(() =>
   clickPointSourceState.value,
 );
+const swipeFromPointSource = computed(() => swipeFromPointSourceState.value);
+const swipeToPointSource = computed(() => swipeToPointSourceState.value);
 
 const updateLaunchPackageSource = (value: string) => {
   launchPackageSourceState.value = value === 'expr' ? 'expr' : 'fixed';
@@ -1079,6 +1104,22 @@ const updateClickPointSource = (value: string) => {
     return;
   }
   emit('update-text-field', 'p_expr', '');
+};
+
+const updateSwipePointSource = (target: 'from' | 'to', value: string) => {
+  const sourceState = target === 'from' ? swipeFromPointSourceState : swipeToPointSourceState;
+  const options = target === 'from' ? resolvedSwipeFromPointVariableOptions.value : resolvedSwipeToPointVariableOptions.value;
+  sourceState.value = value === 'expr' ? 'expr' : 'fixed';
+  if (value === 'expr') {
+    const fallbackValue =
+      props.selectedAction.ac === ACTION_TYPE.swipe &&
+      (props.selectedAction.mode === ACTION_MODE.point || props.selectedAction.mode === ACTION_MODE.percent)
+        ? props.selectedAction[`${target}_expr`]?.trim() || options[0]?.value || ''
+        : '';
+    emit('update-text-field', `${target}_expr`, fallbackValue);
+    return;
+  }
+  emit('update-text-field', `${target}_expr`, '');
 };
 
 const updateClickTextFilterSource = (value: string) => {

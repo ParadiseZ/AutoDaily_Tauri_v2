@@ -2,7 +2,7 @@ import type { JsonValue } from '@/types/app/domain';
 
 export type EditorPanelId = 'basic' | 'inputs' | 'ui' | 'steps';
 export type RawEditorSection = 'inputs' | 'ui' | 'steps';
-export type UiFieldControl = 'checkbox' | 'radio' | 'select' | 'number' | 'slider' | 'text';
+export type UiFieldControl = 'checkbox' | 'radio' | 'select' | 'number' | 'slider' | 'text' | 'point' | 'percentPoint';
 
 export interface EditorUiField {
   id: string;
@@ -71,9 +71,13 @@ export const createUiField = (control: UiFieldControl): EditorUiField => ({
           ? '新选择项'
           : control === 'number'
             ? '新数字输入'
-            : control === 'slider'
+          : control === 'slider'
               ? '新滑块'
-            : '新文本输入',
+              : control === 'point'
+                ? '新坐标点位'
+                : control === 'percentPoint'
+                  ? '新百分比点位'
+                  : '新文本输入',
   control,
   editable: control !== 'text',
   checkboxStyle: 'checkbox',
@@ -96,6 +100,8 @@ export const uiFieldTemplates: Array<{ id: UiFieldControl; label: string; descri
   { id: 'number', label: 'Number', description: '适合次数、阈值和索引。' },
   { id: 'slider', label: 'Slider', description: '适合范围值和阈值滑动调节。' },
   { id: 'text', label: 'Text', description: '适合字符串输入。' },
+  { id: 'point', label: '坐标点位', description: '通过 X / Y 输入绝对坐标并写入 JSON 变量。' },
+  { id: 'percentPoint', label: '百分比点位', description: '通过 X / Y 输入 0 到 1 的相对坐标并写入 JSON 变量。' },
 ];
 
 export const createUiSchema = (): EditorUiSchema => ({
@@ -137,7 +143,7 @@ export const parseUiSchema = (value: JsonValue): EditorUiSchema => {
       id: createEditorId('ui-field'),
       key: typeof key === 'string' ? key : '',
       label: typeof label === 'string' ? label : '',
-      control: ['checkbox', 'radio', 'select', 'number', 'slider', 'text'].includes(String(control))
+      control: ['checkbox', 'radio', 'select', 'number', 'slider', 'text', 'point', 'percentPoint'].includes(String(control))
         ? (control as UiFieldControl)
         : 'text',
       editable: typeof editable === 'boolean' ? editable : control === 'text' ? false : true,
@@ -205,6 +211,10 @@ export const getUiControlLabel = (control: UiFieldControl) => {
       return 'Number';
     case 'slider':
       return 'Slider';
+    case 'point':
+      return '坐标点位';
+    case 'percentPoint':
+      return '百分比点位';
     default:
       return 'Text';
   }

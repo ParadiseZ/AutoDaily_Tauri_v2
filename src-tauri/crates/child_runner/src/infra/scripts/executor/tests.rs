@@ -10,7 +10,7 @@ use domain_script::TaskCycle;
 use domain_script::{
     Action, ClickMode, ColorCompareMethod, ColorRgb, ConditionNode, CurrentTaskCondition,
     DataHanding, FlowControl, PointU16, PolicySetResultCompareOp, PrintSource, StateStatus,
-    StateTarget, Step, StepKind, TaskControl, VisionNode,
+    StateTarget, Step, StepKind, SwipeMode, TaskControl, VisionNode,
 };
 use domain_script::{DropSetDirection, PolicyInfo};
 use domain_script::{PolicyProfile, ScriptTaskProfile, TaskRowType, TaskTone, TaskTriggerMode};
@@ -1115,10 +1115,15 @@ async fn policy_set_search_hits_are_cleared_when_no_policy_matches() {
         .await
         .unwrap();
 
-    let hits = executor.read_runtime_var("runtime.searchHits").await.unwrap();
-    assert!(ScriptExecutor::deserialize_dynamic_value::<Vec<SearchHit>>(&hits)
-        .unwrap()
-        .is_empty());
+    let hits = executor
+        .read_runtime_var("runtime.searchHits")
+        .await
+        .unwrap();
+    assert!(
+        ScriptExecutor::deserialize_dynamic_value::<Vec<SearchHit>>(&hits)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -1473,6 +1478,75 @@ async fn click_point_expr_reads_json_point_variable() {
         &planned.operations[0],
         DeviceOperation::Click(point) if point.x == 321 && point.y == 654
     ));
+}
+
+#[tokio::test]
+async fn swipe_point_expr_reads_independent_json_point_variables() {
+    let mut executor = build_executor();
+    executor
+        .set_runtime_var(
+            "input.swipeFromPoint",
+            to_dynamic(json!({ "x": 100, "y": 200 })).unwrap(),
+        )
+        .await
+        .unwrap();
+    executor
+        .set_runtime_var(
+            "input.swipeToPoint",
+            to_dynamic(json!({ "x": 300, "y": 400 })).unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let planned = executor
+        .plan_swipe_action(
+            &SwipeMode::Point {
+                from: PointU16 { x: 1, y: 2 },
+                to: PointU16 { x: 3, y: 4 },
+                from_expr: Some("input.swipeFromPoint".to_string()),
+                to_expr: Some("input.swipeToPoint".to_string()),
+            },
+            300,
+        )
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        &planned.operations[0],
+        DeviceOperation::Swipe { from, to, duration }
+            if from.x == 100 && from.y == 200 && to.x == 300 && to.y == 400 && *duration == 300
+    ));
+}
+
+#[tokio::test]
+async fn compile_action_sequence_rejects_bound_swipe_points() {
+    let mut executor = build_executor();
+    let steps = vec![Step {
+        id: None,
+        source_id: None,
+        target_id: None,
+        label: Some("变量滑动".to_string()),
+        skip_flag: false,
+        kind: StepKind::Action {
+            exec_max: 0,
+            a: Action::Swipe {
+                duration: 300,
+                mode: SwipeMode::Point {
+                    from: PointU16 { x: 1, y: 2 },
+                    to: PointU16 { x: 3, y: 4 },
+                    from_expr: Some("input.swipeFromPoint".to_string()),
+                    to_expr: None,
+                },
+            },
+        },
+    }];
+
+    let compiled = executor.compile_sequence_operations(&steps).await.unwrap();
+
+    let super::SequenceCompileOutcome::Unsupported(blocker) = compiled else {
+        panic!("bound swipe should be rejected from sequence fast path");
+    };
+    assert!(blocker.reason.contains("变量点位"));
 }
 
 #[tokio::test]

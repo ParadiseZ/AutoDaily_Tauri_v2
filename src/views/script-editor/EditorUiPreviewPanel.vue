@@ -108,6 +108,41 @@
             </div>
           </template>
 
+          <template v-else-if="field.control === 'point' || field.control === 'percentPoint'">
+            <span class="editor-ui-point-shell" @click.stop>
+              <label class="editor-ui-point-axis">
+                <span>X</span>
+                <input
+                  :value="resolvePointPreviewValue(field).x"
+                  class="editor-ui-inline-control editor-ui-inline-control-number"
+                  type="number"
+                  :min="field.control === 'percentPoint' ? 0 : 0"
+                  :max="field.control === 'percentPoint' ? 1 : 65535"
+                  :step="field.control === 'percentPoint' ? 0.01 : 1"
+                  :disabled="!isInteractive(field)"
+                  :data-testid="`editor-ui-preview-control-${index}-x`"
+                  @focus="handleSelectField(field.id)"
+                  @input="updatePreviewPoint(field, 'x', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+              <label class="editor-ui-point-axis">
+                <span>Y</span>
+                <input
+                  :value="resolvePointPreviewValue(field).y"
+                  class="editor-ui-inline-control editor-ui-inline-control-number"
+                  type="number"
+                  :min="field.control === 'percentPoint' ? 0 : 0"
+                  :max="field.control === 'percentPoint' ? 1 : 65535"
+                  :step="field.control === 'percentPoint' ? 0.01 : 1"
+                  :disabled="!isInteractive(field)"
+                  :data-testid="`editor-ui-preview-control-${index}-y`"
+                  @focus="handleSelectField(field.id)"
+                  @input="updatePreviewPoint(field, 'y', ($event.target as HTMLInputElement).value)"
+                />
+              </label>
+            </span>
+          </template>
+
           <template v-else-if="field.control === 'radio'">
             <span class="editor-ui-inline-options">
               <label
@@ -321,6 +356,29 @@ const resolveTextPreviewValue = (field: EditorUiField) => {
   return field.placeholder || field.description || '';
 };
 
+const resolvePointPreviewValue = (field: EditorUiField) => {
+  const value = resolveFieldPreviewValue(field);
+  let record: Record<string, unknown> | null = null;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    record = value as Record<string, unknown>;
+  } else if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        record = parsed as Record<string, unknown>;
+      }
+    } catch {
+      record = null;
+    }
+  }
+
+  const readAxis = (axis: 'x' | 'y') => {
+    const parsed = Number(record?.[axis]);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  return { x: readAxis('x'), y: readAxis('y') };
+};
+
 const isInteractive = (field: EditorUiField) => {
   if (props.readonly) {
     return false;
@@ -375,6 +433,16 @@ const updatePreviewBoolean = (field: EditorUiField, value: boolean) => {
 const updateSliderValue = (field: EditorUiField, value: string) => {
   const normalized = normalizeSliderValue(field, value);
   updatePreviewText(field, normalized);
+};
+
+const updatePreviewPoint = (field: EditorUiField, axis: 'x' | 'y', rawValue: string) => {
+  const current = resolvePointPreviewValue(field);
+  const parsed = Number(rawValue);
+  const maximum = field.control === 'percentPoint' ? 1 : 65535;
+  const normalized = Number.isFinite(parsed)
+    ? Math.min(maximum, Math.max(0, field.control === 'percentPoint' ? parsed : Math.round(parsed)))
+    : 0;
+  updatePreviewText(field, JSON.stringify({ ...current, [axis]: normalized }));
 };
 
 const updateTaskEnabled = (value: boolean) => {
@@ -534,6 +602,27 @@ watch(
 .editor-ui-inline-control-number {
   width: 92px;
   min-width: 92px;
+}
+
+.editor-ui-point-shell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.editor-ui-point-axis {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--app-text-faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.editor-ui-point-axis .editor-ui-inline-control-number {
+  width: 84px;
+  min-width: 84px;
 }
 
 .editor-ui-inline-control-text {

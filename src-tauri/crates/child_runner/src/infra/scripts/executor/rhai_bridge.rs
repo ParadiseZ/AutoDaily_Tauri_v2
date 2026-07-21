@@ -1782,10 +1782,20 @@ impl ScriptExecutor {
         let to = Self::deserialize_rhai_helper::<RegionPoint>(helper_name, to)?;
         match (from, to) {
             (RegionPoint::Point { p: from }, RegionPoint::Point { p: to }) => {
-                Ok(SwipeMode::Point { from, to })
+                Ok(SwipeMode::Point {
+                    from,
+                    to,
+                    from_expr: None,
+                    to_expr: None,
+                })
             }
             (RegionPoint::Percent { p: from }, RegionPoint::Percent { p: to }) => {
-                Ok(SwipeMode::Percent { from, to })
+                Ok(SwipeMode::Percent {
+                    from,
+                    to,
+                    from_expr: None,
+                    to_expr: None,
+                })
             }
             _ => Err(Self::rhai_helper_error(format!(
                 "{}() 的 from/to 必须同为 point() 或同为 percent()",

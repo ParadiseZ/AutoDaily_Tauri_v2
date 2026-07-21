@@ -79,6 +79,8 @@
                 :selected-click-label-target="selectedClickLabelTarget"
                 :selected-swipe-from-text-target="selectedSwipeFromTextTarget"
                 :selected-swipe-to-text-target="selectedSwipeToTextTarget"
+                :selected-swipe-from-point-target="selectedSwipeFromPointTarget"
+                :selected-swipe-to-point-target="selectedSwipeToPointTarget"
                 :task-reference-options="taskReferenceOptions"
                 :policy-reference-options="policyReferenceOptions"
                 :task-ui-variable-options="taskUiVariableOptions"
@@ -241,11 +243,11 @@
                 <div class="space-y-2">
                   <p class="text-sm font-semibold text-(--app-text-strong)">动作序列</p>
                   <p class="text-sm leading-6 text-(--app-text-soft)">
-                    这里只用于收拢设备动作与显式等待。运行时会优先尝试合并为单条 ADB sequence，以减少多次下发带来的耗时。
+                    这里只用于收拢动作与显式等待。运行时会优先尝试合并为单条 ADB sequence；无法合并的动作会自动回退为逐步执行。
                   </p>
                 </div>
                 <div class="rounded-[14px] border border-dashed border-(--app-border) px-4 py-4 text-sm text-(--app-text-soft)">
-                  允许的子步骤：固定设备动作与固定等待。当前编辑器提供：启动应用、停止应用、固定坐标点击/滑动、百分比点击/滑动、返回、等待；不支持截图、重启、文字/标签定位，以及依赖变量的等待。
+                  允许的子步骤：设备操作与等待；不包含截图、点击索引增减和 UI 变量迭代。可合并的固定设备动作会走快速路径，其余动作保持普通执行语义。
                 </div>
                 <button
                   class="app-button app-button-primary app-toolbar-button"
@@ -774,6 +776,18 @@ const currentSwipeFromTextName = computed(() =>
 const currentSwipeToTextName = computed(() =>
   selectedAction.value?.ac === ACTION_TYPE.swipe && selectedAction.value.mode === ACTION_MODE.txt ? selectedAction.value.to_expr?.trim() ?? '' : '',
 );
+const currentSwipeFromPointName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.swipe &&
+  (selectedAction.value.mode === ACTION_MODE.point || selectedAction.value.mode === ACTION_MODE.percent)
+    ? selectedAction.value.from_expr?.trim() ?? ''
+    : '',
+);
+const currentSwipeToPointName = computed(() =>
+  selectedAction.value?.ac === ACTION_TYPE.swipe &&
+  (selectedAction.value.mode === ACTION_MODE.point || selectedAction.value.mode === ACTION_MODE.percent)
+    ? selectedAction.value.to_expr?.trim() ?? ''
+    : '',
+);
 const selectedClickTextTarget = computed(() =>
   currentClickTextName.value ? props.variableOptions.find((item) => item.key === currentClickTextName.value) ?? null : null,
 );
@@ -785,6 +799,12 @@ const selectedSwipeFromTextTarget = computed(() =>
 );
 const selectedSwipeToTextTarget = computed(() =>
   currentSwipeToTextName.value ? props.variableOptions.find((item) => item.key === currentSwipeToTextName.value) ?? null : null,
+);
+const selectedSwipeFromPointTarget = computed(() =>
+  currentSwipeFromPointName.value ? props.variableOptions.find((item) => item.key === currentSwipeFromPointName.value) ?? null : null,
+);
+const selectedSwipeToPointTarget = computed(() =>
+  currentSwipeToPointName.value ? props.variableOptions.find((item) => item.key === currentSwipeToPointName.value) ?? null : null,
 );
 const currentFilterInputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.input_var : ''));
 const currentFilterOutputName = computed(() => (selectedData.value?.type === DATA_TYPE.filter ? selectedData.value.out_name : ''));
@@ -1024,6 +1044,8 @@ const createSwipeAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.p
         duration: 300 as never,
         from: { x: 0.5, y: 0.75 },
         to: { x: 0.5, y: 0.25 },
+        from_expr: null,
+        to_expr: null,
       };
     case ACTION_MODE.txt:
       return {
@@ -1069,6 +1091,8 @@ const createSwipeAction = (mode: typeof ACTION_MODE.point | typeof ACTION_MODE.p
         duration: 300 as never,
         from: { x: 640, y: 560 },
         to: { x: 640, y: 180 },
+        from_expr: null,
+        to_expr: null,
       };
   }
 };
@@ -1318,7 +1342,7 @@ const handleJumpToDataVariable = (option: EditorVariableOption) => {
   props.jumpToVariable?.(option);
 };
 
-const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText' | 'launchPackage' | 'launchActivity' | 'clickPoint') => {
+const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput' | 'clickText' | 'clickLabel' | 'swipeFromText' | 'swipeToText' | 'swipeFromPoint' | 'swipeToPoint' | 'launchPackage' | 'launchActivity' | 'clickPoint') => {
   if (!props.createVariable) {
     return;
   }
@@ -1379,21 +1403,36 @@ const handleCreateActionVariable = async (target: 'captureOutput' | 'actionInput
     return;
   }
 
-  if (target === 'clickPoint') {
+  if (target === 'clickPoint' || target === 'swipeFromPoint' || target === 'swipeToPoint') {
     const pointMode =
-      selectedAction.value?.ac === ACTION_TYPE.click &&
+      selectedAction.value &&
+      (selectedAction.value.ac === ACTION_TYPE.click || selectedAction.value.ac === ACTION_TYPE.swipe) &&
       (selectedAction.value.mode === ACTION_MODE.point || selectedAction.value.mode === ACTION_MODE.percent)
         ? selectedAction.value.mode
         : ACTION_MODE.point;
+    const endpointLabel = target === 'swipeFromPoint' ? '起点' : target === 'swipeToPoint' ? '终点' : '';
     const key = await props.createVariable('input', 'json', {
-      preferredKey: pointMode === ACTION_MODE.percent ? 'tapPercent' : 'tapPoint',
-      name: pointMode === ACTION_MODE.percent ? '点击百分比点位' : '点击坐标点位',
+      preferredKey:
+        target === 'clickPoint'
+          ? pointMode === ACTION_MODE.percent
+            ? 'tapPercent'
+            : 'tapPoint'
+          : `swipe${endpointLabel === '起点' ? 'From' : 'To'}${pointMode === ACTION_MODE.percent ? 'Percent' : 'Point'}`,
+      name:
+        target === 'clickPoint'
+          ? pointMode === ACTION_MODE.percent
+            ? '点击百分比点位'
+            : '点击坐标点位'
+          : `滑动${endpointLabel}${pointMode === ACTION_MODE.percent ? '百分比点位' : '坐标点位'}`,
       focusEditor: true,
     });
     if (!key) {
       return;
     }
-    updateActionTextField('p_expr', key);
+    updateActionTextField(
+      target === 'clickPoint' ? 'p_expr' : target === 'swipeFromPoint' ? 'from_expr' : 'to_expr',
+      key,
+    );
     return;
   }
 

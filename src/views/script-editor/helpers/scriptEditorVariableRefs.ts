@@ -46,6 +46,17 @@ export const collectVariableReferencesFromSteps = (steps: Step[], bucket = new S
       if ((step.a.ac === 'click' || step.a.ac === 'swipe') && (step.a.mode === 'txt' || step.a.mode === 'labelIdx') && step.a.input_var?.trim()) {
         bucket.add(step.a.input_var.trim());
       }
+      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && (step.a.mode === 'point' || step.a.mode === 'percent') && step.a.p_expr?.trim()) {
+        bucket.add(step.a.p_expr.trim());
+      }
+      if (step.a.ac === 'swipe' && (step.a.mode === 'point' || step.a.mode === 'percent')) {
+        if (step.a.from_expr?.trim()) {
+          bucket.add(step.a.from_expr.trim());
+        }
+        if (step.a.to_expr?.trim()) {
+          bucket.add(step.a.to_expr.trim());
+        }
+      }
       if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'txt' && step.a.txt_expr?.trim()) {
         bucket.add(step.a.txt_expr.trim());
       }
@@ -235,6 +246,13 @@ export const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string
       }
       if ((step.a.ac === 'click' || step.a.ac === 'swipe') && (step.a.mode === 'txt' || step.a.mode === 'labelIdx')) {
         pushVariableUsage(bucket, step.a.input_var, stepLabel);
+      }
+      if ((step.a.ac === 'click' || step.a.ac === 'longClick') && (step.a.mode === 'point' || step.a.mode === 'percent')) {
+        pushVariableUsage(bucket, step.a.p_expr, stepLabel);
+      }
+      if (step.a.ac === 'swipe' && (step.a.mode === 'point' || step.a.mode === 'percent')) {
+        pushVariableUsage(bucket, step.a.from_expr, stepLabel);
+        pushVariableUsage(bucket, step.a.to_expr, stepLabel);
       }
       if ((step.a.ac === 'click' || step.a.ac === 'longClick') && step.a.mode === 'txt') {
         pushVariableUsage(bucket, step.a.txt_expr, stepLabel);
@@ -499,6 +517,21 @@ export const renameVariableReferencesInSteps = (steps: Step[], previousKey: stri
 
       if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'swipe') && (nextStep.a.mode === 'txt' || nextStep.a.mode === 'labelIdx') && nextStep.a.input_var === previousKey) {
         nextStep.a.input_var = nextKey;
+      }
+      if (
+        (nextStep.a.ac === 'click' || nextStep.a.ac === 'longClick') &&
+        (nextStep.a.mode === 'point' || nextStep.a.mode === 'percent') &&
+        nextStep.a.p_expr === previousKey
+      ) {
+        nextStep.a.p_expr = nextKey;
+      }
+      if (nextStep.a.ac === 'swipe' && (nextStep.a.mode === 'point' || nextStep.a.mode === 'percent')) {
+        if (nextStep.a.from_expr === previousKey) {
+          nextStep.a.from_expr = nextKey;
+        }
+        if (nextStep.a.to_expr === previousKey) {
+          nextStep.a.to_expr = nextKey;
+        }
       }
       if ((nextStep.a.ac === 'click' || nextStep.a.ac === 'longClick') && nextStep.a.mode === 'txt' && nextStep.a.txt_expr === previousKey) {
         nextStep.a.txt_expr = nextKey;

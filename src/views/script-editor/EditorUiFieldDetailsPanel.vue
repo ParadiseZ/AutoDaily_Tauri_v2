@@ -43,7 +43,7 @@
         :model-value="selectedUiField.variableId || null"
         :options="bindOptions"
         placeholder="未绑定"
-        :test-id="selectedUiFieldIndex === 0 ? 'editor-ui-field-bind-0' : undefined"
+        :test-id="selectedUiFieldIndex >= 0 ? `editor-ui-field-bind-${selectedUiFieldIndex}` : undefined"
         :show-locate="Boolean(selectedBoundUiVariable && jumpToVariable)"
         :locate-disabled="!selectedBoundUiVariable || !jumpToVariable"
         @update:model-value="selectUiBinding(selectedUiField.id, String($event ?? ''))"
@@ -164,10 +164,16 @@ const checkboxStyleOptions = [
 ];
 
 const bindOptions = computed(() => {
-  const options = props.selectedUiField?.control === 'slider'
+  const control = props.selectedUiField?.control;
+  const isPointControl = control === 'point' || control === 'percentPoint';
+  const options = control === 'slider'
     ? props.variableOptions.filter((item) => item.valueType === 'int' || item.valueType === 'float')
-    : props.variableOptions;
-  return buildUiBindOptions(options).map((option) => ({
+    : isPointControl
+      ? props.variableOptions.filter(
+          (item) => item.namespace === 'input' && (item.valueType === 'json' || item.valueType === 'object'),
+        )
+      : props.variableOptions;
+  return buildUiBindOptions(options, isPointControl).map((option) => ({
     ...option,
     value: option.value ?? '',
   }));
