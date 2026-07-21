@@ -721,6 +721,7 @@ import {
 import {
   moveCollectionByMenuAction,
   moveTaskByMenuAction,
+  regroupTasksBySection,
   reorderItemsById,
   selectNeighborIdAfterRemoval,
 } from '@/views/script-editor/helpers/scriptEditorMoves';
@@ -1247,6 +1248,11 @@ const replaceCurrentTask = (updater: (task: ScriptTaskTable) => ScriptTaskTable)
     return;
   }
   replaceTask(task.id, updater);
+};
+
+const replaceCurrentTaskAndRegroup = (updater: (task: ScriptTaskTable) => ScriptTaskTable) => {
+  replaceCurrentTask(updater);
+  draftTasks.value = regroupTasksBySection(draftTasks.value, normalizeTask);
 };
 
 const hydrateTaskEditors = () => {
@@ -2997,8 +3003,11 @@ watch(taskRowType, (value) => {
     return;
   }
 
-  replaceCurrentTask((task) => {
+  replaceCurrentTaskAndRegroup((task) => {
     const next = applyTaskRowType(task, value);
+    if (value === TASK_ROW_TYPE.task) {
+      applyTaskSectionId(next.task, sectionId.value);
+    }
     if (next.forceBasicPanel) {
       activePanel.value = 'basic';
     }
@@ -3056,7 +3065,7 @@ watch(sectionId, (value) => {
     return;
   }
 
-  replaceCurrentTask((task) => {
+  replaceCurrentTaskAndRegroup((task) => {
     return applyTaskSectionId(task, value);
   });
 });

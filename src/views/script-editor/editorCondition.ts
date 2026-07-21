@@ -1,6 +1,8 @@
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { LogicOp } from '@/types/bindings/LogicOp';
 import type { CompareOp } from '@/types/bindings/CompareOp';
+import type { OcrTextMatchMode } from '@/types/bindings/OcrTextMatchMode';
+import type { VisionCountTarget } from '@/types/bindings/VisionCountTarget';
 import {
   buildVarValue,
   parseVarValueDraft,
@@ -43,6 +45,23 @@ export const logicOpOptions = [
 export const stateTargetTypeOptions = [
   { label: '任务', value: createStateTarget().type, description: '引用任务状态。' },
   { label: '策略', value: createStateTarget('policy').type, description: '引用策略状态。' },
+];
+
+export const execCountValueTypeOptions = [
+  { label: '指定次数', value: 'fixed', description: '和步骤中填写的固定次数比较。' },
+  { label: '变量', value: 'variable', description: '和输入变量或运行时变量的数值比较。' },
+  { label: '最大执行次数', value: 'max', description: '和目标任务或策略配置的最大执行次数比较。' },
+];
+
+export const visionCountTargetTypeOptions = [
+  { label: '全部结果', value: 'all' satisfies VisionCountTarget['type'], description: '不筛选，统计结果集中的全部项目。' },
+  { label: 'YOLO 标签', value: 'detLabel' satisfies VisionCountTarget['type'], description: '按检测标签索引统计。' },
+  { label: 'OCR 文字', value: 'ocrText' satisfies VisionCountTarget['type'], description: '按识别文字统计。' },
+];
+
+export const ocrTextMatchModeOptions = [
+  { label: '完全匹配', value: 'exact' satisfies OcrTextMatchMode, description: '识别文字去除首尾空白后必须完全相同。' },
+  { label: '包含', value: 'contains' satisfies OcrTextMatchMode, description: '识别文字中包含指定文字即可。' },
 ];
 
 /* export const taskControlTypeOptions = [
@@ -91,6 +110,10 @@ export const createConditionNode = (type: ConditionNode['type'] = CONDITION_TYPE
         type: CONDITION_TYPE.execNumCompare,
         target: createStateTarget(),
         op: COMPARE_OP.ge,
+        value: {
+          type: 'fixed',
+          value: 1,
+        },
       });
     case CONDITION_TYPE.taskStatus:
       return castCondition({
@@ -123,7 +146,7 @@ export const createConditionNode = (type: ConditionNode['type'] = CONDITION_TYPE
       return castCondition({
         type: CONDITION_TYPE.visionCountCompare,
         input_var: 'runtime.ocrResults',
-        target_value: null,
+        target: { type: 'all' },
         op: COMPARE_OP.ge satisfies CompareOp,
         expected_count: 1,
       });
@@ -160,7 +183,13 @@ export const describeConditionNode = (node: ConditionNode) => {
     case 'group':
       return `${node.op} · ${node.items.length} 项`;
     case 'execNumCompare':
-      return `执行次数 · ${node.target.type}:${node.target.id || '未指定'} · ${node.op}`;
+      return `执行次数 · ${node.target.type}:${node.target.id || '未指定'} · ${node.op} ${
+        node.value.type === 'fixed'
+          ? node.value.value
+          : node.value.type === 'variable'
+            ? node.value.var_name || '未绑定变量'
+            : '最大执行次数'
+      }`;
     case 'taskStatus':
       return `状态匹配 · ${node.a.target.type}:${node.a.target.id || '未指定'}`;
     case 'currentTaskIn':

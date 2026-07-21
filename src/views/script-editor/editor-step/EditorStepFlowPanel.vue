@@ -436,6 +436,22 @@
             @locate="jumpToSelectedForEachIndexVariable"
           />
         </div>
+
+        <div v-if="loopBranchTarget" class="space-y-3 rounded-[14px] border border-dashed border-(--app-border) bg-white/45 px-4 py-4">
+          <div class="space-y-1">
+            <p class="text-sm font-semibold text-(--app-text-strong)">循环体步骤序列</p>
+            <p class="text-xs leading-6 text-(--app-text-soft)">每个元素都会按顺序执行这里配置的步骤。</p>
+          </div>
+          <button
+            class="app-button app-button-primary app-toolbar-button"
+            type="button"
+            data-testid="editor-branch-flow"
+            @click="$emit('navigate-branch', loopBranchTarget.path)"
+          >
+            编辑循环体步骤
+            <span class="text-xs text-white/80">{{ loopBranchTarget.count }}</span>
+          </button>
+        </div>
       </div>
     </template>
 
@@ -470,6 +486,22 @@
           @create="createRepeatIndexVariable"
           @locate="jumpToSelectedRepeatIndexVariable"
         />
+
+        <div v-if="loopBranchTarget" class="space-y-3 rounded-[14px] border border-dashed border-(--app-border) bg-white/45 px-4 py-4">
+          <div class="space-y-1">
+            <p class="text-sm font-semibold text-(--app-text-strong)">循环体步骤序列</p>
+            <p class="text-xs leading-6 text-(--app-text-soft)">每次循环都会按顺序执行这里配置的步骤。</p>
+          </div>
+          <button
+            class="app-button app-button-primary app-toolbar-button"
+            type="button"
+            data-testid="editor-branch-flow"
+            @click="$emit('navigate-branch', loopBranchTarget.path)"
+          >
+            编辑循环体步骤
+            <span class="text-xs text-white/80">{{ loopBranchTarget.count }}</span>
+          </button>
+        </div>
       </div>
     </template>
 
@@ -551,6 +583,9 @@
           :policy-reference-options="policyReferenceOptions"
           :policy-group-reference-options="policyGroupReferenceOptions"
           :policy-set-reference-options="policySetReferenceOptions"
+          :label-index-options="labelIndexOptions"
+          :label-select-placeholder="labelSelectPlaceholder"
+          :label-select-hint="labelSelectHint"
           :create-reference="createReference"
           :jump-to-reference="jumpToReference"
           :create-variable="createVariable"
@@ -631,6 +666,9 @@ const props = defineProps<{
   policyGroupNoteMap: Record<string, string>;
   policySetReferenceOptions: EditorReferenceOption[];
   policySetNoteMap: Record<string, string>;
+  labelIndexOptions?: Array<{ label: string; value: number; description?: string; disabled?: boolean }>;
+  labelSelectPlaceholder?: string;
+  labelSelectHint?: string | null;
   createReference: (kind: EditorReferenceKind) => Promise<string>;
   jumpToReference: (kind: EditorReferenceKind, id: string) => void;
   createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean; focusEditor?: boolean }) => Promise<string>;
@@ -638,6 +676,7 @@ const props = defineProps<{
 }>();
 
 const isActiveBranch = (branchPath: StepBranchPath) => isSameBranchPath(branchPath, props.activeBranchPath);
+const loopBranchTarget = computed(() => props.branchTargets.find((target) => target.key === 'flow') ?? null);
 
 const resolvedTaskReferenceOptions = computed(() =>
   withResolvedReferenceOption(props.taskReferenceOptions, selectedLinkTarget.value, 'task'),
@@ -1212,18 +1251,38 @@ const appendTarget = () => {
   pendingTargetId.value = '';
 };
 
-const createRepeatCountVariable = async () => {
-  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.repeat) {
+const createLoopVariable = async (
+  field: 'input_var' | 'item_var' | 'index_var' | 'count_expr',
+  namespace: 'input' | 'runtime',
+  inputType: EditorInputType,
+  options: { preferredKey: string; name: string },
+) => {
+  if (!props.createVariable) {
     return;
   }
-  const key = await props.createVariable('input', 'int', {
-    preferredKey: 'repeatCount',
-    name: '循环次数',
+  const key = await props.createVariable(namespace, inputType, options);
+  if (!key) {
+    return;
+  }
+
+  emit('update-field', field, key);
+  await nextTick();
+  await props.createVariable(namespace, inputType, {
+    preferredKey: key,
+    select: true,
+    silent: true,
     focusEditor: true,
   });
-  if (key) {
-    emit('update-field', 'count_expr', key);
+};
+
+const createRepeatCountVariable = async () => {
+  if (props.selectedFlow.type !== FLOW_TYPE.repeat) {
+    return;
   }
+  await createLoopVariable('count_expr', 'input', 'int', {
+    preferredKey: 'repeatCount',
+    name: '循环次数',
+  });
 };
 
 const createWaitInputVariable = async () => {
@@ -1255,56 +1314,40 @@ const createWaitRuntimeVariable = async () => {
 };
 
 const createForEachInputVariable = async () => {
-  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.forEach) {
+  if (props.selectedFlow.type !== FLOW_TYPE.forEach) {
     return;
   }
-  const key = await props.createVariable('runtime', 'json', {
+  await createLoopVariable('input_var', 'runtime', 'json', {
     preferredKey: 'items',
     name: '结果集',
-    focusEditor: true,
   });
-  if (key) {
-    emit('update-field', 'input_var', key);
-  }
 };
 const createForEachItemVariable = async () => {
-  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.forEach) {
+  if (props.selectedFlow.type !== FLOW_TYPE.forEach) {
     return;
   }
-  const key = await props.createVariable('runtime', 'json', {
+  await createLoopVariable('item_var', 'runtime', 'json', {
     preferredKey: 'item',
     name: '当前元素',
-    focusEditor: true,
   });
-  if (key) {
-    emit('update-field', 'item_var', key);
-  }
 };
 const createForEachIndexVariable = async () => {
-  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.forEach) {
+  if (props.selectedFlow.type !== FLOW_TYPE.forEach) {
     return;
   }
-  const key = await props.createVariable('runtime', 'int', {
+  await createLoopVariable('index_var', 'runtime', 'int', {
     preferredKey: 'itemIndex',
     name: '当前索引',
-    focusEditor: true,
   });
-  if (key) {
-    emit('update-field', 'index_var', key);
-  }
 };
 const createRepeatIndexVariable = async () => {
-  if (!props.createVariable || props.selectedFlow.type !== FLOW_TYPE.repeat) {
+  if (props.selectedFlow.type !== FLOW_TYPE.repeat) {
     return;
   }
-  const key = await props.createVariable('runtime', 'int', {
+  await createLoopVariable('index_var', 'runtime', 'int', {
     preferredKey: 'repeatIndex',
     name: '循环索引',
-    focusEditor: true,
   });
-  if (key) {
-    emit('update-field', 'index_var', key);
-  }
 };
 
 const updateWaitVariableMode = (mode: string) => {

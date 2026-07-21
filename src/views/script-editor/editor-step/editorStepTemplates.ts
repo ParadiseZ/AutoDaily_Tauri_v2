@@ -1124,7 +1124,6 @@ export const describeStepTitle = (step: Step) => {
   if (visionStep) {
     if (visionStep.type === VISION_TYPE.detect) return '目标检测';
     if (visionStep.type === VISION_TYPE.ocr) return 'OCR';
-    if (visionStep.type === VISION_TYPE.countCompare) return '判断数量大小';
     if (visionStep.type === VISION_TYPE.visionSearch) return '视觉搜索';
     return '视觉步骤';
   }
@@ -1243,9 +1242,6 @@ export const describeStepMeta = (step: Step) => {
     }
     if (visionStep.type === VISION_TYPE.ocr) {
       return `OCR ${visionStep.input_var || '未命名输入'} -> ${visionStep.out_var || '未命名输出'}`;
-    }
-    if (visionStep.type === VISION_TYPE.countCompare) {
-      return `数量比较 ${visionStep.input_var || '未命名输入'} -> ${visionStep.out_var || '未命名输出'}`;
     }
     return `视觉搜索 -> ${visionStep.out_var || '未命名输出'}`;
   }

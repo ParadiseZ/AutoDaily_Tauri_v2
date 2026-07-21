@@ -8,9 +8,10 @@ use domain_script::ScriptInfo;
 use domain_script::ScriptTask;
 use domain_script::TaskCycle;
 use domain_script::{
-    Action, ClickMode, ColorCompareMethod, ColorRgb, ConditionNode, CurrentTaskCondition,
-    DataHanding, FlowControl, PointU16, PolicySetResultCompareOp, PrintSource, StateStatus,
-    StateTarget, Step, StepKind, SwipeMode, TaskControl, VisionNode,
+    Action, ClickMode, ColorCompareMethod, ColorRgb, CompareOp, ConditionNode,
+    CurrentTaskCondition, DataHanding, FlowControl, OcrTextMatchMode, PointU16,
+    PolicySetResultCompareOp, PrintSource, StateStatus, StateTarget, Step, StepKind, SwipeMode,
+    TaskControl, VisionNode,
 };
 use domain_script::{DropSetDirection, PolicyInfo};
 use domain_script::{PolicyProfile, ScriptTaskProfile, TaskRowType, TaskTone, TaskTriggerMode};
@@ -38,6 +39,32 @@ use tokio::sync::RwLock;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 static RUNTIME_SESSION_TEST_MUTEX: OnceLock<Arc<Mutex<()>>> = OnceLock::new();
+
+#[test]
+fn exec_count_compares_with_explicit_numeric_value() {
+    assert!(ScriptExecutor::compare_exec_count(3, &CompareOp::Eq, 3.0));
+    assert!(ScriptExecutor::compare_exec_count(3, &CompareOp::Lt, 3.5));
+    assert!(!ScriptExecutor::compare_exec_count(3, &CompareOp::Ge, 4.0));
+}
+
+#[test]
+fn exec_count_treats_unconfigured_max_as_infinite() {
+    assert!(ScriptExecutor::compare_exec_count(
+        3,
+        &CompareOp::Lt,
+        f64::INFINITY,
+    ));
+    assert!(ScriptExecutor::compare_exec_count(
+        3,
+        &CompareOp::Ne,
+        f64::INFINITY,
+    ));
+    assert!(!ScriptExecutor::compare_exec_count(
+        3,
+        &CompareOp::Ge,
+        f64::INFINITY,
+    ));
+}
 
 fn build_ocr_result(txt: &str, x1: i32, y1: i32, x2: i32, y2: i32) -> OcrResult {
     OcrResult::new(
@@ -127,22 +154,31 @@ fn vision_count_compare_counts_det_labels() {
         build_det_result(2, "ally", 60, 0, 80, 20),
     ];
 
-    assert_eq!(ScriptExecutor::count_det_items(&items, Some("enemy")), 2);
-    assert_eq!(ScriptExecutor::count_det_items(&items, Some("all")), 1);
-    assert_eq!(ScriptExecutor::count_det_items(&items, None), 3);
+    assert_eq!(ScriptExecutor::count_det_items(&items, 1), 2);
+    assert_eq!(ScriptExecutor::count_det_items(&items, 2), 1);
+    assert_eq!(ScriptExecutor::count_det_items(&items, 9), 0);
 }
 
 #[test]
-fn vision_count_compare_prefers_exact_ocr_match() {
+fn vision_count_compare_uses_explicit_ocr_match_mode() {
     let items = vec![
         build_ocr_result("开始行动", 0, 0, 40, 20),
         build_ocr_result("开始", 50, 0, 90, 20),
         build_ocr_result("开始", 100, 0, 140, 20),
     ];
 
-    assert_eq!(ScriptExecutor::count_ocr_items(&items, Some("开始")), 2);
-    assert_eq!(ScriptExecutor::count_ocr_items(&items, Some("行动")), 1);
-    assert_eq!(ScriptExecutor::count_ocr_items(&items, None), 3);
+    assert_eq!(
+        ScriptExecutor::count_ocr_items(&items, "开始", &OcrTextMatchMode::Exact),
+        2
+    );
+    assert_eq!(
+        ScriptExecutor::count_ocr_items(&items, "开始", &OcrTextMatchMode::Contains),
+        3
+    );
+    assert_eq!(
+        ScriptExecutor::count_ocr_items(&items, "行动", &OcrTextMatchMode::Contains),
+        1
+    );
 }
 
 #[test]

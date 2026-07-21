@@ -1,4 +1,4 @@
-use crate::{CompareOp, Step};
+use crate::Step;
 use domain_vision::SearchRule;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]
@@ -12,14 +12,6 @@ pub enum VisionNode {
     Ocr {
         input_var: String,
         out_var: String,
-    },
-    CountCompare {
-        input_var: String,
-        out_var: String,
-        target_value: Option<String>,
-        op: CompareOp,
-        expected_count: i32,
-        then_steps: Vec<Step>,
     },
     VisionSearch {
         #[serde(default)]

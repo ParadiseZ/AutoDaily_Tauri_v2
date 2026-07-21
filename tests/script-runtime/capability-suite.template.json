@@ -48,7 +48,6 @@
     "taskControl.setState",
     "vision.detect",
     "vision.ocr",
-    "vision.countCompare",
     "vision.visionSearch"
   ],
   "scenarios": [

@@ -126,6 +126,9 @@
                 :policy-group-note-map="policyGroupNoteMap"
                 :policy-set-reference-options="policySetReferenceOptions"
                 :policy-set-note-map="policySetNoteMap"
+                :label-index-options="labelIndexOptions"
+                :label-select-placeholder="labelSelectPlaceholder"
+                :label-select-hint="labelSelectHint"
                 :create-reference="createReference"
                 :jump-to-reference="jumpToReference"
                 :create-variable="createVariable"
@@ -229,7 +232,6 @@
                 :jump-to-variable="jumpToVariable"
                 @update-field="updateVisionField"
                 @update-nullable-field="updateVisionNullableField"
-                @update-number-field="updateVisionNumberField"
                 @update-rule="updateVisionRule"
                 @create-variable="handleCreateVisionVariable"
                 @jump-to-variable="handleJumpToDataVariable"
@@ -282,7 +284,6 @@ import { computed, ref, watch } from 'vue';
 import EmptyState from '@/components/shared/EmptyState.vue';
 import type { Action } from '@/types/bindings/Action';
 import type { JsonValue } from '@/types/app/domain';
-import type { CompareOp } from '@/types/bindings/CompareOp';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { DataHanding } from '@/types/bindings/DataHanding';
 import type { SearchRule } from '@/types/bindings/SearchRule';
@@ -351,21 +352,6 @@ import {
 import { cloneJson } from '@/views/script-editor/editorSchema';
 
 type NestedGroupKey = 'sequence' | 'then' | 'else' | 'flow' | 'visionThen' | 'filterThen';
-type EditableVisionNode = {
-  type: VisionNode['type'];
-  input_var?: string;
-  out_var?: string;
-  det_res_var?: string | null;
-  ocr_res_var?: string | null;
-  out_det_var?: string | null;
-  out_ocr_var?: string | null;
-  target_value?: string | null;
-  op?: CompareOp;
-  expected_count?: number;
-  then_steps?: Step[];
-  rule?: SearchRule;
-};
-
 const props = withDefaults(
   defineProps<{
     steps: Step[];
@@ -652,8 +638,8 @@ const selectedAction = computed<Action | null>(() => (selectedStep.value?.op ===
 const selectedFlow = computed<FlowControl | null>(() => (selectedStep.value?.op === STEP_OP.flowControl ? selectedStep.value.a : null));
 const selectedData = computed<DataHanding | null>(() => (selectedStep.value?.op === STEP_OP.dataHanding ? selectedStep.value.a : null));
 const selectedTaskControl = computed<TaskControl | null>(() => (selectedStep.value?.op === STEP_OP.taskControl ? selectedStep.value.a : null));
-const selectedVision = computed<EditableVisionNode | null>(() =>
-  selectedStep.value?.op === STEP_OP.vision ? (selectedStep.value.a as EditableVisionNode) : null,
+const selectedVision = computed<VisionNode | null>(() =>
+  selectedStep.value?.op === STEP_OP.vision ? selectedStep.value.a : null,
 );
 const filteredStateStatusTypeOptions = computed(() =>
   selectedTaskControl.value?.target.type !== STATE_TARGET_TYPE.task
@@ -828,15 +814,13 @@ const selectedColorCompareOutputTarget = computed(() =>
 );
 const currentVisionInputName = computed(() =>
   selectedVision.value?.type === VISION_TYPE.detect ||
-  selectedVision.value?.type === VISION_TYPE.ocr ||
-  selectedVision.value?.type === VISION_TYPE.countCompare
+  selectedVision.value?.type === VISION_TYPE.ocr
     ? selectedVision.value.input_var ?? ''
     : '',
 );
 const currentVisionOutputName = computed(() =>
   selectedVision.value?.type === VISION_TYPE.detect ||
   selectedVision.value?.type === VISION_TYPE.ocr ||
-  selectedVision.value?.type === VISION_TYPE.countCompare ||
   selectedVision.value?.type === VISION_TYPE.visionSearch
     ? selectedVision.value.out_var ?? ''
     : '',
@@ -953,7 +937,7 @@ const branchTargets = computed<Array<{ key: NestedGroupKey; label: string; count
     return [{ key: 'flow', label: '循环体', count: selectedFlow.value.flow.length, path: { parentStepPath: props.selectedStepPath, branch: 'flow' } }];
   }
 
-  if (selectedVision.value?.type === VISION_TYPE.visionSearch || selectedVision.value?.type === VISION_TYPE.countCompare) {
+  if (selectedVision.value?.type === VISION_TYPE.visionSearch) {
     return [{ key: 'visionThen', label: '命中后执行', count: selectedVision.value.then_steps?.length ?? 0, path: { parentStepPath: props.selectedStepPath, branch: 'visionThen' } }];
   }
 
@@ -1780,13 +1764,6 @@ const updateVisionNullableField = (field: string, value: string) => {
   });
 };
 
-const updateVisionNumberField = (field: string, value: string) => {
-  updateSelectedStep((step) => {
-    if (step.op !== STEP_OP.vision) return;
-    step.a = { ...(step.a ?? {}), [field]: Number(value) || 0 } as VisionNode;
-  });
-};
-
 const handleCreateVisionVariable = async (
   target:
     | 'visionInput'
@@ -1802,15 +1779,11 @@ const handleCreateVisionVariable = async (
 
   const createOptions =
     target === 'visionInput'
-      ? selectedVision.value?.type === VISION_TYPE.countCompare
-        ? { preferredKey: 'ocrResults', name: 'OCR结果' }
-        : { preferredKey: 'captureResult', name: '截图结果' }
+      ? { preferredKey: 'captureResult', name: '截图结果' }
       : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.detect
       ? { preferredKey: 'detResults', name: '检测结果' }
       : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.ocr
         ? { preferredKey: 'ocrResults', name: 'OCR结果' }
-        : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.countCompare
-          ? { preferredKey: 'countMatched', name: '数量比较结果' }
         : target === 'visionOutput' && selectedVision.value?.type === VISION_TYPE.visionSearch
           ? { preferredKey: 'searchHits', name: '搜索命中' }
           : target === 'visionSearchDetInput'
@@ -1825,13 +1798,7 @@ const handleCreateVisionVariable = async (
 
   const key = await props.createVariable(
     'runtime',
-    target === 'visionInput'
-      ? selectedVision.value?.type === VISION_TYPE.countCompare
-        ? 'json'
-        : 'image'
-      : selectedVision.value?.type === VISION_TYPE.countCompare
-        ? 'bool'
-        : 'json',
+    target === 'visionInput' ? 'image' : 'json',
     createOptions ? { ...createOptions, focusEditor: true } : { focusEditor: true },
   );
   if (!key) {

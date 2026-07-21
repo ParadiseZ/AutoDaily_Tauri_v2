@@ -43,7 +43,14 @@
 
             <label class="space-y-2">
               <span class="text-xs font-medium uppercase tracking-[0.14em] text-(--app-text-faint)">最大执行次数</span>
-              <input :value="String(policy.data.execMax)" class="app-input" type="number" @input="$emit('update:number-field', 'execMax', ($event.target as HTMLInputElement).value)" />
+              <input
+                :value="String(policy.data.execMax)"
+                class="app-input"
+                min="0"
+                placeholder="0 表示无限次"
+                type="number"
+                @input="$emit('update:number-field', 'execMax', ($event.target as HTMLInputElement).value)"
+              />
             </label>
 
             <label class="flex items-center gap-3 rounded-[18px] border border-(--app-border) bg-(--app-panel-muted) px-4 py-3 text-sm text-(--app-text-soft)">

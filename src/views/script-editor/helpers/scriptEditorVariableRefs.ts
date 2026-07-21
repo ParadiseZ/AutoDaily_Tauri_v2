@@ -20,6 +20,11 @@ const collectConditionVariableReferences = (condition: ConditionNode, bucket: Se
     return;
   }
 
+  if (condition.type === 'execNumCompare' && condition.value.type === 'variable' && condition.value.var_name.trim()) {
+    bucket.add(condition.value.var_name.trim());
+    return;
+  }
+
   if (condition.type === 'visionCountCompare' && condition.input_var?.trim()) {
     bucket.add(condition.input_var.trim());
     return;
@@ -107,17 +112,6 @@ export const collectVariableReferencesFromSteps = (steps: Step[], bucket = new S
         }
         continue;
       }
-    }
-
-    if (step.op === 'vision' && step.a.type === 'countCompare') {
-      if (step.a.input_var?.trim()) {
-        bucket.add(step.a.input_var.trim());
-      }
-      if (step.a.out_var?.trim()) {
-        bucket.add(step.a.out_var.trim());
-      }
-      collectVariableReferencesFromSteps(step.a.then_steps, bucket);
-      continue;
     }
 
     if (step.op === 'vision' && step.a.type === 'visionSearch') {
@@ -221,6 +215,10 @@ const collectVariableUsagesFromCondition = (condition: ConditionNode, scopeLabel
     pushVariableUsage(bucket, condition.var_name, `${scopeLabel}的条件`);
     return;
   }
+  if (condition.type === 'execNumCompare' && condition.value.type === 'variable') {
+    pushVariableUsage(bucket, condition.value.var_name, `${scopeLabel}的执行次数条件`);
+    return;
+  }
   if (condition.type === 'visionCountCompare') {
     pushVariableUsage(bucket, condition.input_var, `${scopeLabel}的条件`);
     return;
@@ -288,13 +286,6 @@ export const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string
       }
     }
 
-    if (step.op === 'vision' && step.a.type === 'countCompare') {
-      pushVariableUsage(bucket, step.a.input_var, stepLabel);
-      pushVariableUsage(bucket, step.a.out_var, stepLabel);
-      collectVariableUsagesFromSteps(step.a.then_steps, scopeLabel, bucket);
-      continue;
-    }
-
     if (step.op === 'vision' && step.a.type === 'visionSearch') {
       pushVariableUsage(bucket, step.a.det_res_var, stepLabel);
       pushVariableUsage(bucket, step.a.ocr_res_var, stepLabel);
@@ -336,7 +327,13 @@ export const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string
         continue;
       }
       if (step.a.type === 'forEach') {
-        pushVariableUsage(bucket, step.a.input_var, stepLabel);
+        pushVariableUsage(bucket, step.a.input_var, `${stepLabel}的结果集`);
+        pushVariableUsage(bucket, step.a.item_var, `${stepLabel}的元素变量`);
+        pushVariableUsage(bucket, step.a.index_var, `${stepLabel}的索引变量`);
+      }
+      if (step.a.type === 'repeat') {
+        pushVariableUsage(bucket, step.a.count_expr, `${stepLabel}的循环次数`);
+        pushVariableUsage(bucket, step.a.index_var, `${stepLabel}的索引变量`);
       }
       if (step.a.type === 'while' || step.a.type === 'forEach' || step.a.type === 'repeat') {
         collectVariableUsagesFromSteps(step.a.flow, scopeLabel, bucket);
@@ -387,6 +384,15 @@ const renameConditionVariableReferences = (condition: ConditionNode, previousKey
 
   if (nextCondition.type === 'varCompare' && nextCondition.var_name === previousKey) {
     nextCondition.var_name = nextKey;
+    return nextCondition;
+  }
+
+  if (
+    nextCondition.type === 'execNumCompare'
+    && nextCondition.value.type === 'variable'
+    && nextCondition.value.var_name === previousKey
+  ) {
+    nextCondition.value.var_name = nextKey;
     return nextCondition;
   }
 
@@ -547,17 +553,6 @@ export const renameVariableReferencesInSteps = (steps: Step[], previousKey: stri
           nextStep.a.to_expr = nextKey;
         }
       }
-      return nextStep;
-    }
-
-    if (nextStep.op === 'vision' && nextStep.a.type === 'countCompare') {
-      if (nextStep.a.input_var === previousKey) {
-        nextStep.a.input_var = nextKey;
-      }
-      if (nextStep.a.out_var === previousKey) {
-        nextStep.a.out_var = nextKey;
-      }
-      nextStep.a.then_steps = renameVariableReferencesInSteps(nextStep.a.then_steps, previousKey, nextKey);
       return nextStep;
     }
 

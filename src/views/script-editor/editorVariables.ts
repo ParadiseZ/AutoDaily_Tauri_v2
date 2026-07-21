@@ -272,15 +272,6 @@ const collectDerivedRuntimeVariables = (
       continue;
     }
 
-    if (step.op === 'vision' && step.a.type === 'countCompare') {
-      if (step.a.out_var?.trim()) {
-        const key = step.a.out_var.trim();
-        bucket.set(key, createDerivedRuntimeVariable(key, 'bool', ownerTaskId, step.id));
-      }
-      collectDerivedRuntimeVariables(step.a.then_steps, ownerTaskId, bucket);
-      continue;
-    }
-
     if (step.op === 'vision' && step.a.type === 'visionSearch') {
       if (step.a.out_var?.trim()) {
         const key = step.a.out_var.trim();

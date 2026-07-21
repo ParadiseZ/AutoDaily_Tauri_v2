@@ -86,6 +86,9 @@
             :policy-reference-options="policyReferenceOptions"
             :policy-group-reference-options="policyGroupReferenceOptions"
             :policy-set-reference-options="policySetReferenceOptions"
+            :label-index-options="labelIndexOptions"
+            :label-select-placeholder="labelSelectPlaceholder"
+            :label-select-hint="labelSelectHint"
             :create-reference="createReference"
             :jump-to-reference="jumpToReference"
             :create-variable="createVariable"
@@ -128,6 +131,60 @@
             @update:model-value="updateExecCompareOp(String($event || 'ge'))"
           />
         </EditorOverviewField>
+
+        <EditorOverviewField label="比较值来源" width="compact">
+          <EditorSelectField
+            :model-value="modelValue.value.type"
+            :options="execCountValueTypeOptions"
+            placeholder="比较值来源"
+            :test-id="rootTestId('exec-count-value-type')"
+            @update:model-value="updateExecCountValueType(String($event || 'fixed'))"
+          />
+        </EditorOverviewField>
+
+        <EditorOverviewField v-if="modelValue.value.type === 'fixed'" label="指定次数" width="compact">
+          <input
+            :value="String(modelValue.value.value)"
+            class="app-input"
+            type="number"
+            min="0"
+            step="1"
+            :data-testid="rootTestId('exec-count-fixed-value')"
+            @input="updateExecCountFixedValue(($event.target as HTMLInputElement).value)"
+          />
+        </EditorOverviewField>
+
+        <template v-else-if="modelValue.value.type === 'variable'">
+          <EditorOverviewField label="数值变量" width="compact">
+            <EditorSelectField
+              :model-value="modelValue.value.var_name || null"
+              :options="resolvedExecCountVariableOptions"
+              placeholder="选择整数或小数变量"
+              :test-id="rootTestId('exec-count-variable')"
+              @update:model-value="updateExecCountVariable(String($event || ''))"
+            />
+          </EditorOverviewField>
+
+          <div v-if="createVariable || (selectedExecCountVariableOption && jumpToVariable)" class="flex flex-wrap gap-2">
+            <button v-if="createVariable" class="app-button app-button-ghost app-toolbar-button" type="button" @click="createExecCountVariable">
+              <AppIcon name="plus" :size="14" />
+              新建数值变量
+            </button>
+            <button
+              v-if="selectedExecCountVariableOption && jumpToVariable"
+              class="app-button app-button-ghost app-toolbar-button"
+              type="button"
+              @click="jumpToExecCountVariable"
+            >
+              <AppIcon name="locate-fixed" :size="14" />
+              定位变量
+            </button>
+          </div>
+        </template>
+
+        <div v-else class="rounded-[14px] border border-(--app-border) bg-white/40 px-4 py-3 text-sm leading-6 text-(--app-text-soft)">
+          使用目标任务或策略配置的最大执行次数；未配置上限时按无限次数处理。
+        </div>
 
         <div class="flex flex-wrap gap-2">
           <button class="app-button app-button-ghost app-toolbar-button" type="button" @click="createExecTargetReference">
@@ -375,15 +432,14 @@
           </button>
         </div>
 
-        <EditorOverviewField label="目标标签 / 文字" width="compact">
-          <input
-            :value="modelValue.target_value ?? ''"
-            class="app-input"
-            placeholder="留空则统计全部结果"
-            :data-testid="rootTestId('vision-count-compare-target-value')"
-            @input="updateVisionCountCompareNullableField('target_value', ($event.target as HTMLInputElement).value)"
-          />
-        </EditorOverviewField>
+        <EditorVisionCountTargetField
+          :model-value="modelValue.target"
+          :label-index-options="labelIndexOptions"
+          :label-select-placeholder="labelSelectPlaceholder"
+          :label-select-hint="labelSelectHint"
+          :test-id="rootTestId('vision-count-compare-target')"
+          @update:model-value="updateVisionCountCompareTarget"
+        />
 
         <EditorOverviewField label="指定数量" width="compact">
           <input
@@ -487,15 +543,24 @@ import { Trash2 } from '@lucide/vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorOverviewField from '@/views/script-editor/EditorOverviewField.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
+import EditorVisionCountTargetField from '@/views/script-editor/EditorVisionCountTargetField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
+import type { VisionCountTarget } from '@/types/bindings/VisionCountTarget';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
 import { withResolvedReferenceOption } from '@/views/script-editor/editorReferences';
-import { buildVariableCatalogKey, type EditorInputEntry, type EditorInputType, type EditorVariableOption } from '@/views/script-editor/editorVariables';
+import {
+  buildVariableCatalogKey,
+  getVariableOptionSummary,
+  type EditorInputEntry,
+  type EditorInputType,
+  type EditorVariableOption,
+} from '@/views/script-editor/editorVariables';
 import {
   buildVarValue,
   compareOpOptions,
   conditionTypeOptions,
   createConditionNode,
+  execCountValueTypeOptions,
   logicOpOptions,
   policySetResultCompareOptions,
   policySetResultFieldOptions,
@@ -525,6 +590,9 @@ const props = withDefaults(
     policyReferenceOptions?: EditorReferenceOption[];
     policyGroupReferenceOptions?: EditorReferenceOption[];
     policySetReferenceOptions?: EditorReferenceOption[];
+    labelIndexOptions?: Array<{ label: string; value: number; description?: string; disabled?: boolean }>;
+    labelSelectPlaceholder?: string;
+    labelSelectHint?: string | null;
     createReference?: (kind: EditorReferenceKind) => Promise<string>;
     jumpToReference?: (kind: EditorReferenceKind, id: string) => void;
     createVariable?: (namespace?: 'input' | 'runtime', inputType?: EditorInputType, options?: { preferredKey?: string; name?: string; select?: boolean; silent?: boolean; focusEditor?: boolean }) => Promise<string>;
@@ -541,6 +609,9 @@ const props = withDefaults(
     policyReferenceOptions: () => [],
     policyGroupReferenceOptions: () => [],
     policySetReferenceOptions: () => [],
+    labelIndexOptions: () => [],
+    labelSelectPlaceholder: '请先设置图像检测模型标签文件',
+    labelSelectHint: null,
     createReference: undefined,
     jumpToReference: undefined,
     createVariable: undefined,
@@ -581,6 +652,39 @@ const resolvedExecTargetOptions = computed(() =>
 const execCompareOpOptions = computed(() =>
   compareOpOptions.filter((option) => ['eq', 'ne', 'lt', 'le', 'gt', 'ge'].includes(option.value)),
 );
+const resolvedExecCountVariableOptions = computed(() => {
+  const options = props.variableReferenceOptions
+    .filter((option) => ['int', 'float'].includes(option.valueType))
+    .map((option) => ({
+      label: option.label,
+      value: option.key,
+      description: getVariableOptionSummary(option),
+    }));
+  const node = props.modelValue;
+  if (node.type !== 'execNumCompare' || node.value.type !== 'variable' || !node.value.var_name) {
+    return options;
+  }
+  const varName = node.value.var_name;
+  if (options.some((option) => option.value === varName)) {
+    return options;
+  }
+  return [
+    {
+      label: `未解析变量 ${varName}`,
+      value: varName,
+      description: `变量目录里找不到 ${varName}`,
+    },
+    ...options,
+  ];
+});
+const selectedExecCountVariableOption = computed(() => {
+  const node = props.modelValue;
+  if (node.type !== 'execNumCompare' || node.value.type !== 'variable') {
+    return null;
+  }
+  const varName = node.value.var_name;
+  return props.variableReferenceOptions.find((option) => option.key === varName) ?? null;
+});
 const countCompareConditionOpOptions = computed(() =>
   compareOpOptions.filter((option) => ['eq', 'ne', 'lt', 'le', 'gt', 'ge'].includes(option.value)),
 );
@@ -805,6 +909,55 @@ const updateExecCompareOp = (op: string) => {
   } as ConditionNode);
 };
 
+const updateExecCountValueType = (type: string) => {
+  if (props.modelValue.type !== 'execNumCompare') return;
+  replaceNode({
+    ...props.modelValue,
+    value:
+      type === 'variable'
+        ? { type: 'variable', var_name: '' }
+        : type === 'max'
+          ? { type: 'max' }
+          : { type: 'fixed', value: 1 },
+  });
+};
+
+const updateExecCountFixedValue = (value: string) => {
+  if (props.modelValue.type !== 'execNumCompare' || props.modelValue.value.type !== 'fixed') return;
+  const parsed = Number.parseInt(value, 10);
+  replaceNode({
+    ...props.modelValue,
+    value: {
+      type: 'fixed',
+      value: Number.isFinite(parsed) ? Math.min(4_294_967_295, Math.max(0, parsed)) : 0,
+    },
+  });
+};
+
+const updateExecCountVariable = (varName: string) => {
+  if (props.modelValue.type !== 'execNumCompare' || props.modelValue.value.type !== 'variable') return;
+  replaceNode({
+    ...props.modelValue,
+    value: {
+      type: 'variable',
+      var_name: varName,
+    },
+  });
+};
+
+const createExecCountVariable = async () => {
+  if (props.modelValue.type !== 'execNumCompare' || props.modelValue.value.type !== 'variable' || !props.createVariable) return;
+  const key = await props.createVariable('input', 'int', { focusEditor: true });
+  if (key) {
+    updateExecCountVariable(key);
+  }
+};
+
+const jumpToExecCountVariable = () => {
+  if (!selectedExecCountVariableOption.value || !props.jumpToVariable) return;
+  props.jumpToVariable(selectedExecCountVariableOption.value);
+};
+
 const createExecTargetReference = async () => {
   if (props.modelValue.type !== 'execNumCompare' || !props.createReference) return;
   updateExecTargetId(await props.createReference(props.modelValue.target.type === 'task' ? 'task' : 'policy'));
@@ -996,12 +1149,12 @@ const updateVisionCountCompareField = (field: 'input_var' | 'op', value: string)
   } as ConditionNode);
 };
 
-const updateVisionCountCompareNullableField = (field: 'target_value', value: string) => {
+const updateVisionCountCompareTarget = (target: VisionCountTarget) => {
   if (props.modelValue.type !== 'visionCountCompare') return;
   replaceNode({
     ...props.modelValue,
-    [field]: value.trim() ? value : null,
-  } as ConditionNode);
+    target,
+  });
 };
 
 const updateVisionCountCompareNumberField = (field: 'expected_count', value: string) => {

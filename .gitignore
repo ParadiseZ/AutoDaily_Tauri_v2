@@ -51,9 +51,13 @@ tools/windows_ui/__pycache__/
 /blob-report/
 /playwright/*
 .playwright-mcp/*
+.playwright-cli/*
+
+.codex-backups/*
 
 .codegraph/*
 .understand-anything/*
 
 
-test/ocr_cache.txt
+tests/ocr_cache.txt
+tests/**/*.png

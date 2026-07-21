@@ -1,14 +1,14 @@
 <template>
   <Teleport to="body">
     <transition name="dialog-fade">
-      <div v-if="open" class="app-dialog-backdrop" @click.self="$emit('close')">
+      <div v-if="open" class="app-dialog-backdrop" @click.self="handleBackdropClick">
         <div class="app-dialog" :class="widthClass" aria-modal="true" :aria-label="title" role="dialog">
           <header class="mb-5 flex items-start justify-between gap-4">
             <div class="space-y-1">
               <h2 class="text-lg font-semibold text-(--app-text-strong)">{{ title }}</h2>
               <p v-if="description" class="text-sm text-(--app-text-soft)">{{ description }}</p>
             </div>
-            <button class="app-icon-button app-dialog-close-button" type="button" @click="$emit('close')">
+            <button v-if="closable" class="app-icon-button app-dialog-close-button" type="button" @click="emit('close')">
               <AppIcon name="x" :size="18" />
             </button>
           </header>
@@ -24,21 +24,29 @@
 <script setup lang="ts">
 import AppIcon from '@/components/shared/AppIcon.vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     open: boolean;
     title: string;
     description?: string;
     widthClass?: string;
+    closable?: boolean;
   }>(),
   {
     widthClass: 'max-w-3xl',
+    closable: true,
   },
 );
 
-defineEmits<{
+const emit = defineEmits<{
   close: [];
 }>();
+
+function handleBackdropClick() {
+  if (props.closable) {
+    emit('close');
+  }
+}
 </script>
 
 <style scoped>

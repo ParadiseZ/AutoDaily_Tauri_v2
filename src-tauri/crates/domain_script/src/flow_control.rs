@@ -187,6 +187,7 @@ pub enum ConditionNode {
     ExecNumCompare {
         target: StateTarget,
         op: CompareOp,
+        value: ExecCountValue,
     },
     TaskStatus {
         a: TaskControl,
@@ -209,7 +210,7 @@ pub enum ConditionNode {
     },
     VisionCountCompare {
         input_var: String,
-        target_value: Option<String>,
+        target: VisionCountTarget,
         op: CompareOp,
         expected_count: i32,
     },
@@ -224,6 +225,37 @@ pub enum ConditionNode {
         op: LogicOp,
         items: Vec<ConditionNode>,
     },
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum VisionCountTarget {
+    All,
+    DetLabel {
+        idx: i32,
+    },
+    OcrText {
+        text: String,
+        mode: OcrTextMatchMode,
+    },
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase")]
+pub enum OcrTextMatchMode {
+    Exact,
+    Contains,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]
+#[ts(export)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum ExecCountValue {
+    Fixed { value: u32 },
+    Variable { var_name: String },
+    Max,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone, ts_rs::TS)]

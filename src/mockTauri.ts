@@ -1,6 +1,7 @@
 import { mockConvertFileSrc, mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import type { AuthSession, LogConfig, ScriptTimeTemplateValuesDto, ScriptTransferRecord, UserProfile } from '@/types/app/domain';
 import type { DeviceTable, PolicyGroupTable, PolicySetTable, PolicyTable, ScriptTable, ScriptTaskTable } from '@/types/bindings';
+import { DISCLAIMER_ACCEPTANCE_KEY } from '@/constants/legal';
 
 type StoreData = Record<string, unknown>;
 type AssignmentMap = Record<string, unknown[]>;
@@ -22,6 +23,7 @@ type StoredScriptTable = Omit<ScriptTable, 'data'> & {
 interface MockState {
   authSession: AuthSession | null;
   userProfile: UserProfile | null;
+  exitRequested: boolean;
   store: StoreData;
   scripts: StoredScriptTable[];
   scriptTasks: ScriptTaskMap;
@@ -78,7 +80,10 @@ const MOCK_PNG_BASE64 =
 const createDefaultState = (): MockState => ({
   authSession: null,
   userProfile: null,
-  store: {},
+  exitRequested: false,
+  store: {
+    [DISCLAIMER_ACCEPTANCE_KEY]: true,
+  },
   scripts: [],
   scriptTasks: {},
   policies: [],
@@ -124,6 +129,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         ...parsed,
         authSession: parsed.authSession ?? null,
         userProfile: parsed.userProfile ?? null,
+        exitRequested: parsed.exitRequested ?? false,
         store: parsed.store ?? {},
         scripts: parsed.scripts ?? [],
         scriptTasks: parsed.scriptTasks ?? {},
@@ -162,6 +168,7 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
       ...partial,
       authSession: partial.authSession ?? current.authSession,
       userProfile: partial.userProfile ?? current.userProfile,
+      exitRequested: partial.exitRequested ?? current.exitRequested,
       store: partial.store ?? current.store,
       scripts: partial.scripts ?? current.scripts,
       scriptTasks: partial.scriptTasks ?? current.scriptTasks,
@@ -675,6 +682,9 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
         case 'plugin:store|reload':
         case 'plugin:store|save':
         case 'frontend_debug_log_cmd':
+          return null;
+        case 'plugin:process|exit':
+          updateState((current) => ({ ...current, exitRequested: true }));
           return null;
         case 'open_current_devtools_cmd':
           console.info('[Tauri Mock] open_current_devtools_cmd');

@@ -12,8 +12,13 @@
         v-for="(entry, index) in filteredEntries"
         :key="entry.id"
         class="app-list-item cursor-pointer"
-        :class="{ 'app-list-item-active': selectedInputId === entry.id }"
+        :class="{
+          'app-list-item-active': selectedInputId === entry.id,
+          'editor-variable-item-referenced': entryReferenceState[entry.id]?.referenced,
+          'editor-variable-item-unreferenced': !entryReferenceState[entry.id]?.referenced,
+        }"
         :data-testid="`editor-input-item-${index}`"
+        :data-reference-state="entryReferenceState[entry.id]?.referenced ? 'referenced' : 'unreferenced'"
         @click="$emit('select', entry.id)"
       >
         <div class="flex items-start justify-between gap-3">
@@ -26,16 +31,24 @@
             </p>
             <p class="mt-1 text-xs text-(--app-text-faint)">{{ entry.key || '未设置键' }} · {{ getScopeLabel(entry.namespace) }} · {{ getInputTypeLabel(entry.type) }}</p>
           </div>
-          <button
-            class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
-            type="button"
-            :title="removeTitle"
-            :aria-label="removeTitle"
-            :data-testid="`editor-input-remove-${index}`"
-            @click.stop="$emit('remove', entry.id)"
-          >
-            <Trash2 class="h-4 w-4" />
-          </button>
+          <div class="flex shrink-0 items-center gap-2">
+            <span
+              class="app-badge"
+              :class="entryReferenceState[entry.id]?.referenced ? 'app-badge-success' : 'app-badge-warning'"
+            >
+              {{ entryReferenceState[entry.id]?.referenced ? '已使用' : '未使用' }}
+            </span>
+            <button
+              class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
+              type="button"
+              :title="removeTitle"
+              :aria-label="removeTitle"
+              :data-testid="`editor-input-remove-${index}`"
+              @click.stop="$emit('remove', entry.id)"
+            >
+              <Trash2 class="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </article>
     </div>
@@ -93,3 +106,13 @@ const getScopeLabel = (scope: EditorInputEntry['namespace']) => {
   return '输入';
 };
 </script>
+
+<style scoped>
+.editor-variable-item-referenced {
+  border-left: 3px solid rgba(22, 163, 74, 0.78);
+}
+
+.editor-variable-item-unreferenced {
+  border-left: 3px solid rgba(245, 158, 11, 0.78);
+}
+</style>

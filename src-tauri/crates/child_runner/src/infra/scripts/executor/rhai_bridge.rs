@@ -1625,10 +1625,10 @@ impl ScriptExecutor {
             ))
         })?;
         if let Ok(items) = Self::deserialize_dynamic_value::<Vec<DetResult>>(&value) {
-            return Ok(Self::count_det_items(&items, target_value) as INT);
+            return Ok(Self::count_det_items_by_text(&items, target_value) as INT);
         }
         if let Ok(items) = Self::deserialize_dynamic_value::<Vec<OcrResult>>(&value) {
-            return Ok(Self::count_ocr_items(&items, target_value) as INT);
+            return Ok(Self::count_ocr_items_by_text(&items, target_value) as INT);
         }
         if target_value.is_none() {
             if let Some(items) = value.clone().try_cast::<Array>() {

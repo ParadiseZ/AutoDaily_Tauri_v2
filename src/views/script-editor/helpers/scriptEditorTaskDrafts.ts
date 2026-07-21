@@ -127,7 +127,7 @@ export const buildPolicyDraft = async ({
         logPrint: null,
         curPos: 0,
         skipFlag: false,
-        execMax: 1,
+        execMax: 0,
         beforeAction: createStepList(),
         cond: createSearchRule('group'),
         afterAction: createStepList(),

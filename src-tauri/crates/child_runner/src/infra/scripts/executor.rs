@@ -22,10 +22,10 @@ use ad_kernel::{
 use domain_device::{DeviceOperation, TimeoutAction};
 use domain_script::{
     Action, ClickMode, ColorCompareMethod, ColorRgb, CompareOp, ConditionNode,
-    CurrentTaskCondition, DataHanding, ExecuteResult, FilterMode, FlowControl, PointF32, PointU16,
-    PolicySetResultCompareOp, PolicySetResultField, PrintSource, RegionPoint, ScriptError,
-    StateStatus, StateTarget, Step, StepKind, SwipeMode, SwipeTarget, TaskControl, VarValue,
-    VisionNode,
+    CurrentTaskCondition, DataHanding, ExecCountValue, ExecuteResult, FilterMode, FlowControl,
+    OcrTextMatchMode, PointF32, PointU16, PolicySetResultCompareOp, PolicySetResultField,
+    PrintSource, RegionPoint, ScriptError, StateStatus, StateTarget, Step, StepKind, SwipeMode,
+    SwipeTarget, TaskControl, VarValue, VisionCountTarget, VisionNode,
 };
 use domain_script::{
     PolicyGroupPolicyLink, PolicyGroupProfile, PolicyProfile, PolicySetGroupLink, PolicySetProfile,

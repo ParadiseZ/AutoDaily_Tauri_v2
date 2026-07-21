@@ -44,14 +44,14 @@ impl ScriptExecutor {
                 }
                 ConditionNode::VisionCountCompare {
                     input_var,
-                    target_value,
+                    target,
                     op,
                     expected_count,
                 } => {
                     self.match_vision_count_compare(
                         "condition.visionCountCompare",
                         input_var,
-                        target_value.as_deref(),
+                        target,
                         op,
                         *expected_count,
                     )
@@ -61,8 +61,8 @@ impl ScriptExecutor {
                 ConditionNode::CurrentTaskIn { current } => {
                     Ok(self.match_current_task_condition(current).await)
                 }
-                ConditionNode::ExecNumCompare { target, op } => {
-                    self.match_exec_num_compare(target, op).await
+                ConditionNode::ExecNumCompare { target, op, value } => {
+                    self.match_exec_num_compare(target, op, value).await
                 }
                 ConditionNode::ColorCompare { .. } => Err(Self::execute_error(
                     "condition.colorCompare",
@@ -616,10 +616,27 @@ impl ScriptExecutor {
         &self,
         target: &StateTarget,
         op: &CompareOp,
+        value: &ExecCountValue,
     ) -> ExecuteResult<bool> {
         let exec_cur = self.current_exec_count(target).await;
-        let exec_max = self.resolve_exec_limit(target).await?;
-        Ok(Self::compare_exec_count(exec_cur, op, exec_max))
+        let expected = match value {
+            ExecCountValue::Fixed { value } => f64::from(*value),
+            ExecCountValue::Variable { var_name } => {
+                let Some(value) = self.read_runtime_var(var_name).await else {
+                    return Ok(false);
+                };
+                let Some(value) = Self::dynamic_to_number(&value) else {
+                    return Ok(false);
+                };
+                value
+            }
+            ExecCountValue::Max => self
+                .resolve_exec_limit(target)
+                .await?
+                .map(f64::from)
+                .unwrap_or(f64::INFINITY),
+        };
+        Ok(Self::compare_exec_count(exec_cur, op, expected))
     }
 
     async fn current_exec_count(&self, target: &StateTarget) -> u32 {
@@ -681,26 +698,16 @@ impl ScriptExecutor {
         }
     }
 
-    fn compare_exec_count(exec_cur: u32, op: &CompareOp, exec_max: Option<u32>) -> bool {
-        match exec_max {
-            Some(exec_max) => match op {
-                CompareOp::Eq => exec_cur == exec_max,
-                CompareOp::Ne => exec_cur != exec_max,
-                CompareOp::Lt => exec_cur < exec_max,
-                CompareOp::Le => exec_cur <= exec_max,
-                CompareOp::Gt => exec_cur > exec_max,
-                CompareOp::Ge => exec_cur >= exec_max,
-                CompareOp::Contains | CompareOp::NotContains => false,
-            },
-            None => match op {
-                CompareOp::Eq => false,
-                CompareOp::Ne => true,
-                CompareOp::Lt => true,
-                CompareOp::Le => true,
-                CompareOp::Gt => false,
-                CompareOp::Ge => false,
-                CompareOp::Contains | CompareOp::NotContains => false,
-            },
+    fn compare_exec_count(exec_cur: u32, op: &CompareOp, expected: f64) -> bool {
+        let exec_cur = f64::from(exec_cur);
+        match op {
+            CompareOp::Eq => (exec_cur - expected).abs() < f64::EPSILON,
+            CompareOp::Ne => (exec_cur - expected).abs() >= f64::EPSILON,
+            CompareOp::Lt => exec_cur < expected,
+            CompareOp::Le => exec_cur <= expected,
+            CompareOp::Gt => exec_cur > expected,
+            CompareOp::Ge => exec_cur >= expected,
+            CompareOp::Contains | CompareOp::NotContains => false,
         }
     }
 }

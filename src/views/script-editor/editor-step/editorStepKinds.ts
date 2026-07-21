@@ -128,12 +128,11 @@ export const COLOR_COMPARE_METHOD_TYPE = {
   oklabDistance: COLOR_COMPARE_METHOD_TYPES[0],
 } as const;
 
-export const VISION_TYPES = ['detect', 'ocr', 'countCompare', 'visionSearch'] as const;
+export const VISION_TYPES = ['detect', 'ocr', 'visionSearch'] as const satisfies readonly VisionNode['type'][];
 export const VISION_TYPE = {
   detect: VISION_TYPES[0],
   ocr: VISION_TYPES[1],
-  countCompare: VISION_TYPES[2],
-  visionSearch: VISION_TYPES[3],
+  visionSearch: VISION_TYPES[2],
 } as const;
 
 export const TASK_CONTROL_TYPES = ['setState'] as const satisfies readonly TaskControl['type'][];

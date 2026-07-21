@@ -18,6 +18,30 @@ export const reorderItemsById = <T extends { id: string }>(
   return reorderCollection(items, fromIndex, toIndex).map((item, index) => normalize(item, index));
 };
 
+export const regroupTasksBySection = (
+  tasks: ScriptTaskTable[],
+  normalize: (task: ScriptTaskTable, index: number) => ScriptTaskTable,
+) => {
+  const sortedTasks = [...tasks].sort((left, right) => left.index - right.index);
+  const titleRows = sortedTasks.filter((task) => task.rowType === TASK_ROW_TYPE.title);
+  const titleIds = new Set(titleRows.map((task) => task.id));
+  const taskRows = sortedTasks.map((task) => {
+    if (task.rowType !== TASK_ROW_TYPE.task || !task.sectionId || titleIds.has(task.sectionId)) {
+      return task;
+    }
+    return { ...task, sectionId: null };
+  });
+  const ungroupedTasks = taskRows.filter(
+    (task) => task.rowType === TASK_ROW_TYPE.task && !task.sectionId,
+  );
+  const groupedTasks = titleRows.flatMap((title) => [
+    title,
+    ...taskRows.filter((task) => task.rowType === TASK_ROW_TYPE.task && task.sectionId === title.id),
+  ]);
+
+  return [...ungroupedTasks, ...groupedTasks].map((task, index) => normalize(task, index));
+};
+
 export const moveTaskByMenuAction = (
   tasks: ScriptTaskTable[],
   taskId: string,

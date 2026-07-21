@@ -137,7 +137,17 @@ const toggleOpen = () => {
   if (props.disabled) {
     return;
   }
-  isOpen.value = !isOpen.value;
+
+  if (isOpen.value) {
+    isOpen.value = false;
+    return;
+  }
+
+  // The menu is teleported to <body>. Give it the trigger's current position
+  // before mounting so its first rendered frame never uses a stale/static
+  // fixed-position origin. The watcher measures the mounted menu again below.
+  updateMenuPosition();
+  isOpen.value = true;
 };
 
 const updateMenuPosition = () => {
@@ -201,6 +211,11 @@ watch(isOpen, async (open) => {
   await nextTick();
   searchQuery.value = '';
   updateMenuPosition();
+  requestAnimationFrame(() => {
+    if (isOpen.value) {
+      updateMenuPosition();
+    }
+  });
   if (props.searchable) {
     await nextTick();
     searchInput.value?.focus();

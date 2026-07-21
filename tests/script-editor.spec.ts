@@ -516,6 +516,130 @@ test('isolates then, else, and sequence child step containers', async ({ page })
   await expect(page.getByTestId('editor-step-card-1')).toHaveCount(0);
 });
 
+test('edits forEach and repeat loop bodies and shows variable usage state', async ({ page }) => {
+  const scriptId = 'script-editor-loop-body-and-variable-usage';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '循环体与变量使用状态脚本',
+      description: '',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: {
+        version: 1,
+        variables: [
+          {
+            id: 'runtime-items',
+            key: 'runtime.items',
+            name: '待遍历结果集',
+            namespace: 'runtime',
+            valueType: 'list',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: false,
+            uiBindable: false,
+            defaultValue: [],
+            description: '',
+          },
+          {
+            id: 'input-unused',
+            key: 'input.unused',
+            name: '未使用变量',
+            namespace: 'input',
+            valueType: 'string',
+            ownerTaskId: null,
+            sourceType: 'manual',
+            sourceStepId: null,
+            readable: true,
+            writable: true,
+            persisted: true,
+            uiBindable: true,
+            defaultValue: '',
+            description: '',
+          },
+        ],
+      },
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.getByTestId('editor-tab-steps').click();
+
+  await page.getByTestId('editor-step-template-for-each').click();
+  await page.getByRole('button', { name: '新建元素变量' }).click();
+  const createdItemVariable = page.locator('[data-testid^="editor-input-item-"]').filter({ hasText: '当前元素' });
+  await expect(createdItemVariable).toHaveAttribute('data-reference-state', 'referenced');
+  await expect(createdItemVariable).toContainText('已使用');
+
+  await page.getByTestId('editor-tab-steps').click();
+  await expect(page.getByTestId('editor-branch-flow')).toContainText('0');
+  await page.getByTestId('editor-branch-flow').click();
+  await page.getByTestId('editor-step-template-wait').click();
+
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+  await page.getByTestId('editor-step-template-repeat').click();
+  await page.getByTestId('editor-step-card-1').click();
+  await page.getByRole('button', { name: '新建次数变量' }).click();
+  const createdRepeatCountVariable = page.locator('[data-testid^="editor-input-item-"]').filter({ hasText: '循环次数' });
+  await expect(createdRepeatCountVariable).toHaveAttribute('data-reference-state', 'referenced');
+  await expect(createdRepeatCountVariable).toContainText('已使用');
+
+  await page.getByTestId('editor-tab-steps').click();
+  await expect(page.getByTestId('editor-branch-flow')).toContainText('0');
+  await page.getByTestId('editor-branch-flow').click();
+  await page.getByTestId('editor-step-template-back').click();
+
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+  await page.getByTestId('editor-tab-inputs').click();
+
+  const usedVariable = page.locator('[data-testid^="editor-input-item-"]').filter({ hasText: '待遍历结果集' });
+  await expect(usedVariable).toHaveAttribute('data-reference-state', 'referenced');
+  await expect(usedVariable).toContainText('已使用');
+
+  const unusedVariable = page.locator('[data-testid^="editor-input-item-"]').filter({ hasText: '未使用变量' });
+  await expect(unusedVariable).toHaveAttribute('data-reference-state', 'unreferenced');
+  await expect(unusedVariable).toContainText('未使用');
+
+  await page.getByTestId('editor-save').click();
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const [task] = state!.scriptTasks[scriptId];
+  expect(task.data.steps[0]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'forEach',
+      input_var: 'runtime.items',
+      flow: [{ op: 'flowControl', a: { type: 'waitMs' } }],
+    },
+  });
+  expect(task.data.steps[1]).toMatchObject({
+    op: 'flowControl',
+    a: {
+      type: 'repeat',
+      flow: [{ op: 'action', a: { ac: 'back' } }],
+    },
+  });
+});
+
 test('selects a UI variable next-step task and its bound variable together', async ({ page }) => {
   const scriptId = 'script-editor-drop-set-next';
   const script: StoredScriptTable = {
@@ -1112,6 +1236,71 @@ test('allows clearing task and title row names without auto-filling text', async
 
   await page.reload();
   await expect(page.getByTestId('editor-task-name')).toHaveValue('');
+});
+
+test('regroups and reindexes tasks when section or row type changes', async ({ page }) => {
+  const scriptId = 'script-editor-task-regroup';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '任务分组重排脚本',
+      description: '验证分组与行类型变化会同步任务序号',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-07-21T08:00:00.000Z',
+      updateTime: '2026-07-21T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-task-name').fill('未分组任务');
+  await page.getByTestId('editor-task-create').click();
+  await page.getByTestId('editor-task-name').fill('分组甲');
+  await selectOptionByValue(page, 'editor-task-row-type', 'title');
+  await page.getByTestId('editor-task-create').click();
+  await page.getByTestId('editor-task-name').fill('甲任务');
+  await page.getByTestId('editor-task-create').click();
+  await page.getByTestId('editor-task-name').fill('分组乙');
+  await selectOptionByValue(page, 'editor-task-row-type', 'title');
+
+  await page.getByText('未分组任务', { exact: true }).first().click();
+  await selectOptionByLabel(page, 'editor-task-section', '分组乙');
+  await page.getByTestId('editor-save').click();
+
+  let state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  let tasks = state!.scriptTasks[scriptId];
+  expect(tasks.map((task) => task.name)).toEqual(['分组甲', '甲任务', '分组乙', '未分组任务']);
+  expect(tasks.map((task) => task.index)).toEqual([0, 1, 2, 3]);
+  const secondTitle = tasks.find((task) => task.name === '分组乙')!;
+  expect(tasks.find((task) => task.name === '未分组任务')?.sectionId).toBe(secondTitle.id);
+
+  await page.getByTestId('editor-task-item-' + tasks.find((task) => task.name === '未分组任务')!.id).click();
+  await selectOptionByValue(page, 'editor-task-row-type', 'title');
+  await selectOptionByValue(page, 'editor-task-row-type', 'task');
+  await page.getByTestId('editor-save').click();
+
+  state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  tasks = state!.scriptTasks[scriptId];
+  expect(tasks.map((task) => task.name)).toEqual(['分组甲', '甲任务', '分组乙', '未分组任务']);
+  expect(tasks.map((task) => task.index)).toEqual([0, 1, 2, 3]);
+  expect(tasks.find((task) => task.name === '未分组任务')?.sectionId).toBe(secondTitle.id);
 });
 
 test('persists flow conditions and action forms from step workspace', async ({ page }) => {
@@ -2791,7 +2980,7 @@ test('persists varCompare conditions and nested branch steps', async ({ page }) 
   });
 });
 
-test('persists visionCountCompare as an if condition with nested branch steps', async ({ page }) => {
+test('persists visionCountCompare YOLO label idx as an if condition with nested branch steps', async ({ page }) => {
   const scriptId = 'script-editor-vision-count-condition';
   const script: StoredScriptTable = {
     id: scriptId,
@@ -2804,7 +2993,28 @@ test('persists visionCountCompare as an if condition with nested branch steps', 
       sponsorshipQr: null,
       sponsorshipUrl: null,
       contactInfo: null,
-      imgDetModel: null,
+      imgDetModel: {
+        Yolo11: {
+          baseModel: {
+            intraThreadNum: 4,
+            intraSpinning: true,
+            interThreadNum: 1,
+            interSpinning: true,
+            executionProvider: 'CPU',
+            inputWidth: 640,
+            inputHeight: 640,
+            modelSource: 'Custom',
+            modelPath: 'D:\\models\\img-det.onnx',
+            modelType: 'Yolo11',
+          },
+          classCount: 4,
+          confidenceThresh: 0.25,
+          iouThresh: 0.45,
+          labelPath: 'D:\\models\\img-det.labels.yaml',
+          txtIdx: 0,
+          postprocessKind: 'LegacyNms',
+        },
+      },
       txtDetModel: null,
       txtRecModel: null,
       createTime: '2026-03-26T08:00:00.000Z',
@@ -2859,17 +3069,14 @@ test('persists visionCountCompare as an if condition with nested branch steps', 
 
   await seedEditorState(page, script);
 
-  await page.getByTestId('editor-tab-inputs').click();
-  await page.getByTestId('editor-input-add').click();
-  await page.getByTestId('editor-input-key-0').fill('ocrResults');
-  await selectOptionByValue(page, 'editor-input-type-0', 'json');
-
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-if').click();
 
   await selectOptionByValue(page, 'editor-condition-type', 'visionCountCompare');
-  await selectOptionByValue(page, 'editor-condition-vision-count-compare-input-var', 'input.ocrResults');
-  await page.getByTestId('editor-condition-vision-count-compare-target-value').fill('领取');
+  await selectOptionByValue(page, 'editor-condition-vision-count-compare-input-var', 'runtime.items');
+  await selectOptionByValue(page, 'editor-condition-vision-count-compare-target-type', 'detLabel');
+  await expect(page.getByTestId('editor-condition-vision-count-compare-target-det-label-idx')).toContainText('0: 文本');
+  await selectOptionByLabel(page, 'editor-condition-vision-count-compare-target-det-label-idx', '1: 按钮');
   await page.getByTestId('editor-condition-vision-count-compare-expected-count').fill('2');
   await page.getByTestId('editor-branch-then').click();
   await page.getByTestId('editor-step-template-wait').click();
@@ -2884,8 +3091,11 @@ test('persists visionCountCompare as an if condition with nested branch steps', 
       type: 'if',
       con: {
         type: 'visionCountCompare',
-        input_var: 'input.ocrResults',
-        target_value: '领取',
+        input_var: 'runtime.items',
+        target: {
+          type: 'detLabel',
+          idx: 1,
+        },
         op: 'ge',
         expected_count: 2,
       },
@@ -4417,6 +4627,7 @@ test('allows clearing policy name without forcing default text back', async ({ p
 
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   expect(state?.policies[0]?.data.name).toBe('');
+  expect(state?.policies[0]?.data.execMax).toBe(0);
 });
 
 test('loads img-det labels for policy condition label rules and saves idx', async ({ page }) => {

@@ -56,29 +56,6 @@ impl ScriptExecutor {
                 self.execute_ocr_step("vision.ocr", input_var, out_var).await?;
                 Ok(ControlFlow::Next)
             }
-            VisionNode::CountCompare {
-                input_var,
-                out_var,
-                target_value,
-                op,
-                expected_count,
-                then_steps,
-            } => {
-                let matched = self
-                    .execute_vision_count_compare_step(
-                        "vision.countCompare",
-                        input_var,
-                        out_var,
-                        target_value.as_deref(),
-                        op,
-                        *expected_count,
-                    )
-                    .await?;
-                if matched && !then_steps.is_empty() {
-                    return self.execute(then_steps).await;
-                }
-                Ok(ControlFlow::Next)
-            }
             VisionNode::VisionSearch {
                 det_res_var,
                 ocr_res_var,
@@ -145,29 +122,11 @@ impl ScriptExecutor {
         }
     }
 
-    async fn execute_vision_count_compare_step(
-        &mut self,
-        step_type: &str,
-        input_var: &str,
-        out_var: &str,
-        target_value: Option<&str>,
-        op: &CompareOp,
-        expected_count: i32,
-    ) -> ExecuteResult<bool> {
-        let matched = self
-            .match_vision_count_compare(step_type, input_var, target_value, op, expected_count)
-            .await?;
-        if !out_var.trim().is_empty() {
-            self.set_runtime_var(out_var, Dynamic::from_bool(matched)).await?;
-        }
-        Ok(matched)
-    }
-
     async fn match_vision_count_compare(
         &self,
         step_type: &str,
         input_var: &str,
-        target_value: Option<&str>,
+        target: &VisionCountTarget,
         op: &CompareOp,
         expected_count: i32,
     ) -> ExecuteResult<bool> {
@@ -177,19 +136,43 @@ impl ScriptExecutor {
                 format!("输入变量[{}]不存在，无法统计视觉结果数量", input_var),
             )
         })?;
-        let target_value = target_value
-            .map(str::trim)
-            .filter(|value| !value.is_empty());
-        let actual_count = if let Ok(items) = Self::deserialize_dynamic_value::<Vec<DetResult>>(&value)
-        {
-            Self::count_det_items(&items, target_value)
-        } else if let Ok(items) = Self::deserialize_dynamic_value::<Vec<OcrResult>>(&value) {
-            Self::count_ocr_items(&items, target_value)
-        } else {
-            return Err(Self::execute_error(
-                step_type,
-                format!("输入变量[{}]不是兼容的检测结果或 OCR 结果集", input_var),
-            ));
+        let actual_count = match target {
+            VisionCountTarget::All => {
+                if let Ok(items) = Self::deserialize_dynamic_value::<Vec<DetResult>>(&value) {
+                    items.len() as i32
+                } else if let Ok(items) = Self::deserialize_dynamic_value::<Vec<OcrResult>>(&value) {
+                    items.len() as i32
+                } else {
+                    return Err(Self::execute_error(
+                        step_type,
+                        format!("输入变量[{}]不是兼容的检测结果或 OCR 结果集", input_var),
+                    ));
+                }
+            }
+            VisionCountTarget::DetLabel { idx } => {
+                let items = Self::deserialize_dynamic_value::<Vec<DetResult>>(&value).map_err(|_| {
+                    Self::execute_error(
+                        step_type,
+                        format!("输入变量[{}]不是检测结果集，无法按 YOLO 标签统计", input_var),
+                    )
+                })?;
+                Self::count_det_items(&items, *idx)
+            }
+            VisionCountTarget::OcrText { text, mode } => {
+                if text.trim().is_empty() {
+                    return Err(Self::execute_error(
+                        step_type,
+                        "OCR 文字统计目标不能为空".to_string(),
+                    ));
+                }
+                let items = Self::deserialize_dynamic_value::<Vec<OcrResult>>(&value).map_err(|_| {
+                    Self::execute_error(
+                        step_type,
+                        format!("输入变量[{}]不是 OCR 结果集，无法按文字统计", input_var),
+                    )
+                })?;
+                Self::count_ocr_items(&items, text, mode)
+            }
         };
         Ok(Self::compare_dynamic(
             &Dynamic::from_int(actual_count.into()),
@@ -283,16 +266,33 @@ impl ScriptExecutor {
         }
     }
 
-    fn count_det_items(items: &[DetResult], target_value: Option<&str>) -> i32 {
+    fn count_det_items(items: &[DetResult], idx: i32) -> i32 {
+        items.iter()
+            .filter(|item| item.index == idx)
+            .count() as i32
+    }
+
+    fn count_ocr_items(items: &[OcrResult], text: &str, mode: &OcrTextMatchMode) -> i32 {
+        let text = text.trim();
+        items.iter()
+            .filter(|item| match mode {
+                OcrTextMatchMode::Exact => item.txt.trim() == text,
+                OcrTextMatchMode::Contains => item.txt.contains(text),
+            })
+            .count() as i32
+    }
+
+    fn count_det_items_by_text(items: &[DetResult], target_value: Option<&str>) -> i32 {
         let Some(target_value) = target_value else {
             return items.len() as i32;
         };
-        items.iter()
+        items
+            .iter()
             .filter(|item| item.label.trim() == target_value || item.label.contains(target_value))
             .count() as i32
     }
 
-    fn count_ocr_items(items: &[OcrResult], target_value: Option<&str>) -> i32 {
+    fn count_ocr_items_by_text(items: &[OcrResult], target_value: Option<&str>) -> i32 {
         let Some(target_value) = target_value else {
             return items.len() as i32;
         };
@@ -303,7 +303,8 @@ impl ScriptExecutor {
         if exact_count > 0 {
             return exact_count;
         }
-        items.iter()
+        items
+            .iter()
             .filter(|item| item.txt.contains(target_value))
             .count() as i32
     }

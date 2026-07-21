@@ -252,7 +252,7 @@ export const findStepPathById = (steps: Step[], stepId: string, branch: StepBran
       continue;
     }
 
-    if (step.op === 'vision' && (step.a.type === 'visionSearch' || step.a.type === 'countCompare')) {
+    if (step.op === 'vision' && step.a.type === 'visionSearch') {
       const visionPath = findStepPathById(step.a.then_steps, stepId, { parentStepPath: path, branch: 'visionThen' });
       if (visionPath) {
         return visionPath;

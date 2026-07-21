@@ -25,8 +25,8 @@ pub use data_handing::{
 };
 pub use error::{ExecuteResult, ScriptError};
 pub use flow_control::{
-    CompareOp, ConditionNode, CurrentTaskCondition, FlowControl, PolicySetResultCompareOp,
-    PolicySetResultField,
+    CompareOp, ConditionNode, CurrentTaskCondition, ExecCountValue, FlowControl, OcrTextMatchMode,
+    PolicySetResultCompareOp, PolicySetResultField, VisionCountTarget,
 };
 pub use metadata::{
     RuntimeType, SCRIPT_RUNTIME_SCHEMA, ScriptPlatform, ScriptType, supported_script_features,
