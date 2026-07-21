@@ -24,7 +24,7 @@ impl ScriptExecutor {
             step_type,
             label,
             DEVICE_EXTERNAL_TIMEOUT_MS,
-            get_device_ctx().execute_operations(&plan.operations),
+            self.execute_device_operations(&plan.operations),
         )
         .await?;
 

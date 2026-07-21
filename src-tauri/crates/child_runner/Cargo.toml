@@ -3,6 +3,10 @@ name = "child_runner"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = []
+testkit = []
+
 [dependencies]
 ad_kernel = { path = "../ad_kernel" }
 domain_schedule = { package = "domain-schedule", path = "../domain_schedule" }

@@ -263,6 +263,8 @@ pub(crate) struct ScriptExecutor {
     active_policy_round: Option<ActivePolicyRoundTrace>,
     active_policy_context: Option<ActivePolicyContext>,
     last_progress_probe: Option<ProgressProbe>,
+    #[cfg(feature = "testkit")]
+    test_hooks: Option<Arc<crate::testkit::TestRuntimeHooks>>,
 }
 
 impl ScriptExecutor {
@@ -278,9 +280,51 @@ impl ScriptExecutor {
             active_policy_round: None,
             active_policy_context: None,
             last_progress_probe: None,
+            #[cfg(feature = "testkit")]
+            test_hooks: None,
         };
         executor.register_rhai_step_helpers();
         executor
+    }
+
+    #[cfg(feature = "testkit")]
+    pub(crate) fn new_with_test_hooks(
+        runtime_ctx: SharedRuntimeContext,
+        test_hooks: Arc<crate::testkit::TestRuntimeHooks>,
+    ) -> Self {
+        let mut executor = Self::new(runtime_ctx);
+        executor.test_hooks = Some(test_hooks);
+        executor
+    }
+
+    async fn execute_device_operation(&self, operation: DeviceOperation) -> Result<(), String> {
+        #[cfg(feature = "testkit")]
+        if let Some(test_hooks) = self.test_hooks.as_ref() {
+            return test_hooks.record_operation(operation).await;
+        }
+
+        get_device_ctx().execute_operation(operation).await
+    }
+
+    async fn execute_device_operations(
+        &self,
+        operations: &[DeviceOperation],
+    ) -> Result<(), String> {
+        #[cfg(feature = "testkit")]
+        if let Some(test_hooks) = self.test_hooks.as_ref() {
+            return test_hooks.record_operations(operations).await;
+        }
+
+        get_device_ctx().execute_operations(operations).await
+    }
+
+    async fn execute_device_sequence(&self, operations: &[DeviceOperation]) -> Result<(), String> {
+        #[cfg(feature = "testkit")]
+        if let Some(test_hooks) = self.test_hooks.as_ref() {
+            return test_hooks.record_operations(operations).await;
+        }
+
+        get_device_ctx().execute_sequence(operations).await
     }
 
     pub(crate) fn reset_node_indices(&mut self) {

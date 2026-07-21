@@ -302,6 +302,132 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
 
+test('switches task steps without reusing the previous task workspace', async ({ page }) => {
+  const scriptId = 'script-editor-task-step-switch';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '任务步骤切换脚本',
+      description: '验证切换任务时步骤工作区立即隔离',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+
+  await page.getByTestId('editor-task-name').fill('等待任务');
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-wait').click();
+
+  await page.getByTestId('editor-task-create').click();
+  await page.getByTestId('editor-tab-basic').click();
+  await page.getByTestId('editor-task-name').fill('返回任务');
+  await page.getByTestId('editor-tab-steps').click();
+  await page.getByTestId('editor-step-template-back').click();
+
+  const waitTaskItem = page.locator('[data-testid^="editor-task-item-"]').filter({ hasText: '等待任务' });
+  const backTaskItem = page.locator('[data-testid^="editor-task-item-"]').filter({ hasText: '返回任务' });
+
+  await waitTaskItem.click();
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('等待');
+  await expect(page.getByTestId('editor-step-card-1')).toHaveCount(0);
+
+  await backTaskItem.click();
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('返回');
+  await expect(page.getByTestId('editor-step-card-1')).toHaveCount(0);
+
+  await page.getByTestId('editor-save').click();
+
+  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  const waitTask = state!.scriptTasks[scriptId].find((task) => task.name === '等待任务');
+  const backTask = state!.scriptTasks[scriptId].find((task) => task.name === '返回任务');
+  expect(waitTask?.data.steps[0]).toMatchObject({ op: 'flowControl', a: { type: 'waitMs' } });
+  expect(backTask?.data.steps[0]).toMatchObject({ op: 'action', a: { ac: 'back' } });
+});
+
+test('isolates then, else, and sequence child step containers', async ({ page }) => {
+  const scriptId = 'script-editor-nested-container-switch';
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '子步骤容器切换脚本',
+      description: '验证进入不同子步骤容器时不会复用上一容器内容',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: emptyVariableCatalog,
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.getByTestId('editor-tab-steps').click();
+
+  await page.getByTestId('editor-step-template-if').click();
+  await page.getByRole('button', { name: '添加 Else' }).click();
+  await page.getByTestId('editor-branch-then').click();
+  await page.getByTestId('editor-step-template-wait').click();
+
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByTestId('editor-branch-else').click();
+  await page.getByTestId('editor-step-template-back').click();
+
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+  await page.getByTestId('editor-step-template-sequence').click();
+  await page.getByTestId('editor-step-card-1').click();
+  await page.getByTestId('editor-branch-sequence').click();
+  await page.getByTestId('editor-step-template-click-point').click();
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('点击');
+  await expect(page.getByTestId('editor-step-card-1')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByTestId('editor-branch-then').click();
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('等待');
+  await expect(page.getByTestId('editor-step-card-1')).toHaveCount(0);
+
+  await page.getByRole('button', { name: '顶层步骤' }).click();
+  await page.getByTestId('editor-step-card-0').click();
+  await page.getByTestId('editor-branch-else').click();
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('返回');
+  await expect(page.getByTestId('editor-step-card-1')).toHaveCount(0);
+});
+
 test('selects a UI variable next-step task and its bound variable together', async ({ page }) => {
   const scriptId = 'script-editor-drop-set-next';
   const script: StoredScriptTable = {
@@ -934,6 +1060,17 @@ test('persists flow conditions and action forms from step workspace', async ({ p
 
   await page.getByTestId('editor-tab-steps').click();
   await page.getByTestId('editor-step-template-if').click();
+
+  await selectOptionByValue(page, 'editor-condition-type', 'group');
+  await expect(page.getByTestId('editor-condition-card')).toHaveClass(/app-rule-card-root/);
+  await expect(page.getByTestId('editor-condition-card')).toHaveClass(/app-rule-card-group/);
+  await page.getByTestId('editor-condition-card').getByRole('button', { name: '表达式', exact: true }).click();
+  await expect(page.getByTestId('editor-condition-item-0-card')).toHaveClass(/app-rule-card-nested/);
+  await expect(page.getByTestId('editor-condition-item-0-remove')).toBeVisible();
+  await page.getByTestId('editor-condition-item-0-remove').click();
+  await expect(page.getByTestId('editor-condition-item-0-card')).toHaveCount(0);
+
+  await selectOptionByValue(page, 'editor-condition-type', 'rawExpr');
   await page.getByTestId('editor-condition-raw-expr').fill('input.activitySweepCount > 0');
 
   await page.getByTestId('editor-step-template-click-point').click();
@@ -2764,7 +2901,7 @@ test('persists action sequence, vision rule, and task state forms', async ({ pag
 
   await page.getByTestId('editor-step-template-vision-search').click();
   await page.getByTestId('editor-step-card-1').click();
-  await page.getByRole('button', { name: '添加文本' }).click();
+  await page.getByRole('button', { name: '文本', exact: true }).click();
   await page.getByTestId('editor-search-rule-item-0-txt').fill('领取');
 
   await page.getByTestId('editor-step-template-set-task-state').click();
@@ -3270,14 +3407,21 @@ test('switches preset and binding editors for launch click and wait steps', asyn
 
   await page.getByTestId('editor-step-card-5').click();
   await selectOptionByValue(page, 'editor-flow-wait-binding-mode', 'expr');
-  await expect(page.getByTestId('editor-flow-wait-runtime-var')).toBeVisible();
-  await selectOptionByValue(page, 'editor-flow-wait-variable-mode', 'input');
   await expect(page.getByTestId('editor-flow-wait-input-var')).toBeVisible();
+  await expect(page.getByTestId('editor-flow-wait-input-var').locator('[role=radio][aria-checked=true]')).toHaveCount(0);
+
+  await page.getByTestId('editor-save').click();
+  let state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  expect(state!.scriptTasks[scriptId][0].data.steps[5].a).not.toHaveProperty('runtime_var', 'runtime.ocrResults');
+
   await selectOptionByValue(page, 'editor-flow-wait-input-var', 'input.waitMs');
+  await page.getByTestId('editor-tab-inputs').click();
+  await expect(page.getByText('等待毫秒变量', { exact: true })).toHaveClass(/text-emerald-600/);
+  await page.getByTestId('editor-tab-steps').click();
 
   await page.getByTestId('editor-save').click();
 
-  const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
+  state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   const [task] = state!.scriptTasks[scriptId];
 
   expect(task.data.steps[0]).toMatchObject({
@@ -3990,8 +4134,8 @@ test('creates policies and persists search rule with before and after actions', 
   await page.getByTestId('editor-policy-create').click();
   await page.getByTestId('editor-policy-name').fill('领奖策略');
 
-  await page.getByTestId('editor-policy-tab-condition').click();
-  await page.getByRole('button', { name: '添加文本' }).click();
+  await page.getByTestId('editor-policy-tab-basic').click();
+  await page.getByRole('button', { name: '文本', exact: true }).click();
   await page.getByTestId('editor-policy-condition-item-0-txt').fill('领取');
 
   await page.getByTestId('editor-policy-tab-before').click();
@@ -4001,10 +4145,24 @@ test('creates policies and persists search rule with before and after actions', 
   await page.getByTestId('editor-policy-step-template-click-text').click();
   await page.getByLabel('目标文字').fill('领取');
 
+  await page.getByTestId('editor-policy-create').click();
+  await page.getByTestId('editor-policy-tab-basic').click();
+  await page.getByTestId('editor-policy-name').fill('返回策略');
+  await page.getByTestId('editor-policy-tab-before').click();
+  await page.getByTestId('editor-policy-step-template-back').click();
+
+  const rewardPolicyItem = page.locator('[data-testid^="editor-policy-item-"]').filter({ hasText: '领奖策略' });
+  const backPolicyItem = page.locator('[data-testid^="editor-policy-item-"]').filter({ hasText: '返回策略' });
+  await rewardPolicyItem.click();
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('等待');
+  await backPolicyItem.click();
+  await expect(page.getByTestId('editor-step-card-0')).toContainText('返回');
+  await rewardPolicyItem.click();
+
   await page.getByTestId('editor-save').click();
 
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
-  expect(state?.policies).toHaveLength(1);
+  expect(state?.policies).toHaveLength(2);
   expect(state?.policies[0]).toMatchObject({
     scriptId,
     orderIndex: 0,
@@ -4165,7 +4323,7 @@ test('loads img-det labels for policy condition label rules and saves idx', asyn
   await page.getByTestId('editor-policy-create').click();
   await page.getByTestId('editor-policy-name').fill('标签命中策略');
 
-  await page.getByTestId('editor-policy-tab-condition').click();
+  await page.getByTestId('editor-policy-tab-basic').click();
   await page.getByRole('button', { name: '标签', exact: true }).click();
   await expect(page.getByTestId('editor-policy-condition-item-0-det-label-idx')).toContainText('0: 文本');
   await selectOptionByLabel(page, 'editor-policy-condition-item-0-det-label-idx', '1: 按钮');
@@ -4467,10 +4625,20 @@ test('reverses assigned policies inside policy group workspace', async ({ page }
             note: '测试策略组',
           },
         },
+        {
+          id: 'group-b',
+          scriptId: seedScript.id,
+          orderIndex: 1,
+          data: {
+            name: '备用策略组',
+            note: '测试备用策略组',
+          },
+        },
       ],
       policySets: [],
       groupPolicies: {
         'group-a': ['policy-a', 'policy-b', 'policy-c'],
+        'group-b': ['policy-a'],
       },
       setGroups: {},
     });
@@ -4480,10 +4648,19 @@ test('reverses assigned policies inside policy group workspace', async ({ page }
   await selectEditorMode(page, 'policyGroup');
   await page.getByTestId('editor-relation-reverse').evaluate((element: HTMLElement) => element.click());
   await expect(page.getByTestId('editor-relation-assigned-policy-c')).toContainText('1');
+
+  await page.getByTestId('editor-relation-assigned-search').fill('收尾');
+  await page.getByTestId('editor-policy-group-item-group-b').click();
+  await expect(page.getByTestId('editor-relation-assigned-search')).toHaveValue('');
+  await expect(page.getByTestId('editor-relation-assigned-policy-a')).toBeVisible();
+  await expect(page.getByTestId('editor-relation-assigned-policy-b')).toHaveCount(0);
+  await expect(page.getByTestId('editor-relation-assigned-policy-c')).toHaveCount(0);
+
   await page.getByTestId('editor-save').click();
 
   const state = await page.evaluate(() => window.__AUTODAILY_MOCK__?.getState());
   expect(state?.groupPolicies['group-a']).toEqual(['policy-c', 'policy-b', 'policy-a']);
+  expect(state?.groupPolicies['group-b']).toEqual(['policy-a']);
 });
 
 test('locates assigned policy and policy group from relation workspace', async ({ page }) => {

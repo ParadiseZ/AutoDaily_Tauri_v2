@@ -148,6 +148,33 @@ export const resolvePersistedEditorViewState = ({
     : ROOT_BRANCH_PATH,
 });
 
+export const hydrateTaskStepEditorState = ({
+  currentTask,
+  selectedStepPath,
+  activeBranchPath,
+}: {
+  currentTask: ScriptTaskTable | null;
+  selectedStepPath: StepPath | null;
+  activeBranchPath: StepBranchPath;
+}) => {
+  if (!currentTask?.data.steps.length) {
+    return {
+      selectedStepPath: null,
+      activeBranchPath: ROOT_BRANCH_PATH,
+    };
+  }
+
+  const nextSelectedStepPath =
+    selectedStepPath && getStepByPath(currentTask.data.steps as Step[], selectedStepPath)
+      ? selectedStepPath
+      : buildStepPath(ROOT_BRANCH_PATH, 0);
+
+  return {
+    selectedStepPath: nextSelectedStepPath,
+    activeBranchPath: nextSelectedStepPath === selectedStepPath ? activeBranchPath : ROOT_BRANCH_PATH,
+  };
+};
+
 export const hydrateTaskEditorState = ({
   currentTask,
   draftScript,
@@ -215,12 +242,11 @@ export const hydrateTaskEditorState = ({
   }
 
   const uiSchema = parseUiSchema(currentTask.data.uiData ?? {});
-  const nextSelectedStepPath = !currentTask.data.steps.length
-    ? null
-    : !selectedStepPath || !getStepByPath(currentTask.data.steps as Step[], selectedStepPath)
-      ? buildStepPath(ROOT_BRANCH_PATH, 0)
-      : selectedStepPath;
-  const nextActiveBranchPath = nextSelectedStepPath === selectedStepPath && nextSelectedStepPath ? activeBranchPath : ROOT_BRANCH_PATH;
+  const taskStepState = hydrateTaskStepEditorState({
+    currentTask,
+    selectedStepPath,
+    activeBranchPath,
+  });
 
   return {
     taskName: currentTask.name,
@@ -240,8 +266,8 @@ export const hydrateTaskEditorState = ({
     inputError: null,
     uiSchema,
     selectedInputId: nextSelectedInputId,
-    selectedStepPath: nextSelectedStepPath,
-    activeBranchPath: nextActiveBranchPath,
+    selectedStepPath: taskStepState.selectedStepPath,
+    activeBranchPath: taskStepState.activeBranchPath,
     selectedUiFieldId: uiSchema.fields.find((field) => field.id === selectedUiFieldId)?.id ?? uiSchema.fields[0]?.id ?? null,
     forceBasicPanel: currentTask.rowType === TASK_ROW_TYPE.title,
   };

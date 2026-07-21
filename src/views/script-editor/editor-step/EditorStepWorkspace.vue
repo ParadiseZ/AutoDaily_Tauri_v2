@@ -16,6 +16,7 @@
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         <EditorStepList
           v-if="currentContainerSteps.length"
+          :key="activeContainerKey"
           :steps="currentContainerSteps"
           :selected-index="currentSelectedIndex"
           :task-reference-options="taskReferenceOptions"
@@ -35,7 +36,7 @@
       </div>
 
       <div class="min-h-0 overflow-y-auto pr-1 custom-scrollbar">
-        <EditorOverviewPanel v-if="selectedStep">
+        <EditorOverviewPanel v-if="selectedStep" :key="selectedStepEditorKey">
           <EditorOverviewSection heading-tag="h1" width="wide">
             <div class="step-badge-row">
               <span class="step-badge step-badge-strong">{{ selectedStepKindLabel }}</span>
@@ -104,6 +105,7 @@
 
               <EditorStepFlowPanel
                 v-else-if="selectedStep.op === STEP_OP.flowControl && selectedFlow"
+                :key="JSON.stringify(selectedStepPath)"
                 :selected-flow="selectedFlow"
                 :flow-with-condition="flowWithCondition"
                 :flow-condition="flowCondition"
@@ -577,6 +579,8 @@ const stateStatusTypeOptions = [
 ];
 
 const currentContainerSteps = computed(() => getBranchSteps(props.steps, props.activeBranchPath));
+const activeContainerKey = computed(() => JSON.stringify(props.activeBranchPath));
+const selectedStepEditorKey = computed(() => JSON.stringify(props.selectedStepPath));
 const selectedStep = computed(() => getStepByPath(props.steps, props.selectedStepPath));
 const currentSelectedIndex = computed(() => {
   if (!props.selectedStepPath?.length) return null;

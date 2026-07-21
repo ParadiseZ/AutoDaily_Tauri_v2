@@ -57,6 +57,8 @@ pub(crate) struct ScriptScheduler {
     current_script: Arc<RwLock<Option<ScriptId>>>,
     /// 取消令牌
     cancel_token: CancellationToken,
+    #[cfg(feature = "testkit")]
+    test_hooks: Option<Arc<crate::testkit::TestRuntimeHooks>>,
 }
 
 impl ScriptScheduler {
@@ -65,7 +67,34 @@ impl ScriptScheduler {
             queue: Arc::new(RwLock::new(VecDeque::new())),
             current_script: Arc::new(RwLock::new(None)),
             cancel_token,
+            #[cfg(feature = "testkit")]
+            test_hooks: None,
         })
+    }
+
+    #[cfg(feature = "testkit")]
+    pub(crate) fn new_with_test_hooks(
+        cancel_token: CancellationToken,
+        test_hooks: Arc<crate::testkit::TestRuntimeHooks>,
+    ) -> Arc<Self> {
+        Arc::new(Self {
+            queue: Arc::new(RwLock::new(VecDeque::new())),
+            current_script: Arc::new(RwLock::new(None)),
+            cancel_token,
+            test_hooks: Some(test_hooks),
+        })
+    }
+
+    fn create_executor(
+        &self,
+        runtime_ctx: Arc<RwLock<crate::infra::context::runtime_context::RuntimeContext>>,
+    ) -> ScriptExecutor {
+        #[cfg(feature = "testkit")]
+        if let Some(test_hooks) = self.test_hooks.as_ref() {
+            return ScriptExecutor::new_with_test_hooks(runtime_ctx, test_hooks.clone());
+        }
+
+        ScriptExecutor::new(runtime_ctx)
     }
 }
 
@@ -371,7 +400,16 @@ impl ScriptScheduler {
                 String::new()
             }
         };
-        Self::configure_visual_services(&runtime_ctx, &script_info).await?;
+        #[cfg(feature = "testkit")]
+        let should_configure_visual_services = self
+            .test_hooks
+            .as_ref()
+            .is_none_or(|test_hooks| test_hooks.uses_real_vision());
+        #[cfg(not(feature = "testkit"))]
+        let should_configure_visual_services = true;
+        if should_configure_visual_services {
+            Self::configure_visual_services(&runtime_ctx, &script_info).await?;
+        }
         let run_target = Self::current_run_target();
         let execution_plan =
             ExecutionPlanAssembler::assemble(&run_target, device_id, &queue_item, &bundle.tasks)
@@ -500,7 +538,7 @@ impl ScriptScheduler {
         }
 
         let root_tasks = task_selection.root_tasks.clone();
-        let mut executor = ScriptExecutor::new(runtime_ctx.clone());
+        let mut executor = self.create_executor(runtime_ctx.clone());
         let mut pending_tasks: VecDeque<_> = root_tasks.clone().into_iter().collect();
         let linkable_tasks = task_selection.linkable_tasks;
         while let Some(planned_task) = pending_tasks.pop_front() {
@@ -835,6 +873,20 @@ impl ScriptScheduler {
         );
 
         Ok(ScriptExecutionOutcome::Completed(script_name))
+    }
+
+    #[cfg(feature = "testkit")]
+    pub(crate) async fn execute_test_item(
+        &self,
+        queue_item: RuntimeQueueItem,
+    ) -> Result<bool, String> {
+        match self
+            .execute_script(queue_item, ExecutionId::new_v7())
+            .await?
+        {
+            ScriptExecutionOutcome::Completed(_) => Ok(false),
+            ScriptExecutionOutcome::Stopped(_) => Ok(true),
+        }
     }
 
     async fn execute_debug_policy_target(

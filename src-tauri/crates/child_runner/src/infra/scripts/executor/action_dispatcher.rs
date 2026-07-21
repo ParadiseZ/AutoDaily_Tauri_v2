@@ -40,7 +40,7 @@ impl<'a> ActionRunner<'a> {
             step_type,
             label,
             timeout_ms,
-            get_device_ctx().execute_operation(operation),
+            self.executor.execute_device_operation(operation),
         )
         .await?;
         Ok((
@@ -335,8 +335,8 @@ impl<'a> ActionRunner<'a> {
             .map(|step| step.operation.clone())
             .collect::<Vec<_>>();
 
-        get_device_ctx()
-            .execute_sequence(&operations)
+        self.executor
+            .execute_device_sequence(&operations)
             .await
             .map_err(|error| {
                 ScriptExecutor::execute_error(

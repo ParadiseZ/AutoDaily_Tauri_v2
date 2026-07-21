@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "name": "AutoDaily 完整脚本运行时能力回归",
+  "bundle": "fixtures/capability-bundle.json",
+  "requiredCapabilities": [
+    "sequence",
+    "action.capture",
+    "action.click",
+    "action.swipe",
+    "action.longClick",
+    "action.reboot",
+    "action.back",
+    "action.home",
+    "action.inputText",
+    "action.posAdd",
+    "action.posMinus",
+    "action.dropSetNext",
+    "action.launchApp",
+    "action.stopApp",
+    "dataHanding.setVar",
+    "dataHanding.clearVars",
+    "dataHanding.getVar",
+    "dataHanding.print",
+    "dataHanding.filter",
+    "dataHanding.colorCompare",
+    "dataHanding.relativeFilter",
+    "dataHanding.rhai",
+    "flowControl.if",
+    "flowControl.while",
+    "flowControl.forEach",
+    "flowControl.repeat",
+    "flowControl.continue",
+    "flowControl.break",
+    "flowControl.stopScript",
+    "flowControl.waitMs",
+    "flowControl.link",
+    "flowControl.addPolicies",
+    "flowControl.removePolicies",
+    "flowControl.bindPolicyGroup",
+    "flowControl.removePolicyGroup",
+    "flowControl.addPolicyGroups",
+    "flowControl.unloadPolicyGroup",
+    "flowControl.bindPolicy",
+    "flowControl.unloadPolicy",
+    "flowControl.searchPolicySetText",
+    "flowControl.handlePolicySet",
+    "flowControl.handlePolicy",
+    "taskControl.setState",
+    "vision.detect",
+    "vision.ocr",
+    "vision.countCompare",
+    "vision.visionSearch"
+  ],
+  "scenarios": [
+    {
+      "name": "OCR 命中",
+      "taskName": "01-OCR 命中",
+      "vision": {
+        "mode": "injected",
+        "ocrFrames": []
+      },
+      "expected": {
+        "execution": { "outcome": "completed" }
+      }
+    },
+    {
+      "name": "OCR 未命中",
+      "taskName": "02-OCR 未命中",
+      "vision": {
+        "mode": "injected",
+        "ocrFrames": [{ "detResults": [], "ocrResults": [] }]
+      },
+      "expected": {
+        "execution": { "outcome": "completed" }
+      }
+    },
+    {
+      "name": "检测命中与标签动作",
+      "taskName": "03-目标检测",
+      "vision": { "mode": "injected", "detectFrames": [] },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "搜索条件文字与策略集命中",
+      "taskName": "04-策略集命中",
+      "vision": { "mode": "injected", "ocrFrames": [] },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "策略集未命中与结果清理",
+      "taskName": "05-策略集未命中",
+      "vision": { "mode": "injected", "ocrFrames": [] },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "循环与条件控制",
+      "taskName": "06-循环与条件",
+      "vision": { "mode": "none" },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "变量、Rhai 与数据处理",
+      "taskName": "07-数据处理",
+      "vision": { "mode": "none" },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "任务与策略状态",
+      "taskName": "08-状态设置",
+      "vision": { "mode": "none" },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "策略动态绑定与卸载",
+      "taskName": "09-策略动态绑定",
+      "vision": { "mode": "none" },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "任务 Link 与流程结束",
+      "taskName": "10-任务跳转",
+      "vision": { "mode": "none" },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "设备动作",
+      "taskName": "11-设备动作",
+      "vision": { "mode": "none" },
+      "expected": { "execution": { "outcome": "completed" } }
+    },
+    {
+      "name": "固定图片真实视觉回归",
+      "taskName": "12-真实视觉",
+      "vision": {
+        "mode": "real",
+        "images": {
+          "path": "fixtures/real-vision",
+          "recursive": true,
+          "extensions": ["png", "jpg", "jpeg"]
+        },
+        "capturesPerCase": 1
+      },
+      "expected": { "execution": { "outcome": "completed" } },
+      "expectedByImage": {}
+    }
+  ]
+}

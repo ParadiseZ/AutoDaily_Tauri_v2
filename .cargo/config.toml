@@ -1,3 +1,5 @@
+# cargo-features = ["codegen-backend"] #兼容性问题，不启用
+
 [build]
 # 不经 .cmd wrapper，避免 Tauri dev 的 rustc 参数触及 Windows 命令行长度限制。
 # sccache 由开发者环境按需通过 RUSTC_WRAPPER 启用，不能成为仓库构建前提。
@@ -13,7 +15,6 @@ codegen-units = 256       # 提高并行拆分，缩短 dev 编译时间
 debug = 1                 # 保留基础调试信息，减轻链接负担
 strip = "none"            # 开发态保留符号
 panic = "abort"           # panic 处理
-#codegen-backend = "cranelift"       # 已禁用：与 FFI 包（如 aws-lc-rs）不兼容
 
 # sqlx-macros 编译优化（宏展开优化）
 [profile.dev.package.sqlx-macros]

@@ -1,17 +1,29 @@
 <template>
-  <EditorOverviewSection width="wide">
-    <template #actions>
+  <div
+    class="app-rule-card"
+    :class="{
+      'app-rule-card-nested': depth > 0,
+      'app-rule-card-root': depth === 0 && modelValue.type === 'group',
+      'app-rule-card-group': modelValue.type === 'group',
+    }"
+    :data-testid="rootTestId('card')"
+  >
+    <div class="flex items-center justify-between gap-3">
+      <span class="app-rule-badge shrink-0">{{ headerLabel }}</span>
       <button
         v-if="removable"
         class="app-icon-button app-crash-icon app-icon-button-sec shrink-0"
         type="button"
         title="删除"
         aria-label="删除"
+        :data-testid="rootTestId('remove')"
         @click="$emit('remove')"
       >
         <Trash2 class="h-4 w-4" />
       </button>
-    </template>
+    </div>
+
+    <div class="mt-4 flex w-full max-w-[42rem] flex-col gap-4">
 
     <EditorOverviewField label="条件类型" width="compact">
       <EditorSelectField
@@ -66,6 +78,7 @@
             :model-value="item"
             :depth="depth + 1"
             removable
+            :test-id-prefix="rootTestId(`item-${index}`)"
             :variable-options="variableOptions"
             :variable-reference-options="variableReferenceOptions"
             :variable-input-entries="variableInputEntries"
@@ -464,7 +477,8 @@
       <div v-else class="rounded-[14px] border border-(--app-border) bg-white/40 px-3 py-3 text-sm text-(--app-text-soft)">
         当前条件类型暂未提供专用表单。
       </div>
-  </EditorOverviewSection>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -472,7 +486,6 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { Trash2 } from '@lucide/vue';
 import AppIcon from '@/components/shared/AppIcon.vue';
 import EditorOverviewField from '@/views/script-editor/EditorOverviewField.vue';
-import EditorOverviewSection from '@/views/script-editor/EditorOverviewSection.vue';
 import EditorSelectField from '@/views/script-editor/EditorSelectField.vue';
 import type { ConditionNode } from '@/types/bindings/ConditionNode';
 import type { EditorReferenceKind, EditorReferenceOption } from '@/views/script-editor/editorReferences';
@@ -542,6 +555,12 @@ const emit = defineEmits<{
 }>();
 
 const resolvedConditionTypeOptions = computed(() => [...conditionTypeOptions]);
+const headerLabel = computed(() => {
+  if (props.modelValue.type === 'group') {
+    return props.depth === 0 ? '根逻辑组' : '逻辑组';
+  }
+  return '条件';
+});
 const addableConditionTypes = computed(() => conditionTypeOptions.filter((option) => option.value !== 'group' || props.depth < 2));
 const varCompareKindPreference = ref<VarValueKind | null>(null);
 const varCompareValueInputEl = ref<HTMLInputElement | null>(null);

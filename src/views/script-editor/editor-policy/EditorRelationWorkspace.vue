@@ -27,7 +27,7 @@
               >
                 {{ reverseActionLabel }}
               </button>
-              <input v-model="assignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索已关联内容" />
+              <input v-model="assignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索已关联内容" data-testid="editor-relation-assigned-search" />
               <p class="text-xs text-(--app-text-faint)">拖动排序，控制执行和命中顺序。</p>
             </div>
           </div>
@@ -106,7 +106,7 @@
                   {{ unassignedItems.length }}
                 </span>
               </div>
-              <input v-model="unassignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索未关联内容" />
+              <input v-model="unassignedSearch" class="app-input max-w-[220px]" type="search" placeholder="搜索未关联内容" data-testid="editor-relation-unassigned-search" />
               <p class="text-xs text-(--app-text-faint)">点击加入当前 {{ selectedTitleText }}。</p>
             </div>
           </div>

@@ -130,6 +130,15 @@ export const collectVariableReferencesFromSteps = (steps: Step[], bucket = new S
     }
 
     if (step.op === 'flowControl') {
+      if (step.a.type === 'waitMs') {
+        if (step.a.input_var?.trim()) {
+          bucket.add(step.a.input_var.trim());
+        }
+        if (step.a.runtime_var?.trim()) {
+          bucket.add(step.a.runtime_var.trim());
+        }
+        continue;
+      }
       if (step.a.type === 'searchPolicySetText') {
         if (step.a.ocr_input_var?.trim()) {
           bucket.add(step.a.ocr_input_var.trim());
@@ -279,6 +288,11 @@ export const collectVariableUsagesFromSteps = (steps: Step[], scopeLabel: string
     }
 
     if (step.op === 'flowControl') {
+      if (step.a.type === 'waitMs') {
+        pushVariableUsage(bucket, step.a.input_var, stepLabel);
+        pushVariableUsage(bucket, step.a.runtime_var, stepLabel);
+        continue;
+      }
       if (step.a.type === 'searchPolicySetText') {
         pushVariableUsage(bucket, step.a.ocr_input_var, `${stepLabel}的OCR输入`);
         pushVariableUsage(bucket, step.a.out_var, stepLabel);

@@ -317,6 +317,7 @@
             <div class="min-w-0 flex-1 flex flex-col min-h-0">
               <EditorTaskWorkspace
                 v-if="activeMode === 'task'"
+                :key="currentTask?.id ?? 'no-task'"
                 :task="currentTask"
                 :tasks="draftTasks"
                 :active-panel="activePanel"
@@ -390,6 +391,7 @@
 
               <EditorPolicyWorkspace
                 v-else-if="activeMode === 'policy'"
+                :key="currentPolicy?.id ?? 'no-policy'"
                 :policy="currentPolicy"
                 :active-panel="activePolicyPanel"
                 :steps="currentPolicySteps"
@@ -428,6 +430,7 @@
 
               <EditorRelationWorkspace
                 v-else-if="activeMode === 'policyGroup'"
+                :key="`policy-group:${currentPolicyGroup?.id ?? 'none'}`"
                 :has-selection="Boolean(currentPolicyGroup)"
                 :selected-title="currentPolicyGroup?.data.name ?? null"
                 assigned-title="已关联策略"
@@ -445,6 +448,7 @@
 
               <EditorRelationWorkspace
                 v-else
+                :key="`policy-set:${currentPolicySet?.id ?? 'none'}`"
                 :has-selection="Boolean(currentPolicySet)"
                 :selected-title="currentPolicySet?.data.name ?? null"
                 assigned-title="已关联策略组"
@@ -649,6 +653,7 @@ import {
   buildPersistedEditorViewState,
   hydratePolicyStepEditorState,
   hydrateTaskEditorState,
+  hydrateTaskStepEditorState,
   resolvePersistedEditorViewState,
   type ScriptEditorPersistedViewState,
 } from '@/views/script-editor/helpers/scriptEditorViewState';
@@ -2841,6 +2846,16 @@ const handleKeydown = (event: KeyboardEvent) => {
   }
 };
 
+const hydrateTaskStepEditors = () => {
+  const hydrated = hydrateTaskStepEditorState({
+    currentTask: currentTask.value,
+    selectedStepPath: selectedStepPath.value,
+    activeBranchPath: activeBranchPath.value,
+  });
+  selectedStepPath.value = hydrated.selectedStepPath;
+  activeBranchPath.value = hydrated.activeBranchPath;
+};
+
 const hydratePolicyStepEditors = () => {
   const hydrated = hydratePolicyStepEditorState({
     currentPolicy: currentPolicy.value,
@@ -2864,11 +2879,19 @@ watch(
 );
 
 watch(
+  () => currentTask.value?.id,
+  () => {
+    hydrateTaskStepEditors();
+  },
+  { immediate: true, flush: 'sync' },
+);
+
+watch(
   () => currentPolicy.value?.id,
   () => {
     hydratePolicyStepEditors();
   },
-  { immediate: true },
+  { immediate: true, flush: 'sync' },
 );
 
 watch(activePolicyPanel, (panel) => {

@@ -724,18 +724,11 @@ const policySetSearchHitsVariableOptions = computed(() =>
     '默认条件文字搜索输出变量，处理策略集会读取并在完成后回写这里的命中结果。',
   ),
 );
-const runtimeWaitVariableOptions = computed(() => {
-  const options = props.variableReferenceOptions
+const runtimeWaitVariableOptions = computed(() =>
+  props.variableReferenceOptions
     .filter((option) => option.namespace === 'runtime' && ['json', 'list', 'object'].includes(option.valueType))
-    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) }));
-
-  return ensureRuntimeResultOption(
-    options,
-    'runtime.ocrResults',
-    'OCR 结果',
-    '默认 OCR 输出变量，WaitMs 会从其中提取 00:00 或 00:00:00。',
-  );
-});
+    .map((option) => ({ label: option.label, value: option.key, description: getVariableOptionSummary(option) })),
+);
 const presetBindingModeOptions = [
   { label: '预设', value: 'fixed', description: '使用步骤里填写的固定值。' },
   { label: '绑定变量', value: 'expr', description: '从变量读取当前值。' },
@@ -756,8 +749,16 @@ const waitBindingMode = computed(() => {
   }
   return 'fixed';
 });
-const waitSourceMode = computed(() => (waitBindingMode.value === 'fixed' ? 'fixed' : 'expr'));
-const waitVariableMode = computed(() => (waitBindingMode.value === 'runtime' ? 'runtime' : 'input'));
+const waitSourceModeDraft = ref<'fixed' | 'expr' | null>(null);
+const waitVariableModeDraft = ref<'input' | 'runtime' | null>(null);
+const waitSourceMode = computed(() =>
+  waitBindingMode.value === 'fixed' ? waitSourceModeDraft.value ?? 'fixed' : 'expr',
+);
+const waitVariableMode = computed(() => {
+  if (waitBindingMode.value === 'runtime') return 'runtime';
+  if (waitBindingMode.value === 'input') return 'input';
+  return waitVariableModeDraft.value ?? 'input';
+});
 const isBindingFlow = computed(
   () =>
     props.selectedFlow.type === FLOW_TYPE.addPolicies ||
@@ -1306,39 +1307,39 @@ const createRepeatIndexVariable = async () => {
   }
 };
 
-const updateWaitVariableMode = async (mode: string) => {
+const updateWaitVariableMode = (mode: string) => {
   if (props.selectedFlow.type !== FLOW_TYPE.waitMs) {
     return;
   }
 
   if (mode === 'input') {
+    waitSourceModeDraft.value = 'expr';
+    waitVariableModeDraft.value = 'input';
     emit('update-field', 'runtime_var', '');
-    await nextTick();
-    if (!props.selectedFlow.input_var?.trim()) {
-      emit('update-field', 'input_var', resolvedWaitInputOptions.value[0]?.value ?? '');
-    }
     return;
   }
 
   if (mode === 'runtime') {
+    waitSourceModeDraft.value = 'expr';
+    waitVariableModeDraft.value = 'runtime';
     emit('update-field', 'input_var', '');
-    await nextTick();
-    if (!props.selectedFlow.runtime_var?.trim()) {
-      emit('update-field', 'runtime_var', 'runtime.ocrResults');
-    }
     return;
   }
 
+  waitVariableModeDraft.value = null;
   emit('update-field', 'input_var', '');
   emit('update-field', 'runtime_var', '');
 };
 
 const updateWaitSourceMode = (mode: string) => {
   if (mode === 'expr') {
-    updateWaitVariableMode(waitBindingMode.value === 'fixed' ? 'runtime' : waitBindingMode.value);
+    waitSourceModeDraft.value = 'expr';
+    waitVariableModeDraft.value = waitBindingMode.value === 'runtime' ? 'runtime' : 'input';
     return;
   }
 
+  waitSourceModeDraft.value = 'fixed';
+  waitVariableModeDraft.value = null;
   emit('update-field', 'input_var', '');
   emit('update-field', 'runtime_var', '');
 };

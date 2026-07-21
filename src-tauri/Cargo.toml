@@ -11,7 +11,7 @@ default = ["child-bin"]
 child-bin = ["dep:child_runner"]
 
 [workspace]
-members = [".", "crates/domain_device", "crates/domain_schedule", "crates/domain_notification", "crates/domain_script", "crates/domain_system", "crates/domain_vision", "crates/runner_protocol", "crates/child_runner", "crates/ad_kernel", "crates/infra_vision", "crates/infra_adb", "crates/infra_device_runtime", "crates/infra_logging", "crates/infra_mail", "crates/infra_sqlite", "crates/infra_vision_cache", "crates/infra_window_capture"]
+members = [".", "crates/domain_device", "crates/domain_schedule", "crates/domain_notification", "crates/domain_script", "crates/domain_system", "crates/domain_vision", "crates/runner_protocol", "crates/child_runner", "crates/script_runtime_tests", "crates/ad_kernel", "crates/infra_vision", "crates/infra_adb", "crates/infra_device_runtime", "crates/infra_logging", "crates/infra_mail", "crates/infra_sqlite", "crates/infra_vision_cache", "crates/infra_window_capture"]
 resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -38,7 +38,7 @@ crossbeam-channel = "0.5.15"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tracing = "0.1"
-adb_client = { version = "3.1.1", default-features = false, features = ["framebuffer", "mdns", "usb"] }
+adb_client = { version = "3.2.2", default-features = false, features = ["framebuffer", "mdns", "usb"] }
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.18.0", features = ["v7", "serde"] }
 serde_yaml = "0.9"

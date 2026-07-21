@@ -198,7 +198,7 @@
         />
       </template>
 
-      <div class="border-1"></div>
+      <div v-if="selectedAction.mode !== ACTION_MODE.point && selectedAction.mode === ACTION_MODE.percent" class="border-1"></div>
       
       <div v-if="selectedAction.mode === ACTION_MODE.txt" class="space-y-3">
         <label class="md:col-span-2 flex items-center gap-3 rounded-[16px] border border-(--app-border) bg-white/55 px-4 py-3">
@@ -307,7 +307,7 @@
           </template>
         </div>
       </div>
-      <div class="border-1"></div>
+      <div v-if="selectedAction.mode !== ACTION_MODE.point && selectedAction.mode === ACTION_MODE.percent" class="border-1"></div>
       <div class="editor-compact-grid editor-compact-grid--triple">
         <!-- <label class="editor-compact-field">
           <span class="editor-compact-field__label">点击方式</span>
