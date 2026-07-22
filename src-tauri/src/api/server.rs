@@ -2,6 +2,7 @@ mod auth;
 pub(crate) mod dto;
 pub(crate) mod profile_cache;
 mod script;
+mod support;
 
 pub(crate) use auth::{
     backend_get_auth_session, backend_get_cached_profile, backend_get_profile, backend_login,
@@ -15,6 +16,7 @@ pub(crate) use script::{
     backend_preflight_upload_script, backend_search_scripts, backend_upload_model,
     backend_upload_script,
 };
+pub(crate) use support::{backend_create_feedback, backend_create_script_report};
 
 use crate::api::response::ApiResponse;
 use crate::app::app_error::{AppError, AppResult};

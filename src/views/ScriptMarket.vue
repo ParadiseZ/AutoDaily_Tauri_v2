@@ -73,7 +73,7 @@
             v-for="script in scriptStore.marketPage.records"
             :key="script.id"
             type="button"
-            class="app-list-item"
+            class="app-list-item text-left"
             :class="{ 'app-list-item-active': script.id === selectedScriptId }"
             @click="selectedScriptId = script.id"
           >
@@ -94,15 +94,45 @@
 
       <SurfacePanel class="space-y-6">
         <template v-if="selectedScript">
-          <div class="space-y-2">
-            <div class="flex flex-wrap items-center gap-2">
-              <h2 class="text-2xl font-semibold text-(--app-text-strong)">{{ selectedScript.name || '未命名脚本' }}</h2>
-              <StatusBadge label="云端脚本" tone="info" />
-              <StatusBadge v-if="isSelectedIncompatible" label="需要升级程序" tone="warning" />
+          <div class="flex flex-wrap items-start justify-between gap-5">
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="text-2xl font-semibold text-(--app-text-strong)">{{ selectedScript.name || '未命名脚本' }}</h2>
+                <StatusBadge label="云端脚本" tone="info" />
+                <StatusBadge v-if="isSelectedIncompatible" label="需要升级程序" tone="warning" />
+              </div>
+              <p class="text-sm leading-6 text-(--app-text-soft)">
+                {{ selectedScript.description || '脚本作者还没有补充详细说明。' }}
+              </p>
             </div>
-            <p class="text-sm leading-6 text-(--app-text-soft)">
-              {{ selectedScript.description || '脚本作者还没有补充详细说明。' }}
-            </p>
+            <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <button class="app-button app-button-primary" type="button" :disabled="Boolean(downloadBlockedReason) || downloadSubmitting" @click="downloadSelected">
+                <AppIcon name="download" :size="15" />
+                {{ downloadSubmitting ? downloadPendingLabel : downloadButtonLabel }}
+              </button>
+              <button class="app-button app-button-ghost" type="button" @click="router.push('/scripts')">
+                <AppIcon name="folder-open" :size="15" />
+                查看本地
+              </button>
+              <button
+                v-if="selectedScript.userId !== userStore.userProfile?.id"
+                class="app-button app-button-ghost"
+                type="button"
+                @click="openScriptSupport('script-feedback')"
+              >
+                <AppIcon name="message-square-text" :size="15" />
+                反馈
+              </button>
+              <button
+                v-if="selectedScript.userId !== userStore.userProfile?.id"
+                class="app-button app-button-ghost text-(--app-danger)"
+                type="button"
+                @click="openScriptSupport('report')"
+              >
+                <AppIcon name="flag" :size="15" />
+                举报
+              </button>
+            </div>
           </div>
 
           <div class="grid gap-3 md:grid-cols-2">
@@ -154,14 +184,6 @@
             </div>
           </div>
 
-          <div class="flex flex-wrap gap-3">
-            <button class="app-button app-button-primary" type="button" :disabled="Boolean(downloadBlockedReason) || downloadSubmitting" @click="downloadSelected">
-              {{ downloadSubmitting ? downloadPendingLabel : downloadButtonLabel }}
-            </button>
-            <button class="app-button app-button-ghost" type="button" @click="router.push('/scripts')">
-              查看本地库
-            </button>
-          </div>
         </template>
 
         <EmptyState
@@ -174,6 +196,14 @@
     </div>
     </div>
     </template>
+
+    <SupportSubmissionDialog
+      :open="supportDialogOpen"
+      :mode="supportDialogMode"
+      :script="supportScript"
+      @close="supportDialogOpen = false"
+      @submitted="handleSupportSubmitted"
+    />
   </div>
 </template>
 
@@ -195,6 +225,9 @@ import { createServerResponseError } from '@/utils/api';
 import { showToast } from '@/utils/toast';
 import { formatDate, formatRuntimeLabel } from '@/utils/presenters';
 import AppLoadingState from '@/components/shared/AppLoadingState.vue';
+import AppIcon from '@/components/shared/AppIcon.vue';
+import SupportSubmissionDialog from '@/components/support/SupportSubmissionDialog.vue';
+import { getSupportSubmissionSuccessMessage, type SupportDialogMode, type SupportScriptContext, type SupportSubmissionResult } from '@/services/supportService';
 import { requestAppConfirm } from '@/services/appDialogService';
 
 const router = useRouter();
@@ -208,6 +241,9 @@ const downloadSubmitting = ref(false);
 const downloadPendingLabel = ref('下载中...');
 const downloadHistoryOpen = ref(false);
 const scrollRoot = ref<HTMLElement | null>(null);
+const supportDialogOpen = ref(false);
+const supportDialogMode = ref<SupportDialogMode>('report');
+const supportScript = ref<SupportScriptContext | null>(null);
 const filters = reactive({
   keyword: '',
   author: '',
@@ -257,8 +293,35 @@ const downloadButtonLabel = computed(() => {
     return '同步账户中';
   }
 
-  return downloadBlockedReason.value ? '暂无权限' : '下载到本地';
+  return downloadBlockedReason.value ? '暂无权限' : '下载';
 });
+
+async function openScriptSupport(mode: 'report' | 'script-feedback') {
+  if (!selectedScript.value) return;
+  const profile = await userStore.ensureProfileForAction(mode === 'report' ? '举报' : '反馈');
+  if (!profile) {
+    if (!userStore.authSession) userStore.openAuthModal();
+    showToast('请先登录后再提交', 'warning');
+    return;
+  }
+  if (selectedScript.value.userId === profile.id) {
+    showToast('不能举报或反馈自己的脚本', 'warning');
+    return;
+  }
+  supportDialogMode.value = mode;
+  supportScript.value = {
+    cloudId: selectedScript.value.id,
+    name: selectedScript.value.name || '未命名脚本',
+    authorName: selectedScript.value.userName,
+    runtimeType: selectedScript.value.runtimeType,
+  };
+  supportDialogOpen.value = true;
+}
+
+function handleSupportSubmitted(result: SupportSubmissionResult) {
+  supportDialogOpen.value = false;
+  showToast(getSupportSubmissionSuccessMessage(supportDialogMode.value, result), result.failedScreenshots ? 'warning' : 'success', 5000);
+}
 
 const confirmDownloadAgainstLocal = async () => {
   if (!selectedScript.value) {

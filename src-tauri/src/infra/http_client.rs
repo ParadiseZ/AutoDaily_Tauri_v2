@@ -383,6 +383,12 @@ impl HttpClient {
         let status = response.status();
         let text = response.text().await.unwrap_or_default();
 
+        // 登录、注册等认证请求不能因为一次失败的凭据而清掉已有会话；
+        // 其余带认证上下文的接口仍在 401 时清理失效令牌。
+        if status == StatusCode::UNAUTHORIZED && !endpoint.starts_with("/auth/") {
+            let _ = self.clear_auth_session();
+        }
+
         serde_json::from_str(&text).map_err(|e| AppError::HttpErr {
             detail: format!("解析接口响应失败: {}", status),
             e: if text.is_empty() {
@@ -646,8 +652,23 @@ impl HttpClient {
         });
 
         let body = reqwest::Body::wrap_stream(stream);
+        let mime = match file_path
+            .extension()
+            .and_then(|value| value.to_str())
+            .map(|value| value.to_ascii_lowercase())
+            .as_deref()
+        {
+            Some("jpg" | "jpeg") => "image/jpeg",
+            Some("png") => "image/png",
+            _ => "application/octet-stream",
+        };
         let part = reqwest::multipart::Part::stream_with_length(body, total_bytes)
-            .file_name(file_name.to_string());
+            .file_name(file_name.to_string())
+            .mime_str(mime)
+            .map_err(|error| AppError::HttpErr {
+                detail: "设置上传文件类型失败".to_string(),
+                e: error.to_string(),
+            })?;
 
         let form = reqwest::multipart::Form::new().part(file_part_name.to_string(), part);
         let request = self.client.post(&url).multipart(form);

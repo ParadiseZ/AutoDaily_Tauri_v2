@@ -40,6 +40,8 @@
         @clone="handleClone"
         @clear-logs="handleClearLogs"
         @delete="handleDelete"
+        @feedback-cloud="(scriptId) => openCloudSupport(scriptId, 'script-feedback')"
+        @report-cloud="(scriptId) => openCloudSupport(scriptId, 'report')"
       />
       <ScriptLogPanel
         :script="selectedScript"
@@ -57,6 +59,13 @@
         @close="closeInfoDialog"
         @save="handleSaveScriptInfo"
       />
+      <SupportSubmissionDialog
+        :open="supportDialogOpen"
+        :mode="supportDialogMode"
+        :script="supportScript"
+        @close="supportDialogOpen = false"
+        @submitted="handleSupportSubmitted"
+      />
     </div>
 </template>
 
@@ -72,6 +81,8 @@ import ScriptDetailPanel from '@/views/script-list/ScriptDetailPanel.vue';
 import ScriptInfoDialog from '@/views/script-list/ScriptInfoDialog.vue';
 import ScriptLogPanel from '@/views/script-list/ScriptLogPanel.vue';
 import ScriptListSidebar from '@/views/script-list/ScriptListSidebar.vue';
+import SupportSubmissionDialog from '@/components/support/SupportSubmissionDialog.vue';
+import { getSupportSubmissionSuccessMessage, type SupportDialogMode, type SupportScriptContext, type SupportSubmissionResult } from '@/services/supportService';
 import { useDeviceStore } from '@/store/device';
 import { useScriptStore } from '@/store/script';
 import { useScriptTransferStore } from '@/store/scriptTransfer';
@@ -100,6 +111,9 @@ const uploadPendingLabel = ref('上传中...');
 const selectedScriptChangeLogs = ref<ScriptChangeLogRecord[]>([]);
 const changeLogsLoading = ref(false);
 const changeLogsLoadFailed = ref(false);
+const supportDialogOpen = ref(false);
+const supportDialogMode = ref<SupportDialogMode>('report');
+const supportScript = ref<SupportScriptContext | null>(null);
 
 const dialogRecoveryTaskOptions = computed(() => {
   const scriptId = dialogScript.value?.id;
@@ -137,6 +151,33 @@ const selectedScript = computed(() => {
   }
   return filteredScripts.value[0] ?? null;
 });
+
+async function openCloudSupport(scriptId: string, mode: 'report' | 'script-feedback') {
+  const script = scriptStore.scripts.find((item) => item.id === scriptId);
+  const cloudId = script?.data.cloudId;
+  if (!script || !cloudId) {
+    showToast('该本地脚本没有可核对的云端来源，无法提交。', 'warning');
+    return;
+  }
+  const profile = await userStore.ensureProfileForAction(mode === 'report' ? '举报脚本' : '反馈脚本问题');
+  if (!profile) {
+    if (!userStore.authSession) userStore.openAuthModal();
+    showToast('请先登录后再提交', 'warning');
+    return;
+  }
+  if (script.data.userId === profile.id) {
+    showToast('不能举报或反馈自己的脚本', 'warning');
+    return;
+  }
+  supportDialogMode.value = mode;
+  supportScript.value = { cloudId, name: script.data.name, authorName: script.data.userName, runtimeType: script.data.runtimeType };
+  supportDialogOpen.value = true;
+}
+
+function handleSupportSubmitted(result: SupportSubmissionResult) {
+  supportDialogOpen.value = false;
+  showToast(getSupportSubmissionSuccessMessage(supportDialogMode.value, result), result.failedScreenshots ? 'warning' : 'success', 5000);
+}
 
 const selectedScriptChangeLogSourceId = computed(() => {
   if (!selectedScript.value) {

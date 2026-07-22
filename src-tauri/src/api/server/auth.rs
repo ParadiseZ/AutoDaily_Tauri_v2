@@ -39,7 +39,23 @@ pub async fn backend_reset_password(
 #[command]
 pub async fn backend_login(app_handle: AppHandle, req: LoginReq) -> ApiResponse<AuthRes> {
     let client = HttpClient::new(app_handle);
-    let res: AppResult<BackendApiRes<AuthRes>> = client.post("/auth/login", &req).await;
+    // 用标准响应解析保留服务端的业务错误，而不是把 401 一律折叠为“登录状态已失效”。
+    let res: AppResult<BackendApiRes<AuthRes>> = client.post_api_res("/auth/login", &req).await;
+
+    if let Ok(response) = &res {
+        let message = response.message.trim().to_ascii_lowercase();
+        if response.code == 401
+            || message.contains("bad credentials")
+            || message.contains("invalid credentials")
+        {
+            return ApiResponse::failed_with_details(
+                None,
+                Some("邮箱或密码错误，请重新输入。".to_string()),
+                response.details.clone(),
+            );
+        }
+    }
+
     trans_api_res_token(client, res)
 }
 

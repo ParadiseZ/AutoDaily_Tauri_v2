@@ -35,6 +35,8 @@ const backendCommandFallbackMessages: Record<string, string> = {
     backend_upload_script: '上传脚本失败，请检查网络后重试。',
     backend_download_model: '下载模型文件失败，请检查网络后重试。',
     backend_upload_model: '上传模型文件失败，请检查网络后重试。',
+    backend_create_script_report: '举报提交失败，请稍后重试。',
+    backend_create_feedback: '反馈提交失败，请稍后重试。',
 };
 
 const technicalErrorPattern =

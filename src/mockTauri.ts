@@ -719,6 +719,13 @@ if (isBrowserMockTarget && !(window as { __TAURI_INTERNALS__?: unknown }).__TAUR
             },
             message: null,
           };
+        case 'backend_create_script_report':
+        case 'backend_create_feedback':
+          return {
+            success: true,
+            data: { id: buildUuid(), uploadedScreenshots: 0, failedScreenshots: 0 },
+            message: cmd === 'backend_create_script_report' ? '举报已提交，我们会进行核查' : '反馈已提交',
+          };
         case 'backend_get_script_cloud_summary': {
           const script = findScript(readState(), String(args.scriptId));
           if (!script || script.data.scriptType !== 'dev') {

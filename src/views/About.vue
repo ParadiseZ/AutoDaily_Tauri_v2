@@ -79,6 +79,10 @@
         </div>
 
         <div class="flex flex-wrap justify-end gap-3">
+          <button class="app-button app-button-primary" type="button" @click="openProductFeedback">
+            <AppIcon name="message-circle-warning" :size="16" />
+            反馈问题
+          </button>
           <button class="app-button app-button-ghost" type="button" @click="openCurrentReleaseNotes">
             <AppIcon name="file-clock" :size="16" />
             当前版本日志
@@ -100,6 +104,12 @@
       :error="documentDialogError"
       @close="documentDialogOpen = false"
     />
+    <SupportSubmissionDialog
+      :open="feedbackDialogOpen"
+      mode="product-feedback"
+      @close="feedbackDialogOpen = false"
+      @submitted="handleFeedbackSubmitted"
+    />
   </div>
 </template>
 
@@ -111,6 +121,9 @@ import AppPageHeader from '@/components/shared/AppPageHeader.vue';
 import MarkdownDocumentDialog from '@/components/shared/MarkdownDocumentDialog.vue';
 import MarkdownView from '@/components/shared/MarkdownView.vue';
 import SurfacePanel from '@/components/shared/SurfacePanel.vue';
+import SupportSubmissionDialog from '@/components/support/SupportSubmissionDialog.vue';
+import type { SupportSubmissionResult } from '@/services/supportService';
+import { useUserStore } from '@/store/user';
 import {
   appUpdateState,
   checkForAppUpdate,
@@ -131,6 +144,8 @@ const documentDialogDescription = ref('');
 const documentDialogContent = ref('');
 const documentDialogLoading = ref(false);
 const documentDialogError = ref('');
+const feedbackDialogOpen = ref(false);
+const userStore = useUserStore();
 
 const updateStatusLabel = computed(() => {
   if (appUpdateState.phase === 'checking') {
@@ -198,6 +213,22 @@ async function checkUpdate() {
     return;
   }
   //showToast(result ? `发现版本 ${result.version}` : '当前已是最新版本', 'success');
+}
+
+async function openProductFeedback() {
+  const profile = await userStore.ensureProfileForAction('反馈 AutoDaily 问题');
+  if (!profile) {
+    if (!userStore.authSession) userStore.openAuthModal();
+    showToast('请先登录后再提交反馈', 'warning');
+    return;
+  }
+  feedbackDialogOpen.value = true;
+}
+
+function handleFeedbackSubmitted(result: SupportSubmissionResult) {
+  feedbackDialogOpen.value = false;
+  const attachmentHint = result.failedScreenshots ? `，其中 ${result.failedScreenshots} 张截图上传失败` : '';
+  showToast(`反馈已提交，编号 ${result.id}${attachmentHint}`, result.failedScreenshots ? 'warning' : 'success', 5000);
 }
 
 onMounted(() => {

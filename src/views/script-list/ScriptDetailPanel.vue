@@ -63,6 +63,26 @@
           </button>
         </div>
         <div class="flex flex-wrap gap-2">
+          <button
+            v-if="canSupportCloudScript"
+            class="app-button app-button-ghost app-toolbar-button"
+            type="button"
+            title="向脚本开发者反馈"
+            @click="$emit('feedback-cloud', script.id)"
+          >
+            <AppIcon name="message-square-text" :size="14" />
+            反馈
+          </button>
+          <button
+            v-if="canSupportCloudScript"
+            class="app-button app-button-danger app-toolbar-button"
+            type="button"
+            title="举报云端来源脚本"
+            @click="$emit('report-cloud', script.id)"
+          >
+            <AppIcon name="flag" :size="14" />
+            举报
+          </button>
           <button class="app-button app-button-warning app-toolbar-button shadow-none" type="button" @click="$emit('clear-logs', script.id)" title="清除任务运行记录">
             <AppIcon name="eraser" :size="14" />
             记录  
@@ -166,6 +186,10 @@ const canCloneScript = computed(() => {
     props.script.data.userId === props.currentUserId
   );
 });
+const canSupportCloudScript = computed(() => Boolean(
+  props.script?.data.cloudId &&
+  props.script.data.userId !== props.currentUserId,
+));
 const uploadButtonLabel = computed(() => props.uploadPendingLabel?.trim() || '上传');
 
 defineEmits<{
@@ -175,5 +199,7 @@ defineEmits<{
   clone: [scriptId: string];
   'clear-logs': [scriptId: string];
   delete: [scriptId: string];
+  'feedback-cloud': [scriptId: string];
+  'report-cloud': [scriptId: string];
 }>();
 </script>
