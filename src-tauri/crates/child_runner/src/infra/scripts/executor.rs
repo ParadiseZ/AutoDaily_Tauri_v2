@@ -298,33 +298,39 @@ impl ScriptExecutor {
     }
 
     async fn execute_device_operation(&self, operation: DeviceOperation) -> Result<(), String> {
+        let result = get_device_ctx().execute_operation(operation.clone()).await;
         #[cfg(feature = "testkit")]
         if let Some(test_hooks) = self.test_hooks.as_ref() {
-            return test_hooks.record_operation(operation).await;
+            test_hooks
+                .record_operation(&operation, result.as_ref().err().map(String::as_str))
+                .await;
         }
-
-        get_device_ctx().execute_operation(operation).await
+        result
     }
 
     async fn execute_device_operations(
         &self,
         operations: &[DeviceOperation],
     ) -> Result<(), String> {
+        let result = get_device_ctx().execute_operations(operations).await;
         #[cfg(feature = "testkit")]
         if let Some(test_hooks) = self.test_hooks.as_ref() {
-            return test_hooks.record_operations(operations).await;
+            test_hooks
+                .record_operations(operations, result.as_ref().err().map(String::as_str))
+                .await;
         }
-
-        get_device_ctx().execute_operations(operations).await
+        result
     }
 
     async fn execute_device_sequence(&self, operations: &[DeviceOperation]) -> Result<(), String> {
+        let result = get_device_ctx().execute_sequence(operations).await;
         #[cfg(feature = "testkit")]
         if let Some(test_hooks) = self.test_hooks.as_ref() {
-            return test_hooks.record_operations(operations).await;
+            test_hooks
+                .record_operations(operations, result.as_ref().err().map(String::as_str))
+                .await;
         }
-
-        get_device_ctx().execute_sequence(operations).await
+        result
     }
 
     pub(crate) fn reset_node_indices(&mut self) {
@@ -367,11 +373,21 @@ impl ScriptExecutor {
             if step.skip_flag {
                 let step_name = self.resolve_step_display_name(step).await;
                 self.log_step_debug("skip", step, &step_name, Some("skip_flag=true"));
+                #[cfg(feature = "testkit")]
+                if let Some(test_hooks) = self.test_hooks.as_ref() {
+                    test_hooks
+                        .record_step("skip", step, Some("next"), None)
+                        .await;
+                }
                 return Ok(ControlFlow::Next);
             }
 
             let step_name = self.resolve_step_display_name(step).await;
             self.log_step_debug("enter", step, &step_name, None);
+            #[cfg(feature = "testkit")]
+            if let Some(test_hooks) = self.test_hooks.as_ref() {
+                test_hooks.record_step("enter", step, None, None).await;
+            }
             let frame = self.enter_step(step).await;
             let result = self.execute_step_inner(step).await;
             self.leave_step(frame).await;
@@ -384,6 +400,26 @@ impl ScriptExecutor {
                 ),
                 Err(error) => {
                     self.log_step_debug("error", step, &step_name, Some(&error.to_string()))
+                }
+            }
+            #[cfg(feature = "testkit")]
+            if let Some(test_hooks) = self.test_hooks.as_ref() {
+                match &result {
+                    Ok(flow) => {
+                        test_hooks
+                            .record_step(
+                                "leave",
+                                step,
+                                Some(Self::describe_control_flow(flow)),
+                                None,
+                            )
+                            .await
+                    }
+                    Err(error) => {
+                        test_hooks
+                            .record_step("leave", step, None, Some(&error.to_string()))
+                            .await
+                    }
                 }
             }
             result

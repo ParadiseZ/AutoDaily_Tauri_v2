@@ -1,6 +1,9 @@
 <template>
   <div class="space-y-4">
-    <div class="grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2">
+    <div
+      class="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_44px] items-center gap-2 bg-(--app-panel) pb-1"
+      data-testid="editor-input-toolbar"
+    >
       <input v-model="search" class="app-input" type="search" placeholder="按名称 / 键 / 备注搜索变量" />
       <button class="app-button app-button-primary app-toolbar-button justify-center" type="button" title="添加变量" aria-label="添加变量" data-testid="editor-input-add" @click="$emit('add')">
         <Plus class="h-4 w-4" />

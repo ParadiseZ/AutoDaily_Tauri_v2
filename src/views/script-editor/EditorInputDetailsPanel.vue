@@ -2,6 +2,7 @@
   <EditorOverviewPanel>
     <EditorOverviewSection
       v-if="selectedInputEntry"
+      :key="`${selectedInputEntry.id}:${selectedInputEntry.type}`"
       title="变量详情"
       heading-tag="h1"
       width="wide"
@@ -75,7 +76,7 @@
             :value="selectedInputEntry.stringValue"
             class="app-input"
             :type="selectedInputEntry.type === 'string' ? 'text' : 'number'"
-            :data-testid="selectedInputIndex === 0 ? 'editor-input-value-0' : undefined"
+            :data-testid="`editor-input-value-${selectedInputIndex}`"
             @input="$emit('update-input', selectedInputEntry.id, 'stringValue', ($event.target as HTMLInputElement).value)"
           />
         </EditorOverviewField>

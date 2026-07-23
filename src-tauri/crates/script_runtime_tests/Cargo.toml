@@ -9,8 +9,7 @@ child_runner = { path = "../child_runner", features = ["testkit"] }
 chrono = { workspace = true }
 domain_device = { package = "domain-device", path = "../domain_device" }
 domain_script = { package = "domain-script", path = "../domain_script" }
-domain_vision = { package = "domain-vision", path = "../domain_vision" }
-image = { workspace = true }
+infra_sqlite = { package = "infra-sqlite", path = "../infra_sqlite" }
 runner_protocol = { package = "runner-protocol", path = "../runner_protocol" }
 serde = { workspace = true }
 serde_json = { workspace = true }

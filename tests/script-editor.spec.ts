@@ -307,6 +307,73 @@ test('edits script tasks with visual task editor and persists payload', async ({
   await expect(page.getByTestId('editor-step-card-1')).toBeVisible();
 });
 
+test('keeps text variable defaults when switching variables and pins the variable toolbar', async ({ page }) => {
+  const scriptId = 'script-editor-text-variable-switch';
+  const variables = Array.from({ length: 20 }, (_, index) => ({
+    id: `input-switch-${index}`,
+    key: `input.switchValue${index}`,
+    name: index === 0 ? '文本变量' : `数字变量 ${index}`,
+    namespace: 'input' as const,
+    valueType: index === 0 ? 'string' as const : 'int' as const,
+    ownerTaskId: null,
+    sourceType: 'manual' as const,
+    sourceStepId: null,
+    readable: true,
+    writable: true,
+    persisted: true,
+    uiBindable: true,
+    defaultValue: index === 0 ? '' : index,
+    description: '',
+  }));
+  const script: StoredScriptTable = {
+    id: scriptId,
+    data: {
+      name: '文本变量切换脚本',
+      description: '验证文本默认值切换变量后仍保留',
+      userId: 'tester',
+      userName: 'Tester',
+      runtimeType: 'rhai',
+      sponsorshipQr: null,
+      sponsorshipUrl: null,
+      contactInfo: null,
+      imgDetModel: null,
+      txtDetModel: null,
+      txtRecModel: null,
+      createTime: '2026-03-26T08:00:00.000Z',
+      updateTime: '2026-03-26T08:00:00.000Z',
+      verName: '1.0.0',
+      verNum: 1,
+      latestVer: 1,
+      downloadCount: 0,
+      scriptType: 'dev',
+      isValid: true,
+      allowClone: true,
+      variableCatalog: { version: 1, variables },
+      cloudId: null,
+    },
+  };
+
+  await seedEditorState(page, script);
+  await page.getByTestId('editor-tab-inputs').click();
+  await page.getByTestId('editor-input-item-0').click();
+  await page.getByTestId('editor-input-value-0').fill('第一个');
+  await page.getByTestId('editor-input-item-1').click();
+  await expect(page.getByTestId('editor-input-value-1')).toHaveValue('1');
+  await page.getByTestId('editor-input-item-0').click();
+  await expect(page.getByTestId('editor-input-value-0')).toHaveValue('第一个');
+
+  const toolbar = page.getByTestId('editor-input-toolbar');
+  const toolbarTop = await toolbar.evaluate((element) => element.getBoundingClientRect().top);
+  const scrolled = await toolbar.evaluate((element) => {
+    const scrollRoot = element.closest('.custom-scrollbar') as HTMLElement | null;
+    if (!scrollRoot) return false;
+    scrollRoot.scrollTop = scrollRoot.scrollHeight;
+    return scrollRoot.scrollTop > 0;
+  });
+  expect(scrolled).toBe(true);
+  await expect.poll(() => toolbar.evaluate((element) => element.getBoundingClientRect().top)).toBeCloseTo(toolbarTop, 0);
+});
+
 test('edits JSON point values through dedicated task UI controls', async ({ page }) => {
   const scriptId = 'script-editor-point-ui';
   const script: StoredScriptTable = {

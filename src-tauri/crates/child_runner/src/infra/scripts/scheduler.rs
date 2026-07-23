@@ -1,7 +1,7 @@
 // 脚本调度器
 // 管理子进程中的脚本执行队列，按顺序执行脚本
 
-use crate::infra::context::runtime_context::get_runtime_ctx;
+use crate::infra::context::{TaskState, runtime_context::get_runtime_ctx};
 use crate::infra::ipc::runtime_reporter::{
     emit_dispatch_event, emit_progress_event, emit_schedule_event,
 };
@@ -400,16 +400,7 @@ impl ScriptScheduler {
                 String::new()
             }
         };
-        #[cfg(feature = "testkit")]
-        let should_configure_visual_services = self
-            .test_hooks
-            .as_ref()
-            .is_none_or(|test_hooks| test_hooks.uses_real_vision());
-        #[cfg(not(feature = "testkit"))]
-        let should_configure_visual_services = true;
-        if should_configure_visual_services {
-            Self::configure_visual_services(&runtime_ctx, &script_info).await?;
-        }
+        Self::configure_visual_services(&runtime_ctx, &script_info).await?;
         let run_target = Self::current_run_target();
         let execution_plan =
             ExecutionPlanAssembler::assemble(&run_target, device_id, &queue_item, &bundle.tasks)
@@ -435,6 +426,17 @@ impl ScriptScheduler {
             ctx.execution.template_values_json = queue_item.template_values_json.clone();
             ctx.execution.policy_states.clear();
             ctx.execution.task_states.clear();
+            ctx.execution
+                .task_states
+                .extend(bundle.tasks.iter().map(|task| {
+                    (
+                        task.id,
+                        TaskState {
+                            enabled_flag: task.default_enabled,
+                            ..TaskState::default()
+                        },
+                    )
+                }));
             ctx.execution.action_states.clear();
             ctx.execution.policy_set_bindings.clear();
             ctx.execution.policy_group_bindings.clear();

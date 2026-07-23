@@ -3,27 +3,6 @@ impl ScriptExecutor {
         &self,
         image: Arc<RgbaImage>,
     ) -> ExecuteResult<(Vec<DetResult>, Vec<OcrResult>, VisionSnapshot)> {
-        #[cfg(feature = "testkit")]
-        if let Some(test_hooks) = self.test_hooks.as_ref() {
-            let grid_size = self
-                .runtime_ctx
-                .read()
-                .await
-                .observation
-                .vision_signature_grid_size;
-            if let Some(snapshot) = test_hooks
-                .take_capture_snapshot(grid_size)
-                .await
-                .map_err(|error| Self::execute_error("action.capture", error))?
-            {
-                return Ok((
-                    snapshot.det_items.clone(),
-                    snapshot.ocr_items.clone(),
-                    snapshot,
-                ));
-            }
-        }
-
         let (grid_size, has_img_det_model, has_txt_det_model, has_txt_rec_model) = {
             let ctx = self.runtime_ctx.read().await;
             let Some(script_info) = ctx.execution.script_info.as_ref() else {
@@ -238,13 +217,6 @@ impl ScriptExecutor {
         step_type: &str,
         image: Arc<RgbaImage>,
     ) -> ExecuteResult<Vec<DetResult>> {
-        #[cfg(feature = "testkit")]
-        if let Some(test_hooks) = self.test_hooks.as_ref()
-            && let Some(results) = test_hooks.take_detect_results().await
-        {
-            return Ok(results);
-        }
-
         let service = {
             let ctx = self.runtime_ctx.read().await;
             let Some(script_info) = ctx.execution.script_info.as_ref() else {
@@ -306,13 +278,6 @@ impl ScriptExecutor {
         step_type: &str,
         image: Arc<RgbaImage>,
     ) -> ExecuteResult<(Vec<DetResult>, Vec<OcrResult>)> {
-        #[cfg(feature = "testkit")]
-        if let Some(test_hooks) = self.test_hooks.as_ref()
-            && let Some(results) = test_hooks.take_ocr_results().await
-        {
-            return Ok(results);
-        }
-
         let (service, use_cache, rec_model_signature, cached_ocr_results) = {
             let ctx = self.runtime_ctx.read().await;
             let Some(script_info) = ctx.execution.script_info.as_ref() else {
@@ -687,14 +652,6 @@ impl ScriptExecutor {
     }
 
     async fn capture_device_screenshot(&self, step_type: &str) -> ExecuteResult<RgbaImage> {
-        #[cfg(feature = "testkit")]
-        if let Some(test_hooks) = self.test_hooks.as_ref() {
-            return test_hooks
-                .take_screenshot()
-                .await
-                .map_err(|error| Self::execute_error(step_type, error));
-        }
-
         let timeout_ms = self.resolve_capture_timeout_ms().await;
         Self::await_device_result_with_timeout(
             step_type,
@@ -706,11 +663,6 @@ impl ScriptExecutor {
     }
 
     async fn resolve_capture_timeout_ms(&self) -> u64 {
-        #[cfg(feature = "testkit")]
-        if self.test_hooks.is_some() {
-            return DEVICE_EXTERNAL_TIMEOUT_MS;
-        }
-
         let device_ctx = get_device_ctx();
         let device_config = device_ctx.device_config.read().await;
         match &device_config.cap_method {

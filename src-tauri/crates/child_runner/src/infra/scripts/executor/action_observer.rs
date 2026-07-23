@@ -210,6 +210,12 @@ impl ScriptExecutor {
             }
         }
 
+        #[cfg(feature = "testkit")]
+        if let Some(test_hooks) = self.test_hooks.as_ref() {
+            test_hooks
+                .record_operation(&domain_device::DeviceOperation::Delay(ms), None)
+                .await;
+        }
         Ok(None)
     }
 

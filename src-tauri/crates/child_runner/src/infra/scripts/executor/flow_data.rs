@@ -72,6 +72,10 @@ impl ScriptExecutor {
                         .unwrap_or_else(|| format!("<变量 {} 未定义>", value)),
                 };
                 let message = format!("[ script ] {}", output);
+                #[cfg(feature = "testkit")]
+                if let Some(test_hooks) = self.test_hooks.as_ref() {
+                    test_hooks.record_print(level, output.clone()).await;
+                }
                 match level {
                     LogLevel::Debug => Log::debug(&message),
                     LogLevel::Info => Log::info(&message),

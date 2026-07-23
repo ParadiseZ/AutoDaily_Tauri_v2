@@ -1,20 +1,30 @@
-use script_runtime_tests::runner::run_config_path;
+use script_runtime_tests::runner::{RunMode, run_config_path};
 use std::path::PathBuf;
 
 #[tokio::main]
 async fn main() {
-    let paths = std::env::args_os()
-        .skip(1)
-        .map(PathBuf::from)
-        .collect::<Vec<_>>();
+    let mut args = std::env::args_os().skip(1);
+    let mode = match args.next().and_then(|value| value.into_string().ok()) {
+        Some(value) if value.eq_ignore_ascii_case("record") => RunMode::Record,
+        Some(value) if value.eq_ignore_ascii_case("verify") => RunMode::Verify,
+        _ => {
+            eprintln!(
+                "用法: cargo run -p script-runtime-tests -- <record|verify> <config.json> [more.json]"
+            );
+            std::process::exit(2);
+        }
+    };
+    let paths = args.map(PathBuf::from).collect::<Vec<_>>();
     if paths.is_empty() {
-        eprintln!("用法: cargo run -p script-runtime-tests -- <config.json> [more.json]");
+        eprintln!(
+            "用法: cargo run -p script-runtime-tests -- <record|verify> <config.json> [more.json]"
+        );
         std::process::exit(2);
     }
 
     let mut passed = true;
     for path in paths {
-        match run_config_path(&path).await {
+        match run_config_path(&path, mode).await {
             Ok(report) => {
                 passed &= report.passed;
                 println!(

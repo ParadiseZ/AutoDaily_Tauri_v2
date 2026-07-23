@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "name": "能力测试",
+  "scriptId": "019f7ebc-42f5-74d2-8c6d-2087f9e89348",
+  "baselineDir": "baselines",
+  "requiredCapabilities": [
+    "sequence",
+    "action.capture",
+    "action.click",
+    "action.swipe",
+    "action.longClick",
+    "action.reboot",
+    "action.back",
+    "action.home",
+    "action.inputText",
+    "action.posAdd",
+    "action.posMinus",
+    "action.dropSetNext",
+    "action.launchApp",
+    "action.stopApp",
+    "dataHanding.setVar",
+    "dataHanding.clearVars",
+    "dataHanding.getVar",
+    "dataHanding.print",
+    "dataHanding.filter",
+    "dataHanding.colorCompare",
+    "dataHanding.relativeFilter",
+    "dataHanding.rhai",
+    "flowControl.if",
+    "flowControl.while",
+    "flowControl.forEach",
+    "flowControl.repeat",
+    "flowControl.continue",
+    "flowControl.break",
+    "flowControl.stopScript",
+    "flowControl.waitMs",
+    "flowControl.link",
+    "flowControl.addPolicies",
+    "flowControl.removePolicies",
+    "flowControl.bindPolicyGroup",
+    "flowControl.removePolicyGroup",
+    "flowControl.addPolicyGroups",
+    "flowControl.unloadPolicyGroup",
+    "flowControl.bindPolicy",
+    "flowControl.unloadPolicy",
+    "flowControl.searchPolicySetText",
+    "flowControl.handlePolicySet",
+    "flowControl.handlePolicy",
+    "taskControl.setState",
+    "vision.detect",
+    "vision.ocr",
+    "vision.countCompare",
+    "vision.visionSearch"
+  ],
+  "scenarios": [
+    {
+      "name": "返回与固定等待",
+      "taskId": "019f7ebf-cc6d-7330-8ac2-7a0dfb0a614f"
+    },
+    {
+      "name": "停止并启动应用",
+      "taskId": "019f7ec1-174c-7600-9e1d-02ae3dd4e6de"
+    },
+    {
+      "name": "OCR 未命中",
+      "taskId": "019f7ee4-fd4c-7f03-a3a8-96ce1aa473f5"
+    },
+    {
+      "name": "OCR 命中",
+      "taskId": "019f7ed3-10ed-7c70-89ed-03ae76064a20"
+    },
+    {
+      "name": "完整流程"
+    }
+  ]
+}
